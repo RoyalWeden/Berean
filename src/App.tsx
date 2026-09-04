@@ -7,6 +7,7 @@ import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
 import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import StudyTrailArrivalPrompt from '@/components/studyTrail/StudyTrailArrivalPrompt'
+import StudyTrailSplitToast from '@/components/studyTrail/StudyTrailSplitToast'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
@@ -1127,6 +1128,7 @@ export default function App() {
       <LazyOnce when={tasksVisible}><TasksPanel /></LazyOnce>
       <LazyOnce when={aiLookupPanelOpen}><AiLookupPanel /></LazyOnce>
       <StudyTrailArrivalPrompt />
+      <StudyTrailSplitToast />
       <VerseSelectionBar />
       <TagManagerPanel />
     </div>

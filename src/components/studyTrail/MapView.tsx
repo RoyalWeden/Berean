@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
-import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
+import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
@@ -9,9 +9,17 @@ import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailR
 import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
-import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
+import TrailConnectorOverlay, { useTrailConnectorPoints, type TrailEdge } from './TrailConnectorOverlay'
+import {
+  buildTrailGraph, groupForRender, groupNodesForRender, flattenChain,
+  renderAsBranch, hasUserVerseTies, hasNote, showNoteBubble, isLowSignalOrigin,
+  TIER_COLOR, INDENT_STEP, OFFSPINE_DOT_INSET, SPINE_DOT_INSET, SPINE_LABEL_COL_INSET,
+  type AnnotatedConn,
+} from './trailGraph'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
+import { useTrailCollapse } from './useTrailCollapse'
+import { TrailSectionHeader, TrailAnnotation } from './TrailStickyNote'
 
 // Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
 // in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
@@ -19,6 +27,38 @@ import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWi
 // is up. Per direct feedback: "when i click the edit button, the hover thing should go away and
 // shouldnt show until i close out of the whyd you jump here thing."
 const HoverDisabledContext = createContext(false)
+
+// Interaction model for the whole spine, shared by context rather than prop-drilled through
+// NodeClusterGroup / GlanceGroupRow / every nested ConnRow. Per direct feedback the three
+// gestures are deliberately distinct, because a stray click must never jump the main window:
+//   • click the ROW AREA      → expand/collapse that stop's branches
+//   • Cmd/Ctrl+click a LABEL  → navigate the main window (see trailNav.ts)
+//   • click the exact BULLET  → pin it: its causal chain stays pronounced and everything else
+//                               dims, until it's clicked again or Escape is pressed
+interface TrailInteraction {
+  isCollapsed: (scope: 'branch' | 'section', key: string) => boolean
+  toggleCollapsed: (scope: 'branch' | 'section', key: string) => void
+  pinnedKey: string | null
+  togglePinned: (key: string) => void
+  /** Local units available to the content column — indentation is budgeted against this so a
+   *  deeply-nested chain stops indenting rather than forcing a horizontal scrollbar. */
+  contentWidth: number
+}
+const TrailInteractionContext = createContext<TrailInteraction>({
+  isCollapsed: () => false, toggleCollapsed: () => {}, pinnedKey: null, togglePinned: () => {}, contentWidth: 0,
+})
+
+// Indentation is capped at a fraction of the available width, then stops growing entirely. Per
+// direct feedback: "multiple levels of indents is fine and such" but "i dont want to have to
+// horizontally scroll at all." Past the budget a row keeps its depth badge (see ConnRow) instead
+// of another 22px step, so a runaway 12-hop word-study chain stays on screen.
+const INDENT_BUDGET_FRACTION = 0.4
+function budgetedIndent(depth: number, contentWidth: number): { indent: number; overBudget: boolean } {
+  const raw = INDENT_STEP * depth
+  const budget = contentWidth > 0 ? contentWidth * INDENT_BUDGET_FRACTION : Infinity
+  if (raw <= budget) return { indent: raw, overBudget: false }
+  return { indent: Math.max(INDENT_STEP, Math.floor(budget / INDENT_STEP) * INDENT_STEP), overBudget: true }
+}
 
 // The Map: a time-ordered vertical spine of chapter-anchor nodes, each with its off-spine
 // connections listed underneath it, all physically connected by a measured SVG overlay
@@ -40,39 +80,7 @@ const HoverDisabledContext = createContext(false)
 // Legend: solid = main path, dashed = tangent/soft, thick = revisited, diamond = lexicon/word
 // stop, square = chapter stop, ↺ = round trip back to an earlier stop.
 
-const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
 
-// ── Indent geometry (shared) ────────────────────────────────────────────────
-// ConnRow / TangentBullet marginLeft = INDENT_STEP * (depth + 1). The dot-center insets are
-// measured from each row's own left edge: an off-spine bullet is a 7px dot as the first child
-// of a `gap:8` flex row (center ≈ 3.5); a spine node dot is 9px centered in a 12px column
-// (center = 6). The faint indent guide lines below use these so a line lands exactly under
-// each bullet column at every zoom (all of it lives inside the same `scale(zoom)` wrapper).
-const INDENT_STEP = 22
-const OFFSPINE_DOT_INSET = 3.5
-const SPINE_DOT_INSET = 6
-// A node's sub-bullets (ConnRow) don't hang off the block's own left edge — they render
-// INSIDE the spine row's label column, which starts after the 12px dot column + the spine
-// row's own `gap: 3`. So a ConnRow at depth d actually sits at
-// `gutterWidth + SPINE_LABEL_COL_INSET + INDENT_STEP*(d+1) + OFFSPINE_DOT_INSET` from the
-// content's left edge. The guide lines (and a branch node's TangentBullet indent, which is
-// otherwise measured from the block's own edge) add this same offset so every off-spine
-// bullet at a given depth shares one x and the guide line lands on all of them.
-const SPINE_LABEL_COL_INSET = 15
-
-// ── Branch / note predicates (shared) ──────────────────────────────────────
-/** The connection's own free-text note (NOT its verse ties) is non-empty. */
-const hasNote = (c?: TrailConnection | null): boolean => !!c?.userNote?.trim()
-/** The user hand-entered at least one to/from verse tie on this connection. */
-const hasUserVerseTies = (c: TrailConnection): boolean => c.tiesFrom.length > 0 || c.tiesTo.length > 0
-/** Render this connection with the full branch treatment (origin/destination tangent bullets +
- *  the 3-segment edge into the arrival node) — either it's a recorded branch, or the user
- *  hand-entered verse ties, which should be shown that way rather than buried in a hover note. */
-const renderAsBranch = (c: TrailConnection): boolean => c.isBranch || hasUserVerseTies(c)
-/** Whether the hover "your note" bubble has anything to show for a connection: its own note
- *  always, plus its verse ties ONLY when they aren't already drawn as a branch stub. */
-const showNoteBubble = (c?: TrailConnection | null): boolean =>
-  !!c && (hasNote(c) || (!renderAsBranch(c) && hasUserVerseTies(c)))
 
 /** Parse a free-text tie string ("Mark 13:1-5") into a clickable chapter ref, or null. */
 function tieToRef(s?: string): TrailRef | null {
@@ -176,21 +184,6 @@ function GapDivider({ gapMs, minWidth, gutterWidth = 0 }: { gapMs: number; minWi
 // onward and switching between already-open tabs are normal navigation flow, not really an
 // "origin story" worth taking up permanent visual space for. The full text is still always in
 // the hover card (TrailNodeHoverContent) regardless.
-const LOW_SIGNAL_ORIGIN_TAGS = new Set(['tab-switch', 'reading'])
-export function isLowSignalOrigin(conn: TrailConnection): boolean {
-  return conn.reasonTags.some((t) => LOW_SIGNAL_ORIGIN_TAGS.has(t))
-}
-
-// Whether an origin is confident enough to state OUTRIGHT (always-visible line, and — for a
-// forward connection — its own distinct traced branch line) rather than just being available
-// on hover. Tier 1 ("clear") origins are things Berean can name with certainty — a Strong's
-// occurrence click, an AI Lookup suggestion, a TSKe/Classic cross-ref. A search result is only
-// tier 2 ("soft") on purpose: clicking a search hit doesn't necessarily mean THAT specific
-// search caused the study direction the way clicking a specific word lookup does — it's
-// available in the hover card same as everything else, just not asserted as fact inline.
-function isConfidentOrigin(conn: TrailConnection): boolean {
-  return conn.clarityTier === 1 && !isLowSignalOrigin(conn)
-}
 
 // REMOVED (was OriginBadgeLine, the always-visible "via X" line above a node) — round-tripped
 // through tier-1-only, then tier-2/3-with-hedge, then back to tier-1-only, and per this round's
@@ -200,40 +193,7 @@ function isConfidentOrigin(conn: TrailConnection): boolean {
 // every tier still lives in the hover card (TrailHoverContent.tsx's OriginLine) — this was a
 // deliberate simplification to keep the always-visible area clean, not an oversight.
 
-type AnnotatedConn = TrailConnection & {
-  isReturn?: boolean
-  /** A forward chapter-connection (destination IS the literal next spine node) whose origin
-   *  is specific enough to trace — gets its own row + direct line to that next node, in
-   *  addition to (not instead of) the plain spine arrow every chapter gets. */
-  isForwardBranch?: boolean
-  /** A cross-ref click that landed on a DIFFERENT verse in the SAME chapter the user is
-   *  already anchored on — the destination "node" is literally the node this row lives under.
-   *  Not a return (nothing was left and come back to) and not a forward branch (no new node),
-   *  just a same-chapter cross-ref worth tracing on its own row. See the sameChapter branch in
-   *  studyTrailSlice.ts's recorder for how this connection gets created. */
-  isSameChapterBranch?: boolean
-  /** Branch chaining (v31) — hangs off ANOTHER connection (fromConnectionId set), not directly
-   *  off its chapter node; renders nested under its parent row instead of as a sibling. */
-  isChainedBranch?: boolean
-  /** At least one other connection is chained off THIS one — needs to render its own nested
-   *  sub-shelf beneath it. */
-  hasChainChildren?: boolean
-}
 
-// Walks a chain's FULL descendant tree (however deep the underlying chain_depth actually goes)
-// into one flat, chronologically-ordered list. Replaces an earlier per-level recursive-nesting
-// design — per direct feedback ("one indent for the whole chain, then flat... this can just be
-// straight down") a chain reads as one branch off its chapter, not a staircase of indents per
-// hop. Also used for the "chain" badge stat (maxDepth/span) so both concerns share one walk.
-function flattenChain(connId: string, rowsForConnection: Map<string, AnnotatedConn[]> | undefined): AnnotatedConn[] {
-  const kids = rowsForConnection?.get(connId) ?? []
-  const out: AnnotatedConn[] = []
-  for (const k of kids) {
-    out.push(k)
-    out.push(...flattenChain(k.id, rowsForConnection))
-  }
-  return out.sort((a, b) => a.createdAt - b.createdAt)
-}
 
 // The connection's OWN user-written note, as its own separate floating bubble (see
 // TrailHoverCard's secondaryContent) — never merged into the auto-detected-facts hover card.
@@ -417,11 +377,12 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
     ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare'
       ? `compare · ${bookChapterVerseLabel(conn.toBookId ?? '', conn.toChapter ?? 0)}`
-      : conn.toKind === 'note'
-        ? 'note'
-        : conn.toKind === 'video'
-          ? 'video'
-          : conn.isSameChapterBranch
+      : conn.toKind === 'note' || conn.toKind === 'video' || conn.toKind === 'pdf' || conn.toKind === 'search'
+        // Side stops (a note, a video, a PDF, a search — see recordSideStop) carry what they
+        // actually were in reasonText; falling back to the bare kind only when that's missing,
+        // which is the case for the handful of pre-existing rows written before it was set.
+        ? (conn.reasonText?.trim() || conn.toKind)
+        : conn.isSameChapterBranch
             ? `v.${conn.toVerse ?? '?'}${conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `–${conn.toVerseEnd}` : ''}`
             : chapterDestLabel
   // "back to step N" text was tried and explicitly rejected ("i dont like the text 'back to
@@ -437,7 +398,8 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   // sibling hanging directly off the anchor, 1+ = nested that many levels deeper) maps directly
   // to render depth (+1, since even a depth-0/sibling tangent is one indent step in from its
   // main bullet). No cap, per direct feedback — nest as deep as it actually goes.
-  const indent = INDENT_STEP * (conn.chainDepth + 1)
+  const { isCollapsed, toggleCollapsed, pinnedKey, togglePinned, contentWidth } = useContext(TrailInteractionContext)
+  const { indent, overBudget } = budgetedIndent(conn.chainDepth + 1, contentWidth)
 
   // DIRECT children only, each rendered as its own recursive <ConnRow> — no more flattening to
   // one shared indent level. Per the confirmed branch model, each further hop nests one visual
@@ -453,29 +415,53 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
     (fullChain[fullChain.length - 1].createdAt - conn.createdAt) >= BRANCH_PROMOTE_DWELL_MS
   )
   const hasNested = childItems.length > 0
+  const collapsed = hasNested && isCollapsed('branch', conn.id)
+  // Count of what's hidden, so a folded branch still says how much it stands for rather than
+  // just vanishing.
+  const hiddenCount = collapsed ? (fullChain.length || directChildren.length) : 0
 
   const hoverDisabled = useContext(HoverDisabledContext)
-  const hoverDimmed = !!hoverChain && !hoverChain.has(`row:${conn.id}`)
+  const rowKey = `row:${conn.id}`
+  const pinned = pinnedKey === rowKey
+  const hoverDimmed = !!hoverChain && !hoverChain.has(rowKey)
   return (
-    <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms' }}>
+    <div onMouseEnter={() => onHoverKey?.(rowKey)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms' }}>
     <TrailHoverCard
       disabled={hoverDisabled}
       content={<TrailConnectionHoverContent conn={conn} onEditNote={() => onOpenPrompt(conn)} />}
       secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn} onEdit={() => onOpenPrompt(conn)} /> : undefined}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
+      <div
+        onClick={hasNested ? () => toggleCollapsed('branch', conn.id) : undefined}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent,
+          cursor: hasNested ? 'pointer' : 'default',
+        }}
+      >
+        {/* Clicking the bullet ITSELF pins this stop instead of folding it — the two gestures sit
+            millimetres apart on purpose (bullet = "show me what led here", row = "fold this
+            away"), so the bullet stops the click from reaching the row's own handler. */}
         <span
-          ref={registerPoint(`row:${conn.id}`)}
+          ref={registerPoint(rowKey)}
+          onClick={(e) => { e.stopPropagation(); togglePinned(rowKey) }}
+          title="Highlight what led here"
           style={{
-            width: 7, height: 7, flexShrink: 0,
+            width: 7, height: 7, flexShrink: 0, cursor: 'pointer',
             borderRadius: isLexicon ? 1 : '50%',
             transform: isLexicon ? 'rotate(45deg)' : undefined,
             background: TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))',
             opacity: conn.weight === 'glance' ? 0.5 : 1,
+            boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
           }}
         />
+        {hasNested && (
+          <span style={{
+            fontSize: 9, color: 'rgb(var(--color-text-muted))', flexShrink: 0, width: 7,
+            transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms',
+          }}>▾</span>
+        )}
         <span
-          onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
+          onClick={ref ? (e) => { trailRefClick(ref, e) } : undefined}
           onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e, undefined, () => window.studyTrail.deleteConnection(conn.id), undefined, {
             active: conn.isBranch,
             onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
@@ -494,6 +480,20 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, marginLeft: 3, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
           )}
         </span>
+        {/* Past the indent budget the row stops stepping right and says its depth in words
+            instead — the alternative is a horizontal scrollbar, which is explicitly out. */}
+        {overBudget && (
+          <span
+            title={`${conn.chainDepth + 1} levels deep`}
+            style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))', opacity: 0.8, flexShrink: 0 }}
+          >↳{conn.chainDepth + 1}</span>
+        )}
+        {collapsed && hiddenCount > 0 && (
+          <span style={{
+            fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
+            borderRadius: 999, padding: '1px 6px', flexShrink: 0,
+          }}>{hiddenCount} more</span>
+        )}
         {isPromotedChain && (
           <span
             title={`A ${fullChain.length + 1}-hop word-study chain`}
@@ -533,7 +533,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             not duplicated as a second always-visible affordance on the row itself. */}
       </div>
     </TrailHoverCard>
-    {hasNested && (
+    {hasNested && !collapsed && (
       // Each DIRECT child recurses through ConnRow again, so its own `indent` (chainDepth+1)
       // naturally nests one level deeper than this row — per the confirmed model, a real
       // call-stack shape, not a flat sibling list under the chain's root.
@@ -574,53 +574,6 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
       </button>
     </div>
   )
-}
-
-type RenderItem = { type: 'single'; item: AnnotatedConn } | { type: 'glanceGroup'; key: string; items: AnnotatedConn[] }
-
-function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
-  const out: RenderItem[] = []
-  const consumedClusters = new Set<string>()
-  for (const c of conns) {
-    if (c.weight === 'glance' && c.clusterId) {
-      if (consumedClusters.has(c.clusterId)) continue
-      const group = conns.filter((x) => x.clusterId === c.clusterId && x.weight === 'glance')
-      if (group.length >= 2) {
-        consumedClusters.add(c.clusterId)
-        out.push({ type: 'glanceGroup', key: `grp:${c.clusterId}`, items: group })
-        continue
-      }
-    }
-    out.push({ type: 'single', item: c })
-  }
-  return out
-}
-
-// Revisit promotion is unconditional now (see studyTrailSlice.ts) — a rapid back-and-forth
-// between chapters produces a real run of promoted nodes, which would otherwise look like N
-// separate full spine entries for what was really one quick flurry of checking. Collapses a
-// CONSECUTIVE run (in spine order) of nodes sharing the same non-null clusterId into one
-// compact summary, mirroring GlanceGroupRow's collapse/expand pattern one level up.
-type NodeRenderItem = { type: 'single'; node: TrailNode; index: number } | { type: 'cluster'; nodes: TrailNode[]; startIndex: number }
-
-function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
-  const out: NodeRenderItem[] = []
-  let i = 0
-  while (i < nodes.length) {
-    const n = nodes[i]
-    if (n.clusterId) {
-      let j = i + 1
-      while (j < nodes.length && nodes[j].clusterId === n.clusterId) j++
-      if (j - i >= 2) {
-        out.push({ type: 'cluster', nodes: nodes.slice(i, j), startIndex: i })
-        i = j
-        continue
-      }
-    }
-    out.push({ type: 'single', node: n, index: i })
-    i++
-  }
-  return out
 }
 
 function NodeClusterGroup({
@@ -702,7 +655,7 @@ function NodeClusterGroup({
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, onSplitHere, onAddSticky, bounceBadge,
   isBranchNode, branchDepth, originVerseLabel, originVerseRef, destVerseLabel, destVerseRef, hoverChain, revisitAllowed = true, selected,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
@@ -710,7 +663,7 @@ function NodeBlock({
   selected?: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; nodeActions?: { onSplitHere?: () => void; onAddSection?: () => void; onAddNote?: () => void }; x: number; y: number }) => void
   originConn?: TrailConnection
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   boundaryLabel?: string
@@ -721,6 +674,12 @@ function NodeBlock({
   /** Right-click toggle for marking/unmarking this node as a topic break (a divider on the
    *  main spine) — the direct, popup-free way to add one, per direct feedback. */
   onToggleTopicBreak?: (nodeId: string, current: boolean) => void
+  /** Right-click "Start a new session here" — everything from this stop onward moves into a new
+   *  session. Absent in the merged Everything view, where "after this stop" spans sessions and
+   *  the operation wouldn't mean anything coherent. */
+  onSplitHere?: (nodeId: string) => void
+  /** Places a v39 sticky (a section header, or a free annotation) at this stop. */
+  onAddSticky?: (nodeId: string, kind: 'section' | 'annotation') => void
   /** A collapsed cluster's summary badge, rendered inline in this node's header instead of a
    *  separate row — see NodeClusterGroup. */
   bounceBadge?: { count: number; spanMs: number; onExpand: () => void }
@@ -793,7 +752,31 @@ function NodeBlock({
   // spine row's label column). Matching that offset keeps every off-spine bullet at a given
   // depth on one x — and on the same faint guide line.
   const tangentIndent = isBranchNode ? SPINE_LABEL_COL_INSET + INDENT_STEP * ((branchDepth ?? 0) + 1) : 0
-  const hoverDimmed = !!hoverChain && !hoverChain.has(`node:${node.id}`)
+  const { isCollapsed, toggleCollapsed, pinnedKey, togglePinned } = useContext(TrailInteractionContext)
+  const nodeKey = `node:${node.id}`
+  const pinned = pinnedKey === nodeKey
+  const hasRows = items.length > 0
+  // A node's own branch shelf folds under the same persisted scope as a ConnRow's — keyed by the
+  // node id so the two can never collide with a connection id.
+  const rowsCollapsed = hasRows && isCollapsed('branch', nodeKey)
+
+  // ── Pace ────────────────────────────────────────────────────────────────
+  // Per direct feedback ("i want the thinking path to be clear and clearly show what was
+  // happening while i was studying... sometimes we study fast or slow and stuff"), dwell is shown
+  // TWICE, because Michael asked for "a combination of bar and changing row height":
+  //   • a weight/height bar in the dot column, so a skim and a long sit are distinguishable at a
+  //     glance without reading any numbers, and
+  //   • a modest, hard-clamped increase in the row's own bottom padding, so the spine's vertical
+  //     rhythm IS the pace of the study.
+  // Both are sqrt-scaled and capped: linear scaling would let one 40-minute stop dwarf an entire
+  // afternoon of shorter ones and push everything else off screen.
+  const dwellMs = Math.max(0, (node.anchorEndedAt ?? node.anchorStartedAt) - node.anchorStartedAt)
+  const dwellUnit = Math.min(1, Math.sqrt(dwellMs / (20 * 60_000)))
+  const dwellBarHeight = Math.round(4 + dwellUnit * 26)
+  const dwellExtraPad = Math.round(dwellUnit * 18)
+  const dwellLabel = dwellMs >= 30_000 ? formatGap(dwellMs) : null
+
+  const hoverDimmed = !!hoverChain && !hoverChain.has(nodeKey)
   return (
     // Left gutter — per the plan's "revisit arcs move to a left gutter": the WHOLE block (its
     // tangent bullets included, not just this node's own row) shifts right by gutterWidth,
@@ -906,12 +889,27 @@ function NodeBlock({
             marked as "seen before" at a glance. See the revisit-link edge built in MapView
             below for the quiet dashed connector back to the original mention. */}
         <div
-          ref={registerPoint(`node:${node.id}`)}
+          ref={registerPoint(nodeKey)}
+          onClick={(e) => { e.stopPropagation(); togglePinned(nodeKey) }}
+          title="Highlight what led here"
           style={{
             width: isRevisit ? 7 : 9, height: isRevisit ? 7 : 9, background: 'rgb(var(--color-accent))',
             borderRadius: 2, marginTop: isRevisit ? 5 : 4, flexShrink: 0, opacity: isRevisit ? 0.7 : 1,
+            cursor: 'pointer', boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
           }}
         />
+        {/* Dwell bar — how long this stop was actually held open. Sits directly under the dot and
+            above the gap connector, so the column reads top-to-bottom as "arrived · stayed this
+            long · then this much time passed". */}
+        {dwellMs > 0 && (
+          <div
+            title={dwellLabel ? `Stayed ${dwellLabel}` : undefined}
+            style={{
+              width: dwellUnit > 0.55 ? 3 : 2, height: dwellBarHeight, marginTop: 2, flexShrink: 0,
+              borderRadius: 999, background: 'rgb(var(--color-accent))', opacity: 0.2 + dwellUnit * 0.5,
+            }}
+          />
+        )}
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
       {/* maxWidth caps how far this stretches — `flex:1` alone lets it grow to match whatever
@@ -920,7 +918,7 @@ function NodeBlock({
           div) far out to the right of THIS row's own short text along with it — which is
           exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
           a wide loop well past nearby text instead of hugging close to the actual content. */}
-      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24, flex: 1, minWidth: 0, maxWidth: 'var(--trail-row-max, 460px)' }}>
+      <div style={{ paddingBottom: ((!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24) + (hasRows ? 0 : dwellExtraPad), flex: 1, minWidth: 0, maxWidth: 'var(--trail-row-max, 460px)' }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and
@@ -934,7 +932,7 @@ function NodeBlock({
           secondaryContent={showNoteBubble(originConn) ? <TrailNoteBubbleContent conn={originConn!} onEdit={() => onOpenPrompt(originConn!)} /> : undefined}
         >
           <div
-            onClick={(e) => trailRefClick(nodeRef, e)}
+            onClick={(e) => { if (!trailRefClick(nodeRef, e) && hasRows) toggleCollapsed('branch', nodeKey) }}
             onContextMenu={(e) => openTrailRefMenu(
               openMenu, nodeRef, e, onJumpToOrigin,
               onDeleteNode ? () => onDeleteNode(node.id) : undefined,
@@ -943,6 +941,11 @@ function NodeBlock({
                 active: originConn.isBranch,
                 onToggle: () => window.studyTrail.updateConnectionReason(originConn.id, { isBranch: !originConn.isBranch }),
               } : undefined,
+              {
+                onSplitHere: onSplitHere ? () => onSplitHere(node.id) : undefined,
+                onAddSection: onAddSticky ? () => onAddSticky(node.id, 'section') : undefined,
+                onAddNote: onAddSticky ? () => onAddSticky(node.id, 'annotation') : undefined,
+              },
             )}
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
@@ -968,7 +971,18 @@ function NodeBlock({
               fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
+            {hasRows && (
+              <span style={{
+                fontSize: 9, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
+                transform: rowsCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms',
+              }}>▾</span>
+            )}
             {bookChapterVerseLabel(node.bookId, node.chapter)}
+            {dwellLabel && (
+              <span style={{ fontSize: 9.5, fontWeight: 400, fontStyle: 'normal', color: 'rgb(var(--color-text-muted))', opacity: 0.75, flexShrink: 0 }}>
+                {dwellLabel}
+              </span>
+            )}
             {hasNote(originConn) && (
               <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
             )}
@@ -999,7 +1013,23 @@ function NodeBlock({
         </TrailHoverCard>
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
-          {items.map((it) => it.type === 'single'
+          {/* Folded away, but never silently: the summary line says how many stops are hidden, so
+              a collapsed stop still reads as "there was more here" rather than as a bare chapter.
+              Clicking it (or the row above) puts them back — and the fold is remembered across
+              restarts, per direct feedback. */}
+          {rowsCollapsed ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', nodeKey) }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, marginLeft: INDENT_STEP,
+                fontSize: 10.5, color: 'rgb(var(--color-text-muted))', background: 'none',
+                border: 'none', padding: '2px 0', cursor: 'pointer',
+              }}
+            >
+              <GitBranch size={10} style={{ opacity: 0.7 }} />
+              {items.length} {items.length === 1 ? 'stop' : 'stops'} hidden
+            </button>
+          ) : items.map((it) => it.type === 'single'
             ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} originBookId={node.bookId} originChapter={node.chapter} hoverChain={hoverChain} />
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
@@ -1028,9 +1058,13 @@ export function pickControlSide(room: { left: number; right: number } | undefine
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
   filterValue, onFilterChange, topInset = 0, onLayoutRoomChange, onCurrentHourChange,
-  scrollKey = EVERYTHING_SCROLL_KEY,
+  scrollKey = EVERYTHING_SCROLL_KEY, onSplitHere,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
+  /** Right-click a stop → "Start a new session here". Only supplied for a single-session map;
+   *  in the merged Everything timeline "everything after this stop" crosses session boundaries,
+   *  so the operation has no coherent meaning and the item is simply absent. */
+  onSplitHere?: (nodeId: string) => void
   /** Identifies the current view for scroll-position persistence — `selectedId ?? '__everything__'`
    *  (see trailWindowPrefs). On mount / when this changes, a saved scroll position for the key is
    *  restored INSTEAD of the default open-at-newest jump; the live scroll position is saved back
@@ -1346,6 +1380,33 @@ export default function MapView({
   // or connection row dims every edge that doesn't touch it, no topology change required. Wired
   // into the edges array just before it's passed to the overlay (see below).
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+  // The PINNED point (clicking a bullet). Feeds the exact same causal-chain walk as hovering, so
+  // "show me what led here" is one mechanism with two ways in: hover is transient, a pin sticks
+  // until it's clicked again or Escape is pressed. Hover still wins while the mouse is over
+  // something, so a pin never blocks exploring.
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null)
+  const togglePinned = useCallback((key: string) => setPinnedKey((k) => (k === key ? null : key)), [])
+  const collapse = useTrailCollapse()
+  // Sticky notes and section headers pinned to this map (v39). Loaded per-session, and refreshed
+  // on the same push channel as everything else so a note added in another window appears here.
+  const [stickies, setStickies] = useState<TrailStickyNoteData[]>([])
+  const sessionIdForNotes = detail.session.id
+  const reloadStickies = useCallback(() => {
+    // The merged Everything timeline has a synthetic 'merged' session id — load ALL notes there
+    // instead, and let the anchor-node lookup below place them.
+    const arg = sessionIdForNotes === 'merged' ? undefined : sessionIdForNotes
+    window.studyTrail.listNotes(arg).then(setStickies).catch(() => {})
+  }, [sessionIdForNotes])
+  useEffect(() => { reloadStickies() }, [reloadStickies])
+  useEffect(() => window.studyTrail.onDataChanged(() => reloadStickies()), [reloadStickies])
+  // Cleared when the view changes — a pin on a stop that isn't rendered any more would dim the
+  // whole spine with nothing pronounced (see hoveredKeyIsLive's own safety net).
+  useEffect(() => { setPinnedKey(null) }, [scrollKey])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPinnedKey(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const lastVisibilityLogRef = useRef<string | null>(null)
   const { menu, menuRef, openMenu: openMenuRaw, closeMenu } = useTrailRefMenu()
   // Right-clicking a row/node to open its context menu, then dismissing the menu by clicking
@@ -1598,100 +1659,40 @@ export default function MapView({
     setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom - e.deltaY * 0.01)))
   }
 
-  // key = `${bookId}:${chapter}` — lets a connection tell whether its destination is the
-  // literal next spine node (a forward move, no separate row needed — the spine geometry
-  // already shows it) or an EARLIER/different existing node (a round trip back to it). Keyed
-  // by trailSessionId too (not just bookId:chapter) — MapView also renders a merged
-  // ALL-sessions timeline (EverythingView's "one continuous spine" mode), where the same
-  // chapter genuinely visited in two DIFFERENT sessions must never look like a round trip
-  // between them.
-  const nodeByKey = new Map<string, TrailNode>()
-  for (const n of detail.nodes) nodeByKey.set(`${n.trailSessionId}:${n.bookId}:${n.chapter}`, n)
-  const nodeById = new Map<string, TrailNode>()
-  for (const n of detail.nodes) nodeById.set(n.id, n)
-  const nextNodeById = new Map<string, TrailNode | undefined>()
-  detail.nodes.forEach((n, i) => nextNodeById.set(n.id, detail.nodes[i + 1]))
-  // 1-based chronological position — lets a return row read "back to step 4" in plain text
-  // instead of requiring the arrow to be traced (confused-reviewer persona). Declared here
-  // (rather than just below, where it's also used for lane min/max idx) so the rowsForNode
-  // build below can already resolve a return's target step while annotating isReturn.
-  const nodeOrderIndex = new Map<string, number>()
-  detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
-
-  // ── Hour markers ─────────────────────────────────────────────────────────
-  // The spine isn't linear time (gaps are log-scaled), so an hour marker can only ATTACH to a
-  // chapter stop — the first stop that falls in each new clock hour. Surfaced as a live line
-  // INSIDE the session-header pill (reported up via onCurrentHourChange): whichever hour marker
-  // is currently at the top of the scroll view, advancing as you scroll. 12-hour clock; date
-  // shown when the day rolls over — unless a date DIVIDER is already rendered above this node
-  // (Everything view's own boundaryLabel), in which case it drops the date to avoid repeating.
-  const hourLabelForNodeId = new Map<string, string>()
-  {
-    let prevHourStart: number | null = null
-    let prevDayKey: string | null = null
-    for (const n of detail.nodes) {
-      const d = new Date(n.anchorStartedAt)
-      const hourStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime()
-      if (prevHourStart != null && hourStart === prevHourStart) continue
-      const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-      const h12 = ((d.getHours() + 11) % 12) + 1
-      const time = `${h12} ${d.getHours() < 12 ? 'AM' : 'PM'}`
-      const dayRolled = prevDayKey != null && dayKey !== prevDayKey
-      const label = (dayRolled && !boundaryLabelForNodeId?.has(n.id))
-        ? `${d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} · ${time}`
-        : time
-      hourLabelForNodeId.set(n.id, label)
-      prevHourStart = hourStart
-      prevDayKey = dayKey
-    }
-  }
-  // Ordered [nodeId, label] for the hour markers — read by the scroll tracker below to pick the
-  // one currently at the top of the view.
-  const hourMarkers = detail.nodes.map((n) => n.id).filter((id) => hourLabelForNodeId.has(id)).map((id) => ({ id, label: hourLabelForNodeId.get(id)! }))
+  // ── The graph ─────────────────────────────────────────────────────────────
+  // Every "which rows hang under which node" and "which lines connect which points" decision
+  // now lives in trailGraph.ts as one pure function — see that file's header for the
+  // last-write-wins node-resolution bug this extraction was done to fix ("some of the arrows
+  // point wrongly to future arrows"). Nothing there measures or renders; MapView only consumes.
+  const graph = buildTrailGraph(detail, { revisitWindowMs, boundaryLabelForNodeId })
+  const {
+    nodeById, nextNodeById, nodeOrderIndex, originConnByNodeId,
+    rowsForNode, rowsForConnection, edges, gutterWidth, maxRenderDepth,
+    hourLabelForNodeId, hourMarkers, isRevisitWithinWindow,
+  } = graph
   const firstHour = hourMarkers[0]?.label ?? null
 
-  // The node a connection actually LANDED on: among the nodes for its destination chapter, the
-  // one whose anchor opened closest in time to the jump itself. Position-robust where a naive
-  // `nextNodeById.get(fromNodeId)` isn't — a later revisit promotion can splice a same-chapter
-  // node between the connection's fromNode and the real arrival, so "the node right after
-  // fromNode in spine order" stops being the arrival. Used to recognise a user verse-tie branch
-  // as the arrival path into its chapter even when that's happened.
-  function arrivalNodeFor(c: TrailConnection): TrailNode | undefined {
-    if (c.toKind !== 'chapter' || !c.toBookId || c.toChapter == null) return undefined
-    let best: TrailNode | undefined
-    let bestDelta = Infinity
-    for (const nn of detail.nodes) {
-      if (nn.trailSessionId !== c.trailSessionId || nn.bookId !== c.toBookId || nn.chapter !== c.toChapter) continue
-      const d = Math.abs(nn.anchorStartedAt - c.createdAt)
-      if (d < bestDelta) { bestDelta = d; best = nn }
+  // Stickies indexed by the node they're pinned to. A 'section' renders ABOVE its node and owns
+  // every stop from there until the next section; an 'annotation' renders beside its node.
+  const sectionsByNodeId = new Map<string, TrailStickyNoteData[]>()
+  const annotationsByNodeId = new Map<string, TrailStickyNoteData[]>()
+  for (const st of stickies) {
+    if (!st.anchorNodeId) continue
+    const target = st.kind === 'section' ? sectionsByNodeId : annotationsByNodeId
+    const list = target.get(st.anchorNodeId)
+    if (list) list.push(st)
+    else target.set(st.anchorNodeId, [st])
+  }
+  // Which section (if any) each node falls under, so collapsing a section hides its whole range
+  // rather than just its own header row.
+  const sectionForNodeId = new Map<string, string>()
+  {
+    let current: string | null = null
+    for (const n of detail.nodes) {
+      const opens = sectionsByNodeId.get(n.id)?.[0]
+      if (opens) current = opens.id
+      if (current) sectionForNodeId.set(n.id, current)
     }
-    return best
-  }
-
-  // Gates whether a recorded revisit (n.revisitOfNodeId) still COUNTS as one at render time —
-  // per the plan's revisit time-window slider: `revisitOfNodeId` itself is never rewritten (the
-  // recorder's own judgment call stands), but a chapter re-arrival past the user's current
-  // slider setting renders as a plain independent bullet instead of the dashed-backlink/badge
-  // treatment, live-adjustable without touching the database at all. undefined revisitWindowMs
-  // (no controlling parent) means "no cutoff" — always honor whatever was recorded.
-  function isRevisitWithinWindow(n: TrailNode): boolean {
-    if (!n.revisitOfNodeId) return false
-    if (revisitWindowMs == null) return true
-    const original = nodeById.get(n.revisitOfNodeId)
-    if (!original) return true
-    const gapMs = n.anchorStartedAt - (original.anchorEndedAt ?? original.anchorStartedAt)
-    return gapMs <= revisitWindowMs
-  }
-
-  // The EARLIEST connection that ever led to a given chapter — its "origin story," shown
-  // above the node always (OriginBadgeLine) and in its hover card, regardless of how many
-  // times the chapter's been revisited since. The very first node of the session has none
-  // (nothing led to it — it's where the session started).
-  const originConnByNodeId = new Map<string, TrailConnection>()
-  for (const c of [...detail.connections].sort((a, b) => a.createdAt - b.createdAt)) {
-    if (c.toKind !== 'chapter' || !c.toBookId || c.toChapter == null) continue
-    const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-    if (target && !originConnByNodeId.has(target.id)) originConnByNodeId.set(target.id, c)
   }
 
   // "Scroll to where this came from" — tries the exact originating ROW first (a branch stop
@@ -1712,352 +1713,6 @@ export default function MapView({
     return null
   }
 
-  // Connections actually rendered as rows under each node: every non-chapter connection, plus
-  // chapter-connections that are a ROUND TRIP (destination isn't the literal next spine node),
-  // PLUS forward chapter-connections whose origin is something specific enough to be worth
-  // tracing (a Strong's lookup, a cross-ref, a search — anything that isn't just plain
-  // sequential reading or a tab-switch). That last category used to be silently skipped
-  // entirely (the plain spine arrow already implies "next chapter," so a row felt redundant)
-  // — but that's exactly what read as "no indication of where I got that from": the ORIGIN
-  // BADGE LINE said "via Strong's G3942 occurrence" in text, yet no actual LINE traced back to
-  // that specific lookup, only the generic straight spine progression every chapter gets. Now
-  // a specific-origin forward connection gets its own row too (marked `isForwardBranch`, no ↺
-  // prefix — it's not a return, just a traceable cause) feeding a direct edge in the overlay
-  // below, alongside the spine arrow it doesn't replace.
-  //
-  // A round-trip connection (destination matches an EARLIER/different existing node) is
-  // annotated `isReturn` so ConnRow can prefix it with ↺ instead of implying a fresh move —
-  // and feeds a laned return edge in the overlay (built below).
-  // Branch chaining (v31) — a connection with fromConnectionId set hangs off ANOTHER
-  // connection, not directly off its chapter node; it's excluded from rowsForNode's top-level
-  // bucket below and instead rendered nested under its parent row (see ConnRow's own recursive
-  // rendering of rowsForConnection.get(its own id)).
-  const rowsForConnection = new Map<string, AnnotatedConn[]>()
-  const hasChainChildrenIds = new Set<string>()
-  for (const c of detail.connections) {
-    if (!c.fromConnectionId) continue
-    hasChainChildrenIds.add(c.fromConnectionId)
-  }
-
-  // Node ids that have a SPECIFIC traced arrival (an isForwardBranch row, below) — the plain
-  // generic spine arrow between chronologically-adjacent nodes is suppressed for these (see the
-  // spine-edge loop): "if a user gets to a chapter from a branch, then dont show the arrow from
-  // the previous chapter if it came from the branch" — showing both was redundant/confusing
-  // once the specific traced line already tells the real story.
-  const nodesWithTracedArrival = new Set<string>()
-
-  const rowsForNode = new Map<string, AnnotatedConn[]>()
-  for (const n of detail.nodes) rowsForNode.set(n.id, [])
-  for (const c of detail.connections) {
-    let annotated: AnnotatedConn = { ...c, isChainedBranch: !!c.fromConnectionId, hasChainChildren: hasChainChildrenIds.has(c.id) }
-    if (c.toKind === 'chapter' && c.toBookId && c.toChapter != null) {
-      // A cross-ref that landed in the SAME chapter as its own fromNode (see the sameChapter
-      // branch in studyTrailSlice.ts) — the "target" resolves to the very node this row is
-      // rendered under, which is neither a forward move nor a round trip, just a same-chapter
-      // branch. Checked first so it can never fall through into the isReturn self-loop case.
-      const selfTarget = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-      if (selfTarget && selfTarget.id === c.fromNodeId) {
-        annotated = { ...annotated, isSameChapterBranch: true }
-      } else {
-        // Any branch path that lands on a real chapter node makes the plain straight spine
-        // arrow into that node redundant — the branch itself already visibly joins the two
-        // stops. Per direct feedback: "remove the main spine connector if there is branch
-        // connectors that connect the two main spine bullets." Covers recorded cross-refs,
-        // user verse-ties, AND chained lexicon/branch hops (isChainedBranch). `arrivalNodeFor`
-        // is position-robust — survives a later revisit promotion splicing the spine between
-        // fromNode and the real landing (the "from arrow points from something far in the past"
-        // case). `fromNodeId` is always the chain's ROOT chapter node, so `fromIdx <=
-        // arrivalIdx - 1` confirms the branch genuinely spans from an earlier stop.
-        const isBranchish = renderAsBranch(annotated) || annotated.isChainedBranch
-        const arrival = isBranchish ? arrivalNodeFor(c) : undefined
-        if (arrival) {
-          const arrivalIdx = nodeOrderIndex.get(arrival.id) ?? -1
-          const fromIdx = nodeOrderIndex.get(c.fromNodeId) ?? -1
-          if (arrivalIdx > 0 && fromIdx >= 0 && fromIdx <= arrivalIdx - 1) {
-            nodesWithTracedArrival.add(arrival.id)
-            // The dedicated 3-segment pass fully OWNS the rendering only for the node's own
-            // origin connection (and never for a nested chained row) — there, emit no ConnRow.
-            // Otherwise keep the ConnRow so the branch stays visible, just minus the duplicate
-            // straight arrow.
-            if (renderAsBranch(annotated) && !annotated.isChainedBranch && originConnByNodeId.get(arrival.id)?.id === c.id) continue
-          }
-        }
-        const next = nextNodeById.get(c.fromNodeId)
-        const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
-        if (isForward) {
-          // A cross-CHAPTER tangent whose destination is a brand-new node right away — fully
-          // handled by the dedicated TangentBullet + edge-building pass below instead (the
-          // node's own arrival gets the origin/destination bullet pair above it, connected by
-          // its own dedicated lines) — no ConnRow for it at all, this connection's only other
-          // job is already done via originConnByNodeId. Suppresses the generic spine arrow the
-          // same way the old isForwardBranch path did.
-          if (renderAsBranch(annotated)) {
-            nodesWithTracedArrival.add(next!.id)
-            continue
-          }
-          if (!isConfidentOrigin(c) && !annotated.isChainedBranch) continue // no row at all — matches prior behavior exactly
-          annotated = { ...annotated, isForwardBranch: true }
-          nodesWithTracedArrival.add(next!.id)
-        } else {
-          const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-          annotated = { ...annotated, isReturn: !!target }
-        }
-      }
-    }
-    if (annotated.isChainedBranch) {
-      const bucket = rowsForConnection.get(c.fromConnectionId!) ?? []
-      bucket.push(annotated)
-      rowsForConnection.set(c.fromConnectionId!, bucket)
-      continue
-    }
-    const bucket = rowsForNode.get(c.fromNodeId)
-    if (bucket) bucket.push(annotated)
-  }
-
-  // The connected-lines engine's edge list — built from the same data that drives the rows
-  // above, so the diagram can never drift out of sync with what's actually displayed.
-  //
-  // Return/revisit edges get routed through a shared right-hand GUTTER instead of a bezier
-  // bulge — a bulge can't reliably clear content of unbounded width, and two such edges whose
-  // vertical spans overlap would just visually merge. Each gets a "lane" (a git-graph-style
-  // greedy interval-packing assignment: the lowest lane number whose reserved node-index range
-  // doesn't overlap this edge's own span) and routes as a vertical line confined to that lane,
-  // jogging horizontally only at the very top/bottom — it can never cross an intervening
-  // chapter's text again. Forward-branch edges stay short (row → the very next node) and don't
-  // need a lane.
-  interface LanedEdge extends TrailEdge { minIdx: number; maxIdx: number }
-  const lanedRaw: LanedEdge[] = []
-
-  // The full edge language, rethought as one coherent set of rules (per direct feedback: "lets
-  // rethink the style of the lines... i want it actually to make sense") instead of each edge
-  // kind picking its own color/dash/arrow combination ad hoc:
-  //   • COLOR encodes this edge's own depth change: accent = going deeper (main→tangent, or a
-  //     tangent chaining off an earlier tangent), text-secondary = same depth (an ordinary
-  //     main→main read, or a confidently-traced same-depth continuation), faint text-muted =
-  //     shallower/reconverging (any return to a shallower depth, automatic or explicit).
-  //   • DASH encodes confidence/weight, independent of color: a normal connection is solid, a
-  //     low-confidence "glance" connection is dashed, thinner, and fainter. A reconverge/return
-  //     is ALSO always dashed, but for a different reason (it's a jump backward in the reading
-  //     order, not a forward step) — those two are the only edges allowed to be dashed.
-  //   • ARROWHEADS are always shown — every edge here is an actual step in the reading order,
-  //     so direction always matters. (The one deliberate exception is the revisit "same chapter
-  //     as" identity backlink, which isn't a travel step at all — see its own comment below.)
-  //   • CURVATURE is reserved for edges that visually reach across other content (a lane-routed
-  //     return, or a short reconverge into the next node); a same-row/stacked-bullet hop stays
-  //     a straight line.
-  const edges: TrailEdge[] = []
-  for (let i = 0; i < detail.nodes.length - 1; i++) {
-    // Skip across a session boundary (merged all-sessions timeline) — chronologically
-    // adjacent nodes from two DIFFERENT sessions shouldn't visually read as one continuous
-    // read-through just because they happen to be time-adjacent.
-    if (detail.nodes[i].trailSessionId !== detail.nodes[i + 1].trailSessionId) continue
-    // Suppressed when the arrival already has its own specific traced line (the `origin:${c.id}`
-    // edge from the causing row, built below) — showing the generic spine arrow ALONGSIDE the
-    // specific one was exactly the redundant "arrow from the previous chapter" the branch-traced
-    // line already makes clear.
-    if (nodesWithTracedArrival.has(detail.nodes[i + 1].id)) continue
-    // Dashed instead of solid across a long gap — the same visual "break in time" cue as
-    // GapDivider's own dashed rule (and threshold), reinforcing it right on the connecting
-    // line itself, not just the label between the two nodes.
-    const gapMs = effectiveGapMs(detail.nodes[i].anchorEndedAt ?? detail.nodes[i].anchorStartedAt, detail.nodes[i + 1].anchorStartedAt, detail.pausedIntervals)
-    edges.push({
-      // Muted, not accent — per the confirmed depth-change model, plain reading-onward (both
-      // sides depth 0, no tangent involved) is a "same depth" hop, which stays the normal muted
-      // color; only a stub INTO a tangent (going deeper — see pushRowEdges above) gets accent.
-      key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
-      color: 'rgb(var(--color-text-secondary))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
-    })
-  }
-
-  // The dedicated 3-segment path for a branch-node ARRIVAL (a cross-chapter tangent whose
-  // destination is a brand-new node, suppressed out of rowsForNode/isForwardBranch above): the
-  // node it left from → the origin-verse bullet → the destination-verse bullet → the arrival
-  // node itself. Replaces the old single long "reconverge" line that skipped straight from the
-  // departure chapter to the arrival chapter with no visible stop at either verse, per direct
-  // feedback: "there needs to be connecting lines going this route: Isaiah 11 → Isaiah 11:2 →
-  // Luke 4:18 → Luke 4. It should not have been just the single line of: Isaiah 11 → Luke 4."
-  for (const n of detail.nodes) {
-    const originConn = originConnByNodeId.get(n.id)
-    if (!originConn || !renderAsBranch(originConn)) continue
-    // A user verse-tie branch departs from wherever the reader actually WAS — the previous
-    // main-spine stop, i.e. the node immediately before this one — not the (possibly long-ago,
-    // revisit-displaced) node the underlying connection happens to be recorded against. Per
-    // direct feedback: "the from arrow ... should be coming from the previous main spine instead
-    // of something far in the past from a revisit." A recorded cross-ref branch keeps its own
-    // true fromNode (its recorder already resolves the promoted/current node at capture time).
-    const idx = nodeOrderIndex.get(n.id) ?? 0
-    const prevSpine = idx > 0 && detail.nodes[idx - 1].trailSessionId === n.trailSessionId ? detail.nodes[idx - 1] : undefined
-    const fromNode = (hasUserVerseTies(originConn) && prevSpine) ? prevSpine : nodeById.get(originConn.fromNodeId)
-    if (!fromNode) continue
-    // Solid accent, arrowed — "going one level deeper," the same treatment every other tangent
-    // stub gets.
-    edges.push({ key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, color: 'rgb(var(--color-accent))', curved: false, arrow: true, opacity: 0.75 })
-    // Origin verse → destination verse — the actual cross-ref hop itself.
-    edges.push({ key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, color: 'rgb(var(--color-accent))', arrow: true, curved: false, opacity: 0.75 })
-    // Dashed/muted reconverge into the arrival node — "returning to the spine," same visual
-    // language as every other depth-decrease edge in this diagram.
-    // Straight, not curved — over the short vertical distance typical of this hop, the curved
-    // bezier's fixed ±28 control-point offset can exceed the actual gap and overshoot, reading
-    // as a squiggle/zigzag rather than a clean line. Per direct feedback ("looks odd because
-    // its squiggly instead of being straight").
-    edges.push({ key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, color: 'rgb(var(--color-text-muted))', curved: false, arrow: true, opacity: 0.5, dashed: true })
-  }
-
-  // Shared per-row edge logic — called for every row regardless of whether it's a top-level
-  // row (stub from its chapter node) or a chained branch row (stub from its PARENT row's own
-  // point instead, per the v31 branch-chaining work: "arrows connect from the true branch," not
-  // a generic/frozen point). `stubFrom` is the point key this row's own short connector starts
-  // at; isReturn/isForwardBranch edges are identical either way since they're keyed off the
-  // row's own `row:${c.id}` point, which exists regardless of nesting depth.
-  function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
-    // Accent-colored — per the confirmed depth-change model, a stub edge (parent node/row →
-    // this tangent bullet) is always "going one level deeper," which gets its own distinct
-    // accent color (as opposed to a plain same-depth spine hop, which stays muted — see the
-    // main spine edge below).
-    const color = c.weight === 'glance' ? (TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))') : 'rgb(var(--color-accent))'
-    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, arrow: true, opacity: c.weight === 'glance' ? 0.5 : 0.75 })
-    if (c.isReturn && c.toBookId && c.toChapter != null) {
-      const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-      if (target) {
-        const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!
-        // Deliberately its own quieter visual class, independent of clarity-tier color — per
-        // direct feedback ("curved and slightly transparent... discrete"), a return shouldn't
-        // shout as loud as a fresh forward move. Muted gray, low opacity, thinner than the
-        // 1.75 default, on top of the arc-rounded routing above.
-        lanedRaw.push({
-          key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
-          color: 'rgb(var(--color-text-muted))', arrow: true, dashed: true, opacity: 0.45, strokeWidth: 1.25,
-          minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
-        })
-      }
-    }
-    if (c.isForwardBranch) {
-      // isForwardBranch now only ever fires for a NON-branch connection (any c.isBranch=true
-      // connection whose destination is a fresh next node is fully diverted to the dedicated
-      // tangent-stub/tangent-hop/tangent-arrive pass above instead — see that pass's own
-      // comment) — so this is always a confidently-traced, SAME-DEPTH continuation (a plain
-      // read, just one whose specific origin is worth tracing rather than the generic spine
-      // arrow). Same-depth styling to match: solid text-secondary, not the dashed/muted
-      // "reconverging" look this used to (incorrectly) always carry. Short (always the very
-      // next node), so a direct curved line is fine, no lane needed.
-      const target = nextNodeById.get(c.fromNodeId)
-      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color: 'rgb(var(--color-text-secondary))', curved: true, arrow: true, opacity: 0.6 })
-    }
-  }
-
-  for (const n of detail.nodes) {
-    const items = groupForRender(rowsForNode.get(n.id) ?? [])
-    for (const it of items) {
-      if (it.type === 'single') {
-        pushRowEdges(it.item, `node:${n.id}`)
-      } else {
-        const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, arrow: true, opacity: 0.4 })
-      }
-    }
-    // The quiet "same chapter as" backlink for a promoted revisit — deliberately muted/thin/
-    // dashed (structural chrome, not a clarity-tier signal, hence gray not TIER_COLOR) and
-    // never arrowed, since it signals identity ("this is the same chapter"), not a direction
-    // of travel the way the primary forward spine edge into this node already does.
-    if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId) && isRevisitWithinWindow(n)) {
-      const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(n.revisitOfNodeId)!
-      lanedRaw.push({
-        key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
-        color: 'rgb(var(--color-text-muted))', dashed: true, opacity: 0.25, strokeWidth: 1,
-        minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
-      })
-    }
-  }
-
-  // Chained branch rows (excluded from rowsForNode above) get the same per-row edges, but
-  // their short local stub starts from their PARENT connection's own row point instead of a
-  // chapter node — this is the "arrows properly connect... originate from the TRUE last stop"
-  // fix: no generic/frozen point is ever used, TrailConnectorOverlay measures real registered
-  // DOM elements live regardless of nesting depth.
-  for (const [parentConnId, children] of rowsForConnection) {
-    for (const it of groupForRender(children)) {
-      if (it.type === 'single') pushRowEdges(it.item, `row:${parentConnId}`)
-      else {
-        const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        edges.push({ key: `stub:${it.key}`, from: `row:${parentConnId}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
-      }
-    }
-  }
-
-  // Greedy lane packing (standard interval-scheduling — same idea git-graph tools use for
-  // branch lanes): process by start index, give each edge the lowest lane whose
-  // previously-assigned span doesn't overlap this one.
-  lanedRaw.sort((a, b) => a.minIdx - b.minIdx)
-  const laneEnds: number[] = []
-  for (const e of lanedRaw) {
-    let lane = 0
-    while (lane < laneEnds.length && laneEnds[lane] >= e.minIdx) lane++
-    laneEnds[lane] = e.maxIdx
-    edges.push({ ...e, lane })
-  }
-  const maxLane = laneEnds.length > 0 ? laneEnds.length - 1 : -1
-  // TrailConnectorOverlay's own laned-edge curve can bow out considerably further left than
-  // this lane-count-only formula reserves (its extraBow grows with how much vertical distance
-  // a given return has to clear, which isn't known here) — per direct feedback ("the entire
-  // timeline should be shifted right so that the entire revisit arrow thing can be seen"), a
-  // curve bowing further than the reserved column was getting clipped by the scroll
-  // container's own left edge (you can't scroll to negative x). A generous flat allowance
-  // covers the common case without needing this file and the overlay's bow math to stay in
-  // exact sync — a little extra unused margin costs nothing.
-  // Trimmed back slightly from 220 — per direct feedback ("i think the entire timeline can be
-  // moved to the left slightly"), that first pass over-reserved; this still comfortably covers
-  // the overlay's own bow formula (see TrailConnectorOverlay's extraBow) for the vertical runs
-  // actually seen in practice.
-  // BUG FOUND ("the more times I revisit, the further left the main spine moves"): this
-  // reservation was still using the OLD unbounded LINEAR bow formula (105 + vertRun·0.45) long
-  // after TrailConnectorOverlay's own extraBow was reworked to a CAPPED, sub-linear one
-  // (min(cap, base + scale·√(vertRun−60)) — see its REVISIT_BOW_* / RETURN_BOW_* constants,
-  // caps 85 / 180). A revisit spanning many nodes therefore reserved 800–1000+px of gutter for
-  // a curve the overlay now hard-caps at ≤180px — and since the whole content column is shifted
-  // right by gutterWidth while a collapsed "bounced Nx" revisit cluster is not (NodeClusterGroup
-  // used to force gutterWidth:0 — also fixed), the spine drifted that far right of the revisit
-  // rows, growing every time another (later, longer-spanning) revisit bumped the estimate.
-  // Fix: mirror the overlay's ACTUAL current formula, per laned edge, and take the max — so the
-  // reservation tracks the real (bounded) curve instead of a removed one. Keep the three
-  // base/scale/cap pairs in sync with TrailConnectorOverlay if either side is retuned.
-  const ROW_HEIGHT_ESTIMATE = 90
-  const overlayBowFor = (spanItems: number, arrow: boolean) => {
-    const vertRun = spanItems * ROW_HEIGHT_ESTIMATE
-    // Mirror of TrailConnectorOverlay's REVISIT_BOW_* / RETURN_BOW_* — keep in sync.
-    const base = arrow ? 66 : 26
-    const scale = arrow ? 8 : 4.5
-    const cap = arrow ? 180 : 100
-    return Math.min(cap, base + scale * Math.sqrt(Math.max(0, vertRun - 60)))
-  }
-  const maxExtraBow = lanedRaw.reduce((m, e) => Math.max(m, overlayBowFor(e.maxIdx - e.minIdx, !!e.arrow)), 0)
-  // + safety margin: covers the estimate-vs-measured row-height slack and the little the bezier
-  // belly sits left of laneX. Over-reserving a bit costs nothing (unused blank gutter); under-
-  // reserving clips the arc against the scroll container's un-scrollable left edge.
-  // Reserve exactly the deepest arc's own (bounded) bow — no arbitrary cap. An earlier round
-  // clamped this to 40px to pull the trail left, but that squashed every arc onto the laneX>=24
-  // floor so they all bowed the SAME amount and merged; per direct feedback ("make the revisit
-  // arcs more varied ... easier to follow") they need real room to spread. `maxExtraBow`
-  // mirrors the overlay's actual capped sqrt formula, so this tracks the real curve, not the
-  // old removed unbounded one. (Still far under the ~220px the very first pass over-reserved.)
-  const EXTRA_BOW_RESERVE = maxLane >= 0 ? maxExtraBow + 20 : 0
-  const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
-
-  // Deepest indent level actually RENDERED anywhere in this view — drives how many faint
-  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below). Every
-  // ConnRow that survives into rowsForNode / rowsForConnection renders at its own
-  // `INDENT_STEP*(chainDepth+1)`, and a branch node's tangent bullets sit at that same depth. So
-  // walk exactly those buckets (plus the branch nodes) rather than filtering raw connections —
-  // the earlier `c.isBranch`-only filter missed non-branch rows that still indent (lexicon
-  // lookups, cross-refs, returns). -1 means "nothing off-spine" → only the spine line is drawn.
-  let maxRenderDepth = -1
-  for (const bucket of rowsForNode.values())
-    for (const c of bucket) maxRenderDepth = Math.max(maxRenderDepth, c.chainDepth)
-  for (const bucket of rowsForConnection.values())
-    for (const c of bucket) maxRenderDepth = Math.max(maxRenderDepth, c.chainDepth)
-  for (const n of detail.nodes) {
-    const oc = originConnByNodeId.get(n.id)
-    if (oc && renderAsBranch(oc)) maxRenderDepth = Math.max(maxRenderDepth, oc.chainDepth ?? 0)
-  }
 
   // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
   // and dim everything else out"), this walks the FULL causal chain backward from whatever's
@@ -2087,15 +1742,18 @@ export default function MapView({
   }
   const hoverChainEdgeKeys = new Set<string>()
   const hoverChainPointKeys = new Set<string>()
-  if (hoveredKey) {
-    hoverChainPointKeys.add(hoveredKey)
+  // Hover takes precedence over a pin: moving the mouse over something always shows THAT chain,
+  // and dropping off it falls back to whatever is pinned rather than to nothing.
+  const focusKey = hoveredKey ?? pinnedKey
+  if (focusKey) {
+    hoverChainPointKeys.add(focusKey)
     // Direct, single-hop only: a return/revisit-link edge pronounces when the hovered point is
     // literally one of its own two ends, without chasing anything further through it.
     for (const e of edges) {
       if (!isBackwardEdge(e.key)) continue
-      if (e.from === hoveredKey || e.to === hoveredKey) hoverChainEdgeKeys.add(e.key)
+      if (e.from === focusKey || e.to === focusKey) hoverChainEdgeKeys.add(e.key)
     }
-    const stack = [hoveredKey]
+    const stack = [focusKey]
     // A tangent's origin/destination bullets (tangent-origin:ID / tangent-dest:ID) are the two
     // ends of the same hop, chronologically origin-then-dest — origin is dest's CAUSAL ANCESTOR,
     // dest is origin's DESCENDANT (something that happens AFTER it). Per direct feedback ("make
@@ -2125,7 +1783,7 @@ export default function MapView({
   // as "all the lines disappeared." Treat that specific case as if nothing were hovered at all
   // — every edge stays at normal opacity — rather than let one orphaned key blank out the whole
   // diagram.
-  const hoveredKeyIsLive = !!hoveredKey && edges.some((e) => e.from === hoveredKey || e.to === hoveredKey)
+  const hoveredKeyIsLive = !!focusKey && edges.some((e) => e.from === focusKey || e.to === focusKey)
   // REFACTORED per direct feedback ("the right click is still hiding the connection lines")
   // after the previous fix (suppressing new hover claims at the SETTER while a menu is open)
   // still wasn't enough — rather than keep chasing exactly which event re-sets hoveredKey while
@@ -2214,10 +1872,16 @@ export default function MapView({
   // var so it reaches every NodeBlock/ConnRow without prop-drilling. Never below 200 (rows stay
   // usable even in a very narrow window / very deep gutter).
   const rowMaxWidth = Math.round(Math.min(460, Math.max(200, (viewportWidth || 700) / zoom - gutterWidth - 40)))
-  // Pull the content as far left as it will go — consume the ENTIRE centring slack so the trail
-  // hugs the left edge instead of sitting centred with dead space on its left. Per direct
-  // feedback ("move it as far left as possible").
-  const centreNudge = pad
+  // TRUE symmetric centering. This used to be `const centreNudge = pad`, which made
+  // `paddingLeft: pad - centreNudge` evaluate to 0 on every render and `paddingRight` to 2·pad —
+  // i.e. the spine was hard-left-hugged, never centred, despite the "Horizontal placement model"
+  // comment above describing symmetric centering. That was a deliberate response to older
+  // feedback ("move it as far left as possible"); the current ask is the opposite ("it isn't
+  // centered horizontally"), and with the gutter now a fixed-width column there's no longer any
+  // reason to hug left. `contentWidth` includes the gutter spacer, so subtracting half of it
+  // back out centres the SPINE itself rather than the spine-plus-gutter box — otherwise a
+  // session with backlinks would sit visibly right of one without any.
+  const centreNudge = -gutterWidth / 2
 
   // Live per-side clear space around the trail's SOLID content, reported up so the parent can
   // place its floating header / zoom controls on whichever side won't cover the spine/branches
@@ -2314,6 +1978,10 @@ export default function MapView({
   // NodeBlock/ConnRow/TangentBullet/GlanceGroupRow call sites.
   return (
     <HoverDisabledContext.Provider value={!!promptConn || !!menu}>
+    <TrailInteractionContext.Provider value={{
+      isCollapsed: collapse.isCollapsed, toggleCollapsed: collapse.toggle,
+      pinnedKey, togglePinned, contentWidth: Math.max(0, (viewportWidth || 700) / zoom - gutterWidth),
+    }}>
     {/* flex column + minHeight:0 down this whole chain (through the scroll container below) is
         what actually makes ITS OWN `overflow: auto` the one that scrolls — without a real
         bounded height, the browser just grows this div to fit its content and an ANCESTOR ends
@@ -2464,8 +2132,26 @@ export default function MapView({
           const destVerseLabel = toTieRef
             ? tieLabel(toTieRef, originConn!.tiesTo[0])
             : `${bookChapterVerseLabel(n.bookId, n.chapter)}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`
+          const sectionsHere = sectionsByNodeId.get(n.id) ?? []
+          const annotationsHere = annotationsByNodeId.get(n.id) ?? []
+          const owningSection = sectionForNodeId.get(n.id)
+          // A node inside a collapsed section is hidden entirely — EXCEPT the one that opens the
+          // section, which still has to render its own header (otherwise there'd be no way to
+          // expand it again).
+          const hiddenBySection = !!owningSection && sectionsHere.length === 0 && collapse.isCollapsed('section', owningSection)
+          if (hiddenBySection) return null
           return (
             <div key={n.id} data-trailnode={n.id} onClickCapture={(e) => onTrailNodeClickCapture(e, n.id)}>
+            {sectionsHere.map((sec) => (
+              <TrailSectionHeader
+                key={sec.id} note={sec}
+                collapsed={collapse.isCollapsed('section', sec.id)}
+                onToggle={() => collapse.toggle('section', sec.id)}
+                onChanged={reloadStickies}
+              />
+            ))}
+            {sectionsHere.length > 0 && collapse.isCollapsed('section', sectionsHere[0].id) ? null : (
+            <>
             <NodeBlock
               node={n}
               selected={selectedNodeIds.has(n.id)}
@@ -2481,6 +2167,15 @@ export default function MapView({
               onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
               onDeleteNode={(nodeId) => window.studyTrail.deleteNode(nodeId).then(onChanged)}
               onToggleTopicBreak={(nodeId, current) => window.studyTrail.setNodeTopicBreak(nodeId, !current).then(onChanged)}
+              onSplitHere={onSplitHere}
+              onAddSticky={(nodeId, kind) => {
+                void window.studyTrail.createNote({
+                  // In the merged Everything view detail.session.id is a synthetic placeholder, so
+                  // the sticky belongs to the session the ANCHORED STOP is in, not to the view.
+                  trailSessionId: nodeById.get(nodeId)?.trailSessionId ?? detail.session.id,
+                  kind, anchorNodeId: nodeId, orderIndex: nodeOrderIndex.get(nodeId) ?? 0,
+                }).then(reloadStickies)
+              }}
               step={i + 1}
               onHoverKey={handleHoverKey}
               keyboardFocused={keyboardFocusId === n.id}
@@ -2500,7 +2195,14 @@ export default function MapView({
             />
             {/* Stay a touch inside the H_SAFETY-narrowed content box so the full-width dashed
                 line never spills past the edge and spawns a horizontal scrollbar. */}
+            {annotationsHere.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginLeft: gutterWidth + SPINE_LABEL_COL_INSET + INDENT_STEP }}>
+                {annotationsHere.map((a) => <TrailAnnotation key={a.id} note={a} onChanged={reloadStickies} />)}
+              </div>
+            )}
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={Math.max(0, viewportWidth - 16) / zoom} gutterWidth={gutterWidth} />}
+            </>
+            )}
             </div>
           )
         })}
@@ -2626,6 +2328,7 @@ export default function MapView({
         )}
       </div>
     </div>
+    </TrailInteractionContext.Provider>
     </HoverDisabledContext.Provider>
   )
 }

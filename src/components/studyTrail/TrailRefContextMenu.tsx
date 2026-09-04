@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRight, ExternalLink, PictureInPicture2, CornerUpLeft, GitBranch, Flag, Trash2 } from 'lucide-react'
+import { ArrowRight, ExternalLink, PictureInPicture2, CornerUpLeft, GitBranch, Flag, Trash2, Scissors, Heading, StickyNote } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
@@ -21,6 +21,13 @@ export function useTrailRefMenu() {
     onDelete?: () => void
     topicBreak?: { active: boolean; onToggle: () => void }
     tangentToggle?: { active: boolean; onToggle: () => void }
+    /** Node rows only. `onSplitHere` starts a NEW session at this stop, moving it and everything
+     *  after it — the direct answer to "there needs to be better organization of the sessions":
+     *  a run that turned out to be two studies can be cut apart after the fact instead of having
+     *  to be planned in advance. `onAddSection` / `onAddNote` place a v39 sticky here. Grouped
+     *  into one object rather than three more positional args on openTrailRefMenu, which was
+     *  already at seven. */
+    nodeActions?: { onSplitHere?: () => void; onAddSection?: () => void; onAddNote?: () => void }
   }>()
 }
 
@@ -31,6 +38,7 @@ export function openTrailRefMenu(
     onDelete?: () => void
     topicBreak?: { active: boolean; onToggle: () => void }
     tangentToggle?: { active: boolean; onToggle: () => void }
+    nodeActions?: { onSplitHere?: () => void; onAddSection?: () => void; onAddNote?: () => void }
     x: number; y: number
   }) => void,
   ref: TrailRef,
@@ -39,10 +47,11 @@ export function openTrailRefMenu(
   onDelete?: () => void,
   topicBreak?: { active: boolean; onToggle: () => void },
   tangentToggle?: { active: boolean; onToggle: () => void },
+  nodeActions?: { onSplitHere?: () => void; onAddSection?: () => void; onAddNote?: () => void },
 ) {
   e.preventDefault()
   e.stopPropagation()
-  openMenu({ ref, onJumpToOrigin, onDelete, topicBreak, tangentToggle, x: e.clientX, y: e.clientY })
+  openMenu({ ref, onJumpToOrigin, onDelete, topicBreak, tangentToggle, nodeActions, x: e.clientX, y: e.clientY })
 }
 
 function MenuItem({ icon, label, title, onClick, active, color }: {
@@ -74,6 +83,7 @@ export function TrailRefContextMenu({
     onDelete?: () => void
     topicBreak?: { active: boolean; onToggle: () => void }
     tangentToggle?: { active: boolean; onToggle: () => void }
+    nodeActions?: { onSplitHere?: () => void; onAddSection?: () => void; onAddNote?: () => void }
   } & { x: number; y: number }) | null
   menuRef: React.RefObject<HTMLDivElement>
   onClose: () => void
@@ -119,6 +129,32 @@ export function TrailRefContextMenu({
         />
       )}
 
+      {menu.nodeActions && (menu.nodeActions.onSplitHere || menu.nodeActions.onAddSection || menu.nodeActions.onAddNote) && (
+        <>
+          <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 2px' }} />
+          {menu.nodeActions.onAddSection && (
+            <MenuItem
+              icon={<Heading size={13} />} label="Add a section here"
+              title="A labelled divider on the spine — everything below belongs to it until the next one"
+              onClick={() => { menu.nodeActions!.onAddSection!(); onClose() }}
+            />
+          )}
+          {menu.nodeActions.onAddNote && (
+            <MenuItem
+              icon={<StickyNote size={13} />} label="Add a note here"
+              title="A resizable sticky pinned beside this stop"
+              onClick={() => { menu.nodeActions!.onAddNote!(); onClose() }}
+            />
+          )}
+          {menu.nodeActions.onSplitHere && (
+            <MenuItem
+              icon={<Scissors size={13} />} label="Start a new session here"
+              title="Moves this stop and everything after it into a brand-new session"
+              onClick={() => { menu.nodeActions!.onSplitHere!(); onClose() }}
+            />
+          )}
+        </>
+      )}
       {menu.onJumpToOrigin && (
         <>
           <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />

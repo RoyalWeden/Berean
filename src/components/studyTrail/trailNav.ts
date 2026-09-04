@@ -6,10 +6,15 @@
 // App.tsx's onNavigateToRef listener). Only "open in a floating tab" can be done directly from
 // here, since that spawns an entirely new window regardless of which window asked for it.
 //
-// Click semantics (matches the one existing precedent in the app, LexiconPanel's
-// `onNav(target, e.metaKey || e.ctrlKey)`): plain click navigates the main window's active
-// tab in place; Cmd/Ctrl+click opens a new tab there instead. Right-click always opens a
-// small context menu with the same two options spelled out, plus "Open in floating tab".
+// Click semantics, REVISED per direct feedback: "when clicking through the study trail, the user
+// will very rarely want to actually open the verse or whatever from the study trail, so make sure
+// that doesn't happen by accident" — and, concretely, "clicking the area expands/collapses,
+// cmd-click navigates, clicking the exact bullet selects/highlights (dimming unrelated stops)."
+//
+// So a PLAIN click no longer navigates anything. Cmd/Ctrl+click navigates the main window's
+// active tab in place; Cmd/Ctrl+Shift+click opens a new tab there. Right-click still opens the
+// context menu with both options spelled out, plus "Open in floating tab" — that menu is now the
+// discoverable path to navigation, since nothing about a bare click reveals it.
 
 export type TrailRef =
   | { kind: 'chapter'; bookId: string; chapter: number; verse?: number }
@@ -23,9 +28,14 @@ export function navigateTrailRef(ref: TrailRef, newTab: boolean): void {
   }
 }
 
-export function trailRefClick(ref: TrailRef, e: React.MouseEvent): void {
+/** Handles a click on a trail reference label. Returns true if it navigated, so the caller can
+ *  skip whatever a plain click means for it (expanding/collapsing the row). */
+export function trailRefClick(ref: TrailRef, e: React.MouseEvent): boolean {
+  if (!(e.metaKey || e.ctrlKey)) return false
   e.stopPropagation()
-  navigateTrailRef(ref, e.metaKey || e.ctrlKey)
+  e.preventDefault()
+  navigateTrailRef(ref, e.shiftKey)
+  return true
 }
 
 export function trailRefOpenFloating(ref: TrailRef): void {

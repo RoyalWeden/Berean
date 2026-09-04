@@ -986,6 +986,95 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v37: verse_tags / verse_tag_members / verse_tag_verse')
     }
+  },
+  {
+    // Study Trail: persisted collapse state. The Map lets the user fold a branch, a section or a
+    // whole session away, and that has to survive an app restart and switching between sessions
+    // — per direct feedback: "if the user collapses any branch or whatever, remember that so even
+    // if the app is closed or the study trail or session is switched or whatever, that thing
+    // remembers that the user collapsed it." localStorage (trailWindowPrefs.ts) is per-window and
+    // wouldn't survive a reinstall, so this lives in the database with everything else.
+    //
+    // Deliberately a flat (scope, key) table rather than a column on trail_nodes /
+    // trail_connections: the same mechanism has to cover things that aren't rows in either table
+    // (a whole session in the Everything list, a day group), and a missing row simply means
+    // "expanded", so nothing needs backfilling.
+    version: 38,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS trail_collapse (
+          scope      TEXT NOT NULL,
+          key        TEXT NOT NULL,
+          collapsed  INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (scope, key)
+        );
+      `)
+      console.log('[berean-db] v38: trail_collapse')
+    }
+  },
+  {
+    // Study Trail: sticky notes and section headers on the map. Two kinds share one table because
+    // they're the same object placed differently — a 'section' sits ON the spine between stops and
+    // owns everything below it until the next one; an 'annotation' is a free, resizable sticky
+    // pinned beside a stop.
+    //
+    // `note_id` is the "is this a real Berean note?" switch, per direct feedback: "the user can
+    // choose if it is a real berean note or if it just exists in the study trail place." NULL =
+    // trail-only (body lives right here); set = the body is owned by the notes table and syncs to
+    // the vault like any other note, with this row only recording where it's pinned.
+    version: 39,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS trail_notes (
+          id               TEXT PRIMARY KEY,
+          trail_session_id TEXT NOT NULL,
+          kind             TEXT NOT NULL DEFAULT 'annotation',
+          anchor_node_id   TEXT,
+          order_index      INTEGER NOT NULL DEFAULT 0,
+          title            TEXT,
+          body             TEXT NOT NULL DEFAULT '',
+          width            INTEGER,
+          height           INTEGER,
+          note_id          TEXT,
+          color            TEXT,
+          created_at       INTEGER NOT NULL,
+          updated_at       INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_notes_session ON trail_notes(trail_session_id);
+        CREATE INDEX IF NOT EXISTS idx_trail_notes_anchor ON trail_notes(anchor_node_id);
+      `)
+      console.log('[berean-db] v39: trail_notes')
+    }
+  },
+  {
+    // Study Trail: session tags + manual ordering, mirroring the v37 verse-tag registry pattern.
+    // Per direct feedback the session rail needs "merge / split / reorder" and "tags on sessions"
+    // — `sort_order` covers the reorder half (NULL keeps the existing recency ordering), the two
+    // tag tables cover the other.
+    version: 40,
+    up(db) {
+      try { db.exec(`ALTER TABLE trail_sessions ADD COLUMN sort_order INTEGER`) } catch { /* already present */ }
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS trail_tags (
+          id         TEXT PRIMARY KEY,
+          name       TEXT NOT NULL,
+          color      TEXT,
+          sort_order INTEGER,
+          created_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_trail_tags_name ON trail_tags(name COLLATE NOCASE);
+
+        CREATE TABLE IF NOT EXISTS trail_tag_members (
+          tag_id           TEXT NOT NULL REFERENCES trail_tags(id) ON DELETE CASCADE,
+          trail_session_id TEXT NOT NULL,
+          created_at       INTEGER NOT NULL,
+          PRIMARY KEY (tag_id, trail_session_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ttm_session ON trail_tag_members(trail_session_id);
+      `)
+      console.log('[berean-db] v40: trail_tags / trail_tag_members / trail_sessions.sort_order')
+    }
   }
 ]
 

@@ -5,7 +5,10 @@
 
 export type ClarityTier = 1 | 2 | 3 // 1 = 100% clear, 2 = softly inferred, 3 = ambiguous
 export type ConnectionWeight = 'full' | 'glance'
-export type ConnectionKind = 'chapter' | 'lexicon' | 'note' | 'video' | 'compare'
+// 'pdf' and 'search' are new; 'note' and 'video' existed in the schema since v28 but nothing ever
+// WROTE them until the side-stop recorder (studyTrailSlice.recordSideStop) was added. `to_kind` is
+// a free-text column, so widening this union needs no migration.
+export type ConnectionKind = 'chapter' | 'lexicon' | 'note' | 'video' | 'compare' | 'pdf' | 'search'
 export type TrailSessionStatus = 'live' | 'paused' | 'ended'
 export type StrongsDepth = 'click' | 'occurrences' | 'related'
 
@@ -18,6 +21,39 @@ export interface TrailSession {
   recapUserEdited: boolean
   createdAt: number
   updatedAt: number
+  /** Manual position in the session rail (v40). undefined = not hand-placed; those fall back to
+   *  plain recency ordering behind everything that has been. */
+  sortOrder?: number
+}
+
+/** A sticky note or section header placed on the map (v39). A 'section' sits ON the spine between
+ *  stops and owns everything below it until the next one; an 'annotation' is a free, resizable
+ *  sticky pinned beside a stop. `noteId` is the "real Berean note?" switch: undefined means the
+ *  body lives in the trail only, set means the notes table owns the body and it syncs to the
+ *  vault like any other note. */
+export interface TrailStickyNote {
+  id: string
+  trailSessionId: string
+  kind: 'section' | 'annotation'
+  anchorNodeId?: string
+  orderIndex: number
+  title?: string
+  body: string
+  width?: number
+  height?: number
+  noteId?: string
+  color?: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** A tag applied to whole trail sessions (v40) — the session-level twin of verse_tags. */
+export interface TrailTag {
+  id: string
+  name: string
+  color?: string
+  sortOrder?: number
+  sessionIds: string[]
 }
 
 export interface TrailNode {
@@ -125,6 +161,38 @@ export interface TrailSessionDetail {
 
 export interface TrailConnectionWithSession extends TrailConnection {
   sessionName: string
+}
+
+/** One result from the Study Trail's own search — deliberately covers every kind of thing the
+ *  trail holds (sessions, chapter stops, connections, sticky notes), not just connection
+ *  reasons, per direct feedback asking for "searching through all study trail things easily". */
+export interface TrailSearchHit {
+  kind: 'session' | 'stop' | 'connection' | 'note'
+  id: string
+  sessionId: string
+  sessionName: string
+  title: string
+  snippet?: string
+  bookId?: string
+  chapter?: number
+  strongsNum?: string
+  anchorNodeId?: string
+  at: number
+}
+
+/** A subject you've been chasing across sessions — the Threads tab's unit. One per book actually
+ *  studied, plus one per distinct Strong's number looked up. */
+export interface TrailThread {
+  id: string
+  kind: 'book' | 'strongs'
+  label: string
+  bookId?: string
+  strongsNum?: string
+  stops: number
+  chapters: number
+  firstAt: number
+  lastAt: number
+  sessions: Array<{ id: string; name: string }>
 }
 
 /** Cross-window "please navigate to this" payload — sent from the Study Trail window (or any

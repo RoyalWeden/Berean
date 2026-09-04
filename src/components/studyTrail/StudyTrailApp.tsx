@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
+import { Scissors } from 'lucide-react'
 import { applyThemeToDocument } from '@/lib/applyTheme'
-import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
+import type { TrailSession, TrailSessionDetail, TrailTag } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
-import ReviewView from './ReviewView'
+import ThreadsView from './ThreadsView'
+import TrailSearchView from './TrailSearchView'
 import EverythingView from './EverythingView'
 import { DEFAULT_REVISIT_WINDOW_MS } from './trailTime'
 import {
@@ -12,7 +14,12 @@ import {
   TRAIL_ZOOM_MIN, TRAIL_ZOOM_MAX,
 } from './trailWindowPrefs'
 
-type MainTab = 'map' | 'review'
+// 'review' is gone — it was a per-session recap list that Michael said outright he wouldn't use.
+// Threads answers "what have I been chasing across sessions"; Search covers every stop, jump,
+// note and session in the trail. See ThreadsView.tsx / TrailSearchView.tsx.
+type MainTab = 'map' | 'threads' | 'search'
+const MAIN_TABS: MainTab[] = ['map', 'threads', 'search']
+const isMainTab = (v: unknown): v is MainTab => MAIN_TABS.includes(v as MainTab)
 
 // Remembered across window close/reopen (see trailWindowPrefs.ts). null = "first run", so the
 // existing live-session auto-select still runs; a stored object means the user had an explicit
@@ -44,7 +51,9 @@ export default function StudyTrailApp() {
   const [selectedId, setSelectedId] = useState<string | null>(storedWindowPrefs?.selectedId ?? null)
   const [detail, setDetail] = useState<TrailSessionDetail | null>(null)
   const [newName, setNewName] = useState('')
-  const [mainTab, setMainTab] = useState<MainTab>(storedWindowPrefs?.mainTab === 'review' ? 'review' : 'map')
+  // A stored 'review' from a previous version falls back to the map rather than to a tab that
+  // no longer exists.
+  const [mainTab, setMainTab] = useState<MainTab>(isMainTab(storedWindowPrefs?.mainTab) ? storedWindowPrefs!.mainTab as MainTab : 'map')
   const currentTrailSessionId = useStudyTrailStore((s) => s.currentTrailSessionId)
   const trailSessionStatus = useStudyTrailStore((s) => s.trailSessionStatus)
   const startTrailSession = useStudyTrailStore((s) => s.startTrailSession)
@@ -54,6 +63,17 @@ export default function StudyTrailApp() {
   const deleteTrailSession = useStudyTrailStore((s) => s.deleteTrailSession)
   const deleteTrailSessions = useStudyTrailStore((s) => s.deleteTrailSessions)
   const activateExistingSession = useStudyTrailStore((s) => s.activateExistingSession)
+  const splitProposal = useStudyTrailStore((s) => s.splitProposal)
+  const acceptSplitProposal = useStudyTrailStore((s) => s.acceptSplitProposal)
+  const clearSplitProposal = useStudyTrailStore((s) => s.clearSplitProposal)
+  const [tags, setTags] = useState<TrailTag[]>([])
+  const [tagEditorFor, setTagEditorFor] = useState<string | null>(null)
+  const [newTagName, setNewTagName] = useState('')
+  // Which tags the rail is filtered to (empty = show everything). Per direct feedback the rail
+  // needs tags on sessions, and the point of tagging is being able to narrow to them afterwards.
+  const [tagFilter, setTagFilter] = useState<Set<string>>(() => new Set())
+  const [dragSessionId, setDragSessionId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null)
   // Right-click on a session row (or its name specifically) → Rename / Delete. Inline rename
@@ -216,6 +236,62 @@ export default function StudyTrailApp() {
     return () => { window.removeEventListener('click', close); window.removeEventListener('blur', close) }
   }, [sessionCtxMenu])
 
+  const refreshTags = useCallback(() => {
+    window.studyTrail.listTags().then(setTags).catch(() => {})
+  }, [])
+  useEffect(() => { refreshTags() }, [refreshTags])
+  useEffect(() => window.studyTrail.onDataChanged(() => refreshTags()), [refreshTags])
+
+  const tagsForSession = useCallback(
+    (id: string) => tags.filter((t) => t.sessionIds.includes(id)),
+    [tags],
+  )
+
+  async function toggleSessionTag(sessionId: string, tagId: string) {
+    const current = tagsForSession(sessionId).map((t) => t.id)
+    const next = current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId]
+    await window.studyTrail.setSessionTags(sessionId, next)
+    refreshTags()
+  }
+
+  async function addTagToSession(sessionId: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const { id } = await window.studyTrail.createTag(trimmed)
+    const current = tagsForSession(sessionId).map((t) => t.id)
+    if (!current.includes(id)) await window.studyTrail.setSessionTags(sessionId, [...current, id])
+    setNewTagName('')
+    refreshTags()
+  }
+
+  /** Merge `fromId`'s stops into `intoId` and drop the emptied session. */
+  async function mergeInto(intoId: string, fromId: string) {
+    setSessionCtxMenu(null)
+    await window.studyTrail.mergeSessions(intoId, fromId)
+    if (selectedId === fromId) setSelectedId(intoId)
+    await refresh()
+  }
+
+  /** Splits the currently-open session at a stop — everything from it onward becomes a new
+   *  session, which is then selected so the result is immediately visible. */
+  async function handleSplitHere(nodeId: string) {
+    if (!selectedId) return
+    const res = await window.studyTrail.splitSession(selectedId, nodeId)
+    await refresh()
+    if (res.success && res.id) setSelectedId(res.id)
+  }
+
+  /** Commits a drag-reorder of the rail. Sends the FULL ordered id list (not just the moved
+   *  one) so sort_order stays dense and every row ends up hand-placed together — a partial
+   *  update would leave un-placed sessions falling back to recency and jumping around. */
+  async function commitReorder(draggedId: string, beforeId: string | null) {
+    const ids = orderedSessions.map((s) => s.id).filter((id) => id !== draggedId)
+    const at = beforeId ? ids.indexOf(beforeId) : ids.length
+    ids.splice(at < 0 ? ids.length : at, 0, draggedId)
+    await window.studyTrail.reorderSessions(ids)
+    await refresh()
+  }
+
   function openSessionMenu(e: React.MouseEvent, id: string) {
     e.preventDefault()
     e.stopPropagation()
@@ -311,7 +387,15 @@ export default function StudyTrailApp() {
     if (b.status === 'live' && a.status !== 'live') return 1
     return b.createdAt - a.createdAt
   })
-  const restSessions = liveSession ? orderedSessions.filter((s) => s.id !== liveSession.id) : orderedSessions
+  // Tag filter narrows the rail (ALL selected tags must be present — an OR filter across several
+  // tags just reads as "show me more", which is what no filter already does).
+  const passesTagFilter = (s: TrailSession) => {
+    if (tagFilter.size === 0) return true
+    const own = new Set(tags.filter((t) => t.sessionIds.includes(s.id)).map((t) => t.id))
+    for (const id of tagFilter) if (!own.has(id)) return false
+    return true
+  }
+  const restSessions = (liveSession ? orderedSessions.filter((s) => s.id !== liveSession.id) : orderedSessions).filter(passesTagFilter)
 
   // Extracted so the live session's row can render TWICE-ish — once pinned in the sticky group
   // above the scrolling list, once as a no-op skip when there isn't one — without duplicating
@@ -323,11 +407,28 @@ export default function StudyTrailApp() {
     return (
       <div
         key={pinned ? `pinned:${s.id}` : s.id}
+        // Native HTML5 drag, the same idiom TagManagerPanel / TabBar / NotesFolderView already
+        // use in this app — no dnd library is a dependency and adding one for a 20-row list
+        // would be out of proportion. Dropping on a row inserts BEFORE it; the drop target's own
+        // top border is the insertion indicator.
+        draggable={!selectMode}
+        onDragStart={(e) => { setDragSessionId(s.id); e.dataTransfer.effectAllowed = 'move' }}
+        onDragEnd={() => { setDragSessionId(null); setDragOverId(null) }}
+        onDragOver={(e) => { if (dragSessionId && dragSessionId !== s.id) { e.preventDefault(); setDragOverId(s.id) } }}
+        onDragLeave={() => setDragOverId((d) => (d === s.id ? null : d))}
+        onDrop={(e) => {
+          e.preventDefault()
+          const dragged = dragSessionId
+          setDragSessionId(null); setDragOverId(null)
+          if (dragged && dragged !== s.id) void commitReorder(dragged, s.id)
+        }}
         onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { setSelectedId(s.id); setMainTab('map') } }}
         onMouseEnter={() => setHoveredId(s.id)}
         onMouseLeave={() => setHoveredId((h) => h === s.id ? null : h)}
         onContextMenu={(e) => openSessionMenu(e, s.id)}
         style={{
+          borderTop: dragOverId === s.id ? '2px solid rgb(var(--color-accent))' : '2px solid transparent',
+          opacity: dragSessionId === s.id ? 0.45 : undefined,
           padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
           // Selected + hover need to layer, not pick one or the other — a selected row
           // hovered previously looked visually identical to an un-hovered selected row
@@ -396,6 +497,20 @@ export default function StudyTrailApp() {
               >▶ resume</button>
             )}
           </div>
+          {tagsForSession(s.id).length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
+              {tagsForSession(s.id).map((t) => (
+                <span
+                  key={t.id}
+                  style={{
+                    fontSize: 9, padding: '0 5px', borderRadius: 999, lineHeight: '14px',
+                    background: t.color ? `${t.color}22` : 'rgb(var(--color-surface-3))',
+                    color: t.color ?? 'rgb(var(--color-text-muted))',
+                  }}
+                >{t.name}</span>
+              ))}
+            </div>
+          )}
         </div>
         {!selectMode && (
           confirmDeleteId === s.id ? (
@@ -474,7 +589,7 @@ export default function StudyTrailApp() {
           } as React.CSSProperties}>⏸ Study Trail paused</span>
         )}
         <div style={{ display: 'flex', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, overflow: 'hidden', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {(['map', 'review'] as const).map((t) => (
+          {MAIN_TABS.map((t) => (
             <button
               key={t}
               onClick={() => setMainTab(t)}
@@ -559,6 +674,31 @@ export default function StudyTrailApp() {
               }}
             >Delete {selectedIds.size} session{selectedIds.size === 1 ? '' : 's'}</button>
           )}
+          {tags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+              {tags.map((t) => {
+                const on = tagFilter.has(t.id)
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTagFilter((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(t.id)) next.delete(t.id)
+                      else next.add(t.id)
+                      return next
+                    })}
+                    title={`${t.sessionIds.length} session${t.sessionIds.length === 1 ? '' : 's'}`}
+                    style={{
+                      fontSize: 9.5, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
+                      background: on ? 'rgb(var(--color-accent) / 0.18)' : 'rgb(var(--color-surface-3))',
+                      border: `1px solid ${on ? 'rgb(var(--color-accent) / 0.5)' : 'transparent'}`,
+                      color: on ? 'rgb(var(--color-accent))' : (t.color ?? 'rgb(var(--color-text-muted))'),
+                    }}
+                  >{t.name}</button>
+                )
+              })}
+            </div>
+          )}
           <div style={{ marginBottom: 12 }}>
             {creatingSession ? (
               <input
@@ -604,6 +744,9 @@ export default function StudyTrailApp() {
           </div>
           {restSessions.map((s) => renderSessionRow(s, false))}
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
+          {sessions.length > 0 && restSessions.length === 0 && tagFilter.size > 0 && (
+            <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions with those tags.</div>
+          )}
         </div>
 
         {sessionCtxMenu && (() => {
@@ -619,7 +762,76 @@ export default function StudyTrailApp() {
               }}
             >
               <button className="trail-ctx-btn" onClick={() => startRename(s.id, s.name)} style={sessionMenuBtnStyle}>Rename</button>
-              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468' }}>Delete</button>
+              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); setTagEditorFor(s.id) }} style={sessionMenuBtnStyle}>Tags…</button>
+              {/* Merge is one-way and irreversible, so it names the target explicitly rather than
+                  offering a vague "merge" that could go either direction. Splitting back apart
+                  afterwards is possible (right-click a stop on the map), which is what makes this
+                  safe enough to offer without a confirmation step. */}
+              {sessions.length > 1 && (
+                <div style={{ borderTop: '1px solid rgb(var(--color-surface-4))', marginTop: 4, paddingTop: 4 }}>
+                  <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'rgb(var(--color-text-muted))', padding: '2px 8px 4px' }}>Merge into</div>
+                  <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                    {sessions.filter((o) => o.id !== s.id).map((o) => (
+                      <button key={o.id} className="trail-ctx-btn" onClick={() => mergeInto(o.id, s.id)} style={sessionMenuBtnStyle}>{o.name}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468', marginTop: 4 }}>Delete</button>
+            </div>
+          )
+        })()}
+
+        {/* Tag editor for one session — a plain checklist of every existing tag plus a "type a
+            new one" field, mirroring how verse tags are picked elsewhere in the app. */}
+        {tagEditorFor && (() => {
+          const s = sessions.find((x) => x.id === tagEditorFor)
+          if (!s) return null
+          const own = new Set(tagsForSession(s.id).map((t) => t.id))
+          return (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(0,0,0,0.35)',
+              }}
+              onMouseDown={(e) => { if (e.target === e.currentTarget) setTagEditorFor(null) }}
+            >
+              <div style={{
+                width: 300, maxHeight: '70vh', overflowY: 'auto', padding: 14, borderRadius: 12,
+                background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+                boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Tags</div>
+                <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginBottom: 10 }}>{s.name}</div>
+                {tags.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>No tags yet.</div>}
+                {tags.map((t) => (
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={own.has(t.id)} onChange={() => toggleSessionTag(s.id, t.id)} />
+                    <span style={{ color: t.color ?? 'rgb(var(--color-text-primary))' }}>{t.name}</span>
+                    <span style={{ flex: 1 }} />
+                    <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>{t.sessionIds.length}</span>
+                  </label>
+                ))}
+                <input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void addTagToSession(s.id, newTagName) }}
+                  placeholder="New tag…"
+                  style={{
+                    width: '100%', marginTop: 10, fontSize: 12, padding: '5px 8px', borderRadius: 7,
+                    background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))',
+                    color: 'rgb(var(--color-text-primary))',
+                  }}
+                />
+                <button
+                  onClick={() => setTagEditorFor(null)}
+                  style={{
+                    width: '100%', marginTop: 10, fontSize: 12, fontWeight: 600, padding: '6px 8px', borderRadius: 7,
+                    cursor: 'pointer', background: 'rgb(var(--color-accent) / 0.16)', border: 'none', color: 'rgb(var(--color-accent))',
+                  }}
+                >Done</button>
+              </div>
             </div>
           )
         })()}
@@ -631,11 +843,43 @@ export default function StudyTrailApp() {
             since the browser let this outer div do the scrolling in practice instead. */}
         <div style={{ flex: 1, padding: '16px 20px 16px 10px', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {/* This div is what actually fills the remaining height and hands MapView a real
-              bounded ancestor to scroll within — see the "Main pane" comment above. ReviewView
-              gets its own overflow:auto here too, now that the outer pane no longer scrolls. */}
+              bounded ancestor to scroll within — see the "Main pane" comment above. Threads and
+              Search own their scrolling internally, so they get overflow:hidden here. */}
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          {mainTab === 'review' ? (
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ReviewView sessions={sessions} /></div>
+          {/* Banner fallback for a session-split proposal — per direct feedback, "both: toast now,
+              banner as fallback." The toast in the main window auto-dismisses to "keep current";
+              this stays put until it's answered, so a proposal raised while you were reading is
+              still actionable next time you look at the trail. */}
+          {splitProposal && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '7px 10px',
+              borderRadius: 9, background: 'rgb(var(--color-accent) / 0.12)',
+              border: '1px solid rgb(var(--color-accent) / 0.35)',
+            }}>
+              <Scissors size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
+              <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-secondary))', flex: 1 }}>
+                Split here into a new trail — {splitProposal.reason}?
+              </span>
+              <button
+                onClick={() => { void acceptSplitProposal().then(refresh) }}
+                style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 7, cursor: 'pointer', background: 'rgb(var(--color-accent) / 0.2)', border: 'none', color: 'rgb(var(--color-accent))' }}
+              >Split</button>
+              <button
+                onClick={clearSplitProposal}
+                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 7, cursor: 'pointer', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', color: 'rgb(var(--color-text-muted))' }}
+              >Dismiss</button>
+            </div>
+          )}
+          {mainTab === 'threads' ? (
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              {/* Opening a session from Threads or Search jumps straight back to the map with it
+                  selected — the two tabs are ways IN to the map, not dead ends. */}
+              <ThreadsView onOpenSession={(id) => { setSelectedId(id); setMainTab('map') }} />
+            </div>
+          ) : mainTab === 'search' ? (
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <TrailSearchView onOpenSession={(id) => { setSelectedId(id); setMainTab('map') }} />
+            </div>
           ) : selectedId === null ? (
             <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS} onLayoutRoomChange={setLayoutRoom} layoutRoom={layoutRoom} onCurrentHourChange={setCurrentHour} currentHour={currentHour} />
           ) : !detail ? (
@@ -711,6 +955,7 @@ export default function StudyTrailApp() {
                   topInset={8}
                   onLayoutRoomChange={setLayoutRoom}
                   onCurrentHourChange={setCurrentHour}
+                  onSplitHere={handleSplitHere}
                 />
               </div>
             </div>

@@ -35,22 +35,27 @@ export interface TrailEdge {
   /** Overrides the thick/1.75 default entirely — for return/revisit-link edges wanting their
    *  own quieter, thinner-than-normal weight independent of the thick flag. */
   strokeWidth?: number
+  /** More concurrent laned edges than the gutter has lanes — this one shares the last lane and
+   *  renders faintly, coming back to full strength only when hovered. Never dropped: a busy
+   *  session still shows every backlink, it just doesn't widen the view to do it. */
+  overflowLane?: boolean
+  /** Short text drawn along a laned edge (the verse pair tying its two ends together, e.g.
+   *  "Rev 12:6 ⇄ Hos 2:14") so a backlink says WHY it exists without being traced by eye.
+   *  Truncated to the gutter's own width — it may never widen the layout. */
+  label?: string
 }
 
-// Shared with MapView.tsx, which needs these to size the reserved gutter column — a lane
-// routes at `gutterBaseX - lane * LANE_SPACING` (see the `d` construction below), so the
-// column must be at least `GUTTER_BASE + maxLane * LANE_SPACING` wide to fit every lane.
-// GUTTER_BASE raised 16 -> 30 per direct feedback on the left-gutter revisit/return arcs
-// ("make sure that it is going past the main spine bullet too, so the arc will need to be
-// curved more") — the old 16px reservation put lane 0 barely left of the dot column at all,
-// so the curve's belly (at 55% reach, see the bezier construction below) never visibly cleared
-// the bullets it was supposed to arc around.
+// Shared with trailGraph.ts, which sizes the reserved gutter column from these — a lane routes
+// at `gutterRightEdge - LANE_RIGHT_INSET - lane * LANE_SPACING` (see the `d` construction below),
+// so the column must be at least `GUTTER_BASE + (MAX_GUTTER_LANES - 1) * LANE_SPACING` wide to
+// fit every lane. All three are now FIXED: the gutter used to be sized from the old bezier's
+// vertical-run-dependent bow, which made the whole view grow wider the more revisits a session
+// accumulated. It is a constant-width column now, and the orthogonal lane routing below stays
+// inside it by construction rather than by keeping two tuning formulas in sync by hand.
 export const GUTTER_BASE = 30
-// Bumped 10 -> 18 per direct feedback ("make the revisit arcs more varied in how far out they
-// go so it's easier to follow") — concurrently-overlapping arcs (each in its own lane) now
-// step out ~2x further apart, so a stack of them stays individually traceable instead of
-// visually merging. MapView.tsx's gutter reservation mirrors this constant.
 export const LANE_SPACING = 18
+/** How far left of the gutter's right edge lane 0 runs. */
+export const LANE_RIGHT_INSET = 14
 
 /** One shared registry of "connector point key → its DOM element", plus the ref-callback
  *  factory every anchor (spine dot, row marker) uses to register itself. Lives in the parent
@@ -107,6 +112,10 @@ export default function TrailConnectorOverlay({
   zoom?: number
 }) {
   const [coords, setCoords] = useState<Map<string, TrailPoint>>(new Map())
+  // Which overflow-lane edge is currently hovered — see the overflow handling in the edge map
+  // below. Only ever set by an overflow edge's own hit-target, so a normal session never
+  // re-renders for it.
+  const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null)
   // Dedupe the missing-endpoint warning below — without this it re-fires identically on EVERY
   // render forever for any edge whose endpoint is legitimately not currently mounted (most
   // commonly: a spine edge touching a node hidden inside a collapsed "bounced Nx" cluster,
@@ -283,159 +292,51 @@ export default function TrailConnectorOverlay({
         const endGap = radiusFor(e.to) + (e.arrow ? (e.lane != null ? ENDPOINT_GAP + 3 : ENDPOINT_GAP + 2) : ENDPOINT_GAP)
 
         let d: string
+        let laneGeom: { laneX: number; topY: number; bottomY: number } | null = null
         if (e.lane != null) {
-          // REWRITTEN FROM SCRATCH per direct feedback ("both of those are still not fixed...
-          // maybe for the revisit arc, you just recreate the entire arc for that from scratch")
-          // after several rounds of tuning a "toward/away from the other end" Y-offset on the
-          // control points kept producing either a curve that fell visibly short of one dot
-          // (the original, safe direction) or a closed loop that floated apart from both dots
-          // entirely (an attempt at the opposite direction) — that whole family of "offset the
-          // control point in Y by some tunable amount" was the wrong lever regardless of which
-          // way it pointed or how big it was.
+          // REWRITTEN for the "never scroll horizontally" constraint. The previous construction
+          // was a cubic bezier whose belly bowed left by `extraBow` — a value that GREW with how
+          // much vertical distance the edge had to clear. MapView then had to reserve gutter
+          // width to match, so every additional long-range revisit pushed the whole spine
+          // further right and eventually forced a horizontal scrollbar (Michael: "i dont want to
+          // have to horizontally scroll at all"). Worse, the two sides mirrored the same tuning
+          // constants by hand and repeatedly drifted apart.
           //
-          // New construction, deliberately as simple as it can be: a single cubic bezier whose
-          // TWO CONTROL POINTS SIT EXACTLY AT THEIR OWN ENDPOINT'S OWN Y — control1 = (laneX,
-          // start.y), control2 = (laneX, end.y). This is mathematically guaranteed to never
-          // overshoot past start or end (a cubic bezier's points are a weighted average of its
-          // four control points; with both middle points already inside the Y-range
-          // [start.y, end.y], the whole curve's Y stays inside that range too) — so it can never
-          // degenerate into a loop no matter how large the horizontal reach (laneX) is, and it
-          // reaches EXACTLY from start's height to end's height by construction, not by tuning
-          // some separate softening constant to approximate that span — solving "coming up
-          // short" the same move that also makes "turning into a circle" structurally
-          // impossible, instead of trading one for the other.
+          // The replacement is a plain ORTHOGONAL route confined to its own lane: leave the
+          // source dot horizontally, turn down (or up) the lane's fixed x, run vertically past
+          // whatever content is in between, then turn back in to the target dot. Rounded corners
+          // keep it from reading as harsh. Because the lane's x is a constant derived only from
+          // the lane index, the drawn width is bounded no matter how far apart the endpoints are
+          // — the gutter is a fixed 3-lane column and nothing can ever exceed it.
           const gutter = coords.get('gutter:x')
-          // Anchored to the spacer's own RIGHT edge (gutter.x*2 — the registered point is the
-          // spacer's CENTER, and its left edge sits at containerRef's own x=0), not its center.
-          const gutterRightEdge = gutter ? gutter.x * 2 : 0
-          const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
-          // Round 9 — Michael gave precise, opposite-direction corrections for the two laned
-          // edge types, so both now get their own dedicated virtual-anchor construction (neither
-          // goes through pushOffStart/pullBackEnd's diagonal-chord pullback any more, which for
-          // the return edge was pulling back along the A→B straight-line CHORD rather than the
-          // actual bezier's own vertical-ish approach — a real direction mismatch, not just a
-          // magnitude one, whenever `from`/`to` have any real x-difference, exactly the case for
-          // a `row:` origin point vs. its target node dot).
-          //
-          //  - revisit-link (no arrow): was landing OUTSIDE the bullet pair (round 3's anchors
-          //    pointed away from the span — top endpoint above the top bullet, bottom endpoint
-          //    below the bottom bullet). Flipped INWARD: the higher point's anchor now sits BELOW
-          //    it (toward the lower bullet) and the lower point's anchor sits ABOVE it (toward the
-          //    higher bullet) — landing inside the span between the two bullets, not past either.
-          //  - return (arrow): was landing INSIDE the bullet, overlapping its circle. Anchors now
-          //    point OUTWARD — the higher point's anchor sits ABOVE it, the lower point's sits
-          //    BELOW it — clearing the bullet's edge instead of cutting into it.
-          //  - both: nudged further left (8px, up from revisit-link's old 3px; return had no left
-          //    offset at all before) — per direct feedback both were still reading as too far
-          //    right.
-          //  - round 10 tuning per direct feedback ("[return] arcs are now too far out on both
-          //    sides... do in between, prob around the same distance as the [revisit] ones" /
-          //    "[revisit] can be shifted a tiny bit outward"): return's outward distance brought
-          //    down from 12 to 6 (near revisit-link's distance), revisit-link's inward pull eased
-          //    from 5 to 2 (a small nudge back outward from where it was).
-          //  - round 11 per direct feedback ("the [return] arcs need the top node moved slightly
-          //    down and the bottom node slightly up") — that's INWARD, same direction as
-          //    revisit-link now, not outward: return flipped from an outward push to a small
-          //    inward pull (its own, smaller-than-revisit-link magnitude, since it was reading as
-          //    already close before this nudge).
-          const REVISIT_ANCHOR_IN = 2
-          const REVISIT_ANCHOR_LEFT = 8
-          const RETURN_ANCHOR_IN = 3
-          const RETURN_ANCHOR_LEFT = 8
-          const aIsHigher = rawA.y <= rawB.y
-          const start = e.arrow
-            ? { x: rawA.x - RETURN_ANCHOR_LEFT, y: rawA.y + (aIsHigher ? RETURN_ANCHOR_IN : -RETURN_ANCHOR_IN) }
-            : { x: rawA.x - REVISIT_ANCHOR_LEFT, y: rawA.y + (aIsHigher ? REVISIT_ANCHOR_IN : -REVISIT_ANCHOR_IN) }
-          const end = e.arrow
-            ? { x: rawB.x - RETURN_ANCHOR_LEFT, y: rawB.y + (aIsHigher ? -RETURN_ANCHOR_IN : RETURN_ANCHOR_IN) }
-            : { x: rawB.x - REVISIT_ANCHOR_LEFT, y: rawB.y + (aIsHigher ? -REVISIT_ANCHOR_IN : REVISIT_ANCHOR_IN) }
-          const vertRun = Math.abs(end.y - start.y)
-          // How far left of the dot column the curve bulges — scales with vertRun so a return
-          // spanning a lot of intervening content swings out further to visibly "go around" it,
-          // not just lean slightly left of it. MapView's own gutterWidth reservation
-          // (EXTRA_BOW_RESERVE) mirrors this same formula so the reserved scroll room actually
-          // covers it.
-          // Bumped 85 -> 105 per direct feedback ("shifted to the left a little") — MapView's
-          // own EXTRA_BOW_BASE mirrors this constant for its reservation, keep them in sync.
-          // Split by arrow/non-arrow per direct feedback ("the [revisit] arcs are too wide now")
-          // — the revisit-link backlink (no arrowhead, using the virtual-anchor endpoints above)
-          // wants a visibly tighter bow than the branch-return arrow, which keeps its own wider
-          // 105/0.45 LINEAR formula unchanged (not asked to shrink, and it's still doing the
-          // "swing wide enough to visibly go around the intervening content" job it was tuned
-          // for).
-          //
-          // The first pass at the revisit-link's own numbers (base 44, still linear in vertRun)
-          // didn't actually look any narrower for a longer revisit — confirmed from Michael's own
-          // logged geometry: vertRun 202/298/878 → extraBow 75/96/224. A flat base term is a small
-          // fraction of the total once vertRun gets large (base=44 vs. ~193px from the linear
-          // term alone at vertRun=878) — shrinking ONLY the base barely moves the needle for any
-          // revisit spanning real vertical distance, which is exactly what he reported. Switching
-          // the GROWING part from linear-in-vertRun to sqrt(vertRun) (a much shallower curve at
-          // large inputs) plus a hard ceiling fixes all three logged cases at once, not just the
-          // short ones — sqrt(142)≈12, sqrt(238)≈15, sqrt(818)≈29, so even the 878 case's growth
-          // term is only ~3x the 202 case's instead of ~6x under the old linear formula.
-          // scale bumped 3 -> 4.5 and base eased 30 -> 26 per direct feedback ("more varied in
-          // how far out they go") — a long revisit now bows visibly further than a short one
-          // (the range between them roughly doubles) instead of the old near-flat sqrt curve.
-          // Keep MapView's overlayBowFor mirror (base/scale/cap) in sync.
-          const REVISIT_BOW_BASE = 26
-          const REVISIT_BOW_SQRT_SCALE = 4.5
-          const REVISIT_BOW_CAP = 100
-          // Round 7: "the arcs still didn't change at all" turned out to (at least partly) mean
-          // the ARROWED `return:` edges too — round 6's sqrt/cap rework only ever touched the
-          // non-arrow revisit-link edge; `return:` was still running the original, unbounded
-          // LINEAR formula (105 base, 0.45/px), which is exactly why a long-vertical-span return
-          // arc would still balloon out just as far as it always did. Same sub-linear treatment
-          // here, sized up from the revisit-link's own constants (not identical — a return arc is
-          // still meant to read as more prominent, per the "swing wide enough to visibly go
-          // around it" tuning goal that hasn't changed) so the two edge types stay visually
-          // distinct rather than converging on one look.
-          // scale bumped 6 -> 8 (same "more varied" feedback); cap held at 180.
-          const RETURN_BOW_BASE = 66
-          const RETURN_BOW_SQRT_SCALE = 8
-          const RETURN_BOW_CAP = 180
-          const EXTRA_BOW_BASE = e.arrow ? RETURN_BOW_BASE : REVISIT_BOW_BASE
-          const EXTRA_BOW_SCALE = e.arrow ? RETURN_BOW_SQRT_SCALE : REVISIT_BOW_SQRT_SCALE
-          const extraBowCap = e.arrow ? RETURN_BOW_CAP : REVISIT_BOW_CAP
-          const extraBow = Math.min(extraBowCap, EXTRA_BOW_BASE + EXTRA_BOW_SCALE * Math.sqrt(Math.max(0, vertRun - 60)))
-          // Sanity check against Michael's actual logged vertRun values (all narrower than
-          // before, both edge types):
-          //   revisit-link  vertRun=202 → 30 + 3·√142 ≈ 66   (was 75, old linear)
-          //                 vertRun=298 → 30 + 3·√238 ≈ 76   (was 96)
-          //                 vertRun=878 → 30 + 3·√818 ≈ 116 → capped to 85   (was 224)
-          //   return        vertRun=202 → 70 + 6·√142 ≈ 141  (was 169, old linear)
-          //                 vertRun=298 → 70 + 6·√238 ≈ 163  (was 212)
-          //                 vertRun=878 → 70 + 6·√818 ≈ 242 → capped to 180 (was 473)
-          // Floor is a last-resort safety net only — with the new construction above, laneX
-          // going small just makes for a narrower (not broken) bulge; nothing here can loop.
-          const laneX = Math.max(24, baseLaneX - extraBow)
-          d = `M${start.x},${start.y} C${laneX},${start.y} ${laneX},${end.y} ${end.x},${end.y}`
+          // The registered point is the spacer's CENTER and its left edge sits at containerRef's
+          // own x=0, so the spacer's RIGHT edge is at x*2.
+          const gutterRightEdge = gutter ? gutter.x * 2 : Math.min(rawA.x, rawB.x)
+          const laneX = Math.max(4, gutterRightEdge - LANE_RIGHT_INSET - e.lane * LANE_SPACING)
+          const sx = rawA.x - (radiusFor(e.from) + ENDPOINT_GAP)
+          const ex = rawB.x - (radiusFor(e.to) + (e.arrow ? ENDPOINT_GAP + 2 : ENDPOINT_GAP))
+          const sy = rawA.y
+          const ey = rawB.y
+          const dirY = Math.sign(ey - sy) || 1
+          // Corner radius has to shrink for a short edge, otherwise the two arcs overlap and the
+          // path folds back on itself — clamped against both the vertical run and the horizontal
+          // reach so the route degrades gracefully to a near-square corner instead of breaking.
+          const r = Math.max(0, Math.min(8, Math.abs(ey - sy) / 2, (Math.min(sx, ex) - laneX) / 2))
+          d = r > 0.5
+            ? `M${sx},${sy} L${laneX + r},${sy} Q${laneX},${sy} ${laneX},${sy + dirY * r} L${laneX},${ey - dirY * r} Q${laneX},${ey} ${laneX + r},${ey} L${ex},${ey}`
+            : `M${sx},${sy} L${laneX},${sy} L${laneX},${ey} L${ex},${ey}`
+          laneGeom = { laneX, topY: Math.min(sy, ey), bottomY: Math.max(sy, ey) }
           if (window.__bereanTrailDebug) {
-            // Per direct feedback ("the revisit arc width fix isn't visible at all") — logs
-            // exactly which branch this edge resolved to (arrow vs non-arrow) and the actual
-            // EXTRA_BOW_BASE/SCALE values used, alongside the geometry those values produced, so
-            // it's directly checkable whether: (a) this code path is even being hit for the edge
-            // in question, (b) `edgeType`/`arrow` classifies it the way it's expected to
-            // (`revisit-link:` should show arrow:false/edgeType containing "revisit-link", the
-            // narrow 44/0.22 constants; `return:` should show arrow:true, the wide 105/0.45
-            // ones), and (c) the resulting extraBow/laneX actually reflects that — every field
-            // needed to settle "is my fix even running" without guessing.
             const summary = {
-              key: e.key,
-              edgeType: e.key.split(':')[0],
-              arrow: !!e.arrow,
-              extraBowBase: EXTRA_BOW_BASE, extraBowScale: EXTRA_BOW_SCALE,
-              gutterRightEdge: Math.round(gutterRightEdge), baseLaneX: Math.round(baseLaneX),
-              vertRun: Math.round(vertRun), extraBow: Math.round(extraBow), laneX: Math.round(laneX),
-              clampedToFloor: laneX === 24,
-              rawA: { x: Math.round(rawA.x), y: Math.round(rawA.y) }, rawB: { x: Math.round(rawB.x), y: Math.round(rawB.y) },
-              start: { x: Math.round(start.x), y: Math.round(start.y) }, end: { x: Math.round(end.x), y: Math.round(end.y) },
-              d,
+              key: e.key, edgeType: e.key.split(':')[0], arrow: !!e.arrow, lane: e.lane,
+              overflow: !!e.overflowLane,
+              gutterRightEdge: Math.round(gutterRightEdge), laneX: Math.round(laneX),
+              vertRun: Math.round(Math.abs(ey - sy)), d,
             }
             const logStr = JSON.stringify(summary)
             if (lastArcLogRef.current.get(e.key) !== logStr) {
               lastArcLogRef.current.set(e.key, logStr)
-              console.log('[TrailDebug] arc geometry', summary)
+              console.log('[TrailDebug] lane route', summary)
             }
           }
         } else {
@@ -451,9 +352,26 @@ export default function TrailConnectorOverlay({
             ? `M${a.x},${a.y} C${a.x},${a.y + dir * 28} ${b.x},${b.y - dir * 28} ${b.x},${b.y}`
             : `M${a.x},${a.y} L${b.x},${b.y}`
         }
+        // An overflow-lane edge (more concurrent backlinks than the gutter has lanes) is drawn
+        // faintly and comes back to full strength only while either of its endpoints is hovered —
+        // the alternative, widening the gutter to fit them all, is exactly the horizontal growth
+        // this rewrite exists to eliminate.
+        const dimmed = !!e.overflowLane && hoveredEdgeKey !== e.key
         return (
+          <g key={e.key}>
+          {laneGeom && e.label && (
+            // Drawn along the lane, rotated to run with it, and hard-clipped to the gutter's own
+            // width so a long verse pair can never push the layout wider.
+            <text
+              x={-(laneGeom.topY + laneGeom.bottomY) / 2} y={laneGeom.laneX - 3}
+              transform="rotate(-90)" textAnchor="middle"
+              style={{ fontSize: 8.5, fill: 'rgb(var(--color-text-muted))', opacity: dimmed ? 0.25 : 0.7, pointerEvents: 'none' }}
+            >
+              {e.label.length > 26 ? `${e.label.slice(0, 25)}…` : e.label}
+            </text>
+          )}
           <path
-            key={e.key} d={d} stroke={e.color} strokeWidth={e.strokeWidth ?? (e.thick ? 3 : 1.75)} fill="none"
+            d={d} stroke={e.color} strokeWidth={e.strokeWidth ?? (e.thick ? 3 : 1.75)} fill="none"
             strokeDasharray={e.dashed ? '4 4' : undefined}
             // A round cap adds a small rounded bump extending PAST the path's mathematical
             // endpoint (half the stroke width) — harmless on its own, but on an arrowed edge
@@ -461,9 +379,19 @@ export default function TrailConnectorOverlay({
             // line, making the join look slightly off/disconnected instead of the line
             // flowing cleanly into the arrowhead. A flat ("butt") cap terminates exactly at
             // the endpoint with no extension, so the arrowhead's back sits flush against it.
-            strokeLinecap={e.arrow ? 'butt' : 'round'} strokeLinejoin="round" opacity={e.opacity ?? 1}
+            strokeLinecap={e.arrow ? 'butt' : 'round'} strokeLinejoin="round" opacity={(e.opacity ?? 1) * (dimmed ? 0.45 : 1)}
             markerEnd={e.arrow ? 'url(#trail-arrow)' : undefined}
           />
+          {/* An invisible fat stroke over the same path — the visible hairline is far too thin to
+              hover, and an overflow edge needs a way to be brought forward. pointerEvents is
+              enabled only for this one, the SVG itself stays click-through. */}
+          {e.overflowLane && (
+            <path
+              d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
+              onMouseEnter={() => setHoveredEdgeKey(e.key)} onMouseLeave={() => setHoveredEdgeKey((k) => (k === e.key ? null : k))}
+            />
+          )}
+          </g>
         )
       })}
     </svg>

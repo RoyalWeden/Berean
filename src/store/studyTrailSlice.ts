@@ -9,7 +9,7 @@ import { create } from 'zustand'
 import type { NavOrigin, NavRecorder } from '@/lib/verseNavigation'
 import { setNavRecorder } from '@/lib/verseNavigation'
 import type { ClarityTier, TrailSessionStatus, TrailConnection } from '@/types/studyTrail'
-import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 
 // The implicit "Loose stops" bucket — navigation is recorded here when the user has NOT created
 // a session of their own. Never shown in the session rail (listSessions filters it out); only
@@ -90,6 +90,15 @@ interface StudyTrailState {
   // WITHOUT saving writes nothing at all: it's a one-time nudge for this specific arrival, not
   // a persistent per-connection state, so a later jump to the same pair of chapters still gets
   // its own fresh prompt rather than being permanently silenced.
+  /** A proposal to start a NEW session at a stop, raised automatically but never acted on
+   *  automatically — per direct feedback sessions should be "automatic but confirmable", with a
+   *  toast in the main window now and a banner in the trail window as a fallback if it's missed.
+   *  Cleared by accepting (splits the session there) or dismissing (never re-raised for that
+   *  stop). */
+  splitProposal: { nodeId: string; sessionId: string; reason: string; at: number } | null
+  proposeSplit: (p: { nodeId: string; sessionId: string; reason: string }) => void
+  clearSplitProposal: () => void
+  acceptSplitProposal: () => Promise<void>
   pendingArrivalPrompt: TrailConnection | null
   // The node the connection above actually LANDED on — needed alongside pendingArrivalPrompt so
   // the popup's "new topic" checkbox (a node-level flag, not a connection-level one) has
@@ -216,6 +225,30 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentlyInBranch: false,
   pendingArrivalPrompt: null, pendingArrivalNodeId: null,
   clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null }),
+  splitProposal: null,
+  proposeSplit: (p) => {
+    // Never replace a proposal the user hasn't answered yet — the second one would silently
+    // move the cut point out from under whatever the toast is currently offering.
+    if (useStudyTrailStore.getState().splitProposal) return
+    set({ splitProposal: { ...p, at: Date.now() } })
+    window.app.broadcastStudyTrailState?.({ splitProposal: { ...p, at: Date.now() } })
+  },
+  clearSplitProposal: () => {
+    set({ splitProposal: null })
+    window.app.broadcastStudyTrailState?.({ splitProposal: null })
+  },
+  acceptSplitProposal: async () => {
+    const p = useStudyTrailStore.getState().splitProposal
+    if (!p) return
+    set({ splitProposal: null })
+    window.app.broadcastStudyTrailState?.({ splitProposal: null })
+    const res = await window.studyTrail.splitSession(p.sessionId, p.nodeId, p.reason)
+    if (res.success && res.id) {
+      // The new session becomes the live one — the whole point is that what you're doing NOW is
+      // recorded into it, not into the study it was cut away from.
+      await useStudyTrailStore.getState().activateExistingSession(res.id)
+    }
+  },
   sessionNodeIndex: {}, sessionTangentIndex: {},
 
   startTrailSession: async (name: string) => {
@@ -423,6 +456,62 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
 }
 
 /**
+ * Records a non-scripture stop — opening a note, a YouTube video, a PDF, or running a search —
+ * as a branch off whatever chapter is currently anchored.
+ *
+ * These were entirely invisible to the Study Trail before this: `toKind: 'note'` and `'video'`
+ * had been in the schema and the type union since v28 but nothing ever wrote them, while the
+ * separate `history` table happily captured all of it. So a session where the real work was
+ * "read Hosea 2, wrote a note about it, watched a teaching on it" showed only the chapter — which
+ * is a large part of "i think the study trail isnt picking up and putting things on right."
+ *
+ * Chained off the current branch tip exactly like a lexicon lookup, so opening a note in the
+ * middle of a word study nests under that study rather than looking like a fresh sibling jump
+ * from the chapter.
+ */
+export function recordSideStop(input: {
+  kind: 'note' | 'video' | 'pdf' | 'search'
+  label: string
+  noteId?: string
+  videoId?: string
+}): void {
+  const s = useStudyTrailStore.getState()
+  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live') {
+    void useStudyTrailStore.getState().ensureLiveSession()
+    return
+  }
+  // Like a lexicon click, this has to hang off a chapter that's already on the spine — there's
+  // no meaningful "where did this come from" for a note opened before anything was read.
+  if (!s.currentAnchorNodeId) return
+  const chained = s.currentBranchTipConnectionId != null
+  const navAt = Date.now()
+  window.studyTrail.addConnection({
+    trailSessionId: s.currentTrailSessionId,
+    fromNodeId: s.currentAnchorNodeId,
+    fromConnectionId: chained ? s.currentBranchTipConnectionId! : undefined,
+    chainDepth: chained ? s.currentBranchTipDepth + 1 : 0,
+    toKind: input.kind,
+    toNoteId: input.noteId,
+    toVideoId: input.videoId,
+    // Tier 2, not 1: Berean knows for certain WHAT was opened, but not that this chapter is why
+    // — opening a note can be an unrelated errand mid-read. Tier 1 is reserved for causal
+    // certainty (clicking a Strong's number in this very verse), and inflating it here would
+    // make the whole tier signal meaningless.
+    clarityTier: 2,
+    reasonText: input.label,
+    reasonTags: [input.kind],
+    weight: 'full',
+    createdAt: navAt,
+  })
+    .then((conn) => {
+      useStudyTrailStore.setState({
+        currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: navAt,
+      })
+    })
+    .catch((err) => console.error('[TrailDebug] addConnection (side stop) FAILED', err))
+}
+
+/**
  * Notes a translation switch (KJV → LXX, etc.) on the CURRENT anchor node — the plain
  * translation picker in BiblePanel.tsx changes `updateTabState('scripture', ..., {translation})`
  * directly, without going through navigateToVerse/the NavOrigin recorder at all (there's no
@@ -483,15 +572,23 @@ export function installStudyTrailStateSync(): void {
 
   window.app.onStudyTrailStateChanged?.((raw) => {
     const incoming = raw as {
-      currentTrailSessionId: string | null; trailSessionStatus: TrailSessionStatus | null
+      currentTrailSessionId?: string | null; trailSessionStatus?: TrailSessionStatus | null
       seedAnchor?: { nodeId: string; bookId: string; chapter: number }
+      splitProposal?: StudyTrailState['splitProposal']
+    }
+    // A split-proposal broadcast carries ONLY that field — it has to be applied before (and
+    // independently of) the session reconciliation below, which would otherwise read the absent
+    // currentTrailSessionId as "no session" and tear down this window's live anchor.
+    if ('splitProposal' in incoming) {
+      useStudyTrailStore.setState({ splitProposal: incoming.splitProposal ?? null })
+      if (!('currentTrailSessionId' in incoming)) return
     }
     const cur = useStudyTrailStore.getState()
     if (cur.currentTrailSessionId === incoming.currentTrailSessionId && cur.trailSessionStatus === incoming.trailSessionStatus) return
     const sessionChanged = cur.currentTrailSessionId !== incoming.currentTrailSessionId
     useStudyTrailStore.setState({
-      currentTrailSessionId: incoming.currentTrailSessionId,
-      trailSessionStatus: incoming.trailSessionStatus,
+      currentTrailSessionId: incoming.currentTrailSessionId ?? null,
+      trailSessionStatus: incoming.trailSessionStatus ?? null,
       // A different (or newly-null) session id means whatever anchor THIS window's own
       // recorder was tracking is now stale — reset it exactly like startTrailSession's own
       // reducer does, so the next navigation creates a fresh first anchor for the new session
@@ -521,6 +618,16 @@ export function installStudyTrailStateSync(): void {
 // navigation in between, retroactively marks the connection as a low-weight 'glance' rather
 // than a full tangent. Nothing is ever deleted, only re-weighted.
 const GLANCE_WINDOW_MS = 2500
+
+// How long a break has to be before arriving somewhere reads as the start of a NEW study rather
+// than a continuation of the current one. 45 minutes is deliberately generous: a wrong proposal
+// is an interruption, and the fallback (no proposal) just means the stop lands in the session it
+// would have landed in anyway. Per direct feedback sessions are "automatic but confirmable" — this
+// only ever RAISES a proposal; nothing splits until the user says so.
+const SESSION_SPLIT_GAP_MS = 45 * 60_000
+
+/** Human book name for a proposed session's auto-generated title, falling back to the raw id. */
+const bookLabelFor = (bookId: string): string => bookName(bookId) || bookId
 
 let pendingGlanceCheck: { connectionId: string; fromBookId: string; fromChapter: number; timer: ReturnType<typeof setTimeout> } | null = null
 
@@ -713,6 +820,19 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
     ...(isBranchThisHop ? {} : { currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, sessionTangentIndex: {} }),
     sessionNodeIndex: { ...st.sessionNodeIndex, [key]: node!.id },
   }))
+  // Auto-detect a session boundary. Two signals, both requiring a REAL previous stop to measure
+  // from: a long pause-adjusted break, or landing in a different book with nothing tying the two
+  // together (no verse-specific origin — a cross-ref into another book is a continuation of the
+  // same thought, typing "Hosea 2" out of the blue after reading Genesis is not).
+  if (effectivePrevNodeId && s.currentAnchorActivatedAt != null && trailSessionId !== LOOSE_SESSION_ID) {
+    const gapMs = navAt - s.currentAnchorActivatedAt
+    const bookChanged = !!s.currentAnchorBookId && s.currentAnchorBookId !== to.bookId
+    const untied = to.verse == null && !SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)
+    const reason = gapMs >= SESSION_SPLIT_GAP_MS
+      ? `${bookLabelFor(to.bookId)} — after a break`
+      : (bookChanged && untied) ? bookLabelFor(to.bookId) : null
+    if (reason) useStudyTrailStore.getState().proposeSplit({ nodeId: node!.id, sessionId: trailSessionId, reason })
+  }
   if (!effectivePrevNodeId) {
     return
   }
