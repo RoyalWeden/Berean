@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
-import { Scissors, Plus, ListChecks, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { Scissors, Plus, ListChecks, ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail, TrailTag } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
@@ -9,6 +9,8 @@ import ThreadsView from './ThreadsView'
 import TrailSearchView from './TrailSearchView'
 import EverythingView from './EverythingView'
 import TrailMapHeader from './TrailMapHeader'
+import TrailHoverCard from './TrailHoverCard'
+import SessionHoverContent from './SessionHoverContent'
 import { DEFAULT_REVISIT_WINDOW_MS } from './trailTime'
 import {
   readTrailWindowPrefs, setTrailWindowPrefs, EVERYTHING_SCROLL_KEY,
@@ -46,11 +48,13 @@ function dayKeyToStart(dayKey: string): Date {
   const [y, m, d] = dayKey.split('-').map(Number)
   return new Date(y, m - 1, d, DAY_VIEW_START_HOUR, 0, 0, 0)
 }
+// Abbreviated ("Sep 2026", not "September 2026") per feedback on the calendar's visual refresh
+// ("abbreviate the names") — frees up room for the larger text used throughout that redesign.
 function fmtMonthHeading(monthKey: string): string {
   const [y, m] = monthKey.split('-').map(Number)
   const d = new Date(y, m - 1, 1)
   const sameYear = y === new Date().getFullYear()
-  return d.toLocaleDateString([], sameYear ? { month: 'long' } : { month: 'long', year: 'numeric' })
+  return d.toLocaleDateString([], sameYear ? { month: 'short' } : { month: 'short', year: 'numeric' })
 }
 function fmtDayHeading(dayKey: string): string {
   const start = dayKeyToStart(dayKey)
@@ -894,9 +898,16 @@ export default function StudyTrailApp() {
                 {/* text-shadow (not a background pill) keeps this legible over whatever
                     scrolls underneath without turning the translucent-background request
                     into another opaque box. */}
-                <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgb(var(--color-surface-1))' }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgb(var(--color-surface-1))' }}>
                   {fmtDayHeading(selectedDayKey)}
                 </div>
+                {selectedDayKey !== dayKeyFor(Date.now()) && (
+                  <button
+                    onClick={() => setSelectedDayKey(dayKeyFor(Date.now()))}
+                    title="Jump to today"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgb(var(--color-accent))', flexShrink: 0 }}
+                  ><CalendarCheck size={13} /></button>
+                )}
                 <button
                   onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)}
                   disabled={!prevDayKey}
@@ -968,8 +979,8 @@ export default function StudyTrailApp() {
               user can scroll through the months... then click on one of the days." Empty days/
               months (after the tag filter) never render at all. */}
           {!selectMode && restSessions.length > 0 && railView === 'month' && monthsSorted.map((mk) => (
-            <div key={mk} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgb(var(--color-text-muted))', marginBottom: 4 }}>
+            <div key={mk} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgb(var(--color-text-muted))', marginBottom: 5 }}>
                 {fmtMonthHeading(mk)}
               </div>
               {(daysByMonth.get(mk) ?? []).map((dk) => {
@@ -979,12 +990,12 @@ export default function StudyTrailApp() {
                     key={dk}
                     onClick={() => openDay(dk)}
                     className="trail-day-row"
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 9px', borderRadius: 8, cursor: 'pointer' }}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {fmtDayHeading(dk)}
                     </div>
-                    <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', flexShrink: 0 }}>
+                    <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', flexShrink: 0 }}>
                       {daySessions.length} session{daySessions.length === 1 ? '' : 's'}
                     </div>
                   </div>
@@ -1002,7 +1013,7 @@ export default function StudyTrailApp() {
               select mode can still be turned off from here. Only the timeline drawing itself is
               swapped out for that flat list. */}
           {railView === 'day' && selectedDayKey && (() => {
-            const PX_PER_MIN = 0.8
+            const PX_PER_MIN = 0.9 // modest bump alongside the rest of the calendar's larger text
             const winStart = dayKeyToStart(selectedDayKey).getTime()
             const winEnd = winStart + 24 * 3_600_000
             const totalHeight = 24 * 60 * PX_PER_MIN
@@ -1072,12 +1083,15 @@ export default function StudyTrailApp() {
                         }}
                       />
                     ) : (
+                      // Per feedback ("show some hover thing... like some details" — and "i
+                      // dont want a plain browser tooltip"): TrailHoverCard (the same rich
+                      // hover-card component the map already uses) replaces the old plain
+                      // title= tooltip here.
+                      <TrailHoverCard key={s.id} content={<SessionHoverContent session={s} tags={tagsForSession(s.id)} />}>
                       <div
-                        key={s.id}
                         onClick={() => selectSessionToggle(s.id)}
                         onDoubleClick={() => startRename(s.id, s.name)}
                         onContextMenu={(e) => openSessionMenu(e, s.id)}
-                        title={`${s.name} — ${new Date(s.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
                         style={{
                           position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)`,
                           borderRadius: 6, cursor: 'pointer', overflow: 'hidden', padding: '2px 6px',
@@ -1086,15 +1100,16 @@ export default function StudyTrailApp() {
                           boxShadow: selected ? '0 0 0 1px rgb(var(--color-accent))' : undefined,
                         }}
                       >
-                        <div style={{ fontSize: 10.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {s.name}
                         </div>
                         {height >= 30 && (
-                          <div style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))' }}>
+                          <div style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))' }}>
                             {new Date(s.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                           </div>
                         )}
                       </div>
+                      </TrailHoverCard>
                     )
                   })}
                 </div>
