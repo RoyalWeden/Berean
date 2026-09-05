@@ -871,6 +871,67 @@ export default function StudyTrailApp() {
             <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
           </div>
           {renderSessionRow(liveSession, true)}
+          {/* Day view's date/nav + Months/+/Select — per feedback ("the day and the buttons
+              should be floating below the everything button"), this now lives in the SAME
+              pinned/sticky group as Everything and the live session above, rather than being
+              its own separately-sticky element fighting them for the same top:0 spot. Each
+              button gets its OWN translucent pill background now, not one shared band. */}
+          {railView === 'day' && selectedDayKey && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {fmtDayHeading(selectedDayKey)}
+                </div>
+                <button
+                  onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)}
+                  disabled={!prevDayKey}
+                  title="Earlier day"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: prevDayKey ? 'pointer' : 'default', color: prevDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
+                ><ChevronLeft size={12} /></button>
+                <button
+                  onClick={() => nextDayKey && setSelectedDayKey(nextDayKey)}
+                  disabled={!nextDayKey}
+                  title="Later day"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: nextDayKey ? 'pointer' : 'default', color: nextDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
+                ><ChevronRight size={12} /></button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <button
+                  onClick={() => setRailView('month')}
+                  title="Back to the month calendar"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', flexShrink: 0,
+                    background: 'rgb(var(--color-surface-3) / 0.7)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                    border: 'none', borderRadius: 6, cursor: 'pointer',
+                    color: 'rgb(var(--color-text-secondary))', fontSize: 10.5, fontWeight: 600,
+                  }}
+                ><CalendarDays size={12} /> Months</button>
+                <span style={{ flex: 1 }} />
+                <button
+                  onClick={() => setCreatingSession(true)}
+                  title="New session"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
+                    background: 'rgb(var(--color-accent) / 0.14)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                    border: 'none', borderRadius: 6, cursor: 'pointer',
+                    color: 'rgb(var(--color-accent))', flexShrink: 0,
+                  }}
+                ><Plus size={13} /></button>
+                {sessions.length > 0 && (
+                  <button
+                    onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
+                    title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
+                      background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3) / 0.5)',
+                      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', border: 'none', borderRadius: 6, cursor: 'pointer',
+                      color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
+                    }}
+                  ><ListChecks size={13} /></button>
+                )}
+              </div>
+            </div>
+          )}
           </div>
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
           {sessions.length > 0 && restSessions.length === 0 && tagFilter.size > 0 && (
@@ -931,79 +992,35 @@ export default function StudyTrailApp() {
             const winEnd = winStart + 24 * 3_600_000
             const totalHeight = 24 * 60 * PX_PER_MIN
             const daySessions = [...selectedDaySessions].sort((a, b) => a.createdAt - b.createdAt)
-            // Simple greedy lane-packing for sessions that overlap in time — same idea as
-            // trailGraph.ts's revisit-lane packing, just for a vertical timeline instead of a
-            // horizontal gutter. Most days only need 1 lane; more only when sessions genuinely
-            // overlap in time.
+            // Per feedback ("make sure to not show sessions intersecting each other on the
+            // timeline... that shouldnt be possible") — only one session can ever actually be
+            // live/recording at a time, so two sessions overlapping on this timeline can only
+            // mean `updatedAt` (bumped by ANY edit — a rename, a tag change — not just active
+            // recording) makes an already-inactive session's raw span look like it reaches
+            // further than it really did. Clip each session's displayed end to the NEXT
+            // session's start (chronologically), so a bar can never visually reach into where
+            // the next one begins, regardless of what its own updatedAt claims.
+            const endFor = new Map<string, number>()
+            for (let i = 0; i < daySessions.length; i++) {
+              const s = daySessions[i]
+              const next = daySessions[i + 1]
+              const rawEnd = Math.max(s.updatedAt, s.createdAt)
+              endFor.set(s.id, next ? Math.min(rawEnd, next.createdAt) : rawEnd)
+            }
+            // Lane-packing is now just a defensive fallback (ties on the same createdAt, or
+            // otherwise-inconsistent data) — the clip above already makes real overlap
+            // impossible in the normal case, so this should almost always resolve to 1 lane.
             const laneEndTimes: number[] = []
             const laneOf = new Map<string, number>()
             for (const s of daySessions) {
               let lane = laneEndTimes.findIndex((endT) => endT <= s.createdAt)
               if (lane === -1) { lane = laneEndTimes.length; laneEndTimes.push(0) }
-              laneEndTimes[lane] = Math.max(s.updatedAt, s.createdAt)
+              laneEndTimes[lane] = endFor.get(s.id)!
               laneOf.set(s.id, lane)
             }
             const laneCount = Math.max(1, laneEndTimes.length)
             return (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {fmtDayHeading(selectedDayKey)}
-                  </div>
-                  <button
-                    onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)}
-                    disabled={!prevDayKey}
-                    title="Earlier day"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: prevDayKey ? 'pointer' : 'default', color: prevDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
-                  ><ChevronLeft size={12} /></button>
-                  <button
-                    onClick={() => nextDayKey && setSelectedDayKey(nextDayKey)}
-                    disabled={!nextDayKey}
-                    title="Later day"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: nextDayKey ? 'pointer' : 'default', color: nextDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
-                  ><ChevronRight size={12} /></button>
-                </div>
-                {/* Per feedback ("the buttons for the plus, select and the months should all be
-                    floating below the date in the timeline and be translucent"): a sticky,
-                    translucent band pinned just under the date heading, over the timeline
-                    content as it scrolls — not inline document flow like the month view's own
-                    plus/select row. */}
-                <div style={{
-                  position: 'sticky', top: 0, zIndex: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '4px 5px', borderRadius: 8, background: 'rgb(var(--color-surface-1) / 0.75)',
-                  backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-                }}>
-                  <button
-                    onClick={() => setRailView('month')}
-                    title="Back to the month calendar"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', flexShrink: 0,
-                      background: 'rgb(var(--color-surface-3) / 0.7)', border: 'none', borderRadius: 6, cursor: 'pointer',
-                      color: 'rgb(var(--color-text-secondary))', fontSize: 10.5, fontWeight: 600,
-                    }}
-                  ><CalendarDays size={12} /> Months</button>
-                  <span style={{ flex: 1 }} />
-                  <button
-                    onClick={() => setCreatingSession(true)}
-                    title="New session"
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
-                      background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 6, cursor: 'pointer',
-                      color: 'rgb(var(--color-accent))', flexShrink: 0,
-                    }}
-                  ><Plus size={13} /></button>
-                  {sessions.length > 0 && (
-                    <button
-                      onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
-                      title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
-                        background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-                        color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
-                      }}
-                    ><ListChecks size={13} /></button>
-                  )}
-                </div>
                 {!selectMode && (
                 <div style={{ position: 'relative', height: totalHeight, marginLeft: 38 }}>
                   {/* Hour ticks every 3 hours (6am, 9am, noon, 3pm, 6pm, 9pm, midnight, 3am) —
@@ -1019,7 +1036,7 @@ export default function StudyTrailApp() {
                   })}
                   {daySessions.map((s) => {
                     const clipStart = Math.max(s.createdAt, winStart)
-                    const clipEnd = Math.min(Math.max(s.updatedAt, s.createdAt), winEnd)
+                    const clipEnd = Math.min(endFor.get(s.id)!, winEnd)
                     const top = (clipStart - winStart) / 60_000 * PX_PER_MIN
                     const height = Math.max(16, (clipEnd - clipStart) / 60_000 * PX_PER_MIN)
                     const lane = laneOf.get(s.id) ?? 0
