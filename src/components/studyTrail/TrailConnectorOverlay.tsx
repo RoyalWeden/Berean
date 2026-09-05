@@ -145,6 +145,13 @@ export default function TrailConnectorOverlay({
   // hoveredEdgeKey (which only ever drives overflow-lane dimming/bring-forward) since this one
   // also needs the live cursor position to place a fixed-position tooltip div.
   const [revisitTooltip, setRevisitTooltip] = useState<{ key: string; x: number; y: number } | null>(null)
+  // A SEPARATE svg, portaled into from inside the main render loop below, that exists only to
+  // host the invisible hit-stroke paths (overflow-lane / revisit-line hover) above the spine
+  // content in stacking order. Keeping this apart from the main svg (whose own z-index a
+  // previous attempt raised directly) means the main svg's paint order — and therefore its
+  // relationship to MapView's decorative indent-guide lines, which sit behind everything and
+  // regressed when that z-index moved — never has to change at all.
+  const [hitSvgEl, setHitSvgEl] = useState<SVGSVGElement | null>(null)
   // Dedupe the missing-endpoint warning below — without this it re-fires identically on EVERY
   // render forever for any edge whose endpoint is legitimately not currently mounted (most
   // commonly: a spine edge touching a node hidden inside a collapsed "bounced Nx" cluster,
@@ -280,17 +287,14 @@ export default function TrailConnectorOverlay({
 
   return (
     <>
-    {/* zIndex:2 — one above the spine content div (zIndex:1) that MapView renders right after
-        this component. Per feedback ("hovering over the revisit lines still isnt showing
-        anything"): this SVG's root has pointerEvents:'none', so being ABOVE the content in
-        paint order is safe (clicks/hovers pass straight through to whatever's underneath
-        UNLESS a specific descendant — the invisible hit-stroke paths below — opts back in with
-        its own pointerEvents). Without this, the content div's own (mostly transparent, but
-        still hit-testable) boxes sat ON TOP of this SVG in stacking order despite being
-        visually invisible, silently absorbing every hover meant for a line's hit-stroke —
-        the VISIBLE lines still looked fine either way since paint order doesn't affect
-        transparency, only which element wins hit-testing. */}
-    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 2 }}>
+    {/* Deliberately NO explicit z-index here (back to how this was before) — raising this
+        WHOLE svg above the spine content div (zIndex:1) fixed the revisit-line hover, but it
+        also silently pulled the map's decorative indent-guide lines (rendered as their own
+        zIndex:0 siblings in MapView, meant to always sit behind everything) out of their
+        correct spot relative to this svg's now-topmost paint layer — a real regression, caught
+        via feedback. The hover fix now lives in a SEPARATE, dedicated hit-testing overlay
+        (below, after this svg) instead, so this one's own stacking never has to move. */}
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
         {/* refX=7 (not 5.5) puts the arrow's actual TIP at the path's endpoint with zero
             overshoot — the previous 1.5-unit overshoot was scaling with strokeWidth (markers
@@ -458,17 +462,20 @@ export default function TrailConnectorOverlay({
               />
             )
           })}
-          {e.overflowLane && (
+          {e.overflowLane && hitSvgEl && createPortal(
             <path
+              key={`hit:${e.key}`}
               d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
               onMouseEnter={() => setHoveredEdgeKey(e.key)} onMouseLeave={() => setHoveredEdgeKey((k) => (k === e.key ? null : k))}
-            />
+            />,
+            hitSvgEl,
           )}
           {/* Same invisible-fat-stroke hit-target idea, for revisit-chain edges' count/dates
               tooltip — the visible line is a hairline even at its thickest, too thin to hover
               reliably on its own. */}
-          {e.revisitCount != null && (
+          {e.revisitCount != null && hitSvgEl && createPortal(
             <path
+              key={`hit:${e.key}`}
               d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
               onMouseMove={(ev) => {
                 // Diagnostic only — confirms the invisible hit-stroke is actually receiving
@@ -477,12 +484,22 @@ export default function TrailConnectorOverlay({
                 setRevisitTooltip({ key: e.key, x: ev.clientX, y: ev.clientY })
               }}
               onMouseLeave={() => setRevisitTooltip((t) => (t?.key === e.key ? null : t))}
-            />
+            />,
+            hitSvgEl,
           )}
           </g>
         )
       })}
     </svg>
+    {/* Hosts only the invisible hit-stroke paths above (via portal) — its OWN z-index sits
+        above the spine content div (zIndex:1) so a click/hover meant for a hit-stroke actually
+        reaches it, without moving the main svg (and therefore the guide lines' relationship to
+        it) at all. pointerEvents:none at the root, same reasoning as the main svg — only the
+        portaled paths themselves opt back in. */}
+    <svg
+      ref={setHitSvgEl}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 2 }}
+    />
     {revisitTooltip && (() => {
       const e = edges.find((edge) => edge.key === revisitTooltip.key)
       if (!e || e.revisitCount == null) return null

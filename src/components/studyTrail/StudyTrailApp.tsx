@@ -773,7 +773,18 @@ export default function StudyTrailApp() {
               in the sessions they can still be seen." Negative top/margin compensates for this
               rail's own 14px padding so the sticky group's background reaches the true
               scroll-container edge with no gap. */}
-          <div style={{ position: 'sticky', top: -14, marginTop: -14, paddingTop: 14, background: 'rgb(var(--color-surface-1))', zIndex: 2 }}>
+          {/* Per feedback ("the background for the months/plus/select should be translucent so
+              i can still see the timeline in the background... it shouldnt be black") — the
+              OUTER sticky wrapper itself must stay background-less now; the opaque backdrop
+              moved to an INNER wrapper around just the Everything/live-session block below.
+              The day-view button row (further down) is a sibling of that inner wrapper, not
+              nested inside it, so its own per-button translucent backgrounds actually show the
+              scrolling timeline through them once this whole sticky group reaches the top and
+              the timeline scrolls underneath it — they were previously nested INSIDE the opaque
+              wrapper, so their translucency only ever blended with that solid backdrop (which
+              reads as near-black in a dark theme) instead of the timeline. */}
+          <div style={{ position: 'sticky', top: -14, marginTop: -14, paddingTop: 14, zIndex: 2 }}>
+          <div style={{ background: 'rgb(var(--color-surface-1))' }}>
           {/* Month view (or select mode, which uses the same flat-list layout): +/select sit
               inline in their own row, not floating — per feedback ("on the months page, those
               buttons should be inline on their own row"). Day view's own floating version is
@@ -871,6 +882,7 @@ export default function StudyTrailApp() {
             <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
           </div>
           {renderSessionRow(liveSession, true)}
+          </div>
           {/* Day view's date/nav + Months/+/Select — per feedback ("the day and the buttons
               should be floating below the everything button"), this now lives in the SAME
               pinned/sticky group as Everything and the live session above, rather than being
@@ -879,7 +891,10 @@ export default function StudyTrailApp() {
           {railView === 'day' && selectedDayKey && (
             <div style={{ marginTop: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {/* text-shadow (not a background pill) keeps this legible over whatever
+                    scrolls underneath without turning the translucent-background request
+                    into another opaque box. */}
+                <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgb(var(--color-surface-1))' }}>
                   {fmtDayHeading(selectedDayKey)}
                 </div>
                 <button
