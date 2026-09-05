@@ -1495,7 +1495,6 @@ export default function MapView({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const lastVisibilityLogRef = useRef<string | null>(null)
   const { menu, menuRef, openMenu: openMenuRaw, closeMenu } = useTrailRefMenu()
   // Right-clicking a row/node to open its context menu, then dismissing the menu by clicking
   // elsewhere WITHOUT first moving the mouse back over the original row, never fires that
@@ -1504,12 +1503,6 @@ export default function MapView({
   // lines and stuff and they dont come back"). Clearing it the moment a menu opens closes that
   // gap regardless of how the menu later gets dismissed.
   function openMenu(data: Parameters<typeof openMenuRaw>[0]) {
-    // Per direct feedback ("the connecting lines are going invisible when i rightclick the
-    // items... put a log for what happens") — logs the actual hoveredKey transition right-click
-    // causes, so a report of lines vanishing on right-click can be matched against whether
-    // hoveredKey really did clear here (working as this function intends) or something else
-    // entirely is dimming things afterward (a stuck menu-open state, a stale hoverChain, etc.).
-    if (window.__bereanTrailDebug) console.log('[TrailDebug] openMenu — clearing hoveredKey', { prevHoveredKey: hoveredKey, ref: data.ref })
     setHoveredKey(null)
     openMenuRaw(data)
   }
@@ -2001,41 +1994,11 @@ export default function MapView({
   // re-fired mouseenter, a stale key, or any other path into hoveredKey — the single place that
   // actually paints the dim effect refuses to do it at all while `menu` is truthy.
   const hoverActive = hoveredKeyIsLive && !menu
-  if (window.__bereanTrailDebug && hoveredKey) {
-    // Confirms (or rules out) the exact "lines disappear on right-click" mechanism this safety
-    // net guards against — if hoveredKeyIsLive is ever false here right after a right-click,
-    // that's the bug caught in the act; if it stays true throughout, the disappearing-lines
-    // report has a different cause and this rules the orphaned-key theory out.
-    console.log('[TrailDebug] hover chain', {
-      hoveredKey, live: hoveredKeyIsLive,
-      chainPoints: [...hoverChainPointKeys], chainEdges: [...hoverChainEdgeKeys],
-    })
-  }
   const finalEdges = hoverActive
     ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
         ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
         : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
     : edges
-  // Per direct feedback ("the connecting lines are going invisible when i rightclick the
-  // items... put a log for what happens") — unlike the hover-chain log above (gated on
-  // hoveredKey being truthy, so it goes silent the instant openMenu clears it), this fires on
-  // every render regardless, so the render right after a right-click — where lines are reported
-  // vanishing — actually shows up: whether hoveredKey truly went back to null (openMenu's own
-  // fix working), whether `menu` is open, and how many edges ended up dimmed either way. If
-  // dimmedCount is ever > 0 while hoveredKey is null here, the dimming isn't coming from this
-  // hover mechanism at all and the bug is somewhere else entirely.
-  if (window.__bereanTrailDebug) {
-    const dimmedCount = finalEdges.filter((e) => (e.opacity ?? 1) < 0.5).length
-    // Deduped the same way as TrailConnectorOverlay's missing-endpoint warning — only logs when
-    // this specific combination actually changes, not on every render, so it stays readable.
-    const logKey = `${hoveredKey}:${hoveredKeyIsLive}:${!!menu}:${dimmedCount}`
-    if (lastVisibilityLogRef.current !== logKey) {
-      lastVisibilityLogRef.current = logKey
-      console.log('[TrailDebug] right-click/edge-visibility check', {
-        hoveredKey, hoveredKeyIsLive, menuOpen: !!menu, totalEdges: finalEdges.length, dimmedCount,
-      })
-    }
-  }
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
@@ -2244,8 +2207,13 @@ export default function MapView({
   // ANY nearby element reads as "the cursor is busy with something else right now."
   const timeRailOpacity = useMemo(() => {
     if (!hoverPoint) return 1
-    const DIM_START_PX = 70
-    const MIN_OPACITY = 0.1
+    // 70px was too generous relative to how densely bullets/rows are already packed (a normal
+    // row is ~20-30px tall) — nearly every point on the map was already within 70px of SOME
+    // registered point, so this sat at/near MIN_OPACITY continuously while hovering ANY content,
+    // never actually reading as "dims as you approach." 30px is closer to "right on top of a
+    // specific bullet," and MIN_OPACITY dropped further so the contrast is unmistakable at 0px.
+    const DIM_START_PX = 30
+    const MIN_OPACITY = 0.05
     let nearest = Infinity
     for (const el of pointsRef.current.values()) {
       const r = el.getBoundingClientRect()

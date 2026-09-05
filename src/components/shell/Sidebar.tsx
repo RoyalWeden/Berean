@@ -821,13 +821,16 @@ export default function Sidebar() {
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   {/* Icon-only now (was a "📅 Today" text link) — per direct feedback, matches
-                      the nav arrows' own icon-only, color-only hover treatment. */}
+                      the nav arrows' own icon-only, color-only hover treatment. Sized up again
+                      (13→17) alongside the rest of this nav line (chevrons/month label in
+                      CalendarGrid) so it doesn't stay small while everything else around it
+                      grew. */}
                   <button
                     onClick={openTodaysDailyNote}
                     onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: dailyNoteToday(), x: e.clientX, y: e.clientY }) }}
                     className="no-drag p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                   >
-                    <CalendarCheck size={13} />
+                    <CalendarCheck size={17} />
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Portal>

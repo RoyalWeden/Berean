@@ -172,14 +172,6 @@ export default function TrailConnectorOverlay({
   // Dedupe the usedFallbackTarget warning below the same way — log once per edge key, not once
   // per render, for as long as this session stays open.
   const fallbackLoggedRef = useRef<Set<string>>(new Set())
-  // Per direct feedback ("can you create some logs for the arc, its still having the same
-  // issues") — logs every laned (revisit/return) edge's actual computed geometry, keyed and
-  // deduped by edge key + a rounded summary of the values so it only re-logs when something
-  // ACTUALLY changes (a resize, a new edge, real values shifting) rather than every render.
-  // Reading gutterX/gutterRightEdge/extraBow/laneX/vertRun straight from here settles definitively
-  // whether the constants bumped this round (EXIT_RUN, EXTRA_BOW_BASE, the laneX floor) are
-  // actually being used with the values expected, or whether stale code/props are still in play.
-  const lastArcLogRef = useRef<Map<string, string>>(new Map())
 
   // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
   // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
@@ -391,19 +383,6 @@ export default function TrailConnectorOverlay({
             ? `M${sx},${sy} L${laneX + r},${sy} Q${laneX},${sy} ${laneX},${sy + dirY * r} L${laneX},${ey - dirY * r} Q${laneX},${ey} ${laneX + r},${ey} L${ex},${ey}`
             : `M${sx},${sy} L${laneX},${sy} L${laneX},${ey} L${ex},${ey}`
           laneGeom = { laneX, topY: Math.min(sy, ey), bottomY: Math.max(sy, ey) }
-          if (window.__bereanTrailDebug) {
-            const summary = {
-              key: e.key, edgeType: e.key.split(':')[0], arrow: !!e.arrow, lane: e.lane,
-              overflow: !!e.overflowLane,
-              gutterRightEdge: Math.round(gutterRightEdge), laneX: Math.round(laneX),
-              vertRun: Math.round(Math.abs(ey - sy)), d,
-            }
-            const logStr = JSON.stringify(summary)
-            if (lastArcLogRef.current.get(e.key) !== logStr) {
-              lastArcLogRef.current.set(e.key, logStr)
-              console.log('[TrailDebug] lane route', summary)
-            }
-          }
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
@@ -478,9 +457,6 @@ export default function TrailConnectorOverlay({
               key={`hit:${e.key}`}
               d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
               onMouseMove={(ev) => {
-                // Diagnostic only — confirms the invisible hit-stroke is actually receiving
-                // pointer events at all (per feedback that revisit-line hover isn't showing).
-                if (window.__bereanTrailDebug) console.log('[TrailDebug] revisit-line hit-stroke mousemove', { key: e.key })
                 setRevisitTooltip({ key: e.key, x: ev.clientX, y: ev.clientY })
               }}
               onMouseLeave={() => setRevisitTooltip((t) => (t?.key === e.key ? null : t))}

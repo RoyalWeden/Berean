@@ -108,11 +108,13 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   // Bumped slightly (10→10.5, 9→9.5, 8→8.5) alongside the rest of the recent calendar/session
   // styling pass elsewhere in the app — this sidebar widget was the one spot that pass never
   // reached, per direct feedback asking for the same visual refresh here too.
-  // Bigger again this round (10.5→12.5 month label was already done; day numbers specifically
-  // asked to grow further: compact 9.5→13, non-compact 11→15) — with the whole grid brought
-  // CLOSER together to compensate (tighter margins/gaps below), so the bigger numbers don't
-  // grow the widget's own footprint.
-  const monthLabelSize = zoomedFontSize(compact ? 10.5 : 12, appZoom)
+  // Bigger again this round (day numbers: compact 9.5→13, non-compact 11→15) — with the whole
+  // grid brought CLOSER together to compensate (tighter margins/gaps below), so the bigger
+  // numbers don't grow the widget's own footprint.
+  // Month label bumped again too (10.5→12.5 / 12→14) — per direct feedback, the whole nav
+  // line (chevrons, month label, Today icon — see Sidebar.tsx) should read at the same bigger
+  // scale as the day numbers below it, not stay small while the grid grew around it.
+  const monthLabelSize = zoomedFontSize(compact ? 12.5 : 14, appZoom)
   const dayCellSize = zoomedFontSize(compact ? 13 : 15, appZoom)
   const weekdayHeaderSize = zoomedFontSize(compact ? 8.5 : 9, appZoom)
   const weekdayHeaderPad = 'py-0'
@@ -138,7 +140,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             Trail styling pass gave its own icon buttons, rather than everything staying in flat
             greyscale until clicked. */}
         <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
-          <ChevronLeft size={compact ? 12 : 14} />
+          <ChevronLeft size={compact ? 15 : 17} />
         </button>
         <span className="font-medium text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
         {!isCurrentMonth && (
@@ -147,11 +149,11 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             title="Jump to current month"
             className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
           >
-            <Undo2 size={compact ? 10 : 12} />
+            <Undo2 size={compact ? 13 : 15} />
           </button>
         )}
         <button onClick={nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
-          <ChevronRight size={compact ? 12 : 14} />
+          <ChevronRight size={compact ? 15 : 17} />
         </button>
         <span className="flex-1" />
         {/* Today action sits after everything else in this row (per explicit direction:
