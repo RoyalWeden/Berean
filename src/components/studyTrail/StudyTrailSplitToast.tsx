@@ -24,6 +24,7 @@ export default function StudyTrailSplitToast() {
   const proposal = useStudyTrailStore((s) => s.splitProposal)
   const accept = useStudyTrailStore((s) => s.acceptSplitProposal)
   const clear = useStudyTrailStore((s) => s.clearSplitProposal)
+  const arrivalPillRect = useStudyTrailStore((s) => s.arrivalPillRect)
   const [remaining, setRemaining] = useState(AUTO_DISMISS_MS)
   // Kept separate from `proposal` itself so the toast can animate OUT before actually
   // unmounting — `proposal` going null (dismissed, accepted, or timed out) used to remove the
@@ -58,14 +59,20 @@ export default function StudyTrailSplitToast() {
   if (!local) return null
   const pct = Math.max(0, Math.min(1, remaining / AUTO_DISMISS_MS))
   const shown = phase === 'shown'
+  // Stack above the arrival-prompt toast (StudyTrailArrivalPrompt.tsx's ArrivalPill) when it's
+  // ALSO currently showing in this same corner, instead of sharing its exact right/bottom and
+  // overlapping it — per direct feedback ("the new study prompt should show above the study
+  // trail toast... not on top of it"). arrivalPillRect is null whenever that toast isn't up.
+  const right = arrivalPillRect ? arrivalPillRect.right : 18
+  const bottom = arrivalPillRect ? arrivalPillRect.bottom + arrivalPillRect.height + 10 : 18
 
   return (
     <div style={{
-      position: 'fixed', right: 18, bottom: 18, zIndex: 9999, width: 244,
+      position: 'fixed', right, bottom, zIndex: 9999, width: 244,
       background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
       borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.2)', overflow: 'hidden',
       opacity: shown ? 1 : 0, transform: shown ? 'translateY(0)' : 'translateY(10px)',
-      transition: `opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
+      transition: `opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease, bottom 160ms ease`,
     }}>
       <div style={{ padding: '9px 11px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>

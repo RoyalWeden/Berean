@@ -2451,7 +2451,14 @@ export default function MapView({
         )}
 
         {promptConn && (
+          // key={promptConn.id} — without it, clicking a pencil icon on a DIFFERENT connection
+          // while this popup is already open just re-renders the same component instance with a
+          // new `connection` prop; its note/tie fields are only ever seeded from that prop in
+          // useState's initializer (run once, on mount), so they'd keep showing the PREVIOUS
+          // connection's stale ties/note under the new one's own title. The key forces a real
+          // remount whenever the connection changes.
           <ReasonPromptPopover
+            key={promptConn.id}
             connection={promptConn}
             originBookId={nodeById.get(promptConn.fromNodeId)?.bookId}
             originChapter={nodeById.get(promptConn.fromNodeId)?.chapter}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -152,12 +152,6 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   // Use the flag VerseSelectionBar publishes from its own render gate — deriving this here
   // from selectedVersesByTab instead let the toast stay lifted after the bar was already gone.
   const verseSelectionOpen = useAppStore((s) => s.verseSelectionBarOpen)
-  // MUST come after every hook above — React requires the same hooks, in the same order,
-  // on every render. Putting this early return before the useAppStore calls above (an earlier
-  // mistake) meant they simply never ran on a null-`local` render, then ran again on the very
-  // next one once `local` became non-null: "Rendered more hooks than during the previous
-  // render." Bailing here, after all hooks, is the fix.
-  if (!local) return null
   const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
   // Only dodge the verse-selection UI when the Bible reader's side panel is also open. Then:
   // just clear the action bar itself normally, and only rise higher once a tag/colour popover
@@ -165,6 +159,33 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   const bottomPx = (verseSelectionOpen && rightPanelW > 0)
     ? (verseSelectionMenuOpen ? 210 : 64)
     : (!searchTabActive && noteOpen ? 46 : 16)
+
+  const setArrivalPillRect = useStudyTrailStore((s) => s.setArrivalPillRect)
+  const pillRef = useRef<HTMLDivElement>(null)
+  // Publish this toast's own {right, bottom, height} so StudyTrailSplitToast ("New study?") —
+  // a SEPARATE bottom-right toast that can appear at the same time as this one — knows to stack
+  // above it instead of sharing the exact same corner and overlapping. Re-measures on every
+  // relevant change (expand/collapse, side-panel width, etc.) via ResizeObserver rather than a
+  // one-shot measurement, and clears to null once this toast is gone (local null, or unmount)
+  // so the split toast falls back to its own default corner position.
+  useEffect(() => {
+    if (!local) { setArrivalPillRect(null); return }
+    const el = pillRef.current
+    if (!el) return
+    const publish = () => setArrivalPillRect({ right: rightPx, bottom: bottomPx, height: el.offsetHeight })
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [local, rightPx, bottomPx, setArrivalPillRect])
+  useEffect(() => () => setArrivalPillRect(null), [setArrivalPillRect])
+
+  // MUST come after every hook above — React requires the same hooks, in the same order,
+  // on every render. Putting this early return before the useAppStore calls above (an earlier
+  // mistake) meant they simply never ran on a null-`local` render, then ran again on the very
+  // next one once `local` became non-null: "Rendered more hooks than during the previous
+  // render." Bailing here, after all hooks, is the fix.
+  if (!local) return null
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
   const question = arrivalQuestion(local, origin)
@@ -172,6 +193,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
 
   return createPortal(
     <div
+      ref={pillRef}
       className="no-drag"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
@@ -231,7 +253,14 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
             ><X size={11} /></button>
           </div>
         )}
+        {/* key={local.id} — the same fix as ReasonPromptPopover's own usage in MapView.tsx: a
+            NEW arrival replacing the current one just re-renders this same component instance
+            with a new `connection` prop, so its note/tie state (seeded from that prop only in
+            useState's one-time initializer) would otherwise keep showing the PREVIOUS
+            connection's ties/note under the new arrival's own "Why'd you go to X from Y?"
+            question — exactly the "toast isn't updating what it's showing" report. */}
         <TrailReasonFormBody
+          key={local.id}
           connection={local}
           originBookId={origin?.bookId}
           originChapter={origin?.chapter}
