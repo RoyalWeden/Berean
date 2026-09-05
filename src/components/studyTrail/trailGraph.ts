@@ -501,23 +501,27 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     }
     if (c.isForwardBranch) {
       // Always a confidently-traced, SAME-DEPTH continuation (a plain read whose specific origin
-      // is worth tracing rather than the generic spine arrow), so same-depth styling. Targets the
-      // connection's REAL destination via arrivalNodeFor — the old `nextNodeById.get(fromNodeId)`
-      // pointed at "whatever node happens to follow the source," which a spliced revisit node
-      // makes flatly wrong. That old approach is kept ONLY as a last-resort fallback for when
-      // arrivalNodeFor can't resolve at all (e.g. c.toKind isn't 'chapter') — `isForwardBranch`
-      // is set (above) exactly when nextNodeById.get(fromNodeId) already matches this
-      // connection's toBookId/toChapter/session, so the fallback SHOULD in practice always
-      // agree with arrivalNodeFor when both resolve; `usedFallback` below flags the rarer case
-      // where it doesn't, which is the prime suspect for a stray/wrongly-targeted "deeper" arc
-      // (see TrailConnectorOverlay's own debug logging of this flag) — diagnostic only, changes
-      // no rendering behavior.
-      const arrival = arrivalNodeFor(c)
-      const target = arrival ?? nextNodeById.get(c.fromNodeId)
+      // is worth tracing rather than the generic spine arrow), so same-depth styling.
+      //
+      // FOUND (per the stray-blue-line investigation): this used to prefer arrivalNodeFor(c) —
+      // a time-nearest lookup — over `next` (nextNodeById.get(fromNodeId)), on the theory that
+      // `next` was the less reliable of the two. But `isForwardBranch` is ONLY ever set (above,
+      // in the loop that builds `annotated`) after ALREADY VERIFYING next.trailSessionId/
+      // bookId/chapter match this exact connection's destination — and that same verified `next`
+      // is what claimTracedArrival() marks as this node's arrival target right there. Preferring
+      // arrivalNodeFor(c) here instead re-derives the target through a SEPARATE, weaker
+      // heuristic (nearest in TIME, not verified against this connection at all) that can
+      // disagree with the already-verified `next` whenever the destination chapter has more
+      // than one visit in this session — silently drawing to a different (and, being a nearest-
+      // in-time rather than adjacent-in-order lookup, potentially FAR AWAY) node than the one
+      // just claimed. `next` is now primary, matching what was verified/claimed above;
+      // arrivalNodeFor(c) is only the fallback for the rare case `next` itself is somehow gone.
+      const next = nextNodeById.get(c.fromNodeId)
+      const target = next ?? arrivalNodeFor(c)
       if (target) {
         pushEdge(styled('deeper', {
           key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, curved: true,
-          ...(arrival == null ? { usedFallbackTarget: true } : {}),
+          ...(next == null ? { usedFallbackTarget: true } : {}),
         }))
       }
     }

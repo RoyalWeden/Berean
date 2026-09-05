@@ -60,10 +60,11 @@ export interface TrailEdge {
   revisitCount?: number
   firstVisitAt?: number
   lastVisitAt?: number
-  /** Diagnostic only (see trailGraph.ts's isForwardBranch handling) — set when this edge's
-   *  target came from the old whole-session "next node chronologically" fallback rather than
-   *  the time/chapter-aware arrivalNodeFor lookup. Logged below (behind __bereanTrailDebug) as
-   *  the prime suspect for a stray/wrongly-targeted "deeper" (accent-blue) arc. */
+  /** Diagnostic only (see trailGraph.ts's isForwardBranch handling) — set when the VERIFIED
+   *  `next` (chronologically-following) node wasn't available for some reason and this edge
+   *  had to fall back to arrivalNodeFor(c)'s time-nearest lookup instead. Should be rare; if
+   *  it isn't, that lookup — not `next` — is now the prime suspect for a stray/wrongly-
+   *  targeted "deeper" (accent-blue) arc. Logged below behind __bereanTrailDebug. */
   usedFallbackTarget?: boolean
 }
 
@@ -325,13 +326,13 @@ export default function TrailConnectorOverlay({
         // (this same edge going missing again after having been fine) logs again instead of
         // staying silently suppressed by an earlier warning from earlier in the session.
         if (window.__bereanTrailDebug && missingRef.current.has(e.key)) missingRef.current.delete(e.key)
-        // See trailGraph.ts's isForwardBranch comment — this flags exactly the case suspected
-        // of producing a stray/wrongly-targeted "deeper" (accent-blue) arc: the connection's
-        // real destination couldn't be resolved via arrivalNodeFor, so this edge fell back to
-        // the old whole-session "chronologically next node" guess instead.
+        // See trailGraph.ts's isForwardBranch comment — the VERIFIED `next` node was
+        // unavailable here, so this edge had to fall back to arrivalNodeFor(c)'s weaker,
+        // time-nearest lookup, which is the new prime suspect for a stray/wrongly-targeted
+        // "deeper" (accent-blue) arc if this ever actually fires.
         if (window.__bereanTrailDebug && e.usedFallbackTarget && !fallbackLoggedRef.current.has(e.key)) {
           fallbackLoggedRef.current.add(e.key)
-          console.warn('[TrailDebug] "deeper" edge used the old fallback target (arrivalNodeFor failed)', { key: e.key, from: e.from, to: e.to })
+          console.warn('[TrailDebug] "deeper" edge fell back to arrivalNodeFor (verified next node was unavailable)', { key: e.key, from: e.from, to: e.to })
         }
         // Only actually reached by NON-laned edges now (round 9 moved BOTH laned edge types —
         // revisit-link and return — onto their own dedicated virtual-anchor constructions below,
