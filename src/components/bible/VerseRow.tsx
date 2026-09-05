@@ -195,11 +195,15 @@ function computeHoverPlacement(rect: DOMRect, itemCount: number, estItemPx: numb
   const estHeight = shown * estItemPx + headerPx
   const pad = 8
   const spaceBelow = window.innerHeight - rect.bottom
+  // Gap bumped 4→8 — per direct feedback the popup opening "right where my cursor is" made a
+  // click meant for the pill itself land on the popup's first item instead; a bit more
+  // breathing room between the pill and the popup gives that click somewhere safe to land.
+  const gap = 8
   // Flip up only if there isn't room below AND there's more room above.
   if (spaceBelow < estHeight + pad && rect.top > spaceBelow) {
-    return { y: Math.max(pad, rect.top - estHeight - 4), placeUp: true }
+    return { y: Math.max(pad, rect.top - estHeight - gap), placeUp: true }
   }
-  return { y: rect.bottom + 4, placeUp: false }
+  return { y: rect.bottom + gap, placeUp: false }
 }
 
 /** Fetches verse text — renders inline so ref label and text sit on the same line. */
@@ -1569,20 +1573,38 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       {/* ── Verse annotation pill (notes + cross-refs) ─────────────────────── */}
       {(noteCount > 0 || hasNoteCrossRef) && (
         <div className="flex-shrink-0 self-start mt-[3px] ml-0.5">
-          {/* Pill wraps both icons when both present; bare icon when solo */}
-          <div className={
-            noteCount > 0 && hasNoteCrossRef
-              ? 'flex items-center gap-px rounded-full border border-[rgb(var(--color-surface-3))] bg-[rgb(var(--color-surface-2))] px-1.5 py-0.5'
-              : 'flex items-center'
-          }>
+          {/* Pill wraps both icons when both present; bare icon when solo. Hover now lives on
+              this OUTER wrapper (not just each tiny icon glyph) — per direct feedback, hovering
+              anywhere in the pill-shaped region should work, not just a few pixels of icon —
+              and when only ONE indicator is present, a click anywhere in the pill opens it too
+              (was only the icon itself, an easy miss on a target this small). A combined pill
+              (both note + cross-ref) still needs its two icons individually clickable, since a
+              whole-pill click there would be ambiguous about which one was meant. */}
+          <div
+            onMouseEnter={(e) => {
+              if (noteCount > 0) handleNoteIconMouseEnter(e)
+              if (hasNoteCrossRef) handleCrossRefIconMouseEnter(e)
+            }}
+            onMouseLeave={() => {
+              if (noteCount > 0) handleNoteIconMouseLeave()
+              if (hasNoteCrossRef) handleCrossRefIconMouseLeave()
+            }}
+            onClick={!(noteCount > 0 && hasNoteCrossRef) ? (noteCount > 0 ? openVerseNotes : openNoteCrossRefs) : undefined}
+            className={
+              noteCount > 0 && hasNoteCrossRef
+                ? 'flex items-center gap-px rounded-full border border-[rgb(var(--color-surface-3))] bg-[rgb(var(--color-surface-2))] px-1.5 py-0.5'
+                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer'
+            }
+          >
 
-            {/* Note indicator — color reflects the first note's assigned color */}
+            {/* Note indicator — color reflects the first note's assigned color. Click/hover stay
+                on the OUTER pill above when this is the only indicator present; kept here (as
+                its own button) only for the combined-pill case, where each icon needs its own
+                click target. */}
             {noteCount > 0 && (
               <button
-                onMouseEnter={handleNoteIconMouseEnter}
-                onMouseLeave={handleNoteIconMouseLeave}
-                onClick={openVerseNotes}
-                className="flex items-center gap-0.5 opacity-75 hover:opacity-100 cursor-pointer leading-none select-none transition-opacity"
+                onClick={hasNoteCrossRef ? openVerseNotes : undefined}
+                className="flex items-center gap-0.5 opacity-75 hover:opacity-100 leading-none select-none transition-opacity cursor-pointer"
                 style={{ color: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
               >
                 <span className="w-[5px] h-[5px] rounded-full bg-current" />
@@ -1598,10 +1620,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             {/* Cross-ref indicator — verse/range specific only (chapter refs shown at chapter level) */}
             {hasNoteCrossRef && (
               <button
-                onMouseEnter={handleCrossRefIconMouseEnter}
-                onMouseLeave={handleCrossRefIconMouseLeave}
-                onClick={openNoteCrossRefs}
-                className="flex items-center text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-opacity"
+                onClick={noteCount > 0 ? openNoteCrossRefs : undefined}
+                className="flex items-center text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] transition-opacity cursor-pointer"
               >
                 <GitFork size={10} strokeWidth={2.5} />
               </button>

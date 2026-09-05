@@ -111,10 +111,9 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   // Bigger again this round (day numbers: compact 9.5→13, non-compact 11→15) — with the whole
   // grid brought CLOSER together to compensate (tighter margins/gaps below), so the bigger
   // numbers don't grow the widget's own footprint.
-  // Month label bumped again too (10.5→12.5 / 12→14) — per direct feedback, the whole nav
-  // line (chevrons, month label, Today icon — see Sidebar.tsx) should read at the same bigger
-  // scale as the day numbers below it, not stay small while the grid grew around it.
-  const monthLabelSize = zoomedFontSize(compact ? 12.5 : 14, appZoom)
+  // Month label bumped (10.5→12.5/12→14), then eased back down slightly (→11.5/13) per direct
+  // feedback that 12.5 read as a touch too big.
+  const monthLabelSize = zoomedFontSize(compact ? 11.5 : 13, appZoom)
   const dayCellSize = zoomedFontSize(compact ? 13 : 15, appZoom)
   const weekdayHeaderSize = zoomedFontSize(compact ? 8.5 : 9, appZoom)
   const weekdayHeaderPad = 'py-0'
@@ -131,7 +130,9 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
       {/* Month navigation — icon-only, color-only hover (no button-chrome box) so the nav
           arrows sit flush and low-contrast like a native mini-calendar's, not a discrete
           toolbar control. */}
-      <div className="flex items-center gap-2 mb-1">
+      {/* gap-1 (was gap-2) — per direct feedback, the arrow buttons should sit closer to the
+          month label between them rather than floating at arm's length from it. */}
+      <div className="flex items-center gap-1 mb-1">
         {/* Month-navigation cluster (< label [jump-to-current] >) — all grouped together
             and left-aligned, not spread across the row. Today is the one thing pushed to
             the far right (via the flex-1 spacer after this cluster, not within it). */}
