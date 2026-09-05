@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import BiblePanel from '@/components/bible/BiblePanel'
@@ -7,11 +7,27 @@ import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
+import { ActivePanelContext } from './ActivePanelContext'
 import { BookOpen } from 'lucide-react'
+import type { TabType } from '@/types'
 
 // YouTubeTab is large (~2.6k lines w/ webview wiring) and only needed once a
 // YouTube tab exists — code-split so it stays out of the initial bundle.
-const YouTubeTab = lazy(() => import('@/components/youtube/YouTubeTab'))
+const importYouTubeTab = () => import('@/components/youtube/YouTubeTab')
+const YouTubeTab = lazy(importYouTubeTab)
+
+// Prewarm the YouTube chunk once the app is idle after first paint, so the first
+// time a YouTube tab is opened it's a mount (still not instant — webview wiring)
+// rather than mount + a cold chunk fetch/parse on top. Fire-and-forget; the lazy()
+// above dedupes against this if the user opens YouTube before idle fires.
+if (typeof window !== 'undefined') {
+  const ric = (window as any).requestIdleCallback as
+    | ((cb: () => void, opts?: { timeout: number }) => number)
+    | undefined
+  const warm = () => { void importYouTubeTab().catch(() => {}) }
+  if (ric) ric(warm, { timeout: 4000 })
+  else setTimeout(warm, 2500)
+}
 
 function EmptyState() {
   return (
@@ -25,83 +41,108 @@ function EmptyState() {
   )
 }
 
+// One always-mounted layer. `visible` toggles `display` (not visibility/opacity):
+// an offscreen but display:'block' panel still runs layout, and for the embedded
+// YouTube <webview> a GPU-composited surface that keeps painting for a beat after
+// an ancestor goes visibility:hidden (the original reason YouTube used display:none
+// here). Kept mounted so switching back is a display flip — no unmount, no refetch,
+// no editor rebuild, scroll position still in the DOM.
+function Layer({ visible, children }: { visible: boolean; children: ReactNode }) {
+  return (
+    <div className={`absolute inset-0 ${visible ? '' : 'hidden pointer-events-none'}`}>
+      {children}
+    </div>
+  )
+}
+
 export default function ActivePanel() {
-  const activeSpace = useAppStore((s) => s.activeSpace)
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  // Only two spaces are ever read here: whichever is active, and 'youtube' (kept always-mounted
-  // for PiP continuity — see below). useShallow so a tab-state write in any OTHER space (e.g. a
-  // Scripture scroll-position tick) doesn't re-render this, unlike subscribing to the whole
-  // `s.tabs` record. See BiblePanel.tsx's comment for the underlying cause.
-  const { activeSpaceTabs, youtubeTabs } = useAppStore(
-    useShallow((s) => ({ activeSpaceTabs: s.tabs[s.activeSpace], youtubeTabs: s.tabs.youtube }))
+  // Project ONLY the stable identity bits of each space's active tab — never the
+  // tab's `.state`. useShallow over these primitives means a tab-state write (a
+  // scroll-position tick in ANY space, a Strong's toggle, a panel resize) does
+  // NOT re-render ActivePanel, and therefore doesn't re-render every mounted
+  // panel underneath it. Each panel subscribes to what it actually needs itself.
+  const { activeSpace, scriptureTabId, scriptureTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab } = useAppStore(
+    useShallow((s) => {
+      const scriptureTab = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture) ?? null
+      return {
+        activeSpace: s.activeSpace,
+        scriptureTabId: scriptureTab?.id ?? null,
+        scriptureTabType: scriptureTab?.type ?? null,
+        hasNotesTab:   s.tabs.notes.some((t) => t.id === s.activeTabId.notes),
+        hasLexiconTab: s.tabs.lexicon.some((t) => t.id === s.activeTabId.lexicon),
+        hasSearchTab:  s.tabs.search.some((t) => t.id === s.activeTabId.search),
+        hasYouTubeTab: s.tabs.youtube.some((t) => t.id === s.activeTabId.youtube),
+      }
+    })
   )
 
-  const tabId = activeTabId[activeSpace]
-  const tab = activeSpaceTabs.find((t) => t.id === tabId)
+  // The panel type actually shown right now = the active space's active tab's type.
+  const activeType: TabType | null =
+    activeSpace === 'scripture' ? scriptureTabType :
+    activeSpace === 'notes'     ? (hasNotesTab ? 'note' : null) :
+    activeSpace === 'lexicon'   ? (hasLexiconTab ? 'lexicon' : null) :
+    activeSpace === 'search'    ? (hasSearchTab ? 'search' : null) :
+    activeSpace === 'youtube'   ? (hasYouTubeTab ? 'youtube' : null) :
+    null
 
-  // Always-mounted YouTube: keeps the webview alive across space switches so PiP and
-  // video state are never lost. CSS visibility hides it without unmounting.
-  const ytTabId = activeTabId['youtube']
-  const ytTab = ytTabId ? youtubeTabs.find((t) => t.id === ytTabId) : null
-  const isYouTubeActive = activeSpace === 'youtube'
+  // The Scripture space holds two panel types (bible + pdf); the rest are 1:1
+  // with a space. The scripture layer swaps bible↔pdf by key (rare) and shares
+  // one `panel:bible` key across every scripture tab so a Bible→Bible switch
+  // updates in place (BiblePanel has render-phase reset for its mount-scoped
+  // state — see prevBibleTabIdForResetRef).
+  const scriptureVisible = activeSpace === 'scripture'
+  const scriptureKey = scriptureTabType
+    ? (scriptureTabType === 'bible' ? 'panel:bible' : scriptureTabId ?? 'empty')
+    : 'empty'
 
   return (
-    <div className="h-full w-full relative">
-      {/* YouTube panel stays mounted at all times — hidden via CSS when not active.
-          `hidden` (display:none), not `invisible` (visibility:hidden): the embedded <webview>
-          renders through its own native/GPU-composited surface, which is independent of normal
-          DOM paint order — toggling visibility on an ancestor doesn't always tell that surface
-          to stop compositing in the same frame the DOM style change lands. Reported: switching
-          FROM YouTube to another tab (Lexicon specifically, but this applied to any target)
-          briefly still showed the outgoing YouTube content on top for about a second. display:
-          none actually removes the layer from the render tree instead of just painting it
-          transparent, which Electron handles reliably — same fix as the standard Electron
-          <webview>-flicker workaround. Doesn't affect the always-mounted/PiP-continuity
-          behavior above: the element is a sibling that's just not rendered, never unmounted. */}
-      {ytTab && (
-        <div
-          key={ytTab.id}
-          className={`absolute inset-0 ${isYouTubeActive ? 'z-10' : 'hidden pointer-events-none'}`}
-        >
-          <ErrorBoundary label="YouTube error">
-            <Suspense fallback={null}>
-              <YouTubeTab />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      )}
+    <ActivePanelContext.Provider value={activeType}>
+      <div className="h-full w-full relative">
+        {scriptureTabType && (
+          <Layer visible={scriptureVisible}>
+            <div key={scriptureKey} className="absolute inset-0">
+              {scriptureTabType === 'bible' && (
+                <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>
+              )}
+              {scriptureTabType === 'pdf' && (
+                <ErrorBoundary label="PDF viewer error"><PDFViewer /></ErrorBoundary>
+              )}
+            </div>
+          </Layer>
+        )}
 
-      {/* Non-YouTube panels (also covers YouTube empty state when no tab exists yet) */}
-      {(!isYouTubeActive || !ytTab) && (
-        <div className="absolute inset-0">
-          {/* Plain keyed remount, no animation — an AnimatePresence crossfade used to sit
-              here (mode="wait", 70ms opacity fade), but the two-phase exit-then-enter left a
-              real gap where the outgoing panel had dissolved toward the backdrop before the
-              incoming one materialized, reading as a visible "flash to something else" on
-              every tab switch (reported: "it flashes... it should just be on the note").
-              React's own key-based remount below swaps old for new in a single commit, so
-              there's no intermediate frame to flash through, and — since old and new are never
-              both mounted at once (no overlapping enter/exit) — no risk of the double-portaled-
-              header collision the AnimatePresence's mode="wait" was originally added to avoid
-              (see TabHeaderPortal).
-              'note' and 'bible' share one key across every tab of their type (not tab.id) so
-              switching between two notes, or between two scripture tabs, updates content in
-              place instead of unmounting+remounting the whole panel — BiblePanel.tsx tears down
-              every VerseRow/StrongsInline in the outgoing chapter (~8-11k elements on a page
-              like Psalm 119) and re-issues 3 fresh IPC fetches on every single switch otherwise,
-              real per-switch cost. BiblePanel.tsx has its own render-phase reset for the mount-
-              scoped local state this relies on (see its prevBibleTabIdForResetRef) — lexicon/
-              search/pdf don't have the equivalent audit done yet, so they still remount. */}
-          <div key={tab ? (tab.type === 'note' || tab.type === 'bible' ? `panel:${tab.type}` : tab.id) : 'empty'} className="absolute inset-0">
-            {!tab && <EmptyState />}
-            {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}
-            {tab?.type === 'note'    && <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>}
-            {tab?.type === 'lexicon' && <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>}
-            {tab?.type === 'search'  && <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>}
-            {tab?.type === 'pdf'     && <ErrorBoundary label="PDF viewer error"><PDFViewer /></ErrorBoundary>}
-          </div>
-        </div>
-      )}
-    </div>
+        {hasNotesTab && (
+          <Layer visible={activeSpace === 'notes'}>
+            <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>
+          </Layer>
+        )}
+
+        {hasLexiconTab && (
+          <Layer visible={activeSpace === 'lexicon'}>
+            <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>
+          </Layer>
+        )}
+
+        {hasSearchTab && (
+          <Layer visible={activeSpace === 'search'}>
+            <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>
+          </Layer>
+        )}
+
+        {/* YouTube: always mounted (PiP continuity) + code-split. Same display:none
+            hide as the others — see Layer's comment. */}
+        {hasYouTubeTab && (
+          <Layer visible={activeSpace === 'youtube'}>
+            <ErrorBoundary label="YouTube error">
+              <Suspense fallback={null}><YouTubeTab /></Suspense>
+            </ErrorBoundary>
+          </Layer>
+        )}
+
+        {activeType === null && (
+          <div className="absolute inset-0"><EmptyState /></div>
+        )}
+      </div>
+    </ActivePanelContext.Provider>
   )
 }

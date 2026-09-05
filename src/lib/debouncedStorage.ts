@@ -1,40 +1,59 @@
-// Wraps `localStorage` for zustand's `persist` middleware so that `setItem` is
-// debounced instead of writing synchronously on every single `set()` call.
+// Storage adapters for zustand's `persist` middleware.
 //
 // Why this exists: zustand's `persist` (see node_modules/zustand/middleware.js)
-// calls `storage.setItem(name, JSON.stringify(state))` after EVERY mutation to
-// any persisted key, with no "did the persisted slice actually change" check.
-// For berean-app-state that's a full-store JSON.stringify + synchronous
-// localStorage write several times per tab switch, on every debounced scroll
-// save, and on every spoken word during Read Aloud (setAudioPlayback ->
-// useTTSPlayback.ts). Debouncing collapses bursts of those into one write,
-// while `flush()` guarantees the last write still lands before the window/app
-// actually goes away.
+// calls `storage.setItem(name, ...)` after EVERY mutation to any persisted key,
+// with no "did the persisted slice actually change" check. When `storage` is a
+// `createJSONStorage(...)` wrapper, that helper runs `JSON.stringify(state)`
+// *synchronously, before* our adapter's `setItem` is even called — so debouncing
+// only the `localStorage` write still leaves a full-store stringify on the main
+// thread several times per tab switch, on every debounced scroll save, and on
+// every spoken word during Read Aloud (setAudioPlayback -> useTTSPlayback.ts),
+// plus every non-persisted `bump*Token` / `isNavJumping` toggle.
 //
-// getItem/removeItem pass straight through — only setItem (the expensive,
-// bursty side) is debounced. Reads are rare (mount-time rehydration only).
+// So these adapters implement zustand's `PersistStorage<S>` interface directly
+// (object in, object out — NOT `StateStorage`, which is string-based). That
+// hands us the live state OBJECT in `setItem`; we stash it and defer BOTH the
+// `JSON.stringify` and the `localStorage.setItem` into the debounced `flush()`.
+// A burst of 50 `set()`s then costs one stringify + one write instead of 50.
+//
+// getItem returns the pending object (already parsed) if a write is still
+// in-flight, else parses the on-disk string. Reads are rare (mount-time
+// rehydration only).
+
+type StoredValue = { state: unknown; version?: number }
 
 const DEBOUNCE_MS = 500
 
 let pendingKey: string | null = null
-let pendingValue: string | null = null
+let pendingValue: StoredValue | null = null
+let hasPending = false
 let timer: ReturnType<typeof setTimeout> | null = null
+
+/** Force the pending persisted-state write (if any) to disk now. Exported so the
+ *  store can call it after a last-moment `setState` on pagehide/beforeunload —
+ *  otherwise that write would sit in the 500ms debounce and be lost on unload. */
+export function flushDebouncedStorage(): void {
+  flush()
+}
 
 function flush(): void {
   if (timer !== null) {
     clearTimeout(timer)
     timer = null
   }
-  if (pendingKey !== null && pendingValue !== null) {
+  if (hasPending && pendingKey !== null && pendingValue !== null) {
     try {
-      localStorage.setItem(pendingKey, pendingValue)
+      // The stringify itself is deferred to here — this is the whole point of
+      // the adapter. Coalesced bursts pay for it exactly once.
+      localStorage.setItem(pendingKey, JSON.stringify(pendingValue))
     } catch {
       // Same failure modes as a plain localStorage.setItem (quota exceeded,
       // storage disabled) — nothing productive to do beyond not crashing.
     }
-    pendingKey = null
-    pendingValue = null
   }
+  pendingKey = null
+  pendingValue = null
+  hasPending = false
 }
 
 // Flush on the way out so the last few hundred ms of state aren't lost on
@@ -56,15 +75,19 @@ if (typeof window !== 'undefined') {
 }
 
 export const debouncedLocalStorage = {
-  getItem: (name: string): string | null => {
+  getItem: (name: string): StoredValue | null => {
     // If a write to this key is still pending, prefer it over the (stale)
     // on-disk value so a read immediately after a write is consistent.
-    if (pendingKey === name && pendingValue !== null) return pendingValue
-    return localStorage.getItem(name)
+    if (pendingKey === name && hasPending && pendingValue !== null) return pendingValue
+    let raw: string | null = null
+    try { raw = localStorage.getItem(name) } catch { return null }
+    if (raw === null) return null
+    try { return JSON.parse(raw) as StoredValue } catch { return null }
   },
-  setItem: (name: string, value: string): void => {
+  setItem: (name: string, value: StoredValue): void => {
     pendingKey = name
     pendingValue = value
+    hasPending = true
     if (timer !== null) clearTimeout(timer)
     timer = setTimeout(flush, DEBOUNCE_MS)
   },
@@ -72,12 +95,13 @@ export const debouncedLocalStorage = {
     if (pendingKey === name) {
       pendingKey = null
       pendingValue = null
+      hasPending = false
     }
     if (timer !== null) {
       clearTimeout(timer)
       timer = null
     }
-    localStorage.removeItem(name)
+    try { localStorage.removeItem(name) } catch { /* storage disabled — nothing to do */ }
   },
 }
 
@@ -96,9 +120,12 @@ export const debouncedLocalStorage = {
 // genuinely must persist uses its own dedicated key written directly (e.g.
 // 'berean-viewer-font-scale', 'berean-ask-why-sync').
 export const readThroughLocalStorage = {
-  getItem: (name: string): string | null => {
-    try { return localStorage.getItem(name) } catch { return null }
+  getItem: (name: string): StoredValue | null => {
+    let raw: string | null = null
+    try { raw = localStorage.getItem(name) } catch { return null }
+    if (raw === null) return null
+    try { return JSON.parse(raw) as StoredValue } catch { return null }
   },
-  setItem: (_name: string, _value: string): void => { /* intentionally no-op — see comment above */ },
+  setItem: (_name: string, _value: StoredValue): void => { /* intentionally no-op — see comment above */ },
   removeItem: (_name: string): void => { /* intentionally no-op */ },
 }

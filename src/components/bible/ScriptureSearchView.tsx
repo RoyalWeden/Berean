@@ -15,6 +15,7 @@ import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
 import { RED_LETTER_CLASS, highlightDotColor } from '@/styles/highlightPalette'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 
@@ -307,6 +308,9 @@ interface Props {
 type CtxItem = { bookId: string; chapter: number; verse: number; textId: string; text: string; x: number; y: number }
 
 export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpenInFloating, onClose, initialQuery, persistedState, onStateChange, floating = false }: Props) {
+  // Rendered inside BiblePanel; when that panel is mounted-but-hidden (another space
+  // on screen) this must not portal its header into the shared TopBar slot either.
+  const isActivePanel = useIsActivePanel('bible')
   const [query, setQuery] = useState(persistedState?.query ?? initialQuery ?? '')
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [textId, setTextId] = useState<string>(persistedState?.textId ?? 'all')
@@ -1172,7 +1176,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
       {/* ── Shared TopBar slot: mode + word-mode pills, then the scope pill. All controls share
            the CTL shape defined above. ── */}
-      <TabHeaderPortal floating={floating}>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
         <div className="flex items-center gap-1 flex-shrink-0">
           {([['auto', 'All'], ['text', 'Text'], ['strongs', "Strong's"], ['crossref', 'Cross-ref']] as [SearchMode, string][]).map(([m, label]) => (
             <button

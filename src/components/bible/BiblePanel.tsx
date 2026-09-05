@@ -15,6 +15,7 @@ import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import ActionPillGroup from '@/components/shell/ActionPillGroup'
 import FindBar from '@/components/shell/FindBar'
@@ -62,6 +63,14 @@ const booksCache = new Map<string, Book[]>()
 const BOTTOM_PANEL_HEIGHT_LAYOUTS = new Set<ScriptureLayout>(['panel-bottom', 'notes-bottom', 'compare-notes', 'split-bottom'])
 
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
+  // ActivePanel now keeps this panel mounted while another space is on screen (so a
+  // switch back is a display flip, not a teardown of the whole verse tree + refetch).
+  // While it's hidden every getBoundingClientRect()-based measurement here reads 0, so
+  // the geometry effects (presenter band, viewer visible-region push, laser) below
+  // no-op on `!isActivePanel` and recompute on the ResizeObserver / scroll tick that
+  // fires when it's shown again. Floating windows are always their own active panel.
+  const isActiveBiblePanel = useIsActivePanel('bible')
+  const isActivePanel = floating || isActiveBiblePanel
   // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
   // meant a tab-state write in ANY space (scroll position, panel resize, YouTube layout, etc.)
   // re-rendered this component too, since the store replaces the whole record's reference on
@@ -75,6 +84,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // player's card doesn't sit on top of the last verse with no way to scroll past it.
   const audioPlaybackActive = useAppStore((s) => s.audioPlayback != null)
   const updateTabState = useAppStore((s) => s.updateTabState)
+  const setTabScrollPos = useAppStore((s) => s.setTabScrollPos)
   const renameTab = useAppStore((s) => s.renameTab)
   const pendingRightPanelNoteId = useAppStore((s) => s.pendingRightPanelNoteId)
   const pendingRightPanelVerseFilter = useAppStore((s) => s.pendingRightPanelVerseFilter)
@@ -101,6 +111,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // explicit dep of the recompute effect, or the outline band silently goes
   // stale until the next unrelated scroll event happens to force a refresh.
   const bibleFontSize = useAppStore((s) => s.bibleFontSize)
+  const bibleLineHeight = useAppStore((s) => s.bibleLineHeight)
   const appZoom = useAppStore((s) => s.appZoom)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -689,8 +700,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const computePresenterBand = useCallback(() => {
     const region = viewerVisibleRegion
     const c = getScrollEl()
-    // Hard no-band conditions (presenter closed, no scroll element): clear immediately.
-    if (floating || !viewerWindowOpen || !c) { setPresenterBand(null); bandRetryRef.current = 0; return }
+    // Hard no-band conditions (presenter closed, no scroll element, or this panel is
+    // mounted-but-hidden behind another space — every rect it measures reads 0): clear
+    // immediately. It recomputes on the ResizeObserver tick when the panel is shown again.
+    if (floating || !isActivePanel || !viewerWindowOpen || !c) { setPresenterBand(null); bandRetryRef.current = 0; return }
     // SOFT conditions — a stale/in-flight region for the previous chapter, a not-yet-settled
     // visibleFraction, or verse nodes not mounted yet — all happen for a beat right after a
     // chapter change while the presenter is catching up. Nulling the band on any of them made
@@ -797,7 +810,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         bandTop: band?.top, bandHeight: band?.height,
       })
     }
-  }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [floating, isActivePanel, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Latest computePresenterBand, readable from callbacks (like clearTargetVerse below) that
   // must NOT take it as a dependency — computePresenterBand's identity changes on every
@@ -822,7 +835,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (presenterPushToken === lastSeenPresenterPushTokenRef.current) return
     lastSeenPresenterPushTokenRef.current = presenterPushToken
-    if (floating) return
+    if (floating || !isActivePanel) return // hidden panel measures 0 — see isActivePanel comment
     const container = getScrollEl()
     if (container) {
       // measureContentHeight (content-bottom-clamped), not raw scrollHeight — matches every
@@ -1048,7 +1061,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const pos = el?.scrollTop ?? 0
       const updates: Partial<import('@/types').BibleTabState> = {}
       // Skip the scroll-position write inside a navigation's suppression window (pre-jump offset).
-      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current) updates.scrollPosition = pos
+      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current) {
+        updates.scrollPosition = pos
+        if (tab) useAppStore.getState().setTabScrollPos(tab.id, pos)
+      }
       // Only remember the note cursor (and re-focus on return) if the user was actually
       // typing in the side-panel note editor when they left this tab.
       const noteFocused = isSidePanelNoteFocused()
@@ -1071,7 +1087,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const updates: Partial<import('@/types').BibleTabState> = {}
       // Don't persist a scroll position captured inside a navigation's suppression window — it
       // would be the pre-jump offset, not where the freshly-opened passage should sit.
-      if (el && Date.now() >= suppressScrollSaveUntilRef.current) updates.scrollPosition = el.scrollTop
+      if (el && Date.now() >= suppressScrollSaveUntilRef.current) {
+        updates.scrollPosition = el.scrollTop
+        // Keep the ephemeral map in step so stampNavEntryScroll (which prefers it) doesn't
+        // stamp a stale offset onto the nav entry after this flush.
+        useAppStore.getState().setTabScrollPos(tab.id, el.scrollTop)
+      }
       const noteFocused = isSidePanelNoteFocused()
       updates.rightPanelNoteFocused = noteFocused
       if (noteFocused && lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
@@ -1550,7 +1571,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // anchor capture/restore is kept only as a safety net for "compact" (which does get a small
   // line-height bump to fit the numbers) and any sub-pixel drift.
   function toggleStrongsForTab(tabId: string, next: boolean) {
-    captureStrongsAnchor()
+    // Only "compact" line-height actually reflows on a Strong's toggle (it gets a
+    // small line-height bump to fit the numbers); comfortable/spacious render the
+    // numbers as zero-layout absolute overlays in the leading gap, so there is
+    // nothing to anchor and the capture — which getBoundingClientRect()s every
+    // verse in the fallback path — is pure forced-reflow cost on the big DOM.
+    if (bibleLineHeight === 'compact') captureStrongsAnchor()
     updateTabState('scripture', tabId, { showStrongs: next })
   }
 
@@ -1574,6 +1600,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // (the only case that gets a View Transition crossfade instead — see toggleStrongsForTab).
   // A layout effect's DOM reads are already post-layout, so no rAF wait is needed here either.
   useLayoutEffect(() => {
+    if (bibleLineHeight !== 'compact') return // no reflow to correct — see toggleStrongsForTab
     restoreStrongsAnchor()
   }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1581,6 +1608,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // restoreStrongsAnchor above only corrects the first frame; the chip-in + delayed line-height
   // reflow keeps changing heights for ~500ms after that.
   useEffect(() => {
+    // Only "compact" line-height reflows on a toggle (see toggleStrongsForTab). For
+    // comfortable/spacious this 350ms rAF loop was calling getBoundingClientRect on
+    // a just-mounted multi-thousand-node chapter 60×/sec for nothing — a forced
+    // synchronous layout storm right when the DOM is most expensive to measure.
+    if (bibleLineHeight !== 'compact') { strongsAnimAnchorRef.current = null; return }
     const anchor = strongsAnimAnchorRef.current
     if (!anchor) return
     strongsAnimAnchorRef.current = null
@@ -2410,7 +2442,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (Date.now() < suppressScrollSaveUntilRef.current) return
       if (activeTabRef.current?.id !== tabId) return
       if (tabStateRef.current.bookId !== savedForBook || tabStateRef.current.chapter !== savedForChapter) return
-      if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
+      // Ephemeral keyed write — NOT updateTabState({ scrollPosition }), which rebuilt the whole
+      // tabs record on every 150ms tick and re-rendered every s.tabs.* subscriber (this panel
+      // included). The canonical tabs[].state.scrollPosition is caught up from scrollByTab at
+      // every flush point (tab/space switch via the onSave handler above, pagehide in the store).
+      if (tabId) setTabScrollPos(tabId, scrollTop)
     }, 150)
     // In Continuous Chapter Scroll mode, `container` is the WHOLE multi-chapter scroll region
     // (loaded chapters + height-preserving placeholder spacers for evicted ones spanning the
@@ -2801,7 +2837,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           `relative` to the root is a no-op there since TabHeaderPortal doesn't render PanelHeader
           at all when not floating, portaling into ShellHeader's slot elsewhere instead — see
           TabHeaderPortal.tsx). */}
-      <TabHeaderPortal floating={floating} className={floating ? 'absolute top-0 left-0 right-0 z-20' : ''}>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className={floating ? 'absolute top-0 left-0 right-0 z-20' : ''}>
         {/* The "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
             tabState.searchBack) that used to render here were removed —
             redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the

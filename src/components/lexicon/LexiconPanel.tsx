@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
@@ -354,6 +355,9 @@ function EntryView({
   floating?: boolean
   wordReplacerRules?: WordReplacerRule[]
 }) {
+  // Don't portal the header when this panel is mounted-but-hidden (ActivePanel keeps it alive
+  // across space switches now) — would collide with the visible panel's own header.
+  const isActivePanel = useIsActivePanel('lexicon')
   // Helper: apply word replacer if rules are present
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
   // Which actual English word(s) this occurrence's matched Strong's-tagged position(s)
@@ -520,7 +524,7 @@ function EntryView({
       {/* Header — portaled into the shared top bar, not a second local header.
            Back/home navigation is gone: the top bar's own back button now
            reaches the search view (idx -1) directly via the global nav stack. */}
-      <TabHeaderPortal floating={floating}>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
         {noteBack && onNoteBack && (
           <button
             onClick={onNoteBack}
@@ -946,6 +950,7 @@ function SearchView({
   floating?: boolean
   wordReplacerRules?: WordReplacerRule[]
 }) {
+  const isActivePanel = useIsActivePanel('lexicon')
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
   const [query, setQuery] = useState(initialQuery)
   const [lang, setLang] = useState<'H' | 'G' | 'all'>(initialLang)
@@ -1052,7 +1057,7 @@ function SearchView({
         onOpen={() => { if (ctxEntry) { onSelect(ctxEntry); searchCtx.close() } }}
         onOpenNewTab={() => { if (ctxEntry) { onOpenNewTab?.(ctxEntry); searchCtx.close() } }}
       />
-      <TabHeaderPortal floating={floating} className="relative">
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="relative">
         <BookMarked size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Lexicon</span>
         <div className="ml-auto flex items-center gap-1">
