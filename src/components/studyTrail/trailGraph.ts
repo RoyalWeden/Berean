@@ -500,9 +500,22 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
       // is worth tracing rather than the generic spine arrow), so same-depth styling. Targets the
       // connection's REAL destination via arrivalNodeFor — the old `nextNodeById.get(fromNodeId)`
       // pointed at "whatever node happens to follow the source," which a spliced revisit node
-      // makes flatly wrong.
-      const target = arrivalNodeFor(c) ?? nextNodeById.get(c.fromNodeId)
-      if (target) pushEdge(styled('deeper', { key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, curved: true }))
+      // makes flatly wrong. That old approach is kept ONLY as a last-resort fallback for when
+      // arrivalNodeFor can't resolve at all (e.g. c.toKind isn't 'chapter') — `isForwardBranch`
+      // is set (above) exactly when nextNodeById.get(fromNodeId) already matches this
+      // connection's toBookId/toChapter/session, so the fallback SHOULD in practice always
+      // agree with arrivalNodeFor when both resolve; `usedFallback` below flags the rarer case
+      // where it doesn't, which is the prime suspect for a stray/wrongly-targeted "deeper" arc
+      // (see TrailConnectorOverlay's own debug logging of this flag) — diagnostic only, changes
+      // no rendering behavior.
+      const arrival = arrivalNodeFor(c)
+      const target = arrival ?? nextNodeById.get(c.fromNodeId)
+      if (target) {
+        pushEdge(styled('deeper', {
+          key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, curved: true,
+          ...(arrival == null ? { usedFallbackTarget: true } : {}),
+        }))
+      }
     }
   }
 
