@@ -4,7 +4,7 @@ import { useAppStore } from '@/store'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import { isLxxTranslation, mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
+import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import type { Verse } from '@/types'
 import type { VersePickerPayload, VersePickerSide } from '@/types/versePicker'
 
@@ -93,14 +93,26 @@ function VersePickerColumn({
     }
     return set
   }, [q, verses, wordReplacerEnabled, wordReplacerRules]) // eslint-disable-line react-hooks/exhaustive-deps
+  const matchedList = useMemo(() => (matchedVerseNums ? [...matchedVerseNums].sort((a, b) => a - b) : []), [matchedVerseNums])
 
-  // Scroll the first match into view whenever the query (or its result set) changes.
+  // Enter / Shift+Enter cycle through occurrences — a plain filtered list with no way to step
+  // through matches one at a time wasn't enough ("i can go through the occurrences"). Resets to
+  // the first match whenever the query (or the chapter/edition it's searching) changes.
+  const [matchIndex, setMatchIndex] = useState(0)
+  useEffect(() => { setMatchIndex(0) }, [q, side.bookId, displayChapter, textId])
+  const currentMatchVerse = matchedList.length > 0 ? matchedList[matchIndex % matchedList.length] : null
+
+  // Scroll the CURRENT match into view whenever it changes (query edit, or Enter/Shift+Enter).
   useEffect(() => {
-    if (!matchedVerseNums || matchedVerseNums.size === 0) return
-    const first = Math.min(...matchedVerseNums)
-    const el = containerRef.current?.querySelector<HTMLElement>(`[data-verse-num="${first}"]`)
+    if (currentMatchVerse == null) return
+    const el = containerRef.current?.querySelector<HTMLElement>(`[data-verse-num="${currentMatchVerse}"]`)
     el?.scrollIntoView({ block: 'center' })
-  }, [matchedVerseNums])
+  }, [currentMatchVerse])
+
+  function cycleMatch(dir: 1 | -1) {
+    if (matchedList.length === 0) return
+    setMatchIndex((i) => (i + dir + matchedList.length) % matchedList.length)
+  }
 
   return (
     <div
@@ -127,7 +139,7 @@ function VersePickerColumn({
               style={{
                 flexShrink: 0, fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 999,
                 cursor: 'pointer', border: `1px solid ${borderColor}`,
-                background: textId === 'lxx' ? `${accentColor.replace('rgb(', 'rgba(').replace(')', ', 0.16)')}` : 'transparent',
+                background: textId === 'lxx' ? 'rgb(var(--color-accent) / 0.16)' : 'transparent',
                 color: textId === 'lxx' ? accentColor : muteColor,
               }}
             >{textId === 'lxx' ? 'LXX' : 'KJV'}</button>
@@ -140,15 +152,25 @@ function VersePickerColumn({
               autoFocus
               value={findQuery}
               onChange={(e) => onFindQueryChange(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape') onCloseFind() }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { onCloseFind(); return }
+                if (e.key === 'Enter') { e.preventDefault(); cycleMatch(e.shiftKey ? -1 : 1) }
+              }}
               placeholder="Find in this chapter…"
               style={{
                 flex: 1, minWidth: 0, fontSize: 12, background: 'rgb(var(--color-surface-1))',
                 border: `1px solid ${borderColor}`, borderRadius: 6, padding: '3px 7px', color: textColor, outline: 'none',
               }}
             />
-            {matchedVerseNums && (
-              <span style={{ fontSize: 10.5, color: muteColor, flexShrink: 0 }}>{matchedVerseNums.size}</span>
+            {matchedList.length > 0 && (
+              <>
+                <span style={{ fontSize: 10.5, color: muteColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{(matchIndex % matchedList.length) + 1}/{matchedList.length}</span>
+                <button onClick={() => cycleMatch(-1)} title="Previous match (Shift+Enter)" style={{ flexShrink: 0, background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex', padding: '0 2px' }}>‹</button>
+                <button onClick={() => cycleMatch(1)} title="Next match (Enter)" style={{ flexShrink: 0, background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex', padding: '0 2px' }}>›</button>
+              </>
+            )}
+            {q && matchedList.length === 0 && (
+              <span style={{ fontSize: 10.5, color: muteColor, flexShrink: 0 }}>0</span>
             )}
             <button onClick={onCloseFind} style={{ flexShrink: 0, background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex' }}><X size={13} /></button>
           </div>
@@ -164,6 +186,7 @@ function VersePickerColumn({
         {verses?.map((v) => {
           const isSelected = selected.has(v.verse_num)
           const isMatch = matchedVerseNums?.has(v.verse_num) ?? false
+          const isCurrentMatch = isMatch && v.verse_num === currentMatchVerse
           const dimmedByFind = matchedVerseNums != null && !isMatch
           return (
             <button
@@ -178,9 +201,14 @@ function VersePickerColumn({
                 // enough (0.1, not the earlier 0.16) that the verse-number column (below) still
                 // reads clearly against it in dark mode; number contrast no longer rides on the
                 // same accent hue as the fill (see the number span's color, split out from the
-                // background).
-                background: isSelected ? `${accentColor.replace('rgb(', 'rgba(').replace(')', ', 0.1)')}` : isMatch ? 'rgb(var(--color-accent) / 0.08)' : 'transparent',
-                border: `1px solid ${isSelected ? accentColor : 'transparent'}`,
+                // background). Built with the `rgb(var(...) / alpha)` form (not string-replace
+                // hackery on the already-composed accentColor) — that replace chain quietly
+                // produced INVALID rgba() output (a stray extra comma landed inside the var()
+                // fallback instead of becoming the alpha channel), which browsers resolve as
+                // fully OPAQUE — exactly why selected rows (and the LXX/KJV toggle below) read
+                // as solid/too-bright instead of a subtle tint.
+                background: isSelected ? 'rgb(var(--color-accent) / 0.1)' : isCurrentMatch ? 'rgb(var(--color-accent) / 0.18)' : isMatch ? 'rgb(var(--color-accent) / 0.08)' : 'transparent',
+                border: `1px solid ${isSelected ? accentColor : isCurrentMatch ? accentColor : 'transparent'}`,
                 cursor: 'pointer',
                 opacity: dimmedByFind ? 0.45 : 1,
               }}

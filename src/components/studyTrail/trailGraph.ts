@@ -353,10 +353,24 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   // `arrivalNodeFor` (time-nearest), NOT the old last-write-wins chapter map: attaching a
   // session's first Genesis-1 connection to its THIRD Genesis-1 node is what made tangent stubs
   // originate "from something far in the past."
+  //
+  // EXCEPT when a later connection to the same node carries the user's own data (verse ties /
+  // a marked branch / a note) and the earlier one has none: a quick revisit of the same chapter
+  // (nodeNearest reusing the existing node rather than minting a new one) can leave TWO+
+  // connections resolving to the same target here, and plain earliest-wins would let an old,
+  // untouched connection permanently shadow a tie the user just set (via the verse-tie picker,
+  // or the note popover) on the newer one — the map then never renders it as a branch at all,
+  // no matter how many times the data reloads. Only overrides the tiebreak when the earlier
+  // connection genuinely has nothing of its own to lose.
   const originConnByNodeId = new Map<string, TrailConnection>()
   for (const c of [...detail.connections].sort((a, b) => a.createdAt - b.createdAt)) {
     const target = arrivalNodeFor(c)
-    if (target && !originConnByNodeId.has(target.id)) originConnByNodeId.set(target.id, c)
+    if (!target) continue
+    const existing = originConnByNodeId.get(target.id)
+    if (!existing) { originConnByNodeId.set(target.id, c); continue }
+    const existingHasUserData = renderAsBranch(existing) || hasNote(existing)
+    const candidateHasUserData = renderAsBranch(c) || hasNote(c)
+    if (candidateHasUserData && !existingHasUserData) originConnByNodeId.set(target.id, c)
   }
 
   // Branch chaining (v31) — a connection with fromConnectionId set hangs off ANOTHER connection,

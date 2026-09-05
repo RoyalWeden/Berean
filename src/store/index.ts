@@ -24,15 +24,19 @@ import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 const VIEWER_FONT_SCALE_SYNC_KEY = 'berean-viewer-font-scale'
 
 // The main window is the ONLY owner/writer of the persisted 'berean-app-state'
-// blob. Secondary windows (?viewer=1 / ?studyTrail=1 / ?float=1) each build their
-// own useAppStore from this same module; letting them write the shared key means
-// their stale/default full-state snapshot clobbers real settings on the next
+// blob. Secondary windows (?viewer=1 / ?studyTrail=1 / ?float=1 / ?versePicker=1) each
+// build their own useAppStore from this same module; letting them write the shared key
+// means their stale/default full-state snapshot clobbers real settings on the next
 // launch (see readThroughLocalStorage). They still rehydrate from it and get
 // live updates via IPC push channels.
+// versePicker was missing here when that window type was added — it was falling through
+// to the `else` branch below and getting `debouncedLocalStorage` (a WRITER), meaning
+// every mutation in the picker window scheduled a full-state snapshot write back over
+// the shared blob, exactly the clobbering bug this comment already warns about.
 const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
   try {
     const p = new URLSearchParams(window.location.search)
-    return p.get('viewer') === '1' || p.get('studyTrail') === '1' || p.get('float') === '1'
+    return p.get('viewer') === '1' || p.get('studyTrail') === '1' || p.get('float') === '1' || p.get('versePicker') === '1'
   } catch { return false }
 })()
 
@@ -2952,7 +2956,20 @@ export const useAppStore = create<AppState>()(
 // nothing else ever touches that key, so there's no snapshot for another window to clobber it
 // with.
 const ASK_WHY_SYNC_KEY = 'berean-ask-why-sync'
-const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = []
+// Theme/appearance fields — safe to sync via this general path (unlike the ask-why toggle
+// above): the v37 clobber race described above required a SECOND writer of 'berean-app-state'
+// flushing its own stale full-state snapshot, which was only ever possible because secondary
+// windows used to double as writers (the same class of bug just found and fixed for the
+// verse-picker window — see the IS_SECONDARY_WINDOW comment). Now that every secondary window
+// uses the no-op `readThroughLocalStorage` and the MAIN window is the sole writer, there is no
+// second writer left to race against — so any already-open secondary window (Study Trail, the
+// presenter, the verse picker) picking up a live theme change here is just a clean merge of the
+// one real writer's latest snapshot. Without this, changing the theme while one of those
+// windows was already open only took effect on that window's NEXT open/reload.
+const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = [
+  'theme', 'themePreset', 'systemAccentColor',
+  'backgroundAnimationEnabled', 'backgroundAnimationStyle', 'backgroundAnimationIntensity',
+]
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === ASK_WHY_SYNC_KEY) {
