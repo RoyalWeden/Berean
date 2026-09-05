@@ -15,6 +15,7 @@ release/
 *.local
 electron/youtube-key.ts
 scripts/cache/
+__pycache__/
 build/embedded.provisionprofile
 sample-pdfs/
 .claude/
