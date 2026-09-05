@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
-import { Scissors } from 'lucide-react'
+import { Scissors, Plus, ListChecks, ChevronLeft, ChevronRight } from 'lucide-react'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail, TrailTag } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
@@ -28,6 +28,41 @@ const isMainTab = (v: unknown): v is MainTab => MAIN_TABS.includes(v as MainTab)
 const storedWindowPrefs = readTrailWindowPrefs()
 const clampZoom = (z: number) => Math.min(TRAIL_ZOOM_MAX, Math.max(TRAIL_ZOOM_MIN, z))
 
+// 6am-6am "day" bucketing for the session-rail calendar redesign — a session started at 1am
+// belongs to the PREVIOUS day's timeline, matching how the day-view itself is framed (6am to
+// 6am, not midnight to midnight). Deliberately a fixed 6am cutoff, not the app's own sunset-
+// aware daily-note anchor (EverythingView's dayKeyFor) — the user's own ask specified "6am-6am"
+// literally, not "whenever the daily note rolls over."
+const DAY_VIEW_START_HOUR = 6
+function dayKeyFor(ms: number): string {
+  const d = new Date(ms - DAY_VIEW_START_HOUR * 3_600_000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function monthKeyOf(dayKey: string): string {
+  return dayKey.slice(0, 7) // "YYYY-MM"
+}
+/** The real Date this dayKey's 6am window STARTS at (local time). */
+function dayKeyToStart(dayKey: string): Date {
+  const [y, m, d] = dayKey.split('-').map(Number)
+  return new Date(y, m - 1, d, DAY_VIEW_START_HOUR, 0, 0, 0)
+}
+function fmtMonthHeading(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
+  const sameYear = y === new Date().getFullYear()
+  return d.toLocaleDateString([], sameYear ? { month: 'long' } : { month: 'long', year: 'numeric' })
+}
+function fmtDayHeading(dayKey: string): string {
+  const start = dayKeyToStart(dayKey)
+  const todayKey = dayKeyFor(Date.now())
+  const yesterdayKey = dayKeyFor(Date.now() - 86_400_000)
+  if (dayKey === todayKey) return 'Today'
+  if (dayKey === yesterdayKey) return 'Yesterday'
+  const sameYear = start.getFullYear() === new Date().getFullYear()
+  return start.toLocaleDateString([], sameYear
+    ? { weekday: 'short', month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' })
+}
 function fmtLastUsed(ms: number): string {
   const diff = Date.now() - ms
   const min = diff / 60_000
@@ -140,6 +175,14 @@ export default function StudyTrailApp() {
   // immediately typing the name with nothing to clear first.
   const [creatingSession, setCreatingSession] = useState(false)
   const newSessionInputRef = useRef<HTMLInputElement>(null)
+
+  // Session-rail redesign: a scrolling month list you pick a day from, rather than one long
+  // flat session list — per feedback ("it will turn into a huge list and hard to traverse
+  // through... i think instead it should be turned into this... a scrolling date thing"). Day
+  // view then shows a 6am-6am timeline with each session as a positioned bar. 'Everything' and
+  // the live session (if any) always stay pinned above this, unchanged.
+  const [railView, setRailView] = useState<'month' | 'day'>('month')
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
 
   // Follow the main window's theme — same shared applyThemeToDocument ViewerApp.tsx/App.tsx/
   // FloatingShell.tsx all use. This window is a separate renderer/document, so even though
@@ -437,6 +480,35 @@ export default function StudyTrailApp() {
   }
   const restSessions = (liveSession ? orderedSessions.filter((s) => s.id !== liveSession.id) : orderedSessions).filter(passesTagFilter)
 
+  // Group restSessions into day buckets (dayKeyFor's 6am-6am scheme), then those days into
+  // month buckets — the data behind both the month-scroll list and the day timeline. Ordered
+  // newest-first throughout, matching restSessions' own order. A day/month with zero sessions
+  // (after the tag filter) never appears at all — no empty 30-day grid to scroll past.
+  const sessionsByDay = new Map<string, TrailSession[]>()
+  for (const s of restSessions) {
+    const key = dayKeyFor(s.createdAt)
+    const list = sessionsByDay.get(key)
+    if (list) list.push(s); else sessionsByDay.set(key, [s])
+  }
+  const dayKeysSorted = [...sessionsByDay.keys()].sort().reverse()
+  const monthsSorted = [...new Set(dayKeysSorted.map(monthKeyOf))]
+  const daysByMonth = new Map<string, string[]>()
+  for (const dk of dayKeysSorted) {
+    const mk = monthKeyOf(dk)
+    const list = daysByMonth.get(mk)
+    if (list) list.push(dk); else daysByMonth.set(mk, [dk])
+  }
+  const selectedDaySessions = selectedDayKey ? (sessionsByDay.get(selectedDayKey) ?? []) : []
+  const selectedDayIdx = selectedDayKey ? dayKeysSorted.indexOf(selectedDayKey) : -1
+  // dayKeysSorted is NEWEST-first, so "next day" (forward in time) is the PREVIOUS array index.
+  const nextDayKey = selectedDayIdx > 0 ? dayKeysSorted[selectedDayIdx - 1] : null
+  const prevDayKey = selectedDayIdx >= 0 && selectedDayIdx < dayKeysSorted.length - 1 ? dayKeysSorted[selectedDayIdx + 1] : null
+
+  function openDay(key: string) {
+    setSelectedDayKey(key)
+    setRailView('day')
+  }
+
   // Extracted so the live session's row can render TWICE-ish — once pinned in the sticky group
   // above the scrolling list, once as a no-op skip when there isn't one — without duplicating
   // this whole block. `pinned` only affects the key/wrapper, not the row's own look.
@@ -603,6 +675,7 @@ export default function StudyTrailApp() {
         .trail-live-dot { animation: trail-live-pulse 2s ease-in-out infinite; }
         .trail-everything-row:not([data-selected="true"]):hover { background: rgb(var(--color-surface-3)) !important; }
         .trail-everything-row[data-selected="true"]:hover { background: rgb(var(--color-accent) / 0.22) !important; }
+        .trail-day-row:hover { background: rgb(var(--color-surface-3)); }
       `}</style>
       {/* Title bar — the whole strip is a drag region (titleBarStyle: 'hiddenInset' on this
           BrowserWindow gives no native drag handling beyond the tiny traffic-light inset area
@@ -685,21 +758,45 @@ export default function StudyTrailApp() {
               seen." Negative top/margin compensates for this rail's own 14px padding so the
               sticky group's background reaches the true scroll-container edge with no gap. */}
           <div style={{ position: 'sticky', top: -14, marginTop: -14, paddingTop: 14, background: 'rgb(var(--color-surface-1))', zIndex: 2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', flex: 1 }}>
-              Sessions
-            </div>
+          {/* Per feedback ("remove the 'sessions' text and the 'select' text too"): the "+"
+              (below) and this select-mode toggle are icon-only now, no labels. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <button
+              onClick={() => setCreatingSession(true)}
+              title="New session"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
+                background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 7, cursor: 'pointer',
+                color: 'rgb(var(--color-accent))', flexShrink: 0,
+              }}
+            ><Plus size={14} /></button>
+            <span style={{ flex: 1 }} />
             {sessions.length > 0 && (
               <button
                 onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
                 title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
                 style={{
-                  fontSize: 10, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', padding: '2px 4px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
+                  background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 7, cursor: 'pointer',
+                  color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
                 }}
-              >{selectMode ? 'Cancel' : 'Select'}</button>
+              ><ListChecks size={14} /></button>
             )}
           </div>
+          {creatingSession && (
+            <input
+              ref={newSessionInputRef}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleStart()
+                else if (e.key === 'Escape') { setCreatingSession(false); setNewName('') }
+              }}
+              onBlur={() => { if (!newName.trim()) setCreatingSession(false) }}
+              placeholder="New session name…"
+              style={{ width: '100%', marginBottom: 8, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
+            />
+          )}
           {selectMode && selectedIds.size > 0 && (
             <button
               onClick={bulkDelete}
@@ -734,29 +831,6 @@ export default function StudyTrailApp() {
               })}
             </div>
           )}
-          <div style={{ marginBottom: 12 }}>
-            {creatingSession ? (
-              <input
-                ref={newSessionInputRef}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleStart()
-                  else if (e.key === 'Escape') { setCreatingSession(false); setNewName('') }
-                }}
-                onBlur={() => { if (!newName.trim()) setCreatingSession(false) }}
-                style={{ width: '100%', background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
-              />
-            ) : (
-              <button
-                onClick={() => setCreatingSession(true)}
-                style={{
-                  width: '100%', background: 'transparent', border: '1px dashed rgb(var(--color-surface-4))', borderRadius: 7,
-                  padding: '6px 8px', cursor: 'pointer', fontWeight: 600, fontSize: 12, color: 'rgb(var(--color-text-secondary))',
-                }}
-              >+ New session</button>
-            )}
-          </div>
           {/* "Everything" — the default (selectedId starts null): not in any particular
               session, just show what's been tracked across all of them. Pinned above the
               individual session list, same idea as the plan's "Sessions/Everything toggle". */}
@@ -777,11 +851,159 @@ export default function StudyTrailApp() {
           </div>
           {renderSessionRow(liveSession, true)}
           </div>
-          {restSessions.map((s) => renderSessionRow(s, false))}
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
           {sessions.length > 0 && restSessions.length === 0 && tagFilter.size > 0 && (
             <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions with those tags.</div>
           )}
+          {restSessions.length === 0 && tagFilter.size === 0 && sessions.length > 0 && (
+            <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No past sessions yet.</div>
+          )}
+          {/* Select mode (bulk delete) deliberately keeps the OLD flat, checkbox-per-row list —
+              a spatial calendar/timeline has no natural place for a checkbox, and bulk-cleanup
+              is an occasional maintenance action orthogonal to day-to-day browsing, not
+              something that needs the calendar's own affordances. Normal browsing (below) is
+              the new month/day calendar. */}
+          {selectMode && restSessions.map((s) => renderSessionRow(s, false))}
+          {/* Month-scroll list — replaces the old flat, ever-growing session list. Per feedback:
+              "it will turn into a huge list and hard to traverse... a scrolling date thing, the
+              user can scroll through the months... then click on one of the days." Empty days/
+              months (after the tag filter) never render at all. */}
+          {!selectMode && restSessions.length > 0 && railView === 'month' && monthsSorted.map((mk) => (
+            <div key={mk} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgb(var(--color-text-muted))', marginBottom: 4 }}>
+                {fmtMonthHeading(mk)}
+              </div>
+              {(daysByMonth.get(mk) ?? []).map((dk) => {
+                const daySessions = sessionsByDay.get(dk) ?? []
+                return (
+                  <div
+                    key={dk}
+                    onClick={() => openDay(dk)}
+                    className="trail-day-row"
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer' }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {fmtDayHeading(dk)}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', flexShrink: 0 }}>
+                      {daySessions.length} session{daySessions.length === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+          {/* Day view — a 6am-6am timeline with each session for that day as a positioned bar,
+              spanning createdAt→updatedAt (clipped to the window). A live/still-updating
+              session's bar grows on its own as `sessions` keeps refreshing (see the existing
+              2s poll above) — no separate timer needed here. */}
+          {!selectMode && railView === 'day' && selectedDayKey && (() => {
+            const PX_PER_MIN = 0.8
+            const winStart = dayKeyToStart(selectedDayKey).getTime()
+            const winEnd = winStart + 24 * 3_600_000
+            const totalHeight = 24 * 60 * PX_PER_MIN
+            const daySessions = [...selectedDaySessions].sort((a, b) => a.createdAt - b.createdAt)
+            // Simple greedy lane-packing for sessions that overlap in time — same idea as
+            // trailGraph.ts's revisit-lane packing, just for a vertical timeline instead of a
+            // horizontal gutter. Most days only need 1 lane; more only when sessions genuinely
+            // overlap in time.
+            const laneEndTimes: number[] = []
+            const laneOf = new Map<string, number>()
+            for (const s of daySessions) {
+              let lane = laneEndTimes.findIndex((endT) => endT <= s.createdAt)
+              if (lane === -1) { lane = laneEndTimes.length; laneEndTimes.push(0) }
+              laneEndTimes[lane] = Math.max(s.updatedAt, s.createdAt)
+              laneOf.set(s.id, lane)
+            }
+            const laneCount = Math.max(1, laneEndTimes.length)
+            return (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                  <button
+                    onClick={() => setRailView('month')}
+                    title="Back to months"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgb(var(--color-text-muted))', flexShrink: 0 }}
+                  ><ChevronLeft size={14} /></button>
+                  <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {fmtDayHeading(selectedDayKey)}
+                  </div>
+                  <button
+                    onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)}
+                    disabled={!prevDayKey}
+                    title="Earlier day"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: prevDayKey ? 'pointer' : 'default', color: prevDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
+                  ><ChevronLeft size={12} /></button>
+                  <button
+                    onClick={() => nextDayKey && setSelectedDayKey(nextDayKey)}
+                    disabled={!nextDayKey}
+                    title="Later day"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: nextDayKey ? 'pointer' : 'default', color: nextDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
+                  ><ChevronRight size={12} /></button>
+                </div>
+                <div style={{ position: 'relative', height: totalHeight, marginLeft: 38 }}>
+                  {/* Hour ticks every 3 hours (6am, 9am, noon, 3pm, 6pm, 9pm, midnight, 3am) —
+                      enough to orient without crowding a 1080px-tall column. */}
+                  {Array.from({ length: 8 }, (_, i) => i * 3).map((h) => {
+                    const t = new Date(winStart + h * 3_600_000)
+                    return (
+                      <div key={h} style={{ position: 'absolute', top: h * 60 * PX_PER_MIN, left: -38, width: 34, fontSize: 9, color: 'rgb(var(--color-text-muted))', textAlign: 'right' }}>
+                        {t.toLocaleTimeString([], { hour: 'numeric' })}
+                        <span style={{ display: 'inline-block', width: 4, height: 1, background: 'rgb(var(--color-surface-4))', marginLeft: 3, verticalAlign: 'middle' }} />
+                      </div>
+                    )
+                  })}
+                  {daySessions.map((s) => {
+                    const clipStart = Math.max(s.createdAt, winStart)
+                    const clipEnd = Math.min(Math.max(s.updatedAt, s.createdAt), winEnd)
+                    const top = (clipStart - winStart) / 60_000 * PX_PER_MIN
+                    const height = Math.max(16, (clipEnd - clipStart) / 60_000 * PX_PER_MIN)
+                    const lane = laneOf.get(s.id) ?? 0
+                    const selected = selectedId === s.id && mainTab === 'map'
+                    const color = s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-secondary))'
+                    return renamingId === s.id ? (
+                      <input
+                        key={s.id}
+                        ref={renameInputRef}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') setRenamingId(null) }}
+                        onBlur={commitRename}
+                        style={{
+                          position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)`,
+                          fontSize: 11, fontWeight: 600, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))',
+                          borderRadius: 5, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        key={s.id}
+                        onClick={() => { setSelectedId(s.id); setMainTab('map') }}
+                        onDoubleClick={() => startRename(s.id, s.name)}
+                        onContextMenu={(e) => openSessionMenu(e, s.id)}
+                        title={`${s.name} — ${new Date(s.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+                        style={{
+                          position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)`,
+                          borderRadius: 6, cursor: 'pointer', overflow: 'hidden', padding: '2px 6px',
+                          background: selected ? 'rgb(var(--color-accent) / 0.22)' : `${color}1f`,
+                          borderLeft: `3px solid ${color}`,
+                          boxShadow: selected ? '0 0 0 1px rgb(var(--color-accent))' : undefined,
+                        }}
+                      >
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {s.name}
+                        </div>
+                        {height >= 30 && (
+                          <div style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))' }}>
+                            {new Date(s.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {sessionCtxMenu && (() => {
