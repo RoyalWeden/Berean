@@ -56,15 +56,29 @@ function defaultPos() {
 function TieRow({ value, onChange, onRemove, onBlur, hideRemove }: { value: string; onChange: (v: string) => void; onRemove: () => void; onBlur?: () => void; hideRemove?: boolean }) {
   const parsed = value.trim() ? parseRef(value.trim()) : null
   const resolved = parsed ? bookChapterVerseLabel(parsed.bookId, parsed.chapter, parsed.verse) + (parsed.endVerse ? `–${parsed.endVerse}` : '') : null
+  // Per feedback ("it doesnt feel so encouraging to actually input... make it feel pleasurable
+  // and easy") — this input had NO focus feedback at all (identical whether you were typing in
+  // it or not), which is a big part of why a form full of otherwise-plain grey boxes reads as
+  // unwelcoming. A real focus state (accent border + soft glow, same idiom the rest of the app's
+  // inputs increasingly use) is the single highest-value fix here.
+  const [focused, setFocused] = useState(false)
   return (
-    <div style={{ marginBottom: 4 }}>
+    <div style={{ marginBottom: 5 }}>
       <div style={{ display: 'flex', gap: 4 }}>
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
+          onFocus={() => setFocused(true)}
+          onBlur={(e) => { setFocused(false); onBlur?.(); void e }}
           placeholder="e.g. Mark 13:1"
-          style={{ flex: 1, minWidth: 0, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '5px 7px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
+          style={{
+            flex: 1, minWidth: 0, background: 'rgb(var(--color-surface-2))',
+            border: `1px solid ${focused ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
+            borderRadius: 8, padding: '7px 9px', color: 'rgb(var(--color-text-primary))', fontSize: 12,
+            boxShadow: focused ? '0 0 0 3px rgb(var(--color-accent) / 0.15)' : 'none',
+            transition: 'border-color 120ms ease, box-shadow 120ms ease',
+            outline: 'none',
+          }}
         />
         {!hideRemove && (
           <button
@@ -75,7 +89,7 @@ function TieRow({ value, onChange, onRemove, onBlur, hideRemove }: { value: stri
         )}
       </div>
       {value.trim() && (
-        <div style={{ fontSize: 9.5, marginTop: 2, paddingLeft: 2, color: resolved ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))' }}>
+        <div style={{ fontSize: 9.5, marginTop: 3, paddingLeft: 3, color: resolved ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))' }}>
           {resolved ? `→ ${resolved}` : 'not recognized yet'}
         </div>
       )}
@@ -116,7 +130,7 @@ export function TieColumn({ label, values, onChange, hideRemove }: { label: stri
       <button
         className="trail-ctx-btn"
         onClick={() => onChange([...values, ''])}
-        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', borderRadius: 5, cursor: 'pointer', padding: '2px 4px' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 600, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.1)', border: 'none', borderRadius: 999, cursor: 'pointer', padding: '3px 8px' }}
       ><Plus size={11} /> add</button>
     </div>
   )
@@ -152,6 +166,7 @@ export function TrailReasonFormBody({
   autoFocusNote?: boolean
 }) {
   const [note, setNote] = useState(connection.userNote ?? '')
+  const [noteFocused, setNoteFocused] = useState(false)
   // Seed from tiesFrom/To; fall back to the legacy numeric pins (old data, pre-v35) so nothing
   // already recorded is invisible in the new UI, then always end with one blank row per column.
   // Full "Book Chapter:Verse" when the book/chapter is known — per direct feedback ("for the
@@ -236,13 +251,21 @@ export function TrailReasonFormBody({
         value={note}
         autoFocus={autoFocusNote}
         onChange={(e) => { setNote(e.target.value); onFieldTouched?.() }}
-        onFocus={onFieldTouched}
+        onFocus={() => { setNoteFocused(true); onFieldTouched?.() }}
+        onBlur={() => setNoteFocused(false)}
         placeholder="Add a note (optional)"
-        rows={2}
-        style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 12 }}
+        rows={autoSave ? 3 : 2}
+        style={{
+          width: '100%', background: 'rgb(var(--color-surface-2))',
+          border: `1px solid ${noteFocused ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
+          borderRadius: 9, padding: '8px 10px', color: 'rgb(var(--color-text-primary))', fontSize: 12,
+          resize: 'none', fontFamily: 'inherit', marginBottom: 14, lineHeight: 1.5,
+          boxShadow: noteFocused ? '0 0 0 3px rgb(var(--color-accent) / 0.15)' : 'none',
+          transition: 'border-color 120ms ease, box-shadow 120ms ease', outline: 'none',
+        }}
       />
 
-      <div style={{ display: 'flex', gap: 14, marginBottom: 4 }} onFocus={onFieldTouched}>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 4 }} onFocus={onFieldTouched}>
         <TieColumn label="From" values={tiesFrom} hideRemove={autoSave} onChange={(v) => { setTiesFrom(v); onFieldTouched?.() }} />
         <TieColumn label="To" values={tiesTo} hideRemove={autoSave} onChange={(v) => { setTiesTo(v); onFieldTouched?.() }} />
       </div>

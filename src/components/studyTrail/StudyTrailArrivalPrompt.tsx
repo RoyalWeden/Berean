@@ -210,16 +210,18 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
       <div style={{
         position: 'relative', maxHeight: expanded ? 2000 : 0, opacity: expanded ? 1 : 0, overflow: 'hidden',
         transition: 'max-height 160ms ease, opacity 130ms ease',
-        padding: expanded ? '8px 10px 10px' : '0 10px', fontSize: 11,
+        padding: expanded ? '10px 12px 12px' : '0 10px', fontSize: 11,
       }}>
         {/* Header when expanded — keeps the "Why'd you go to …?" question visible at the top of
             the hover form (per direct feedback), with the dismiss × on the same row. Inline
             (not an absolute ×) so it never overlaps the note box and both tie columns keep the
-            full uniform width. */}
+            full uniform width. Slightly warmer per feedback ("make it feel pleasurable and easy
+            to input") — accent-tinted icon and a touch more weight/size on the question itself,
+            instead of everything reading in the same flat muted grey. */}
         {expanded && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <MessageSquarePlus size={12} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-secondary))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
               {question}
             </span>
             <button
