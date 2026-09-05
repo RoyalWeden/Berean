@@ -763,46 +763,47 @@ export default function StudyTrailApp() {
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* Session rail — position:relative so the +/select overlay below can float fixed at
-            its top-right corner regardless of scroll, rather than taking up its own row. */}
+        {/* Session rail */}
         <div style={{ position: 'relative', width: 220, borderRight: '1px solid rgb(var(--color-surface-4))', flexShrink: 0 }}>
-          {/* Per feedback ("the plus for a new session should be hovering over the timeline, so
-              should the select button, so that there isn't an extra row at the top for the
-              buttons"): floats over whatever's scrolled beneath (month list, day timeline, or
-              the pinned Everything/live rows) instead of reserving its own row. Icon-only, no
-              "Sessions"/"Select" text labels, per the earlier feedback that removed those. */}
-          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 5, display: 'flex', gap: 4 }}>
-            <button
-              onClick={() => setCreatingSession(true)}
-              title="New session"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
-                background: 'rgb(var(--color-surface-1) / 0.85)', backdropFilter: 'blur(6px)',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.2)', border: 'none', borderRadius: 7, cursor: 'pointer',
-                color: 'rgb(var(--color-accent))', flexShrink: 0,
-              }}
-            ><Plus size={14} /></button>
-            {sessions.length > 0 && (
+          <div style={{ padding: 14, overflowY: 'auto', height: '100%' }}>
+          {/* Sticky group — new-session input (when active), the month-view control row,
+              Everything, and the live session (if any) all stay visible while scrolling a long
+              session list. Per direct feedback: "the new session, everything, and the live
+              session should all be pinned at the top of the session bar so that when scrolling
+              in the sessions they can still be seen." Negative top/margin compensates for this
+              rail's own 14px padding so the sticky group's background reaches the true
+              scroll-container edge with no gap. */}
+          <div style={{ position: 'sticky', top: -14, marginTop: -14, paddingTop: 14, background: 'rgb(var(--color-surface-1))', zIndex: 2 }}>
+          {/* Month view (or select mode, which uses the same flat-list layout): +/select sit
+              inline in their own row, not floating — per feedback ("on the months page, those
+              buttons should be inline on their own row"). Day view's own floating version is
+              rendered further down, under that view's date heading. Icon-only, no "Sessions"/
+              "Select" text labels, per the earlier feedback that removed those. */}
+          {railView !== 'day' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <button
-                onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
-                title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
+                onClick={() => setCreatingSession(true)}
+                title="New session"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
-                  background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-1) / 0.85)',
-                  backdropFilter: 'blur(6px)', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', border: 'none', borderRadius: 7, cursor: 'pointer',
-                  color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
+                  background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 7, cursor: 'pointer',
+                  color: 'rgb(var(--color-accent))', flexShrink: 0,
                 }}
-              ><ListChecks size={14} /></button>
-            )}
-          </div>
-          <div style={{ padding: 14, overflowY: 'auto', height: '100%' }}>
-          {/* Sticky group — new-session input (when active), Everything, and the live session
-              (if any) all stay visible while scrolling a long session list. Per direct feedback:
-              "the new session, everything, and the live session should all be pinned at the
-              top of the session bar so that when scrolling in the sessions they can still be
-              seen." Negative top/margin compensates for this rail's own 14px padding so the
-              sticky group's background reaches the true scroll-container edge with no gap. */}
-          <div style={{ position: 'sticky', top: -14, marginTop: -14, paddingTop: 14, background: 'rgb(var(--color-surface-1))', zIndex: 2 }}>
+              ><Plus size={14} /></button>
+              <span style={{ flex: 1 }} />
+              {sessions.length > 0 && (
+                <button
+                  onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
+                  title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
+                    background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 7, cursor: 'pointer',
+                    color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
+                  }}
+                ><ListChecks size={14} /></button>
+              )}
+            </div>
+          )}
           {creatingSession && (
             <input
               ref={newSessionInputRef}
@@ -919,7 +920,12 @@ export default function StudyTrailApp() {
               spanning createdAt→updatedAt (clipped to the window). A live/still-updating
               session's bar grows on its own as `sessions` keeps refreshing (see the existing
               2s poll above) — no separate timer needed here. */}
-          {!selectMode && railView === 'day' && selectedDayKey && (() => {
+          {/* Gated only on railView/selectedDayKey (not !selectMode) — the header (date, nav
+              arrows, and the floating Months/+/Select band) must stay reachable even while
+              select mode's flat list (rendered separately above) is what's actually showing, so
+              select mode can still be turned off from here. Only the timeline drawing itself is
+              swapped out for that flat list. */}
+          {railView === 'day' && selectedDayKey && (() => {
             const PX_PER_MIN = 0.8
             const winStart = dayKeyToStart(selectedDayKey).getTime()
             const winEnd = winStart + 24 * 3_600_000
@@ -940,21 +946,8 @@ export default function StudyTrailApp() {
             const laneCount = Math.max(1, laneEndTimes.length)
             return (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-                  {/* A plain ChevronLeft here read as identical to the prev-day arrow right next
-                      to it — per feedback ("i cant find a way to get back to the calendar
-                      looking thing"), this needs its own distinct icon + label, not another
-                      unlabeled chevron. */}
-                  <button
-                    onClick={() => setRailView('month')}
-                    title="Back to the month calendar"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', flexShrink: 0,
-                      background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 6, cursor: 'pointer',
-                      color: 'rgb(var(--color-text-secondary))', fontSize: 10.5, fontWeight: 600,
-                    }}
-                  ><CalendarDays size={12} /> Months</button>
-                  <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {fmtDayHeading(selectedDayKey)}
                   </div>
                   <button
@@ -970,6 +963,48 @@ export default function StudyTrailApp() {
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: nextDayKey ? 'pointer' : 'default', color: nextDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
                   ><ChevronRight size={12} /></button>
                 </div>
+                {/* Per feedback ("the buttons for the plus, select and the months should all be
+                    floating below the date in the timeline and be translucent"): a sticky,
+                    translucent band pinned just under the date heading, over the timeline
+                    content as it scrolls — not inline document flow like the month view's own
+                    plus/select row. */}
+                <div style={{
+                  position: 'sticky', top: 0, zIndex: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '4px 5px', borderRadius: 8, background: 'rgb(var(--color-surface-1) / 0.75)',
+                  backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                }}>
+                  <button
+                    onClick={() => setRailView('month')}
+                    title="Back to the month calendar"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', flexShrink: 0,
+                      background: 'rgb(var(--color-surface-3) / 0.7)', border: 'none', borderRadius: 6, cursor: 'pointer',
+                      color: 'rgb(var(--color-text-secondary))', fontSize: 10.5, fontWeight: 600,
+                    }}
+                  ><CalendarDays size={12} /> Months</button>
+                  <span style={{ flex: 1 }} />
+                  <button
+                    onClick={() => setCreatingSession(true)}
+                    title="New session"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
+                      background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 6, cursor: 'pointer',
+                      color: 'rgb(var(--color-accent))', flexShrink: 0,
+                    }}
+                  ><Plus size={13} /></button>
+                  {sessions.length > 0 && (
+                    <button
+                      onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
+                      title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
+                        background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+                        color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
+                      }}
+                    ><ListChecks size={13} /></button>
+                  )}
+                </div>
+                {!selectMode && (
                 <div style={{ position: 'relative', height: totalHeight, marginLeft: 38 }}>
                   {/* Hour ticks every 3 hours (6am, 9am, noon, 3pm, 6pm, 9pm, midnight, 3am) —
                       enough to orient without crowding a 1080px-tall column. */}
@@ -1031,6 +1066,7 @@ export default function StudyTrailApp() {
                     )
                   })}
                 </div>
+                )}
               </div>
             )
           })()}

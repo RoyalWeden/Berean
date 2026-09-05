@@ -69,8 +69,8 @@ export default function StudyTrailArrivalPrompt() {
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
   const origin = useOriginRef(conn)
-  if (!conn) return null
   if (askChapterJumpReason) {
+    if (!conn) return null
     return (
       <ReasonPromptPopover
         connection={conn}
@@ -82,6 +82,8 @@ export default function StudyTrailArrivalPrompt() {
       />
     )
   }
+  // Always rendered (even when conn is null) — ArrivalPill manages its own brief fade-out
+  // after conn clears, rather than being yanked off screen instantly. See its own comment.
   return <ArrivalPill conn={conn} origin={origin} onClose={clear} />
 }
 
@@ -105,10 +107,37 @@ export default function StudyTrailArrivalPrompt() {
  *  feedback, "users will realistically alt-tab or switch Berean tabs mid-way through filling this
  *  in to go check a verse," so only Save, Not now, or the × can close it from then on. Before
  *  `touched`, it's still purely hover-driven (a glance that costs nothing to back out of). */
-function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin: { bookId: string; chapter: number } | null; onClose: () => void }) {
+// Per feedback ("the study trail toast still looks like it did before any changes... im
+// talking about the one that shows when the ask why isnt toggled" — this one, not
+// StudyTrailSplitToast, which was the one actually redesigned earlier) — this toast had NO
+// entrance/exit transition at all (an instant pop in/out the moment pendingArrivalPrompt
+// changes), which is exactly why "more refreshed and less intrusive" didn't show up here.
+const TRANSITION_MS = 180
+
+function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; origin: { bookId: string; chapter: number } | null; onClose: () => void }) {
   const [hovering, setHovering] = useState(false)
   const [touched, setTouched] = useState(false)
   const expanded = touched || hovering
+  // Kept separate from `conn` itself so the toast can fade+slide OUT before actually
+  // unmounting, instead of vanishing the instant conn clears (dismissed, saved, or a new
+  // arrival replaces it).
+  const [local, setLocal] = useState(conn)
+  const [phase, setPhase] = useState<'in' | 'shown' | 'out'>('in')
+  useEffect(() => {
+    if (conn) {
+      setLocal(conn)
+      setPhase('in')
+      const raf = requestAnimationFrame(() => setPhase('shown'))
+      return () => cancelAnimationFrame(raf)
+    }
+    setPhase('out')
+    const t = setTimeout(() => setLocal(null), TRANSITION_MS)
+    return () => clearTimeout(t)
+  }, [conn]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Reset per-toast interaction state whenever a NEW connection replaces the current one
+  // (touched/hovering from the last prompt shouldn't carry over to a fresh one).
+  useEffect(() => { setHovering(false); setTouched(false) }, [conn?.id])
+  if (!local) return null
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
   // Step out of the way of whatever else owns the bottom-right / bottom-center corner now:
@@ -133,7 +162,8 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
     : (!searchTabActive && noteOpen ? 46 : 16)
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
-  const question = arrivalQuestion(conn, origin)
+  const question = arrivalQuestion(local, origin)
+  const shown = phase === 'shown'
 
   return createPortal(
     <div
@@ -147,8 +177,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
         background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.82)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         border: '1px solid rgb(var(--color-surface-4) / 0.7)',
-        borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.3)', overflow: 'hidden',
-        transition: 'right 160ms ease, bottom 160ms ease, background 160ms ease',
+        borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', overflow: 'hidden',
+        opacity: shown ? 1 : 0, transform: shown ? 'translateY(0)' : 'translateY(10px)',
+        transition: `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
       }}
     >
       {/* Collapsed CTA — hidden once expanded (hover or touched); the form's own Save/Not now
@@ -198,7 +229,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
           </div>
         )}
         <TrailReasonFormBody
-          connection={conn}
+          connection={local}
           originBookId={origin?.bookId}
           originChapter={origin?.chapter}
           onClose={onClose}
