@@ -115,7 +115,12 @@ describe('return edges', () => {
     }
   })
 
-  it('carries the tying verse pair as the lane label', () => {
+  it('a tied revisit renders as the branch/tangent path, not a duplicate plain return line', () => {
+    // Per direct feedback ("back and forth between two chapters then a picker tie... looks
+    // really wonky") — a connection that is BOTH a revisit (isReturn) AND a verse-tie/branch
+    // (renderAsBranch) used to draw the plain `return:` backlink edge AND the tangent-stub/hop/
+    // arrive path for the exact same move. Now only the branch path draws; the plain return
+    // edge is skipped whenever renderAsBranch(c) is true.
     const nodes = [
       node('n1', 'Hos', 2, T0),
       node('n2', 'Rev', 12, T0 + 10 * MIN),
@@ -124,7 +129,26 @@ describe('return edges', () => {
       toBookId: 'Hos', toChapter: 2, tiesFrom: ['Rev 12:6'], tiesTo: ['Hos 2:14'],
     })
     const g = buildTrailGraph(detailOf(nodes, [c]))
-    expect(edgeByKey(g.edges, 'return:c1')?.label).toBe('Rev 12:6 ⇄ Hos 2:14')
+    expect(edgeByKey(g.edges, 'return:c1')).toBeUndefined()
+    // Tangent edges are keyed by the ARRIVAL node — c1 travels from n2 (Rev 12) to n1's own
+    // chapter (Hos 2), so the arrival is n1 itself (the tied destination), not n2.
+    expect(edgeByKey(g.edges, 'tangent-stub:n1')).toBeDefined()
+    expect(edgeByKey(g.edges, 'tangent-hop:n1')).toBeDefined()
+    expect(edgeByKey(g.edges, 'tangent-arrive:n1')).toBeDefined()
+  })
+
+  it('never labels a plain (untied) return/revisit line — no verse text on the hairline', () => {
+    // Per direct feedback ("dont put the verse stuff in the revisit line generally... it looks
+    // really ugly") — even a genuine plain revisit (no tie at all) no longer carries an inline
+    // verse-pair label; that detail lives on the tangent bullets for an actual branch/tie, not
+    // repeated on every backlink.
+    const nodes = [
+      node('n1', 'Gen', 1, T0),
+      node('n2', 'Job', 26, T0 + 10 * MIN),
+    ]
+    const c = conn('c1', 'n2', T0 + 12 * MIN, { toBookId: 'Gen', toChapter: 1 })
+    const g = buildTrailGraph(detailOf(nodes, [c]))
+    expect(edgeByKey(g.edges, 'return:c1')?.label).toBeUndefined()
   })
 })
 

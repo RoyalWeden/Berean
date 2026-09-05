@@ -500,15 +500,22 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   // starts at (its chapter node for a top-level row, its PARENT row's point for a chained one).
   function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
     pushEdge(styled(c.weight === 'glance' ? 'glance' : 'deeper', { key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, curved: false }))
-    if (c.isReturn && c.toBookId && c.toChapter != null) {
+    // Skip the plain return/revisit line entirely when this SAME connection is already a
+    // branch/tie (renderAsBranch) — that gets the full 3-segment tangent-stub/hop/arrive path
+    // (pushed in the loop above, over `originConnByNodeId`), which already draws origin→dest as
+    // its own real path. Drawing the plain backlink edge ON TOP of that too was exactly the
+    // "back-and-forth chapters + a picker tie looks wonky" complaint — two lines for one move.
+    if (c.isReturn && c.toBookId && c.toChapter != null && !renderAsBranch(c)) {
       const target = nodeBefore(chapterIndex, c.trailSessionId, c.toBookId, c.toChapter, c.createdAt)
       if (target) {
         const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!
         // Its own quieter visual class, independent of clarity-tier color — a return shouldn't
-        // shout as loud as a fresh forward move.
+        // shout as loud as a fresh forward move. No verse-tie label any more (used to show
+        // "Luke 4:18-19 ⇄ Isaiah 61:1-2" right on the hairline via verseTieLabel()) — per direct
+        // feedback that reads as clutter on a plain revisit line regardless of whether a tie is
+        // involved; a tie's own verse detail belongs on the tangent bullets, not repeated here.
         pushLaned(styled('back', {
           key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
-          label: verseTieLabel(c),
           minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
         }))
       }
@@ -722,13 +729,4 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   }
 }
 
-/** The verse pair that ties the two ends of a return together, rendered as the gutter hairline's
- *  own label ("Rev 12:6 ⇄ Hos 2:14") so a backlink says WHY it exists without being traced by
- *  eye. Falls back to whichever half is known, then to nothing at all. */
-function verseTieLabel(c: TrailConnection): string | undefined {
-  const from = c.tiesFrom[0]?.trim() || (c.originVersePinFrom != null ? `v${c.originVersePinFrom}` : '')
-  const to = c.tiesTo[0]?.trim() || (c.versePinFrom != null ? `v${c.versePinFrom}` : '')
-  if (from && to) return `${from} ⇄ ${to}`
-  return from || to || undefined
-}
 

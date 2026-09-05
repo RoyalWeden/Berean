@@ -2244,13 +2244,28 @@ export default function MapView({
                 label column (see SPINE_LABEL_COL_INSET). All of this lives inside the same `scale(zoom)` wrapper
                 as the bullets, so gutterWidth is used un-multiplied and alignment holds at every
                 zoom. Purely decorative: behind everything, never intercepts a click. */}
-            {/* NO guide line under the main spine column any more. It ran the full height in a
-                flat grey while the real spine is drawn on top of it in segments by the SVG
-                overlay — so wherever a segment was quieter or absent you saw the guide instead,
-                which is precisely what "some of the main spine lines dont fully connect or are
-                switching colors in part of the line" was. The spine is now drawn by exactly one
-                thing (TrailConnectorOverlay), continuously. Indent guides stay: they mark columns
-                that have no line of their own to be confused with. */}
+            {/* Main-spine guide line — reinstated. It was removed earlier because the OLD one ran
+                the full height at a visible-enough weight that wherever a real spine segment was
+                quieter or absent, you saw IT instead, reading as "the spine doesn't fully connect
+                / switches color" — a real regression. This one is different: same near-invisible
+                0.15-alpha weight as the off-spine guides below it, sitting behind everything —
+                at that opacity it can't be mistaken for a spine segment even in the gaps, it just
+                answers "i dont see the musical guide line" for the one column (the main reading
+                spine itself) every session actually has, unlike the off-spine ones below which
+                only appear once there's an actual branch/tangent to guide. */}
+            <div
+              style={{
+                position: 'absolute', top: 0, bottom: 0, left: gutterWidth + SPINE_DOT_INSET,
+                width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
+              }}
+            />
+            {/* Off-spine (branch/tangent column) guide lines — one per indent level actually
+                rendered (maxRenderDepth, which now counts non-branch rows too), each at that
+                depth's own `SPINE_LABEL_COL_INSET + INDENT_STEP*(depth+1) + OFFSPINE_DOT_INSET`
+                — the exact centre of that column's bullets, which hang inside the spine row's
+                label column (see SPINE_LABEL_COL_INSET). Indent guides mark columns that have no
+                line of their own to be confused with (the main spine above has a REAL drawn line
+                from TrailConnectorOverlay; these columns don't). */}
             {maxRenderDepth >= 0 && Array.from({ length: maxRenderDepth + 1 }, (_, depth) => (
               <div
                 key={`guide:${depth}`}

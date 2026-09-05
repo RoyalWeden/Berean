@@ -716,6 +716,11 @@ export default function StudyTrailApp() {
         display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px 8px 78px',
         borderBottom: '1px solid rgb(var(--color-surface-4))', flexShrink: 0,
         WebkitAppRegion: 'drag',
+        // A drag region is otherwise still plain selectable text underneath — dragging the
+        // title bar to move the window could instead start a text selection across "Study
+        // Trail" / the tab labels, which then blocks the actual drag from registering at all.
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
       } as React.CSSProperties}>
         <span style={{ fontSize: 12.5, fontWeight: 700, marginRight: 10 }}>Study Trail</span>
         {/* REMOVED: the persistent "paused" pill. Per direct feedback, "pausing a session doesnt
@@ -828,20 +833,6 @@ export default function StudyTrailApp() {
               )}
             </div>
           )}
-          {creatingSession && (
-            <input
-              ref={newSessionInputRef}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleStart()
-                else if (e.key === 'Escape') { setCreatingSession(false); setNewName('') }
-              }}
-              onBlur={() => { if (!newName.trim()) setCreatingSession(false) }}
-              placeholder="New session name…"
-              style={{ width: '100%', marginBottom: 8, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
-            />
-          )}
           {selectMode && selectedIds.size > 0 && (
             <button
               onClick={bulkDelete}
@@ -894,7 +885,28 @@ export default function StudyTrailApp() {
             </div>
             <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
           </div>
-          {renderSessionRow(liveSession, true)}
+          {/* The name-input and the live session's own row now share this ONE slot right below
+              Everything, instead of the input living in a separate spot near the +/Select
+              buttons above and just vanishing once you hit Enter — per direct feedback, typing
+              the name belongs "in the block right below Everything... not a separate thing that
+              then goes away." Confirming (Enter → handleStart) makes creatingSession false and
+              liveSession non-null on the very next render, so this slot morphs straight from the
+              input into that session's real row in place, rather than the input disappearing and
+              a same-looking-but-different block popping in somewhere else. */}
+          {creatingSession ? (
+            <input
+              ref={newSessionInputRef}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleStart()
+                else if (e.key === 'Escape') { setCreatingSession(false); setNewName('') }
+              }}
+              onBlur={() => { if (!newName.trim()) setCreatingSession(false) }}
+              placeholder="New session name…"
+              style={{ width: '100%', background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
+            />
+          ) : renderSessionRow(liveSession, true)}
           </div>
           {/* Day view's date/nav + Months/+/Select — per feedback ("the day and the buttons
               should be floating below the everything button"), this now lives in the SAME
@@ -1345,10 +1357,13 @@ export default function StudyTrailApp() {
       </div>
       {/* Live current-hour badge — its OWN floating pill (moved out of the session header per
           feedback, so it stays visible even while that header is collapsed), always on the side
-          opposite the header (hourBadgeSide above) so the two never overlap. */}
+          opposite the header (hourBadgeSide above) so the two never overlap. top:44 (was 20) —
+          the title bar's own right-aligned "Ask why?" button sits in that same top-right corner
+          at the window's actual top edge, so top:20 sat ON TOP of it; 44 clears the title bar's
+          own ~36-40px height entirely regardless of which side this badge lands on. */}
       {mainTab === 'map' && currentHour && (
         <div style={{
-          position: 'fixed', top: 20, zIndex: 50,
+          position: 'fixed', top: 44, zIndex: 50,
           ...(hourBadgeSide === 'left' ? { left: 240 } : { right: 20 }),
           background: 'rgb(var(--color-surface-1) / 0.85)',
           backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
