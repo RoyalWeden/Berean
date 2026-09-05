@@ -137,7 +137,6 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   // Reset per-toast interaction state whenever a NEW connection replaces the current one
   // (touched/hovering from the last prompt shouldn't carry over to a fresh one).
   useEffect(() => { setHovering(false); setTouched(false) }, [conn?.id])
-  if (!local) return null
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
   // Step out of the way of whatever else owns the bottom-right / bottom-center corner now:
@@ -153,6 +152,12 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   // Use the flag VerseSelectionBar publishes from its own render gate — deriving this here
   // from selectedVersesByTab instead let the toast stay lifted after the bar was already gone.
   const verseSelectionOpen = useAppStore((s) => s.verseSelectionBarOpen)
+  // MUST come after every hook above — React requires the same hooks, in the same order,
+  // on every render. Putting this early return before the useAppStore calls above (an earlier
+  // mistake) meant they simply never ran on a null-`local` render, then ran again on the very
+  // next one once `local` became non-null: "Rendered more hooks than during the previous
+  // render." Bailing here, after all hooks, is the fix.
+  if (!local) return null
   const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
   // Only dodge the verse-selection UI when the Bible reader's side panel is also open. Then:
   // just clear the action bar itself normally, and only rise higher once a tag/colour popover
