@@ -8,10 +8,11 @@ import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
 import ThreadsView from './ThreadsView'
 import TrailSearchView from './TrailSearchView'
 import EverythingView from './EverythingView'
+import TrailMapHeader from './TrailMapHeader'
 import { DEFAULT_REVISIT_WINDOW_MS } from './trailTime'
 import {
   readTrailWindowPrefs, setTrailWindowPrefs, EVERYTHING_SCROLL_KEY,
-  TRAIL_ZOOM_MIN, TRAIL_ZOOM_MAX,
+  TRAIL_ZOOM_MIN, TRAIL_ZOOM_MAX, type TrailHeaderPos,
 } from './trailWindowPrefs'
 
 // 'review' is gone — it was a per-session recap list that Michael said outright he wouldn't use.
@@ -91,9 +92,21 @@ export default function StudyTrailApp() {
   const [layoutRoom, setLayoutRoom] = useState<{ left: number; right: number }>({ left: 9999, right: 9999 })
   const headerSide = pickControlSide(layoutRoom, CTRL_W.header)
   const zoomSide = pickControlSide(layoutRoom, CTRL_W.zoom)
-  // Live clock hour of whatever's at the top of the trail — shown as a line inside the header
-  // pill so there's ONE floating thing (per direct feedback the separate hour pill "i cant see").
+  // The live current-hour badge (below) always sits on the OPPOSITE side from the session
+  // header, regardless of whether the header has been dragged elsewhere — simplest way to
+  // guarantee it never sits under the header pill without needing its own layoutRoom check.
+  const hourBadgeSide = headerSide === 'left' ? 'right' : 'left'
+  // Live clock hour of whatever's at the top of the trail — its own small floating badge (see
+  // renderCurrentHourBadge below), separate from the session header pill so it stays visible
+  // even while that header is collapsed.
   const [currentHour, setCurrentHour] = useState<string | null>(null)
+  // Collapse-to-chip + drag-to-reposition for the floating session header — per feedback ("the
+  // header block in the map is getting in the way... is there a way for it to minimize/collapse
+  // and be moved around"). headerPos is null until the user actually drags it once; until then
+  // the existing headerSide auto left/right placement (below) still applies.
+  const [headerCollapsed, setHeaderCollapsed] = useState(() => storedWindowPrefs?.headerCollapsed ?? false)
+  const [headerPos, setHeaderPos] = useState<TrailHeaderPos | null>(() => storedWindowPrefs?.headerPos ?? null)
+  const headerDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
   // Timeline filter, hosted here beside the session name (per direct feedback) rather than as
   // its own strip inside MapView. Cleared whenever the selected session changes.
   const [trailFilter, setTrailFilter] = useState('')
@@ -183,8 +196,8 @@ export default function StudyTrailApp() {
   // window lands back where the user left off. Scroll position is saved separately from inside
   // MapView (see trailWindowPrefs.setTrailScroll).
   useEffect(() => {
-    setTrailWindowPrefs({ selectedId, mainTab, zoom })
-  }, [selectedId, mainTab, zoom])
+    setTrailWindowPrefs({ selectedId, mainTab, zoom, headerCollapsed, headerPos })
+  }, [selectedId, mainTab, zoom, headerCollapsed, headerPos])
   useEffect(() => { installStudyTrailStateSync() }, [])
   // Keeps the session rail itself (status dot, "3m ago", possiblyAccidental) live while you
   // keep studying, not just the currently-open Map/Everything content — a slow poll as a
@@ -308,6 +321,34 @@ export default function StudyTrailApp() {
     if (!id || !name) return
     await window.studyTrail.renameSession(id, name)
     await refresh()
+  }
+
+  // Drag-to-reposition for the floating session header (see headerCollapsed/headerPos above).
+  // Plain window-level mousemove/mouseup (not pointer capture) matches how this codebase already
+  // handles the handful of other drag interactions in Study Trail — simple, and fine here since
+  // there's exactly one drag target on screen at a time.
+  function handleHeaderDragStart(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const container = e.currentTarget.closest('[data-trail-map-viewport]') as HTMLElement | null
+    const containerRect = container?.getBoundingClientRect()
+    const current = headerPos ?? { x: 0, y: 0 }
+    headerDragRef.current = { startX: e.clientX, startY: e.clientY, originX: current.x, originY: current.y }
+    const bounds = containerRect ?? { width: window.innerWidth, height: window.innerHeight }
+    function onMove(ev: MouseEvent) {
+      const drag = headerDragRef.current
+      if (!drag) return
+      const nextX = Math.max(0, Math.min(bounds.width - 40, drag.originX + (ev.clientX - drag.startX)))
+      const nextY = Math.max(0, Math.min(bounds.height - 40, drag.originY + (ev.clientY - drag.startY)))
+      setHeaderPos({ x: nextX, y: nextY })
+    }
+    function onUp() {
+      headerDragRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
   }
 
   async function handleStart() {
@@ -875,67 +916,57 @@ export default function StudyTrailApp() {
               <TrailSearchView onOpenSession={(id) => { setSelectedId(id); setMainTab('map') }} />
             </div>
           ) : selectedId === null ? (
-            <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS} onLayoutRoomChange={setLayoutRoom} layoutRoom={layoutRoom} onCurrentHourChange={setCurrentHour} currentHour={currentHour} />
+            <EverythingView
+              sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS}
+              onLayoutRoomChange={setLayoutRoom} layoutRoom={layoutRoom} onCurrentHourChange={setCurrentHour}
+              headerCollapsed={headerCollapsed} onToggleHeaderCollapsed={() => setHeaderCollapsed((c) => !c)}
+              headerPos={headerPos} onHeaderDragStart={handleHeaderDragStart}
+            />
           ) : !detail ? (
             <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
           ) : (
-            <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              {/* Floating session header — a small shrink-wrapped pill (name + filter + stats +
-                  a live current-hour line). NOT a full-width strip. Defaults to the top-LEFT
-                  (per direct feedback "put it back on the left"); flips to the top-right only
-                  when the trail's spine/branches would sit under it there (headerSide, from the
-                  measured layoutRoom). The trail scrolls under it. */}
-              <div style={{
-                position: 'absolute', top: 0, zIndex: 6, width: 'fit-content', maxWidth: 260,
-                ...(headerSide === 'left' ? { left: 0 } : { right: 0 }),
-                display: 'flex', flexDirection: 'column', gap: 4,
-                background: 'rgb(var(--color-surface-1) / 0.7)',
-                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-                border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 10,
-                boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '7px 9px',
-              }}>
-              {renamingId === detail.session.id ? (
-                <input
-                  ref={renameInputRef}
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitRename()
-                    else if (e.key === 'Escape') setRenamingId(null)
-                  }}
-                  onBlur={commitRename}
-                  style={{
-                    display: 'block', fontSize: 15, fontWeight: 700, background: 'rgb(var(--color-surface-2))',
-                    border: '1px solid rgb(var(--color-accent))', borderRadius: 6, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
-                  }}
-                />
-              ) : (
-                <h2
-                  onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
-                  onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
-                  title="Double-click or right-click to rename"
-                  style={{ margin: 0, fontSize: 15, fontWeight: 700, cursor: 'text', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >{detail.session.name}</h2>
-              )}
-              <input
-                value={trailFilter}
-                onChange={(e) => setTrailFilter(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
-                placeholder="Filter timeline…"
-                style={{
-                  width: '100%', fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
-                  border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-                }}
+            <div data-trail-map-viewport style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              {/* Floating session header — a small shrink-wrapped pill (name + filter + stats).
+                  NOT a full-width strip. Defaults to the top-LEFT (per direct feedback "put it
+                  back on the left"); flips to the top-right only when the trail's spine/branches
+                  would sit under it there (headerSide, from the measured layoutRoom) — unless the
+                  user has dragged it to an explicit spot (headerPos), which always wins. The
+                  trail scrolls under it. Collapse/drag handled by the shared TrailMapHeader. */}
+              <TrailMapHeader
+                side={headerSide}
+                collapsed={headerCollapsed}
+                onToggleCollapsed={() => setHeaderCollapsed((c) => !c)}
+                pos={headerPos}
+                onDragStart={handleHeaderDragStart}
+                title={
+                  renamingId === detail.session.id ? (
+                    <input
+                      ref={renameInputRef}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename()
+                        else if (e.key === 'Escape') setRenamingId(null)
+                      }}
+                      onBlur={commitRename}
+                      style={{
+                        display: 'block', width: '100%', fontSize: 15, fontWeight: 700, background: 'rgb(var(--color-surface-2))',
+                        border: '1px solid rgb(var(--color-accent))', borderRadius: 6, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
+                      }}
+                    />
+                  ) : (
+                    <h2
+                      onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
+                      onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
+                      title="Double-click or right-click to rename"
+                      style={{ margin: 0, fontSize: 15, fontWeight: 700, cursor: 'text', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >{detail.session.name}</h2>
+                  )
+                }
+                filterValue={trailFilter}
+                onFilterChange={setTrailFilter}
+                statsLine={<>{detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}</>}
               />
-              <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))' }}>
-                {detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}
-              </div>
-              {currentHour && (
-                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))' }}>
-                  {currentHour}
-                </div>
-              )}
-              </div>
               <div style={{ flex: 1, minHeight: 0 }}>
                 <MapView
                   detail={detail}
@@ -957,6 +988,22 @@ export default function StudyTrailApp() {
           </div>
         </div>
       </div>
+      {/* Live current-hour badge — its OWN floating pill (moved out of the session header per
+          feedback, so it stays visible even while that header is collapsed), always on the side
+          opposite the header (hourBadgeSide above) so the two never overlap. */}
+      {mainTab === 'map' && currentHour && (
+        <div style={{
+          position: 'fixed', top: 20, zIndex: 50,
+          ...(hourBadgeSide === 'left' ? { left: 240 } : { right: 20 }),
+          background: 'rgb(var(--color-surface-1) / 0.85)',
+          backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+          border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 8,
+          boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '5px 12px',
+          fontSize: 12.5, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-primary))',
+        }}>
+          {currentHour}
+        </div>
+      )}
       {/* Floating zoom pill, bottom-right — per the plan: moved here from the title bar
           ("put the zoom ... to actually be a floating pill at the bottom right of the
           window"). Only shown on the Map tab (Review doesn't use MapView, so it means

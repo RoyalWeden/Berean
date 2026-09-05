@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen } from 'lucide-react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen, Clock } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -812,12 +812,19 @@ function NodeBlock({
         }}
       >
       {boundaryLabel && (
+        // Clock icon + heavier rule (2px, not 1px) than the topic-break divider below — per
+        // feedback ("make it more clear where the time break is"), this is an ACTUAL elapsed-
+        // time boundary (a new day or a new session), not just a reading-topic change, so it
+        // should read as more structurally significant at a glance, not merely differently
+        // colored. The label itself now carries a clock time too (see EverythingView's
+        // fmtClock), not just a date/session name.
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
           fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em',
         }}>
+          <Clock size={11} style={{ flexShrink: 0, opacity: 0.85 }} />
           <span style={{ flexShrink: 0 }}>{boundaryLabel}</span>
-          <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
+          <span style={{ flex: 1, height: 2, background: 'rgb(var(--color-surface-4))' }} />
         </div>
       )}
       {/* v36 — a user-marked topic break: a plain divider on the main spine (not a new

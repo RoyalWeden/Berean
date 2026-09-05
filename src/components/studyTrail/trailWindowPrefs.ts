@@ -20,6 +20,11 @@ export interface TrailScrollPos {
   left: number
 }
 
+export interface TrailHeaderPos {
+  x: number
+  y: number
+}
+
 export interface TrailWindowPrefs {
   /** null = the "Everything" view; a string = that TrailSession is open. */
   selectedId: string | null
@@ -30,6 +35,13 @@ export interface TrailWindowPrefs {
   zoom: number
   /** Per-view trail-map scroll position, keyed by `selectedId ?? EVERYTHING_SCROLL_KEY`. */
   scroll: Record<string, TrailScrollPos>
+  /** Collapsed to a small session-name-only chip. Per feedback the floating map header was
+   *  "getting in the way" — this and headerPos below let the user shrink/move it out of the way. */
+  headerCollapsed: boolean
+  /** User-dragged position (top-left corner, in pixels relative to the map viewport). null means
+   *  "no manual position yet" — StudyTrailApp falls back to its own auto left/right placement
+   *  (headerSide, computed from live layoutRoom) until the user actually drags it once. */
+  headerPos: TrailHeaderPos | null
 }
 
 const DEFAULTS: TrailWindowPrefs = {
@@ -37,6 +49,8 @@ const DEFAULTS: TrailWindowPrefs = {
   mainTab: 'map',
   zoom: 1,
   scroll: {},
+  headerCollapsed: false,
+  headerPos: null,
 }
 
 function clampZoom(z: unknown): number {
@@ -58,6 +72,16 @@ function sanitizeScroll(raw: unknown): Record<string, TrailScrollPos> {
   return out
 }
 
+function sanitizeHeaderPos(raw: unknown): TrailHeaderPos | null {
+  if (!raw || typeof raw !== 'object') return null
+  const x = (raw as Record<string, unknown>).x
+  const y = (raw as Record<string, unknown>).y
+  if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y)) {
+    return { x: Math.max(0, x), y: Math.max(0, y) }
+  }
+  return null
+}
+
 /**
  * Read the stored prefs. Returns `null` when nothing has ever been stored (or the value is
  * unreadable / corrupt) so callers can tell "first run" from "explicitly restored a view".
@@ -75,6 +99,8 @@ export function readTrailWindowPrefs(): TrailWindowPrefs | null {
       mainTab: parsed.mainTab === 'review' ? 'review' : 'map',
       zoom: clampZoom(parsed.zoom),
       scroll: sanitizeScroll(parsed.scroll),
+      headerCollapsed: parsed.headerCollapsed === true,
+      headerPos: sanitizeHeaderPos(parsed.headerPos),
     }
   } catch {
     return null
@@ -100,6 +126,8 @@ export function setTrailWindowPrefs(patch: Partial<TrailWindowPrefs>): void {
         : current.mainTab,
       zoom: patch.zoom !== undefined ? clampZoom(patch.zoom) : current.zoom,
       scroll: patch.scroll !== undefined ? sanitizeScroll(patch.scroll) : current.scroll,
+      headerCollapsed: patch.headerCollapsed !== undefined ? patch.headerCollapsed === true : current.headerCollapsed,
+      headerPos: patch.headerPos !== undefined ? sanitizeHeaderPos(patch.headerPos) : current.headerPos,
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch {
