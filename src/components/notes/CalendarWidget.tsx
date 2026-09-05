@@ -105,9 +105,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   // of app zoom — only the text itself scales, via the same zoomedFontSize() used for Bible
   // text, so zooming in makes the calendar legible without resizing the sidebar around it.
   const appZoom = useAppStore((s) => s.appZoom)
-  const monthLabelSize = zoomedFontSize(compact ? 10 : 12, appZoom)
-  const dayCellSize = zoomedFontSize(compact ? 9 : 11, appZoom)
-  const weekdayHeaderSize = zoomedFontSize(compact ? 8 : 9, appZoom)
+  // Bumped slightly (10→10.5, 9→9.5, 8→8.5) alongside the rest of the recent calendar/session
+  // styling pass elsewhere in the app — this sidebar widget was the one spot that pass never
+  // reached, per direct feedback asking for the same visual refresh here too.
+  const monthLabelSize = zoomedFontSize(compact ? 10.5 : 12, appZoom)
+  const dayCellSize = zoomedFontSize(compact ? 9.5 : 11, appZoom)
+  const weekdayHeaderSize = zoomedFontSize(compact ? 8.5 : 9, appZoom)
   const weekdayHeaderPad = compact ? 'py-0' : 'py-0.5'
   const gridGap = compact ? 'gap-px' : 'gap-0.5'
 
@@ -120,7 +123,11 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
         {/* Month-navigation cluster (< label [jump-to-current] >) — all grouped together
             and left-aligned, not spread across the row. Today is the one thing pushed to
             the far right (via the flex-1 spacer after this cluster, not within it). */}
-        <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+        {/* Nav arrows/jump-to-current now warm to the ACCENT color on hover (was plain
+            muted→primary) — matches the warmer, accent-tinted hover treatment the recent Study
+            Trail styling pass gave its own icon buttons, rather than everything staying in flat
+            greyscale until clicked. */}
+        <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronLeft size={compact ? 12 : 14} />
         </button>
         <span className="font-medium text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
@@ -128,12 +135,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           <button
             onClick={() => onDateChange(new Date())}
             title="Jump to current month"
-            className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
           >
             <Undo2 size={compact ? 10 : 12} />
           </button>
         )}
-        <button onClick={nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+        <button onClick={nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronRight size={compact ? 12 : 14} />
         </button>
         <span className="flex-1" />
@@ -177,7 +184,10 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                   onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
                   className="flex flex-col items-center justify-center gap-0 cursor-pointer group"
                 >
-                  <span className={`flex items-center justify-center ${circleSize} rounded-full leading-none transition-[filter,background-color]
+                  {/* group-hover:scale-110 — a small tactile lift on hover, matching the more
+                      "pleasurable to interact with" hover feedback the recent styling pass added
+                      elsewhere (real focus/hover states instead of a flat color swap only). */}
+                  <span className={`flex items-center justify-center ${circleSize} rounded-full leading-none transition-[filter,background-color,transform] duration-150 group-hover:scale-110
                     ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold group-hover:brightness-125'
                       : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40 group-hover:bg-[rgb(var(--color-surface-4))]/60'
                       : 'text-[rgb(var(--color-text-secondary))] group-hover:bg-[rgb(var(--color-surface-4))]'}`}

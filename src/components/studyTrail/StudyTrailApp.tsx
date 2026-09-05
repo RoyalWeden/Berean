@@ -405,6 +405,15 @@ export default function StudyTrailApp() {
     setCreatingSession(false)
     await refresh()
     setSelectedId(useStudyTrailStore.getState().currentTrailSessionId)
+    // Land on today's day-view timeline so the just-created (live, growing) session shows up
+    // immediately as its own bar there — per direct feedback, a new session should show in the
+    // timeline itself rather than only ever appearing as the separate pinned "live session" row
+    // above the calendar until the user happens to browse to today's day view on their own.
+    // Inlined rather than calling openDay() (defined further down this file) since it's just
+    // these same two setters — no ordering/hoisting concerns either way, but this keeps the
+    // dependency direction obvious.
+    setSelectedDayKey(dayKeyFor(Date.now()))
+    setRailView('day')
   }
 
   function requestDeleteConfirm(id: string) {
@@ -1017,7 +1026,17 @@ export default function StudyTrailApp() {
             const winStart = dayKeyToStart(selectedDayKey).getTime()
             const winEnd = winStart + 24 * 3_600_000
             const totalHeight = 24 * 60 * PX_PER_MIN
-            const daySessions = [...selectedDaySessions].sort((a, b) => a.createdAt - b.createdAt)
+            // selectedDaySessions is built from restSessions, which deliberately EXCLUDES the
+            // live session (it's pinned separately above, and selectModeSessions also reads
+            // selectedDaySessions — a live session showing up as bulk-delete-selectable there
+            // would be wrong). But per direct feedback, creating a new session should show it as
+            // a bar on TODAY'S timeline right away, not only as that separate pinned block — so
+            // just for this display list, fold it back in when it belongs to the day being
+            // shown, without touching selectedDaySessions/restSessions themselves.
+            const daySessions = [
+              ...selectedDaySessions,
+              ...(liveSession && dayKeyFor(liveSession.createdAt) === selectedDayKey && passesTagFilter(liveSession) ? [liveSession] : []),
+            ].sort((a, b) => a.createdAt - b.createdAt)
             // Per feedback ("make sure to not show sessions intersecting each other on the
             // timeline... that shouldnt be possible") — only one session can ever actually be
             // live/recording at a time, so two sessions overlapping on this timeline can only
