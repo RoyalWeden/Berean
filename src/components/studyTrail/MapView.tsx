@@ -894,6 +894,18 @@ function NodeBlock({
           opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms',
         }}
       >
+      {/* This whole bullet column used to sit OUTSIDE the TrailHoverCard below (that one only
+          ever wrapped the reference-text column next to it) — despite the comment right here
+          already claiming "own hover card". Per feedback ("hovering over the bullets... isnt
+          showing the hover thing"): the visible round/square dot is exactly this column's own
+          content, so hovering it never triggered anything. Fixed with its own TrailHoverCard
+          instance (same content as the text column's) rather than restructuring the existing
+          one across ~130 lines of sibling content — two independent hover-card triggers over
+          adjacent parts of the same row is a small, safe addition. */}
+      <TrailHoverCard
+        disabled={hoverDisabled}
+        content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
+      >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
@@ -926,6 +938,7 @@ function NodeBlock({
         )}
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
+      </TrailHoverCard>
       {/* maxWidth caps how far this stretches — `flex:1` alone lets it grow to match whatever
           the WIDEST row anywhere in the whole spine happens to need (a long note preview, a
           long Strong's list, etc.), dragging the gutter column (registered right after this

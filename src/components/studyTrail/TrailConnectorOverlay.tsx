@@ -279,7 +279,17 @@ export default function TrailConnectorOverlay({
 
   return (
     <>
-    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+    {/* zIndex:2 — one above the spine content div (zIndex:1) that MapView renders right after
+        this component. Per feedback ("hovering over the revisit lines still isnt showing
+        anything"): this SVG's root has pointerEvents:'none', so being ABOVE the content in
+        paint order is safe (clicks/hovers pass straight through to whatever's underneath
+        UNLESS a specific descendant — the invisible hit-stroke paths below — opts back in with
+        its own pointerEvents). Without this, the content div's own (mostly transparent, but
+        still hit-testable) boxes sat ON TOP of this SVG in stacking order despite being
+        visually invisible, silently absorbing every hover meant for a line's hit-stroke —
+        the VISIBLE lines still looked fine either way since paint order doesn't affect
+        transparency, only which element wins hit-testing. */}
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 2 }}>
       <defs>
         {/* refX=7 (not 5.5) puts the arrow's actual TIP at the path's endpoint with zero
             overshoot — the previous 1.5-unit overshoot was scaling with strokeWidth (markers
@@ -355,8 +365,18 @@ export default function TrailConnectorOverlay({
           const laneX = Math.max(4, gutterRightEdge - LANE_RIGHT_INSET - e.lane * LANE_SPACING)
           const sx = rawA.x - (radiusFor(e.from) + ENDPOINT_GAP)
           const ex = rawB.x - (radiusFor(e.to) + (e.arrow ? ENDPOINT_GAP + 2 : ENDPOINT_GAP))
-          const sy = rawA.y
-          const ey = rawB.y
+          // Per feedback ("make them connect to the bullets at different points so they dont
+          // all connect at the same point, this would make them more distinguishable") —
+          // revisit-chain lines used to attach dead-center on the bullet regardless of lane, so
+          // several of them landing on the same node looked like one thick line. A small
+          // per-lane vertical nudge (kept well inside the node's own 5px radius, so it still
+          // reads as touching the dot rather than floating off it) fans them out instead.
+          // Centered on lane 2 (the middle of the current 5-lane gutter) rather than derived
+          // from MAX_GUTTER_LANES — importing that here would create a circular import, since
+          // trailGraph.ts already imports GUTTER_BASE/LANE_SPACING FROM this file.
+          const laneOffset = e.key.startsWith('revisit-chain:') ? ((e.lane ?? 2) - 2) * 1.5 : 0
+          const sy = rawA.y + laneOffset
+          const ey = rawB.y + laneOffset
           const dirY = Math.sign(ey - sy) || 1
           // Corner radius has to shrink for a short edge, otherwise the two arcs overlap and the
           // path folds back on itself — clamped against both the vertical run and the horizontal
