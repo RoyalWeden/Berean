@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { RotateCcw, BookOpen, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { clearChapterCache } from '@/lib/chapterCache'
+import { clearChapterAnnotationCaches } from '@/components/bible/ChapterView'
 import { clearNoteCache } from '@/lib/noteCache'
 import { clearWarmStartNotes } from '@/lib/notesCache'
 import { __resetPanelDataCache } from '@/lib/panelDataCache'
@@ -147,6 +148,7 @@ export default function AboutSection() {
 
   function handleClearCache() {
     clearChapterCache()
+    clearChapterAnnotationCaches()
     clearNoteCache()
     clearWarmStartNotes()
     __resetPanelDataCache()

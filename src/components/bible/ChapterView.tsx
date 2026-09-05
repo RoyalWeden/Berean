@@ -32,6 +32,38 @@ const chapterCrossRefBannerCache = new Map<string, CrossRefSource[]>()
 function bannerCacheKey(token: number, bookId: string, chapter: number, textId: string) {
   return `${token}:${bookId}:${chapter}:${textId}`
 }
+
+// Per-chapter annotation payloads (note-count dots, note colours, per-verse cross-ref flags,
+// char/word highlights) and verse tags. ChapterView is remounted on every chapter navigation
+// (the key on <ChapterView> in BiblePanel), so without this each next/prev-chapter or
+// revisit re-issues the same 4-5 SQLite-over-IPC round-trips it did last time. Keyed on the
+// relevant change tokens, so any edit yields a fresh key → cold miss → refetch (same
+// invalidation model as chapterCrossRefBannerCache above). Soft-capped; cheap to rebuild.
+interface ChapterAnnotations {
+  noteCounts: Record<number, number>
+  highlights: Record<number, VerseHighlight[]>
+  flags: Record<number, boolean>
+  colorMap: Record<number, string>
+}
+const chapterAnnotationCache = new Map<string, ChapterAnnotations>()
+const chapterVerseTagCache = new Map<string, Record<number, import('@/types').VerseTagLite[]>>()
+function annotationCacheKey(noteTok: number, hlTok: number, bookId: string, chapter: number, textId: string) {
+  return `${noteTok}:${hlTok}:${bookId}:${chapter}:${textId}`
+}
+function verseTagCacheKey(tagTok: number, bookId: string, chapter: number) {
+  return `${tagTok}:${bookId}:${chapter}`
+}
+function cacheSetBounded<V>(map: Map<string, V>, key: string, value: V) {
+  if (map.size > 200) map.clear()
+  map.set(key, value)
+}
+
+/** Settings → About → Clear cached content. */
+export function clearChapterAnnotationCaches(): void {
+  chapterCrossRefBannerCache.clear()
+  chapterAnnotationCache.clear()
+  chapterVerseTagCache.clear()
+}
 // Stable empty-array reference so verses with no highlights pass React.memo's shallow
 // equality on <VerseRow>; a fresh `?? []` literal would fail it on every render.
 type VerseHighlight = { id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
@@ -357,14 +389,23 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const [versesKey, setVersesKey] = useState<string | null>(() =>
     getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) ? chapterCacheKey(bookId, chapter, textId ?? 'kjva') : null
   )
-  const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
-  const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>({})
-  const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
+  // Warm-start annotation state from the module cache (see chapterAnnotationCache) so a
+  // next/prev-chapter or revisit paints note dots / highlights / cross-ref flags immediately
+  // instead of after their IPC round-trips land. The effect below skips the fetch entirely on
+  // a cache hit.
+  const annoCacheHit = chapterAnnotationCache.get(
+    annotationCacheKey(noteChangeToken, highlightChangeToken, bookId, chapter, textId ?? 'kjva'),
+  )
+  const [noteCounts, setNoteCounts] = useState<Record<number, number>>(() => annoCacheHit?.noteCounts ?? {})
+  const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>(() => annoCacheHit?.colorMap ?? {})
+  const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>(() => annoCacheHit?.flags ?? {})
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>(
     () => chapterCrossRefBannerCache.get(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva')) ?? [],
   )
-  const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
-  const [verseTagMap, setVerseTagMap] = useState<Record<number, import('@/types').VerseTagLite[]>>({})
+  const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>(() => annoCacheHit?.highlights ?? {})
+  const [verseTagMap, setVerseTagMap] = useState<Record<number, import('@/types').VerseTagLite[]>>(
+    () => chapterVerseTagCache.get(verseTagCacheKey(verseTagChangeToken, bookId, chapter)) ?? {},
+  )
   const [loading, setLoading] = useState(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) === null)
   // Shown only once a chapter/translation switch has been in flight longer than a beat —
   // most loads are near-instant (local SQLite), so this stays hidden for those; it's just a
@@ -615,6 +656,10 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // the one that actually needs it — harmless (all three are idempotent, cheap local queries),
   // and far simpler than threading through which trigger fired.
   useEffect(() => {
+    // Warm cache → state was already seeded from it in the useState initializers above; skip
+    // the 4 IPC round-trips entirely. Any note/highlight edit bumps a token → new key → miss.
+    const annoKey = annotationCacheKey(noteChangeToken, highlightChangeToken, bookId, chapter, textId ?? 'kjva')
+    if (chapterAnnotationCache.has(annoKey)) return
     let cancelled = false
     const noteCountsP = window.notes.getChapterCounts(bookId, chapter, textId ?? 'kjva').catch(() => ({}))
     const highlightsP = window.highlights.getChapter(bookId, chapter, textId ?? 'kjva')
@@ -677,15 +722,28 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       setHighlights((prev) => mergeStableRecord(prev, highlightsData))
       setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, crossRef.flags))
       setNoteColorsMap((prev) => mergeStableRecord(prev, crossRef.colorMap))
+      cacheSetBounded(chapterAnnotationCache, annoKey, {
+        noteCounts: noteCountsData as Record<number, number>,
+        highlights: highlightsData as Record<number, VerseHighlight[]>,
+        flags: crossRef.flags,
+        colorMap: crossRef.colorMap,
+      })
     })
     return () => { cancelled = true }
   }, [bookId, chapter, textId, noteChangeToken, highlightChangeToken, verses.length])
 
   // Verse tags for this chapter (translation-agnostic — not keyed on textId).
   useEffect(() => {
+    const tagKey = verseTagCacheKey(verseTagChangeToken, bookId, chapter)
+    if (chapterVerseTagCache.has(tagKey)) return // seeded from cache in the initializer above
     let cancelled = false
     window.verseTags.getForChapter(bookId, chapter)
-      .then((res) => { if (!cancelled) setVerseTagMap(res.verseTags ?? {}) })
+      .then((res) => {
+        if (cancelled) return
+        const map = res.verseTags ?? {}
+        setVerseTagMap(map)
+        cacheSetBounded(chapterVerseTagCache, tagKey, map)
+      })
       .catch(() => { if (!cancelled) setVerseTagMap({}) })
     return () => { cancelled = true }
   }, [bookId, chapter, verseTagChangeToken])
