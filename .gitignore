@@ -16,6 +16,7 @@ release/
 electron/youtube-key.ts
 scripts/cache/
 __pycache__/
+scripts/ibm_model1_table*.json
 build/embedded.provisionprofile
 sample-pdfs/
 .claude/
