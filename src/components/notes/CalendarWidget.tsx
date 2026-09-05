@@ -163,10 +163,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
       {/* Month navigation — icon-only, color-only hover (no button-chrome box) so the nav
           arrows sit flush and low-contrast like a native mini-calendar's, not a discrete
           toolbar control. */}
-      {/* gap-0.5 (was gap-2, then gap-1) — per direct feedback, scrunching the icon buttons
-          closer together (and their own padding down from p-0.5 to p-px, below) frees up more
-          room for the month name before it has to truncate. */}
-      <div className="flex items-center gap-0.5 mb-1">
+      {/* Back to gap-1/p-0.5 — the earlier scrunch (gap-0.5/p-px) always cramped the icons
+          together even when the row had plenty of room to spare. The month-name span (below)
+          already truncates on its own when the row is genuinely tight, so the icons don't need
+          to sacrifice their own comfortable spacing to make room preemptively — only text
+          should give, and only when it actually has to. */}
+      <div className="flex items-center gap-1 mb-1">
         {/* Month-navigation cluster (< label [jump-to-current] >) — all grouped together
             and left-aligned, not spread across the row. Today is the one thing pushed to
             the far right (via the flex-1 spacer after this cluster, not within it). */}
@@ -174,7 +176,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             muted→primary) — matches the warmer, accent-tinted hover treatment the recent Study
             Trail styling pass gave its own icon buttons, rather than everything staying in flat
             greyscale until clicked. */}
-        <button onClick={weekOnly ? prevWeek : prevMonth} className="p-px flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
+        <button onClick={weekOnly ? prevWeek : prevMonth} className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronLeft size={compact ? 15 : 17} />
         </button>
         {/* min-w-0 so this is actually allowed to shrink in a flex row — the extra collapse
@@ -195,12 +197,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           <button
             onClick={() => (weekOnly ? setWeekAnchor(new Date()) : onDateChange(new Date()))}
             title={weekOnly ? 'Jump to current week' : 'Jump to current month'}
-            className="p-px flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
+            className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
           >
             <Undo2 size={compact ? 13 : 15} />
           </button>
         )}
-        <button onClick={weekOnly ? nextWeek : nextMonth} className="p-px flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
+        <button onClick={weekOnly ? nextWeek : nextMonth} className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronRight size={compact ? 15 : 17} />
         </button>
         {/* Collapse to just the current week (or expand back to the full month) — per direct
@@ -209,7 +211,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
         <button
           onClick={() => { if (!weekOnly) setWeekAnchor(new Date()); setWeekOnly((v) => !v) }}
           title={weekOnly ? 'Show full month' : 'Collapse to this week'}
-          className="p-px flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
+          className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
         >
           {weekOnly ? <Maximize2 size={compact ? 12 : 14} /> : <Minimize2 size={compact ? 12 : 14} />}
         </button>

@@ -783,7 +783,6 @@ function NodeBlock({
   // afternoon of shorter ones and push everything else off screen.
   const dwellMs = Math.max(0, (node.anchorEndedAt ?? node.anchorStartedAt) - node.anchorStartedAt)
   const dwellUnit = Math.min(1, Math.sqrt(dwellMs / (20 * 60_000)))
-  const dwellBarHeight = Math.round(4 + dwellUnit * 26)
   const dwellExtraPad = Math.round(dwellUnit * 12)
   const dwellLabel = dwellMs >= 30_000 ? formatGap(dwellMs) : null
 
@@ -931,22 +930,11 @@ function NodeBlock({
             boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
           }}
         />
-        {/* Dwell bar — how long this stop was actually held open. Sits directly under the dot and
-            above the gap connector, so the column reads top-to-bottom as "arrived · stayed this
-            long · then this much time passed". Muted grey, not accent — per direct feedback
-            ("that weird line"), a thin accent-colored bar hanging right off a bullet read as an
-            ambiguous/broken CONNECTOR line (same color/width the real edges use), not a
-            deliberate duration indicator. Muted makes it unmistakably a different kind of
-            element at a glance. */}
-        {dwellMs > 0 && (
-          <div
-            title={dwellLabel ? `Stayed ${dwellLabel}` : undefined}
-            style={{
-              width: dwellUnit > 0.55 ? 3 : 2, height: dwellBarHeight, marginTop: 2, flexShrink: 0,
-              borderRadius: 999, background: 'rgb(var(--color-text-muted))', opacity: 0.3 + dwellUnit * 0.4,
-            }}
-          />
-        )}
+        {/* Dwell BAR removed entirely — per direct feedback, it wasn't connecting anything (it
+            was never a real edge, just a duration indicator) and just read as visual noise off
+            the bullet regardless of color. The dwell TIME itself is still shown, plainly, as
+            text next to the reference label below (dwellLabel) — that's the one place it needs
+            to live. */}
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
       </TrailHoverCard>
