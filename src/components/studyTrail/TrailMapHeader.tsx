@@ -1,6 +1,13 @@
 import { GripVertical, ChevronDown } from 'lucide-react'
-import { CARET_COLLAPSED_ROTATE } from './trailStyle'
 import type { TrailHeaderPos } from './trailWindowPrefs'
+
+// Deliberately NOT the shared CARET_COLLAPSED_ROTATE from trailStyle.ts — that constant is
+// tuned for the Threads/Map fold carets (right-when-collapsed, per that feedback), but this
+// header's own collapse caret was asked to point the OTHER way (left-when-collapsed). Since
+// changing the shared constant would flip every other caret in the app too, this one gets its
+// own, opposite rotation instead. rotate(90deg) is clockwise, which turns a down-pointing
+// chevron to point LEFT (see trailStyle.ts's own comment on this exact rotation-direction math).
+const HEADER_CARET_COLLAPSED_ROTATE = 'rotate(90deg)'
 
 // Shared floating session-header pill for both the per-session Map view (StudyTrailApp) and the
 // merged "Everything" view (EverythingView) — previously each had its own copy of this markup,
@@ -55,7 +62,7 @@ export default function TrailMapHeader({
             background: 'transparent', color: 'rgb(var(--color-text-muted))',
           }}
         >
-          <ChevronDown size={13} style={{ transform: collapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms' }} />
+          <ChevronDown size={13} style={{ transform: collapsed ? HEADER_CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms' }} />
         </button>
       </div>
       {!collapsed && (

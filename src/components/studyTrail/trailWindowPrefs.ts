@@ -42,6 +42,11 @@ export interface TrailWindowPrefs {
    *  "no manual position yet" — StudyTrailApp falls back to its own auto left/right placement
    *  (headerSide, computed from live layoutRoom) until the user actually drags it once. */
   headerPos: TrailHeaderPos | null
+  /** Session-rail calendar state — per feedback ("remember which view the left thing... was on,
+   *  whether on a specific day or specific scroll"). 'month' = the scrolling month list;
+   *  'day' = a specific day's timeline (railSelectedDayKey). */
+  railView: 'month' | 'day'
+  railSelectedDayKey: string | null
 }
 
 const DEFAULTS: TrailWindowPrefs = {
@@ -51,6 +56,8 @@ const DEFAULTS: TrailWindowPrefs = {
   scroll: {},
   headerCollapsed: false,
   headerPos: null,
+  railView: 'month',
+  railSelectedDayKey: null,
 }
 
 function clampZoom(z: unknown): number {
@@ -101,6 +108,8 @@ export function readTrailWindowPrefs(): TrailWindowPrefs | null {
       scroll: sanitizeScroll(parsed.scroll),
       headerCollapsed: parsed.headerCollapsed === true,
       headerPos: sanitizeHeaderPos(parsed.headerPos),
+      railView: parsed.railView === 'day' ? 'day' : 'month',
+      railSelectedDayKey: typeof parsed.railSelectedDayKey === 'string' ? parsed.railSelectedDayKey : null,
     }
   } catch {
     return null
@@ -128,6 +137,10 @@ export function setTrailWindowPrefs(patch: Partial<TrailWindowPrefs>): void {
       scroll: patch.scroll !== undefined ? sanitizeScroll(patch.scroll) : current.scroll,
       headerCollapsed: patch.headerCollapsed !== undefined ? patch.headerCollapsed === true : current.headerCollapsed,
       headerPos: patch.headerPos !== undefined ? sanitizeHeaderPos(patch.headerPos) : current.headerPos,
+      railView: patch.railView !== undefined ? (patch.railView === 'day' ? 'day' : 'month') : current.railView,
+      railSelectedDayKey: patch.railSelectedDayKey !== undefined
+        ? (typeof patch.railSelectedDayKey === 'string' ? patch.railSelectedDayKey : null)
+        : current.railSelectedDayKey,
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch {

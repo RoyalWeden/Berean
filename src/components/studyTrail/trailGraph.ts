@@ -253,7 +253,11 @@ export function nodeBefore(idx: ChapterNodeIndex, sessionId: string, bookId: str
 // view got, eventually forcing horizontal scrolling on the Everything timeline. Michael's
 // constraint is that the trail must never scroll sideways, so the gutter is now a constant and
 // the overlay routes inside it instead of bowing to whatever width it likes.
-export const MAX_GUTTER_LANES = 3
+// Bumped from 3 to 5 per feedback ("give the revisit lines more levels so its easier to
+// discern") — more concurrent revisit chains now get their own lane before any of them has to
+// share the last one as an overflow (faint, brought to full strength on hover). Still a hard
+// cap, not a computed reservation — see the comment above.
+export const MAX_GUTTER_LANES = 5
 export const GUTTER_WIDTH = GUTTER_BASE + (MAX_GUTTER_LANES - 1) * LANE_SPACING + 10
 
 export interface TrailGraph {

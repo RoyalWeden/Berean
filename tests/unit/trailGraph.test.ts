@@ -216,19 +216,19 @@ describe('gutter', () => {
   })
 
   it('caps lanes so the reserved width never grows', () => {
-    // Four separate revisited chapters, all overlapping in time — more than the gutter has lanes.
+    // More separate revisited chapters than MAX_GUTTER_LANES, all overlapping in time.
     const nodes: TrailNode[] = []
-    const books = ['Gen', 'Exo', 'Lev', 'Num']
+    const books = ['Gen', 'Exo', 'Lev', 'Num', 'Deu', 'Jos']
     books.forEach((b, bi) => nodes.push(node(`a${bi}`, b, 1, T0 + bi * MIN)))
     books.forEach((b, bi) => nodes.push(node(`z${bi}`, b, 1, T0 + (20 + bi) * MIN, { revisitOfNodeId: `a${bi}` })))
     const g = buildTrailGraph(detailOf(nodes, []))
     const laned = g.edges.filter((e) => e.lane != null)
-    expect(laned.length).toBe(4)
+    expect(laned.length).toBe(books.length)
     for (const e of laned) expect(e.lane!).toBeLessThan(MAX_GUTTER_LANES)
     // Overflow is faded rather than dropped, so no backlink is ever silently lost.
     expect(laned.some((e) => e.overflowLane)).toBe(true)
 
-    const narrow = buildTrailGraph(detailOf([nodes[0], nodes[4]], []))
+    const narrow = buildTrailGraph(detailOf([nodes[0], nodes[books.length]], []))
     expect(g.gutterWidth).toBe(narrow.gutterWidth)
   })
 

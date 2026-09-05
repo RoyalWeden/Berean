@@ -449,7 +449,12 @@ export default function TrailConnectorOverlay({
           {e.revisitCount != null && (
             <path
               d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
-              onMouseMove={(ev) => setRevisitTooltip({ key: e.key, x: ev.clientX, y: ev.clientY })}
+              onMouseMove={(ev) => {
+                // Diagnostic only — confirms the invisible hit-stroke is actually receiving
+                // pointer events at all (per feedback that revisit-line hover isn't showing).
+                if (window.__bereanTrailDebug) console.log('[TrailDebug] revisit-line hit-stroke mousemove', { key: e.key })
+                setRevisitTooltip({ key: e.key, x: ev.clientX, y: ev.clientY })
+              }}
               onMouseLeave={() => setRevisitTooltip((t) => (t?.key === e.key ? null : t))}
             />
           )}

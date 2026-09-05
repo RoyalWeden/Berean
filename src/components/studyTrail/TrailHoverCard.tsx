@@ -60,6 +60,10 @@ export default function TrailHoverCard({ content, children, disabled, secondaryC
   const placedRef = useRef(false)
 
   function scheduleOpen(e: React.MouseEvent) {
+    // Diagnostic only (window.__bereanTrailDebug) — per feedback that hover cards aren't
+    // showing at all, this confirms whether the trigger's mouseenter is even reaching this
+    // handler and, if so, whether `disabled` is the reason nothing opens.
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] hover trigger entered', { disabled })
     if (disabled) return
     if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
     // Already open — per direct feedback ("when i put my cursor over the hover popup, it should
