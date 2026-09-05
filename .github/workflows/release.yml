@@ -54,8 +54,25 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        # Retries up to 3x: electron-builder's temp keychain unlock
+        # (`security set-key-partition-list`) intermittently fails on GitHub's macOS runners
+        # with "SecKeychainUnlock: The user name or passphrase you entered is not correct" —
+        # not a wrong secret (the exact same run has succeeded and failed on consecutive
+        # releases with no secret change in between), just a flaky keychain step. A fresh temp
+        # keychain gets created each attempt, so retrying the whole command is safe.
         run: |
-          npx electron-builder --mac dmg zip --config.mac.notarize.teamId="${APPLE_TEAM_ID}" --publish always
+          for attempt in 1 2 3; do
+            if npx electron-builder --mac dmg zip --config.mac.notarize.teamId="${APPLE_TEAM_ID}" --publish always; then
+              exit 0
+            fi
+            echo "electron-builder attempt $attempt failed"
+            if [ "$attempt" -lt 3 ]; then
+              echo "retrying after a short delay (likely a flaky keychain unlock, not a real signing failure)…"
+              sleep 15
+            fi
+          done
+          echo "electron-builder failed 3 times — giving up"
+          exit 1
 
   build-win:
     name: Build Windows
