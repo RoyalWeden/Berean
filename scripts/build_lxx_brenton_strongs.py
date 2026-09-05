@@ -168,6 +168,7 @@ def align(greek_tokens: list[tuple[str, str]], english_text: str,
 
     assignments: dict[int, str] = {}
     assign_j: dict[int, int] = {}
+    assign_score: dict[int, float] = {}
     greek_used: set[int] = set()
 
     # ── Pass 1: content word → G-number matching ──────────────────────────────
@@ -201,10 +202,11 @@ def align(greek_tokens: list[tuple[str, str]], english_text: str,
                 cand.append((score + pos, i, j, gs))
 
     cand.sort(reverse=True)
-    for _, i, j, gs in cand:
+    for score, i, j, gs in cand:
         if i not in assignments and j not in greek_used:
             assignments[i] = gs
             assign_j[i] = j
+            assign_score[i] = score
             greek_used.add(j)
 
     # ── Pass 2: window-constrained matching for whatever Pass 1 left unresolved ──
@@ -259,9 +261,11 @@ def align(greek_tokens: list[tuple[str, str]], english_text: str,
                 local_cand.append((score + pos, i, j, gs))
 
         local_cand.sort(reverse=True)
-        for _, i, j, gs in local_cand:
+        for score, i, j, gs in local_cand:
             if i not in assignments and j not in greek_used:
                 assignments[i] = gs
+                assign_j[i] = j
+                assign_score[i] = score
                 greek_used.add(j)
 
         # Ordered leftover fallback: a handful of windows have a real Greek counterpart
@@ -276,11 +280,44 @@ def align(greek_tokens: list[tuple[str, str]], english_text: str,
         g_left = [j for j in g_slice if j not in greek_used]
         for i, j in zip(e_left, g_left):
             assignments[i] = greek_tokens[j][1]
+            assign_j[i] = j
+            assign_score[i] = 0.1  # lowest priority — blind positional pairing, no real gloss evidence
             greek_used.add(j)
 
-    # Anything still unresolved (no Greek counterpart in its window, or an inserted
-    # English word like a copula with nothing to match) is left untagged rather than
-    # stealing a neighbor's number.
+    # ── Post-process: drop SEVERE backward-crossing tags ──────────────────────
+    # Both passes above pick each word's best LOCAL match with no global order check at all —
+    # which is exactly right for Greek's routine verb-before-subject inversion (ἐποίησεν ὁ θεός,
+    # "made the-God" in Greek order, vs "God made" in English — a real 2-word swap that must NOT
+    # be penalized). But inspect_lxx_brenton_alignment_order.py's audit found much LARGER
+    # crossings too (a word's match landing 40-100+ Greek-token positions behind an already-
+    # established later one) in a large fraction of verses — a real misalignment, not legitimate
+    # reordering. This only ever REMOVES a tag (never reassigns one), and only past a generous
+    # slack, so ordinary local swaps are completely unaffected — a first attempt at strict
+    # monotonic-matching (no slack at all) was tried and reverted for exactly that reason: it
+    # broke the ubiquitous verb-subject pattern (e.g. untagging "made" in Gen 1:1).
+    SEVERE_JUMP_SLACK = 8
+    items = sorted(assign_j.items())  # [(i, j), ...] in English order
+    kept = {i: True for i, _ in items}
+    for pos, (i, j) in enumerate(items):
+        max_j, max_i = -1, None
+        for k in range(pos):
+            ii, jj = items[k]
+            if kept[ii] and jj > max_j:
+                max_j, max_i = jj, ii
+        if max_i is not None and j < max_j - SEVERE_JUMP_SLACK:
+            # (i, j) conflicts with whichever earlier, still-kept word set the running max —
+            # drop whichever of the two scored lower (the more likely of the two to be wrong).
+            if assign_score.get(i, 0.0) >= assign_score.get(max_i, 0.0):
+                kept[max_i] = False
+            else:
+                kept[i] = False
+    for i, j in items:
+        if not kept[i]:
+            assignments.pop(i, None)
+
+    # Anything still unresolved (no Greek counterpart in its window, an inserted English word
+    # like a copula with nothing to match, or dropped by the severe-crossing check above) is left
+    # untagged rather than stealing a neighbor's number.
     return ' '.join(f"{orig}{{{assignments.get(i, '')}}}"
                     for i, (orig, _) in enumerate(parsed))
 
