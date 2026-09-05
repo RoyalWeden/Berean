@@ -828,7 +828,7 @@ export default function Sidebar() {
                   <button
                     onClick={openTodaysDailyNote}
                     onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: dailyNoteToday(), x: e.clientX, y: e.clientY }) }}
-                    className="no-drag p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
+                    className="no-drag p-px text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                   >
                     <CalendarCheck size={17} />
                   </button>

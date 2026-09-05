@@ -933,13 +933,17 @@ function NodeBlock({
         />
         {/* Dwell bar — how long this stop was actually held open. Sits directly under the dot and
             above the gap connector, so the column reads top-to-bottom as "arrived · stayed this
-            long · then this much time passed". */}
+            long · then this much time passed". Muted grey, not accent — per direct feedback
+            ("that weird line"), a thin accent-colored bar hanging right off a bullet read as an
+            ambiguous/broken CONNECTOR line (same color/width the real edges use), not a
+            deliberate duration indicator. Muted makes it unmistakably a different kind of
+            element at a glance. */}
         {dwellMs > 0 && (
           <div
             title={dwellLabel ? `Stayed ${dwellLabel}` : undefined}
             style={{
               width: dwellUnit > 0.55 ? 3 : 2, height: dwellBarHeight, marginTop: 2, flexShrink: 0,
-              borderRadius: 999, background: 'rgb(var(--color-accent))', opacity: 0.2 + dwellUnit * 0.5,
+              borderRadius: 999, background: 'rgb(var(--color-text-muted))', opacity: 0.3 + dwellUnit * 0.4,
             }}
           />
         )}
