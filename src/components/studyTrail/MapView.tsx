@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen } from 'lucide-react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen, Clock } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
+import TrailSelectedInfoCard from './TrailSelectedInfoCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
 import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
@@ -88,10 +89,17 @@ function tieToRef(s?: string): TrailRef | null {
   const p = s?.trim() ? parseRef(s.trim()) : null
   return p ? { kind: 'chapter', bookId: p.bookId, chapter: p.chapter, verse: p.verse } : null
 }
-/** Display label for a tie: the canonical ref label when parseable, else the raw string. */
+/** Display label for a tie: the raw stored string when there is one, else the canonical
+ *  single-verse ref label. RAW wins now (was the other way around) — a tie set through the
+ *  verse-tie picker is always the FULL compact range string ("Luke 4:18-19,22,25-30"), and
+ *  `tieToRef` above only ever keeps the parsed ref's first verse (it exists for click-to-
+ *  navigate, where a single target verse is all that's needed) — falling back to that
+ *  ref-derived label here silently truncated a multi-verse tie down to its first verse. Every
+ *  raw tie string is already the canonical, fully-formatted display form (either the picker's
+ *  range string, or a legacy single-verse/verse-range pin), so there's no normalization left
+ *  for the ref-derived form to add now that free-typed manual entry is gone. */
 function tieLabel(ref: TrailRef | null, raw?: string): string | undefined {
-  if (ref && ref.kind === 'chapter') return bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)
-  return raw?.trim() || undefined
+  return raw?.trim() || (ref && ref.kind === 'chapter' ? bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse) : undefined)
 }
 
 function bookLabel(bookId: string): string {
@@ -739,6 +747,7 @@ function NodeBlock({
 }) {
   const replace = useWordReplace()
   const hoverDisabled = useContext(HoverDisabledContext)
+  const rowElRef = useRef<HTMLDivElement>(null)
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId && revisitAllowed
@@ -774,7 +783,6 @@ function NodeBlock({
   // afternoon of shorter ones and push everything else off screen.
   const dwellMs = Math.max(0, (node.anchorEndedAt ?? node.anchorStartedAt) - node.anchorStartedAt)
   const dwellUnit = Math.min(1, Math.sqrt(dwellMs / (20 * 60_000)))
-  const dwellBarHeight = Math.round(4 + dwellUnit * 26)
   const dwellExtraPad = Math.round(dwellUnit * 12)
   const dwellLabel = dwellMs >= 30_000 ? formatGap(dwellMs) : null
 
@@ -812,12 +820,19 @@ function NodeBlock({
         }}
       >
       {boundaryLabel && (
+        // Clock icon + heavier rule (2px, not 1px) than the topic-break divider below — per
+        // feedback ("make it more clear where the time break is"), this is an ACTUAL elapsed-
+        // time boundary (a new day or a new session), not just a reading-topic change, so it
+        // should read as more structurally significant at a glance, not merely differently
+        // colored. The label itself now carries a clock time too (see EverythingView's
+        // fmtClock), not just a date/session name.
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
           fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em',
         }}>
+          <Clock size={11} style={{ flexShrink: 0, opacity: 0.85 }} />
           <span style={{ flexShrink: 0 }}>{boundaryLabel}</span>
-          <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
+          <span style={{ flex: 1, height: 2, background: 'rgb(var(--color-surface-4))' }} />
         </div>
       )}
       {/* v36 — a user-marked topic break: a plain divider on the main spine (not a new
@@ -885,6 +900,18 @@ function NodeBlock({
           opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms',
         }}
       >
+      {/* This whole bullet column used to sit OUTSIDE the TrailHoverCard below (that one only
+          ever wrapped the reference-text column next to it) — despite the comment right here
+          already claiming "own hover card". Per feedback ("hovering over the bullets... isnt
+          showing the hover thing"): the visible round/square dot is exactly this column's own
+          content, so hovering it never triggered anything. Fixed with its own TrailHoverCard
+          instance (same content as the text column's) rather than restructuring the existing
+          one across ~130 lines of sibling content — two independent hover-card triggers over
+          adjacent parts of the same row is a small, safe addition. */}
+      <TrailHoverCard
+        disabled={hoverDisabled}
+        content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
+      >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
@@ -903,20 +930,14 @@ function NodeBlock({
             boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
           }}
         />
-        {/* Dwell bar — how long this stop was actually held open. Sits directly under the dot and
-            above the gap connector, so the column reads top-to-bottom as "arrived · stayed this
-            long · then this much time passed". */}
-        {dwellMs > 0 && (
-          <div
-            title={dwellLabel ? `Stayed ${dwellLabel}` : undefined}
-            style={{
-              width: dwellUnit > 0.55 ? 3 : 2, height: dwellBarHeight, marginTop: 2, flexShrink: 0,
-              borderRadius: 999, background: 'rgb(var(--color-accent))', opacity: 0.2 + dwellUnit * 0.5,
-            }}
-          />
-        )}
+        {/* Dwell BAR removed entirely — per direct feedback, it wasn't connecting anything (it
+            was never a real edge, just a duration indicator) and just read as visual noise off
+            the bullet regardless of color. The dwell TIME itself is still shown, plainly, as
+            text next to the reference label below (dwellLabel) — that's the one place it needs
+            to live. */}
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
+      </TrailHoverCard>
       {/* maxWidth caps how far this stretches — `flex:1` alone lets it grow to match whatever
           the WIDEST row anywhere in the whole spine happens to need (a long note preview, a
           long Strong's list, etc.), dragging the gutter column (registered right after this
@@ -937,6 +958,7 @@ function NodeBlock({
           secondaryContent={showNoteBubble(originConn) ? <TrailNoteBubbleContent conn={originConn!} onEdit={() => onOpenPrompt(originConn!)} /> : undefined}
         >
           <div
+            ref={rowElRef}
             onClick={(e) => { if (!trailRefClick(nodeRef, e) && hasRows) toggleCollapsed('branch', nodeKey) }}
             onContextMenu={(e) => openTrailRefMenu(
               openMenu, nodeRef, e, onJumpToOrigin,
@@ -974,7 +996,12 @@ function NodeBlock({
           >
             <span style={{
               fontSize: FONT.step, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
-              minWidth: 16, textAlign: 'right', flexShrink: 0,
+              // Was a fixed minWidth:16 — fine for 1-2 digit steps, but a 3-4 digit step number
+              // (long sessions) overflowed that fixed box and crowded into the reference label
+              // right after it. Size the column to the actual digit count instead (monospace
+              // font, so `ch` units track real character width) with a small floor so short
+              // step numbers don't get a cramped column either.
+              minWidth: `max(16px, ${String(step).length}ch)`, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookChapterVerseLabel(node.bookId, node.chapter)}
             {dwellLabel && (
@@ -1046,6 +1073,17 @@ function NodeBlock({
             )}
           </div>
         </TrailHoverCard>
+        {/* Per feedback ("when the user hovers over a bullet, show the same thing as the item"):
+            a SELECTED node (marquee/keyboard select) used to get only a highlight ring, no info
+            at all. Shows the same TrailNodeHoverContent the hover card above shows, independent
+            of the mouse — see TrailSelectedInfoCard's own comment for why this is a separate,
+            simpler component rather than teaching TrailHoverCard about a second trigger. */}
+        {selected && (
+          <TrailSelectedInfoCard
+            anchorRef={rowElRef}
+            content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
+          />
+        )}
         {node.cachedSubnote && <div style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))', marginTop: 2 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {/* Folded away, but never silently: the summary line says how many stops are hidden, so
@@ -1089,7 +1127,7 @@ export function pickControlSide(room: { left: number; right: number } | undefine
 
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
-  filterValue, onFilterChange, topInset = 0, onLayoutRoomChange, onCurrentHourChange,
+  filterValue, onFilterChange, topInset = 0, onLayoutRoomChange,
   scrollKey = EVERYTHING_SCROLL_KEY, onSplitHere,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
@@ -1107,10 +1145,6 @@ export default function MapView({
    *  own header / zoom controls on. Per direct feedback: those controls default to the left and
    *  "swap to the right if they will get in the way of the main spine/branches". */
   onLayoutRoomChange?: (room: { left: number; right: number }) => void
-  /** Reports the clock hour of whichever chapter stop is currently at the top of the scroll
-   *  view (advances as you scroll) — the parent shows it INSIDE the session header pill so
-   *  there's one floating thing, not a separate hour pill the user couldn't spot. */
-  onCurrentHourChange?: (hour: string | null) => void
   /** Extra top padding inside the scroll area — used when the parent floats its session-header
    *  bar over the top of the map (StudyTrailApp) so the first stop isn't pinned flush to the
    *  window edge. Kept small on purpose: the whole point of floating the header is that trail
@@ -1453,7 +1487,6 @@ export default function MapView({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const lastVisibilityLogRef = useRef<string | null>(null)
   const { menu, menuRef, openMenu: openMenuRaw, closeMenu } = useTrailRefMenu()
   // Right-clicking a row/node to open its context menu, then dismissing the menu by clicking
   // elsewhere WITHOUT first moving the mouse back over the original row, never fires that
@@ -1462,12 +1495,6 @@ export default function MapView({
   // lines and stuff and they dont come back"). Clearing it the moment a menu opens closes that
   // gap regardless of how the menu later gets dismissed.
   function openMenu(data: Parameters<typeof openMenuRaw>[0]) {
-    // Per direct feedback ("the connecting lines are going invisible when i rightclick the
-    // items... put a log for what happens") — logs the actual hoveredKey transition right-click
-    // causes, so a report of lines vanishing on right-click can be matched against whether
-    // hoveredKey really did clear here (working as this function intends) or something else
-    // entirely is dimming things afterward (a stuck menu-open state, a stale hoverChain, etc.).
-    if (window.__bereanTrailDebug) console.log('[TrailDebug] openMenu — clearing hoveredKey', { prevHoveredKey: hoveredKey, ref: data.ref })
     setHoveredKey(null)
     openMenuRaw(data)
   }
@@ -1762,9 +1789,8 @@ export default function MapView({
   const {
     nodeById, nextNodeById, nodeOrderIndex, originConnByNodeId,
     rowsForNode, rowsForConnection, edges, gutterWidth, maxRenderDepth,
-    hourLabelForNodeId, hourMarkers, isRevisitWithinWindow, anchorNodes,
+    hourMarkers, isRevisitWithinWindow, anchorNodes,
   } = graph
-  const firstHour = hourMarkers[0]?.label ?? null
 
   // ── What a fold actually hides ────────────────────────────────────────────
   // "collapsing doesnt seem to fully be working for branches" — because a branch's real payoff is
@@ -1960,41 +1986,11 @@ export default function MapView({
   // re-fired mouseenter, a stale key, or any other path into hoveredKey — the single place that
   // actually paints the dim effect refuses to do it at all while `menu` is truthy.
   const hoverActive = hoveredKeyIsLive && !menu
-  if (window.__bereanTrailDebug && hoveredKey) {
-    // Confirms (or rules out) the exact "lines disappear on right-click" mechanism this safety
-    // net guards against — if hoveredKeyIsLive is ever false here right after a right-click,
-    // that's the bug caught in the act; if it stays true throughout, the disappearing-lines
-    // report has a different cause and this rules the orphaned-key theory out.
-    console.log('[TrailDebug] hover chain', {
-      hoveredKey, live: hoveredKeyIsLive,
-      chainPoints: [...hoverChainPointKeys], chainEdges: [...hoverChainEdgeKeys],
-    })
-  }
   const finalEdges = hoverActive
     ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
         ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
         : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
     : edges
-  // Per direct feedback ("the connecting lines are going invisible when i rightclick the
-  // items... put a log for what happens") — unlike the hover-chain log above (gated on
-  // hoveredKey being truthy, so it goes silent the instant openMenu clears it), this fires on
-  // every render regardless, so the render right after a right-click — where lines are reported
-  // vanishing — actually shows up: whether hoveredKey truly went back to null (openMenu's own
-  // fix working), whether `menu` is open, and how many edges ended up dimmed either way. If
-  // dimmedCount is ever > 0 while hoveredKey is null here, the dimming isn't coming from this
-  // hover mechanism at all and the bug is somewhere else entirely.
-  if (window.__bereanTrailDebug) {
-    const dimmedCount = finalEdges.filter((e) => (e.opacity ?? 1) < 0.5).length
-    // Deduped the same way as TrailConnectorOverlay's missing-endpoint warning — only logs when
-    // this specific combination actually changes, not on every render, so it stays readable.
-    const logKey = `${hoveredKey}:${hoveredKeyIsLive}:${!!menu}:${dimmedCount}`
-    if (lastVisibilityLogRef.current !== logKey) {
-      lastVisibilityLogRef.current = logKey
-      console.log('[TrailDebug] right-click/edge-visibility check', {
-        hoveredKey, hoveredKeyIsLive, menuOpen: !!menu, totalEdges: finalEdges.length, dimmedCount,
-      })
-    }
-  }
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
@@ -2099,31 +2095,46 @@ export default function MapView({
   // pill always end up on the same side and can stack cleanly.
   const latestSide = pickControlSide(layoutRoom, CTRL_W.zoom)
 
-  // ── Current-hour tracker (fed into the parent's header pill) ──────────────
-  // `firstHour` is the synchronous fallback so the pill's hour line shows immediately; the
-  // effect then refines it to whichever marker is at the top of the view, live on scroll.
+  // ── Time rail (left edge) ──────────────────────────────────────────────────
+  // Replaces the old top-right "current hour" badge entirely — per direct feedback, something
+  // that lives ON THE MAP itself, on the left side: a small label tracking whichever hour marker
+  // is current, sliding down a short fixed range as you scroll THROUGH that hour's own span
+  // (reaching the bottom of the range right as the next hour marker reaches the top of the
+  // view), then jumping back up to start the next hour's slide. Plus, independently, a
+  // hover-anywhere readout: a dashed line to the left edge and the EXACT time (with minutes) at
+  // the cursor's row, linearly interpolated between whichever two chapter-stop bullets bracket
+  // it — the spine's vertical spacing is log-scaled, not literal elapsed time, so this is the
+  // only place an exact time is ever recoverable from a Y position.
+  const [railState, setRailState] = useState<{ label: string; progress: number } | null>(null)
   const hourMarkersRef = useRef(hourMarkers)
   hourMarkersRef.current = hourMarkers
-  const hourRafRef = useRef(0)
+  const railRafRef = useRef(0)
   useEffect(() => {
-    onCurrentHourChange?.(firstHour)
     const scroller = scrollContainerRef.current
     if (!scroller) return
     const measure = () => {
-      hourRafRef.current = 0
+      railRafRef.current = 0
       const markers = hourMarkersRef.current
-      if (markers.length === 0) { onCurrentHourChange?.(null); return }
+      if (markers.length === 0) { setRailState(null); return }
       const sTop = scroller.getBoundingClientRect().top + topInset
-      let active = markers[0].label
-      for (const m of markers) {
-        const el = nodeBlockRefs.current.get(m.id)
+      let activeIdx = 0
+      for (let i = 0; i < markers.length; i++) {
+        const el = nodeBlockRefs.current.get(markers[i].id)
         if (!el) continue
-        if (el.getBoundingClientRect().top - sTop <= 12) active = m.label
+        if (el.getBoundingClientRect().top - sTop <= 12) activeIdx = i
         else break
       }
-      onCurrentHourChange?.(active)
+      const activeEl = nodeBlockRefs.current.get(markers[activeIdx].id)
+      const nextEl = markers[activeIdx + 1] ? nodeBlockRefs.current.get(markers[activeIdx + 1].id) : null
+      let progress = 0
+      if (activeEl && nextEl) {
+        const a = activeEl.getBoundingClientRect().top - sTop
+        const b = nextEl.getBoundingClientRect().top - sTop
+        progress = b > a ? Math.max(0, Math.min(1, -a / (b - a))) : 0
+      }
+      setRailState({ label: markers[activeIdx].label, progress })
     }
-    const schedule = () => { if (!hourRafRef.current) hourRafRef.current = requestAnimationFrame(measure) }
+    const schedule = () => { if (!railRafRef.current) railRafRef.current = requestAnimationFrame(measure) }
     schedule()
     scroller.addEventListener('scroll', schedule, { passive: true })
     const ro = new ResizeObserver(schedule)
@@ -2131,10 +2142,82 @@ export default function MapView({
     return () => {
       scroller.removeEventListener('scroll', schedule)
       ro.disconnect()
-      if (hourRafRef.current) cancelAnimationFrame(hourRafRef.current)
+      if (railRafRef.current) cancelAnimationFrame(railRafRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstHour, detail.nodes.length, zoom, topInset])
+  }, [detail.nodes.length, zoom, topInset])
+
+  // Hover-anywhere exact-time readout. Tracks the raw cursor point; the render below converts
+  // its Y into a real timestamp by linearly interpolating between the two nearest chapter-stop
+  // bullets' OWN real anchorStartedAt values (not the hour markers above, which only mark
+  // whole-hour boundaries) — "the time between bullets is just linear time between" per direct
+  // feedback. Reads from `pointsRef` (the exact small bullet dots TrailConnectorOverlay already
+  // draws its lines between, registered under `node:${id}`) rather than nodeBlockRefs (each
+  // node's WHOLE row wrapper, including any tangent bullets/dividers stacked above it) — that
+  // wrapper's own center can sit well below the actual bullet for a node with extra chrome
+  // above it, which was throwing the interpolation off badly enough to read as broken.
+  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null)
+  const hoverInfo = useMemo(() => {
+    if (!hoverPoint) return null
+    const points: { y: number; t: number }[] = []
+    for (const n of detail.nodes) {
+      const el = pointsRef.current.get(`node:${n.id}`)
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      points.push({ y: r.top + r.height / 2, t: n.anchorStartedAt })
+    }
+    if (points.length === 0) return null
+    points.sort((a, b) => a.y - b.y)
+    const hy = hoverPoint.y
+    let t: number
+    if (hy <= points[0].y) t = points[0].t
+    else if (hy >= points[points.length - 1].y) t = points[points.length - 1].t
+    else {
+      let lo = points[0], hi = points[points.length - 1]
+      for (let i = 0; i < points.length - 1; i++) {
+        if (hy >= points[i].y && hy <= points[i + 1].y) { lo = points[i]; hi = points[i + 1]; break }
+      }
+      const frac = hi.y > lo.y ? (hy - lo.y) / (hi.y - lo.y) : 0
+      t = lo.t + frac * (hi.t - lo.t)
+    }
+    // `y` stays in raw screen (clientY) coordinates — the readout below is `position: fixed`,
+    // same as this file's existing marquee/selection-bar overlays, so no container-relative
+    // conversion is needed.
+    return {
+      y: hy,
+      label: new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    }
+    // detail.nodes.length (not the array itself) is enough to re-derive on data changes; zoom
+    // affects every bullet's screen Y too. hoverPoint is read fresh each call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverPoint, detail.nodes.length, zoom])
+
+  // Dim the time rail (both pieces) the closer the cursor gets to any real map element — per
+  // direct feedback, it was competing for attention with the actual bullets/lines it sits near.
+  // Distance to the nearest registered point (bullets, tangent stubs, row anchors — everything
+  // in the shared pointsRef map, not just chapter bullets) rather than just chapter nodes, since
+  // ANY nearby element reads as "the cursor is busy with something else right now."
+  const timeRailOpacity = useMemo(() => {
+    if (!hoverPoint) return 1
+    // 70px was too generous relative to how densely bullets/rows are already packed (a normal
+    // row is ~20-30px tall) — nearly every point on the map was already within 70px of SOME
+    // registered point, so this sat at/near MIN_OPACITY continuously while hovering ANY content,
+    // never actually reading as "dims as you approach." 30px is closer to "right on top of a
+    // specific bullet," and MIN_OPACITY dropped further so the contrast is unmistakable at 0px.
+    const DIM_START_PX = 30
+    const MIN_OPACITY = 0.05
+    let nearest = Infinity
+    for (const el of pointsRef.current.values()) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) continue
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2
+      const d = Math.hypot(cx - hoverPoint.x, cy - hoverPoint.y)
+      if (d < nearest) nearest = d
+    }
+    if (nearest >= DIM_START_PX) return 1
+    return MIN_OPACITY + (1 - MIN_OPACITY) * (nearest / DIM_START_PX)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverPoint, detail.nodes.length, zoom])
 
   // Single shared "suppress hover UI" condition — per direct feedback ("right-click should hide
   // ALL hover UI... find wherever menuOpen/hoveredKey state already exists and add a single
@@ -2174,7 +2257,13 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onContextMenu={onBlankContextMenu} onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
+      <div
+        ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onContextMenu={onBlankContextMenu}
+        onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }}
+        onMouseMove={(e) => setHoverPoint({ x: e.clientX, y: e.clientY })}
+        onMouseLeave={() => setHoverPoint(null)}
+        style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}
+      >
         {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
             whole content block — gutter + spine + indents + labels — in the viewport. It
             collapses to 0 once the content is wider than the viewport, so the native scroll
@@ -2198,13 +2287,28 @@ export default function MapView({
                 label column (see SPINE_LABEL_COL_INSET). All of this lives inside the same `scale(zoom)` wrapper
                 as the bullets, so gutterWidth is used un-multiplied and alignment holds at every
                 zoom. Purely decorative: behind everything, never intercepts a click. */}
-            {/* NO guide line under the main spine column any more. It ran the full height in a
-                flat grey while the real spine is drawn on top of it in segments by the SVG
-                overlay — so wherever a segment was quieter or absent you saw the guide instead,
-                which is precisely what "some of the main spine lines dont fully connect or are
-                switching colors in part of the line" was. The spine is now drawn by exactly one
-                thing (TrailConnectorOverlay), continuously. Indent guides stay: they mark columns
-                that have no line of their own to be confused with. */}
+            {/* Main-spine guide line — reinstated. It was removed earlier because the OLD one ran
+                the full height at a visible-enough weight that wherever a real spine segment was
+                quieter or absent, you saw IT instead, reading as "the spine doesn't fully connect
+                / switches color" — a real regression. This one is different: same near-invisible
+                0.15-alpha weight as the off-spine guides below it, sitting behind everything —
+                at that opacity it can't be mistaken for a spine segment even in the gaps, it just
+                answers "i dont see the musical guide line" for the one column (the main reading
+                spine itself) every session actually has, unlike the off-spine ones below which
+                only appear once there's an actual branch/tangent to guide. */}
+            <div
+              style={{
+                position: 'absolute', top: 0, bottom: 0, left: gutterWidth + SPINE_DOT_INSET,
+                width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
+              }}
+            />
+            {/* Off-spine (branch/tangent column) guide lines — one per indent level actually
+                rendered (maxRenderDepth, which now counts non-branch rows too), each at that
+                depth's own `SPINE_LABEL_COL_INSET + INDENT_STEP*(depth+1) + OFFSPINE_DOT_INSET`
+                — the exact centre of that column's bullets, which hang inside the spine row's
+                label column (see SPINE_LABEL_COL_INSET). Indent guides mark columns that have no
+                line of their own to be confused with (the main spine above has a REAL drawn line
+                from TrailConnectorOverlay; these columns don't). */}
             {maxRenderDepth >= 0 && Array.from({ length: maxRenderDepth + 1 }, (_, depth) => (
               <div
                 key={`guide:${depth}`}
@@ -2390,7 +2494,14 @@ export default function MapView({
         )}
 
         {promptConn && (
+          // key={promptConn.id} — without it, clicking a pencil icon on a DIFFERENT connection
+          // while this popup is already open just re-renders the same component instance with a
+          // new `connection` prop; its note/tie fields are only ever seeded from that prop in
+          // useState's initializer (run once, on mount), so they'd keep showing the PREVIOUS
+          // connection's stale ties/note under the new one's own title. The key forces a real
+          // remount whenever the connection changes.
           <ReasonPromptPopover
+            key={promptConn.id}
             connection={promptConn}
             originBookId={nodeById.get(promptConn.fromNodeId)?.bookId}
             originChapter={nodeById.get(promptConn.fromNodeId)?.chapter}
@@ -2402,6 +2513,61 @@ export default function MapView({
             </div>
           </div>
         </div>
+
+        {/* Time rail — left edge of the map viewport. Replaces the old top-right "current hour"
+            badge (per direct feedback, "something actually on the map... on the left side").
+            Two independent pieces, both `position: fixed` off the scroll container's own live
+            rect (same pattern as the marquee/selection-bar overlays below):
+             1. The current-hour label, which slides down a short fixed range as you scroll
+                through that hour's own span and jumps back up when the next hour marker takes
+                over — a real "progress through this hour" motion, not just a static readout.
+             2. A dashed line to the left edge + the exact time (with minutes) at the cursor's
+                row, only while hovering anywhere over the timeline — see hoverInfo above for the
+                linear-interpolation-between-bullets math. */}
+        {(() => {
+          const scrollRect = scrollContainerRef.current?.getBoundingClientRect()
+          if (!scrollRect) return null
+          const RAIL_TOP = 16
+          const RAIL_SLIDE_RANGE = 44
+          return (
+            <>
+              {railState && (
+                <div style={{
+                  position: 'fixed', left: scrollRect.left + 10,
+                  top: scrollRect.top + RAIL_TOP + railState.progress * RAIL_SLIDE_RANGE,
+                  zIndex: 30, pointerEvents: 'none',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))',
+                  background: 'rgb(var(--color-surface-1) / 0.85)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                  border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 6, padding: '3px 7px',
+                  opacity: timeRailOpacity,
+                  transition: 'top 220ms ease, opacity 120ms ease',
+                }}>
+                  {railState.label}
+                </div>
+              )}
+              {hoverInfo && (
+                <>
+                  <div style={{
+                    position: 'fixed', left: scrollRect.left, top: hoverInfo.y,
+                    width: scrollRect.width, height: 0, zIndex: 29, pointerEvents: 'none',
+                    borderTop: '1px dashed rgb(var(--color-accent) / 0.45)',
+                    opacity: timeRailOpacity, transition: 'opacity 120ms ease',
+                  }} />
+                  <div style={{
+                    position: 'fixed', left: scrollRect.left + 10, top: hoverInfo.y, transform: 'translateY(-50%)',
+                    zIndex: 30, pointerEvents: 'none',
+                    fontSize: 11, fontWeight: 700, color: 'rgb(var(--color-accent))',
+                    background: 'rgb(var(--color-surface-1) / 0.92)', border: '1px solid rgb(var(--color-accent) / 0.4)',
+                    borderRadius: 6, padding: '3px 7px',
+                    opacity: timeRailOpacity, transition: 'opacity 120ms ease',
+                  }}>
+                    {hoverInfo.label}
+                  </div>
+                </>
+              )}
+            </>
+          )
+        })()}
 
         {/* Marquee rectangle while dragging */}
         {marquee && (

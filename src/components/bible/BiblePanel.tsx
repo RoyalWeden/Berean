@@ -2061,8 +2061,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // Verse-anchored restore (KJV/LXX switch) takes priority over the raw-pixel
     // pendingScrollRef path below — anchoring by verse number tracks the same passage
     // across two texts with different word counts/wrapping far better than reusing a
-    // pixel offset that was measured against the OLD text's layout, and it flashes the
-    // anchor verse so the eye has an obvious landing point through the reflow.
+    // pixel offset that was measured against the OLD text's layout. No flash here —
+    // per feedback, highlighting the top verse on every KJV/LXX switch was just noise
+    // (same call already made for the Strong's-toggle anchor path below).
     const verseAnchor = strongsAnchorRef.current
     if (verseAnchor) {
       strongsAnchorRef.current = null
@@ -2072,9 +2073,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const containerTop = container.getBoundingClientRect().top
         const elTop = el.getBoundingClientRect().top
         container.scrollTop += elTop - containerTop - verseAnchor.offsetPx
-        // No flash when the anchor is the user's own selected/target verse — it's already
-        // visually marked, and the point of that path is "nothing jumps or lights up".
-        if (!verseAnchor.fromSelection) setFlashAnchor({ verse: verseAnchor.verseNum, nonce: Date.now() })
         // This is a discontinuous jump, not a physical scroll gesture — resync
         // handleBibleScroll's sensitivity-based accumulator straight to the accurate ratio at
         // this new position so the next real scroll doesn't smooth its delta in from a stale

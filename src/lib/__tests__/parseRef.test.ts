@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken, isExactBookToken } from '../parseRef'
+import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken, isExactBookToken, bookChapterVerseLabel } from '../parseRef'
 
 // ─── parseRef ─────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,10 @@ describe('parseRef', () => {
     expect(parseRef('Recognitions of Clement 5:3')).toMatchObject({ bookId: 'RCL1', chapter: 5, verse: 3 })
     // "Book N" subdivision doesn't apply to editions without a numbered-book convention
     expect(parseRef('Hermas, Book 3 5:2')).toBeNull()
+    // The literal "Chapter" word bookChapterVerseLabel now generates for "Book N" editions
+    // (see below) must parse back too — same round-trip requirement as the comma fix above.
+    expect(parseRef('Recognitions of Clement, Book 9, Chapter 2')).toMatchObject({ bookId: 'RCL9', chapter: 2 })
+    expect(parseRef('Recognitions of Clement, Book 9, Chapter 2:5')).toMatchObject({ bookId: 'RCL9', chapter: 2, verse: 5 })
   })
 
   it('parses pseudepigrapha book IDs', () => {
@@ -283,6 +287,21 @@ describe('bookName', () => {
 
   it('falls back to the ID for unknown books', () => {
     expect(bookName('UNKNOWN')).toBe('UNKNOWN')
+  })
+})
+
+describe('bookChapterVerseLabel', () => {
+  it('spells out the full work name and the literal word "Chapter" for "Book N" editions', () => {
+    // Was "Recognitions, Book 9, 2" — ambiguous about what "2" even is. Per feedback, the
+    // full work name plus an explicit "Chapter" reads unambiguously everywhere this citation
+    // format shows up (Study Trail map labels included).
+    expect(bookChapterVerseLabel('RCL9', 2)).toBe('Recognitions of Clement, Book 9, Chapter 2')
+    expect(bookChapterVerseLabel('RCL9', 2, 5)).toBe('Recognitions of Clement, Book 9, Chapter 2:5')
+  })
+
+  it('is unaffected for ordinary books and for named-section editions without "Book N"', () => {
+    expect(bookChapterVerseLabel('GEN', 1, 1)).toBe('Genesis 1:1')
+    expect(bookChapterVerseLabel('HER_VIS', 5, 2)).toBe('Hermas, Visions 5:2')
   })
 })
 

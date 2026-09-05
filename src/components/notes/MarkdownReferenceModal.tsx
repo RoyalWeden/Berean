@@ -161,16 +161,19 @@ const BOOK_GROUPS: Array<{ group: string; books: BookEntry[] }> = [
   {
     group: 'Recognitions of Clement',
     books: [
-      { id: 'RCL1',  name: 'Recognitions - Book 1',  abbr: 'Rcl 1',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL2',  name: 'Recognitions - Book 2',  abbr: 'Rcl 2',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL3',  name: 'Recognitions - Book 3',  abbr: 'Rcl 3',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL4',  name: 'Recognitions - Book 4',  abbr: 'Rcl 4',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL5',  name: 'Recognitions - Book 5',  abbr: 'Rcl 5',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL6',  name: 'Recognitions - Book 6',  abbr: 'Rcl 6',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL7',  name: 'Recognitions - Book 7',  abbr: 'Rcl 7',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL8',  name: 'Recognitions - Book 8',  abbr: 'Rcl 8',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL9',  name: 'Recognitions - Book 9',  abbr: 'Rcl 9',  exampleChapter: 1, exampleVerse: 1 },
-      { id: 'RCL10', name: 'Recognitions - Book 10', abbr: 'Rcl 10', exampleChapter: 1, exampleVerse: 1 },
+      // Full "Recognitions of Clement" spelled out here (not just "Recognitions - Book N") —
+      // this list's own <select> renders `name` as a flat, ungrouped dropdown with no group
+      // heading visible, so each entry needs to be unambiguous entirely on its own.
+      { id: 'RCL1',  name: 'Recognitions of Clement, Book 1',  abbr: 'Rcl 1',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL2',  name: 'Recognitions of Clement, Book 2',  abbr: 'Rcl 2',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL3',  name: 'Recognitions of Clement, Book 3',  abbr: 'Rcl 3',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL4',  name: 'Recognitions of Clement, Book 4',  abbr: 'Rcl 4',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL5',  name: 'Recognitions of Clement, Book 5',  abbr: 'Rcl 5',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL6',  name: 'Recognitions of Clement, Book 6',  abbr: 'Rcl 6',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL7',  name: 'Recognitions of Clement, Book 7',  abbr: 'Rcl 7',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL8',  name: 'Recognitions of Clement, Book 8',  abbr: 'Rcl 8',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL9',  name: 'Recognitions of Clement, Book 9',  abbr: 'Rcl 9',  exampleChapter: 1, exampleVerse: 1 },
+      { id: 'RCL10', name: 'Recognitions of Clement, Book 10', abbr: 'Rcl 10', exampleChapter: 1, exampleVerse: 1 },
     ],
   },
   {

@@ -48,10 +48,11 @@ export function trailRefOpenFloating(ref: TrailRef): void {
 
 // `bookChapterLabel` is expected to be `bookChapterVerseLabel` from '@/lib/parseRef' (passed in
 // rather than imported directly here, matching how every other trailRefLabel caller already
-// threads its own book-name function through) — it already comma-separates a multi-level
-// edition's "Book N" from its chapter ("Recognitions, Book 1, 2" for Recognitions of Clement,
-// "Hermas, Visions, 4" for Shepherd of Hermas) instead of the bare-space join this used to do,
-// which read as an ambiguous run-together "Recognitions, Book 1 2".
+// threads its own book-name function through) — for a "Book N" edition it already spells out
+// the full work name and inserts the literal word "Chapter" ("Recognitions of Clement, Book 1,
+// Chapter 2" for Recognitions of Clement) instead of the bare-space join this used to do, which
+// read as an ambiguous run-together "Recognitions, Book 1 2". "Hermas, Visions 4" (no "Book N",
+// so no ambiguity to begin with) is unaffected.
 export function trailRefLabel(ref: TrailRef, bookChapterLabel: (bookId: string, chapter: number) => string): string {
   return ref.kind === 'chapter'
     ? `${bookChapterLabel(ref.bookId, ref.chapter)}${ref.verse ? `:${ref.verse}` : ''}`

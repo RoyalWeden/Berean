@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -69,8 +69,8 @@ export default function StudyTrailArrivalPrompt() {
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
   const origin = useOriginRef(conn)
-  if (!conn) return null
   if (askChapterJumpReason) {
+    if (!conn) return null
     return (
       <ReasonPromptPopover
         connection={conn}
@@ -82,6 +82,8 @@ export default function StudyTrailArrivalPrompt() {
       />
     )
   }
+  // Always rendered (even when conn is null) — ArrivalPill manages its own brief fade-out
+  // after conn clears, rather than being yanked off screen instantly. See its own comment.
   return <ArrivalPill conn={conn} origin={origin} onClose={clear} />
 }
 
@@ -105,10 +107,36 @@ export default function StudyTrailArrivalPrompt() {
  *  feedback, "users will realistically alt-tab or switch Berean tabs mid-way through filling this
  *  in to go check a verse," so only Save, Not now, or the × can close it from then on. Before
  *  `touched`, it's still purely hover-driven (a glance that costs nothing to back out of). */
-function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin: { bookId: string; chapter: number } | null; onClose: () => void }) {
+// Per feedback ("the study trail toast still looks like it did before any changes... im
+// talking about the one that shows when the ask why isnt toggled" — this one, not
+// StudyTrailSplitToast, which was the one actually redesigned earlier) — this toast had NO
+// entrance/exit transition at all (an instant pop in/out the moment pendingArrivalPrompt
+// changes), which is exactly why "more refreshed and less intrusive" didn't show up here.
+const TRANSITION_MS = 180
+
+function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; origin: { bookId: string; chapter: number } | null; onClose: () => void }) {
   const [hovering, setHovering] = useState(false)
   const [touched, setTouched] = useState(false)
   const expanded = touched || hovering
+  // Kept separate from `conn` itself so the toast can fade+slide OUT before actually
+  // unmounting, instead of vanishing the instant conn clears (dismissed, saved, or a new
+  // arrival replaces it).
+  const [local, setLocal] = useState(conn)
+  const [phase, setPhase] = useState<'in' | 'shown' | 'out'>('in')
+  useEffect(() => {
+    if (conn) {
+      setLocal(conn)
+      setPhase('in')
+      const raf = requestAnimationFrame(() => setPhase('shown'))
+      return () => cancelAnimationFrame(raf)
+    }
+    setPhase('out')
+    const t = setTimeout(() => setLocal(null), TRANSITION_MS)
+    return () => clearTimeout(t)
+  }, [conn]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Reset per-toast interaction state whenever a NEW connection replaces the current one
+  // (touched/hovering from the last prompt shouldn't carry over to a fresh one).
+  useEffect(() => { setHovering(false); setTouched(false) }, [conn?.id])
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
   // Step out of the way of whatever else owns the bottom-right / bottom-center corner now:
@@ -131,12 +159,41 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
   const bottomPx = (verseSelectionOpen && rightPanelW > 0)
     ? (verseSelectionMenuOpen ? 210 : 64)
     : (!searchTabActive && noteOpen ? 46 : 16)
+
+  const setArrivalPillRect = useStudyTrailStore((s) => s.setArrivalPillRect)
+  const pillRef = useRef<HTMLDivElement>(null)
+  // Publish this toast's own {right, bottom, height} so StudyTrailSplitToast ("New study?") —
+  // a SEPARATE bottom-right toast that can appear at the same time as this one — knows to stack
+  // above it instead of sharing the exact same corner and overlapping. Re-measures on every
+  // relevant change (expand/collapse, side-panel width, etc.) via ResizeObserver rather than a
+  // one-shot measurement, and clears to null once this toast is gone (local null, or unmount)
+  // so the split toast falls back to its own default corner position.
+  useEffect(() => {
+    if (!local) { setArrivalPillRect(null); return }
+    const el = pillRef.current
+    if (!el) return
+    const publish = () => setArrivalPillRect({ right: rightPx, bottom: bottomPx, height: el.offsetHeight })
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [local, rightPx, bottomPx, setArrivalPillRect])
+  useEffect(() => () => setArrivalPillRect(null), [setArrivalPillRect])
+
+  // MUST come after every hook above — React requires the same hooks, in the same order,
+  // on every render. Putting this early return before the useAppStore calls above (an earlier
+  // mistake) meant they simply never ran on a null-`local` render, then ran again on the very
+  // next one once `local` became non-null: "Rendered more hooks than during the previous
+  // render." Bailing here, after all hooks, is the fix.
+  if (!local) return null
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
-  const question = arrivalQuestion(conn, origin)
+  const question = arrivalQuestion(local, origin)
+  const shown = phase === 'shown'
 
   return createPortal(
     <div
+      ref={pillRef}
       className="no-drag"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
@@ -147,25 +204,22 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
         background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.82)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         border: '1px solid rgb(var(--color-surface-4) / 0.7)',
-        borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.3)', overflow: 'hidden',
-        transition: 'right 160ms ease, bottom 160ms ease, background 160ms ease',
+        borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', overflow: 'hidden',
+        opacity: shown ? 1 : 0, transform: shown ? 'translateY(0)' : 'translateY(10px)',
+        transition: `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
       }}
     >
-      {/* Collapsed CTA — hidden once expanded (hover or touched); the form's own Save/Not now
-          row plus the always-present × below take over as the toast's controls at that point.
-          Text wraps within the fixed PILL_WIDTH rather than the box resizing to fit it. */}
+      {/* Collapsed CTA — hidden once expanded (hover or touched); no dismiss × here (per direct
+          feedback) — collapsed, this is just a passive glance, not something waiting to be
+          dismissed; the form's own Save/Not now row plus the expanded-state × take over as the
+          toast's controls once it's actually open. Text wraps within the fixed PILL_WIDTH rather
+          than the box resizing to fit it. */}
       {!expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 6px 10px', fontSize: 11 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', fontSize: 11 }}>
           <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
           <span style={{ flex: 1, minWidth: 0, color: 'rgb(var(--color-text-secondary))' }}>
             {question}
           </span>
-          <button
-            className="trail-ctx-btn"
-            onClick={onClose}
-            title="Dismiss"
-            style={{ background: 'transparent', border: 'none', borderRadius: 6, color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0 }}
-          ><X size={11} /></button>
         </div>
       )}
       {/* Real form — always mounted (so expanding never pops in unmeasured), collapsed to
@@ -174,16 +228,18 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
       <div style={{
         position: 'relative', maxHeight: expanded ? 2000 : 0, opacity: expanded ? 1 : 0, overflow: 'hidden',
         transition: 'max-height 160ms ease, opacity 130ms ease',
-        padding: expanded ? '8px 10px 10px' : '0 10px', fontSize: 11,
+        padding: expanded ? '10px 12px 12px' : '0 10px', fontSize: 11,
       }}>
         {/* Header when expanded — keeps the "Why'd you go to …?" question visible at the top of
             the hover form (per direct feedback), with the dismiss × on the same row. Inline
             (not an absolute ×) so it never overlaps the note box and both tie columns keep the
-            full uniform width. */}
+            full uniform width. Slightly warmer per feedback ("make it feel pleasurable and easy
+            to input") — accent-tinted icon and a touch more weight/size on the question itself,
+            instead of everything reading in the same flat muted grey. */}
         {expanded && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <MessageSquarePlus size={12} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-secondary))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
               {question}
             </span>
             <button
@@ -197,8 +253,15 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
             ><X size={11} /></button>
           </div>
         )}
+        {/* key={local.id} — the same fix as ReasonPromptPopover's own usage in MapView.tsx: a
+            NEW arrival replacing the current one just re-renders this same component instance
+            with a new `connection` prop, so its note/tie state (seeded from that prop only in
+            useState's one-time initializer) would otherwise keep showing the PREVIOUS
+            connection's ties/note under the new arrival's own "Why'd you go to X from Y?"
+            question — exactly the "toast isn't updating what it's showing" report. */}
         <TrailReasonFormBody
-          connection={conn}
+          key={local.id}
+          connection={local}
           originBookId={origin?.bookId}
           originChapter={origin?.chapter}
           onClose={onClose}

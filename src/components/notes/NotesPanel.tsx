@@ -1072,6 +1072,17 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       // Reset scroll for the new note
       lastScrollTopRef.current = 0
       setRestoredScrollTop(0)
+      // The note you're LEAVING might never have gotten its own nav-stack entry — the
+      // most common case being whatever note this tab happened to land on when it was
+      // last restored (mounted/switched into), which deliberately does NOT push nav
+      // history (that path only restores where you left off, it isn't a "navigation").
+      // Without this, clicking a wikilink from that note straight to another one pushed
+      // only the DESTINATION, leaving nothing behind it — "back" landed on the list
+      // instead of the note you actually came from. pushTabNav's own dedup (it compares
+      // against the CURRENT top before writing) makes this a no-op whenever the outgoing
+      // note is already correctly the top of the stack, so normal note-to-note
+      // navigation is unaffected.
+      if (notesTabId) pushTabNav(notesTabId, { type: 'note', noteId: activeNote.id, title: activeNote.title || 'Untitled' })
     }
     // Baseline the snapshot tracker to the newly-opened content (don't snapshot on open).
     lastSnapshotContentRef.current = note.content

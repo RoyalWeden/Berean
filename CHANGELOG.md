@@ -122,7 +122,66 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.6.2] - 2026-09-05
+
+### Study Trail
+
+- **Verse-tie picker.** Tying two chapters together (from the "why'd you jump
+  here?" toast or the full popup) is now done by picking verses in a real
+  separate window that shows the origin and destination chapters side by side
+  — click a verse number to tie it, shift-click for a range — instead of
+  typing references by hand. Every click applies live; there's no separate
+  save step. The picker can flip either side between KJV and the Brenton LXX
+  when the book has both, remembers its own zoom level, follows the app's
+  theme, and supports Cmd+F to search within a chapter.
+- Fixed a real bug behind several "the map isn't showing connections right"
+  reports: two chapters tied together, then tied again later, or a chapter
+  you'd already visited getting tied for the first time, could end up with no
+  connecting line at all on the map instead of the expected branch.
+- Revisiting a chapter that's also been tied to another one no longer draws
+  two overlapping lines for the same move — just the one, real branch path —
+  and revisit lines no longer show verse text directly on the line itself
+  (that detail now lives on the branch's own labels).
+- A new session now shows up immediately as a growing bar on today's timeline
+  in the session sidebar, instead of only as a separate "live session" entry;
+  typing its name happens right in that same spot rather than in a box that
+  disappears once you hit Enter.
+- The "new study?" prompt no longer fires on ordinary sequential reading
+  across a book boundary (e.g. finishing Malachi and starting Matthew) — only
+  on an actual unrelated jump — and no longer overlaps the "why'd you jump
+  here?" toast when both are showing at once; that toast also always shows
+  the CURRENT jump's own details now, instead of occasionally showing a
+  previous one's.
+- The main reading spine has its own faint guide line again, the title bar's
+  text can no longer be accidentally selected, and a stray line that turned
+  out to be an unrelated "how long you stayed" indicator (not a broken
+  connector) has been removed.
+- Replaced the old top-right "current hour" clock with a left-edge indicator
+  on the map itself: it slides as you scroll, and hovering anywhere shows a
+  dashed line and the exact time (with minutes) at that point, estimated
+  between the two nearest stops. It dims out of the way as your cursor nears
+  actual map content.
+
+### Notes sidebar
+
+- The daily-note calendar has a new look: rounded day cells with a heatmap
+  fill scaled to how much you actually wrote that day (replacing the old
+  plain dot), a soft highlight across the current week, bigger numbers, and
+  an icon-only "jump to today" button. It can also collapse to show just the
+  current week — including one that spans a month boundary — while keeping
+  the weekday header visible.
+
+### Bible reading
+
+- A verse's note/cross-reference indicator now responds to hovering or
+  clicking anywhere in its pill shape, not just the small icon inside it —
+  and its preview popup no longer opens so close to the cursor that a click
+  meant for the pill landed on a specific item inside the popup instead.
+- A word tagged with a second Strong's number (stacked below the first) could
+  become impossible to click or hover if it landed too close to the next
+  line of text; fixed.
+
+## [0.6.1] - 2026-09-04
 
 ### Study Trail
 

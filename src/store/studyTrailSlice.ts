@@ -105,6 +105,12 @@ interface StudyTrailState {
   // somewhere to write to.
   pendingArrivalNodeId: string | null
   clearPendingArrivalPrompt: () => void
+  // Published by the ArrivalPill toast (StudyTrailArrivalPrompt.tsx) itself — its own current
+  // {right, bottom, height} in the main window, so StudyTrailSplitToast (a SEPARATE bottom-right
+  // toast, "New study?") can stack above it instead of sharing the exact same corner and
+  // overlapping when both happen to be showing at once. null whenever the pill isn't rendering.
+  arrivalPillRect: { right: number; bottom: number; height: number } | null
+  setArrivalPillRect: (r: { right: number; bottom: number; height: number } | null) => void
 
   startTrailSession: (name: string) => Promise<void>
   pauseTrailSession: () => Promise<void>
@@ -225,6 +231,8 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentlyInBranch: false,
   pendingArrivalPrompt: null, pendingArrivalNodeId: null,
   clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null }),
+  arrivalPillRect: null,
+  setArrivalPillRect: (r) => set({ arrivalPillRect: r }),
   splitProposal: null,
   proposeSplit: (p) => {
     // Never replace a proposal the user hasn't answered yet — the second one would silently
@@ -824,10 +832,20 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
   // from: a long pause-adjusted break, or landing in a different book with nothing tying the two
   // together (no verse-specific origin — a cross-ref into another book is a continuation of the
   // same thought, typing "Hosea 2" out of the blue after reading Genesis is not).
+  //
+  // 'sequential-nav' (the plain prev/next-chapter arrow) is EXPLICITLY excluded from "untied" —
+  // per direct feedback ("the new study prompt is showing up way too much"), the dominant real
+  // cause was reading straight through an ordinary book boundary (Malachi 4 → Matthew 1, Genesis
+  // 50 → Exodus 1) via the next-chapter arrow: no verse target, a different book, and NOT one of
+  // SAME_CHAPTER_BRANCH_WORTHY_KINDS, so it satisfied "untied" on every single such turn even
+  // though it's the most continuous kind of reading there is — its own NavOrigin doc comment
+  // already calls it "the reading spine, not a tangent." Book-chapter-picker / typing a
+  // reference / a bare cross-ref-into-a-chapter etc. still count as untied as before; only the
+  // plain forward/back arrow is now always treated as a continuation, never a new-study signal.
   if (effectivePrevNodeId && s.currentAnchorActivatedAt != null && trailSessionId !== LOOSE_SESSION_ID) {
     const gapMs = navAt - s.currentAnchorActivatedAt
     const bookChanged = !!s.currentAnchorBookId && s.currentAnchorBookId !== to.bookId
-    const untied = to.verse == null && !SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)
+    const untied = to.verse == null && origin.kind !== 'sequential-nav' && !SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)
     const reason = gapMs >= SESSION_SPLIT_GAP_MS
       ? `${bookLabelFor(to.bookId)} — after a break`
       : (bookChanged && untied) ? bookLabelFor(to.bookId) : null

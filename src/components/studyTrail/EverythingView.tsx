@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import { LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import MapView, { pickControlSide, CTRL_W } from './MapView'
-import { EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
+import { EVERYTHING_SCROLL_KEY, type TrailHeaderPos } from './trailWindowPrefs'
+import TrailMapHeader from './TrailMapHeader'
 import { getDailyNoteAnchorDate, toDateKey } from '@/lib/dailyNoteUtils'
 import { useAppStore } from '@/store'
 
@@ -31,6 +32,14 @@ function fmtBoundaryDate(ms: number): string {
   return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// Per feedback ("make it more clear where the time break is"), the automatic day/session
+// boundary divider gets an actual clock time now, not just a date/session name — MapView pairs
+// this with a clock icon and a heavier rule so it reads as distinctly "time actually moved here"
+// rather than just another divider.
+function fmtClock(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
 // Day boundaries use the app's own daily-note anchor date rather than raw midnight: with a
 // location configured, a stop recorded between midnight and sunrise still belongs to the previous
 // day, which is how Berean's daily notes already define a day. Without a location it degrades to
@@ -53,15 +62,20 @@ function fmtDayHeading(ms: number): string {
     : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export default function EverythingView({ sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom, onCurrentHourChange, currentHour }: {
+export default function EverythingView({
+  sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom,
+  headerCollapsed, onToggleHeaderCollapsed, headerPos, onHeaderDragStart,
+}: {
   sessions: TrailSession[]
   zoom?: number
   onZoomChange?: (zoom: number) => void
   revisitWindowMs?: number
   onLayoutRoomChange?: (room: { left: number; right: number }) => void
   layoutRoom?: { left: number; right: number }
-  onCurrentHourChange?: (hour: string | null) => void
-  currentHour?: string | null
+  headerCollapsed: boolean
+  onToggleHeaderCollapsed: () => void
+  headerPos: TrailHeaderPos | null
+  onHeaderDragStart: (e: React.MouseEvent) => void
 }) {
   const headerSide = pickControlSide(layoutRoom, CTRL_W.header)
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
@@ -151,8 +165,8 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
       // own stretch of the timeline.
       const label = s?.id === LOOSE_SESSION_ID || !s ? 'Loose stops' : s.name
       boundaryLabelForNodeId.set(n.id, dayRolled
-        ? `${fmtDayHeading(n.anchorStartedAt)} · ${label}`
-        : `${label} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
+        ? `${fmtDayHeading(n.anchorStartedAt)}, ${fmtClock(n.anchorStartedAt)} · ${label}`
+        : `${label} — ${fmtBoundaryDate(n.anchorStartedAt)}, ${fmtClock(n.anchorStartedAt)}`)
       lastSessionId = n.trailSessionId
       lastDayKey = dayKey
     }
@@ -171,38 +185,18 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
     // flex column filling the full height handed down by StudyTrailApp's "Main pane" — MapView
     // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
     // one that actually scrolls (see MapView.tsx's own comment on this).
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      {/* Same shrink-wrapped translucent pill as the per-session header — defaults top-left,
-          flips top-right only if the spine/branches would sit under it there. */}
-      <div style={{
-        position: 'absolute', top: 0, zIndex: 6, width: 'fit-content', maxWidth: 260,
-        ...(headerSide === 'left' ? { left: 0 } : { right: 0 }),
-        display: 'flex', flexDirection: 'column', gap: 4,
-        background: 'rgb(var(--color-surface-1) / 0.7)',
-        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-        border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 10,
-        boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '7px 9px',
-      }}>
-        <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Everything</h2>
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
-          placeholder="Filter timeline…"
-          style={{
-            width: '100%', fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-          }}
-        />
-        <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))' }}>
-          {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
-        </div>
-        {currentHour && (
-          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))' }}>
-            {currentHour}
-          </div>
-        )}
-      </div>
+    <div data-trail-map-viewport style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <TrailMapHeader
+        side={headerSide}
+        collapsed={headerCollapsed}
+        onToggleCollapsed={onToggleHeaderCollapsed}
+        pos={headerPos}
+        onDragStart={onHeaderDragStart}
+        title={<h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Everything</h2>}
+        filterValue={filter}
+        onFilterChange={setFilter}
+        statsLine={<>{sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total</>}
+      />
       {mergedNodes.length === 0 ? (
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
@@ -222,7 +216,7 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
               }}
             >{loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} older sessions`}</button>
           )}
-          <MapView detail={merged} onChanged={() => { void loadWindow(loadedCountRef.current, false) }} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
+          <MapView detail={merged} onChanged={() => { void loadWindow(loadedCountRef.current, false) }} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} />
         </div>
       )}
     </div>

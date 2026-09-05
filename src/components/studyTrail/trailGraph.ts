@@ -253,7 +253,11 @@ export function nodeBefore(idx: ChapterNodeIndex, sessionId: string, bookId: str
 // view got, eventually forcing horizontal scrolling on the Everything timeline. Michael's
 // constraint is that the trail must never scroll sideways, so the gutter is now a constant and
 // the overlay routes inside it instead of bowing to whatever width it likes.
-export const MAX_GUTTER_LANES = 3
+// Bumped from 3 to 5 per feedback ("give the revisit lines more levels so its easier to
+// discern") — more concurrent revisit chains now get their own lane before any of them has to
+// share the last one as an overflow (faint, brought to full strength on hover). Still a hard
+// cap, not a computed reservation — see the comment above.
+export const MAX_GUTTER_LANES = 5
 export const GUTTER_WIDTH = GUTTER_BASE + (MAX_GUTTER_LANES - 1) * LANE_SPACING + 10
 
 export interface TrailGraph {
@@ -349,10 +353,29 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   // `arrivalNodeFor` (time-nearest), NOT the old last-write-wins chapter map: attaching a
   // session's first Genesis-1 connection to its THIRD Genesis-1 node is what made tangent stubs
   // originate "from something far in the past."
+  //
+  // EXCEPT when a later connection to the same node carries the user's own data (verse ties /
+  // a marked branch / a note) and the earlier one has none: a quick revisit of the same chapter
+  // (nodeNearest reusing the existing node rather than minting a new one) can leave TWO+
+  // connections resolving to the same target here, and plain earliest-wins would let an old,
+  // untouched connection permanently shadow a tie the user just set (via the verse-tie picker,
+  // or the note popover) on the newer one — the map then never renders it as a branch at all,
+  // no matter how many times the data reloads. Only overrides the tiebreak when the earlier
+  // connection genuinely has nothing of its own to lose.
+  // A LATER connection carrying real user data (a branch/tie or a note) always wins over
+  // whatever's already claimed the node — not just over an untouched earlier one. Tying the
+  // SAME two chapters again later in the same session (a second, separate re-engagement) used to
+  // still lose to the first tie (both "have user data", so the old `!existingHasUserData` guard
+  // never let the second one through), which is exactly why it silently fell back to reading as
+  // a plain revisit instead of getting its own branch — the first tie kept permanent ownership
+  // of that arrival node forever. A later connection with NO user data of its own still never
+  // overrides an existing tied one, so an untouched revisit still can't steal a real branch away.
   const originConnByNodeId = new Map<string, TrailConnection>()
   for (const c of [...detail.connections].sort((a, b) => a.createdAt - b.createdAt)) {
     const target = arrivalNodeFor(c)
-    if (target && !originConnByNodeId.has(target.id)) originConnByNodeId.set(target.id, c)
+    if (!target) continue
+    const existing = originConnByNodeId.get(target.id)
+    if (!existing || renderAsBranch(c) || hasNote(c)) originConnByNodeId.set(target.id, c)
   }
 
   // Branch chaining (v31) — a connection with fromConnectionId set hangs off ANOTHER connection,
@@ -478,31 +501,72 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     pushEdge(styled('deeper', { key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, curved: false }))
   }
 
+  // Whether `c` is the connection actually rendering the 3-segment tangent-stub/hop/arrive path
+  // for its own arrival node — i.e. it's renderAsBranch AND it's the one originConnByNodeId
+  // recognizes as that node's owner (the SAME check the main per-connection loop above uses
+  // before it emits the tangent path and skips a plain row for it). A tied connection that
+  // LOSES that ownership race (a later/better-qualified connection to the SAME node won it —
+  // see originConnByNodeId's own tiebreak comment) still has renderAsBranch(c) === true, but
+  // nothing actually draws its tangent path — so pushRowEdges below must NOT also skip its
+  // plain return line in that case, or the connection renders with no line at all.
+  function ownsBranchArrival(c: AnnotatedConn): boolean {
+    const arrival = arrivalNodeFor(c)
+    return !!arrival && originConnByNodeId.get(arrival.id)?.id === c.id
+  }
+
   // Shared per-row edge logic — `stubFrom` is the point key this row's own short connector
   // starts at (its chapter node for a top-level row, its PARENT row's point for a chained one).
   function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
     pushEdge(styled(c.weight === 'glance' ? 'glance' : 'deeper', { key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, curved: false }))
-    if (c.isReturn && c.toBookId && c.toChapter != null) {
+    // Skip the plain return/revisit line ONLY when this connection actually owns the full
+    // 3-segment tangent-stub/hop/arrive path for its arrival node (pushed in the loop above) —
+    // that already draws origin→dest as its own real path, so the plain backlink on top of it
+    // was exactly the "back-and-forth chapters + a picker tie looks wonky" complaint. A tied
+    // connection that DOESN'T own that path (see ownsBranchArrival above) still needs its plain
+    // return line — otherwise a connection with real ties that lost the ownership race to
+    // another tied connection on the same node rendered with NO line connecting it at all,
+    // which is exactly what "there's nothing shown between two stops that should be joined"
+    // turned out to be.
+    if (c.isReturn && c.toBookId && c.toChapter != null && !(renderAsBranch(c) && ownsBranchArrival(c))) {
       const target = nodeBefore(chapterIndex, c.trailSessionId, c.toBookId, c.toChapter, c.createdAt)
       if (target) {
         const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!
         // Its own quieter visual class, independent of clarity-tier color — a return shouldn't
-        // shout as loud as a fresh forward move.
+        // shout as loud as a fresh forward move. No verse-tie label any more (used to show
+        // "Luke 4:18-19 ⇄ Isaiah 61:1-2" right on the hairline via verseTieLabel()) — per direct
+        // feedback that reads as clutter on a plain revisit line regardless of whether a tie is
+        // involved; a tie's own verse detail belongs on the tangent bullets, not repeated here.
         pushLaned(styled('back', {
           key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
-          label: verseTieLabel(c),
           minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
         }))
       }
     }
     if (c.isForwardBranch) {
       // Always a confidently-traced, SAME-DEPTH continuation (a plain read whose specific origin
-      // is worth tracing rather than the generic spine arrow), so same-depth styling. Targets the
-      // connection's REAL destination via arrivalNodeFor — the old `nextNodeById.get(fromNodeId)`
-      // pointed at "whatever node happens to follow the source," which a spliced revisit node
-      // makes flatly wrong.
-      const target = arrivalNodeFor(c) ?? nextNodeById.get(c.fromNodeId)
-      if (target) pushEdge(styled('deeper', { key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, curved: true }))
+      // is worth tracing rather than the generic spine arrow), so same-depth styling.
+      //
+      // FOUND (per the stray-blue-line investigation): this used to prefer arrivalNodeFor(c) —
+      // a time-nearest lookup — over `next` (nextNodeById.get(fromNodeId)), on the theory that
+      // `next` was the less reliable of the two. But `isForwardBranch` is ONLY ever set (above,
+      // in the loop that builds `annotated`) after ALREADY VERIFYING next.trailSessionId/
+      // bookId/chapter match this exact connection's destination — and that same verified `next`
+      // is what claimTracedArrival() marks as this node's arrival target right there. Preferring
+      // arrivalNodeFor(c) here instead re-derives the target through a SEPARATE, weaker
+      // heuristic (nearest in TIME, not verified against this connection at all) that can
+      // disagree with the already-verified `next` whenever the destination chapter has more
+      // than one visit in this session — silently drawing to a different (and, being a nearest-
+      // in-time rather than adjacent-in-order lookup, potentially FAR AWAY) node than the one
+      // just claimed. `next` is now primary, matching what was verified/claimed above;
+      // arrivalNodeFor(c) is only the fallback for the rare case `next` itself is somehow gone.
+      const next = nextNodeById.get(c.fromNodeId)
+      const target = next ?? arrivalNodeFor(c)
+      if (target) {
+        pushEdge(styled('deeper', {
+          key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, curved: true,
+          ...(next == null ? { usedFallbackTarget: true } : {}),
+        }))
+      }
     }
   }
 
@@ -537,14 +601,36 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     if (linked.length < 2) continue
     const first = linked[0], last = linked[linked.length - 1]
     const idxs = linked.map((n) => nodeOrderIndex.get(n.id)!)
-    pushLaned(styled('back', {
+    const base = styled('back', {
       key: `revisit-chain:${first.id}`,
       from: `node:${last.id}`, to: `node:${first.id}`,
       arrow: false, // an identity link ("same chapter"), not a step in the reading order
-      label: linked.length > 2 ? `×${linked.length}` : revisitLabelFor(last),
       ticks: linked.slice(1, -1).map((n) => `node:${n.id}`),
       minIdx: Math.min(...idxs), maxIdx: Math.max(...idxs),
-    }))
+    })
+    // Per direct feedback, the always-on "×N" label read as clutter — the same information
+    // (plus the actual first/last visit dates) now lives in a hover tooltip instead (see
+    // TrailConnectorOverlay's revisitCount/firstVisitAt/lastVisitAt handling), and the line
+    // itself communicates "how much" at a glance via weight/saturation instead of text:
+    //   - MORE REVISITS → thicker + more opaque (capped so a chapter visited a dozen times
+    //     doesn't run away visually past a handful of visits).
+    //   - an OLDER original visit → more muted, independent of count — a chapter you first
+    //     read months ago and still bounce back to should read differently from one you
+    //     started yesterday, even at the same revisit count.
+    // Deliberately applied AFTER styled('back', …) above: styled() always wins ties against
+    // its own input object (by design — see trailStyle.ts's header comment), so per-instance
+    // overrides like these have to be layered on top of its result, not passed into it.
+    const countStep = Math.min(linked.length - 2, 4) // 0 (2 visits) .. 4 (6+ visits)
+    const daysSinceFirstVisit = (Date.now() - first.anchorStartedAt) / 86_400_000
+    const recencyMute = Math.max(0.55, 1 - daysSinceFirstVisit / 90)
+    pushLaned({
+      ...base,
+      strokeWidth: base.strokeWidth + countStep * 0.4,
+      opacity: Math.min(0.85, base.opacity + countStep * 0.08) * recencyMute,
+      revisitCount: linked.length,
+      firstVisitAt: first.anchorStartedAt,
+      lastVisitAt: last.anchorStartedAt,
+    })
   }
 
   // Chained branch rows get the same per-row edges, but their short local stub starts from their
@@ -665,16 +751,4 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   }
 }
 
-/** The verse pair that ties the two ends of a return together, rendered as the gutter hairline's
- *  own label ("Rev 12:6 ⇄ Hos 2:14") so a backlink says WHY it exists without being traced by
- *  eye. Falls back to whichever half is known, then to nothing at all. */
-function verseTieLabel(c: TrailConnection): string | undefined {
-  const from = c.tiesFrom[0]?.trim() || (c.originVersePinFrom != null ? `v${c.originVersePinFrom}` : '')
-  const to = c.tiesTo[0]?.trim() || (c.versePinFrom != null ? `v${c.versePinFrom}` : '')
-  if (from && to) return `${from} ⇄ ${to}`
-  return from || to || undefined
-}
 
-function revisitLabelFor(n: TrailNode): string | undefined {
-  return n.originLabel?.trim() || undefined
-}

@@ -115,7 +115,12 @@ describe('return edges', () => {
     }
   })
 
-  it('carries the tying verse pair as the lane label', () => {
+  it('a tied revisit renders as the branch/tangent path, not a duplicate plain return line', () => {
+    // Per direct feedback ("back and forth between two chapters then a picker tie... looks
+    // really wonky") — a connection that is BOTH a revisit (isReturn) AND a verse-tie/branch
+    // (renderAsBranch) used to draw the plain `return:` backlink edge AND the tangent-stub/hop/
+    // arrive path for the exact same move. Now only the branch path draws; the plain return
+    // edge is skipped whenever renderAsBranch(c) is true.
     const nodes = [
       node('n1', 'Hos', 2, T0),
       node('n2', 'Rev', 12, T0 + 10 * MIN),
@@ -124,7 +129,75 @@ describe('return edges', () => {
       toBookId: 'Hos', toChapter: 2, tiesFrom: ['Rev 12:6'], tiesTo: ['Hos 2:14'],
     })
     const g = buildTrailGraph(detailOf(nodes, [c]))
-    expect(edgeByKey(g.edges, 'return:c1')?.label).toBe('Rev 12:6 ⇄ Hos 2:14')
+    expect(edgeByKey(g.edges, 'return:c1')).toBeUndefined()
+    // Tangent edges are keyed by the ARRIVAL node — c1 travels from n2 (Rev 12) to n1's own
+    // chapter (Hos 2), so the arrival is n1 itself (the tied destination), not n2.
+    expect(edgeByKey(g.edges, 'tangent-stub:n1')).toBeDefined()
+    expect(edgeByKey(g.edges, 'tangent-hop:n1')).toBeDefined()
+    expect(edgeByKey(g.edges, 'tangent-arrive:n1')).toBeDefined()
+  })
+
+  it('a SECOND, later tie to the same chapter takes over as its branch owner', () => {
+    // Per direct feedback ("i did the same connection between luke 4 and isaiah 61 later in the
+    // same session and i dont see the branching... it should show the branching again
+    // separate") — the first tie to a chapter used to claim that arrival node PERMANENTLY (the
+    // old guard only let a candidate win when the existing owner had NO user data at all), so a
+    // second, later re-tie of the exact same chapter silently lost to the first and rendered as
+    // a plain revisit instead of its own branch. The latest connection carrying real user data
+    // now always takes over ownership of the node.
+    const nodes = [
+      node('n1', 'Hos', 2, T0),
+      node('n2', 'Rev', 12, T0 + 10 * MIN),
+      node('n3', 'Jhn', 3, T0 + 30 * MIN),
+    ]
+    const c1 = conn('c1', 'n2', T0 + 12 * MIN, { toBookId: 'Hos', toChapter: 2, tiesFrom: ['Rev 12:6'], tiesTo: ['Hos 2:14'] })
+    const c2 = conn('c2', 'n3', T0 + 32 * MIN, { toBookId: 'Hos', toChapter: 2, tiesFrom: ['Jhn 3:16'], tiesTo: ['Hos 2:23'] })
+    const g = buildTrailGraph(detailOf(nodes, [c1, c2]))
+    expect(g.originConnByNodeId.get('n1')?.id).toBe('c2')
+  })
+
+  it('a tied connection that LOSES the branch-ownership race still draws its return line', () => {
+    // Real regression, found from a live report ("connections are not showing... theres nothing
+    // shown between two stops that should be joined"). Combining the previous two fixes exposed
+    // a hole: pushRowEdges skipped the plain return/revisit line for ANY renderAsBranch(c)
+    // connection, assuming it always owned (and was covered by) the tangent-stub/hop/arrive
+    // path. But when TWO tied connections both resolve to the SAME arrival node, only the
+    // ownership-winning one (originConnByNodeId) actually gets that tangent path — the loser
+    // still has renderAsBranch(c) === true but nothing draws ITS path, so it rendered with no
+    // connecting line to its target at all. Fixed by only skipping the return line when the
+    // connection actually owns its arrival's tangent path (ownsBranchArrival).
+    const nodes = [
+      node('n0', 'Isa', 61, T0),                                    // original Isaiah 61 visit
+      node('n1', 'Isa', 1, T0 + 5 * MIN),
+      node('n2', 'Isa', 61, T0 + 9 * MIN, { revisitOfNodeId: 'n0' }), // the ONE revisit node both connections target
+      node('n3', '1Ki', 1, T0 + 40 * MIN),
+    ]
+    // Both are RETURNS to n2 (fromNodeId=n3, whose own "next" is nothing — never misread as a
+    // forward branch) — c_loser created first, c_winner later with its own real ties, so
+    // originConnByNodeId hands ownership of n2 to c_winner per the previous test's fix.
+    const cLoser = conn('c_loser', 'n3', T0 + 45 * MIN, { toBookId: 'Isa', toChapter: 61, tiesFrom: ['Luke 4:18-19'], tiesTo: ['Isaiah 61:1-2'] })
+    const cWinner = conn('c_winner', 'n3', T0 + 50 * MIN, { toBookId: 'Isa', toChapter: 61, tiesFrom: ['Luke 4:22-24'], tiesTo: ['Isaiah 61:6-8'] })
+    const g = buildTrailGraph(detailOf(nodes, [cLoser, cWinner]))
+    expect(g.originConnByNodeId.get('n2')?.id).toBe('c_winner')
+    // The winner is covered by the tangent path (no separate return line needed).
+    expect(edgeByKey(g.edges, 'return:c_winner')).toBeUndefined()
+    expect(edgeByKey(g.edges, 'tangent-arrive:n2')).toBeDefined()
+    // The loser must NOT be left with nothing connecting it to n2.
+    expect(edgeByKey(g.edges, 'return:c_loser')).toBeDefined()
+  })
+
+  it('never labels a plain (untied) return/revisit line — no verse text on the hairline', () => {
+    // Per direct feedback ("dont put the verse stuff in the revisit line generally... it looks
+    // really ugly") — even a genuine plain revisit (no tie at all) no longer carries an inline
+    // verse-pair label; that detail lives on the tangent bullets for an actual branch/tie, not
+    // repeated on every backlink.
+    const nodes = [
+      node('n1', 'Gen', 1, T0),
+      node('n2', 'Job', 26, T0 + 10 * MIN),
+    ]
+    const c = conn('c1', 'n2', T0 + 12 * MIN, { toBookId: 'Gen', toChapter: 1 })
+    const g = buildTrailGraph(detailOf(nodes, [c]))
+    expect(edgeByKey(g.edges, 'return:c1')?.label).toBeUndefined()
   })
 })
 
@@ -198,23 +271,37 @@ describe('gutter', () => {
     expect(laned[0].from).toBe('node:r6')
     expect(laned[0].to).toBe('node:base')
     expect(laned[0].ticks).toEqual(['node:r1', 'node:r2', 'node:r3', 'node:r4', 'node:r5'])
-    expect(laned[0].label).toBe('×7')
+    // The always-on "×N" label was removed per feedback (it read as clutter) — the count and
+    // visit dates now live in revisitCount/firstVisitAt/lastVisitAt instead, surfaced only via
+    // a hover tooltip (see TrailConnectorOverlay), and "how much" shows on the line itself via
+    // weight/saturation (strokeWidth/opacity scale with count, see trailStyle.ts's EDGE_STYLE.back
+    // base values).
+    expect(laned[0].label).toBeUndefined()
+    expect(laned[0].revisitCount).toBe(7)
+    expect(laned[0].firstVisitAt).toBe(T0)
+    expect(laned[0].lastVisitAt).toBe(T0 + 6 * MIN)
+    // 7 visits caps countStep at 4 (min(7-2, 4)): strokeWidth = base 1 + 4*0.4 = 2.6, opacity =
+    // min(0.85, base 0.4 + 4*0.08) = 0.72. T0 is a fixed timestamp long in the past (recency-mute
+    // floors at 0.55 once the original visit is >40 days old, which T0 always is), so this is
+    // deterministic regardless of when the test actually runs: 0.72 * 0.55 = 0.396.
+    expect(laned[0].strokeWidth).toBeCloseTo(2.6, 5)
+    expect(laned[0].opacity).toBeCloseTo(0.396, 5)
   })
 
   it('caps lanes so the reserved width never grows', () => {
-    // Four separate revisited chapters, all overlapping in time — more than the gutter has lanes.
+    // More separate revisited chapters than MAX_GUTTER_LANES, all overlapping in time.
     const nodes: TrailNode[] = []
-    const books = ['Gen', 'Exo', 'Lev', 'Num']
+    const books = ['Gen', 'Exo', 'Lev', 'Num', 'Deu', 'Jos']
     books.forEach((b, bi) => nodes.push(node(`a${bi}`, b, 1, T0 + bi * MIN)))
     books.forEach((b, bi) => nodes.push(node(`z${bi}`, b, 1, T0 + (20 + bi) * MIN, { revisitOfNodeId: `a${bi}` })))
     const g = buildTrailGraph(detailOf(nodes, []))
     const laned = g.edges.filter((e) => e.lane != null)
-    expect(laned.length).toBe(4)
+    expect(laned.length).toBe(books.length)
     for (const e of laned) expect(e.lane!).toBeLessThan(MAX_GUTTER_LANES)
     // Overflow is faded rather than dropped, so no backlink is ever silently lost.
     expect(laned.some((e) => e.overflowLane)).toBe(true)
 
-    const narrow = buildTrailGraph(detailOf([nodes[0], nodes[4]], []))
+    const narrow = buildTrailGraph(detailOf([nodes[0], nodes[books.length]], []))
     expect(g.gutterWidth).toBe(narrow.gutterWidth)
   })
 

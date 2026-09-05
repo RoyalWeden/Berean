@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // The connected-lines engine: a single absolutely-positioned SVG overlay per spine, drawing
 // real paths between the ACTUAL measured pixel positions of spine dots and branch-row markers
@@ -51,6 +52,20 @@ export interface TrailEdge {
    *  "Rev 12:6 ⇄ Hos 2:14") so a backlink says WHY it exists without being traced by eye.
    *  Truncated to the gutter's own width — it may never widen the layout. */
   label?: string
+  /** Revisit-chain metadata (see trailGraph.ts's per-chapter revisit backlink) — set only on
+   *  that one edge kind. Presence of `revisitCount` is what triggers the hover-tooltip and the
+   *  wider hover-hitbox below; count/dates aren't drawn on the line itself (per direct feedback,
+   *  the always-on "×N" label read as clutter — the line's weight/saturation already encodes
+   *  "how much" and this tooltip covers "since when"). */
+  revisitCount?: number
+  firstVisitAt?: number
+  lastVisitAt?: number
+  /** Diagnostic only (see trailGraph.ts's isForwardBranch handling) — set when the VERIFIED
+   *  `next` (chronologically-following) node wasn't available for some reason and this edge
+   *  had to fall back to arrivalNodeFor(c)'s time-nearest lookup instead. Should be rare; if
+   *  it isn't, that lookup — not `next` — is now the prime suspect for a stray/wrongly-
+   *  targeted "deeper" (accent-blue) arc. Logged below behind __bereanTrailDebug. */
+  usedFallbackTarget?: boolean
 }
 
 // Shared with trailGraph.ts, which sizes the reserved gutter column from these — a lane routes
@@ -124,6 +139,19 @@ export default function TrailConnectorOverlay({
   // below. Only ever set by an overflow edge's own hit-target, so a normal session never
   // re-renders for it.
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null)
+  // Cursor-following tooltip for a revisit-chain edge's count/dates — per direct feedback, the
+  // always-on "×N" label was removed (see trailGraph.ts) in favor of the line's own weight/
+  // saturation, but the detail should still be available on demand. Kept separate from
+  // hoveredEdgeKey (which only ever drives overflow-lane dimming/bring-forward) since this one
+  // also needs the live cursor position to place a fixed-position tooltip div.
+  const [revisitTooltip, setRevisitTooltip] = useState<{ key: string; x: number; y: number } | null>(null)
+  // A SEPARATE svg, portaled into from inside the main render loop below, that exists only to
+  // host the invisible hit-stroke paths (overflow-lane / revisit-line hover) above the spine
+  // content in stacking order. Keeping this apart from the main svg (whose own z-index a
+  // previous attempt raised directly) means the main svg's paint order — and therefore its
+  // relationship to MapView's decorative indent-guide lines, which sit behind everything and
+  // regressed when that z-index moved — never has to change at all.
+  const [hitSvgEl, setHitSvgEl] = useState<SVGSVGElement | null>(null)
   // Dedupe the missing-endpoint warning below — without this it re-fires identically on EVERY
   // render forever for any edge whose endpoint is legitimately not currently mounted (most
   // commonly: a spine edge touching a node hidden inside a collapsed "bounced Nx" cluster,
@@ -141,14 +169,11 @@ export default function TrailConnectorOverlay({
   // moment it resolves) instead of "has this exact combo ever been warned about" means a later,
   // real recurrence of the same edge going missing always re-logs.
   const missingRef = useRef<Map<string, string>>(new Map())
-  // Per direct feedback ("can you create some logs for the arc, its still having the same
-  // issues") — logs every laned (revisit/return) edge's actual computed geometry, keyed and
-  // deduped by edge key + a rounded summary of the values so it only re-logs when something
-  // ACTUALLY changes (a resize, a new edge, real values shifting) rather than every render.
-  // Reading gutterX/gutterRightEdge/extraBow/laneX/vertRun straight from here settles definitively
-  // whether the constants bumped this round (EXIT_RUN, EXTRA_BOW_BASE, the laneX floor) are
-  // actually being used with the values expected, or whether stale code/props are still in play.
-  const lastArcLogRef = useRef<Map<string, string>>(new Map())
+  // Dedupe the usedFallbackTarget warning below the same way — log once per edge key, not once
+  // per render, for as long as this session stays open.
+  const fallbackLoggedRef = useRef<Set<string>>(new Set())
+  // Dedupe the long-jump warning below (keyed by edge key + its rounded distance).
+  const longJumpRef = useRef<Map<string, string>>(new Map())
 
   // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
   // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
@@ -255,6 +280,14 @@ export default function TrailConnectorOverlay({
   }, [containerRef, recompute])
 
   return (
+    <>
+    {/* Deliberately NO explicit z-index here (back to how this was before) — raising this
+        WHOLE svg above the spine content div (zIndex:1) fixed the revisit-line hover, but it
+        also silently pulled the map's decorative indent-guide lines (rendered as their own
+        zIndex:0 siblings in MapView, meant to always sit behind everything) out of their
+        correct spot relative to this svg's now-topmost paint layer — a real regression, caught
+        via feedback. The hover fix now lives in a SEPARATE, dedicated hit-testing overlay
+        (below, after this svg) instead, so this one's own stacking never has to move. */}
     <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
         {/* refX=7 (not 5.5) puts the arrow's actual TIP at the path's endpoint with zero
@@ -291,6 +324,36 @@ export default function TrailConnectorOverlay({
         // (this same edge going missing again after having been fine) logs again instead of
         // staying silently suppressed by an earlier warning from earlier in the session.
         if (window.__bereanTrailDebug && missingRef.current.has(e.key)) missingRef.current.delete(e.key)
+        // "weird line off a main-spine bullet" — unlike the missing-endpoint case above, THIS
+        // catches an edge whose two endpoints are BOTH present but implausibly far apart for
+        // what the edge type should ever connect: a spine/tangent-* segment always joins
+        // adjacent-in-reading-order stops, so it should never span more than roughly a
+        // half-screen of vertical distance. Logs once per key per (rounded) distance, so a
+        // regression that WORSENS re-logs instead of going silent after the first warning.
+        if (window.__bereanTrailDebug && (e.key.startsWith('spine:') || e.key.startsWith('tangent-'))) {
+          const dist = Math.hypot(rawB.x - rawA.x, rawB.y - rawA.y)
+          const LONG_JUMP_PX = 600
+          if (dist >= LONG_JUMP_PX) {
+            const warnKey = `${Math.round(dist / 20) * 20}`
+            if (longJumpRef.current.get(e.key) !== warnKey) {
+              longJumpRef.current.set(e.key, warnKey)
+              console.warn('[TrailDebug] long-jump edge — likely the stray/wrong-target line', {
+                key: e.key, from: e.from, to: e.to, distancePx: Math.round(dist),
+                fromXY: { x: Math.round(rawA.x), y: Math.round(rawA.y) }, toXY: { x: Math.round(rawB.x), y: Math.round(rawB.y) },
+              })
+            }
+          } else if (longJumpRef.current.has(e.key)) {
+            longJumpRef.current.delete(e.key)
+          }
+        }
+        // See trailGraph.ts's isForwardBranch comment — the VERIFIED `next` node was
+        // unavailable here, so this edge had to fall back to arrivalNodeFor(c)'s weaker,
+        // time-nearest lookup, which is the new prime suspect for a stray/wrongly-targeted
+        // "deeper" (accent-blue) arc if this ever actually fires.
+        if (window.__bereanTrailDebug && e.usedFallbackTarget && !fallbackLoggedRef.current.has(e.key)) {
+          fallbackLoggedRef.current.add(e.key)
+          console.warn('[TrailDebug] "deeper" edge fell back to arrivalNodeFor (verified next node was unavailable)', { key: e.key, from: e.from, to: e.to })
+        }
         // Only actually reached by NON-laned edges now (round 9 moved BOTH laned edge types —
         // revisit-link and return — onto their own dedicated virtual-anchor constructions below,
         // neither of which uses this gap/pullback approach any more; see that branch's own
@@ -323,8 +386,18 @@ export default function TrailConnectorOverlay({
           const laneX = Math.max(4, gutterRightEdge - LANE_RIGHT_INSET - e.lane * LANE_SPACING)
           const sx = rawA.x - (radiusFor(e.from) + ENDPOINT_GAP)
           const ex = rawB.x - (radiusFor(e.to) + (e.arrow ? ENDPOINT_GAP + 2 : ENDPOINT_GAP))
-          const sy = rawA.y
-          const ey = rawB.y
+          // Per feedback ("make them connect to the bullets at different points so they dont
+          // all connect at the same point, this would make them more distinguishable") —
+          // revisit-chain lines used to attach dead-center on the bullet regardless of lane, so
+          // several of them landing on the same node looked like one thick line. A small
+          // per-lane vertical nudge (kept well inside the node's own 5px radius, so it still
+          // reads as touching the dot rather than floating off it) fans them out instead.
+          // Centered on lane 2 (the middle of the current 5-lane gutter) rather than derived
+          // from MAX_GUTTER_LANES — importing that here would create a circular import, since
+          // trailGraph.ts already imports GUTTER_BASE/LANE_SPACING FROM this file.
+          const laneOffset = e.key.startsWith('revisit-chain:') ? ((e.lane ?? 2) - 2) * 1.5 : 0
+          const sy = rawA.y + laneOffset
+          const ey = rawB.y + laneOffset
           const dirY = Math.sign(ey - sy) || 1
           // Corner radius has to shrink for a short edge, otherwise the two arcs overlap and the
           // path folds back on itself — clamped against both the vertical run and the horizontal
@@ -334,19 +407,6 @@ export default function TrailConnectorOverlay({
             ? `M${sx},${sy} L${laneX + r},${sy} Q${laneX},${sy} ${laneX},${sy + dirY * r} L${laneX},${ey - dirY * r} Q${laneX},${ey} ${laneX + r},${ey} L${ex},${ey}`
             : `M${sx},${sy} L${laneX},${sy} L${laneX},${ey} L${ex},${ey}`
           laneGeom = { laneX, topY: Math.min(sy, ey), bottomY: Math.max(sy, ey) }
-          if (window.__bereanTrailDebug) {
-            const summary = {
-              key: e.key, edgeType: e.key.split(':')[0], arrow: !!e.arrow, lane: e.lane,
-              overflow: !!e.overflowLane,
-              gutterRightEdge: Math.round(gutterRightEdge), laneX: Math.round(laneX),
-              vertRun: Math.round(Math.abs(ey - sy)), d,
-            }
-            const logStr = JSON.stringify(summary)
-            if (lastArcLogRef.current.get(e.key) !== logStr) {
-              lastArcLogRef.current.set(e.key, logStr)
-              console.log('[TrailDebug] lane route', summary)
-            }
-          }
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
@@ -405,15 +465,71 @@ export default function TrailConnectorOverlay({
               />
             )
           })}
-          {e.overflowLane && (
+          {e.overflowLane && hitSvgEl && createPortal(
             <path
+              key={`hit:${e.key}`}
               d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
               onMouseEnter={() => setHoveredEdgeKey(e.key)} onMouseLeave={() => setHoveredEdgeKey((k) => (k === e.key ? null : k))}
-            />
+            />,
+            hitSvgEl,
+          )}
+          {/* Same invisible-fat-stroke hit-target idea, for revisit-chain edges' count/dates
+              tooltip — the visible line is a hairline even at its thickest, too thin to hover
+              reliably on its own. */}
+          {e.revisitCount != null && hitSvgEl && createPortal(
+            <path
+              key={`hit:${e.key}`}
+              d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
+              onMouseMove={(ev) => {
+                setRevisitTooltip({ key: e.key, x: ev.clientX, y: ev.clientY })
+              }}
+              onMouseLeave={() => setRevisitTooltip((t) => (t?.key === e.key ? null : t))}
+            />,
+            hitSvgEl,
           )}
           </g>
         )
       })}
     </svg>
+    {/* Hosts only the invisible hit-stroke paths above (via portal) — its OWN z-index sits
+        above the spine content div (zIndex:1) so a click/hover meant for a hit-stroke actually
+        reaches it, without moving the main svg (and therefore the guide lines' relationship to
+        it) at all. pointerEvents:none at the root, same reasoning as the main svg — only the
+        portaled paths themselves opt back in. */}
+    <svg
+      ref={setHitSvgEl}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 2 }}
+    />
+    {revisitTooltip && (() => {
+      const e = edges.find((edge) => edge.key === revisitTooltip.key)
+      if (!e || e.revisitCount == null) return null
+      const fmt = (ms: number) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' })
+      // Portaled straight to document.body and positioned from raw clientX/clientY, exactly
+      // like TrailHoverCard's own cards — this overlay's SVG lives inside MapView's zoomed
+      // (`transform: scale`) spine, which makes that ancestor the containing block for any
+      // `position: fixed` descendant. Escaping via a portal is the only way this tooltip lands
+      // at the actual cursor position instead of somewhere inside the (scrolling, clipping,
+      // rescaled) zoomed subtree — see TrailHoverCard.tsx's own comment on this exact issue.
+      return createPortal(
+        <div
+          style={{
+            position: 'fixed', top: revisitTooltip.y + 14, left: revisitTooltip.x + 14, zIndex: 10000,
+            background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+            borderRadius: 8, padding: '6px 9px', fontSize: 11, lineHeight: 1.4,
+            color: 'rgb(var(--color-text-primary))', boxShadow: '0 6px 18px rgba(0,0,0,0.24)',
+            width: 'fit-content', whiteSpace: 'nowrap', pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontWeight: 600 }}>Revisited {e.revisitCount}×</div>
+          {e.firstVisitAt != null && e.lastVisitAt != null && (
+            <div style={{ color: 'rgb(var(--color-text-muted))' }}>
+              {fmt(e.firstVisitAt)} → {fmt(e.lastVisitAt)}
+            </div>
+          )}
+        </div>,
+        document.body,
+      )
+    })()}
+    </>
   )
 }

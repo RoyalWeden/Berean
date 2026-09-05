@@ -59,8 +59,14 @@ function StrongsInline({
   // from under them (see .strongs-chip-abs in global.css). Line spacing is the only thing that
   // then changes, animated separately by VerseRow.
   // Chip stack: absolutely positioned, CENTERED under its word (translateX(-50%)) so the
-  // pairing reads at a glance. Zero layout contribution.
-  const CHIP_STACK = 'strongs-chip-abs absolute flex flex-col items-center'
+  // pairing reads at a glance. Zero layout contribution — which is exactly why a SECONDARY
+  // chip (stacked below the primary one, for a word tagged with more than one Strong's number)
+  // could become unreachable: the stack's real height was never reserved in the flow, so on a
+  // tightly-spaced chapter the secondary chip could sit low enough to overlap the NEXT line's
+  // verse text, and that text (later in DOM order, otherwise at the same z-index:auto stacking
+  // level) painted on top of it, swallowing hover/click. z-10 guarantees the whole stack — both
+  // chips — always paints above ordinary verse text nearby, regardless of that DOM-order race.
+  const CHIP_STACK = 'strongs-chip-abs absolute z-10 flex flex-col items-center'
   const CHIP_STACK_STYLE: CSSProperties = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '-0.06em', lineHeight: 1, gap: '4px' }
   // Clearly-a-pill: translucent accent fill + faint accent border, fully rounded, real padding.
   // Dim at rest. All brightening/highlighting is driven by ChapterView's delegated hover
