@@ -122,7 +122,25 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.6.2] - 2026-09-05
+## [0.6.4] - 2026-09-05
+
+### Performance
+
+- Switching between the Scripture, Notes, Lexicon and Search areas is now
+  instant. Each keeps its state in the background instead of being torn down
+  and rebuilt every time you leave and come back — most noticeably the notes
+  editor, which no longer has to reload the note you were working on.
+- Returning to a Search tab brings its results back with it, instead of
+  showing an empty pane until you run the search again.
+- Turning Strong's numbers on and off is quicker, especially in long chapters
+  like Psalm 119.
+- Paging back to a chapter you've already visited shows its note markers,
+  highlights and tags immediately, rather than a beat after the text.
+- Reduced background work that was happening on every scroll and every
+  keystroke, so scrolling while reading and typing in notes stay smooth even
+  with several tabs and a second window open.
+
+## [0.6.3] - 2026-09-05
 
 ### Study Trail
 
