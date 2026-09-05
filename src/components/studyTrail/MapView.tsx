@@ -4,6 +4,7 @@ import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
+import TrailSelectedInfoCard from './TrailSelectedInfoCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
 import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
@@ -739,6 +740,7 @@ function NodeBlock({
 }) {
   const replace = useWordReplace()
   const hoverDisabled = useContext(HoverDisabledContext)
+  const rowElRef = useRef<HTMLDivElement>(null)
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId && revisitAllowed
@@ -944,6 +946,7 @@ function NodeBlock({
           secondaryContent={showNoteBubble(originConn) ? <TrailNoteBubbleContent conn={originConn!} onEdit={() => onOpenPrompt(originConn!)} /> : undefined}
         >
           <div
+            ref={rowElRef}
             onClick={(e) => { if (!trailRefClick(nodeRef, e) && hasRows) toggleCollapsed('branch', nodeKey) }}
             onContextMenu={(e) => openTrailRefMenu(
               openMenu, nodeRef, e, onJumpToOrigin,
@@ -1058,6 +1061,17 @@ function NodeBlock({
             )}
           </div>
         </TrailHoverCard>
+        {/* Per feedback ("when the user hovers over a bullet, show the same thing as the item"):
+            a SELECTED node (marquee/keyboard select) used to get only a highlight ring, no info
+            at all. Shows the same TrailNodeHoverContent the hover card above shows, independent
+            of the mouse — see TrailSelectedInfoCard's own comment for why this is a separate,
+            simpler component rather than teaching TrailHoverCard about a second trigger. */}
+        {selected && (
+          <TrailSelectedInfoCard
+            anchorRef={rowElRef}
+            content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
+          />
+        )}
         {node.cachedSubnote && <div style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))', marginTop: 2 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {/* Folded away, but never silently: the summary line says how many stops are hidden, so
