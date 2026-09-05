@@ -172,7 +172,10 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
         <button onClick={weekOnly ? prevWeek : prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronLeft size={compact ? 15 : 17} />
         </button>
-        <span className="font-medium text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
+        {/* whitespace-nowrap — the extra collapse button (below) narrowed how much room this
+            label gets in the row, and without it "September 2026" could wrap onto a second
+            line instead of just sitting flush against whatever's next to it. */}
+        <span className="font-medium whitespace-nowrap text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
         {!(weekOnly ? weekIsCurrent : isCurrentMonth) && (
           <button
             onClick={() => (weekOnly ? setWeekAnchor(new Date()) : onDateChange(new Date()))}

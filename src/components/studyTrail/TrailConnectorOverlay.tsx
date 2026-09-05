@@ -172,6 +172,8 @@ export default function TrailConnectorOverlay({
   // Dedupe the usedFallbackTarget warning below the same way — log once per edge key, not once
   // per render, for as long as this session stays open.
   const fallbackLoggedRef = useRef<Set<string>>(new Set())
+  // Dedupe the long-jump warning below (keyed by edge key + its rounded distance).
+  const longJumpRef = useRef<Map<string, string>>(new Map())
 
   // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
   // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
@@ -322,6 +324,28 @@ export default function TrailConnectorOverlay({
         // (this same edge going missing again after having been fine) logs again instead of
         // staying silently suppressed by an earlier warning from earlier in the session.
         if (window.__bereanTrailDebug && missingRef.current.has(e.key)) missingRef.current.delete(e.key)
+        // "weird line off a main-spine bullet" — unlike the missing-endpoint case above, THIS
+        // catches an edge whose two endpoints are BOTH present but implausibly far apart for
+        // what the edge type should ever connect: a spine/tangent-* segment always joins
+        // adjacent-in-reading-order stops, so it should never span more than roughly a
+        // half-screen of vertical distance. Logs once per key per (rounded) distance, so a
+        // regression that WORSENS re-logs instead of going silent after the first warning.
+        if (window.__bereanTrailDebug && (e.key.startsWith('spine:') || e.key.startsWith('tangent-'))) {
+          const dist = Math.hypot(rawB.x - rawA.x, rawB.y - rawA.y)
+          const LONG_JUMP_PX = 600
+          if (dist >= LONG_JUMP_PX) {
+            const warnKey = `${Math.round(dist / 20) * 20}`
+            if (longJumpRef.current.get(e.key) !== warnKey) {
+              longJumpRef.current.set(e.key, warnKey)
+              console.warn('[TrailDebug] long-jump edge — likely the stray/wrong-target line', {
+                key: e.key, from: e.from, to: e.to, distancePx: Math.round(dist),
+                fromXY: { x: Math.round(rawA.x), y: Math.round(rawA.y) }, toXY: { x: Math.round(rawB.x), y: Math.round(rawB.y) },
+              })
+            }
+          } else if (longJumpRef.current.has(e.key)) {
+            longJumpRef.current.delete(e.key)
+          }
+        }
         // See trailGraph.ts's isForwardBranch comment — the VERIFIED `next` node was
         // unavailable here, so this edge had to fall back to arrivalNodeFor(c)'s weaker,
         // time-nearest lookup, which is the new prime suspect for a stray/wrongly-targeted
