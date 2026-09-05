@@ -501,16 +501,33 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     pushEdge(styled('deeper', { key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, curved: false }))
   }
 
+  // Whether `c` is the connection actually rendering the 3-segment tangent-stub/hop/arrive path
+  // for its own arrival node — i.e. it's renderAsBranch AND it's the one originConnByNodeId
+  // recognizes as that node's owner (the SAME check the main per-connection loop above uses
+  // before it emits the tangent path and skips a plain row for it). A tied connection that
+  // LOSES that ownership race (a later/better-qualified connection to the SAME node won it —
+  // see originConnByNodeId's own tiebreak comment) still has renderAsBranch(c) === true, but
+  // nothing actually draws its tangent path — so pushRowEdges below must NOT also skip its
+  // plain return line in that case, or the connection renders with no line at all.
+  function ownsBranchArrival(c: AnnotatedConn): boolean {
+    const arrival = arrivalNodeFor(c)
+    return !!arrival && originConnByNodeId.get(arrival.id)?.id === c.id
+  }
+
   // Shared per-row edge logic — `stubFrom` is the point key this row's own short connector
   // starts at (its chapter node for a top-level row, its PARENT row's point for a chained one).
   function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
     pushEdge(styled(c.weight === 'glance' ? 'glance' : 'deeper', { key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, curved: false }))
-    // Skip the plain return/revisit line entirely when this SAME connection is already a
-    // branch/tie (renderAsBranch) — that gets the full 3-segment tangent-stub/hop/arrive path
-    // (pushed in the loop above, over `originConnByNodeId`), which already draws origin→dest as
-    // its own real path. Drawing the plain backlink edge ON TOP of that too was exactly the
-    // "back-and-forth chapters + a picker tie looks wonky" complaint — two lines for one move.
-    if (c.isReturn && c.toBookId && c.toChapter != null && !renderAsBranch(c)) {
+    // Skip the plain return/revisit line ONLY when this connection actually owns the full
+    // 3-segment tangent-stub/hop/arrive path for its arrival node (pushed in the loop above) —
+    // that already draws origin→dest as its own real path, so the plain backlink on top of it
+    // was exactly the "back-and-forth chapters + a picker tie looks wonky" complaint. A tied
+    // connection that DOESN'T own that path (see ownsBranchArrival above) still needs its plain
+    // return line — otherwise a connection with real ties that lost the ownership race to
+    // another tied connection on the same node rendered with NO line connecting it at all,
+    // which is exactly what "there's nothing shown between two stops that should be joined"
+    // turned out to be.
+    if (c.isReturn && c.toBookId && c.toChapter != null && !(renderAsBranch(c) && ownsBranchArrival(c))) {
       const target = nodeBefore(chapterIndex, c.trailSessionId, c.toBookId, c.toChapter, c.createdAt)
       if (target) {
         const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!

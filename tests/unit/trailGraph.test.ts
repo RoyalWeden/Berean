@@ -156,6 +156,36 @@ describe('return edges', () => {
     expect(g.originConnByNodeId.get('n1')?.id).toBe('c2')
   })
 
+  it('a tied connection that LOSES the branch-ownership race still draws its return line', () => {
+    // Real regression, found from a live report ("connections are not showing... theres nothing
+    // shown between two stops that should be joined"). Combining the previous two fixes exposed
+    // a hole: pushRowEdges skipped the plain return/revisit line for ANY renderAsBranch(c)
+    // connection, assuming it always owned (and was covered by) the tangent-stub/hop/arrive
+    // path. But when TWO tied connections both resolve to the SAME arrival node, only the
+    // ownership-winning one (originConnByNodeId) actually gets that tangent path — the loser
+    // still has renderAsBranch(c) === true but nothing draws ITS path, so it rendered with no
+    // connecting line to its target at all. Fixed by only skipping the return line when the
+    // connection actually owns its arrival's tangent path (ownsBranchArrival).
+    const nodes = [
+      node('n0', 'Isa', 61, T0),                                    // original Isaiah 61 visit
+      node('n1', 'Isa', 1, T0 + 5 * MIN),
+      node('n2', 'Isa', 61, T0 + 9 * MIN, { revisitOfNodeId: 'n0' }), // the ONE revisit node both connections target
+      node('n3', '1Ki', 1, T0 + 40 * MIN),
+    ]
+    // Both are RETURNS to n2 (fromNodeId=n3, whose own "next" is nothing — never misread as a
+    // forward branch) — c_loser created first, c_winner later with its own real ties, so
+    // originConnByNodeId hands ownership of n2 to c_winner per the previous test's fix.
+    const cLoser = conn('c_loser', 'n3', T0 + 45 * MIN, { toBookId: 'Isa', toChapter: 61, tiesFrom: ['Luke 4:18-19'], tiesTo: ['Isaiah 61:1-2'] })
+    const cWinner = conn('c_winner', 'n3', T0 + 50 * MIN, { toBookId: 'Isa', toChapter: 61, tiesFrom: ['Luke 4:22-24'], tiesTo: ['Isaiah 61:6-8'] })
+    const g = buildTrailGraph(detailOf(nodes, [cLoser, cWinner]))
+    expect(g.originConnByNodeId.get('n2')?.id).toBe('c_winner')
+    // The winner is covered by the tangent path (no separate return line needed).
+    expect(edgeByKey(g.edges, 'return:c_winner')).toBeUndefined()
+    expect(edgeByKey(g.edges, 'tangent-arrive:n2')).toBeDefined()
+    // The loser must NOT be left with nothing connecting it to n2.
+    expect(edgeByKey(g.edges, 'return:c_loser')).toBeDefined()
+  })
+
   it('never labels a plain (untied) return/revisit line — no verse text on the hairline', () => {
     // Per direct feedback ("dont put the verse stuff in the revisit line generally... it looks
     // really ugly") — even a genuine plain revisit (no tie at all) no longer carries an inline
