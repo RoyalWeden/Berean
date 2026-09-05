@@ -7,7 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
 import ShortcutKeys from './ShortcutKeys'
 import type { SpaceId, TabType } from '@/types'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { normalizeBookName } from '@/lib/parseRef'
@@ -453,17 +453,21 @@ export default function Sidebar() {
 
   // Build the unified tab list, respecting the session's custom display order.
   // New tabs not yet in the order are appended; closed tabs are silently dropped.
-  const allTabsFlat = SPACES.flatMap((s) => tabs[s.id])
+  // Memoised: this ran on every render (incl. every activeTabId change / scroll tick
+  // that re-renders the sidebar) and rebuilds several arrays; TabBar takes it as a
+  // prop, so a fresh identity also churned TabBar's own work.
   const storedOrder = sessionDisplayOrders[currentSessionId] ?? []
-  const orderedTabs = storedOrder.length === 0
-    ? allTabsFlat
-    : [
-        ...(storedOrder
-          .map((id) => allTabsFlat.find((t) => t.id === id))
-          .filter((t): t is import('@/types').Tab => t != null)),
-        // Append any tabs added since the order was last saved
-        ...allTabsFlat.filter((t) => !storedOrder.includes(t.id)),
-      ]
+  const orderedTabs = useMemo(() => {
+    const allTabsFlat = SPACES.flatMap((s) => tabs[s.id])
+    if (storedOrder.length === 0) return allTabsFlat
+    return [
+      ...(storedOrder
+        .map((id) => allTabsFlat.find((t) => t.id === id))
+        .filter((t): t is import('@/types').Tab => t != null)),
+      // Append any tabs added since the order was last saved
+      ...allTabsFlat.filter((t) => !storedOrder.includes(t.id)),
+    ]
+  }, [tabs, storedOrder])
   // Ribbon.tsx (the always-visible workspace icon rail) now owns the
   // "icon-only" role the sidebar itself used to fall back to when
   // collapsed — so collapsing this Explorer pane now just hides it

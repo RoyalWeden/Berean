@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -1013,11 +1013,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openSearch, toggleSettings, toggleSidebar, setActiveSpace, createTab, ensureTab, openSearchTab, openFindBar, closeFindBar, createSession, setFindBarQuery])
 
-  // Build current switcher tab list for rendering (derived from reactive store slices)
-  const switcherTabs: SwitcherTab[] = tabMRUList.flatMap(({ spaceId, tabId }) => {
+  // Build current switcher tab list for rendering (derived from reactive store slices).
+  // Memoised so App's frequent re-renders (it subscribes to the whole `s.tabs` record)
+  // don't rebuild this list — and hand the TabSwitcher a fresh array — on every scroll tick.
+  const switcherTabs: SwitcherTab[] = useMemo(() => tabMRUList.flatMap(({ spaceId, tabId }) => {
     const tab = storeTabs[spaceId].find(t => t.id === tabId)
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
-  })
+  }), [tabMRUList, storeTabs])
 
   // Deliberately a plain, DISTINCT background from ShellHeader's own (topbar-vibrant/
   // surface-2) — an earlier version matched them so the notch behind ShellHeader's rounded

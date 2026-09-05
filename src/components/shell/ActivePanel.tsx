@@ -11,7 +11,21 @@ import { BookOpen } from 'lucide-react'
 
 // YouTubeTab is large (~2.6k lines w/ webview wiring) and only needed once a
 // YouTube tab exists — code-split so it stays out of the initial bundle.
-const YouTubeTab = lazy(() => import('@/components/youtube/YouTubeTab'))
+const importYouTubeTab = () => import('@/components/youtube/YouTubeTab')
+const YouTubeTab = lazy(importYouTubeTab)
+
+// Prewarm the YouTube chunk once the app is idle after first paint, so the first
+// time a YouTube tab is opened it's a mount (still not instant — webview wiring)
+// rather than mount + a cold chunk fetch/parse on top. Fire-and-forget; the lazy()
+// above dedupes against this if the user opens YouTube before idle fires.
+if (typeof window !== 'undefined') {
+  const ric = (window as any).requestIdleCallback as
+    | ((cb: () => void, opts?: { timeout: number }) => number)
+    | undefined
+  const warm = () => { void importYouTubeTab().catch(() => {}) }
+  if (ric) ric(warm, { timeout: 4000 })
+  else setTimeout(warm, 2500)
+}
 
 function EmptyState() {
   return (

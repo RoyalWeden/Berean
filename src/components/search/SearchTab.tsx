@@ -227,6 +227,18 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     useAppStore.getState().addHistoryEntry({ type: 'search', title: `"${trimmed}"`, query: trimmed })
   }, [searchTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-run the persisted query on mount. `results` are intentionally never saved into
+  // tabState (they can be large), so without this a Search tab that is switched away
+  // from and back to — or restored on app launch — showed its query text in the input
+  // but a blank results pane until the user re-submitted ("search is broken / slow").
+  // Runs once; the pendingSearchQuery path above handles fresh external pushes.
+  useEffect(() => {
+    const q = (tabState.query ?? '').trim()
+    if (q.length >= 2 && results.length === 0 && !pendingSearchQuery) {
+      void runSearch(q, textId)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleInput(val: string) {
     setQuery(val)
     // Reflect the live query in the tab's own title so the sidebar tab list shows a

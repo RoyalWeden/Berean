@@ -101,6 +101,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // explicit dep of the recompute effect, or the outline band silently goes
   // stale until the next unrelated scroll event happens to force a refresh.
   const bibleFontSize = useAppStore((s) => s.bibleFontSize)
+  const bibleLineHeight = useAppStore((s) => s.bibleLineHeight)
   const appZoom = useAppStore((s) => s.appZoom)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -1550,7 +1551,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // anchor capture/restore is kept only as a safety net for "compact" (which does get a small
   // line-height bump to fit the numbers) and any sub-pixel drift.
   function toggleStrongsForTab(tabId: string, next: boolean) {
-    captureStrongsAnchor()
+    // Only "compact" line-height actually reflows on a Strong's toggle (it gets a
+    // small line-height bump to fit the numbers); comfortable/spacious render the
+    // numbers as zero-layout absolute overlays in the leading gap, so there is
+    // nothing to anchor and the capture — which getBoundingClientRect()s every
+    // verse in the fallback path — is pure forced-reflow cost on the big DOM.
+    if (bibleLineHeight === 'compact') captureStrongsAnchor()
     updateTabState('scripture', tabId, { showStrongs: next })
   }
 
@@ -1574,6 +1580,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // (the only case that gets a View Transition crossfade instead — see toggleStrongsForTab).
   // A layout effect's DOM reads are already post-layout, so no rAF wait is needed here either.
   useLayoutEffect(() => {
+    if (bibleLineHeight !== 'compact') return // no reflow to correct — see toggleStrongsForTab
     restoreStrongsAnchor()
   }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1581,6 +1588,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // restoreStrongsAnchor above only corrects the first frame; the chip-in + delayed line-height
   // reflow keeps changing heights for ~500ms after that.
   useEffect(() => {
+    // Only "compact" line-height reflows on a toggle (see toggleStrongsForTab). For
+    // comfortable/spacious this 350ms rAF loop was calling getBoundingClientRect on
+    // a just-mounted multi-thousand-node chapter 60×/sec for nothing — a forced
+    // synchronous layout storm right when the DOM is most expensive to measure.
+    if (bibleLineHeight !== 'compact') { strongsAnimAnchorRef.current = null; return }
     const anchor = strongsAnimAnchorRef.current
     if (!anchor) return
     strongsAnimAnchorRef.current = null

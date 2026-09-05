@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
 import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
@@ -2715,9 +2715,11 @@ export const useAppStore = create<AppState>()(
       // accidental wipe on ordinary additive changes (new fields, as most of this store's history
       // has been).
       migrate: (persistedState) => persistedState as Partial<AppState>,
-      storage: createJSONStorage(() => (
-        (IS_SECONDARY_WINDOW || IS_INDEPENDENT_WINDOW) ? readThroughLocalStorage : debouncedLocalStorage
-      )),
+      // Not `createJSONStorage(...)` — that helper stringifies the whole store
+      // synchronously on every `set()`, before our adapter runs. These adapters
+      // implement `PersistStorage` (object in/out) and defer BOTH the
+      // JSON.stringify and the write into a debounced flush. See debouncedStorage.ts.
+      storage: (IS_SECONDARY_WINDOW || IS_INDEPENDENT_WINDOW) ? readThroughLocalStorage : debouncedLocalStorage,
       onRehydrateStorage: () => (state) => {
         // An independent window (?independent=1) rehydrated the shared blob for
         // the user's SETTINGS, but its workspace must start blank and its own —
@@ -2991,9 +2993,17 @@ if (typeof window !== 'undefined') {
     try {
       const parsed = JSON.parse(e.newValue) as { state?: Partial<AppState> }
       if (!parsed.state) return
+      // Only patch keys whose value actually differs from what this window already
+      // holds. Without this guard every main-window persist flush (now one per
+      // debounced burst, but still frequent) fired a store-wide `setState` in every
+      // other open window even when no synced key had changed — a needless
+      // re-render pulse in the presenter / Study Trail / picker windows.
+      const cur = useAppStore.getState()
       const patch: Partial<AppState> = {}
       for (const key of CROSS_WINDOW_SYNCED_KEYS) {
-        if (key in parsed.state) (patch as any)[key] = (parsed.state as any)[key]
+        if (key in parsed.state && !Object.is((parsed.state as any)[key], (cur as any)[key])) {
+          (patch as any)[key] = (parsed.state as any)[key]
+        }
       }
       if (Object.keys(patch).length > 0) useAppStore.setState(patch)
     } catch {
