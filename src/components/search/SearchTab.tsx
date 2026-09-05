@@ -4,6 +4,7 @@ import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
@@ -101,6 +102,7 @@ function highlight(text: string, query: string): React.ReactNode[] {
 }
 
 export default function SearchTab({ floating = false }: { floating?: boolean }) {
+  const isActivePanel = useIsActivePanel('search')
   // Narrowed to just the two spaces this component actually reads (search + scripture, for
   // "open in current scripture panel") instead of the whole `tabs` record (all 5 spaces) — see
   // BiblePanel.tsx's identical comment for why that matters. useShallow so a write to an
@@ -382,7 +384,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
       {/* Search input row */}
-      <TabHeaderPortal floating={floating}>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
         <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <input
           ref={inputRef}

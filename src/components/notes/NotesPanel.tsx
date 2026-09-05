@@ -7,6 +7,7 @@ import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, Chec
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import NotesList from './NotesList'
@@ -94,6 +95,10 @@ function noteEditorPlaceholder(note: Note): string | undefined {
 }
 
 export default function NotesPanel({ floating = false }: { floating?: boolean }) {
+  // ActivePanel now keeps this panel mounted while other spaces are shown, so it
+  // must not portal its header controls into the shared TopBar slot unless it's
+  // the visible panel (would collide with the active panel's own header).
+  const isActivePanel = useIsActivePanel('note')
   const pendingNoteId = useAppStore((s) => s.pendingNoteId)
   const clearPendingNote = useAppStore((s) => s.clearPendingNote)
   const pendingNotesSearchTab = useAppStore((s) => s.pendingNotesSearchTab)
@@ -1427,7 +1432,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         placeholder="Find in note…"
       />
       {/* Header */}
-      <TabHeaderPortal floating={floating}>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
         {editing ? (
           <>
             {/* Page icon — a single emoji shown before the title. Click opens an in-app

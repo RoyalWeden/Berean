@@ -15,6 +15,7 @@ import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import ActionPillGroup from '@/components/shell/ActionPillGroup'
 import FindBar from '@/components/shell/FindBar'
@@ -62,6 +63,14 @@ const booksCache = new Map<string, Book[]>()
 const BOTTOM_PANEL_HEIGHT_LAYOUTS = new Set<ScriptureLayout>(['panel-bottom', 'notes-bottom', 'compare-notes', 'split-bottom'])
 
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
+  // ActivePanel now keeps this panel mounted while another space is on screen (so a
+  // switch back is a display flip, not a teardown of the whole verse tree + refetch).
+  // While it's hidden every getBoundingClientRect()-based measurement here reads 0, so
+  // the geometry effects (presenter band, viewer visible-region push, laser) below
+  // no-op on `!isActivePanel` and recompute on the ResizeObserver / scroll tick that
+  // fires when it's shown again. Floating windows are always their own active panel.
+  const isActiveBiblePanel = useIsActivePanel('bible')
+  const isActivePanel = floating || isActiveBiblePanel
   // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
   // meant a tab-state write in ANY space (scroll position, panel resize, YouTube layout, etc.)
   // re-rendered this component too, since the store replaces the whole record's reference on
@@ -690,8 +699,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const computePresenterBand = useCallback(() => {
     const region = viewerVisibleRegion
     const c = getScrollEl()
-    // Hard no-band conditions (presenter closed, no scroll element): clear immediately.
-    if (floating || !viewerWindowOpen || !c) { setPresenterBand(null); bandRetryRef.current = 0; return }
+    // Hard no-band conditions (presenter closed, no scroll element, or this panel is
+    // mounted-but-hidden behind another space — every rect it measures reads 0): clear
+    // immediately. It recomputes on the ResizeObserver tick when the panel is shown again.
+    if (floating || !isActivePanel || !viewerWindowOpen || !c) { setPresenterBand(null); bandRetryRef.current = 0; return }
     // SOFT conditions — a stale/in-flight region for the previous chapter, a not-yet-settled
     // visibleFraction, or verse nodes not mounted yet — all happen for a beat right after a
     // chapter change while the presenter is catching up. Nulling the band on any of them made
@@ -798,7 +809,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         bandTop: band?.top, bandHeight: band?.height,
       })
     }
-  }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [floating, isActivePanel, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Latest computePresenterBand, readable from callbacks (like clearTargetVerse below) that
   // must NOT take it as a dependency — computePresenterBand's identity changes on every
@@ -823,7 +834,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (presenterPushToken === lastSeenPresenterPushTokenRef.current) return
     lastSeenPresenterPushTokenRef.current = presenterPushToken
-    if (floating) return
+    if (floating || !isActivePanel) return // hidden panel measures 0 — see isActivePanel comment
     const container = getScrollEl()
     if (container) {
       // measureContentHeight (content-bottom-clamped), not raw scrollHeight — matches every
@@ -2813,7 +2824,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           `relative` to the root is a no-op there since TabHeaderPortal doesn't render PanelHeader
           at all when not floating, portaling into ShellHeader's slot elsewhere instead — see
           TabHeaderPortal.tsx). */}
-      <TabHeaderPortal floating={floating} className={floating ? 'absolute top-0 left-0 right-0 z-20' : ''}>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className={floating ? 'absolute top-0 left-0 right-0 z-20' : ''}>
         {/* The "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
             tabState.searchBack) that used to render here were removed —
             redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the
