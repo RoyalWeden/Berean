@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Trash2, Plus } from 'lucide-react'
+import { Trash2, MapPin } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { parseRef, bookChapterVerseLabel, bookName } from '@/lib/parseRef'
+import { bookName } from '@/lib/parseRef'
+import { formatVerseTieReference, parseVerseTieReferenceToNumbers } from '@/lib/verseRangeFormat'
 import TrailPopoverShell from './TrailPopoverShell'
 import type { TrailConnection } from '@/types/studyTrail'
 
@@ -24,11 +25,18 @@ import type { TrailConnection } from '@/types/studyTrail'
 // jumping between chapters to check your answer must never dismiss it.
 //
 // Refreshed per direct feedback ("refresh the 'why did you jump here' menu to be more
-// simplified... this popup should look a lot nicer"): a single note textbox, then two columns
-// (From / To) of free-typed verse ties — no quick tags, no Tangent/New-topic checkboxes (both
-// moved to the right-click menu, see TrailRefContextMenu.tsx's tangentToggle/topicBreak) and no
-// collapsed "More" section, since the ties are now the ONLY thing left to show. Shares
-// TrailPopoverShell with the arrival prompt so the two read as one family.
+// simplified... this popup should look a lot nicer"): a single note textbox, then a compact
+// verse-ties summary — no quick tags, no Tangent/New-topic checkboxes (both moved to the
+// right-click menu, see TrailRefContextMenu.tsx's tangentToggle/topicBreak) and no collapsed
+// "More" section, since the ties are now the ONLY thing left to show. Shares TrailPopoverShell
+// with the arrival prompt so the two read as one family.
+//
+// Verse ties are no longer typed by hand (v36+): a "Pick verses" button opens a separate OS
+// window (VersePickerApp.tsx, via window.app.openVersePicker) showing the origin and
+// destination chapters side by side — click a verse number to tie it, shift-click for a range.
+// Every click live-applies back here via versePicker:selectionChanged (no Done step, close the
+// picker window anytime), which is why tiesFrom/tiesTo below are driven entirely by that IPC
+// listener instead of any local text input.
 //
 // The auto-detected fact (reasonText, e.g. "Strong's word · G26") and the user's OWN note
 // (userNote) stay fully separate fields (v35): reasonText renders READ-ONLY as context; userNote
@@ -50,93 +58,7 @@ function defaultPos() {
   return clampPos({ x: window.innerWidth - WIDTH - MARGIN, y: 48 }, 320)
 }
 
-/** A typed tie, resolved against parseRef on every render — cheap, pure, no need to persist the
- *  parsed form separately. Unparseable text still shows (never silently dropped), just without
- *  the "resolved to X" confirmation/click-to-navigate affordance. */
-function TieRow({ value, onChange, onRemove, onBlur, hideRemove }: { value: string; onChange: (v: string) => void; onRemove: () => void; onBlur?: () => void; hideRemove?: boolean }) {
-  const parsed = value.trim() ? parseRef(value.trim()) : null
-  const resolved = parsed ? bookChapterVerseLabel(parsed.bookId, parsed.chapter, parsed.verse) + (parsed.endVerse ? `–${parsed.endVerse}` : '') : null
-  // Per feedback ("it doesnt feel so encouraging to actually input... make it feel pleasurable
-  // and easy") — this input had NO focus feedback at all (identical whether you were typing in
-  // it or not), which is a big part of why a form full of otherwise-plain grey boxes reads as
-  // unwelcoming. A real focus state (accent border + soft glow, same idiom the rest of the app's
-  // inputs increasingly use) is the single highest-value fix here.
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ marginBottom: 5 }}>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={(e) => { setFocused(false); onBlur?.(); void e }}
-          placeholder="e.g. Mark 13:1"
-          style={{
-            flex: 1, minWidth: 0, background: 'rgb(var(--color-surface-2))',
-            border: `1px solid ${focused ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
-            borderRadius: 8, padding: '7px 9px', color: 'rgb(var(--color-text-primary))', fontSize: 12,
-            boxShadow: focused ? '0 0 0 3px rgb(var(--color-accent) / 0.15)' : 'none',
-            transition: 'border-color 120ms ease, box-shadow 120ms ease',
-            outline: 'none',
-          }}
-        />
-        {!hideRemove && (
-          <button
-            onClick={onRemove}
-            title="Remove this tie"
-            style={{ flexShrink: 0, background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: '0 4px' }}
-          ><X size={13} /></button>
-        )}
-      </div>
-      {value.trim() && (
-        <div style={{ fontSize: 9.5, marginTop: 3, paddingLeft: 3, color: resolved ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))' }}>
-          {resolved ? `→ ${resolved}` : 'not recognized yet'}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** One "+add another" tie-list column — used twice below (from-chapter / to-chapter), side by
- *  side. Short labels ("From"/"To") per direct feedback ("the labels for those should be
- *  shorter/simpler"), replacing the old full-sentence "Ties to the chapter you left/landed on". */
-export function TieColumn({ label, values, onChange, hideRemove }: { label: string; values: string[]; onChange: (next: string[]) => void; hideRemove?: boolean }) {
-  function update(i: number, v: string) {
-    const next = [...values]
-    next[i] = v
-    if (i === next.length - 1 && v.trim()) next.push('')
-    onChange(next)
-  }
-  function remove(i: number) {
-    onChange(values.filter((_, idx) => idx !== i))
-  }
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
-        {label}
-      </div>
-      {values.map((t, i) => (
-        <TieRow
-          key={i}
-          value={t}
-          onChange={(v) => update(i, v)}
-          onRemove={() => remove(i)}
-          hideRemove={hideRemove}
-          // With the explicit × gone (autoSave/toast mode), clearing a row's text and
-          // clicking away is how you delete it — never removing the single trailing blank.
-          onBlur={hideRemove ? () => { if (!values[i]?.trim() && values.length > 1) remove(i) } : undefined}
-        />
-      ))}
-      <button
-        className="trail-ctx-btn"
-        onClick={() => onChange([...values, ''])}
-        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 600, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.1)', border: 'none', borderRadius: 999, cursor: 'pointer', padding: '3px 8px' }}
-      ><Plus size={11} /> add</button>
-    </div>
-  )
-}
-
-/** The actual note-textarea + From/To tie-columns + Delete/Not now/Save row — factored out of
+/** The actual note-textarea + verse-ties summary + Delete/Not now/Save row — factored out of
  *  ReasonPromptPopover so the toast (StudyTrailArrivalPrompt.tsx's ArrivalPill, once "committed")
  *  can render the exact same real inputs instead of a separate, smaller reimplementation. Owns
  *  its own note/ties/saving state (seeded from `connection`) and the save/delete/dismiss IPC
@@ -178,44 +100,75 @@ export function TrailReasonFormBody({
   const legacyTo = connection.versePinFrom != null
     ? [`${connection.toBookId ? `${bookName(connection.toBookId)} ${connection.toChapter}:` : 'v.'}${connection.versePinFrom}${connection.versePinTo && connection.versePinTo !== connection.versePinFrom ? `-${connection.versePinTo}` : ''}`]
     : []
-  const [tiesFrom, setTiesFrom] = useState<string[]>(connection.tiesFrom.length > 0 ? [...connection.tiesFrom, ''] : [...legacyFrom, ''])
-  const [tiesTo, setTiesTo] = useState<string[]>(connection.tiesTo.length > 0 ? [...connection.tiesTo, ''] : [...legacyTo, ''])
+  // A single compact reference string per side now (e.g. "Mark 13:1-2,5,8-10"), set only via the
+  // verse picker — not a free-typed list anymore. `tiesFrom`/`tiesTo` on the connection record are
+  // still arrays (shared with the older schema/API), so these just read/write index 0.
+  const [tieFrom, setTieFrom] = useState<string>(connection.tiesFrom[0] ?? legacyFrom[0] ?? '')
+  const [tieTo, setTieTo] = useState<string>(connection.tiesTo[0] ?? legacyTo[0] ?? '')
   const [saving, setSaving] = useState(false)
 
   // ── Auto-save (toast mode) ────────────────────────────────────────────────
   // Persist silently on a short debounce after any edit, and flush once more on unmount
   // (dismiss/navigate away) so the last keystrokes are never lost. Refs keep the unmount
   // flush reading the latest values without re-registering the effect each render.
-  const latestRef = useRef({ note, tiesFrom, tiesTo })
-  latestRef.current = { note, tiesFrom, tiesTo }
+  const latestRef = useRef({ note, tieFrom, tieTo })
+  latestRef.current = { note, tieFrom, tieTo }
   function persist() {
-    const { note, tiesFrom, tiesTo } = latestRef.current
+    const { note, tieFrom, tieTo } = latestRef.current
     return window.studyTrail.updateConnectionReason(connection.id, {
       userNote: note.trim() || undefined,
-      tiesFrom: tiesFrom.map((t) => t.trim()).filter(Boolean),
-      tiesTo: tiesTo.map((t) => t.trim()).filter(Boolean),
+      tiesFrom: tieFrom.trim() ? [tieFrom.trim()] : [],
+      tiesTo: tieTo.trim() ? [tieTo.trim()] : [],
     })
   }
   useEffect(() => {
     if (!autoSave) return
-    const dirty = note !== (connection.userNote ?? '')
-      || tiesFrom.some(Boolean) || tiesTo.some(Boolean)
+    const dirty = note !== (connection.userNote ?? '') || Boolean(tieFrom) || Boolean(tieTo)
     if (!dirty) return
     const t = setTimeout(() => { void persist() }, 500)
     return () => clearTimeout(t)
-  }, [autoSave, note, tiesFrom, tiesTo]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoSave, note, tieFrom, tieTo]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!autoSave) return
     return () => { void persist() }
   }, [autoSave]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live-apply from the verse-picker window (VersePickerApp.tsx) — every click there pushes a
+  // versePicker:selectionChanged event back here, no separate Done step. Guarded on connectionId
+  // since the underlying IPC listener is a single global registration (only the most-recently
+  // mounted form's registration wins), so a stale event for a different connection is ignored.
+  useEffect(() => {
+    window.app.onVersePickerSelectionChanged((payload) => {
+      if (payload.connectionId !== connection.id) return
+      if (payload.side === 'from') {
+        setTieFrom(originBookId && originChapter
+          ? formatVerseTieReference(bookName(originBookId), originChapter, payload.selected) : '')
+      } else {
+        setTieTo(connection.toBookId && connection.toChapter != null
+          ? formatVerseTieReference(bookName(connection.toBookId), connection.toChapter, payload.selected) : '')
+      }
+      onFieldTouched?.()
+    })
+  }, [connection.id, connection.toBookId, connection.toChapter, originBookId, originChapter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pickerAvailable = Boolean(originBookId && originChapter && connection.toBookId && connection.toChapter)
+  function openPicker() {
+    if (!pickerAvailable) return
+    window.app.openVersePicker({
+      connectionId: connection.id,
+      from: { bookId: originBookId!, bookLabel: bookName(originBookId!), chapter: originChapter!, selected: parseVerseTieReferenceToNumbers(tieFrom) },
+      to: { bookId: connection.toBookId!, bookLabel: bookName(connection.toBookId!), chapter: connection.toChapter!, selected: parseVerseTieReferenceToNumbers(tieTo) },
+    })
+    onFieldTouched?.()
+  }
 
   async function save() {
     setSaving(true)
     try {
       await window.studyTrail.updateConnectionReason(connection.id, {
         userNote: note.trim() || undefined,
-        tiesFrom: tiesFrom.map((t) => t.trim()).filter(Boolean),
-        tiesTo: tiesTo.map((t) => t.trim()).filter(Boolean),
+        tiesFrom: tieFrom.trim() ? [tieFrom.trim()] : [],
+        tiesTo: tieTo.trim() ? [tieTo.trim()] : [],
       })
       onSaved()
     } finally {
@@ -265,9 +218,26 @@ export function TrailReasonFormBody({
         }}
       />
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 4 }} onFocus={onFieldTouched}>
-        <TieColumn label="From" values={tiesFrom} hideRemove={autoSave} onChange={(v) => { setTiesFrom(v); onFieldTouched?.() }} />
-        <TieColumn label="To" values={tiesTo} hideRemove={autoSave} onChange={(v) => { setTiesTo(v); onFieldTouched?.() }} />
+      <div style={{ marginBottom: 4 }}>
+        <button
+          className="trail-ctx-btn"
+          onClick={openPicker}
+          disabled={!pickerAvailable}
+          title={pickerAvailable ? 'Pick which verses this connection ties together' : 'Verse ties need both a known origin and destination chapter'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600,
+            color: pickerAvailable ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
+            background: pickerAvailable ? 'rgb(var(--color-accent) / 0.1)' : 'rgb(var(--color-surface-2))',
+            border: 'none', borderRadius: 999, cursor: pickerAvailable ? 'pointer' : 'default',
+            padding: '5px 10px', opacity: pickerAvailable ? 1 : 0.6,
+          }}
+        ><MapPin size={12} /> {tieFrom || tieTo ? 'Edit verse ties' : 'Pick verses'}</button>
+        {(tieFrom || tieTo) && (
+          <div style={{ fontSize: 10.5, marginTop: 6, color: 'rgb(var(--color-text-muted))', lineHeight: 1.6 }}>
+            {tieFrom && <div><span style={{ fontWeight: 700 }}>From:</span> {tieFrom}</div>}
+            {tieTo && <div><span style={{ fontWeight: 700 }}>To:</span> {tieTo}</div>}
+          </div>
+        )}
       </div>
 
       {!autoSave && (

@@ -213,6 +213,18 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('viewer:ready')
     ipcRenderer.on('viewer:ready', () => cb())
   },
+  // ── Verse-tie picker window ──────────────────────────────────────────────
+  openVersePicker: (payload: unknown) => ipcRenderer.send('versePicker:open', payload),
+  signalVersePickerReady: () => ipcRenderer.send('versePicker:ready'),
+  onVersePickerInit: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('versePicker:init')
+    ipcRenderer.on('versePicker:init', (_e, payload) => cb(payload))
+  },
+  pushVersePickerSelectionChange: (payload: unknown) => ipcRenderer.send('versePicker:selectionChanged', payload),
+  onVersePickerSelectionChanged: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('versePicker:selectionChanged')
+    ipcRenderer.on('versePicker:selectionChanged', (_e, payload) => cb(payload))
+  },
   // Print / export a rendered note (full HTML document string). `pageSize` is one of
   // Electron's own accepted pageSize strings ('Letter'|'A4'|'Legal'|...) — see
   // PAPER_SIZE_ELECTRON in notePreviewRender.ts, the single source of truth for that mapping.

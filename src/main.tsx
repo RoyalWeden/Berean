@@ -4,6 +4,7 @@ import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
 import ViewerApp from '@/components/viewer/ViewerApp'
 import StudyTrailApp from '@/components/studyTrail/StudyTrailApp'
+import VersePickerApp from '@/components/studyTrail/VersePickerApp'
 import { initScrollbarAutoHide } from '@/lib/scrollbarAutoHide'
 import './styles/global.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
@@ -45,6 +46,7 @@ const searchParams = new URLSearchParams(window.location.search)
 const isFloatMode = searchParams.get('float') === '1'
 const isViewerMode = searchParams.get('viewer') === '1'
 const isStudyTrailMode = searchParams.get('studyTrail') === '1'
+const isVersePickerMode = searchParams.get('versePicker') === '1'
 
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
@@ -150,6 +152,6 @@ window.addEventListener('unhandledrejection', (e) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isFloatMode ? <FloatingShell /> : <App />}
+    {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isFloatMode ? <FloatingShell /> : <App />}
   </React.StrictMode>
 )

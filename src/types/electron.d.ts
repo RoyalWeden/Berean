@@ -368,6 +368,12 @@ interface AppAPI {
   onViewerVisibleRegion: (cb: (region: ViewerVisibleRegion) => void) => void
   onViewerWindowClosed: (cb: () => void) => void
   onViewerReady: (cb: () => void) => void
+  // ── Verse-tie picker window ────────────────────────────────────────────
+  openVersePicker: (payload: import('./versePicker').VersePickerPayload) => void
+  signalVersePickerReady: () => void
+  onVersePickerInit: (cb: (payload: import('./versePicker').VersePickerPayload) => void) => void
+  pushVersePickerSelectionChange: (payload: import('./versePicker').VersePickerSelectionChange) => void
+  onVersePickerSelectionChanged: (cb: (payload: import('./versePicker').VersePickerSelectionChange) => void) => void
   /** Ask the presenter to re-report its visible region even if its content hasn't changed —
    *  used after unpausing / "Re-sync now" so a stale region (from tab switches that happened
    *  while paused) can't silently block the outline band forever. */

@@ -256,6 +256,25 @@ let viewerWindow: BrowserWindow | null = null
 // channels, and closing that window closes the presenter.
 let viewerOwnerId: number | null = null
 let studyTrailWindow: BrowserWindow | null = null
+// The verse-tie picker — a small auxiliary window (two chapters side by side, click verse
+// numbers to build a "from"/"to" tie) opened from either the arrival-prompt toast (main window)
+// or the full "why'd you jump here" popover (which can be opened from the Study Trail window's
+// map too — see the picker's own owner-tracking comment below for why this isn't as simple as
+// viewerOwnerWindow's appWindows-only lookup).
+let versePickerWindow: BrowserWindow | null = null
+let versePickerOwnerId: number | null = null
+
+/** Unlike viewerOwnerWindow (which only ever needs to find a MAIN window, tracked in
+ *  appWindows), the verse picker can be opened from the Study Trail window too — so this checks
+ *  every kind of window this app can have focus in, not just the appWindows set. */
+function findWindowByWebContentsId(id: number): BrowserWindow | null {
+  for (const w of appWindows) {
+    if (!w.isDestroyed() && w.webContents.id === id) return w
+  }
+  if (studyTrailWindow && !studyTrailWindow.isDestroyed() && studyTrailWindow.webContents.id === id) return studyTrailWindow
+  if (viewerWindow && !viewerWindow.isDestroyed() && viewerWindow.webContents.id === id) return viewerWindow
+  return null
+}
 
 /** The app window that currently owns the presenter, if it's still alive. */
 function viewerOwnerWindow(): BrowserWindow | null {
@@ -613,6 +632,56 @@ function createStudyTrailWindow(trailSessionId?: string): void {
   }
 
   studyTrailWindow.on('closed', () => { studyTrailWindow = null })
+}
+
+// The last payload sent to the picker (or waiting to be, if it hasn't finished loading yet) —
+// sent immediately on 'versePicker:ready' rather than requiring the caller to race the window's
+// own load time.
+let pendingVersePickerPayload: unknown = null
+
+/** Opens (or refocuses + re-targets) the verse-tie picker window. `ownerWebContentsId` is
+ *  whichever window's toast/popover asked for it — findWindowByWebContentsId resolves it back
+ *  later when the picker sends a live selection change, since it can be either a main window or
+ *  the Study Trail window (the full popover opens from both). */
+function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): void {
+  versePickerOwnerId = ownerWebContentsId
+  pendingVersePickerPayload = payload
+  if (versePickerWindow && !versePickerWindow.isDestroyed()) {
+    versePickerWindow.focus()
+    versePickerWindow.webContents.send('versePicker:init', payload)
+    return
+  }
+  const iconPath = is.dev
+    ? join(app.getAppPath(), 'assets/icon.icns')
+    : join(process.resourcesPath, 'assets/icon.icns')
+  const appIcon = nativeImage.createFromPath(iconPath)
+  const isWin = process.platform === 'win32'
+  versePickerWindow = new BrowserWindow({
+    width: 760,
+    height: 640,
+    minWidth: 560,
+    minHeight: 420,
+    titleBarStyle: isWin ? 'default' : 'hiddenInset',
+    ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
+    backgroundColor: '#17151a',
+    icon: appIcon,
+    title: 'Pick verses',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+
+  const query: Record<string, string> = { versePicker: '1' }
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    versePickerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${new URLSearchParams(query).toString()}`)
+  } else {
+    versePickerWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
+  }
+
+  versePickerWindow.on('closed', () => { versePickerWindow = null; versePickerOwnerId = null })
 }
 
 function createFloatingWindow(type: string, state: Record<string, unknown>): void {
@@ -1170,6 +1239,28 @@ app.whenReady().then(async () => {
       viewerWindow.webContents.send('viewer:overlay', payload)
     }
   })
+
+  // ── Verse-tie picker window ────────────────────────────────────────────────
+  // Opened from either the arrival-prompt toast (main window) or the full "why'd you jump
+  // here" popover (which can also open from the Study Trail window's map) — a two-chapter
+  // side-by-side window where clicking verse numbers builds up a from/to tie live.
+  ipcMain.on('versePicker:open', (e, payload: unknown) => {
+    createVersePickerWindow(e.sender.id, payload)
+  })
+  ipcMain.on('versePicker:ready', () => {
+    if (versePickerWindow && !versePickerWindow.isDestroyed() && pendingVersePickerPayload) {
+      versePickerWindow.webContents.send('versePicker:init', pendingVersePickerPayload)
+    }
+  })
+  // Live selection updates flow back to whichever window opened the picker — never a broadcast,
+  // since the Study Trail window and a main window could each have their own unrelated popover
+  // open at the same time.
+  ipcMain.on('versePicker:selectionChanged', (_e, payload: unknown) => {
+    const owner = versePickerOwnerId != null ? findWindowByWebContentsId(versePickerOwnerId) : null
+    if (owner && !owner.isDestroyed()) owner.webContents.send('versePicker:selectionChanged', payload)
+  })
+  // Chapter text for the picker's two columns reuses the existing bible:queryChapter handler
+  // (electron/ipc/bible.ts) via the picker window's own preload — no separate handler needed.
 
   // Relay the viewer's visible verse region back to its owning window only
   ipcMain.on('viewer:reportVisibleRegion', (_e, region: unknown) => {

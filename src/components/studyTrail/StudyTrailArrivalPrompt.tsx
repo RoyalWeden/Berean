@@ -187,21 +187,17 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
         transition: `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
       }}
     >
-      {/* Collapsed CTA — hidden once expanded (hover or touched); the form's own Save/Not now
-          row plus the always-present × below take over as the toast's controls at that point.
-          Text wraps within the fixed PILL_WIDTH rather than the box resizing to fit it. */}
+      {/* Collapsed CTA — hidden once expanded (hover or touched); no dismiss × here (per direct
+          feedback) — collapsed, this is just a passive glance, not something waiting to be
+          dismissed; the form's own Save/Not now row plus the expanded-state × take over as the
+          toast's controls once it's actually open. Text wraps within the fixed PILL_WIDTH rather
+          than the box resizing to fit it. */}
       {!expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 6px 10px', fontSize: 11 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', fontSize: 11 }}>
           <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
           <span style={{ flex: 1, minWidth: 0, color: 'rgb(var(--color-text-secondary))' }}>
             {question}
           </span>
-          <button
-            className="trail-ctx-btn"
-            onClick={onClose}
-            title="Dismiss"
-            style={{ background: 'transparent', border: 'none', borderRadius: 6, color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0 }}
-          ><X size={11} /></button>
         </div>
       )}
       {/* Real form — always mounted (so expanding never pops in unmeasured), collapsed to
