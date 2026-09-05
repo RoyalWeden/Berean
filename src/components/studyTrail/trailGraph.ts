@@ -362,15 +362,20 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   // or the note popover) on the newer one — the map then never renders it as a branch at all,
   // no matter how many times the data reloads. Only overrides the tiebreak when the earlier
   // connection genuinely has nothing of its own to lose.
+  // A LATER connection carrying real user data (a branch/tie or a note) always wins over
+  // whatever's already claimed the node — not just over an untouched earlier one. Tying the
+  // SAME two chapters again later in the same session (a second, separate re-engagement) used to
+  // still lose to the first tie (both "have user data", so the old `!existingHasUserData` guard
+  // never let the second one through), which is exactly why it silently fell back to reading as
+  // a plain revisit instead of getting its own branch — the first tie kept permanent ownership
+  // of that arrival node forever. A later connection with NO user data of its own still never
+  // overrides an existing tied one, so an untouched revisit still can't steal a real branch away.
   const originConnByNodeId = new Map<string, TrailConnection>()
   for (const c of [...detail.connections].sort((a, b) => a.createdAt - b.createdAt)) {
     const target = arrivalNodeFor(c)
     if (!target) continue
     const existing = originConnByNodeId.get(target.id)
-    if (!existing) { originConnByNodeId.set(target.id, c); continue }
-    const existingHasUserData = renderAsBranch(existing) || hasNote(existing)
-    const candidateHasUserData = renderAsBranch(c) || hasNote(c)
-    if (candidateHasUserData && !existingHasUserData) originConnByNodeId.set(target.id, c)
+    if (!existing || renderAsBranch(c) || hasNote(c)) originConnByNodeId.set(target.id, c)
   }
 
   // Branch chaining (v31) — a connection with fromConnectionId set hangs off ANOTHER connection,

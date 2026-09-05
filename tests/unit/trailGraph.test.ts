@@ -137,6 +137,25 @@ describe('return edges', () => {
     expect(edgeByKey(g.edges, 'tangent-arrive:n1')).toBeDefined()
   })
 
+  it('a SECOND, later tie to the same chapter takes over as its branch owner', () => {
+    // Per direct feedback ("i did the same connection between luke 4 and isaiah 61 later in the
+    // same session and i dont see the branching... it should show the branching again
+    // separate") — the first tie to a chapter used to claim that arrival node PERMANENTLY (the
+    // old guard only let a candidate win when the existing owner had NO user data at all), so a
+    // second, later re-tie of the exact same chapter silently lost to the first and rendered as
+    // a plain revisit instead of its own branch. The latest connection carrying real user data
+    // now always takes over ownership of the node.
+    const nodes = [
+      node('n1', 'Hos', 2, T0),
+      node('n2', 'Rev', 12, T0 + 10 * MIN),
+      node('n3', 'Jhn', 3, T0 + 30 * MIN),
+    ]
+    const c1 = conn('c1', 'n2', T0 + 12 * MIN, { toBookId: 'Hos', toChapter: 2, tiesFrom: ['Rev 12:6'], tiesTo: ['Hos 2:14'] })
+    const c2 = conn('c2', 'n3', T0 + 32 * MIN, { toBookId: 'Hos', toChapter: 2, tiesFrom: ['Jhn 3:16'], tiesTo: ['Hos 2:23'] })
+    const g = buildTrailGraph(detailOf(nodes, [c1, c2]))
+    expect(g.originConnByNodeId.get('n1')?.id).toBe('c2')
+  })
+
   it('never labels a plain (untied) return/revisit line — no verse text on the hairline', () => {
     // Per direct feedback ("dont put the verse stuff in the revisit line generally... it looks
     // really ugly") — even a genuine plain revisit (no tie at all) no longer carries an inline
