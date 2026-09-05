@@ -125,11 +125,15 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   // crosses a month boundary, or just "September 2026" when it doesn't (matches month view's
   // own label exactly in that common case, so the nav row doesn't visually jump for no reason).
   const weekSpansMonths = weekDates[0].getMonth() !== weekDates[6].getMonth()
-  const monthLabel = weekOnly
-    ? (weekSpansMonths
-        ? `${weekDates[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-        : weekDates[0].toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))
-    : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  const crossMonthLabel = weekOnly && weekSpansMonths
+    ? `${weekDates[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    : null
+  // Split into month name + year so a too-narrow row truncates ONLY the month name — per direct
+  // feedback, truncating the combined "September 2026" string clipped the YEAR first (ellipsis
+  // trims from the end), which is exactly backwards; the year is the more load-bearing half.
+  const labelBaseDate = weekOnly ? weekDates[0] : date
+  const monthName = labelBaseDate.toLocaleDateString(undefined, { month: 'long' })
+  const yearStr = String(labelBaseDate.getFullYear())
   // Sidebar/rail layout (cell sizes, grid gaps, circle/dot dimensions) stays fixed regardless
   // of app zoom — only the text itself scales, via the same zoomedFontSize() used for Bible
   // text, so zooming in makes the calendar legible without resizing the sidebar around it.
@@ -169,23 +173,33 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             muted→primary) — matches the warmer, accent-tinted hover treatment the recent Study
             Trail styling pass gave its own icon buttons, rather than everything staying in flat
             greyscale until clicked. */}
-        <button onClick={weekOnly ? prevWeek : prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
+        <button onClick={weekOnly ? prevWeek : prevMonth} className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronLeft size={compact ? 15 : 17} />
         </button>
-        {/* whitespace-nowrap — the extra collapse button (below) narrowed how much room this
-            label gets in the row, and without it "September 2026" could wrap onto a second
-            line instead of just sitting flush against whatever's next to it. */}
-        <span className="font-medium whitespace-nowrap text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
+        {/* min-w-0 so this is actually allowed to shrink in a flex row — the extra collapse
+            button pushed this row tighter than month view ever had to fit in, so the label
+            could wrap onto a second line. Month name and year render as two separate spans so
+            truncation (ellipsis) only ever eats into the MONTH NAME; the year has its own
+            flex-shrink-0 and is never clipped. The week-spanning-months label ("Aug 30 – Sep 5")
+            has no year to protect the same way, so it stays one plain truncatable span. */}
+        {crossMonthLabel ? (
+          <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{crossMonthLabel}</span>
+        ) : (
+          <span className="flex items-baseline gap-1 min-w-0">
+            <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthName}</span>
+            <span className="font-medium whitespace-nowrap flex-shrink-0 text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
+          </span>
+        )}
         {!(weekOnly ? weekIsCurrent : isCurrentMonth) && (
           <button
             onClick={() => (weekOnly ? setWeekAnchor(new Date()) : onDateChange(new Date()))}
             title={weekOnly ? 'Jump to current week' : 'Jump to current month'}
-            className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
+            className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
           >
             <Undo2 size={compact ? 13 : 15} />
           </button>
         )}
-        <button onClick={weekOnly ? nextWeek : nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
+        <button onClick={weekOnly ? nextWeek : nextMonth} className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronRight size={compact ? 15 : 17} />
         </button>
         {/* Collapse to just the current week (or expand back to the full month) — per direct
@@ -194,7 +208,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
         <button
           onClick={() => { if (!weekOnly) setWeekAnchor(new Date()); setWeekOnly((v) => !v) }}
           title={weekOnly ? 'Show full month' : 'Collapse to this week'}
-          className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
+          className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
         >
           {weekOnly ? <Maximize2 size={compact ? 12 : 14} /> : <Minimize2 size={compact ? 12 : 14} />}
         </button>
