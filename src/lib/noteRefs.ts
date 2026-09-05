@@ -62,7 +62,7 @@ function makeVerseRefRe() {
   // comma segment is split into its own NoteVerseRef in extractRefsFromNote below. The
   // trailing `(?:[ \t]+LXX\b)?` folds an "Isaiah 6:4 LXX" marker into the captured span so
   // the resulting rows can be flagged `lxx` (stripped back off via stripLxxMarker).
-  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*)?(?:[ \t]+LXX\b)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
+  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?,?\s+(?:Chapter\s+)?\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*)?(?:[ \t]+LXX\b)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
 }
 
 export function extractRefsFromNote(content: string, noteTitle: string): NoteVerseRef[] {

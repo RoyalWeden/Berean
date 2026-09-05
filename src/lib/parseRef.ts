@@ -320,24 +320,34 @@ export function bookName(bookId: string): string {
   return normalizeBookName(ID_TO_NAME.get(bookId) ?? bookId)
 }
 
-/** bookName() joined with a chapter (and optional verse) for display.
- *  Multi-book editions (Recognitions of Clement, Hermas, etc.) have a name
- *  ending "...Book N" — a bare space before chapter:verse there reads as
- *  "Recognitions, Book 10 41:8" (no comma between "10" and "41:8"). A comma
- *  reads correctly in both positions: "Recognitions, Book 10, 41:8". */
-export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: number): string {
-  const name = bookName(bookId)
-  const sep = /Book \d+$/.test(name) ? ', ' : ' '
-  return verse != null ? `${name}${sep}${chapter}:${verse}` : `${name}${sep}${chapter}`
-}
-
 // Full editorial names for multi-book editions whose bookName() uses a short prefix before
-// the comma (e.g. "Recognitions, Book 3", "Hermas, Visions") — used only by
-// bookChapterHoverLabel below, which wants the full work name spelled out with the "Book N"/
-// section qualifier moved to the very end instead.
+// the comma (e.g. "Recognitions, Book 3", "Hermas, Visions") — used both by
+// bookChapterVerseLabel below (to spell out the full work name for "Book N" citations) and
+// by bookChapterHoverLabel further down (which spells out the full work name and moves the
+// "Book N"/section qualifier to the end).
 const FULL_WORK_NAME: Record<string, string> = {
   Recognitions: 'Recognitions of Clement',
   Hermas: 'Shepherd of Hermas',
+}
+
+/** bookName() joined with a chapter (and optional verse) for display.
+ *  Multi-book editions cited as "Book N" (Recognitions of Clement — Hermas uses named
+ *  sections like "Visions" instead, which don't have this ambiguity) need the literal word
+ *  "Chapter" inserted before the chapter number: a bare "Recognitions, Book 9, 2" reads as
+ *  unclear about what "2" even is (chapter? verse?) — "Recognitions of Clement, Book 9,
+ *  Chapter 2" is unambiguous. Also spells out the full work name here (bookName() only
+ *  stores the short "Recognitions" prefix) via FULL_WORK_NAME, same map bookChapterHoverLabel
+ *  uses. Every other book keeps the plain "<name> <chapter>[:<verse>]" form. */
+export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: number): string {
+  const name = bookName(bookId)
+  const bookQualifierMatch = /^(.+), (Book \d+)$/.exec(name)
+  if (bookQualifierMatch) {
+    const [, prefix, qualifier] = bookQualifierMatch
+    const full = FULL_WORK_NAME[prefix] ?? prefix
+    const chapterLabel = verse != null ? `Chapter ${chapter}:${verse}` : `Chapter ${chapter}`
+    return `${full}, ${qualifier}, ${chapterLabel}`
+  }
+  return verse != null ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
 }
 
 /** Tab-bar hover-tooltip label: like bookChapterVerseLabel, but for a multi-book edition
@@ -630,12 +640,16 @@ export function parseRef(input: string): ParsedRef | null {
   // Group 5: end verse (optional, when verse range)
   // Group 6: end chapter (optional, when chapter range without verse)
   // The optional comma before chapter:verse (",?\s*(\d+)") matters just as much as the one
-  // before "Book N" — bookChapterVerseLabel (this file) GENERATES "Recognitions, Book 10,
-  // 41:8" with a comma in BOTH spots for multi-book editions, but this regex used to only
-  // accept the first comma, not the second. That meant text the app itself produces (search
-  // result titles, copy-verse-reference output, etc.) couldn't be parsed back by this same
-  // function — a real round-trip bug, confirmed via "Recognitions, Book 1, 1:2 <verse text>"
-  // silently failing to auto-detect as a verse block/reference in notes.
+  // before "Book N" — bookChapterVerseLabel (this file) GENERATES "Recognitions of Clement,
+  // Book 10, Chapter 41:8" with a comma in BOTH spots for multi-book editions, but this regex
+  // used to only accept the first comma, not the second. That meant text the app itself
+  // produces (search result titles, copy-verse-reference output, etc.) couldn't be parsed
+  // back by this same function — a real round-trip bug, confirmed via "Recognitions, Book 1,
+  // 1:2 <verse text>" silently failing to auto-detect as a verse block/reference in notes.
+  // The optional literal "Chapter " before the chapter-number group (added alongside the
+  // "of Clement"/"Chapter" wording change above) exists for the same round-trip reason — it
+  // now appears in bookChapterVerseLabel's own output for "Book N" editions and must parse
+  // back too. It's harmless everywhere else ("Genesis Chapter 1" parses the same as "Genesis 1").
   // Group 1 also allows a COMMA within the book token itself (`\w[\w\s,]*?`, not just
   // `\w[\w\s]*?`) — bookName()'s own canonical names for some multi-book editions already
   // contain one (Hermas: "Hermas, Visions" / "Hermas, Similitudes"), and verseClipboard.ts's
@@ -728,7 +742,7 @@ export function parseRef(input: string): ParsedRef | null {
   // parsed/validated group-by-group in finish() above. The old group 8 (chapter-only range
   // end chapter) is now group 9, and the trailing LXX group is now group 10.
   const m = norm.match(
-    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?((?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)+)?|\s*[-–]\s*(\d+))?(?:\s+(LXX)\b)?$/i
+    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(?:Chapter\s+)?(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?((?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)+)?|\s*[-–]\s*(\d+))?(?:\s+(LXX)\b)?$/i
   )
   if (m) {
     const crossChapterEndChapter = m[5] ? parseInt(m[5]) : undefined

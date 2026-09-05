@@ -149,11 +149,12 @@ export function bulletKindForConnection(toKind: string): BulletKind {
 // but a footnote, not the diagram's primary colour axis. It is now a 4px dot on the row and
 // nothing else, and only for tiers 2 and 3: tier 1 ("we know exactly why") is the normal case and
 // deserves no mark at all.
-// Which way a collapse caret turns when folded. Per direct feedback, "make all the collapse
-// carrets rotate the other direction" — every one of them was rotating counter-clockwise, and they
-// now all turn the other way. Defined once so the map, the section headers and the Threads cards
-// can never disagree about it again.
-export const CARET_COLLAPSED_ROTATE = 'rotate(90deg)'
+// Which way a collapse caret turns when folded. The base icon is a down-pointing chevron
+// (expanded = unrotated = points down). Per direct feedback, collapsed should point RIGHT,
+// not left — rotate(90deg) is clockwise and turns a down-chevron to point left, so this is
+// the counter-clockwise rotation instead. Defined once so the map, the section headers and
+// the Threads cards can never disagree about it again.
+export const CARET_COLLAPSED_ROTATE = 'rotate(-90deg)'
 
 export const TIER_DOT: Record<number, string | null> = {
   1: null,
