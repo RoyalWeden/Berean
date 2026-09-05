@@ -1,6 +1,6 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Undo2, Minimize2, Maximize2 } from 'lucide-react'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { zoomedFontSize } from '@/lib/zoom'
@@ -64,6 +64,14 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   const selectedStr = selectedDate ? toDateKey(selectedDate) : null
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
 
+  // Collapse to just one week — per direct feedback ("a collapse button that will collapse to
+  // just the week... spanning across two months if needed, showing the numbers correctly").
+  // Self-contained: `date`/onDateChange stay owned by the caller for MONTH nav; weekAnchor is
+  // this component's own state for WEEK nav, so toggling back to month view lands exactly where
+  // month nav was left, not wherever the last week happened to be.
+  const [weekOnly, setWeekOnly] = useState(false)
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => new Date())
+
   // Days with daily notes, keyed to how much is actually written that day (content length) —
   // handles both new ISO format (Daily — 2024-01-01) and old localised format
   // (Daily — January 1, 2024 / Journal — ...). The length feeds the heatmap fill below instead
@@ -100,7 +108,28 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
     onDateChange(new Date(year, month + 1, 1))
   }
 
-  const monthLabel = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  // The 7 real dates of weekAnchor's own week (Sun-Sat). The Date constructor normalizes an
+  // out-of-range day (e.g. day 32) into the next month on its own, so this naturally spans a
+  // month boundary with correct numbers on both sides — no special-casing needed.
+  const weekStart = new Date(weekAnchor.getFullYear(), weekAnchor.getMonth(), weekAnchor.getDate() - weekAnchor.getDay())
+  const weekDates = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i))
+  function prevWeek() {
+    setWeekAnchor(new Date(weekAnchor.getFullYear(), weekAnchor.getMonth(), weekAnchor.getDate() - 7))
+  }
+  function nextWeek() {
+    setWeekAnchor(new Date(weekAnchor.getFullYear(), weekAnchor.getMonth(), weekAnchor.getDate() + 7))
+  }
+  const weekIsCurrent = weekDates.some((d) => toDateKey(d) === todayStr)
+
+  // In week view, the label reflects the actual span shown — "Aug 30 – Sep 5" when the week
+  // crosses a month boundary, or just "September 2026" when it doesn't (matches month view's
+  // own label exactly in that common case, so the nav row doesn't visually jump for no reason).
+  const weekSpansMonths = weekDates[0].getMonth() !== weekDates[6].getMonth()
+  const monthLabel = weekOnly
+    ? (weekSpansMonths
+        ? `${weekDates[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+        : weekDates[0].toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))
+    : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
   // Sidebar/rail layout (cell sizes, grid gaps, circle/dot dimensions) stays fixed regardless
   // of app zoom — only the text itself scales, via the same zoomedFontSize() used for Bible
   // text, so zooming in makes the calendar legible without resizing the sidebar around it.
@@ -140,21 +169,31 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             muted→primary) — matches the warmer, accent-tinted hover treatment the recent Study
             Trail styling pass gave its own icon buttons, rather than everything staying in flat
             greyscale until clicked. */}
-        <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
+        <button onClick={weekOnly ? prevWeek : prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronLeft size={compact ? 15 : 17} />
         </button>
         <span className="font-medium text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
-        {!isCurrentMonth && (
+        {!(weekOnly ? weekIsCurrent : isCurrentMonth) && (
           <button
-            onClick={() => onDateChange(new Date())}
-            title="Jump to current month"
+            onClick={() => (weekOnly ? setWeekAnchor(new Date()) : onDateChange(new Date()))}
+            title={weekOnly ? 'Jump to current week' : 'Jump to current month'}
             className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
           >
             <Undo2 size={compact ? 13 : 15} />
           </button>
         )}
-        <button onClick={nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
+        <button onClick={weekOnly ? nextWeek : nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
           <ChevronRight size={compact ? 15 : 17} />
+        </button>
+        {/* Collapse to just the current week (or expand back to the full month) — per direct
+            feedback. weekAnchor resets to today each time it's turned ON, so re-collapsing
+            always starts from "this week," not wherever a previous week nav left off. */}
+        <button
+          onClick={() => { if (!weekOnly) setWeekAnchor(new Date()); setWeekOnly((v) => !v) }}
+          title={weekOnly ? 'Show full month' : 'Collapse to this week'}
+          className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
+        >
+          {weekOnly ? <Maximize2 size={compact ? 12 : 14} /> : <Minimize2 size={compact ? 12 : 14} />}
         </button>
         <span className="flex-1" />
         {/* Today action sits after everything else in this row (per explicit direction:
@@ -171,16 +210,16 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
       </div>
       {/* Day cells — week band + heatmap, combined (per direct feedback, continuing the picked
           direction rather than a fresh redesign): the week containing today gets a soft
-          full-row accent band behind it, and each day's own rounded-square fill darkens with
-          how much was actually written that day (dailyNoteLength above) — replacing the old
-          plain circle + a separate note-dot underneath, which is gone now that the fill itself
-          carries that signal. Today still gets a solid accent fill (not heatmap-scaled) so it
-          never reads as ambiguous with a heavily-written past day. */}
-      <div className={`grid grid-cols-7 ${gridGap}`}>
-        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-        {Array.from({ length: daysInMonth }).map((_, i) => {
-          const day = i + 1
-          const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          full-row accent band behind it (month view only — redundant once week view IS just
+          that one row), and each day's own rounded-square fill darkens with how much was
+          actually written that day (dailyNoteLength above) — replacing the old plain circle +
+          a separate note-dot underneath, which is gone now that the fill itself carries that
+          signal. Today still gets a solid accent fill (not heatmap-scaled) so it never reads as
+          ambiguous with a heavily-written past day. Shared between month and week view via
+          renderDayCell so the two don't duplicate this whole block. */}
+      {(() => {
+        function renderDayCell(cellDate: Date, colIdx: number, band: boolean) {
+          const dateKey = toDateKey(cellDate)
           const isToday = dateKey === todayStr
           const isSelected = !isToday && dateKey === selectedStr
           const noteLength = dailyNoteLength.get(dateKey) ?? 0
@@ -189,14 +228,11 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           // max out and flatten the gradient for everything shorter than it.
           const heatAlpha = hasNote ? Math.min(0.85, 0.16 + Math.min(noteLength / 1500, 1) * 0.5) : 0
           const squareSize = compact ? 'w-[22px] h-[22px]' : 'w-7 h-7'
-          const cellDate = new Date(year, month, day)
-          const colIdx = (firstDay + i) % 7
-          const inCurrentWeek = currentWeekStart != null && day >= currentWeekStart && day < currentWeekStart + 7
           return (
             <div
-              key={day}
-              className={inCurrentWeek ? 'bg-[rgb(var(--color-accent))]/[0.09]' : ''}
-              style={inCurrentWeek ? {
+              key={dateKey}
+              className={band ? 'bg-[rgb(var(--color-accent))]/[0.09]' : ''}
+              style={band ? {
                 borderRadius: colIdx === 0 ? '8px 0 0 8px' : colIdx === 6 ? '0 8px 8px 0' : 0,
               } : undefined}
             >
@@ -220,7 +256,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                         ...(hasNote && !isToday ? { background: `rgb(var(--color-accent) / ${heatAlpha})`, color: 'rgb(var(--color-text-primary))' } : {}),
                       }}
                     >
-                      {day}
+                      {cellDate.getDate()}
                     </span>
                   </button>
                 </Tooltip.Trigger>
@@ -233,8 +269,25 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
               </Tooltip.Root>
             </div>
           )
-        })}
-      </div>
+        }
+        return (
+          <div className={`grid grid-cols-7 ${gridGap}`}>
+            {weekOnly
+              ? weekDates.map((d, i) => renderDayCell(d, i, false))
+              : (
+                <>
+                  {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1
+                    const colIdx = (firstDay + i) % 7
+                    const inCurrentWeek = currentWeekStart != null && day >= currentWeekStart && day < currentWeekStart + 7
+                    return renderDayCell(new Date(year, month, day), colIdx, inCurrentWeek)
+                  })}
+                </>
+              )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
