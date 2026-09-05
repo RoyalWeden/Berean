@@ -2192,44 +2192,72 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail.nodes.length, zoom, topInset])
 
-  // Hover-anywhere exact-time readout. Tracks raw client Y; the render below converts it to a
-  // real timestamp by linearly interpolating between the two nearest chapter-stop bullets'
-  // OWN real anchorStartedAt values (not the hour markers above, which only mark whole-hour
-  // boundaries) — "the time between bullets is just linear time between" per direct feedback.
-  const [hoverClientY, setHoverClientY] = useState<number | null>(null)
+  // Hover-anywhere exact-time readout. Tracks the raw cursor point; the render below converts
+  // its Y into a real timestamp by linearly interpolating between the two nearest chapter-stop
+  // bullets' OWN real anchorStartedAt values (not the hour markers above, which only mark
+  // whole-hour boundaries) — "the time between bullets is just linear time between" per direct
+  // feedback. Reads from `pointsRef` (the exact small bullet dots TrailConnectorOverlay already
+  // draws its lines between, registered under `node:${id}`) rather than nodeBlockRefs (each
+  // node's WHOLE row wrapper, including any tangent bullets/dividers stacked above it) — that
+  // wrapper's own center can sit well below the actual bullet for a node with extra chrome
+  // above it, which was throwing the interpolation off badly enough to read as broken.
+  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null)
   const hoverInfo = useMemo(() => {
-    if (hoverClientY == null) return null
+    if (!hoverPoint) return null
     const points: { y: number; t: number }[] = []
     for (const n of detail.nodes) {
-      const el = nodeBlockRefs.current.get(n.id)
+      const el = pointsRef.current.get(`node:${n.id}`)
       if (!el) continue
       const r = el.getBoundingClientRect()
       points.push({ y: r.top + r.height / 2, t: n.anchorStartedAt })
     }
     if (points.length === 0) return null
     points.sort((a, b) => a.y - b.y)
+    const hy = hoverPoint.y
     let t: number
-    if (hoverClientY <= points[0].y) t = points[0].t
-    else if (hoverClientY >= points[points.length - 1].y) t = points[points.length - 1].t
+    if (hy <= points[0].y) t = points[0].t
+    else if (hy >= points[points.length - 1].y) t = points[points.length - 1].t
     else {
       let lo = points[0], hi = points[points.length - 1]
       for (let i = 0; i < points.length - 1; i++) {
-        if (hoverClientY >= points[i].y && hoverClientY <= points[i + 1].y) { lo = points[i]; hi = points[i + 1]; break }
+        if (hy >= points[i].y && hy <= points[i + 1].y) { lo = points[i]; hi = points[i + 1]; break }
       }
-      const frac = hi.y > lo.y ? (hoverClientY - lo.y) / (hi.y - lo.y) : 0
+      const frac = hi.y > lo.y ? (hy - lo.y) / (hi.y - lo.y) : 0
       t = lo.t + frac * (hi.t - lo.t)
     }
     // `y` stays in raw screen (clientY) coordinates — the readout below is `position: fixed`,
     // same as this file's existing marquee/selection-bar overlays, so no container-relative
     // conversion is needed.
     return {
-      y: hoverClientY,
+      y: hy,
       label: new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     }
     // detail.nodes.length (not the array itself) is enough to re-derive on data changes; zoom
-    // affects every bullet's screen Y too. hoverClientY is read fresh each call.
+    // affects every bullet's screen Y too. hoverPoint is read fresh each call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoverClientY, detail.nodes.length, zoom])
+  }, [hoverPoint, detail.nodes.length, zoom])
+
+  // Dim the time rail (both pieces) the closer the cursor gets to any real map element — per
+  // direct feedback, it was competing for attention with the actual bullets/lines it sits near.
+  // Distance to the nearest registered point (bullets, tangent stubs, row anchors — everything
+  // in the shared pointsRef map, not just chapter bullets) rather than just chapter nodes, since
+  // ANY nearby element reads as "the cursor is busy with something else right now."
+  const timeRailOpacity = useMemo(() => {
+    if (!hoverPoint) return 1
+    const DIM_START_PX = 70
+    const MIN_OPACITY = 0.1
+    let nearest = Infinity
+    for (const el of pointsRef.current.values()) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) continue
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2
+      const d = Math.hypot(cx - hoverPoint.x, cy - hoverPoint.y)
+      if (d < nearest) nearest = d
+    }
+    if (nearest >= DIM_START_PX) return 1
+    return MIN_OPACITY + (1 - MIN_OPACITY) * (nearest / DIM_START_PX)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverPoint, detail.nodes.length, zoom])
 
   // Single shared "suppress hover UI" condition — per direct feedback ("right-click should hide
   // ALL hover UI... find wherever menuOpen/hoveredKey state already exists and add a single
@@ -2272,8 +2300,8 @@ export default function MapView({
       <div
         ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onContextMenu={onBlankContextMenu}
         onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }}
-        onMouseMove={(e) => setHoverClientY(e.clientY)}
-        onMouseLeave={() => setHoverClientY(null)}
+        onMouseMove={(e) => setHoverPoint({ x: e.clientX, y: e.clientY })}
+        onMouseLeave={() => setHoverPoint(null)}
         style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}
       >
         {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
@@ -2551,7 +2579,8 @@ export default function MapView({
                   fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))',
                   background: 'rgb(var(--color-surface-1) / 0.85)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
                   border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 6, padding: '3px 7px',
-                  transition: 'top 220ms ease',
+                  opacity: timeRailOpacity,
+                  transition: 'top 220ms ease, opacity 120ms ease',
                 }}>
                   {railState.label}
                 </div>
@@ -2562,6 +2591,7 @@ export default function MapView({
                     position: 'fixed', left: scrollRect.left, top: hoverInfo.y,
                     width: scrollRect.width, height: 0, zIndex: 29, pointerEvents: 'none',
                     borderTop: '1px dashed rgb(var(--color-accent) / 0.45)',
+                    opacity: timeRailOpacity, transition: 'opacity 120ms ease',
                   }} />
                   <div style={{
                     position: 'fixed', left: scrollRect.left + 10, top: hoverInfo.y, transform: 'translateY(-50%)',
@@ -2569,6 +2599,7 @@ export default function MapView({
                     fontSize: 11, fontWeight: 700, color: 'rgb(var(--color-accent))',
                     background: 'rgb(var(--color-surface-1) / 0.92)', border: '1px solid rgb(var(--color-accent) / 0.4)',
                     borderRadius: 6, padding: '3px 7px',
+                    opacity: timeRailOpacity, transition: 'opacity 120ms ease',
                   }}>
                     {hoverInfo.label}
                   </div>
