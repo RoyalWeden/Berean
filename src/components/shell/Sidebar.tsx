@@ -1,7 +1,7 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { motion } from 'framer-motion'
-import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
+import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarCheck, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
@@ -820,13 +820,14 @@ export default function Sidebar() {
             todayAction={
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
+                  {/* Icon-only now (was a "📅 Today" text link) — per direct feedback, matches
+                      the nav arrows' own icon-only, color-only hover treatment. */}
                   <button
                     onClick={openTodaysDailyNote}
                     onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: dailyNoteToday(), x: e.clientX, y: e.clientY }) }}
-                    className="no-drag flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
+                    className="no-drag p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                   >
-                    <CalendarDays size={11} />
-                    Today
+                    <CalendarCheck size={13} />
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Portal>
