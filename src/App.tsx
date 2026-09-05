@@ -47,6 +47,8 @@ const TasksPanel = lazy(() => import('@/components/shell/TasksPanel'))
 
 interface SwitcherTab { spaceId: SpaceId; tabId: string; title: string; tab: Tab }
 
+const SPACE_IDS = ['scripture', 'notes', 'lexicon', 'youtube', 'search'] as const
+
 // Mounts children (inside Suspense) once `when` first becomes true, then keeps
 // them mounted — so the dynamic import fires only on first open, but close
 // animations / internal open-state handling still work exactly as before.
@@ -340,6 +342,7 @@ export default function App() {
   // When receiving a broadcast from another window, apply it (no re-broadcast).
   const applyExternalTabSync = useAppStore((s) => s.applyExternalTabSync)
   const isBroadcastingRef = useRef(false)
+  const lastBroadcastSigRef = useRef<string | null>(null)
 
   useEffect(() => {
     // Listen for broadcasts from other windows
@@ -361,8 +364,19 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    // Broadcast our tab state + theme to other windows whenever tabs or theme change
+    // Broadcast our tab state + theme to other windows whenever tabs or theme change.
     if (isBroadcastingRef.current) return // skip if we're applying an external update
+    // Structural signature only — id / title / pin per space, never a tab's inner `.state`
+    // (scroll offset, cursor, chapter). Without this the effect re-ran and re-broadcast the
+    // ENTIRE tab tree (incl. every tab's `.state`) over IPC every 150ms during scrolling or
+    // typing — the same "typing is laggy" churn crossWindowSync.ts already guards against with
+    // its own `tabsSig`. Theme/animation prefs still get through: they're their own deps below.
+    const tabsSig = SPACE_IDS
+      .map((sp) => (storeTabs[sp] ?? []).map((t) => `${t.id}~${t.title}~${t.isPinned ? 1 : 0}`).join(','))
+      .join('|')
+    const sig = `${tabsSig}::${theme}::${themePreset}::${backgroundAnimationEnabled}::${backgroundAnimationStyle}::${backgroundAnimationIntensity}`
+    if (sig === lastBroadcastSigRef.current) return
+    lastBroadcastSigRef.current = sig
     const timer = setTimeout(() => {
       // updatedAt — see applyExternalTabSync's own comment (store/index.ts): lets a receiving
       // window drop a stale broadcast that arrives after a newer local change instead of
