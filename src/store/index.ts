@@ -7,7 +7,7 @@ import { bookName } from '@/lib/parseRef'
 import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
-import { debouncedLocalStorage, readThroughLocalStorage } from '@/lib/debouncedStorage'
+import { debouncedLocalStorage, readThroughLocalStorage, flushDebouncedStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
 import { recordLexiconConnection, recordSideStop } from '@/store/studyTrailSlice'
 import { recordNavigation } from '@/lib/verseNavigation'
@@ -680,6 +680,18 @@ export interface AppState {
   renameTab: (spaceId: SpaceId, tabId: string, title: string) => void
   reorderTabs: (spaceId: SpaceId, fromIndex: number, toIndex: number) => void
   updateTabState: (spaceId: SpaceId, tabId: string, newState: Partial<TabState>) => void
+  // Live scroll offset per tab id, updated at scroll frequency (~every 150ms while
+  // scrolling). Deliberately NOT persisted and NOT inside `tabs[].state`: writing it
+  // there rebuilt the whole `tabs` record on every tick and re-rendered every
+  // `s.tabs.*` subscriber (the ~4000-line BiblePanel on its own save, the App root,
+  // audio player, ribbon, …). Panels read `s.scrollByTab[tabId]` (a keyed primitive,
+  // so a write for one tab doesn't touch any other subscriber). The canonical
+  // persisted value still lives in `tabs[].state.scrollPosition`; it's caught up from
+  // this map at every flush point — tab switch / space switch (BiblePanel's own
+  // berean:saveScrollBeforeTabChange handler writes the true DOM scrollTop) and
+  // pagehide (flushScrollByTab below).
+  scrollByTab: Record<string, number>
+  setTabScrollPos: (tabId: string, pos: number) => void
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
   setSidebarWidth: (width: number) => void
@@ -1856,7 +1868,16 @@ export const useAppStore = create<AppState>()(
         set({ tabs: newTabs, activeTabId: { ...state.activeTabId, [spaceId]: newActiveId }, sessions: updatedSessions })
       },
 
-      setActiveSpace: (space) => set({ activeSpace: space }),
+      setActiveSpace: (space) => {
+        // Leaving a space no longer unmounts its panel (ActivePanel keeps them mounted), so
+        // BiblePanel's unmount-cleanup scroll save doesn't fire on a space switch anymore.
+        // Fire the same synchronous flush event a tab switch uses so the outgoing panel
+        // writes its true DOM scroll offset into tabs[].state before it's hidden.
+        if (space !== get().activeSpace) {
+          try { window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange')) } catch { /* no window (tests) */ }
+        }
+        set({ activeSpace: space })
+      },
 
       createTab: (type, position = 'after-active') => {
         const spaceId = TYPE_TO_SPACE[type]
@@ -2022,7 +2043,8 @@ export const useAppStore = create<AppState>()(
           set((s) => {
             const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
             const { [tabId]: __, ...restSel } = s.selectedVersesByTab
-            return { tabs: newTabsAll, tabMRUList: prunedMRU, tabNavStacks: restNavStacks, selectedVersesByTab: restSel }
+            const { [tabId]: ___, ...restScroll } = s.scrollByTab
+            return { tabs: newTabsAll, tabMRUList: prunedMRU, tabNavStacks: restNavStacks, selectedVersesByTab: restSel, scrollByTab: restScroll }
           })
           return
         }
@@ -2042,6 +2064,7 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
           const { [tabId]: __, ...restSel } = s.selectedVersesByTab
+          const { [tabId]: ___, ...restScroll } = s.scrollByTab
           if (mruFallback && mruFallback.spaceId !== spaceId) {
             return {
               tabs: newTabsAll,
@@ -2050,6 +2073,7 @@ export const useAppStore = create<AppState>()(
               tabMRUList: prunedMRU,
               tabNavStacks: restNavStacks,
               selectedVersesByTab: restSel,
+              scrollByTab: restScroll,
             }
           }
           return {
@@ -2058,6 +2082,7 @@ export const useAppStore = create<AppState>()(
             tabMRUList: prunedMRU,
             tabNavStacks: restNavStacks,
             selectedVersesByTab: restSel,
+            scrollByTab: restScroll,
           }
         })
       },
@@ -2185,9 +2210,11 @@ export const useAppStore = create<AppState>()(
                 }
                 freshlyCreatedBibleTabIds.delete(tabId)
                 // Stamp the entry we're leaving with the scroll offset the panel was last at,
-                // so Cmd+[ back to it returns to where the user was reading. cur.scrollPosition
-                // is the pre-navigation value (this runs before newState is merged below).
-                stampNavEntryScroll(get, tabId, cur.scrollPosition as number | undefined)
+                // so Cmd+[ back to it returns to where the user was reading. Prefer the live
+                // scrollByTab value (updated at scroll frequency) over cur.scrollPosition,
+                // which only catches up at flush points and can be stale here — this nav has
+                // no preceding saveScrollBeforeTabChange.
+                stampNavEntryScroll(get, tabId, (get().scrollByTab[tabId] ?? cur.scrollPosition) as number | undefined)
                 get().pushTabNav(tabId, {
                   type: 'bible', title: `${bookName(newBookId)} ${newChapter}`,
                   bookId: newBookId, chapter: newChapter, translation: newTranslation,
@@ -2246,6 +2273,10 @@ export const useAppStore = create<AppState>()(
         )
         set({ tabs: { ...state.tabs, [spaceId]: tabs } })
       },
+
+      scrollByTab: {} as Record<string, number>,
+      setTabScrollPos: (tabId, pos) =>
+        set((s) => (s.scrollByTab[tabId] === pos ? s : { scrollByTab: { ...s.scrollByTab, [tabId]: pos } })),
 
       updatePanelLayout: (layout) => set({ panelLayout: layout }),
 
@@ -3010,4 +3041,30 @@ if (typeof window !== 'undefined') {
       // Malformed/partial localStorage value mid-write — next change will resync.
     }
   })
+
+  // Fold the live per-tab scroll offsets (scrollByTab — deliberately not persisted, see its
+  // declaration) back into tabs[].state.scrollPosition on the way out, so the next launch
+  // restores where the user actually was. Tab/space switches already flush via
+  // berean:saveScrollBeforeTabChange; this covers a plain quit while sitting on a tab. Then
+  // force the persisted-state write since we're unloading and it would otherwise sit in the
+  // 500ms debounce.
+  const flushScrollByTab = () => {
+    const s = useAppStore.getState()
+    const map = s.scrollByTab
+    if (!map || Object.keys(map).length === 0) return
+    let changed = false
+    const nextScripture = s.tabs.scripture.map((t) => {
+      const pos = map[t.id]
+      if (pos != null && (t.state as { scrollPosition?: number }).scrollPosition !== pos) {
+        changed = true
+        return { ...t, state: { ...t.state, scrollPosition: pos } }
+      }
+      return t
+    })
+    if (changed) useAppStore.setState({ tabs: { ...s.tabs, scripture: nextScripture } })
+    flushDebouncedStorage()
+  }
+  window.addEventListener('pagehide', flushScrollByTab)
+  window.addEventListener('beforeunload', flushScrollByTab)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushScrollByTab() })
 }

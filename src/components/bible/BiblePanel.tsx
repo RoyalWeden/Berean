@@ -84,6 +84,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // player's card doesn't sit on top of the last verse with no way to scroll past it.
   const audioPlaybackActive = useAppStore((s) => s.audioPlayback != null)
   const updateTabState = useAppStore((s) => s.updateTabState)
+  const setTabScrollPos = useAppStore((s) => s.setTabScrollPos)
   const renameTab = useAppStore((s) => s.renameTab)
   const pendingRightPanelNoteId = useAppStore((s) => s.pendingRightPanelNoteId)
   const pendingRightPanelVerseFilter = useAppStore((s) => s.pendingRightPanelVerseFilter)
@@ -1060,7 +1061,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const pos = el?.scrollTop ?? 0
       const updates: Partial<import('@/types').BibleTabState> = {}
       // Skip the scroll-position write inside a navigation's suppression window (pre-jump offset).
-      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current) updates.scrollPosition = pos
+      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current) {
+        updates.scrollPosition = pos
+        if (tab) useAppStore.getState().setTabScrollPos(tab.id, pos)
+      }
       // Only remember the note cursor (and re-focus on return) if the user was actually
       // typing in the side-panel note editor when they left this tab.
       const noteFocused = isSidePanelNoteFocused()
@@ -1083,7 +1087,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const updates: Partial<import('@/types').BibleTabState> = {}
       // Don't persist a scroll position captured inside a navigation's suppression window — it
       // would be the pre-jump offset, not where the freshly-opened passage should sit.
-      if (el && Date.now() >= suppressScrollSaveUntilRef.current) updates.scrollPosition = el.scrollTop
+      if (el && Date.now() >= suppressScrollSaveUntilRef.current) {
+        updates.scrollPosition = el.scrollTop
+        // Keep the ephemeral map in step so stampNavEntryScroll (which prefers it) doesn't
+        // stamp a stale offset onto the nav entry after this flush.
+        useAppStore.getState().setTabScrollPos(tab.id, el.scrollTop)
+      }
       const noteFocused = isSidePanelNoteFocused()
       updates.rightPanelNoteFocused = noteFocused
       if (noteFocused && lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
@@ -2433,7 +2442,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (Date.now() < suppressScrollSaveUntilRef.current) return
       if (activeTabRef.current?.id !== tabId) return
       if (tabStateRef.current.bookId !== savedForBook || tabStateRef.current.chapter !== savedForChapter) return
-      if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
+      // Ephemeral keyed write — NOT updateTabState({ scrollPosition }), which rebuilt the whole
+      // tabs record on every 150ms tick and re-rendered every s.tabs.* subscriber (this panel
+      // included). The canonical tabs[].state.scrollPosition is caught up from scrollByTab at
+      // every flush point (tab/space switch via the onSave handler above, pagehide in the store).
+      if (tabId) setTabScrollPos(tabId, scrollTop)
     }, 150)
     // In Continuous Chapter Scroll mode, `container` is the WHOLE multi-chapter scroll region
     // (loaded chapters + height-preserving placeholder spacers for evicted ones spanning the

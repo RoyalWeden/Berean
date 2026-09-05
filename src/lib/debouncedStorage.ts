@@ -29,6 +29,13 @@ let pendingValue: StoredValue | null = null
 let hasPending = false
 let timer: ReturnType<typeof setTimeout> | null = null
 
+/** Force the pending persisted-state write (if any) to disk now. Exported so the
+ *  store can call it after a last-moment `setState` on pagehide/beforeunload —
+ *  otherwise that write would sit in the 500ms debounce and be lost on unload. */
+export function flushDebouncedStorage(): void {
+  flush()
+}
+
 function flush(): void {
   if (timer !== null) {
     clearTimeout(timer)
