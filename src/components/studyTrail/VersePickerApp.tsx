@@ -211,7 +211,14 @@ function VersePickerColumn({
                 border: `1px solid ${isSelected ? accentColor : isCurrentMatch ? accentColor : 'transparent'}`,
                 cursor: 'pointer',
                 opacity: dimmedByFind ? 0.45 : 1,
-              }}
+                // The verse text is otherwise plain selectable text — without this, hovering the
+                // text (not just the number) shows a text/I-beam cursor instead of the row's own
+                // pointer, and dragging across it starts a text selection instead of registering
+                // as a click. Every child inherits `cursor` from here too, applied explicitly
+                // (not just relying on inheritance) so nothing below can silently reintroduce it.
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+              } as React.CSSProperties}
             >
               <span
                 style={{
@@ -224,11 +231,12 @@ function VersePickerColumn({
                   color: isSelected ? textColor : muteColor,
                   minWidth: `${Math.max(2, String(v.verse_num).length)}ch`,
                   textAlign: 'right', flexShrink: 0, paddingTop: 1,
+                  cursor: 'pointer',
                 }}
               >
                 {v.verse_num}
               </span>
-              <span style={{ fontSize: 13 * fontScale, lineHeight: 1.5, color: textColor }}>{wr(v.text)}</span>
+              <span style={{ fontSize: 13 * fontScale, lineHeight: 1.5, color: textColor, cursor: 'pointer' }}>{wr(v.text)}</span>
             </button>
           )
         })}

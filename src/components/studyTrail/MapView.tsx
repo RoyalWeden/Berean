@@ -89,10 +89,17 @@ function tieToRef(s?: string): TrailRef | null {
   const p = s?.trim() ? parseRef(s.trim()) : null
   return p ? { kind: 'chapter', bookId: p.bookId, chapter: p.chapter, verse: p.verse } : null
 }
-/** Display label for a tie: the canonical ref label when parseable, else the raw string. */
+/** Display label for a tie: the raw stored string when there is one, else the canonical
+ *  single-verse ref label. RAW wins now (was the other way around) — a tie set through the
+ *  verse-tie picker is always the FULL compact range string ("Luke 4:18-19,22,25-30"), and
+ *  `tieToRef` above only ever keeps the parsed ref's first verse (it exists for click-to-
+ *  navigate, where a single target verse is all that's needed) — falling back to that
+ *  ref-derived label here silently truncated a multi-verse tie down to its first verse. Every
+ *  raw tie string is already the canonical, fully-formatted display form (either the picker's
+ *  range string, or a legacy single-verse/verse-range pin), so there's no normalization left
+ *  for the ref-derived form to add now that free-typed manual entry is gone. */
 function tieLabel(ref: TrailRef | null, raw?: string): string | undefined {
-  if (ref && ref.kind === 'chapter') return bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)
-  return raw?.trim() || undefined
+  return raw?.trim() || (ref && ref.kind === 'chapter' ? bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse) : undefined)
 }
 
 function bookLabel(bookId: string): string {
