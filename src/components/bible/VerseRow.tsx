@@ -967,8 +967,23 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
 
   const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
 
-  // Determine rendering mode
-  const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
+  // Determine rendering mode. Memoized on `highlights` (ChapterView hands each VerseRow a
+  // stable per-verse array via mergeStableRecord) so this filtered array keeps its identity
+  // across unrelated re-renders — it's read ~15 times in renderVerseText() and passed into
+  // splitWordByHighlights per word, and a fresh identity each render defeated every downstream
+  // bail-out.
+  const charHighlights = useMemo(
+    () => highlights.filter(h => h.startChar !== null && h.endChar !== null),
+    [highlights],
+  )
+
+  // One stable callback for the ~4 StrongsInline call sites below, instead of a fresh
+  // `(num) => onStrongsClick?.(num, verse.verse_num)` arrow at each — those fresh closures
+  // meant memo(StrongsInline) could never bail out even when nothing about the chip changed.
+  const handleStrongsClick = useCallback(
+    (num: string) => onStrongsClick?.(num, verse.verse_num),
+    [onStrongsClick, verse.verse_num],
+  )
 
   function renderVerseText() {
     // ── Scripture-search Strong's-match highlight ──────────────────────────────
@@ -1164,7 +1179,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       wordSegments={playbackSegs ?? undefined}
                       findQuery={playbackSegs ? '' : (isFindMatch ? findQuery : '')}
                       findWordMode={highlightMode}
-                      onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
+                      onStrongsClick={handleStrongsClick}
                       onWordClick={onWordClick}
                       swIdx={first}
                       extraGap={groupGaps[gi]}
@@ -1190,7 +1205,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                     isRedLetter={g.members.every((mi) => displayTokens[mi].isRedLetter)}
                     tagged={true}
                     groupWords={groupWords}
-                    onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
+                    onStrongsClick={handleStrongsClick}
                     swIdx={first}
                     extraGap={groupGaps[gi]}
                     phraseKey={key}
@@ -1345,7 +1360,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   wordSegments={wordSegs ?? undefined}
                   findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
                   findWordMode={highlightMode}
-                  onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
+                  onStrongsClick={handleStrongsClick}
                   onWordClick={onWordClick}
                 />
                 {i < words.length - 1 && (
