@@ -63,7 +63,7 @@ function fmtDayHeading(ms: number): string {
 }
 
 export default function EverythingView({
-  sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom, onCurrentHourChange,
+  sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom,
   headerCollapsed, onToggleHeaderCollapsed, headerPos, onHeaderDragStart,
 }: {
   sessions: TrailSession[]
@@ -72,7 +72,6 @@ export default function EverythingView({
   revisitWindowMs?: number
   onLayoutRoomChange?: (room: { left: number; right: number }) => void
   layoutRoom?: { left: number; right: number }
-  onCurrentHourChange?: (hour: string | null) => void
   headerCollapsed: boolean
   onToggleHeaderCollapsed: () => void
   headerPos: TrailHeaderPos | null
@@ -217,7 +216,7 @@ export default function EverythingView({
               }}
             >{loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} older sessions`}</button>
           )}
-          <MapView detail={merged} onChanged={() => { void loadWindow(loadedCountRef.current, false) }} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
+          <MapView detail={merged} onChanged={() => { void loadWindow(loadedCountRef.current, false) }} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} />
         </div>
       )}
     </div>

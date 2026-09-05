@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen, Clock } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
@@ -1135,7 +1135,7 @@ export function pickControlSide(room: { left: number; right: number } | undefine
 
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
-  filterValue, onFilterChange, topInset = 0, onLayoutRoomChange, onCurrentHourChange,
+  filterValue, onFilterChange, topInset = 0, onLayoutRoomChange,
   scrollKey = EVERYTHING_SCROLL_KEY, onSplitHere,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
@@ -1153,10 +1153,6 @@ export default function MapView({
    *  own header / zoom controls on. Per direct feedback: those controls default to the left and
    *  "swap to the right if they will get in the way of the main spine/branches". */
   onLayoutRoomChange?: (room: { left: number; right: number }) => void
-  /** Reports the clock hour of whichever chapter stop is currently at the top of the scroll
-   *  view (advances as you scroll) — the parent shows it INSIDE the session header pill so
-   *  there's one floating thing, not a separate hour pill the user couldn't spot. */
-  onCurrentHourChange?: (hour: string | null) => void
   /** Extra top padding inside the scroll area — used when the parent floats its session-header
    *  bar over the top of the map (StudyTrailApp) so the first stop isn't pinned flush to the
    *  window edge. Kept small on purpose: the whole point of floating the header is that trail
@@ -1808,9 +1804,8 @@ export default function MapView({
   const {
     nodeById, nextNodeById, nodeOrderIndex, originConnByNodeId,
     rowsForNode, rowsForConnection, edges, gutterWidth, maxRenderDepth,
-    hourLabelForNodeId, hourMarkers, isRevisitWithinWindow, anchorNodes,
+    hourMarkers, isRevisitWithinWindow, anchorNodes,
   } = graph
-  const firstHour = hourMarkers[0]?.label ?? null
 
   // ── What a fold actually hides ────────────────────────────────────────────
   // "collapsing doesnt seem to fully be working for branches" — because a branch's real payoff is
@@ -2145,31 +2140,46 @@ export default function MapView({
   // pill always end up on the same side and can stack cleanly.
   const latestSide = pickControlSide(layoutRoom, CTRL_W.zoom)
 
-  // ── Current-hour tracker (fed into the parent's header pill) ──────────────
-  // `firstHour` is the synchronous fallback so the pill's hour line shows immediately; the
-  // effect then refines it to whichever marker is at the top of the view, live on scroll.
+  // ── Time rail (left edge) ──────────────────────────────────────────────────
+  // Replaces the old top-right "current hour" badge entirely — per direct feedback, something
+  // that lives ON THE MAP itself, on the left side: a small label tracking whichever hour marker
+  // is current, sliding down a short fixed range as you scroll THROUGH that hour's own span
+  // (reaching the bottom of the range right as the next hour marker reaches the top of the
+  // view), then jumping back up to start the next hour's slide. Plus, independently, a
+  // hover-anywhere readout: a dashed line to the left edge and the EXACT time (with minutes) at
+  // the cursor's row, linearly interpolated between whichever two chapter-stop bullets bracket
+  // it — the spine's vertical spacing is log-scaled, not literal elapsed time, so this is the
+  // only place an exact time is ever recoverable from a Y position.
+  const [railState, setRailState] = useState<{ label: string; progress: number } | null>(null)
   const hourMarkersRef = useRef(hourMarkers)
   hourMarkersRef.current = hourMarkers
-  const hourRafRef = useRef(0)
+  const railRafRef = useRef(0)
   useEffect(() => {
-    onCurrentHourChange?.(firstHour)
     const scroller = scrollContainerRef.current
     if (!scroller) return
     const measure = () => {
-      hourRafRef.current = 0
+      railRafRef.current = 0
       const markers = hourMarkersRef.current
-      if (markers.length === 0) { onCurrentHourChange?.(null); return }
+      if (markers.length === 0) { setRailState(null); return }
       const sTop = scroller.getBoundingClientRect().top + topInset
-      let active = markers[0].label
-      for (const m of markers) {
-        const el = nodeBlockRefs.current.get(m.id)
+      let activeIdx = 0
+      for (let i = 0; i < markers.length; i++) {
+        const el = nodeBlockRefs.current.get(markers[i].id)
         if (!el) continue
-        if (el.getBoundingClientRect().top - sTop <= 12) active = m.label
+        if (el.getBoundingClientRect().top - sTop <= 12) activeIdx = i
         else break
       }
-      onCurrentHourChange?.(active)
+      const activeEl = nodeBlockRefs.current.get(markers[activeIdx].id)
+      const nextEl = markers[activeIdx + 1] ? nodeBlockRefs.current.get(markers[activeIdx + 1].id) : null
+      let progress = 0
+      if (activeEl && nextEl) {
+        const a = activeEl.getBoundingClientRect().top - sTop
+        const b = nextEl.getBoundingClientRect().top - sTop
+        progress = b > a ? Math.max(0, Math.min(1, -a / (b - a))) : 0
+      }
+      setRailState({ label: markers[activeIdx].label, progress })
     }
-    const schedule = () => { if (!hourRafRef.current) hourRafRef.current = requestAnimationFrame(measure) }
+    const schedule = () => { if (!railRafRef.current) railRafRef.current = requestAnimationFrame(measure) }
     schedule()
     scroller.addEventListener('scroll', schedule, { passive: true })
     const ro = new ResizeObserver(schedule)
@@ -2177,10 +2187,49 @@ export default function MapView({
     return () => {
       scroller.removeEventListener('scroll', schedule)
       ro.disconnect()
-      if (hourRafRef.current) cancelAnimationFrame(hourRafRef.current)
+      if (railRafRef.current) cancelAnimationFrame(railRafRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstHour, detail.nodes.length, zoom, topInset])
+  }, [detail.nodes.length, zoom, topInset])
+
+  // Hover-anywhere exact-time readout. Tracks raw client Y; the render below converts it to a
+  // real timestamp by linearly interpolating between the two nearest chapter-stop bullets'
+  // OWN real anchorStartedAt values (not the hour markers above, which only mark whole-hour
+  // boundaries) — "the time between bullets is just linear time between" per direct feedback.
+  const [hoverClientY, setHoverClientY] = useState<number | null>(null)
+  const hoverInfo = useMemo(() => {
+    if (hoverClientY == null) return null
+    const points: { y: number; t: number }[] = []
+    for (const n of detail.nodes) {
+      const el = nodeBlockRefs.current.get(n.id)
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      points.push({ y: r.top + r.height / 2, t: n.anchorStartedAt })
+    }
+    if (points.length === 0) return null
+    points.sort((a, b) => a.y - b.y)
+    let t: number
+    if (hoverClientY <= points[0].y) t = points[0].t
+    else if (hoverClientY >= points[points.length - 1].y) t = points[points.length - 1].t
+    else {
+      let lo = points[0], hi = points[points.length - 1]
+      for (let i = 0; i < points.length - 1; i++) {
+        if (hoverClientY >= points[i].y && hoverClientY <= points[i + 1].y) { lo = points[i]; hi = points[i + 1]; break }
+      }
+      const frac = hi.y > lo.y ? (hoverClientY - lo.y) / (hi.y - lo.y) : 0
+      t = lo.t + frac * (hi.t - lo.t)
+    }
+    // `y` stays in raw screen (clientY) coordinates — the readout below is `position: fixed`,
+    // same as this file's existing marquee/selection-bar overlays, so no container-relative
+    // conversion is needed.
+    return {
+      y: hoverClientY,
+      label: new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    }
+    // detail.nodes.length (not the array itself) is enough to re-derive on data changes; zoom
+    // affects every bullet's screen Y too. hoverClientY is read fresh each call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoverClientY, detail.nodes.length, zoom])
 
   // Single shared "suppress hover UI" condition — per direct feedback ("right-click should hide
   // ALL hover UI... find wherever menuOpen/hoveredKey state already exists and add a single
@@ -2220,7 +2269,13 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onContextMenu={onBlankContextMenu} onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
+      <div
+        ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onContextMenu={onBlankContextMenu}
+        onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }}
+        onMouseMove={(e) => setHoverClientY(e.clientY)}
+        onMouseLeave={() => setHoverClientY(null)}
+        style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}
+      >
         {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
             whole content block — gutter + spine + indents + labels — in the viewport. It
             collapses to 0 once the content is wider than the viewport, so the native scroll
@@ -2470,6 +2525,58 @@ export default function MapView({
             </div>
           </div>
         </div>
+
+        {/* Time rail — left edge of the map viewport. Replaces the old top-right "current hour"
+            badge (per direct feedback, "something actually on the map... on the left side").
+            Two independent pieces, both `position: fixed` off the scroll container's own live
+            rect (same pattern as the marquee/selection-bar overlays below):
+             1. The current-hour label, which slides down a short fixed range as you scroll
+                through that hour's own span and jumps back up when the next hour marker takes
+                over — a real "progress through this hour" motion, not just a static readout.
+             2. A dashed line to the left edge + the exact time (with minutes) at the cursor's
+                row, only while hovering anywhere over the timeline — see hoverInfo above for the
+                linear-interpolation-between-bullets math. */}
+        {(() => {
+          const scrollRect = scrollContainerRef.current?.getBoundingClientRect()
+          if (!scrollRect) return null
+          const RAIL_TOP = 16
+          const RAIL_SLIDE_RANGE = 44
+          return (
+            <>
+              {railState && (
+                <div style={{
+                  position: 'fixed', left: scrollRect.left + 10,
+                  top: scrollRect.top + RAIL_TOP + railState.progress * RAIL_SLIDE_RANGE,
+                  zIndex: 30, pointerEvents: 'none',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))',
+                  background: 'rgb(var(--color-surface-1) / 0.85)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                  border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 6, padding: '3px 7px',
+                  transition: 'top 220ms ease',
+                }}>
+                  {railState.label}
+                </div>
+              )}
+              {hoverInfo && (
+                <>
+                  <div style={{
+                    position: 'fixed', left: scrollRect.left, top: hoverInfo.y,
+                    width: scrollRect.width, height: 0, zIndex: 29, pointerEvents: 'none',
+                    borderTop: '1px dashed rgb(var(--color-accent) / 0.45)',
+                  }} />
+                  <div style={{
+                    position: 'fixed', left: scrollRect.left + 10, top: hoverInfo.y, transform: 'translateY(-50%)',
+                    zIndex: 30, pointerEvents: 'none',
+                    fontSize: 11, fontWeight: 700, color: 'rgb(var(--color-accent))',
+                    background: 'rgb(var(--color-surface-1) / 0.92)', border: '1px solid rgb(var(--color-accent) / 0.4)',
+                    borderRadius: 6, padding: '3px 7px',
+                  }}>
+                    {hoverInfo.label}
+                  </div>
+                </>
+              )}
+            </>
+          )
+        })()}
 
         {/* Marquee rectangle while dragging */}
         {marquee && (

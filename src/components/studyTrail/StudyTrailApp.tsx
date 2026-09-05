@@ -131,14 +131,10 @@ export default function StudyTrailApp() {
   const [layoutRoom, setLayoutRoom] = useState<{ left: number; right: number }>({ left: 9999, right: 9999 })
   const headerSide = pickControlSide(layoutRoom, CTRL_W.header)
   const zoomSide = pickControlSide(layoutRoom, CTRL_W.zoom)
-  // The live current-hour badge (below) always sits on the OPPOSITE side from the session
-  // header, regardless of whether the header has been dragged elsewhere — simplest way to
-  // guarantee it never sits under the header pill without needing its own layoutRoom check.
-  const hourBadgeSide = headerSide === 'left' ? 'right' : 'left'
-  // Live clock hour of whatever's at the top of the trail — its own small floating badge (see
-  // renderCurrentHourBadge below), separate from the session header pill so it stays visible
-  // even while that header is collapsed.
-  const [currentHour, setCurrentHour] = useState<string | null>(null)
+  // The old live current-hour badge (top-right, window-level) is gone — per direct feedback,
+  // replaced by TrailTimeRail, a left-edge indicator MapView/EverythingView now render
+  // themselves ("something actually on the map... on the left side"), so there's nothing left
+  // for this window to own/position here.
   // Collapse-to-chip + drag-to-reposition for the floating session header — per feedback ("the
   // header block in the map is getting in the way... is there a way for it to minimize/collapse
   // and be moved around"). headerPos is null until the user actually drags it once; until then
@@ -1285,7 +1281,7 @@ export default function StudyTrailApp() {
           ) : selectedId === null ? (
             <EverythingView
               sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS}
-              onLayoutRoomChange={setLayoutRoom} layoutRoom={layoutRoom} onCurrentHourChange={setCurrentHour}
+              onLayoutRoomChange={setLayoutRoom} layoutRoom={layoutRoom}
               headerCollapsed={headerCollapsed} onToggleHeaderCollapsed={() => setHeaderCollapsed((c) => !c)}
               headerPos={headerPos} onHeaderDragStart={handleHeaderDragStart}
             />
@@ -1346,7 +1342,6 @@ export default function StudyTrailApp() {
                   onFilterChange={setTrailFilter}
                   topInset={8}
                   onLayoutRoomChange={setLayoutRoom}
-                  onCurrentHourChange={setCurrentHour}
                   onSplitHere={handleSplitHere}
                 />
               </div>
@@ -1355,25 +1350,6 @@ export default function StudyTrailApp() {
           </div>
         </div>
       </div>
-      {/* Live current-hour badge — its OWN floating pill (moved out of the session header per
-          feedback, so it stays visible even while that header is collapsed), always on the side
-          opposite the header (hourBadgeSide above) so the two never overlap. top:44 (was 20) —
-          the title bar's own right-aligned "Ask why?" button sits in that same top-right corner
-          at the window's actual top edge, so top:20 sat ON TOP of it; 44 clears the title bar's
-          own ~36-40px height entirely regardless of which side this badge lands on. */}
-      {mainTab === 'map' && currentHour && (
-        <div style={{
-          position: 'fixed', top: 44, zIndex: 50,
-          ...(hourBadgeSide === 'left' ? { left: 240 } : { right: 20 }),
-          background: 'rgb(var(--color-surface-1) / 0.85)',
-          backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-          border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 8,
-          boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '5px 12px',
-          fontSize: 12.5, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-primary))',
-        }}>
-          {currentHour}
-        </div>
-      )}
       {/* Floating zoom pill, bottom-right — per the plan: moved here from the title bar
           ("put the zoom ... to actually be a floating pill at the bottom right of the
           window"). Only shown on the Map tab (Review doesn't use MapView, so it means
