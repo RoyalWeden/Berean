@@ -974,7 +974,12 @@ function NodeBlock({
           >
             <span style={{
               fontSize: FONT.step, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
-              minWidth: 16, textAlign: 'right', flexShrink: 0,
+              // Was a fixed minWidth:16 — fine for 1-2 digit steps, but a 3-4 digit step number
+              // (long sessions) overflowed that fixed box and crowded into the reference label
+              // right after it. Size the column to the actual digit count instead (monospace
+              // font, so `ch` units track real character width) with a small floor so short
+              // step numbers don't get a cramped column either.
+              minWidth: `max(16px, ${String(step).length}ch)`, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookChapterVerseLabel(node.bookId, node.chapter)}
             {dwellLabel && (

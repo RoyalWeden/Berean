@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // The connected-lines engine: a single absolutely-positioned SVG overlay per spine, drawing
 // real paths between the ACTUAL measured pixel positions of spine dots and branch-row markers
@@ -51,6 +52,14 @@ export interface TrailEdge {
    *  "Rev 12:6 ⇄ Hos 2:14") so a backlink says WHY it exists without being traced by eye.
    *  Truncated to the gutter's own width — it may never widen the layout. */
   label?: string
+  /** Revisit-chain metadata (see trailGraph.ts's per-chapter revisit backlink) — set only on
+   *  that one edge kind. Presence of `revisitCount` is what triggers the hover-tooltip and the
+   *  wider hover-hitbox below; count/dates aren't drawn on the line itself (per direct feedback,
+   *  the always-on "×N" label read as clutter — the line's weight/saturation already encodes
+   *  "how much" and this tooltip covers "since when"). */
+  revisitCount?: number
+  firstVisitAt?: number
+  lastVisitAt?: number
 }
 
 // Shared with trailGraph.ts, which sizes the reserved gutter column from these — a lane routes
@@ -124,6 +133,12 @@ export default function TrailConnectorOverlay({
   // below. Only ever set by an overflow edge's own hit-target, so a normal session never
   // re-renders for it.
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null)
+  // Cursor-following tooltip for a revisit-chain edge's count/dates — per direct feedback, the
+  // always-on "×N" label was removed (see trailGraph.ts) in favor of the line's own weight/
+  // saturation, but the detail should still be available on demand. Kept separate from
+  // hoveredEdgeKey (which only ever drives overflow-lane dimming/bring-forward) since this one
+  // also needs the live cursor position to place a fixed-position tooltip div.
+  const [revisitTooltip, setRevisitTooltip] = useState<{ key: string; x: number; y: number } | null>(null)
   // Dedupe the missing-endpoint warning below — without this it re-fires identically on EVERY
   // render forever for any edge whose endpoint is legitimately not currently mounted (most
   // commonly: a spine edge touching a node hidden inside a collapsed "bounced Nx" cluster,
@@ -255,6 +270,7 @@ export default function TrailConnectorOverlay({
   }, [containerRef, recompute])
 
   return (
+    <>
     <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
         {/* refX=7 (not 5.5) puts the arrow's actual TIP at the path's endpoint with zero
@@ -411,9 +427,50 @@ export default function TrailConnectorOverlay({
               onMouseEnter={() => setHoveredEdgeKey(e.key)} onMouseLeave={() => setHoveredEdgeKey((k) => (k === e.key ? null : k))}
             />
           )}
+          {/* Same invisible-fat-stroke hit-target idea, for revisit-chain edges' count/dates
+              tooltip — the visible line is a hairline even at its thickest, too thin to hover
+              reliably on its own. */}
+          {e.revisitCount != null && (
+            <path
+              d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}
+              onMouseMove={(ev) => setRevisitTooltip({ key: e.key, x: ev.clientX, y: ev.clientY })}
+              onMouseLeave={() => setRevisitTooltip((t) => (t?.key === e.key ? null : t))}
+            />
+          )}
           </g>
         )
       })}
     </svg>
+    {revisitTooltip && (() => {
+      const e = edges.find((edge) => edge.key === revisitTooltip.key)
+      if (!e || e.revisitCount == null) return null
+      const fmt = (ms: number) => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' })
+      // Portaled straight to document.body and positioned from raw clientX/clientY, exactly
+      // like TrailHoverCard's own cards — this overlay's SVG lives inside MapView's zoomed
+      // (`transform: scale`) spine, which makes that ancestor the containing block for any
+      // `position: fixed` descendant. Escaping via a portal is the only way this tooltip lands
+      // at the actual cursor position instead of somewhere inside the (scrolling, clipping,
+      // rescaled) zoomed subtree — see TrailHoverCard.tsx's own comment on this exact issue.
+      return createPortal(
+        <div
+          style={{
+            position: 'fixed', top: revisitTooltip.y + 14, left: revisitTooltip.x + 14, zIndex: 10000,
+            background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+            borderRadius: 8, padding: '6px 9px', fontSize: 11, lineHeight: 1.4,
+            color: 'rgb(var(--color-text-primary))', boxShadow: '0 6px 18px rgba(0,0,0,0.24)',
+            width: 'fit-content', whiteSpace: 'nowrap', pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontWeight: 600 }}>Revisited {e.revisitCount}×</div>
+          {e.firstVisitAt != null && e.lastVisitAt != null && (
+            <div style={{ color: 'rgb(var(--color-text-muted))' }}>
+              {fmt(e.firstVisitAt)} → {fmt(e.lastVisitAt)}
+            </div>
+          )}
+        </div>,
+        document.body,
+      )
+    })()}
+    </>
   )
 }

@@ -198,7 +198,21 @@ describe('gutter', () => {
     expect(laned[0].from).toBe('node:r6')
     expect(laned[0].to).toBe('node:base')
     expect(laned[0].ticks).toEqual(['node:r1', 'node:r2', 'node:r3', 'node:r4', 'node:r5'])
-    expect(laned[0].label).toBe('×7')
+    // The always-on "×N" label was removed per feedback (it read as clutter) — the count and
+    // visit dates now live in revisitCount/firstVisitAt/lastVisitAt instead, surfaced only via
+    // a hover tooltip (see TrailConnectorOverlay), and "how much" shows on the line itself via
+    // weight/saturation (strokeWidth/opacity scale with count, see trailStyle.ts's EDGE_STYLE.back
+    // base values).
+    expect(laned[0].label).toBeUndefined()
+    expect(laned[0].revisitCount).toBe(7)
+    expect(laned[0].firstVisitAt).toBe(T0)
+    expect(laned[0].lastVisitAt).toBe(T0 + 6 * MIN)
+    // 7 visits caps countStep at 4 (min(7-2, 4)): strokeWidth = base 1 + 4*0.4 = 2.6, opacity =
+    // min(0.85, base 0.4 + 4*0.08) = 0.72. T0 is a fixed timestamp long in the past (recency-mute
+    // floors at 0.55 once the original visit is >40 days old, which T0 always is), so this is
+    // deterministic regardless of when the test actually runs: 0.72 * 0.55 = 0.396.
+    expect(laned[0].strokeWidth).toBeCloseTo(2.6, 5)
+    expect(laned[0].opacity).toBeCloseTo(0.396, 5)
   })
 
   it('caps lanes so the reserved width never grows', () => {

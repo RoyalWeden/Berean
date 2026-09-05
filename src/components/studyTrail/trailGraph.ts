@@ -537,14 +537,36 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     if (linked.length < 2) continue
     const first = linked[0], last = linked[linked.length - 1]
     const idxs = linked.map((n) => nodeOrderIndex.get(n.id)!)
-    pushLaned(styled('back', {
+    const base = styled('back', {
       key: `revisit-chain:${first.id}`,
       from: `node:${last.id}`, to: `node:${first.id}`,
       arrow: false, // an identity link ("same chapter"), not a step in the reading order
-      label: linked.length > 2 ? `×${linked.length}` : revisitLabelFor(last),
       ticks: linked.slice(1, -1).map((n) => `node:${n.id}`),
       minIdx: Math.min(...idxs), maxIdx: Math.max(...idxs),
-    }))
+    })
+    // Per direct feedback, the always-on "×N" label read as clutter — the same information
+    // (plus the actual first/last visit dates) now lives in a hover tooltip instead (see
+    // TrailConnectorOverlay's revisitCount/firstVisitAt/lastVisitAt handling), and the line
+    // itself communicates "how much" at a glance via weight/saturation instead of text:
+    //   - MORE REVISITS → thicker + more opaque (capped so a chapter visited a dozen times
+    //     doesn't run away visually past a handful of visits).
+    //   - an OLDER original visit → more muted, independent of count — a chapter you first
+    //     read months ago and still bounce back to should read differently from one you
+    //     started yesterday, even at the same revisit count.
+    // Deliberately applied AFTER styled('back', …) above: styled() always wins ties against
+    // its own input object (by design — see trailStyle.ts's header comment), so per-instance
+    // overrides like these have to be layered on top of its result, not passed into it.
+    const countStep = Math.min(linked.length - 2, 4) // 0 (2 visits) .. 4 (6+ visits)
+    const daysSinceFirstVisit = (Date.now() - first.anchorStartedAt) / 86_400_000
+    const recencyMute = Math.max(0.55, 1 - daysSinceFirstVisit / 90)
+    pushLaned({
+      ...base,
+      strokeWidth: base.strokeWidth + countStep * 0.4,
+      opacity: Math.min(0.85, base.opacity + countStep * 0.08) * recencyMute,
+      revisitCount: linked.length,
+      firstVisitAt: first.anchorStartedAt,
+      lastVisitAt: last.anchorStartedAt,
+    })
   }
 
   // Chained branch rows get the same per-row edges, but their short local stub starts from their
@@ -675,6 +697,3 @@ function verseTieLabel(c: TrailConnection): string | undefined {
   return from || to || undefined
 }
 
-function revisitLabelFor(n: TrailNode): string | undefined {
-  return n.originLabel?.trim() || undefined
-}
