@@ -122,6 +122,15 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.6] - 2026-09-05
+
+### Stability
+
+- A harmless internal "ResizeObserver loop" browser notice no longer triggers
+  the full-screen "Unhandled JS error" overlay. It was never an actual crash —
+  just the browser reporting it couldn't settle a layout measurement within a
+  single frame — and real errors still show the overlay as before.
+
 ## [0.6.5] - 2026-09-05
 
 ### Study Trail
