@@ -127,9 +127,11 @@ SCENARIO 5 — Abandon a beta series and restart
 ### Scripture reading
 
 - The note / cross-reference indicator beside a verse now shows *how much* is
-  there at a glance: the dot and the cross-reference mark grow, and sit a
-  little bolder, as a verse gathers more notes or links — and the
-  cross-reference side now carries a count the way the note side already did.
+  there at a glance. The note dot grows and brightens with how much you've
+  actually written on that verse, relative to the other annotated verses in
+  the chapter; the cross-reference mark grows and brightens by how many notes
+  link the verse (in either direction). Each half of the indicator also carries
+  a faint background wash scaled the same way.
 - Hovering one half of that indicator now tints just that half's background,
   so it's clearer which side you're about to open.
 - Verse tags now rest at a steeper angle, tucked up and to the left of the
