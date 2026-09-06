@@ -1926,6 +1926,17 @@ export const useAppStore = create<AppState>()(
       },
 
       activateTab: (tab) => {
+        // Give the outgoing panel a chance to flush live view state (scroll position, compare
+        // layout, note cursor) into its persisted tab state BEFORE it stops being active — the
+        // same thing setActiveTab does. activateTab is a SEPARATE choke point that TabBar clicks
+        // and keyboard tab-cycling funnel through (setActiveTab does not), so without this a
+        // TabBar tab switch dropped the scripture scroll position every time.
+        {
+          const prevTabId = get().activeTabId[tab.spaceId]
+          if (prevTabId && prevTabId !== tab.id) {
+            try { window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange')) } catch { /* no window (tests) */ }
+          }
+        }
         // Clicking an ALREADY-OPEN scripture tab in the sidebar is real navigation — you moved
         // your attention to a different chapter, same as any other jump — but it never went
         // through navigateToVerse()/recordNavigation() at all, since this is the ONE choke

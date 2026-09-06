@@ -122,6 +122,33 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.5] - 2026-09-05
+
+### Study Trail
+
+- The "why'd you jump here?" toast no longer sits slightly above its corner
+  for no visible reason when a note tab is open in the background.
+- Its collapsed state (before you hover it) now matches the look of the
+  expanded form — the question reads in the same clearer, warmer style
+  instead of small greyed-out text.
+
+### Bible reading
+
+- Switching between Scripture tabs from the tab bar now keeps each tab's
+  scroll position. It was sometimes dropped, so the chapter reopened at the
+  top instead of where you'd been reading.
+- When a verse has both a note and a cross-reference, its indicator is now
+  split down the middle of the pill — hovering or clicking one half no longer
+  also triggers the other's preview — and the pill itself is a little
+  smaller.
+
+### Search
+
+- Typing in the floating search bar is more responsive. Leftover diagnostic
+  logging has been removed and the results list is rebuilt more efficiently,
+  so fast typing no longer briefly freezes and then drops the rest of the
+  characters in at once.
+
 ## [0.6.4] - 2026-09-05
 
 ### Performance
