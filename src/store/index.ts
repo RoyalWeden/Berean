@@ -1016,6 +1016,28 @@ const DEFAULT_PANEL_LAYOUT: MosaicNode<MosaicKey> = {
 // whatever `set()` calls happen to run.
 let lastAppliedTabSyncAt = 0
 
+/** Drop every per-tab-keyed slice of store state for a tab that's being closed. Without this,
+ *  a long session with heavy tab churn slowly accretes orphaned nav stacks, verse selections,
+ *  scroll offsets and last-accessed timestamps for tab ids that no longer exist. Returns a
+ *  partial state patch to spread into the closing `set()`. */
+function prunePerTabState(
+  s: AppState,
+  spaceId: SpaceId,
+  tabId: string,
+): Partial<AppState> {
+  const { [tabId]: _n, ...tabNavStacks } = s.tabNavStacks
+  const { [tabId]: _s, ...selectedVersesByTab } = s.selectedVersesByTab
+  const { [tabId]: _c, ...scrollByTab } = s.scrollByTab
+  const { [`${spaceId}:${tabId}`]: _l, ...tabLastAccessed } = s.tabLastAccessed
+  return {
+    tabNavStacks,
+    selectedVersesByTab,
+    scrollByTab,
+    tabLastAccessed,
+    ...(s.noteFocusModeTabId === tabId ? { noteFocusModeTabId: null } : {}),
+  }
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -2051,12 +2073,7 @@ export const useAppStore = create<AppState>()(
         const prunedMRU = state.tabMRUList.filter((m) => !(m.spaceId === spaceId && m.tabId === tabId))
 
         if (!wasActive) {
-          set((s) => {
-            const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
-            const { [tabId]: __, ...restSel } = s.selectedVersesByTab
-            const { [tabId]: ___, ...restScroll } = s.scrollByTab
-            return { tabs: newTabsAll, tabMRUList: prunedMRU, tabNavStacks: restNavStacks, selectedVersesByTab: restSel, scrollByTab: restScroll }
-          })
+          set((s) => ({ tabs: newTabsAll, tabMRUList: prunedMRU, ...prunePerTabState(s, spaceId, tabId) }))
           return
         }
 
@@ -2073,27 +2090,21 @@ export const useAppStore = create<AppState>()(
         const withinSpaceFallbackId = newTabs[Math.max(0, idx - 1)]?.id ?? null
 
         set((s) => {
-          const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
-          const { [tabId]: __, ...restSel } = s.selectedVersesByTab
-          const { [tabId]: ___, ...restScroll } = s.scrollByTab
+          const pruned = prunePerTabState(s, spaceId, tabId)
           if (mruFallback && mruFallback.spaceId !== spaceId) {
             return {
               tabs: newTabsAll,
               activeTabId: { ...state.activeTabId, [spaceId]: withinSpaceFallbackId, [mruFallback.spaceId]: mruFallback.tabId },
               activeSpace: mruFallback.spaceId,
               tabMRUList: prunedMRU,
-              tabNavStacks: restNavStacks,
-              selectedVersesByTab: restSel,
-              scrollByTab: restScroll,
+              ...pruned,
             }
           }
           return {
             tabs: newTabsAll,
             activeTabId: { ...state.activeTabId, [spaceId]: mruFallback?.tabId ?? withinSpaceFallbackId },
             tabMRUList: prunedMRU,
-            tabNavStacks: restNavStacks,
-            selectedVersesByTab: restSel,
-            scrollByTab: restScroll,
+            ...pruned,
           }
         })
       },
@@ -2120,6 +2131,7 @@ export const useAppStore = create<AppState>()(
             activeSpace: fallbackSpace,
             tabMRUList: prunedMRU,
             activeTabId: { ...state.activeTabId, [spaceId]: null, ...(fallbackTabId ? { [fallbackSpace]: fallbackTabId } : {}) },
+            ...prunePerTabState(state, spaceId, tabId),
           })
           return
         }
@@ -2138,12 +2150,14 @@ export const useAppStore = create<AppState>()(
             activeTabId: { ...state.activeTabId, [spaceId]: withinSpaceFallbackId, [mruFallback.spaceId]: mruFallback.tabId },
             activeSpace: mruFallback.spaceId,
             tabMRUList: prunedMRU,
+            ...prunePerTabState(state, spaceId, tabId),
           })
         } else {
           set({
             tabs: newTabsAll,
             activeTabId: { ...state.activeTabId, [spaceId]: mruFallback?.tabId ?? withinSpaceFallbackId },
             tabMRUList: prunedMRU,
+            ...prunePerTabState(state, spaceId, tabId),
           })
         }
       },

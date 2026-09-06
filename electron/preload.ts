@@ -410,7 +410,13 @@ contextBridge.exposeInMainWorld('vault', {
   importAll: () => ipcRenderer.invoke('vault:importAll'),
   hasData: () => ipcRenderer.invoke('vault:hasData'),
   onVaultChange: (callback: (event: unknown) => void) => {
-    ipcRenderer.on('vault:changed', (_, event) => callback(event))
+    // Clear any prior registration first (matches every other on* bridge here) so a StrictMode
+    // double-invoke or Fast-Refresh cycle can't stack 'vault:changed' listeners for the life of
+    // the renderer. Returns a disposer for the caller's effect cleanup.
+    ipcRenderer.removeAllListeners('vault:changed')
+    const handler = (_: unknown, event: unknown) => callback(event)
+    ipcRenderer.on('vault:changed', handler)
+    return () => ipcRenderer.removeListener('vault:changed', handler)
   }
 })
 
