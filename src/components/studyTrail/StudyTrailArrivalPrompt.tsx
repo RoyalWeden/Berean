@@ -147,7 +147,12 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   // no note footer), so the toast stays pinned to the far-right corner there.
   const searchTabActive = useAppStore((s) => s.bibleSearchTabActive)
   const rightPanelW = useAppStore((s) => s.bibleRightPanelWidth)
-  const noteOpen = useAppStore((s) => s.noteEditorOpenCount > 0)
+  // Only lift for a note editor's word-count footer when that footer is actually on screen —
+  // i.e. the Notes space is the visible one. A note tab stays MOUNTED (display:none) behind the
+  // Scripture space for instant switching, so noteEditorOpenCount alone stays > 0 while reading
+  // scripture, which lifted this toast ~30px "for no reason" with no footer anywhere near it.
+  const activeSpace = useAppStore((s) => s.activeSpace)
+  const noteOpen = useAppStore((s) => s.noteEditorOpenCount > 0) && activeSpace === 'notes'
   const verseSelectionMenuOpen = useAppStore((s) => s.verseSelectionMenuOpen)
   // Use the flag VerseSelectionBar publishes from its own render gate — deriving this here
   // from selectedVersesByTab instead let the toast stay lifted after the bar was already gone.
@@ -201,7 +206,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
         position: 'fixed', right: rightPx, bottom: bottomPx, zIndex: modalOpen ? 40 : 200, width: PILL_WIDTH,
         // Translucent so it reads as a transient overlay, not a solid panel — matches the app's
         // other floating rails (FloatingHoverPanel/FloatingRail). Solid on hover/while typing.
-        background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.82)',
+        background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.9)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         border: '1px solid rgb(var(--color-surface-4) / 0.7)',
         borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', overflow: 'hidden',
@@ -215,9 +220,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
           toast's controls once it's actually open. Text wraps within the fixed PILL_WIDTH rather
           than the box resizing to fit it. */}
       {!expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', fontSize: 11 }}>
-          <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
-          <span style={{ flex: 1, minWidth: 0, color: 'rgb(var(--color-text-secondary))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
+          <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.35, color: 'rgb(var(--color-text-primary))' }}>
             {question}
           </span>
         </div>

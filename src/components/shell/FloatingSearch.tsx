@@ -164,10 +164,14 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
 }
 
 // ── Diagnostics ────────────────────────────────────────────────────────────────
-// Flip to false once the "typing a verse ref (e.g. `1corinthians12`) freezes the
-// floating search" investigation is closed. Every line is prefixed [FloatingSearch]
-// so it can be filtered in the console / mcp read_console_messages.
-const DIAG = true
+// OFF by default: with DevTools open, every console.log in this component's hot path
+// (one per keystroke, one per commit, one per results-build, plus timed() wrappers
+// around detectTranslationPrefix/parseRef) is a synchronous, blocking call — a real
+// contributor to "type, freeze, then a burst of characters appears". Re-enable for a
+// session by running `localStorage.berean_search_diag = '1'` in the console.
+const DIAG = (() => {
+  try { return localStorage.getItem('berean_search_diag') === '1' } catch { return false }
+})()
 
 // Timeline of the CURRENT keystroke: when handleInput last saw a change, and for which
 // value. `sinceKeystroke(q)` returns "ms since the user typed this exact value" (or '' when
@@ -960,7 +964,10 @@ export default function FloatingSearch() {
   }
 
   const subLen = DENSITY_SUB_LEN[floatingSearchDensity]
-  const wr = (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t
+  const wr = useCallback(
+    (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t,
+    [wordReplacerEnabled, wordReplacerRules],
+  )
 
   // Scripture verses first — most relevant for a Bible-study keyword search.
   const rawScopedVerses = scopeFilter === 'all'
@@ -980,6 +987,62 @@ export default function FloatingSearch() {
           tagVerseFilter.verses.has(`${v.book_id}:${v.chapter}:${v.verse_num}`) ||
           tagVerseFilter.chapters.has(`${v.book_id}:${v.chapter}`))
       : []
+
+  // ── Expensive per-row string work, memoized ──────────────────────────────────
+  // makeSnippet() (regex) + buildVerseDisplayText() + a word-replacer split/map pass runs
+  // for up to 12 verse rows and 4 note rows. Building it inline in the render body meant it
+  // re-ran on EVERY re-render of this component — arrow-key selection, mouse hover changing
+  // selectedIdx, the crossref-loading flag toggling, tag focus, and each of the 2 async
+  // result-setter commits per search — not just when the underlying results actually changed.
+  // On fast typing those extra rebuilds pile onto the main thread between keystrokes. Now it
+  // only recomputes when a real input changes.
+  const verseRows = useMemo(() => {
+    return scopedVerseResults.slice(0, 12).map((v) => {
+      const book = books.find((b) => b.id === v.book_id)
+      const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
+      let displayText: string
+      if (v.wrIndices?.length && v.wrReplacement) {
+        const idxSet = new Set(v.wrIndices)
+        const substituted = v.text.split(' ')
+          .map((w, i) => (idxSet.has(i) ? replaceWordPreservingAffixes(w, v.wrReplacement!) : w))
+          .join(' ')
+        displayText = wordReplacerEnabled ? applyWordReplacer(substituted, wordReplacerRules) : substituted
+      } else if (v.text_tagged) {
+        displayText = buildVerseDisplayText(
+          v.text, v.text_tagged, v.sourceTextId ?? searchTextId, wordReplacerEnabled, wordReplacerRules,
+        )
+      } else {
+        displayText = wr(v.text)
+      }
+      const replacedQuery = wordReplacerEnabled ? applyWordReplacer(cleanQuery, wordReplacerRules) : cleanQuery
+      const snippetTerm = v.wrReplacement || replacedQuery || cleanQuery
+      const subText = makeSnippet(displayText, snippetTerm, subLen, searchWordMode)
+      const highlightTerms = [cleanQuery, replacedQuery, v.wrReplacement].filter((t): t is string => !!t && t.trim().length > 0)
+      return {
+        label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
+        sub: subText,
+        highlightTerms,
+        nav: { book_id: v.book_id, chapter: v.chapter, verse_num: v.verse_num, sourceTextId: v.sourceTextId as string | undefined },
+      }
+    })
+  }, [scopedVerseResults, books, cleanQuery, wordReplacerEnabled, wordReplacerRules, searchTextId, searchWordMode, subLen, wr])
+
+  const noteRows = useMemo(() => {
+    if (versesOnly) return []
+    return noteResults.slice(0, 4).map((note) => {
+      const rawSnippet = note.content
+        .replace(/^---[\s\S]*?---\n?/, '')
+        .replace(/[#*`_>~[\]]/g, '')
+        .replace(/\n/g, ' ')
+        .trim()
+      const snippet = wr(rawSnippet)
+      return {
+        id: note.id,
+        label: wr(note.title || 'Untitled note'),
+        sub: snippet ? makeSnippet(snippet, cleanQuery, subLen, searchWordMode) : 'Empty note',
+      }
+    })
+  }, [versesOnly, noteResults, cleanQuery, searchWordMode, subLen, wr])
 
   // Smart destination prediction — guesses which single space (Scripture/Notes/YouTube)
   // a plain keyword query is most likely aimed at, from the live result counts each
@@ -1004,62 +1067,28 @@ export default function FloatingSearch() {
     return counts.find(([, n]) => n === max)![0]
   })()
 
-  for (const v of scopedVerseResults.slice(0, 12)) {
-    const book = books.find((b) => b.id === v.book_id)
-    const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
-
-    // Reproduce exactly what the reader would show for this verse, so a word-replaced query
-    // ("yehovah") finds its match in the snippet instead of the un-replaced "LORD".
-    let displayText: string
-    if (v.wrIndices?.length && v.wrReplacement) {
-      // Bridge row: raw un-tagged KJV text — substitute the replacement at the matched word
-      // indices, then run text-pattern rules over the result.
-      const idxSet = new Set(v.wrIndices)
-      const substituted = v.text.split(' ')
-        .map((w, i) => (idxSet.has(i) ? replaceWordPreservingAffixes(w, v.wrReplacement!) : w))
-        .join(' ')
-      displayText = wordReplacerEnabled ? applyWordReplacer(substituted, wordReplacerRules) : substituted
-    } else if (v.text_tagged) {
-      displayText = buildVerseDisplayText(
-        v.text, v.text_tagged, v.sourceTextId ?? searchTextId, wordReplacerEnabled, wordReplacerRules,
-      )
-    } else {
-      displayText = wr(v.text)
-    }
-
-    // The term that actually appears in `displayText` — prefer the concrete replacement word,
-    // then the text-pattern-replaced query, then the raw query.
-    const replacedQuery = wordReplacerEnabled ? applyWordReplacer(cleanQuery, wordReplacerRules) : cleanQuery
-    const snippetTerm = v.wrReplacement || replacedQuery || cleanQuery
-    const subText = makeSnippet(displayText, snippetTerm, subLen, searchWordMode)
-    const highlightTerms = [cleanQuery, replacedQuery, v.wrReplacement].filter((t): t is string => !!t && t.trim().length > 0)
+  for (const row of verseRows) {
     results.push({
       type: 'verse',
-      label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
-      sub: subText,
-      highlightTerms,
-      action: () => { addRecentSearchQuery(query.trim()); navigate(v.book_id, v.chapter, v.verse_num, undefined, v.sourceTextId) },
+      label: row.label,
+      sub: row.sub,
+      highlightTerms: row.highlightTerms,
+      action: () => { addRecentSearchQuery(query.trim()); navigate(row.nav.book_id, row.nav.chapter, row.nav.verse_num, undefined, row.nav.sourceTextId) },
     })
   }
 
   // Then the user's notes.
   if (!versesOnly) {
-    for (const note of noteResults.slice(0, 4)) {
-      const rawSnippet = note.content
-        .replace(/^---[\s\S]*?---\n?/, '')
-        .replace(/[#*`_>~\[\]]/g, '')
-        .replace(/\n/g, ' ')
-        .trim()
-      const snippet = wr(rawSnippet)
+    for (const row of noteRows) {
       results.push({
         type: 'note' as const,
-        label: wr(note.title || 'Untitled note'),
-        sub: snippet ? makeSnippet(snippet, cleanQuery, subLen, searchWordMode) : 'Empty note',
+        label: row.label,
+        sub: row.sub,
         action: () => {
           addRecentSearchQuery(query.trim())
           ensureTab('note')
           setActiveSpace('notes')
-          requestOpenNote(note.id)
+          requestOpenNote(row.id)
           closeSearch()
         },
       })
