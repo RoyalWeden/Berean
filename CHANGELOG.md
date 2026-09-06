@@ -122,6 +122,28 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.9] - 2026-09-06
+
+### Scripture reading
+
+- The note / cross-reference indicator beside a verse now shows *how much* is
+  there at a glance: the dot and the cross-reference mark grow, and sit a
+  little bolder, as a verse gathers more notes or links — and the
+  cross-reference side now carries a count the way the note side already did.
+- Hovering one half of that indicator now tints just that half's background,
+  so it's clearer which side you're about to open.
+- Verse tags now rest at a steeper angle, tucked up and to the left of the
+  verse number instead of lying across the first words of the verse.
+
+### Performance
+
+- Several things that slowly grew in memory the longer the app stayed open
+  are now bounded: the note cache is capped, and closing a tab now fully
+  releases that tab's history, selection and scroll state. Leaving Berean
+  running for days should stay lighter.
+
+---
+
 ## [0.6.8] - 2026-09-06
 
 ### Notes
