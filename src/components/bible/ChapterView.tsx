@@ -11,7 +11,7 @@ import { navigateToVerse } from '@/lib/verseNavigation'
 import { versificationNote } from '@/lib/translationChapterMap'
 import { isHermasBook } from '@/lib/hermasMap'
 import { extractRefsFromNote } from '@/lib/noteRefs'
-import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
+import { getCrossRefSources, countReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
 import { scrollVerseIntoView, VERSE_JUMP_INSTANT, VERSE_FOLLOW_DOWN, VERSE_FOLLOW_UP } from '@/lib/scrollToVerse'
 import type { CrossRefSource } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
@@ -42,7 +42,8 @@ function bannerCacheKey(token: number, bookId: string, chapter: number, textId: 
 interface ChapterAnnotations {
   noteCounts: Record<number, number>
   highlights: Record<number, VerseHighlight[]>
-  flags: Record<number, boolean>
+  /** Per-verse cross-ref magnitude: how many notes link this verse (0 = none). */
+  flags: Record<number, number>
   colorMap: Record<number, string>
 }
 const chapterAnnotationCache = new Map<string, ChapterAnnotations>()
@@ -412,7 +413,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   )
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>(() => annoCacheHit?.noteCounts ?? {})
   const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>(() => annoCacheHit?.colorMap ?? {})
-  const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>(() => annoCacheHit?.flags ?? {})
+  const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, number>>(() => annoCacheHit?.flags ?? {})
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>(
     () => chapterCrossRefBannerCache.get(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva')) ?? [],
   )
@@ -685,7 +686,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         return {}
       })
     const crossRefP = (async () => {
-      const flags: Record<number, boolean> = {}
+      const flags: Record<number, number> = {}
 
       // Forward: a verse note here references some other verse/chapter
       const notes = await window.notes.getChapterNotes(bookId, chapter, textId ?? 'kjva').catch(() => [])
@@ -701,7 +702,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
           !r.isChapter && r.verse !== 0 &&
           !(r.bookId === bookId && r.chapter === chapter && r.verse === vn)
         )
-        if (hasOther) flags[vn] = true
+        if (hasOther) flags[vn] = (flags[vn] ?? 0) + 1
       }
 
       // Backward: verse notes (anywhere) whose content references a verse in this
@@ -713,7 +714,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         const sources = await getCrossRefSources(noteChangeToken)
         const verseNums = versesRef.current.map((v) => v.verse_num)
         // excludeChapterRefs=true: chapter-level refs go to the banner, not per-verse
-        flagReciprocalVerses(sources, bookId, chapter, verseNums, flags, true)
+        countReciprocalVerses(sources, bookId, chapter, verseNums, flags, true)
         chapterSourcesResult = chapterCrossRefSources(sources, bookId, chapter)
       } catch { /* best-effort */ }
 
@@ -1242,7 +1243,8 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
                 showVerseNumber={false}
                 noteCount={noteCounts[0] ?? 0}
                 notePrimaryColor={noteColorsMap[0]}
-                hasNoteCrossRef={verseHasNoteCrossRefs[0] ?? false}
+                hasNoteCrossRef={(verseHasNoteCrossRefs[0] ?? 0) > 0}
+                noteCrossRefCount={verseHasNoteCrossRefs[0] ?? 0}
                 verseTags={verseTagMap[0] ?? EMPTY_VERSE_TAGS}
                 tabId={tabId}
                 highlights={highlights[0] ?? EMPTY_HIGHLIGHTS}
@@ -1258,7 +1260,8 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               showVerseNumber={showVerseNumbers}
               noteCount={noteCounts[verse.verse_num] ?? 0}
               notePrimaryColor={noteColorsMap[verse.verse_num]}
-              hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
+              hasNoteCrossRef={(verseHasNoteCrossRefs[verse.verse_num] ?? 0) > 0}
+              noteCrossRefCount={verseHasNoteCrossRefs[verse.verse_num] ?? 0}
               isHighlighted={isHighlighted}
               verseTags={verseTagMap[verse.verse_num] ?? EMPTY_VERSE_TAGS}
               tabId={tabId}

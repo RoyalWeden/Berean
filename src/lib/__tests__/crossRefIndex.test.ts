@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCrossRefSources, reciprocalRefsFor, flagReciprocalVerses, flagReciprocalChapterRefs, chapterCrossRefSources } from '@/lib/crossRefIndex'
+import { buildCrossRefSources, reciprocalRefsFor, flagReciprocalVerses, countReciprocalVerses, flagReciprocalChapterRefs, chapterCrossRefSources } from '@/lib/crossRefIndex'
 
 // Helper to build a minimal note
 const note = (verseRef: string | null, content: string, title = 'note') => ({ verseRef, content, title })
@@ -189,6 +189,39 @@ describe('flagReciprocalVerses', () => {
     flagReciprocalVerses(sources, 'EXO', 20, [1, 11], flags)
     expect(flags[1]).toBe(true)
     expect(flags[11]).toBe(true)
+  })
+})
+
+describe('countReciprocalVerses', () => {
+  it('counts one per distinct source note referencing the verse', () => {
+    const sources = buildCrossRefSources([
+      note('GEN.1.1', 'cf Exodus 20:11'),
+      note('GEN.2.3', 'see Exodus 20:11 and Exodus 20:11 again'), // same verse twice in one note → 1
+      note('DEU.5.15', 'Exodus 20:11'),
+    ])
+    const counts = countReciprocalVerses(sources, 'EXO', 20, [10, 11, 12], {})
+    expect(counts[11]).toBe(3)
+    expect(counts[10]).toBeUndefined()
+  })
+
+  it('counts a range once per verse per source', () => {
+    const sources = buildCrossRefSources([note('GEN.1.1', 'Exodus 20:8-11')])
+    const counts = countReciprocalVerses(sources, 'EXO', 20, [7, 8, 9, 10, 11, 12], {})
+    expect([8, 9, 10, 11].map(v => counts[v])).toEqual([1, 1, 1, 1])
+    expect(counts[7]).toBeUndefined()
+  })
+
+  it('accumulates into an existing counts object', () => {
+    const sources = buildCrossRefSources([note('EXO.20.1', 'cf Exodus 20:11')])
+    const counts: Record<number, number> = { 11: 2 }
+    countReciprocalVerses(sources, 'EXO', 20, [1, 11], counts)
+    expect(counts[11]).toBe(3)
+  })
+
+  it('skips whole-chapter refs when excludeChapterRefs is set', () => {
+    const sources = buildCrossRefSources([note('GEN.1.1', 'see Exodus 20')])
+    const counts = countReciprocalVerses(sources, 'EXO', 20, [1, 2, 3], {}, true)
+    expect(Object.keys(counts)).toHaveLength(0)
   })
 })
 

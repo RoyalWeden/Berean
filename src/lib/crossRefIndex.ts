@@ -119,6 +119,38 @@ export function flagReciprocalVerses(
 }
 
 /**
+ * Like flagReciprocalVerses, but accumulates a COUNT per verse instead of a boolean — how many
+ * distinct source notes reference each verse (backward direction). A single note that names the
+ * same verse several times still counts once; a range counts once for every verse it spans.
+ * Used to drive the "a lot vs. a little" magnitude on the verse cross-ref indicator.
+ */
+export function countReciprocalVerses(
+  sources: CrossRefSource[],
+  bookId: string,
+  chapter: number,
+  chapterVerseNums: number[],
+  counts: Record<number, number>,
+  /** When true, whole-chapter refs are skipped (they are shown in the chapter banner instead). */
+  excludeChapterRefs = false,
+): Record<number, number> {
+  for (const s of sources) {
+    const bumped = new Set<number>() // one source note counts at most once per verse
+    const bump = (v: number) => { if (!bumped.has(v)) { bumped.add(v); counts[v] = (counts[v] ?? 0) + 1 } }
+    for (const r of s.refs) {
+      if (r.bookId !== bookId || r.chapter !== chapter) continue
+      if (r.isChapter || r.verse === 0) {
+        if (!excludeChapterRefs) for (const vn of chapterVerseNums) bump(vn)
+      } else if (r.endVerse != null && r.endVerse > r.verse) {
+        for (let v = r.verse; v <= r.endVerse; v++) bump(v)
+      } else {
+        bump(r.verse)
+      }
+    }
+  }
+  return counts
+}
+
+/**
  * Like flagReciprocalVerses but ONLY for whole-chapter references (isChapter / verse === 0).
  * Use this alongside flagReciprocalVerses to distinguish chapter-level cross-refs from
  * verse-specific ones so the UI can display them with different indicators.
