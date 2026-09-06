@@ -48,10 +48,14 @@ interface VerseRowProps {
    *  verse (the row is fed a synthetic verse_num 0 by ChapterView). See psalmSuperscription.ts. */
   superscription?: boolean
   noteCount?: number
+  /** 0..1 — this verse's total note character count relative to every other noted verse in the
+   *  chapter. Drives the note dot's size + opacity (and the note pill-half's background). */
+  noteWeight?: number
   notePrimaryColor?: string
   hasNoteCrossRef?: boolean
-  /** How many notes cross-reference this verse (drives the indicator's "a lot vs a little"
-   *  magnitude). 0 when `hasNoteCrossRef` is false. */
+  /** How many notes cross-reference this verse, both directions combined (this verse's notes
+   *  pointing out + notes elsewhere pointing here). Bucketed to few / some / many for the
+   *  cross-ref indicator's size + opacity. 0 when `hasNoteCrossRef` is false. */
   noteCrossRefCount?: number
   isHighlighted?: boolean
   /** Verse tags on this verse (translation-agnostic) — rendered as angled "luggage tag"
@@ -368,17 +372,16 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
     </div>
   )
 }
-/** Bucket a note / cross-ref count into a 0–3 "magnitude" for the tiny verse indicator — each
- *  step is roughly a doubling (1 → 1, 2–3 → 2, 4+ → 3). Lets the pill read as "a little / some
- *  / a lot" at a glance; the exact count still shows as a small number when > 1. */
-function annotationMagnitude(n: number): 0 | 1 | 2 | 3 {
+/** Cross-ref count → few / some / many bucket (1 / 2–3 / 4+). The note side uses a continuous
+ *  relative weight (see noteWeight) rather than this. */
+function crossRefBucket(n: number): 0 | 1 | 2 | 3 {
   if (n <= 0) return 0
   if (n === 1) return 1
   if (n <= 3) return 2
   return 3
 }
 
-function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, noteWeight = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
   // A superscription row never shows a number, whatever the reader's verse-number setting.
   const effShowVerseNumber = showVerseNumber && !superscription
   const hasHidden = hiddenAnnotations.length > 0
@@ -1612,13 +1615,33 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               was toggling both at once. The outer wrapper here is then purely the visual pill. */}
           {(() => {
           const both = noteCount > 0 && hasNoteCrossRef
-          // "A lot vs a little" magnitude — drives dot/icon size and resting prominence so a
-          // heavily-annotated verse reads denser at a glance; exact counts still print below.
-          const noteMag = annotationMagnitude(noteCount)
-          const xrefMag = annotationMagnitude(noteCrossRefCount)
-          const noteDotPx = 4 + noteMag          // 5 / 6 / 7 px
-          const xrefIconPx = 9 + xrefMag         // 10 / 11 / 12 px
-          const restOpacity = (m: 0 | 1 | 2 | 3) => (m >= 3 ? 'opacity-90' : m === 2 ? 'opacity-75' : 'opacity-60')
+
+          // ── Magnitude, same visual language for both halves (size + opacity + background
+          //    tint), differing only in colour: the note side rides a CONTINUOUS relative
+          //    weight (this verse's note character-count vs every other noted verse in the
+          //    chapter), the cross-ref side a few/some/many BUCKET of its combined link count.
+          const noteW = Math.max(0, Math.min(1, noteWeight))
+          const xrefBucket = crossRefBucket(noteCrossRefCount)
+          const xrefLevel = [0, 0.2, 0.55, 1][xrefBucket]      // bucket → 0..1 for the shared ramp
+
+          const noteDotPx = 6 + Math.round(3 * noteW)          // 6 → 9 px (bigger baseline than before)
+          const noteDotOpacity = 0.5 + 0.5 * noteW             // 0.5 → 1.0
+          const xrefIconPx = 10 + (xrefBucket >= 2 ? 1 : 0) + (xrefBucket >= 3 ? 1 : 0)  // 10 / 11 / 12
+          const xrefIconOpacity = [0.55, 0.62, 0.8, 1][xrefBucket]
+          const noteHex = NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue
+
+          // Resting (and hover) background tint for a pill half, scaled by its own magnitude.
+          // Tailwind can't see interpolated class names, so the alpha is driven through two CSS
+          // custom properties consumed by a single pair of static arbitrary classes (TINT_CLASS).
+          const tintPct = (lvl: number) => (lvl <= 0 ? 0 : lvl < 0.34 ? 8 : lvl < 0.67 ? 16 : 26)
+          const tintVars = (color: string, lvl: number): React.CSSProperties => {
+            const p = tintPct(lvl)
+            return {
+              ['--tint' as string]: p <= 0 ? 'transparent' : `color-mix(in srgb, ${color} ${p}%, transparent)`,
+              ['--tint-hover' as string]: `color-mix(in srgb, ${color} ${p + 16}%, transparent)`,
+            }
+          }
+
           return (
           <div
             onMouseEnter={both ? undefined : (e) => {
@@ -1633,8 +1656,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             className={
               both
                 ? 'flex items-stretch rounded-full border border-[rgb(var(--color-surface-3))] bg-[rgb(var(--color-surface-2))] overflow-hidden'
-                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer transition-colors hover:bg-[rgb(var(--color-surface-3))]'
+                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer transition-colors bg-[var(--tint)] hover:bg-[var(--tint-hover)]'
             }
+            style={both ? undefined : tintVars(noteCount > 0 ? noteHex : 'rgb(var(--color-text-muted))', noteCount > 0 ? noteW : xrefLevel)}
           >
 
             {/* Note half — its own hover + click target in the combined pill. */}
@@ -1643,11 +1667,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleNoteIconMouseEnter : undefined}
                 onMouseLeave={both ? handleNoteIconMouseLeave : undefined}
                 onClick={both ? openVerseNotes : undefined}
-                className={`flex items-center gap-0.5 ${restOpacity(noteMag)} hover:opacity-100 leading-none select-none transition-[opacity,background-color] cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-full hover:bg-[rgb(var(--color-surface-4))]' : ''}`}
-                style={{ color: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
+                className={`flex items-center leading-none select-none transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-full bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
+                style={{ color: noteHex, ...(both ? tintVars(noteHex, noteW) : {}) }}
               >
-                <span className="rounded-full bg-current" style={{ width: noteDotPx, height: noteDotPx }} />
-                {noteCount > 1 && <span className="text-[9px] font-semibold">{noteCount}</span>}
+                <span className="rounded-full bg-current" style={{ width: noteDotPx, height: noteDotPx, opacity: noteDotOpacity }} />
               </button>
             )}
 
@@ -1662,10 +1685,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleCrossRefIconMouseEnter : undefined}
                 onMouseLeave={both ? handleCrossRefIconMouseLeave : undefined}
                 onClick={both ? openNoteCrossRefs : undefined}
-                className={`flex items-center gap-0.5 text-[rgb(var(--color-text-muted))] ${restOpacity(xrefMag)} hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] transition-[opacity,color,background-color] cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-full hover:bg-[rgb(var(--color-surface-4))]' : ''}`}
+                className={`flex items-center text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-full bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
+                style={both ? tintVars('rgb(var(--color-text-muted))', xrefLevel) : undefined}
               >
-                <GitFork size={xrefIconPx} strokeWidth={2.5} />
-                {noteCrossRefCount > 1 && <span className="text-[9px] font-semibold">{noteCrossRefCount}</span>}
+                <GitFork size={xrefIconPx} strokeWidth={2.5} style={{ opacity: xrefIconOpacity }} />
               </button>
             )}
           </div>
