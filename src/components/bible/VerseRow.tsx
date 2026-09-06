@@ -50,6 +50,9 @@ interface VerseRowProps {
   noteCount?: number
   notePrimaryColor?: string
   hasNoteCrossRef?: boolean
+  /** How many notes cross-reference this verse (drives the indicator's "a lot vs a little"
+   *  magnitude). 0 when `hasNoteCrossRef` is false. */
+  noteCrossRefCount?: number
   isHighlighted?: boolean
   /** Verse tags on this verse (translation-agnostic) — rendered as angled "luggage tag"
    *  badges looped on the verse number. Absolutely positioned; never shifts verse text. */
@@ -316,11 +319,14 @@ const EMPTY_TAGS: import('@/types').VerseTagLite[] = []
 // pinned corner. Fixed strings so Tailwind's JIT emits the arbitrary-value classes.
 // Rotation ONLY — no per-tag translate. They all pivot around the exact same point, so the
 // fan opens like a hand of cards instead of each tag sitting at its own indent/offset.
+// Resting angles are steep (pointing up-and-left, away from the verse) so the tag bundle sits
+// clear of the verse text instead of lying across the first words; hover still swings them apart
+// around the same pinned corner.
 const TAG_FAN: Array<{ base: string; hover: string }> = [
-  { base: '[transform:rotate(-6deg)]',  hover: 'group-hover/vnum:[transform:rotate(-68deg)]' },
-  { base: '[transform:rotate(-12deg)]', hover: 'group-hover/vnum:[transform:rotate(-44deg)]' },
-  { base: '[transform:rotate(-18deg)]', hover: 'group-hover/vnum:[transform:rotate(-20deg)]' },
-  { base: '[transform:rotate(-24deg)]', hover: 'group-hover/vnum:[transform:rotate(4deg)]' },
+  { base: '[transform:rotate(-26deg)]', hover: 'group-hover/vnum:[transform:rotate(-68deg)]' },
+  { base: '[transform:rotate(-32deg)]', hover: 'group-hover/vnum:[transform:rotate(-44deg)]' },
+  { base: '[transform:rotate(-38deg)]', hover: 'group-hover/vnum:[transform:rotate(-20deg)]' },
+  { base: '[transform:rotate(-44deg)]', hover: 'group-hover/vnum:[transform:rotate(4deg)]' },
 ]
 
 /** Small "luggage tag" badges hinged at the verse number's top-right corner — absolutely
@@ -362,7 +368,17 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
     </div>
   )
 }
-function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
+/** Bucket a note / cross-ref count into a 0–3 "magnitude" for the tiny verse indicator — each
+ *  step is roughly a doubling (1 → 1, 2–3 → 2, 4+ → 3). Lets the pill read as "a little / some
+ *  / a lot" at a glance; the exact count still shows as a small number when > 1. */
+function annotationMagnitude(n: number): 0 | 1 | 2 | 3 {
+  if (n <= 0) return 0
+  if (n === 1) return 1
+  if (n <= 3) return 2
+  return 3
+}
+
+function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
   // A superscription row never shows a number, whatever the reader's verse-number setting.
   const effShowVerseNumber = showVerseNumber && !superscription
   const hasHidden = hiddenAnnotations.length > 0
@@ -1596,6 +1612,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               was toggling both at once. The outer wrapper here is then purely the visual pill. */}
           {(() => {
           const both = noteCount > 0 && hasNoteCrossRef
+          // "A lot vs a little" magnitude — drives dot/icon size and resting prominence so a
+          // heavily-annotated verse reads denser at a glance; exact counts still print below.
+          const noteMag = annotationMagnitude(noteCount)
+          const xrefMag = annotationMagnitude(noteCrossRefCount)
+          const noteDotPx = 4 + noteMag          // 5 / 6 / 7 px
+          const xrefIconPx = 9 + xrefMag         // 10 / 11 / 12 px
+          const restOpacity = (m: 0 | 1 | 2 | 3) => (m >= 3 ? 'opacity-90' : m === 2 ? 'opacity-75' : 'opacity-60')
           return (
           <div
             onMouseEnter={both ? undefined : (e) => {
@@ -1609,8 +1632,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             onClick={both ? undefined : (noteCount > 0 ? openVerseNotes : openNoteCrossRefs)}
             className={
               both
-                ? 'flex items-stretch rounded-full border border-[rgb(var(--color-surface-3))] bg-[rgb(var(--color-surface-2))]'
-                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer'
+                ? 'flex items-stretch rounded-full border border-[rgb(var(--color-surface-3))] bg-[rgb(var(--color-surface-2))] overflow-hidden'
+                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer transition-colors hover:bg-[rgb(var(--color-surface-3))]'
             }
           >
 
@@ -1620,10 +1643,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleNoteIconMouseEnter : undefined}
                 onMouseLeave={both ? handleNoteIconMouseLeave : undefined}
                 onClick={both ? openVerseNotes : undefined}
-                className={`flex items-center gap-0.5 opacity-75 hover:opacity-100 leading-none select-none transition-opacity cursor-pointer ${both ? 'px-1 py-0.5' : ''}`}
+                className={`flex items-center gap-0.5 ${restOpacity(noteMag)} hover:opacity-100 leading-none select-none transition-[opacity,background-color] cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-full hover:bg-[rgb(var(--color-surface-4))]' : ''}`}
                 style={{ color: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
               >
-                <span className="w-[5px] h-[5px] rounded-full bg-current" />
+                <span className="rounded-full bg-current" style={{ width: noteDotPx, height: noteDotPx }} />
                 {noteCount > 1 && <span className="text-[9px] font-semibold">{noteCount}</span>}
               </button>
             )}
@@ -1639,9 +1662,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleCrossRefIconMouseEnter : undefined}
                 onMouseLeave={both ? handleCrossRefIconMouseLeave : undefined}
                 onClick={both ? openNoteCrossRefs : undefined}
-                className={`flex items-center text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] transition-opacity cursor-pointer ${both ? 'px-1 py-0.5' : ''}`}
+                className={`flex items-center gap-0.5 text-[rgb(var(--color-text-muted))] ${restOpacity(xrefMag)} hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] transition-[opacity,color,background-color] cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-full hover:bg-[rgb(var(--color-surface-4))]' : ''}`}
               >
-                <GitFork size={10} strokeWidth={2.5} />
+                <GitFork size={xrefIconPx} strokeWidth={2.5} />
+                {noteCrossRefCount > 1 && <span className="text-[9px] font-semibold">{noteCrossRefCount}</span>}
               </button>
             )}
           </div>
