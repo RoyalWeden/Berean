@@ -655,7 +655,7 @@ export default function App() {
     // already wrote the new content into the DB — this just tells the renderer
     // to refetch so open lists/panels reflect it instead of going stale until
     // the note happens to be reopened).
-    window.vault?.onVaultChange(() => {
+    const disposeVaultChange = window.vault?.onVaultChange(() => {
       useAppStore.getState().bumpNoteToken()
     })
 
@@ -735,6 +735,7 @@ export default function App() {
       flushPendingSettings()
       window.removeEventListener('beforeunload', flushPendingSettings)
       unsub()
+      disposeVaultChange?.()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

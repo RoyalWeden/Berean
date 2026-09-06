@@ -172,7 +172,7 @@ interface VaultAPI {
   setAutoExport: (intervalMinutes: number) => Promise<{ success: boolean }>
   importAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; noteVersions?: number; noteFolders?: number; pdfHighlights?: number; workspaces?: number; pdfs?: number; tabState?: string; reason?: string }>
   hasData: () => Promise<boolean>
-  onVaultChange: (callback: (event: unknown) => void) => void
+  onVaultChange: (callback: (event: unknown) => void) => () => void
 }
 
 interface AppHistoryAPI {
