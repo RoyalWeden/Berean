@@ -122,6 +122,25 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.7] - 2026-09-06
+
+### Bible reading
+
+- Cycling back to a Scripture tab with Ctrl+Tab now returns to the scroll
+  position you left it at. The keyboard tab switcher was dropping it whenever
+  it also moved between the sidebar sections, so the chapter reopened at the
+  top.
+
+### Find in chapter
+
+- The find bar now appears the instant you start typing after opening a
+  chapter, instead of lagging a moment behind.
+- Fast typing right after opening a chapter no longer loses characters or
+  restarts from the first letter — every keystroke is captured, and the
+  in-chapter match highlighting catches up without holding up the typing.
+
+---
+
 ## [0.6.6] - 2026-09-05
 
 ### Stability

@@ -992,6 +992,17 @@ export default function App() {
               window.dispatchEvent(new CustomEvent('berean:verseDigit', { detail: { digit: e.key } }))
             } else {
               openFindBar(true, e.key)
+              // Sync these refs NOW rather than waiting for their useEffect to run after the
+              // commit. Right after flipping to a chapter the main thread is busy rendering the
+              // fresh verse tree, so React's passive effects (which is where findBarOpenRef /
+              // findBarQueryRef get updated) can lag ~1s. Until they flush, every further
+              // keystroke still sees findBarOpenRef.current === false, re-enters this branch, and
+              // calls openFindBar(true, e.key) again — resetting the query to a single character
+              // each time, so the find bar looks like it "isn't picking up typing." Updating the
+              // refs synchronously makes the very next keystroke take the append branch below.
+              findBarOpenRef.current = true
+              findBarAutoOpenRef.current = true
+              findBarQueryRef.current = e.key
               // Auto-dismiss timer for type-anywhere (bible only uses global findbar)
               if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
               autoOpenDismissRef.current = setTimeout(() => {
@@ -1006,7 +1017,12 @@ export default function App() {
         } else if (findBarOpenRef.current && findBarAutoOpenRef.current && e.key.length === 1 && !isTypingTarget(document.activeElement)) {
           // Characters typed while findbar is open but input isn't focused yet (fast typing
           // before the 20ms focus delay). Forward them into the query so nothing is lost.
-          setFindBarQuery(findBarQueryRef.current + e.key)
+          // Advance findBarQueryRef synchronously — its useEffect can lag behind a burst of
+          // keystrokes (see the ref-sync note above), and reading a stale value here would drop
+          // every character typed between commits.
+          const nextQuery = findBarQueryRef.current + e.key
+          findBarQueryRef.current = nextQuery
+          setFindBarQuery(nextQuery)
           // Reset auto-dismiss timer
           if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
           autoOpenDismissRef.current = setTimeout(() => {

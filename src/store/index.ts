@@ -2163,7 +2163,15 @@ export const useAppStore = create<AppState>()(
         // search, etc.) silently skipped it, so scroll/layout/compare state only survived
         // a tab switch some of the time depending on how you switched. Centralizing it here,
         // as the one place ALL tab switches funnel through, means it now always fires.
-        if (prevTabId && prevTabId !== tabId) {
+        //
+        // Note the space check: `prevTabId` is the DESTINATION space's last-active tab, not the
+        // tab we're actually leaving. On a cross-space switch (e.g. Ctrl+Tab from a Scripture
+        // tab back to a Notes tab that was already the notes space's active tab) prevTabId ===
+        // tabId, so keying only on that skips the flush entirely — and since panels stay mounted
+        // across space switches (display toggle, no unmount cleanup), the outgoing panel's
+        // scroll position is then lost. Fire whenever this isn't a true no-op (same space AND
+        // same tab).
+        if (spaceId !== state.activeSpace || (prevTabId && prevTabId !== tabId)) {
           window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange'))
         }
 

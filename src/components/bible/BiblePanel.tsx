@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react'
 import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2, Tag as TagIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -198,6 +198,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
   const findBarQuery = useAppStore((s) => s.findBarQuery)
+  // Applying the find highlight re-renders every VerseRow in the chapter (Psalm 119 ≈ 176 rows,
+  // each with its Strong's chips) synchronously on each keystroke. Right after a chapter flip
+  // that pass piles onto the fresh chapter's own mount and starves both the FindBar's paint
+  // ("delay to show") and the keystrokes themselves ("doesn't pick up everything"). The FindBar
+  // input binds to the raw findBarQuery so typing stays instant; the verse tree and the
+  // match-list/scroll effect below consume this deferred copy, so the heavy highlight pass runs
+  // at low priority and yields to further typing instead of blocking it.
+  const deferredFindBarQuery = useDeferredValue(findBarQuery)
   const findBarAutoOpen = useAppStore((s) => s.findBarAutoOpen)
   const findBarWordMode = useAppStore((s) => s.findBarWordMode)
   const closeFindBar = useAppStore((s) => s.closeFindBar)
@@ -1819,7 +1827,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   useEffect(() => {
     if (!findBarOpen || activeSpace !== 'scripture') { setFindMatchVerseNums([]); findCenterVerseRef.current = null; return }
-    const matches = findVerses(findBarQuery, !!tabState.compareMode, compareFocusedCol, findBarWordMode)
+    const matches = findVerses(deferredFindBarQuery, !!tabState.compareMode, compareFocusedCol, findBarWordMode)
     setFindMatchVerseNums(matches)
     setFindMatchIdx(0)
     const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : getScrollEl()
@@ -1828,7 +1836,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       scrollVerseIntoView(el, VERSE_JUMP_ANIMATED_CENTER)
       presenterScrollToVerse(matches[0])
     }
-  }, [findBarQuery, findBarOpen, findBarWordMode, activeSpace, tabState.bookId, tabState.chapter, tabState.compareMode, compareFocusedCol]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deferredFindBarQuery, findBarOpen, findBarWordMode, activeSpace, tabState.bookId, tabState.chapter, tabState.compareMode, compareFocusedCol]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the presenter is open, scroll it to center the same verse the find bar jumped to.
   function presenterScrollToVerse(verseNum: number) {
@@ -3280,7 +3288,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // ── Layout rendering ─────────────────────────────────────────────────────────
 
   function renderContentArea() {
-    const findQuery = findBarOpen && activePanelId === 'bible' ? findBarQuery : ''
+    const findQuery = findBarOpen && activePanelId === 'bible' ? deferredFindBarQuery : ''
 
     const findWMode = findBarOpen && activePanelId === 'bible' ? findBarWordMode : 'phrase'
 
