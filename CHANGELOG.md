@@ -122,6 +122,17 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.8] - 2026-09-06
+
+### Notes
+
+- Turning off the "Verse block suggestion" and "Strong's block suggestion"
+  popups now sticks. These, along with auto-format verse blocks, the
+  side-panel suggestion toggle, and the verse-text match sensitivity, were
+  reverting to their defaults every time the app restarted.
+
+---
+
 ## [0.6.7] - 2026-09-06
 
 ### Bible reading

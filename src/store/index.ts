@@ -2899,6 +2899,14 @@ export const useAppStore = create<AppState>()(
         studyTrailAskChapterJumpReason: state.studyTrailAskChapterJumpReason,
         noteVerseRefsEnabled: state.noteVerseRefsEnabled,
         noteLexiconRefsEnabled: state.noteLexiconRefsEnabled,
+        // Block-suggestion / auto-format preferences — every one of these was missing here, so
+        // toggling any of them (e.g. turning OFF the "Verse block suggestion" / "Strong's block
+        // suggestion" popups) silently reverted to its default on the next app launch.
+        noteScriptureBlock: state.noteScriptureBlock,
+        sidePanelScriptureBlock: state.sidePanelScriptureBlock,
+        noteScriptureBlockThreshold: state.noteScriptureBlockThreshold,
+        noteVerseBlockSuggest: state.noteVerseBlockSuggest,
+        noteStrongsBlockSuggest: state.noteStrongsBlockSuggest,
         autoEmDash: state.autoEmDash,
         themePreset: state.themePreset,
         backgroundAnimationEnabled: state.backgroundAnimationEnabled,
