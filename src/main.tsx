@@ -133,7 +133,18 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// Chromium fires a global "error" event (no real Error object, e.filename === the
+// app's own index.html) for the benign ResizeObserver notification-loop warning:
+// a ResizeObserver callback resized something and the browser couldn't deliver
+// every notification within the same frame. It's spec-compliant, self-correcting
+// on the next frame, and nothing is broken — but it's essentially guaranteed to
+// fire now and then given how many ResizeObservers the app runs (react-mosaic
+// panels, the presenter band, the notes editor, Study Trail overlays…). Without
+// this guard it popped the full-screen crash overlay for a non-issue.
+const RESIZE_OBSERVER_LOOP_RE = /^ResizeObserver loop (limit exceeded|completed with undelivered notifications)/
+
 window.addEventListener('error', (e) => {
+  if (RESIZE_OBSERVER_LOOP_RE.test(e.message)) return
   const stack = e.error?.stack ?? `${e.filename}:${e.lineno}:${e.colno}`
   // Ignore errors from browser extensions or devtools
   if (!e.filename || e.filename.startsWith('chrome-extension://')) return
