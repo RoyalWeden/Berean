@@ -45,6 +45,10 @@ interface ChapterAnnotations {
   /** Per-verse cross-ref magnitude: how many notes link this verse (0 = none). */
   flags: Record<number, number>
   colorMap: Record<number, string>
+  /** Per-verse note "weight" 0..1 — this verse's total note character count normalized against
+   *  every other noted verse in the chapter. Drives the note dot's size + opacity so a verse
+   *  with a lot of written material reads heavier than one with a one-line jot. */
+  noteWeights: Record<number, number>
 }
 const chapterAnnotationCache = new Map<string, ChapterAnnotations>()
 const chapterVerseTagCache = new Map<string, Record<number, import('@/types').VerseTagLite[]>>()
@@ -414,6 +418,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>(() => annoCacheHit?.noteCounts ?? {})
   const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>(() => annoCacheHit?.colorMap ?? {})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, number>>(() => annoCacheHit?.flags ?? {})
+  const [noteWeights, setNoteWeights] = useState<Record<number, number>>(() => annoCacheHit?.noteWeights ?? {})
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>(
     () => chapterCrossRefBannerCache.get(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva')) ?? [],
   )
@@ -691,10 +696,13 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       // Forward: a verse note here references some other verse/chapter
       const notes = await window.notes.getChapterNotes(bookId, chapter, textId ?? 'kjva').catch(() => [])
       const colorMap: Record<number, string> = {}
+      // Per-verse total note character count (frontmatter stripped) → normalized to 0..1 below.
+      const charByVerse: Record<number, number> = {}
       for (const note of notes) {
         const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
         if (!vn) continue
         if (note.color && !colorMap[vn]) colorMap[vn] = note.color
+        charByVerse[vn] = (charByVerse[vn] ?? 0) + (note.content ?? '').replace(/^---[\s\S]*?---\s*/m, '').trim().length
         const refs = extractRefsFromNote(note.content, note.title || '')
         // A ref counts as "other" only when it is NOT the note's own verse AND is a specific
         // verse (not a whole-chapter ref — those are shown in the banner, not per-verse).
@@ -718,7 +726,20 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         chapterSourcesResult = chapterCrossRefSources(sources, bookId, chapter)
       } catch { /* best-effort */ }
 
-      return { flags, colorMap, chapterSourcesResult }
+      // Normalize note char totals across every noted verse in the chapter → 0..1. A chapter
+      // where one verse carries a long study and the rest carry one-liners will show that verse's
+      // dot markedly heavier; a chapter where all notes are similar length shows them all near 1.
+      const noteWeights: Record<number, number> = {}
+      const charVals = Object.values(charByVerse)
+      if (charVals.length > 0) {
+        const lo = Math.min(...charVals)
+        const hi = Math.max(...charVals)
+        for (const [vn, c] of Object.entries(charByVerse)) {
+          noteWeights[Number(vn)] = hi > lo ? (c - lo) / (hi - lo) : 1
+        }
+      }
+
+      return { flags, colorMap, chapterSourcesResult, noteWeights }
     })()
 
     // Commit the banner sources the moment the cross-ref part is ready — don't make the banner
@@ -737,11 +758,13 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       setHighlights((prev) => mergeStableRecord(prev, highlightsData))
       setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, crossRef.flags))
       setNoteColorsMap((prev) => mergeStableRecord(prev, crossRef.colorMap))
+      setNoteWeights((prev) => mergeStableRecord(prev, crossRef.noteWeights))
       cacheSetBounded(chapterAnnotationCache, annoKey, {
         noteCounts: noteCountsData as Record<number, number>,
         highlights: highlightsData as Record<number, VerseHighlight[]>,
         flags: crossRef.flags,
         colorMap: crossRef.colorMap,
+        noteWeights: crossRef.noteWeights,
       })
     })
     return () => { cancelled = true }
@@ -1242,6 +1265,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
                 showStrongs={showStrongs}
                 showVerseNumber={false}
                 noteCount={noteCounts[0] ?? 0}
+                noteWeight={noteWeights[0] ?? 0}
                 notePrimaryColor={noteColorsMap[0]}
                 hasNoteCrossRef={(verseHasNoteCrossRefs[0] ?? 0) > 0}
                 noteCrossRefCount={verseHasNoteCrossRefs[0] ?? 0}
@@ -1259,6 +1283,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               showStrongs={showStrongs}
               showVerseNumber={showVerseNumbers}
               noteCount={noteCounts[verse.verse_num] ?? 0}
+              noteWeight={noteWeights[verse.verse_num] ?? 0}
               notePrimaryColor={noteColorsMap[verse.verse_num]}
               hasNoteCrossRef={(verseHasNoteCrossRefs[verse.verse_num] ?? 0) > 0}
               noteCrossRefCount={verseHasNoteCrossRefs[verse.verse_num] ?? 0}
