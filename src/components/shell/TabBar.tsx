@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -15,6 +15,7 @@ const TAB_ICONS: Record<TabType, LucideIcon> = {
   youtube: Youtube,
   search:  Search,
   pdf:     FileType2,
+  tags:    Waypoints,
 }
 
 // Per-type color for the tab icon in the unified (unfiltered, unsectioned)
@@ -27,6 +28,7 @@ const TAB_ICON_COLORS: Record<TabType, string> = {
   youtube: '#e85b5b',
   search:  '#8b8f98',
   pdf:     '#8b8f98',
+  tags:    '#b06fe8',
 }
 
 interface ContextMenuState {
@@ -514,7 +516,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
     setDragOverIdx(null)
     setCrossSpaceHoverIdx(null)
 
-    if (wentOutside && tab) {
+    if (wentOutside && tab && tab.type !== 'tags') {
       const floatType = tab.type === 'note' ? 'notes' : tab.type
       const rawState = (tab.state ?? {}) as unknown as Record<string, unknown>
       const floatState: Record<string, unknown> = {}
@@ -689,6 +691,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="min-w-44 rounded-shell context-menu p-1 text-xs no-drag"
         >
+          {contextMenu.tab.type !== 'tags' && (
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             onClick={() => {
@@ -718,6 +721,8 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             <ExternalLink size={12} />
             Open in floating tab
           </button>
+          )}
+          {contextMenu.tab.type !== 'tags' && (
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             onClick={() => {
@@ -741,6 +746,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             <Copy size={12} />
             Duplicate tab
           </button>
+          )}
           <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"

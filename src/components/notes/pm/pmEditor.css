@@ -101,17 +101,19 @@
   cursor: pointer;
 }
 
-/* Inline #tag reference — a chip, not an underline, so it reads distinctly from verse refs. */
+/* Inline #tag reference — a chip, not an underline, so it reads distinctly from verse refs.
+   --pm-tag-slot is set inline by refDecorations.ts for a known tag that has a palette slot;
+   it falls back to the accent colour for unknown / slot-less tags. */
 .pm-tag-ref {
-  color: rgb(var(--color-accent));
-  background-color: rgb(var(--color-accent) / 0.10);
+  color: rgb(var(--pm-tag-slot, var(--color-accent)));
+  background-color: rgb(var(--pm-tag-slot, var(--color-accent)) / 0.10);
   border-radius: 4px;
   padding: 0 3px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color .12s ease;
 }
-.pm-tag-ref:hover { background-color: rgb(var(--color-accent) / 0.18); }
+.pm-tag-ref:hover { background-color: rgb(var(--pm-tag-slot, var(--color-accent)) / 0.18); }
 
 /* .pm-callout* colors/padding/margin are applied inline by nodeViews.ts's
    calloutNodeView and staticRender.ts's renderCallout (sourced from

@@ -3,7 +3,7 @@ import { rankVerseTags } from '@/lib/verseTagSearch'
 import type { VerseTag } from '@/types'
 
 const tag = (name: string, verseCount = 0, chapterCount = 0): VerseTag => ({
-  id: name, name, color: null, createdAt: 0, memberCount: 0, verseCount, chapterCount,
+  id: name, name, color: null, colorSlot: 0, createdAt: 0, memberCount: 0, verseCount, chapterCount,
 })
 
 describe('rankVerseTags', () => {

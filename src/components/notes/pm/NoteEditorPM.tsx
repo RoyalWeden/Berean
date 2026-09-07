@@ -11,7 +11,8 @@ import { serializeToMarkdown } from './serializer'
 import { bereanKeymap, createBlockMovementKeymap } from './keymap'
 import { bereanInputRules } from './inputRules'
 import { bereanPastePlugin, reclosePastedWrapperBlock } from './pastePlugin'
-import { createRefDecorationsPlugin, createRefClickPlugin } from './refDecorations'
+import { createRefDecorationsPlugin, createRefClickPlugin, refDecorationsKey } from './refDecorations'
+import { resolveTagColor } from '@/lib/tagPalette'
 import { createPlaceholderPlugin } from './placeholderPlugin'
 import {
   createAutocompletePlugin, replaceRangeWithText, replaceRangeWithBlock, replaceRangeWithWikilink,
@@ -198,6 +199,7 @@ export default function NoteEditorPM({
   const [tagIdx, setTagIdx] = useState(0)
   const verseTags = useAppStore((s) => s.verseTags)
   const setVerseTags = useAppStore((s) => s.setVerseTags)
+  const verseTagChangeToken = useAppStore((s) => s.verseTagChangeToken)
   // Tell the store a note editor is on screen so the bottom-right Study Trail arrival toast
   // lifts clear of this editor's word-count / reading-time footer (same corner).
   const bumpNoteEditorOpen = useAppStore((s) => s.bumpNoteEditorOpen)
@@ -205,6 +207,12 @@ export default function NoteEditorPM({
     bumpNoteEditorOpen(1)
     return () => bumpNoteEditorOpen(-1)
   }, [bumpNoteEditorOpen])
+  // Repaint #tag decorations when the known-tags list changes elsewhere (tag created / renamed
+  // in the Tags graph, another editor, etc.) so multi-word chips resolve immediately.
+  useEffect(() => {
+    const view = viewRef.current
+    if (view) view.dispatch(view.state.tr.setMeta(refDecorationsKey, { knownTagsChanged: true }))
+  }, [verseTagChangeToken])
   // Hover-preview popup (RefHoverPreview, AutocompletePopups.tsx) — verse refs show real verse
   // text, Strong's refs show the short definition, wikilinks show the target note's own preview
   // (WikilinkPopup's single-pane content, reused rather than building a second preview format).
@@ -445,6 +453,11 @@ export default function NoteEditorPM({
           onLexiconRefHoverStart: (id, rect) => hoverHandlersRef.current.onLexiconRefHoverStart(id, rect),
           onRefHoverEnd: () => hoverHandlersRef.current.onRefHoverEnd(),
           onTagRefClick: (name) => {
+            // Clicking the tag navigates away from the note — tear down any hover card / open
+            // autocomplete so it doesn't linger, portaled, over the Scripture view.
+            setRefHoverPreview(null)
+            setTagTrigger(null); setWikilinkTrigger(null); setStrongsTrigger(null)
+            setVerseSuggestTrigger(null); setSlashTrigger(null)
             const s = useAppStore.getState()
             s.openScriptureSearchTab(undefined, { tagNames: [name] })
             s.setActiveSpace('scripture')
@@ -707,8 +720,18 @@ export default function NoteEditorPM({
     const onScroll = () => onScrollPositionRef.current?.(scrollEl?.scrollTop ?? 0)
     scrollEl?.addEventListener('scroll', onScroll)
 
+    // Editor lost focus for real (autocomplete popups preventDefault mousedown, so picking an
+    // item never blurs) — the user clicked away / navigated. Drop every transient popup so none
+    // stays portaled over whatever's now on screen.
+    const onBlur = () => {
+      setWikilinkTrigger(null); setStrongsTrigger(null); setVerseSuggestTrigger(null)
+      setSlashTrigger(null); setTagTrigger(null); setRefHoverPreview(null)
+    }
+    view.dom.addEventListener('blur', onBlur)
+
     return () => {
       scrollEl?.removeEventListener('scroll', onScroll)
+      view.dom.removeEventListener('blur', onBlur)
       view.destroy()
       viewRef.current = null
       setViewReady(false)
@@ -858,12 +881,18 @@ export default function NoteEditorPM({
   }
 
   // #tag autocomplete: existing verse tags matching the typed query, plus a "create" option.
+  // The typed query may now contain spaces (multi-word tags). The menu stays open as long as the
+  // query is a single word OR still prefix-matches / exactly matches a known tag name — so
+  // "Church Hi" keeps it open but "Church Zzz" closes it.
   const tagQ = (tagTrigger?.query ?? '').toLowerCase()
   const filteredTags = tagTrigger
     ? verseTags.filter((t) => !tagQ || t.name.toLowerCase().includes(tagQ))
     : []
   const tagExactExists = verseTags.some((t) => t.name.toLowerCase() === tagQ)
+  const tagQueryPrefixMatches = !!tagQ && verseTags.some((t) => t.name.toLowerCase().startsWith(tagQ))
   const tagOptionCount = filteredTags.length + (tagQ && !tagExactExists ? 1 : 0)
+  const tagMenuOpen = !!tagTrigger && tagOptionCount > 0
+    && (!/\s/.test(tagQ) || tagQueryPrefixMatches || tagExactExists)
 
   async function chooseTag(idx: number) {
     const view = viewRef.current
@@ -1091,7 +1120,7 @@ export default function NoteEditorPM({
         if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIdx((i) => Math.max(i - 1, 0)); return }
         if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); runSlashCommand(filteredSlashCommands[slashIdx] ?? filteredSlashCommands[0]); return }
       }
-      if (tagTrigger && tagOptionCount > 0) {
+      if (tagMenuOpen) {
         if (e.key === 'ArrowDown') { e.preventDefault(); setTagIdx((i) => Math.min(i + 1, tagOptionCount - 1)); return }
         if (e.key === 'ArrowUp') { e.preventDefault(); setTagIdx((i) => Math.max(i - 1, 0)); return }
         if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); void chooseTag(Math.min(tagIdx, tagOptionCount - 1)); return }
@@ -1107,7 +1136,7 @@ export default function NoteEditorPM({
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wikilinkTrigger, strongsTrigger, verseSuggestTrigger, slashTrigger, tagTrigger, wikilinkIdx, slashIdx, tagIdx, tagOptionCount, filteredNotes.length, filteredSlashCommands.length])
+  }, [wikilinkTrigger, strongsTrigger, verseSuggestTrigger, slashTrigger, tagTrigger, tagMenuOpen, wikilinkIdx, slashIdx, tagIdx, tagOptionCount, filteredNotes.length, filteredSlashCommands.length])
 
   // Clicking below/around the actual note content (very common — e.g. a
   // short note with lots of empty space beneath it) should still focus the
@@ -1204,7 +1233,7 @@ export default function NoteEditorPM({
           onSelect={runSlashCommand}
         />
       )}
-      {tagTrigger && tagOptionCount > 0 && createPortal(
+      {tagMenuOpen && createPortal(
         <div
           className="fixed z-[60] min-w-[180px] max-h-[240px] overflow-y-auto rounded-shell context-menu py-1 animate-radix-popup-in"
           style={{ left: tagTrigger.coords.left, top: tagTrigger.coords.bottom + 4, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
@@ -1217,7 +1246,7 @@ export default function NoteEditorPM({
               onClick={() => void chooseTag(i)}
               className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer ${i === tagIdx ? 'bg-[rgb(var(--color-surface-4))]' : ''} text-[rgb(var(--color-text-primary))]`}
             >
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color ? `rgb(var(--highlight-${t.color}))` : 'rgb(var(--color-text-muted))' }} />
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
               <span className="truncate">{t.name}</span>
               <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
             </button>

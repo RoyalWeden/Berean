@@ -1087,6 +1087,44 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       try { db.exec(`ALTER TABLE trail_notes ADD COLUMN offset_y INTEGER`) } catch { /* already present */ }
       console.log('[berean-db] v41: trail_notes.offset_x / offset_y')
     }
+  },
+  {
+    // Tag graph — verse tags gain a generated-palette slot (theme-adaptive colour that "flips"
+    // when the theme changes) plus hybrid graph-layout persistence (drag-to-pin), and a new
+    // tag_edges table holds hand-drawn directional relationships between two tags.
+    version: 42,
+    up(db) {
+      try { db.exec(`ALTER TABLE verse_tags ADD COLUMN color_slot INTEGER`) } catch { /* already present */ }
+      try { db.exec(`ALTER TABLE verse_tags ADD COLUMN graph_x REAL`) } catch { /* already present */ }
+      try { db.exec(`ALTER TABLE verse_tags ADD COLUMN graph_y REAL`) } catch { /* already present */ }
+      try { db.exec(`ALTER TABLE verse_tags ADD COLUMN graph_pinned INTEGER NOT NULL DEFAULT 0`) } catch { /* already present */ }
+
+      // Backfill color_slot: even round-robin over a stable ordering, only where still null
+      // (so a newer app version that already assigned slots is never clobbered).
+      const rows = db
+        .prepare(`SELECT id FROM verse_tags WHERE color_slot IS NULL ORDER BY COALESCE(sort_order, 999999), created_at, id`)
+        .all() as Array<{ id: string }>
+      const setSlot = db.prepare(`UPDATE verse_tags SET color_slot = ? WHERE id = ? AND color_slot IS NULL`)
+      rows.forEach((r, i) => setSlot.run(i % 12, r.id))
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tag_edges (
+          id            TEXT PRIMARY KEY,
+          source_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,
+          target_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,
+          arrows        TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'forward' | 'backward' | 'both'
+          color         TEXT,                            -- slot index as string, or literal; NULL = neutral
+          dashed        INTEGER NOT NULL DEFAULT 0,
+          note          TEXT NOT NULL DEFAULT '',
+          created_at    INTEGER NOT NULL,
+          updated_at    INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tag_edges_pair ON tag_edges(source_tag_id, target_tag_id);
+        CREATE INDEX IF NOT EXISTS idx_tag_edges_src ON tag_edges(source_tag_id);
+        CREATE INDEX IF NOT EXISTS idx_tag_edges_tgt ON tag_edges(target_tag_id);
+      `)
+      console.log('[berean-db] v42: verse_tags.color_slot/graph_x/graph_y/graph_pinned + tag_edges')
+    }
   }
 ]
 

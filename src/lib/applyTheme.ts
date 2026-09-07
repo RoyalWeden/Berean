@@ -2,6 +2,7 @@ import {
   ALL_PRESET_CLASSES, NATURALLY_DARK_IDS, PRESET_ANIMATION_STYLE,
   type AnimationStyle, type AnimationIntensity,
 } from '@/lib/themePresets'
+import { applyTagPaletteToDocument } from '@/lib/tagPalette'
 
 /**
  * Single, shared implementation of "apply the current theme/preset/animation to <html>" —
@@ -76,4 +77,8 @@ export function applyThemeToDocument(opts: ApplyThemeOptions): void {
     delete html.dataset.animStyle
     delete html.dataset.animIntensity
   }
+
+  // Regenerate the 12 tag-palette slots for the theme that was just applied (reads the resolved
+  // CSS vars off <html>). Every window that themes itself gets theme-adaptive tag colours.
+  applyTagPaletteToDocument()
 }

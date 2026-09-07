@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Plus, Tag as TagIcon, Settings2 } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { highlightDotColor } from '@/styles/highlightPalette'
-import type { HighlightColor, VerseTagRange } from '@/types'
+import { resolveTagColor } from '@/lib/tagPalette'
+import type { VerseTagRange } from '@/types'
 
 /**
  * Shared "add this selection to tags" popover. Opened from the verse selection bar, the
@@ -23,7 +23,7 @@ export function TagPickPopover({
 }) {
   const verseTags = useAppStore((s) => s.verseTags)
   const setVerseTags = useAppStore((s) => s.setVerseTags)
-  const openTagManager = useAppStore((s) => s.openTagManager)
+  const openTagsGraph = useAppStore((s) => s.openTagsGraph)
 
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -95,10 +95,10 @@ export function TagPickPopover({
     }
   }
 
-  const dot = (color: string | null) => (
+  const dot = (tag: { color: string | null; colorSlot?: number | null } | null) => (
     <span
       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-      style={{ backgroundColor: color ? highlightDotColor(color as HighlightColor) : 'rgb(var(--color-text-muted))' }}
+      style={{ backgroundColor: resolveTagColor(tag) }}
     />
   )
 
@@ -125,7 +125,7 @@ export function TagPickPopover({
         {created.map((name) => (
           <div key={`new-${name}`} className="flex items-center gap-2 px-2 py-1.5 text-xs text-[rgb(var(--color-text-primary))]">
             <Check size={13} className="text-[rgb(var(--color-accent))]" />
-            {dot(null)}
+            {dot(null /* new, unsaved */)}
             <span className="truncate">{name}</span>
             <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">new</span>
           </div>
@@ -141,7 +141,7 @@ export function TagPickPopover({
               <span className={`w-[13px] h-[13px] rounded border flex items-center justify-center flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
                 {on && <Check size={10} className="text-white" />}
               </span>
-              {dot(t.color)}
+              {dot(t)}
               <span className="truncate">{t.name}</span>
               <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
             </button>
@@ -161,7 +161,7 @@ export function TagPickPopover({
       </div>
       <div className="flex items-center gap-2 px-2 py-2 border-t border-[rgb(var(--color-surface-4))]">
         <button
-          onClick={() => { openTagManager(); onClose() }}
+          onClick={() => { openTagsGraph(); onClose() }}
           className="flex items-center gap-1 px-1.5 py-1 text-[11px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
         >
           <Settings2 size={11} /> Manage

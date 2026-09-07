@@ -1,11 +1,25 @@
 import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight,
-  VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult } from './index'
+  VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult,
+  TagGraphData, TagEdge, TagEdgeArrows } from './index'
 
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
   queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<Verse | null>
+  queryVerses: (refs: Array<{ bookId: string; chapter: number; verse: number }>, textId?: string) => Promise<Record<string, { text: string; title?: string }>>
   searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase', bookIds?: string[]) => Promise<SearchResult[]>
   getBooks: (textId?: string) => Promise<Book[]>
+}
+
+interface TagGraphAPI {
+  getGraph: () => Promise<TagGraphData>
+  createEdge: (source: string, target: string) => Promise<
+    | { created: true; edge: TagEdge }
+    | { created: false; conflict: true; existing: TagEdge }
+    | { created: false; invalid: true }
+  >
+  updateEdge: (id: string, patch: { arrows?: TagEdgeArrows; color?: string | null; dashed?: boolean; note?: string }) => Promise<{ updated: boolean; notFound?: boolean; edges?: TagEdge[] }>
+  deleteEdge: (id: string) => Promise<{ deleted: boolean; edges: TagEdge[] }>
+  setTagPosition: (tagId: string, x: number | null, y: number | null, pinned: boolean) => Promise<{ ok: boolean }>
 }
 
 interface NotesAPI {
@@ -68,6 +82,7 @@ interface VerseTagsAPI {
   create: (name: string, color?: string | null) => Promise<VerseTag[]>
   rename: (id: string, name: string) => Promise<VerseTag[]>
   setColor: (id: string, color: string | null) => Promise<VerseTag[]>
+  setColorSlot: (id: string, slot: number) => Promise<VerseTag[]>
   reorder: (orderedIds: string[]) => Promise<VerseTag[]>
   merge: (fromId: string, intoId: string) => Promise<VerseTag[]>
   delete: (id: string, force?: boolean) => Promise<VerseTagDeleteResult>
@@ -774,6 +789,7 @@ declare global {
     notes: NotesAPI
     highlights: HighlightsAPI
     verseTags: VerseTagsAPI
+    tagGraph: TagGraphAPI
     lexicon: LexiconAPI
     settings: SettingsAPI
     pdf: PdfAPI

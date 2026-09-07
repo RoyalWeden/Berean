@@ -47,7 +47,25 @@ function expandRanges(ranges: TagRange[]): Array<{ bookId: string; chapter: numb
   return out
 }
 
-interface TagRow { id: string; name: string; color: string | null; sort_order: number | null; created_at: number }
+interface TagRow {
+  id: string; name: string; color: string | null; sort_order: number | null; created_at: number
+  color_slot: number | null; graph_x: number | null; graph_y: number | null; graph_pinned: number | null
+}
+
+/** Total slots in the generated per-theme tag palette (mirrors TAG_SLOT_COUNT in src/lib/tagPalette.ts). */
+const TAG_SLOT_COUNT = 12
+
+/** Pick the palette slot currently used by the fewest tags (ties broken randomly), so auto-assigned
+ *  tag colours stay well spread across the wheel. */
+function pickLeastUsedSlot(db: any): number {
+  const rows = prep(db, 'SELECT color_slot AS slot, COUNT(*) AS c FROM verse_tags WHERE color_slot IS NOT NULL GROUP BY color_slot')
+    .all() as Array<{ slot: number; c: number }>
+  const counts = new Array(TAG_SLOT_COUNT).fill(0)
+  for (const r of rows) if (r.slot >= 0 && r.slot < TAG_SLOT_COUNT) counts[r.slot] = r.c
+  const min = Math.min(...counts)
+  const candidates = counts.map((c, i) => (c === min ? i : -1)).filter((i) => i >= 0)
+  return candidates[Math.floor(Math.random() * candidates.length)]
+}
 
 function rebuildMemberVerses(db: any, tagId: string, memberId: string, ranges: TagRange[]): void {
   prep(db, 'DELETE FROM verse_tag_verse WHERE member_id = ?').run(memberId)
@@ -55,9 +73,10 @@ function rebuildMemberVerses(db: any, tagId: string, memberId: string, ranges: T
   for (const v of expandRanges(ranges)) ins.run(tagId, memberId, v.bookId, v.chapter, v.verse)
 }
 
-function listTags(db: any) {
+export function listTags(db: any) {
   const rows = prep(db, `
     SELECT t.id, t.name, t.color, t.sort_order, t.created_at,
+      t.color_slot, t.graph_x, t.graph_y, t.graph_pinned,
       (SELECT COUNT(*) FROM verse_tag_members m WHERE m.tag_id = t.id) AS memberCount,
       (SELECT COUNT(*) FROM verse_tag_verse v WHERE v.tag_id = t.id AND v.verse > 0) AS verseCount,
       (SELECT COUNT(*) FROM verse_tag_verse v WHERE v.tag_id = t.id AND v.verse = 0) AS chapterCount
@@ -66,6 +85,8 @@ function listTags(db: any) {
   `).all() as Array<TagRow & { memberCount: number; verseCount: number; chapterCount: number }>
   return rows.map((r) => ({
     id: r.id, name: r.name, color: r.color, createdAt: r.created_at,
+    colorSlot: r.color_slot,
+    graphX: r.graph_x, graphY: r.graph_y, graphPinned: !!r.graph_pinned,
     memberCount: r.memberCount, verseCount: r.verseCount, chapterCount: r.chapterCount,
   }))
 }
@@ -76,8 +97,8 @@ function findOrCreateTag(db: any, name: string, color?: string | null): string {
   const existing = prep(db, 'SELECT id FROM verse_tags WHERE name = ? COLLATE NOCASE').get(trimmed) as { id: string } | undefined
   if (existing) return existing.id
   const id = randomUUID()
-  prep(db, 'INSERT INTO verse_tags (id, name, color, sort_order, created_at) VALUES (?, ?, ?, NULL, ?)')
-    .run(id, trimmed, color ?? null, Date.now())
+  prep(db, 'INSERT INTO verse_tags (id, name, color, color_slot, sort_order, created_at) VALUES (?, ?, ?, ?, NULL, ?)')
+    .run(id, trimmed, color ?? null, pickLeastUsedSlot(db), Date.now())
   return id
 }
 
@@ -102,6 +123,15 @@ export function registerVerseTagHandlers(ipcMain: IpcMain): void {
     return listTags(db)
   })
 
+  // Set the generated-palette slot (0..11). Clears any literal `color` override so the
+  // theme-adaptive slot colour actually takes effect.
+  ipcMain.handle('verseTags:setColorSlot', (_e, id: string, slot: number) => {
+    const db = getBereanDb()
+    const s = Math.max(0, Math.min(TAG_SLOT_COUNT - 1, Math.floor(slot)))
+    prep(db, 'UPDATE verse_tags SET color_slot = ?, color = NULL WHERE id = ?').run(s, id)
+    return listTags(db)
+  })
+
   ipcMain.handle('verseTags:reorder', (_e, orderedIds: string[]) => {
     const db = getBereanDb()
     const upd = prep(db, 'UPDATE verse_tags SET sort_order = ? WHERE id = ?')
@@ -115,6 +145,11 @@ export function registerVerseTagHandlers(ipcMain: IpcMain): void {
       prep(db, 'UPDATE verse_tag_members SET tag_id = ? WHERE tag_id = ?').run(intoId, fromId)
       prep(db, 'UPDATE OR IGNORE verse_tag_verse SET tag_id = ? WHERE tag_id = ?').run(intoId, fromId)
       prep(db, 'DELETE FROM verse_tag_verse WHERE tag_id = ?').run(fromId)
+      // Re-point drawn relationship edges onto the surviving tag; UPDATE OR IGNORE drops any
+      // that would collide with an existing edge, then clean up leftovers + self-loops.
+      prep(db, 'UPDATE OR IGNORE tag_edges SET source_tag_id = ? WHERE source_tag_id = ?').run(intoId, fromId)
+      prep(db, 'UPDATE OR IGNORE tag_edges SET target_tag_id = ? WHERE target_tag_id = ?').run(intoId, fromId)
+      prep(db, 'DELETE FROM tag_edges WHERE source_tag_id = ? OR target_tag_id = ? OR source_tag_id = target_tag_id').run(fromId, fromId)
       prep(db, 'DELETE FROM verse_tags WHERE id = ?').run(fromId)
     })()
     return listTags(db)
@@ -187,16 +222,16 @@ export function registerVerseTagHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('verseTags:getForChapter', (_e, bookId: string, chapter: number) => {
     const db = getBereanDb()
     const rows = prep(db, `
-      SELECT v.verse, t.id, t.name, t.color
+      SELECT v.verse, t.id, t.name, t.color, t.color_slot AS colorSlot
       FROM verse_tag_verse v JOIN verse_tags t ON t.id = v.tag_id
       WHERE v.book_id = ? AND v.chapter = ?
       ORDER BY t.name COLLATE NOCASE
-    `).all(bookId, chapter) as Array<{ verse: number; id: string; name: string; color: string | null }>
-    const verseTags: Record<number, Array<{ id: string; name: string; color: string | null }>> = {}
-    const chapterTags: Array<{ id: string; name: string; color: string | null }> = []
+    `).all(bookId, chapter) as Array<{ verse: number; id: string; name: string; color: string | null; colorSlot: number | null }>
+    const verseTags: Record<number, Array<{ id: string; name: string; color: string | null; colorSlot: number | null }>> = {}
+    const chapterTags: Array<{ id: string; name: string; color: string | null; colorSlot: number | null }> = []
     const seenChapter = new Set<string>()
     for (const r of rows) {
-      const tag = { id: r.id, name: r.name, color: r.color }
+      const tag = { id: r.id, name: r.name, color: r.color, colorSlot: r.colorSlot }
       if (r.verse === 0) {
         if (!seenChapter.has(r.id)) { seenChapter.add(r.id); chapterTags.push(tag) }
       } else {
@@ -213,11 +248,12 @@ export function registerVerseTagHandlers(ipcMain: IpcMain): void {
     if (!tagIds?.length) return []
     const placeholders = tagIds.map(() => '?').join(',')
     const members = (db as any).prepare(`
-      SELECT m.id, m.tag_id, m.kind, m.ranges, m.label, m.created_at, t.name AS tagName, t.color AS tagColor
+      SELECT m.id, m.tag_id, m.kind, m.ranges, m.label, m.created_at,
+        t.name AS tagName, t.color AS tagColor, t.color_slot AS tagColorSlot
       FROM verse_tag_members m JOIN verse_tags t ON t.id = m.tag_id
       WHERE m.tag_id IN (${placeholders})
       ORDER BY t.name COLLATE NOCASE, m.created_at
-    `).all(...tagIds) as Array<{ id: string; tag_id: string; kind: string; ranges: string; label: string; created_at: number; tagName: string; tagColor: string | null }>
+    `).all(...tagIds) as Array<{ id: string; tag_id: string; kind: string; ranges: string; label: string; created_at: number; tagName: string; tagColor: string | null; tagColorSlot: number | null }>
     const versesStmt = prep(db, 'SELECT book_id, chapter, verse FROM verse_tag_verse WHERE member_id = ?')
     return members.map((m) => {
       const rows = versesStmt.all(m.id) as Array<{ book_id: string; chapter: number; verse: number }>
@@ -226,6 +262,7 @@ export function registerVerseTagHandlers(ipcMain: IpcMain): void {
         tagId: m.tag_id,
         tagName: m.tagName,
         tagColor: m.tagColor,
+        tagColorSlot: m.tagColorSlot,
         kind: m.kind,
         label: m.label,
         ranges: JSON.parse(m.ranges) as TagRange[],

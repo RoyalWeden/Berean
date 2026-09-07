@@ -75,6 +75,7 @@ import { registerSettingsHandlers } from './ipc/settings'
 import { registerLexiconHandlers } from './ipc/lexicon'
 import { registerHighlightHandlers } from './ipc/highlights'
 import { registerVerseTagHandlers } from './ipc/verseTags'
+import { registerTagGraphHandlers } from './ipc/tagGraph'
 import { registerYouTubeHandlers } from './ipc/youtube'
 import { registerCrossRefsHandlers } from './ipc/crossrefs'
 import { registerAiLookupHandlers } from './ipc/aiLookup'
@@ -1069,6 +1070,7 @@ app.whenReady().then(async () => {
   registerLexiconHandlers(ipcMain)
   registerHighlightHandlers(ipcMain)
   registerVerseTagHandlers(ipcMain)
+  registerTagGraphHandlers(ipcMain)
   registerYouTubeHandlers(ipcMain)
   registerCrossRefsHandlers(ipcMain)
   registerAiLookupHandlers(ipcMain)

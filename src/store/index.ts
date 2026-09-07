@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
+import type { SpaceId, Tab, TabState, TabType, TagsTabState, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
 import { bookName } from '@/lib/parseRef'
@@ -179,7 +179,11 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   youtube: 'youtube',
   search: 'search',
   pdf: 'scripture',   // PDFs open as tabs within the Scripture space
+  tags: 'notes',      // the singleton Tags graph opens as a tab within the Notes space
 }
+
+/** The one and only Tags graph tab id (singleton — see openTagsGraph). */
+export const TAGS_GRAPH_TAB_ID = 'tags-graph'
 
 // createTab() below always seeds a brand-new Bible tab's state with a hardcoded GEN/1 default —
 // never a position the user actually visited. updateTabState()'s Bible-tab branch used to treat
@@ -308,9 +312,8 @@ export interface AppState {
   setVerseTags: (tags: VerseTag[]) => void
   refreshVerseTags: () => Promise<void>
   bumpVerseTagToken: () => void
-  tagManagerOpen: boolean
-  openTagManager: () => void
-  closeTagManager: () => void
+  /** Open (or focus) the singleton Tags graph tab in the Notes space. */
+  openTagsGraph: () => void
 
   // Search tab
   pendingSearchQuery: string | null
@@ -1097,7 +1100,6 @@ export const useAppStore = create<AppState>()(
       highlightChangeToken: 0,
       verseTags: [] as VerseTag[],
       verseTagChangeToken: 0,
-      tagManagerOpen: false,
       pendingSearchQuery: null,
       findBarOpen: false,
       findBarQuery: '',
@@ -1948,6 +1950,10 @@ export const useAppStore = create<AppState>()(
           tab = { id, spaceId, type, title: 'Notes', state: { noteId: null, isNew: true } }
         } else if (type === 'youtube') {
           tab = { id, spaceId, type, title: 'YouTube', state: { videoId: null, playlistId: null } }
+        } else if (type === 'tags') {
+          // The Tags graph is really a singleton opened via openTagsGraph() / TAGS_GRAPH_TAB_ID;
+          // this branch only exists so a stray createTab('tags') can't fall through to a Search tab.
+          tab = { id, spaceId, type, title: 'Tags', state: { selectedTagId: null } as TagsTabState }
         } else {
           tab = { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
         }
@@ -2497,8 +2503,17 @@ export const useAppStore = create<AppState>()(
           set((s) => ({ verseTags: tags, verseTagChangeToken: s.verseTagChangeToken + 1 }))
         } catch { /* verseTags bridge not ready (e.g. tests) */ }
       },
-      openTagManager: () => set({ tagManagerOpen: true }),
-      closeTagManager: () => set({ tagManagerOpen: false }),
+      openTagsGraph: () => {
+        const tab: Tab = {
+          id: TAGS_GRAPH_TAB_ID,
+          spaceId: 'notes',
+          type: 'tags',
+          title: 'Tags',
+          state: { selectedTagId: null } as TagsTabState,
+        }
+        // addTab focuses an existing tab with this id, or inserts + focuses a new one.
+        get().addTab(tab, 'after-active')
+      },
       openSearchTab: (query) => {
         get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
         // A search is recorded as its own stop, separate from the search RESULT you then click

@@ -16,6 +16,10 @@ import type { TabType } from '@/types'
 const importYouTubeTab = () => import('@/components/youtube/YouTubeTab')
 const YouTubeTab = lazy(importYouTubeTab)
 
+// The Tags graph (canvas + force sim + SVG edges) is only needed once the singleton Tags tab is
+// opened — code-split so it stays out of the initial bundle.
+const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
+
 // Prewarm the YouTube chunk once the app is idle after first paint, so the first
 // time a YouTube tab is opened it's a mount (still not instant — webview wiring)
 // rather than mount + a cold chunk fetch/parse on top. Fire-and-forget; the lazy()
@@ -61,13 +65,15 @@ export default function ActivePanel() {
   // scroll-position tick in ANY space, a Strong's toggle, a panel resize) does
   // NOT re-render ActivePanel, and therefore doesn't re-render every mounted
   // panel underneath it. Each panel subscribes to what it actually needs itself.
-  const { activeSpace, scriptureTabId, scriptureTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab } = useAppStore(
+  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab } = useAppStore(
     useShallow((s) => {
       const scriptureTab = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture) ?? null
+      const notesTab = s.tabs.notes.find((t) => t.id === s.activeTabId.notes) ?? null
       return {
         activeSpace: s.activeSpace,
         scriptureTabId: scriptureTab?.id ?? null,
         scriptureTabType: scriptureTab?.type ?? null,
+        notesTabType: notesTab?.type ?? null,
         hasNotesTab:   s.tabs.notes.some((t) => t.id === s.activeTabId.notes),
         hasLexiconTab: s.tabs.lexicon.some((t) => t.id === s.activeTabId.lexicon),
         hasSearchTab:  s.tabs.search.some((t) => t.id === s.activeTabId.search),
@@ -79,7 +85,7 @@ export default function ActivePanel() {
   // The panel type actually shown right now = the active space's active tab's type.
   const activeType: TabType | null =
     activeSpace === 'scripture' ? scriptureTabType :
-    activeSpace === 'notes'     ? (hasNotesTab ? 'note' : null) :
+    activeSpace === 'notes'     ? (hasNotesTab ? (notesTabType ?? 'note') : null) :
     activeSpace === 'lexicon'   ? (hasLexiconTab ? 'lexicon' : null) :
     activeSpace === 'search'    ? (hasSearchTab ? 'search' : null) :
     activeSpace === 'youtube'   ? (hasYouTubeTab ? 'youtube' : null) :
@@ -113,7 +119,13 @@ export default function ActivePanel() {
 
         {hasNotesTab && (
           <Layer visible={activeSpace === 'notes'}>
-            <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>
+            {notesTabType === 'tags' ? (
+              <ErrorBoundary label="Tag graph error">
+                <Suspense fallback={null}><TagsGraphPanel /></Suspense>
+              </ErrorBoundary>
+            ) : (
+              <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>
+            )}
           </Layer>
         )}
 
