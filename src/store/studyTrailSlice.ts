@@ -634,6 +634,14 @@ const GLANCE_WINDOW_MS = 2500
 // only ever RAISES a proposal; nothing splits until the user says so.
 const SESSION_SPLIT_GAP_MS = 45 * 60_000
 
+// A different-book jump on its own is NOT a new-study signal — real study moves between books
+// constantly (connecting scriptures across the whole canon is the point). Per direct feedback
+// the book-change heuristic only fires when it ALSO coincides with a meaningful idle: you were
+// away from the current chapter long enough that picking up in an unrelated book reads as a
+// fresh sitting rather than a continuation. Shorter than SESSION_SPLIT_GAP_MS (which fires on
+// time alone, regardless of book), longer than an ordinary pause to think.
+const NEW_BOOK_IDLE_MS = 15 * 60_000
+
 /** Human book name for a proposed session's auto-generated title, falling back to the raw id. */
 const bookLabelFor = (bookId: string): string => bookName(bookId) || bookId
 
@@ -848,7 +856,7 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
     const untied = to.verse == null && origin.kind !== 'sequential-nav' && !SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)
     const reason = gapMs >= SESSION_SPLIT_GAP_MS
       ? `${bookLabelFor(to.bookId)} — after a break`
-      : (bookChanged && untied) ? bookLabelFor(to.bookId) : null
+      : (bookChanged && untied && gapMs >= NEW_BOOK_IDLE_MS) ? bookLabelFor(to.bookId) : null
     if (reason) useStudyTrailStore.getState().proposeSplit({ nodeId: node!.id, sessionId: trailSessionId, reason })
   }
   if (!effectivePrevNodeId) {

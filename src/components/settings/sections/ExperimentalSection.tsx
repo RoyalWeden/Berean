@@ -7,9 +7,28 @@ import Switch from '@/components/shell/Switch'
 export default function ExperimentalSection() {
   const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
   const setPdfFeatureEnabled = useAppStore((s) => s.setPdfFeatureEnabled)
+  const chapterPullNavEnabled = useAppStore((s) => s.chapterPullNavEnabled)
+  const setChapterPullNavEnabled = useAppStore((s) => s.setChapterPullNavEnabled)
+  const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
 
   return (
     <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Pull to change chapter</p>
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+            Pull past the top or bottom of a chapter to slide into the previous or next one, with a
+            rubber-band stretch and a preview of what&apos;s coming. Off by default — on a trackpad a
+            scroll and a pull are the same physical gesture, so this has to infer which one you meant
+            and can get it wrong. Only a pull that <em>starts</em> at the end of a chapter counts.
+            {continuousChapterScroll
+              ? ' Currently inactive: Continuous chapter scroll already flows between chapters.'
+              : ''}
+          </p>
+        </div>
+        <Switch checked={chapterPullNavEnabled} onCheckedChange={() => setChapterPullNavEnabled(!chapterPullNavEnabled)} />
+      </div>
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">PDF library &amp; viewer</p>

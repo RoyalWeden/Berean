@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react'
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
@@ -510,6 +510,32 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   }
   const columnsKey = columns.map(c => `${c.textId}@${c.bookId}.${c.chapter}`).join('|')
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
+  // Room for the fixed, body-portaled verse selection action bar (see BiblePanel) — every
+  // compare column needs it, since the bar floats over whichever column holds the selection.
+  const verseSelectionBarOpen = useAppStore((s) => s.verseSelectionBarOpen)
+  // KJV→other-column verse selection mirror: selecting a verse in the KJV/KJVA column shows the
+  // same verse selected in every other column (LXX especially), so a passage lines up at a
+  // glance. Display-only (see VerseRow.forceSelected) — nothing is written to the selection
+  // store, so the selection bar count and copy/highlight actions stay tied to the real click.
+  const activeScriptureTabId = useAppStore((s) => s.activeTabId['scripture'])
+  const selectedVerses = useAppStore((s) => (activeScriptureTabId ? s.selectedVersesByTab[activeScriptureTabId] : undefined))
+  const mirrorSelectionByColId = useMemo(() => {
+    const out: Record<string, Set<number>> = {}
+    const kjvRefs = (selectedVerses ?? []).filter((v) => v.textId === 'kjva' || v.textId === 'kjv')
+    if (kjvRefs.length === 0) return out
+    for (const col of columns) {
+      if (col.textId === 'kjva' || col.textId === 'kjv') continue
+      const set = new Set<number>()
+      for (const ref of kjvRefs) {
+        if (ref.bookId !== col.bookId) continue
+        if (mapChapterOnTranslationSwitch(ref.bookId, ref.chapter, 'kjva', col.textId) === col.chapter) set.add(ref.verse)
+      }
+      if (set.size > 0) out[col.id] = set
+    }
+    return out
+  // columnsKey (below) captures every column's textId/book/chapter; recompute when it or the
+  // selection changes.
+  }, [selectedVerses, columnsKey]) // eslint-disable-line react-hooks/exhaustive-deps
   // Push whenever the columns change or the presenter opens.
   useEffect(() => { pushCompareToViewer() }, [columnsKey, viewerWindowOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   // useViewerSync asks us to (re)push when it detects compare mode (e.g. presenter ready).
@@ -628,7 +654,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 persistColumns()
               }, 150)
             }}
-            className="overflow-y-auto min-w-0 flex flex-col relative"
+            className={`overflow-y-auto min-w-0 flex flex-col relative ${verseSelectionBarOpen ? 'pb-16' : ''}`}
             style={{ flexGrow: colFlex[col.id] ?? 1, flexBasis: 0 }}
             onDragOver={(e) => handleColDragOver(e, colIdx)}
             onDrop={handleColDrop}
@@ -738,6 +764,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               onStrongsClick={onStrongsClick}
               onWordClick={onWordClick}
               compact
+              forceSelectedVerses={mirrorSelectionByColId[col.id]}
               onVersesLoaded={() => {
                 // Restore this column's saved scroll position — but only ONCE per mount,
                 // the first time its verses load; a later chapter navigation shouldn't try

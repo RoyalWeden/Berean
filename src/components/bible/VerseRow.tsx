@@ -58,6 +58,9 @@ interface VerseRowProps {
    *  cross-ref indicator's size + opacity. 0 when `hasNoteCrossRef` is false. */
   noteCrossRefCount?: number
   isHighlighted?: boolean
+  /** Display-only "this verse is selected" mirror — e.g. a compare LXX column echoing the
+   *  KJV column's verse selection. Tints the row without writing to the selection store. */
+  forceSelected?: boolean
   /** Verse tags on this verse (translation-agnostic) — rendered as angled "luggage tag"
    *  badges looped on the verse number. Absolutely positioned; never shifts verse text. */
   verseTags?: import('@/types').VerseTagLite[]
@@ -381,7 +384,7 @@ function crossRefBucket(n: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, noteWeight = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, noteWeight = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, forceSelected = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
   // A superscription row never shows a number, whatever the reader's verse-number setting.
   const effShowVerseNumber = showVerseNumber && !superscription
   const hasHidden = hiddenAnnotations.length > 0
@@ -524,9 +527,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   const selfTextId = textId ?? 'kjva'
   const activeScriptureTabId = useAppStore((s) => s.activeTabId['scripture'])
   const rowTabId: string | null | undefined = tabId ?? activeScriptureTabId
-  const isSelected = useAppStore((s) => (rowTabId ? (s.selectedVersesByTab[rowTabId] ?? []) : []).some(
+  const storeSelected = useAppStore((s) => (rowTabId ? (s.selectedVersesByTab[rowTabId] ?? []) : []).some(
     (v) => v.bookId === verse.book_id && v.chapter === verse.chapter && v.verse === verse.verse_num && v.textId === selfTextId,
   ))
+  // `forceSelected` is a display-only mirror (e.g. a compare LXX column echoing the KJV column's
+  // selection) — it tints the row and number badge but is NOT in the store, so the selection bar
+  // count and copy/highlight/tag actions still act only on what the user actually clicked.
+  const isSelected = storeSelected || !!forceSelected
   const toggleVerseSelection = useAppStore((s) => s.toggleVerseSelection)
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })

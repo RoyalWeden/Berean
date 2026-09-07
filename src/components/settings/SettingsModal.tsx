@@ -431,7 +431,7 @@ export default function SettingsModal() {
     { id: 'about',      label: 'About & Updates', icon: Info, keywords: ['about', 'version', 'license', 'update', 'beta', 'stable', 'auto-update'] },
     { id: 'viewer',     label: 'Viewer Window', icon: Cast,   keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
     { id: 'studyTrail', label: 'Study Trail', icon: GitBranch, keywords: ['study trail', 'trail', 'session', 'map', 'navigation history', 'jump', 'reason', 'why did you jump'] },
-    { id: 'experimental', label: 'Experimental', icon: FlaskConical, keywords: ['experimental', 'beta', 'pdf', 'opt-in', 'feature flag'] },
+    { id: 'experimental', label: 'Experimental', icon: FlaskConical, keywords: ['experimental', 'beta', 'pdf', 'opt-in', 'feature flag', 'pull to change chapter', 'rubber band', 'overscroll', 'pull navigation'] },
   ]
 
   // Filter nav items by settings search query
