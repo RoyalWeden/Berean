@@ -40,6 +40,8 @@ import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
 import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { getPrevChapterRef, getNextChapterRef } from '@/lib/bibleNav'
+import { useChapterPullNav } from './useChapterPullNav'
+import ChapterPullIndicator from './ChapterPullIndicator'
 
 // Module-level cache of getBooks() results per textId, shared across every BiblePanel
 // instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
@@ -236,6 +238,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const chapterViewRef = useRef<HTMLDivElement>(null)
   const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
+  // The verse selection action bar is a `position: fixed` element portaled to <body>, so it
+  // floats over the bottom of every scroll container. Reserve space for it (≈64px, matching the
+  // offset StudyTrailArrivalPrompt already uses) so the last verses of short chapters — LXX
+  // chapters especially — can still be scrolled clear of it.
+  const verseSelectionBarOpen = useAppStore((s) => s.verseSelectionBarOpen)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Set to `Date.now() + N` right when a navigation (Cmd+L reference jump, scroll-to-top event)
   // repositions this panel. Any debounced/unmount/pre-tab-change scroll-position save that would
@@ -336,14 +343,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // persisted to tab state on tab switch so it can be restored on return.
   const lastNoteCursorRef = useRef<number | null>(tabState.rightPanelNoteCursor ?? null)
   const panelRootRef = useRef<HTMLDivElement>(null)
-  // True only when the keyboard focus is inside the side-panel note editor (CodeMirror).
-  // In a scripture tab the side-panel note is the only CodeMirror editor, so checking
-  // for a focused .cm-content within this panel reliably detects "user was in the note".
+  // True only when the keyboard focus is inside the side-panel note editor (ProseMirror).
+  // In a scripture tab the side-panel note is the only rich-text editor, so checking for a
+  // focused .ProseMirror within this panel reliably detects "user was typing in the note".
+  // (Was `.cm-content` — the notes editor migrated from CodeMirror to ProseMirror, so that
+  // selector never matched anymore and cursor/focus restore silently stopped working.)
   function isSidePanelNoteFocused(): boolean {
     const el = document.activeElement
     if (!el || !(el instanceof HTMLElement)) return false
-    const cm = el.closest('.cm-content')
-    return !!cm && (panelRootRef.current?.contains(cm) ?? false)
+    const pm = el.closest('.ProseMirror, .berean-pm-editor')
+    return !!pm && (panelRootRef.current?.contains(pm) ?? false)
   }
   const [rightPanelLexiconEntry, setRightPanelLexiconEntry] = useState<string | null>(() => tabState.rightPanelLexiconEntry ?? null)
   const [rightPanelVerseFilter, setRightPanelVerseFilter] = useState<string | null>(() => tabState.rightPanelVerseFilter ?? null)
@@ -1242,6 +1251,77 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (!(r.visibleFraction > 0)) return false
     return true
   }
+
+  // ── Rubber-band chapter navigation (paged mode) ─────────────────────────────
+  // Pull past the top/bottom of a chapter (wheel overscroll or touch drag) to slide into the
+  // adjacent chapter; getPrev/NextChapterRef already rolls a book's last chapter into the next
+  // book's first (and vice-versa). Continuous-scroll mode flows between chapters on its own, so
+  // this is paged-only.
+  const pullContentRef = useRef<HTMLDivElement>(null)
+  const chapterPullNavEnabled = useAppStore((s) => s.chapterPullNavEnabled)
+  const pagedReaderMode = chapterPullNavEnabled
+    && !tabState.compareMode && !tabState.searchMode && !floating
+    && !(continuousChapterScroll && !tabState.endChapter && !isHermasBook(tabState.bookId))
+  const pullPrevRef = getPrevChapterRef(books, tabState.bookId, tabState.chapter, textId, { endChapter: tabState.endChapter })
+  const pullNextRef = getNextChapterRef(books, tabState.bookId, tabState.chapter, chapterCount, textId, { endChapter: tabState.endChapter })
+  // Set when a pull-UP committed, so the previous chapter is entered at its END — the pull
+  // previewed that chapter's last verses, and landing on verse 1 instead would contradict what
+  // the reader was just looking at. Consumed by the effect below.
+  const pullLandAtEndRef = useRef(false)
+  const pullState = useChapterPullNav({
+    scrollElRef: chapterViewRef,
+    contentElRef: pullContentRef,
+    enabled: pagedReaderMode,
+    hasPrev: !!pullPrevRef,
+    hasNext: !!pullNextRef,
+    onCommitPrev: () => { pullLandAtEndRef.current = true; prevChapter() },
+    onCommitNext: () => nextChapter(),
+    // Presenter sessions repurpose the wheel (centred model / virtual scroll for a fully-fitting
+    // chapter) — stay out of the way entirely whenever the presenter window is open.
+    isBlocked: () => centeredModelEngaged() || useAppStore.getState().viewerWindowOpen,
+    resetKey: `${activeTabId}:${tabState.bookId}:${tabState.chapter}`,
+  })
+
+  // Land at the END of the chapter a pull-UP just opened. Deliberately its own rAF loop rather
+  // than a hook into the saved-scroll restore path above: that path is driven by a concrete
+  // pixel offset it waits for the content to grow tall enough to satisfy, and "the bottom,
+  // whatever that turns out to be" isn't expressible as one. Re-applies until the height stops
+  // changing, since verses stream in.
+  useEffect(() => {
+    if (!pullLandAtEndRef.current) return
+    pullLandAtEndRef.current = false
+    let raf = 0
+    let frames = 0
+    let stable = 0
+    let lastH = -1
+    const tick = () => {
+      const el = getScrollEl()
+      if (el && el.querySelector('[data-verse]')) {
+        const max = el.scrollHeight - el.clientHeight
+        if (el.scrollHeight === lastH && Math.abs(el.scrollTop - max) <= 1) stable++
+        else { stable = 0; el.scrollTop = max; lastH = el.scrollHeight }
+      }
+      frames++
+      if (stable >= 3 || frames > 120) { setChapterRevealed(true); return }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Command palette / native menu: Previous & Next chapter ──────────────────
+  // `commands.ts` and `App.tsx` have always dispatched these two events, but nothing anywhere
+  // listened for them, so both the palette entries and the menu items were dead.
+  useEffect(() => {
+    function onPrev() { if (activeTabRef.current) prevChapter() }
+    function onNext() { if (activeTabRef.current) nextChapter() }
+    window.addEventListener('berean:prevChapter', onPrev)
+    window.addEventListener('berean:nextChapter', onNext)
+    return () => {
+      window.removeEventListener('berean:prevChapter', onPrev)
+      window.removeEventListener('berean:nextChapter', onNext)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Measure this panel's live verse content-tops, content height H (last-verse-bottom clamped —
   // the same measure computePresenterBand and the viewer use) and viewport height V. ONE
@@ -3173,6 +3253,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 targetVerse: undefined,
                 endVerse: undefined,
               })
+              // Re-point any selected verses onto the new edition so the SAME passage stays
+              // selected across the flip — the translation menu (selectPickerTranslation)
+              // already does this; this quick toggle was missing it, so a verse selected in
+              // KJV showed nothing selected after switching to LXX.
+              useAppStore.getState().remapVerseSelection(activeTab.id, (v) => ({
+                ...v,
+                textId: target.toLowerCase(),
+                chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, target.toLowerCase()),
+              }))
             }}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
           >
@@ -3372,9 +3461,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         viewerPaused={viewerPaused}
       />
     ) : (
+      <div className="relative flex flex-1 flex-col min-h-0">
+      <ChapterPullIndicator state={pullState} prevRef={pullPrevRef} nextRef={pullNextRef} textId={textId} />
       <div
         ref={chapterViewRef}
-        className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : ''}`}
+        className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`}
         // Hidden (but laid out, so scroll restore can still run) until the first post-load
         // scroll-restore lands — kills the "top of chapter, then jump" flash on tab switch.
         style={{ visibility: chapterRevealed ? 'visible' : 'hidden' }}
@@ -3504,6 +3595,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             </span>
           </div>
         )}
+        <div ref={pullContentRef}>
         {tabState.endChapter && tabState.endChapter > tabState.chapter
           ? Array.from({ length: tabState.endChapter - tabState.chapter + 1 }, (_, i) => tabState.chapter + i).map((ch) => (
               <ChapterView
@@ -3561,6 +3653,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             )
         }
+        </div>
+      </div>
       </div>
     )
 

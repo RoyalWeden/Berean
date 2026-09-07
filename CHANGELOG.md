@@ -122,6 +122,50 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.10] - 2026-09-07
+
+### Scripture reading
+
+- **Pull to change chapter** — new, opt-in under Settings → Experimental (off by
+  default). With continuous scroll off, pull past the top or bottom of a chapter —
+  trackpad overscroll or a touch drag — to slide into the previous or next one.
+  The content stretches against a rubber band that gets stiffer the further you
+  pull and firms up against a ceiling, the way overscrolling a web page does,
+  opening a gap that shows a banner and a faint preview of the adjacent chapter:
+  the end of the previous one when you pull up, the start of the next when you
+  pull down. Pull far enough and it opens; ease off or pull back at any point and
+  it springs home. Only a pull that *starts* at the end of the chapter can turn
+  the page — a swipe from the middle that merely runs into the end still stretches
+  the band but never navigates. At the end of a book it carries on into the next.
+- Pulling up into the previous chapter lands you at its **end** — the passage the
+  preview was showing — instead of jumping to verse 1.
+- **Previous chapter** and **Next chapter** work again from the command palette
+  (⌘K) and the app menu. Both have been dispatching an event nothing listened for.
+- The verse selection action bar no longer covers the last verses of a chapter —
+  short chapters (the Septuagint especially) now leave room to scroll clear of it.
+- Selecting a verse in a KJV compare column now also marks that verse in the
+  Septuagint (and any other) column beside it, lined up across the versification
+  differences.
+- The quick KJV/LXX toggle now keeps your verse selection across the switch, the
+  same as the translation menu already did.
+
+### Notes
+
+- The side-panel note editor again remembers your cursor when you switch
+  scripture tabs: if you were typing in the note when you left, you return with
+  the cursor where you left it and can keep typing. If you'd clicked back into
+  the scripture text first, focus stays there.
+
+### Study Trail
+
+- Jumping to a different book no longer counts as a new study on its own — that's
+  just normal cross-reference study. A new-study prompt for a book change now
+  only appears if you'd also been away from the passage for a while.
+- Closing a scripture tab now records where you landed, so the next "why did you
+  jump here?" prompt shows the chapter you actually came from.
+
+---
+
 ## [0.6.9] - 2026-09-06
 
 ### Scripture reading

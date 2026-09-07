@@ -184,6 +184,9 @@ interface ChapterViewProps {
   onSlowLoadChange?: (loading: boolean) => void
   /** Tighter padding + no max width — used for compare columns. */
   compact?: boolean
+  /** Verse numbers to show as selected without any store entry — a compare column echoing
+   *  another column's (KJV's) verse selection for side-by-side comparison. Display only. */
+  forceSelectedVerses?: Set<number>
   /** Identity of the scripture tab this instance is showing content for. BiblePanel.tsx no
    *  longer remounts on tab switch (see its own prevBibleTabIdForResetRef), which means THIS
    *  component can now be the same instance across a switch to a completely different tab's
@@ -371,7 +374,7 @@ function verseMatchesFind(text: string, findQuery: string, findWordMode: 'phrase
   return words.some((w) => t.includes(w))
 }
 
-function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId }: ChapterViewProps) {
+function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -1288,6 +1291,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               hasNoteCrossRef={(verseHasNoteCrossRefs[verse.verse_num] ?? 0) > 0}
               noteCrossRefCount={verseHasNoteCrossRefs[verse.verse_num] ?? 0}
               isHighlighted={isHighlighted}
+              forceSelected={forceSelectedVerses?.has(verse.verse_num) ?? false}
               verseTags={verseTagMap[verse.verse_num] ?? EMPTY_VERSE_TAGS}
               tabId={tabId}
               highlights={highlights[verse.verse_num] ?? EMPTY_HIGHLIGHTS}

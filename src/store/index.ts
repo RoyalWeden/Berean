@@ -343,6 +343,12 @@ export interface AppState {
   // pending a fix for unbounded page-canvas memory growth (see ui-polish-july punch list).
   pdfFeatureEnabled: boolean
   setPdfFeatureEnabled: (v: boolean) => void
+  // Pull-past-the-end-of-a-chapter navigation (paged reading mode only). Off by default: a
+  // trackpad scroll and a trackpad "pull" are the same physical gesture, so telling a deliberate
+  // pull from a scroll that merely ran into the end is a heuristic, not a certainty — Chromium
+  // doesn't expose the momentum flag that would settle it until Chrome 151.
+  chapterPullNavEnabled: boolean
+  setChapterPullNavEnabled: (v: boolean) => void
 
   // Cached device geolocation, used only to compute real sunrise for the daily-note
   // "day boundary" (dailyNoteUtils.ts's getDailyNoteAnchorDate/dailyNoteToday).
@@ -1038,6 +1044,28 @@ function prunePerTabState(
   }
 }
 
+/** Closing the active scripture tab shifts what chapter is on screen, but the close paths mutate
+ *  `activeTabId` directly (they never go through `activateTab`), so Study Trail never saw the
+ *  jump — leaving its anchor pointing at the just-closed chapter, which then showed up as a wrong
+ *  "from" on the next arrival prompt. Record the fallback as a tab-switch when a scripture bible
+ *  tab was closed while active and the tab we land on is a different chapter. */
+function recordScriptureCloseFallback(
+  closedTab: Tab | undefined,
+  fallbackTab: Tab | undefined,
+): void {
+  if (!closedTab || closedTab.spaceId !== 'scripture' || closedTab.type !== 'bible') return
+  if (!fallbackTab || fallbackTab.spaceId !== 'scripture' || fallbackTab.type !== 'bible') return
+  const from = closedTab.state as BibleTabState | undefined
+  const to = fallbackTab.state as BibleTabState | undefined
+  if (!to?.bookId || to.chapter == null) return
+  if (from?.bookId === to.bookId && from?.chapter === to.chapter) return
+  recordNavigation(
+    { bookId: from?.bookId, chapter: from?.chapter, verse: from?.verse ?? from?.targetVerse },
+    { bookId: to.bookId, chapter: to.chapter, verse: to.verse ?? to.targetVerse },
+    { kind: 'tab-switch' },
+  )
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -1697,6 +1725,8 @@ export const useAppStore = create<AppState>()(
 
       pdfFeatureEnabled: false,
       setPdfFeatureEnabled: (v) => set({ pdfFeatureEnabled: v }),
+      chapterPullNavEnabled: false,
+      setChapterPullNavEnabled: (v) => set({ chapterPullNavEnabled: v }),
 
       dailyNoteLocation: null,
       setDailyNoteLocation: (loc) => set({ dailyNoteLocation: loc }),
@@ -2089,9 +2119,18 @@ export const useAppStore = create<AppState>()(
         ) ?? null
         const withinSpaceFallbackId = newTabs[Math.max(0, idx - 1)]?.id ?? null
 
+        const crossSpace = !!mruFallback && mruFallback.spaceId !== spaceId
+        const newScriptureActiveId = spaceId === 'scripture'
+          ? (crossSpace ? withinSpaceFallbackId : (mruFallback?.tabId ?? withinSpaceFallbackId))
+          : state.activeTabId['scripture']
+        recordScriptureCloseFallback(
+          tabs[idx],
+          (newTabsAll['scripture'] ?? []).find((t) => t.id === newScriptureActiveId),
+        )
+
         set((s) => {
           const pruned = prunePerTabState(s, spaceId, tabId)
-          if (mruFallback && mruFallback.spaceId !== spaceId) {
+          if (crossSpace && mruFallback) {
             return {
               tabs: newTabsAll,
               activeTabId: { ...state.activeTabId, [spaceId]: withinSpaceFallbackId, [mruFallback.spaceId]: mruFallback.tabId },
@@ -2144,7 +2183,16 @@ export const useAppStore = create<AppState>()(
         ) ?? null
         const withinSpaceFallbackId = newTabs[Math.max(0, idx - 1)]?.id ?? null
 
-        if (mruFallback && mruFallback.spaceId !== spaceId) {
+        const crossSpace = !!mruFallback && mruFallback.spaceId !== spaceId
+        const newScriptureActiveId = spaceId === 'scripture'
+          ? (crossSpace ? withinSpaceFallbackId : (mruFallback?.tabId ?? withinSpaceFallbackId))
+          : state.activeTabId['scripture']
+        recordScriptureCloseFallback(
+          tabs[idx],
+          (newTabsAll['scripture'] ?? []).find((t) => t.id === newScriptureActiveId),
+        )
+
+        if (crossSpace && mruFallback) {
           set({
             tabs: newTabsAll,
             activeTabId: { ...state.activeTabId, [spaceId]: withinSpaceFallbackId, [mruFallback.spaceId]: mruFallback.tabId },
@@ -2907,6 +2955,7 @@ export const useAppStore = create<AppState>()(
         aiLookupPanelPos: state.aiLookupPanelPos,
         aiLookupPanelSize: state.aiLookupPanelSize,
         pdfFeatureEnabled: state.pdfFeatureEnabled,
+        chapterPullNavEnabled: state.chapterPullNavEnabled,
         dailyNoteLocation: state.dailyNoteLocation,
         wordReplacerEnabled: state.wordReplacerEnabled,
         wordReplacerRules: state.wordReplacerRules,

@@ -70,6 +70,8 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     // fix as BiblePanel.tsx's own chapterViewRef container — without it the player's card sits
     // on top of the last verse with no way to scroll past it.
     const audioPlaybackActive = useAppStore((s) => s.audioPlayback != null)
+    // Reserve room for the fixed, body-portaled verse selection action bar (see BiblePanel).
+    const verseSelectionBarOpen = useAppStore((s) => s.verseSelectionBarOpen)
     const headingRefs = useRef<Map<number, HTMLDivElement>>(new Map())
     // ── Height-preserving placeholders for evicted chapters ──────────────────────────────
     // Chapters outside [firstCh, lastCh] used to be fully absent from the DOM with nothing
@@ -261,7 +263,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
 
     return (
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : ''}`} onScroll={handleScroll}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
         {/* Presenter visible-region band */}
         {presenterBand && (
           <div
