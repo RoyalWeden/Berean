@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
+import { useSwipeDismissGesture } from '@/hooks/useSwipeDismissGesture'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection } from '@/types/studyTrail'
 import ReasonPromptPopover, { TrailReasonFormBody } from './ReasonPromptPopover'
@@ -137,6 +138,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   // Reset per-toast interaction state whenever a NEW connection replaces the current one
   // (touched/hovering from the last prompt shouldn't carry over to a fresh one).
   useEffect(() => { setHovering(false); setTouched(false) }, [conn?.id])
+  // Layout effect (pre-paint) so a fresh toast never flashes at the previous dismiss's
+  // translated-off-screen position for a frame.
+  useLayoutEffect(() => { resetSwipe() }, [conn?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
   // Step out of the way of whatever else owns the bottom-right / bottom-center corner now:
@@ -166,7 +170,20 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
     : (!searchTabActive && noteOpen ? 46 : 16)
 
   const setArrivalPillRect = useStudyTrailStore((s) => s.setArrivalPillRect)
-  const pillRef = useRef<HTMLDivElement>(null)
+  const pillRef = useRef<HTMLDivElement | null>(null)
+  const [pillHeight, setPillHeight] = useState(160)
+
+  // Swipe DOWN over the toast to dismiss it — same trackpad physics as the Bible reader's
+  // right-side-panel gesture (rubber-band, fast-flick commit, per-frame ease). Disabled once the
+  // user has started typing in the form (`touched`) so an in-progress note can't be swiped away.
+  const { areaRef, dragFrac, isDragging: swiping, reset: resetSwipe } = useSwipeDismissGesture({
+    enabled: !touched,
+    onDismiss: onClose,
+  })
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    pillRef.current = el
+    areaRef(el)
+  }, [areaRef])
   // Publish this toast's own {right, bottom, height} so StudyTrailSplitToast ("New study?") —
   // a SEPARATE bottom-right toast that can appear at the same time as this one — knows to stack
   // above it instead of sharing the exact same corner and overlapping. Re-measures on every
@@ -177,7 +194,10 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
     if (!local) { setArrivalPillRect(null); return }
     const el = pillRef.current
     if (!el) return
-    const publish = () => setArrivalPillRect({ right: rightPx, bottom: bottomPx, height: el.offsetHeight })
+    const publish = () => {
+      setArrivalPillRect({ right: rightPx, bottom: bottomPx, height: el.offsetHeight })
+      setPillHeight(el.offsetHeight)
+    }
     publish()
     const ro = new ResizeObserver(publish)
     ro.observe(el)
@@ -196,9 +216,14 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   const question = arrivalQuestion(local, origin)
   const shown = phase === 'shown'
 
+  // Gesture transform takes over whenever a swipe is in progress (dragFrac non-null).
+  const swipeActive = dragFrac != null
+  const swipeTranslateY = swipeActive ? dragFrac * (pillHeight + 24) : (shown ? 0 : 10)
+  const swipeOpacity = swipeActive ? Math.max(0, 1 - dragFrac * 0.85) : (shown ? 1 : 0)
+
   return createPortal(
     <div
-      ref={pillRef}
+      ref={setRefs}
       className="no-drag"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
@@ -210,8 +235,12 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         border: '1px solid rgb(var(--color-surface-4) / 0.7)',
         borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', overflow: 'hidden',
-        opacity: shown ? 1 : 0, transform: shown ? 'translateY(0)' : 'translateY(10px)',
-        transition: `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
+        opacity: swipeOpacity, transform: `translateY(${swipeTranslateY}px)`,
+        // No transition while the finger is actively dragging (the hook's own per-frame ease
+        // handles smoothing); restore the spring/settle transition otherwise.
+        transition: (swipeActive && swiping)
+          ? 'none'
+          : `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
       }}
     >
       {/* Collapsed CTA — hidden once expanded (hover or touched); no dismiss × here (per direct

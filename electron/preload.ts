@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('bible', {
     ipcRenderer.invoke('bible:queryChapter', bookId, chapter, textId),
   queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) =>
     ipcRenderer.invoke('bible:queryVerse', bookId, chapter, verse, textId),
+  queryVerses: (refs: Array<{ bookId: string; chapter: number; verse: number }>, textId?: string) =>
+    ipcRenderer.invoke('bible:queryVerses', refs, textId),
   searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase', bookIds?: string[]) =>
     ipcRenderer.invoke('bible:searchText', query, textId, wordMode, bookIds),
   getBooks: (textId?: string) =>
@@ -92,6 +94,7 @@ contextBridge.exposeInMainWorld('verseTags', {
   create: (name: string, color?: string | null) => ipcRenderer.invoke('verseTags:create', name, color),
   rename: (id: string, name: string) => ipcRenderer.invoke('verseTags:rename', id, name),
   setColor: (id: string, color: string | null) => ipcRenderer.invoke('verseTags:setColor', id, color),
+  setColorSlot: (id: string, slot: number) => ipcRenderer.invoke('verseTags:setColorSlot', id, slot),
   reorder: (orderedIds: string[]) => ipcRenderer.invoke('verseTags:reorder', orderedIds),
   merge: (fromId: string, intoId: string) => ipcRenderer.invoke('verseTags:merge', fromId, intoId),
   delete: (id: string, force?: boolean) => ipcRenderer.invoke('verseTags:delete', id, force),
@@ -101,6 +104,15 @@ contextBridge.exposeInMainWorld('verseTags', {
     ipcRenderer.invoke('verseTags:updateMemberRanges', memberId, ranges, label, kind),
   getForChapter: (bookId: string, chapter: number) => ipcRenderer.invoke('verseTags:getForChapter', bookId, chapter),
   getMembers: (tagIds: string[]) => ipcRenderer.invoke('verseTags:getMembers', tagIds),
+})
+
+contextBridge.exposeInMainWorld('tagGraph', {
+  getGraph: () => ipcRenderer.invoke('tagGraph:getGraph'),
+  createEdge: (source: string, target: string) => ipcRenderer.invoke('tagGraph:createEdge', source, target),
+  updateEdge: (id: string, patch: unknown) => ipcRenderer.invoke('tagGraph:updateEdge', id, patch),
+  deleteEdge: (id: string) => ipcRenderer.invoke('tagGraph:deleteEdge', id),
+  setTagPosition: (tagId: string, x: number | null, y: number | null, pinned: boolean) =>
+    ipcRenderer.invoke('tagGraph:setTagPosition', tagId, x, y, pinned),
 })
 
 contextBridge.exposeInMainWorld('settings', {

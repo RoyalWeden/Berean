@@ -219,6 +219,37 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('bible:queryVerse', (_event, bookId: string, chapter: number, verseNum: number, textId = 'kjva') =>
     queryVerse(bookId, chapter, verseNum, textId))
 
+  // Batch verse-text fetch (Tag graph node inspector, and future callers). Groups the refs by
+  // (bookId, chapter) so it runs one `verse_num IN (...)` query per chapter instead of N
+  // single-verse round-trips. Returns a map keyed `${bookId}.${chapter}.${verse}`.
+  ipcMain.handle('bible:queryVerses', (_event, refs: Array<{ bookId: string; chapter: number; verse: number }>, textId = 'kjva') => {
+    const out: Record<string, { text: string; title?: string }> = {}
+    const db = getTextDb(textId)
+    if (!db || !Array.isArray(refs) || refs.length === 0) return out
+    const capped = refs.slice(0, 500)
+    const withTitle = hasTitleCol(db, textId)
+    const titleCol = withTitle ? ', title' : ''
+    // group verse numbers by book+chapter
+    const byChapter = new Map<string, { bookId: string; chapter: number; verses: Set<number> }>()
+    for (const r of capped) {
+      if (!r || typeof r.bookId !== 'string' || !Number.isFinite(r.chapter) || !Number.isFinite(r.verse)) continue
+      const k = `${r.bookId}|${r.chapter}`
+      let g = byChapter.get(k)
+      if (!g) { g = { bookId: r.bookId, chapter: r.chapter, verses: new Set() }; byChapter.set(k, g) }
+      g.verses.add(r.verse)
+    }
+    for (const g of byChapter.values()) {
+      const nums = [...g.verses]
+      const placeholders = nums.map(() => '?').join(',')
+      const rows = prep(db, `SELECT verse_num, text${titleCol} FROM verses WHERE book_id = ? AND chapter = ? AND verse_num IN (${placeholders})`)
+        .all(g.bookId, g.chapter, ...nums) as Array<{ verse_num: number; text: string; title?: string }>
+      for (const row of rows) {
+        out[`${g.bookId}.${g.chapter}.${row.verse_num}`] = row.title ? { text: row.text, title: row.title } : { text: row.text }
+      }
+    }
+    return out
+  })
+
   ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva', wordMode: WordMode = 'all', bookIds?: string[]) =>
     searchVerses(query, textId, wordMode, bookIds))
 }

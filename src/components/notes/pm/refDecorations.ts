@@ -5,6 +5,7 @@ import { parseRef, type ParsedRef } from '@/lib/parseRef'
 import { findVerseRefMatches, normalizeRefWhitespace } from '@/lib/noteTextBlocks'
 import { suppressRangesKey } from './suppressRanges'
 import { buildBlockDecorations, blockDecorationsKey } from './blockDecorations'
+import { scanTagRefs, buildKnownTagIndex, type KnownTagIndex } from '@/lib/tagRefScan'
 
 // Mirrors NoteEditor.tsx's buildLiveDecorations regex set exactly (verse-ref
 // scanning is centralized in the exported `findVerseRefMatches`; lxx-prefix
@@ -12,10 +13,23 @@ import { buildBlockDecorations, blockDecorationsKey } from './blockDecorations'
 // they're simple one-liners not worth threading through an export).
 const LXX_PREFIX_RE = /\b(?:lxx|LXX):(?:[1-3][ \t]*)?[A-Za-z][a-z]+(?:[ \t]+(?:of[ \t]+)?[A-Za-z][a-z]+)?[ \t]+\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?\b/g
 const LEXICON_REF_RE = /\b[HGhg]\d{1,5}\b/g
-// "#tag" inline reference — "#" after start-of-line/whitespace, then a word char run.
-// Not preceded by a word char (so `a#b` doesn't match); a bare "# " heading never matches
-// (needs a word char right after "#"). Group 1 is the tag name; the match includes the "#".
-const TAG_REF_RE = /(?:^|[\s(])#([\p{L}\p{N}][\p{L}\p{N}_-]*)/gu
+
+// ── Known verse-tags cache ──────────────────────────────────────────────────
+// The greedy "#tag" matcher (scanTagRefs) needs the list of known tag names — spaces allowed —
+// so a multi-word tag like "Second Temple" gets one chip, not just "#Second". Decorations rebuild
+// on every doc change and staticRender.ts has no store access, so the current list lives here as
+// a module-level cache, refreshed from the Zustand store via knownTagsBridge.ts whenever verse
+// tags change.
+let _knownTagIndex: KnownTagIndex = buildKnownTagIndex([])
+let _knownTagNames: string[] = []
+let _knownTagSlotByLower = new Map<string, number>()
+
+export function setKnownTags(tags: Array<{ name: string; colorSlot: number | null }>): void {
+  _knownTagNames = tags.map((t) => t.name)
+  _knownTagIndex = buildKnownTagIndex(_knownTagNames)
+  _knownTagSlotByLower = new Map(tags.map((t) => [t.name.toLowerCase(), t.colorSlot ?? -1]))
+}
+export function getKnownTagNames(): string[] { return _knownTagNames }
 
 // Doc-only variant of buildDecorations (below), reused by staticRender.ts's
 // read-only renderer (version history, print/export, daily scroll,
@@ -34,6 +48,9 @@ export function buildRefDecorationsForDoc(
   // daily scroll, Presenter), which only runs once per render, not per keystroke, so recomputing
   // there isn't the hot-path cost this was about.
   blockDecorationSet?: DecorationSet,
+  // Known verse-tag names for the greedy "#tag" matcher. Defaults to the module-level cache
+  // (kept warm by knownTagsBridge.ts), which is what every real caller relies on.
+  knownTagIndex: KnownTagIndex = _knownTagIndex,
 ): DecorationSet {
   const decorations: Decoration[] = []
 
@@ -135,14 +152,14 @@ export function buildRefDecorationsForDoc(
       decorations.push(Decoration.inline(from, to, { class: 'pm-lexicon-ref', 'data-strongs-id': lm[0].toUpperCase() }))
     }
 
-    TAG_REF_RE.lastIndex = 0
-    while ((lm = TAG_REF_RE.exec(text)) !== null) {
-      const name = lm[1]
-      const hashOffset = lm[0].indexOf('#')
-      const from = base + lm.index + hashOffset
-      const to = from + 1 + name.length
+    for (const hit of scanTagRefs(text, knownTagIndex)) {
+      const from = base + hit.index
+      const to = from + hit.length
       if (shouldSkip(from, to)) continue
-      decorations.push(Decoration.inline(from, to, { class: 'pm-tag-ref', 'data-tag': name }))
+      const slot = hit.known ? _knownTagSlotByLower.get(hit.name.toLowerCase()) ?? -1 : -1
+      const attrs: Record<string, string> = { class: 'pm-tag-ref', 'data-tag': hit.name }
+      if (slot >= 0) attrs.style = `--pm-tag-slot: var(--tag-slot-${slot})`
+      decorations.push(Decoration.inline(from, to, attrs))
     }
 
     return false
@@ -207,7 +224,10 @@ export function createRefDecorationsPlugin() {
         // suppress plugin's own state is unaffected by non-docChanged
         // transactions like ⌘⇧R's meta-only dispatch, so check its meta
         // directly rather than only reacting to tr.docChanged).
-        if (!tr.docChanged && !tr.getMeta(suppressRangesKey)) return old.map(tr.mapping, tr.doc)
+        // Also rebuild when the known-tags list changed elsewhere (a tag created/renamed in
+        // another view) — NoteEditorPM dispatches an empty tr with this meta on verseTagChangeToken.
+        const knownTagsChanged = !!(tr.getMeta(refDecorationsKey) as { knownTagsChanged?: boolean } | undefined)?.knownTagsChanged
+        if (!tr.docChanged && !tr.getMeta(suppressRangesKey) && !knownTagsChanged) return old.map(tr.mapping, tr.doc)
         return buildDecorations(newState)
       },
     },

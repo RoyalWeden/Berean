@@ -979,7 +979,7 @@ export default function SettingsModal() {
                       </p>
                     </div>
                     <button
-                      onClick={() => { useAppStore.getState().openTagManager(); useAppStore.getState().closeSettings() }}
+                      onClick={() => { useAppStore.getState().openTagsGraph(); useAppStore.getState().closeSettings() }}
                       className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"
                     >
                       <Tag size={13} /> Manage tags

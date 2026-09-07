@@ -100,9 +100,11 @@ export function createAutocompletePlugin(callbacks: AutocompleteCallbacks) {
           }
 
           // "#tag" trigger — "#" after start-of-line/whitespace, immediately followed by at
-          // least one word char (so a bare "# " markdown heading never triggers it), scanning
-          // to the cursor. Not offered inside code.
-          const tagMatch = /(?:^|\s)#([\p{L}\p{N}][\p{L}\p{N}_-]*)$/u.exec(text)
+          // least one word char (so a bare "# " markdown heading never triggers it), then any
+          // run of non-"#"/non-newline chars up to the cursor (spaces allowed, for multi-word
+          // tags). NoteEditorPM decides whether to keep the menu open once the query contains a
+          // space (only while it still prefix-matches a known tag). Not offered inside code.
+          const tagMatch = /(?:^|\s)#([\p{L}\p{N}][^\n#]*)$/u.exec(text)
           if (tagMatch && !$from.parent.type.spec.code) {
             const from = lineStart + tagMatch.index + tagMatch[0].indexOf('#')
             const coords = view.coordsAtPos(from)

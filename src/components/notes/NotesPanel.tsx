@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2 } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -1664,6 +1664,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </div>
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
+            {/* Tag relationship graph */}
+            <button
+              onClick={() => useAppStore.getState().openTagsGraph()}
+              title="Tag graph"
+              className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            >
+              <Waypoints size={15} />
+            </button>
             {/* Select mode toggle */}
             <button
               onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}

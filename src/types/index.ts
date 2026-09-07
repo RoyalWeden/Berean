@@ -18,7 +18,7 @@ export type ScriptureLayout =
   | 'commentary'       // Wide notes left | Scripture right — 50/50 with no tab strip on notes
   | 'split-bottom'     // Scripture top | Notes left + Lexicon right in bottom row
 
-export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf'
+export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags'
 
 export interface BibleTabState {
   bookId: string
@@ -198,6 +198,12 @@ export interface PdfTabState {
   scrollTop?: number
 }
 
+// Singleton Tags graph tab. Pan/zoom persist in the settings KV table (key `tagsGraph.view`),
+// so the only per-tab state is the last-selected node.
+export interface TagsTabState {
+  selectedTagId?: string | null
+}
+
 export interface PdfDoc {
   id: string
   title: string
@@ -226,6 +232,7 @@ export type TabState =
   | YouTubeTabState
   | SearchTabState
   | PdfTabState
+  | TagsTabState
 
 export interface Tab {
   id: string
@@ -377,18 +384,26 @@ export interface VerseTagRange {
 export interface VerseTag {
   id: string
   name: string
+  /** Literal colour override (highlight-palette id or raw CSS). Takes precedence over `colorSlot`. */
   color: string | null
+  /** Generated per-theme palette slot (0..11); the theme-adaptive colour a tag normally shows. */
+  colorSlot: number | null
+  /** Persisted tag-graph position (drag-to-pin). */
+  graphX?: number | null
+  graphY?: number | null
+  graphPinned?: boolean
   createdAt: number
   memberCount: number
   verseCount: number
   chapterCount: number
 }
-export interface VerseTagLite { id: string; name: string; color: string | null }
+export interface VerseTagLite { id: string; name: string; color: string | null; colorSlot?: number | null }
 export interface VerseTagMember {
   memberId: string
   tagId: string
   tagName: string
   tagColor: string | null
+  tagColorSlot?: number | null
   kind: 'verses' | 'chapter'
   label: string
   ranges: VerseTagRange[]
@@ -402,6 +417,28 @@ export interface VerseTagDeleteResult {
   noteRefCount?: number
   name?: string
   list?: VerseTag[]
+}
+
+// ── Tag relationship graph (see electron/ipc/tagGraph.ts) ──
+export type TagEdgeArrows = 'none' | 'forward' | 'backward' | 'both'
+export interface TagEdge {
+  id: string
+  source: string   // source_tag_id
+  target: string   // target_tag_id
+  arrows: TagEdgeArrows
+  /** Palette slot index as a string, a raw CSS colour, or null for a neutral line. */
+  color: string | null
+  dashed: boolean
+  note: string
+  createdAt: number
+  updatedAt: number
+}
+export interface TagCoOccurrence { a: string; b: string; weight: number }
+export interface TagGraphData {
+  tags: VerseTag[]
+  edges: TagEdge[]
+  coOccurrence: TagCoOccurrence[]
+  coOccurrenceOmitted?: boolean
 }
 
 export type MosaicKey = 'bible-panel' | 'notes-panel' | 'lexicon-panel' | 'youtube-panel' | 'search-panel'

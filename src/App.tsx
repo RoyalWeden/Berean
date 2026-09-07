@@ -18,7 +18,6 @@ import ShellHeader from '@/components/shell/ShellHeader'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
 import VerseSelectionBar from '@/components/bible/VerseSelectionBar'
-import TagManagerPanel from '@/components/tags/TagManagerPanel'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
 import CrashReport from '@/components/shell/CrashReport'
 import TabSwitcher from '@/components/shell/TabSwitcher'
@@ -28,6 +27,7 @@ import AudioPlayer from '@/components/audio/AudioPlayer'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { applyThemeToDocument } from '@/lib/applyTheme'
+import '@/lib/knownTagsBridge'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
@@ -1163,7 +1163,6 @@ export default function App() {
       <StudyTrailArrivalPrompt />
       <StudyTrailSplitToast />
       <VerseSelectionBar />
-      <TagManagerPanel />
     </div>
   )
 }

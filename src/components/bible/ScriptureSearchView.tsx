@@ -13,7 +13,9 @@ import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
-import { RED_LETTER_CLASS, highlightDotColor } from '@/styles/highlightPalette'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { resolveTagColor } from '@/lib/tagPalette'
+import TaggedVerseList from '@/components/bible/TaggedVerseList'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
@@ -366,7 +368,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
   // ── Verse-tag filter ──────────────────────────────────────────────────────────
   const verseTags = useAppStore((s) => s.verseTags)
-  const openTagManager = useAppStore((s) => s.openTagManager)
+  const openTagsGraph = useAppStore((s) => s.openTagsGraph)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
     const s = persistedState?.tagFilter
     return s ? s.split(',').filter(Boolean) : []
@@ -1243,7 +1245,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           onToggle={(id) => setSelectedTagIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
           onClear={() => setSelectedTagIds([])}
           onSetMatchAll={setTagMatchAll}
-          onManage={() => { openTagManager(); setTagFilterMenuOpen(false) }}
+          onManage={() => { openTagsGraph(); setTagFilterMenuOpen(false) }}
           onClose={() => setTagFilterMenuOpen(false)}
         />
       )}
@@ -1765,44 +1767,36 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               {tagMembers.length} tagged {tagMembers.length === 1 ? 'item' : 'items'}
               {tagMatchAll && selectedTagIds.length > 1 ? ' · matching all selected tags' : ''}
             </p>
-            {tagMembers.length === 0 && (
+            {tagMembers.length === 0 ? (
               <div className="px-4 py-10 text-center text-xs text-[rgb(var(--color-text-muted))]">Nothing tagged yet.</div>
+            ) : (
+              <TaggedVerseList
+                groups={tagMembers.map((m) => {
+                  const rowsRaw = tagMemberVerses[m.memberId] ?? []
+                  const wr = (t: string) => (wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(t, wordReplacerRules) : t)
+                  const byVerse = new Map(m.verses.map((v) => [v.verse, v]))
+                  const loc = m.verses[0] ?? m.wholeChapters[0] ?? null
+                  return {
+                    key: m.memberId,
+                    label: m.label,
+                    tagName: m.tagName,
+                    tagColor: { color: m.tagColor, colorSlot: m.tagColorSlot ?? null },
+                    kind: m.kind as 'verses' | 'chapter',
+                    rows: rowsRaw.map((r) => {
+                      const v = byVerse.get(r.verse)
+                      return {
+                        bookId: v?.bookId ?? loc?.bookId ?? 'GEN',
+                        chapter: v?.chapter ?? loc?.chapter ?? 1,
+                        verse: r.verse,
+                        text: wr(r.text),
+                      }
+                    }),
+                    truncatedNote: m.kind === 'chapter' && rowsRaw.length >= 6,
+                  }
+                })}
+                onNavigate={(b, c, v) => onNavigate(b, c, v, 'kjva')}
+              />
             )}
-            {tagMembers.map((m) => {
-              const first = m.verses[0] ?? (m.wholeChapters[0] ? { ...m.wholeChapters[0], verse: 1 } : null)
-              const rows = tagMemberVerses[m.memberId] ?? []
-              const wr = (t: string) => (wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(t, wordReplacerRules) : t)
-              return (
-                <div key={m.memberId} className="border-b border-[rgb(var(--color-surface-4))/40] group">
-                  <button
-                    onClick={() => first && onNavigate(first.bookId, first.chapter, first.verse, 'kjva')}
-                    className="w-full flex items-center gap-2 px-4 pt-2 pb-1 text-left hover:bg-[rgb(var(--color-surface-4))/40] transition-colors cursor-pointer"
-                  >
-                    <span className="text-xs font-mono text-[rgb(var(--color-accent))] flex-shrink-0 group-hover:underline">{m.label}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] flex items-center gap-1">
-                      <Tag size={9} />{m.tagName}
-                    </span>
-                    {m.kind === 'chapter' && <span className="text-[10px] text-[rgb(var(--color-text-muted))]">whole chapter</span>}
-                    <ChevronRight size={11} className="ml-auto flex-shrink-0 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                  <div className="px-4 pb-2 space-y-0.5">
-                    {rows.map((v) => (
-                      <button
-                        key={v.verse}
-                        onClick={() => onNavigate(first?.bookId ?? m.verses[0]?.bookId ?? m.wholeChapters[0]?.bookId ?? 'GEN', first?.chapter ?? m.verses[0]?.chapter ?? m.wholeChapters[0]?.chapter ?? 1, v.verse, 'kjva')}
-                        className="w-full flex gap-2 text-left text-xs leading-relaxed hover:bg-[rgb(var(--color-surface-4))/40] rounded px-1 -mx-1 cursor-pointer"
-                      >
-                        <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 pt-0.5 w-5 text-right">{v.verse}</span>
-                        <span className="text-[rgb(var(--color-text-primary))]">{wr(v.text)}</span>
-                      </button>
-                    ))}
-                    {m.kind === 'chapter' && rows.length >= 6 && (
-                      <p className="text-[10px] text-[rgb(var(--color-text-muted))] pl-7">…open the chapter to read the rest</p>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
           </div>
         )}
 
@@ -2241,7 +2235,7 @@ function TagFilterMenu({
               <span className={`w-[13px] h-[13px] rounded border flex items-center justify-center flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
                 {on && <Check size={10} className="text-white" />}
               </span>
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color ? highlightDotColor(t.color as import('@/types').HighlightColor) : 'rgb(var(--color-text-muted))' }} />
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
               <span className="truncate">{t.name}</span>
               <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
             </button>

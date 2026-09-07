@@ -122,6 +122,53 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.11] - 2026-09-07
+
+### Tags
+
+- **Tag graph** — a new "Tags" tab in the Notes space that lays every tag out as
+  a node you can drag around, pin in place, and connect. Draw a relationship
+  between two tags by dragging one onto the other (or clicking one then the
+  other), then set its arrow direction, colour, dashed style, and a short note
+  that shows when you hover the line. Tags that share verses are joined by faint
+  automatic links you can toggle off. Nodes are sized by how much a tag covers
+  and how connected it is, and they push each other apart so they never overlap.
+  A side panel lists and searches every tag; selecting one opens an inspector to
+  rename it, recolour it, merge it into another, delete it, see its relationships,
+  and read its verses. Searching the graph dims everything else and frames the
+  matches.
+- Tags now get a colour automatically when created, drawn from a 12-colour
+  palette that regenerates for whichever theme you're in — switch themes and
+  every tag shifts to a colour that suits the new one, keeping its identity.
+- Multi-word tag names now work properly in notes: typing `#second temple`
+  reads as one tag, not just `#second`, and the chip shows the full name.
+- The old floating "Verse Tags" manager is gone — every "Manage tags" button and
+  a new button in the Notes header open the Tags tab instead.
+- The verses shown for a tag — in the graph inspector and when you filter
+  Advanced Scripture Search by a tag — now use the same layout as ordinary search
+  results, and each verse is clickable (and right-clickable to open in a new or
+  floating tab).
+
+### Scripture reading
+
+- The hover card on a verse's note and cross-reference markers now sits correctly
+  above the marker for verses near the bottom of the window, instead of hanging
+  low over the cursor.
+
+### Notes
+
+- A tag's hover preview and the tag autocomplete list no longer linger on screen
+  after you click through to a tag or navigate away from the note.
+
+### Study Trail
+
+- You can now swipe down over the "why did you go here?" toast to dismiss it — it
+  follows your fingers and springs back if you don't pull far enough, the same
+  feel as the reader's side panel. Dismissing it no longer stops the next one
+  from appearing.
+
+---
+
 ## [0.6.10] - 2026-09-07
 
 ### Scripture reading

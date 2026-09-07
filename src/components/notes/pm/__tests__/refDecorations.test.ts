@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { bereanSchema as schema } from '../schema'
 import { parseMarkdown } from '../parser'
 import { buildRefDecorationsForDoc } from '../refDecorations'
+import { buildKnownTagIndex } from '@/lib/tagRefScan'
 import { useAppStore } from '@/store'
 
 function decoClasses(doc: ReturnType<typeof parseMarkdown>) {
@@ -86,5 +87,36 @@ describe('buildRefDecorationsForDoc — exclusions', () => {
     const jubDeco = decos.find((d) => doc.textBetween(d.from, d.to).toLowerCase().startsWith('jubilees'))
     expect(jubDeco).toBeDefined()
     expect(doc.textBetween(jubDeco!.from, jubDeco!.to)).toBe('jubilees 4:30')
+  })
+})
+
+describe('buildRefDecorationsForDoc — #tag references', () => {
+  const idx = buildKnownTagIndex(['Second Temple', 'Church'])
+  const tagDecos = (md: string) =>
+    buildRefDecorationsForDoc(parseMarkdown(md), undefined, undefined, idx)
+      .find(0, 1000)
+      .map((d) => {
+        const attrs = (d as unknown as { type: { attrs?: Record<string, string> } }).type.attrs ?? {}
+        return { from: d.from, to: d.to, class: attrs.class, dataTag: attrs['data-tag'] }
+      })
+      .filter((d) => d.class === 'pm-tag-ref')
+
+  it('decorates a multi-word known tag as one span with the canonical name', () => {
+    const doc = parseMarkdown('note about #second temple stuff')
+    const found = tagDecos('note about #second temple stuff')
+    expect(found).toHaveLength(1)
+    expect(found[0].dataTag).toBe('Second Temple')
+    expect(doc.textBetween(found[0].from, found[0].to)).toBe('#second temple')
+  })
+
+  it('an unknown tag still gets a single-token decoration', () => {
+    const found = tagDecos('a #freshidea here')
+    expect(found).toHaveLength(1)
+    expect(found[0].dataTag).toBe('freshidea')
+  })
+
+  it('does not let #Church swallow the next word', () => {
+    const found = tagDecos('#Church potluck')
+    expect(found[0].dataTag).toBe('Church')
   })
 })

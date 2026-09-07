@@ -17,7 +17,8 @@ import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/verseClipboard'
 import type { Verse, HighlightColor, Note } from '@/types'
-import { RED_LETTER_CLASS, highlightDotColor } from '@/styles/highlightPalette'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { resolveTagColor } from '@/lib/tagPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
@@ -360,7 +361,7 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
             <svg width="15" height="10" viewBox="0 0 36 24" className="block drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.3)]">
               <path
                 d="M12 1 H31 a4 4 0 0 1 4 4 V19 a4 4 0 0 1 -4 4 H12 L2 13.8 a3 3 0 0 1 0 -3.6 Z"
-                fill={t.color ? highlightDotColor(t.color as HighlightColor) : 'rgb(var(--color-accent))'}
+                fill={(t.color || t.colorSlot != null) ? resolveTagColor(t) : 'rgb(var(--color-accent))'}
                 stroke="rgba(0,0,0,0.25)"
                 strokeWidth="1.5"
               />
@@ -455,10 +456,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   // on ANY note change anywhere in the app, defeating this component's memo() wrap. Reading
   // it fresh from getState() at call time avoids that while still seeing the latest value.
   const [popoverOpen, setPopoverOpen] = useState(false)
-  const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean } | null>(null)
+  const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean; anchorTop: number; anchorBottom: number } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const crossRefHoverRef = useRef<HTMLDivElement>(null)
-  const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number; placeUp: boolean } | null>(null)
+  const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number; placeUp: boolean; anchorTop: number; anchorBottom: number } | null>(null)
   const noteHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const noteHoverRef = useRef<HTMLDivElement>(null)
 
@@ -470,27 +471,46 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   // re-clamps both popups to the viewport, the same two-phase pattern selToolbar uses below.
   useLayoutEffect(() => {
     const pad = 8
+    const gap = 8
     const vw = window.innerWidth
     const vh = window.innerHeight
-    if (noteHover && noteHoverRef.current) {
-      const r = noteHoverRef.current.getBoundingClientRect()
-      let x = noteHover.x
-      let y = noteHover.y
+    // Re-anchor a hover popup against its trigger using the REAL measured height (the initial
+    // `y` from computeHoverPlacement is only an estimate). A popup that opens ABOVE its trigger
+    // must have its BOTTOM sit `gap` above the anchor — the old code only clamped against the
+    // viewport edge, so an under-estimated height left an above-placed popup hanging too low
+    // (over the trigger/cursor) for verses near the bottom of the view.
+    const reanchor = (
+      hover: { x: number; y: number; placeUp: boolean; anchorTop: number; anchorBottom: number },
+      el: HTMLDivElement,
+    ) => {
+      const r = el.getBoundingClientRect()
+      let x = hover.x
       if (r.right > vw - pad) x = Math.max(pad, vw - r.width - pad)
       if (x < pad) x = pad
-      if (r.bottom > vh - pad) y = Math.max(pad, vh - r.height - pad)
-      if (y < pad) y = pad
-      if (x !== noteHover.x || y !== noteHover.y) setNoteHover(prev => prev ? { ...prev, x, y } : null)
+      let placeUp = hover.placeUp
+      let y: number
+      if (placeUp) {
+        y = hover.anchorTop - r.height - gap
+      } else if (hover.anchorBottom + gap + r.height > vh - pad && hover.anchorTop - r.height - gap >= pad) {
+        placeUp = true
+        y = hover.anchorTop - r.height - gap
+      } else {
+        y = hover.anchorBottom + gap
+      }
+      y = Math.max(pad, Math.min(y, vh - r.height - pad))
+      return { x, y, placeUp }
+    }
+    if (noteHover && noteHoverRef.current) {
+      const n = reanchor(noteHover, noteHoverRef.current)
+      if (n.x !== noteHover.x || n.y !== noteHover.y || n.placeUp !== noteHover.placeUp) {
+        setNoteHover(prev => prev ? { ...prev, ...n } : null)
+      }
     }
     if (crossRefHover && crossRefHoverRef.current) {
-      const r = crossRefHoverRef.current.getBoundingClientRect()
-      let x = crossRefHover.x
-      let y = crossRefHover.y
-      if (r.right > vw - pad) x = Math.max(pad, vw - r.width - pad)
-      if (x < pad) x = pad
-      if (r.bottom > vh - pad) y = Math.max(pad, vh - r.height - pad)
-      if (y < pad) y = pad
-      if (x !== crossRefHover.x || y !== crossRefHover.y) setCrossRefHover(prev => prev ? { ...prev, x, y } : null)
+      const n = reanchor(crossRefHover, crossRefHoverRef.current)
+      if (n.x !== crossRefHover.x || n.y !== crossRefHover.y || n.placeUp !== crossRefHover.placeUp) {
+        setCrossRefHover(prev => prev ? { ...prev, ...n } : null)
+      }
     }
   }, [noteHover, crossRefHover])
   type IndicatorMenuData = { type: 'note'; note: Note } | { type: 'verse'; ref: NoteVerseRef }
@@ -673,7 +693,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
 
         if (all.length > 0) {
           const { y, placeUp } = computeHoverPlacement(rect, all.length, 40)
-          setCrossRefHover({ refs: all, x: rect.left, y, placeUp })
+          setCrossRefHover({ refs: all, x: rect.left, y, placeUp, anchorTop: rect.top, anchorBottom: rect.bottom })
         }
       } catch { /* ignore */ }
     }, 300)
@@ -708,7 +728,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         }
         if (verseNotes.length > 0 || refNotes.length > 0) {
           const { y, placeUp } = computeHoverPlacement(rect, verseNotes.length + refNotes.length, 32)
-          setNoteHover({ verseNotes, refNotes, x: rect.left, y, placeUp })
+          setNoteHover({ verseNotes, refNotes, x: rect.left, y, placeUp, anchorTop: rect.top, anchorBottom: rect.bottom })
         }
       } catch { /* ignore */ }
     }, 250)
