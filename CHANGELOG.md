@@ -122,6 +122,18 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.13] - 2026-09-08
+
+### Scripture reading
+
+- Switching away from a Scripture tab and back now reliably returns to where you
+  were reading. In some cases — often right after a reference jump, or when
+  leaving a tab quickly after scrolling — the tab would reopen at the top of the
+  chapter instead of your last position. This also applies in Continuous Chapter
+  Scroll mode and carries the position through an app restart.
+
+---
+
 ## [0.6.12] - 2026-09-07
 
 ### Scripture reading

@@ -2358,7 +2358,28 @@ export const useAppStore = create<AppState>()(
         const tabs = state.tabs[spaceId].map((t) =>
           t.id === tabId ? { ...t, state: { ...t.state, ...newState } } : t
         )
-        set({ tabs: { ...state.tabs, [spaceId]: tabs } })
+        // Any nav that explicitly resets scrollPosition to 0 (navigate(), cross-ref jump,
+        // translation switch, verse jump, etc. — they all pass `scrollPosition: 0`) must also
+        // drop this tab's live scrollByTab entry. Otherwise scrollByTab keeps the PREVIOUS
+        // chapter's pixel offset (nothing else clears it until the next scroll-event debounce),
+        // and the restore paths — which now prefer scrollByTab over the canonical value since
+        // it's the one kept fresh at scroll frequency — would restore the freshly-opened
+        // chapter to the old chapter's offset. Deleting it here lets restore fall back to the
+        // canonical `scrollPosition: 0` for a genuinely fresh passage.
+        let scrollByTab = state.scrollByTab
+        if (
+          spaceId === 'scripture' &&
+          (newState as { scrollPosition?: number }).scrollPosition === 0 &&
+          tabId in scrollByTab
+        ) {
+          const { [tabId]: _drop, ...rest } = scrollByTab
+          scrollByTab = rest
+        }
+        set(
+          scrollByTab === state.scrollByTab
+            ? { tabs: { ...state.tabs, [spaceId]: tabs } }
+            : { tabs: { ...state.tabs, [spaceId]: tabs }, scrollByTab },
+        )
       },
 
       scrollByTab: {} as Record<string, number>,
