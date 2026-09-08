@@ -1003,13 +1003,18 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   // to redo on every keystroke-triggered render of every OTHER verse in the chapter.
   const isFindMatch = useMemo(() => {
     if (!findQuery.trim()) return false
-    const t = verse.text.toLowerCase()
+    // Match against BOTH the raw verse text and the actual on-screen text. Word-replacer
+    // substitutions — especially the Strong's-number ones like LORD→Yehovah, which never
+    // touch verse.text — are only present in renderedDisplayText, so testing verse.text
+    // alone meant typing "yehovah" (or any replaced word) found nothing to highlight even
+    // though the panel's match counter, which reads the rendered DOM, still counted it.
+    const t = `${verse.text}\n${renderedDisplayText}`.toLowerCase()
     const q = findQuery.trim().toLowerCase()
     if (findWordMode === 'phrase') return t.includes(q)
     const words = q.split(/\s+/).filter(Boolean)
     if (findWordMode === 'all') return words.every(w => t.includes(w))
     return words.some(w => t.includes(w))
-  }, [findQuery, findWordMode, verse.text])
+  }, [findQuery, findWordMode, verse.text, renderedDisplayText])
 
   const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
 

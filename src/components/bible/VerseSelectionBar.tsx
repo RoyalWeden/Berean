@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, Hash, NotepadText, Files, GitFork, Volume2, Palette, Tag, X } from 'lucide-react'
+import { Copy, Hash, NotepadText, Files, GitFork, Volume2, Palette, Tag, X, Check } from 'lucide-react'
 import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
@@ -81,6 +81,15 @@ export default function VerseSelectionBar() {
 
   const [colorOpen, setColorOpen] = useState(false)
   const [tagAnchor, setTagAnchor] = useState<DOMRect | null>(null)
+  // Brief "copied" confirmation swapped onto whichever copy button was pressed.
+  const [copied, setCopied] = useState<'verses' | 'refs' | null>(null)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+  const flashCopied = useCallback((which: 'verses' | 'refs') => {
+    setCopied(which)
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+    copiedTimer.current = setTimeout(() => setCopied(null), 1400)
+  }, [])
   const colorBtnRef = useRef<HTMLButtonElement>(null)
   const tagBtnRef = useRef<HTMLButtonElement>(null)
 
@@ -115,11 +124,21 @@ export default function VerseSelectionBar() {
 
   const copyVerses = useCallback(async (refsOnly: boolean) => {
     const header = refLabel(sel)
-    if (refsOnly) { navigator.clipboard.writeText(header).catch(() => {}); return }
+    if (refsOnly) { navigator.clipboard.writeText(header).catch(() => {}); flashCopied('refs'); return }
     const fetched = (await Promise.all(sel.map(fetchVerse))).filter(Boolean) as Array<SelectedVerseRef & { text: string; textTagged: string | null }>
+    // Single verse: match the right-click popover — "Reference text" on one line, no
+    // leading verse-number and no newline break.
+    if (fetched.length === 1) {
+      const v = fetched[0]
+      const body = buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)
+      navigator.clipboard.writeText(`${header} ${body}`).catch(() => {})
+      flashCopied('verses')
+      return
+    }
     const lines = fetched.map((v) => `${v.verse} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`)
     navigator.clipboard.writeText([header, ...lines].join('\n')).catch(() => {})
-  }, [sel, wordReplacerEnabled, wordReplacerRules])
+    flashCopied('verses')
+  }, [sel, wordReplacerEnabled, wordReplacerRules, flashCopied])
 
   const addNote = useCallback(async () => {
     const anchor = sel[0]
@@ -165,8 +184,12 @@ export default function VerseSelectionBar() {
         <span className="px-2 text-xs font-semibold text-[rgb(var(--color-text-secondary))] whitespace-nowrap">{sel.length} selected</span>
         <div className="w-px self-stretch bg-[rgb(var(--color-surface-4))] mx-0.5" />
 
-        <button className={BTN} title="Copy verses" onClick={() => copyVerses(false)}><Copy size={14} /></button>
-        <button className={BTN} title={sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}><Hash size={14} /></button>
+        <button className={BTN} title={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}>
+          {copied === 'verses' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+        </button>
+        <button className={BTN} title={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}>
+          {copied === 'refs' ? <Check size={14} className="text-green-400" /> : <Hash size={14} />}
+        </button>
         <button className={BTN} title="Add note" onClick={addNote}><NotepadText size={14} /></button>
         <button className={BTN} title={single ? 'Show notes for this verse' : 'Select a single verse'} disabled={!single}
           onClick={() => single && filterBiblePanelByVerse(`${single.bookId}.${single.chapter}.${single.verse}`)}><Files size={14} /></button>

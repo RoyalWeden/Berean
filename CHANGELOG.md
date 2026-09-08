@@ -122,6 +122,28 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.12] - 2026-09-07
+
+### Scripture reading
+
+- Find in page now highlights restored words. Searching for a word the reader
+  shows through the Word Replacer — like "Yehovah" in place of "LORD" — now
+  marks it in the text, not just counts it in the match total.
+- Copying a single selected verse from the selection bar now puts the reference
+  and the verse text on one line, matching the right-click copy, instead of
+  breaking the reference onto its own line.
+- The Copy verse and Copy reference buttons in the verse selection bar briefly
+  show a check mark after you press them, so it's clear the copy happened.
+
+### Study Trail
+
+- The "New study?" prompt now sits flush in the bottom-right corner like the
+  other pop-ups, instead of floating slightly inset.
+- Fixed the connecting arrow between two closely-spaced branch stops sometimes
+  pointing back the way it came.
+
+---
+
 ## [0.6.11] - 2026-09-07
 
 ### Tags

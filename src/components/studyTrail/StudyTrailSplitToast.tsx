@@ -63,8 +63,11 @@ export default function StudyTrailSplitToast() {
   // ALSO currently showing in this same corner, instead of sharing its exact right/bottom and
   // overlapping it — per direct feedback ("the new study prompt should show above the study
   // trail toast... not on top of it"). arrivalPillRect is null whenever that toast isn't up.
-  const right = arrivalPillRect ? arrivalPillRect.right : 18
-  const bottom = arrivalPillRect ? arrivalPillRect.bottom + arrivalPillRect.height + 10 : 18
+  // Flush to the same 16px corner every other floating toast uses (BgImportProgress, the
+  // arrival pill) when nothing else is in this corner — 18 read as "a little away from the
+  // bottom-right." Only when the arrival pill is up do we stack above it.
+  const right = arrivalPillRect ? arrivalPillRect.right : 16
+  const bottom = arrivalPillRect ? arrivalPillRect.bottom + arrivalPillRect.height + 10 : 16
 
   return (
     <div style={{

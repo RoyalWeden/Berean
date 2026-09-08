@@ -409,13 +409,20 @@ export default function TrailConnectorOverlay({
           laneGeom = { laneX, topY: Math.min(sy, ey), bottomY: Math.max(sy, ey) }
         } else {
           const curved = !!e.curved
-          const a = pushOffStart(rawA, rawB, curved, startGap)
-          const b = pullBackEnd(rawA, rawB, curved, endGap)
-          // Vertical control-point offsets (not the old +36 in x) — per direct feedback
-          // ("start the arrow line from below the branch bullet instead of the right side"),
-          // the curve should point straight down (or up) out of the source bullet and into the
-          // target, bowing sideways only as much as their x-difference actually requires.
-          const dir = Math.sign(b.y - a.y || 1)
+          // Direction is the TRUE reading-order direction between the raw dots, decided before
+          // any gap adjustment. Deriving it from the pushed-off / pulled-back a & b instead
+          // (previous bug) flipped it whenever two branch rows sat closer together than
+          // startGap + endGap combined: the two adjustments overshot each other, a.y ended up
+          // past b.y, and `dir` — and with it the arrowhead's tangent — pointed backwards.
+          const dir = Math.sign(rawB.y - rawA.y || 1)
+          // Clamp the endpoint gaps so they can never cross for a short edge (which would fold
+          // the curve back on itself); leave at least a few px of real span between them.
+          const rawSpan = Math.abs(rawB.y - rawA.y)
+          const gapRoom = Math.max(0, (rawSpan - 4) / (startGap + endGap))
+          const sGap = gapRoom < 1 ? startGap * gapRoom : startGap
+          const eGap = gapRoom < 1 ? endGap * gapRoom : endGap
+          const a = pushOffStart(rawA, rawB, curved, sGap)
+          const b = pullBackEnd(rawA, rawB, curved, eGap)
           d = curved
             ? `M${a.x},${a.y} C${a.x},${a.y + dir * 28} ${b.x},${b.y - dir * 28} ${b.x},${b.y}`
             : `M${a.x},${a.y} L${b.x},${b.y}`
