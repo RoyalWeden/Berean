@@ -324,12 +324,27 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   tabStateRef.current = tabState
   activeTabRef.current = activeTab
 
+  // The offset to restore this tab to on a tab/space switch. `scrollByTab` is kept fresh at
+  // scroll frequency (handleBibleScroll's 150ms debounce) and is caught up from the live DOM
+  // at every flush point (berean:saveScrollBeforeTabChange), whereas the canonical
+  // tabs[].state.scrollPosition only catches up at those flush points — so if a flush ever
+  // no-ops (the scroll container is momentarily unreadable, or we're inside a post-jump
+  // suppression window), the canonical value can be stale/0 while scrollByTab still holds the
+  // real position. Prefer scrollByTab; fall back to the canonical value (which is also the
+  // only one that survives an app restart, since scrollByTab isn't persisted). updateTabState
+  // deletes the scrollByTab entry whenever a nav resets scrollPosition to 0, so a genuinely
+  // fresh passage still restores to the top.
+  const savedScrollForActiveTab = (): number => {
+    const live = activeTabId ? useAppStore.getState().scrollByTab[activeTabId] : undefined
+    return live ?? tabStateRef.current?.scrollPosition ?? 0
+  }
+
   // Hold the chapter scroll area invisible (but laid out) until its first post-load scroll
   // restore has landed — otherwise switching to a scripture tab that was scrolled down shows
   // the top of the chapter for a beat, then visibly jumps to the saved position once verses
   // finish loading. Only gated when there's actually something to restore; a fresh chapter
   // (scroll 0, no target verse) reveals immediately.
-  const needsRestoreNow = () => (tabState.scrollPosition ?? 0) > 1 || tabState.targetVerse != null
+  const needsRestoreNow = () => savedScrollForActiveTab() > 1 || tabState.targetVerse != null
   const [chapterRevealed, setChapterRevealed] = useState(() => !needsRestoreNow())
 
   // Right panel state — initialized from persisted tab state
@@ -545,7 +560,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // avoids. Skip the reset entirely and let the pending anchor own this load instead.
     if (strongsAnchorRef.current) return
 
-    const savedPosEarly = tabStateRef.current?.scrollPosition ?? 0
+    const savedPosEarly = savedScrollForActiveTab()
     const restoringSaved = !hasTargetVerse && savedPosEarly > 1
     // Reset to top immediately to avoid a flash of the old position — but NOT when we're about
     // to restore a saved scroll position: the chapter area is hidden (chapterRevealed=false)
@@ -623,7 +638,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (!continuousChapterScroll) return
     if (activeSpace !== 'scripture') return
     pendingScrollRef.current = null
-    const savedPos = tabState.scrollPosition ?? 0
+    const savedPos = savedScrollForActiveTab()
     if (savedPos === 0) {
       // Landing on this tab already at (or with no saved) scroll position — unlike the
       // non-continuous reset effect above, this path never fires a native scroll event to
@@ -1109,6 +1124,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         // Keep the ephemeral map in step so stampNavEntryScroll (which prefers it) doesn't
         // stamp a stale offset onto the nav entry after this flush.
         useAppStore.getState().setTabScrollPos(tab.id, el.scrollTop)
+      } else {
+        // Live container unreadable (compare/search view, mid-swap) or we're inside a
+        // post-jump suppression window: fold whatever scrollByTab last captured for this tab
+        // into the canonical scrollPosition, so a restart / other-window sync (which only read
+        // the canonical value) doesn't lose a position the debounced scroll-save already knew.
+        const live = useAppStore.getState().scrollByTab[tab.id]
+        if (live != null && live !== (tab.state as import('@/types').BibleTabState).scrollPosition) {
+          updates.scrollPosition = live
+        }
       }
       const noteFocused = isSidePanelNoteFocused()
       updates.rightPanelNoteFocused = noteFocused
