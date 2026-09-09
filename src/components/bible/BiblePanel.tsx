@@ -251,6 +251,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // navigation just wrote — which the restore effect would then reuse, reopening the new
   // passage at the old passage's offset.
   const suppressScrollSaveUntilRef = useRef(0)
+  // "Land at the top of this passage, and KEEP it there while the chapter's async content
+  // (verse text, highlights, cross-ref banners) is still reflowing." A one-shot `scrollTop = 0`
+  // loses the race against those late layout commits, which is what left Cmd+L / reference-bar
+  // jumps sitting a few hundred px down the new chapter. While a pin is active for the passage
+  // whose key is stored here, a rAF watchdog (pinScrollTop) re-asserts 0 every frame until it
+  // holds still, and the scroll-save paths persist 0 rather than the mid-reflow offset. Cleared
+  // by a genuine user scroll away from the top (handleBibleScroll) or when it goes stable.
+  const topPinPassageRef = useRef<string | null>(null)
+  const topPinRafRef = useRef<number | null>(null)
   const searchTabRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Set right before leaving search mode via onNavigate below. ScriptureSearchView's own
   // unmount-cleanup effect flushes one last onStateChange call (to save scroll position) as
@@ -591,7 +600,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (hasTargetVerse) return
 
     const savedPos = savedPosEarly
-    if (savedPos <= 1) { setChapterRevealed(true); return }
+    // Fresh passage, nothing to restore — pin it to the top and hold through the async reflow
+    // (a bare `el.scrollTop = 0` above loses the race against late verse-text/highlight commits).
+    // Skip when a pull-up gesture asked to land at the END of the chapter — its own loop owns
+    // scrolling for this load.
+    if (savedPos <= 1) {
+      if (!pullLandAtEndRef.current) pinScrollTop()
+      setChapterRevealed(true)
+      return
+    }
 
     // Restore the saved scroll position. This is the SINGLE authority for it on a tab switch —
     // a rAF loop that waits until the verse list actually exists AND is tall enough for the
@@ -1088,12 +1105,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => {
       if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
       if (searchTabRenameTimerRef.current) clearTimeout(searchTabRenameTimerRef.current)
+      if (topPinRafRef.current != null) { cancelAnimationFrame(topPinRafRef.current); topPinRafRef.current = null }
       const tab = activeTabRef.current
       const el = getScrollEl()
       const pos = el?.scrollTop ?? 0
       const updates: Partial<import('@/types').BibleTabState> = {}
-      // Skip the scroll-position write inside a navigation's suppression window (pre-jump offset).
-      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current) {
+      // Skip the scroll-position write inside a navigation's suppression window (pre-jump offset),
+      // or while a land-at-top pin is still holding this passage (the DOM offset is mid-reflow).
+      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current && !topPinActive()) {
         updates.scrollPosition = pos
         if (tab) useAppStore.getState().setTabScrollPos(tab.id, pos)
       }
@@ -1117,18 +1136,22 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const el = getScrollEl()
       if (!tab) return
       const updates: Partial<import('@/types').BibleTabState> = {}
-      // Don't persist a scroll position captured inside a navigation's suppression window — it
-      // would be the pre-jump offset, not where the freshly-opened passage should sit.
-      if (el && Date.now() >= suppressScrollSaveUntilRef.current) {
-        updates.scrollPosition = el.scrollTop
+      if (el) {
+        // A live read of the scroll container at flush time is authoritative — it is never the
+        // "stale debounced pre-jump offset" the suppression window was invented to block (that
+        // only applies to the 150ms debounce timer, which has its own guards). The one case
+        // where the DOM genuinely doesn't yet reflect the intended position is a fresh
+        // land-at-top jump whose reflow hasn't settled: persist 0 there, matching the pin.
+        const pos = topPinActive() ? 0 : el.scrollTop
+        updates.scrollPosition = pos
         // Keep the ephemeral map in step so stampNavEntryScroll (which prefers it) doesn't
         // stamp a stale offset onto the nav entry after this flush.
-        useAppStore.getState().setTabScrollPos(tab.id, el.scrollTop)
+        useAppStore.getState().setTabScrollPos(tab.id, pos)
       } else {
-        // Live container unreadable (compare/search view, mid-swap) or we're inside a
-        // post-jump suppression window: fold whatever scrollByTab last captured for this tab
-        // into the canonical scrollPosition, so a restart / other-window sync (which only read
-        // the canonical value) doesn't lose a position the debounced scroll-save already knew.
+        // Live container unreadable (compare/search view, mid-swap): fold whatever scrollByTab
+        // last captured for this tab into the canonical scrollPosition, so a restart /
+        // other-window sync (which only reads the canonical value) doesn't lose a position the
+        // debounced scroll-save already knew.
         const live = useAppStore.getState().scrollByTab[tab.id]
         if (live != null && live !== (tab.state as import('@/types').BibleTabState).scrollPosition) {
           updates.scrollPosition = live
@@ -1157,9 +1180,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // scrollPosition:0 that FloatingSearch just set for this jump.
       if (scrollSaveTimerRef.current) { clearTimeout(scrollSaveTimerRef.current); scrollSaveTimerRef.current = null }
       suppressScrollSaveUntilRef.current = Date.now() + 400
-      const el = getScrollEl()
-      if (el) el.scrollTop = 0
       pendingScrollRef.current = null
+      // Pin to the top and hold through the reflow. This is the same-chapter case (a
+      // reference-bar jump into the chapter the tab is already scrolled into) that the
+      // chapter-keyed restore effect can't see — and in continuous mode it scrolls to the
+      // chapter heading rather than the top of the whole book.
+      pinScrollTop()
       virtualScrollPctRef.current = 0
       lastMainScrollTopRef.current = 0
       // The centred-outline model keeps its own gesture-accumulated percent — reset it here too
@@ -1258,6 +1284,54 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Returns the active scroll container regardless of mode (normal vs continuous scroll)
   function getScrollEl(): HTMLDivElement | null {
     return continuousChapterScroll ? (continuousScrollRef.current?.getScrollEl() ?? null) : chapterViewRef.current
+  }
+
+  const passageKey = () => `${tabStateRef.current?.bookId ?? ''}:${tabStateRef.current?.chapter ?? ''}`
+
+  // True while a "land at top" pin is in force for the passage currently showing — the
+  // scroll-save paths use this to persist 0 instead of a still-settling offset.
+  function topPinActive(): boolean {
+    return topPinPassageRef.current != null && topPinPassageRef.current === passageKey()
+  }
+
+  function clearTopPin() {
+    topPinPassageRef.current = null
+    if (topPinRafRef.current != null) { cancelAnimationFrame(topPinRafRef.current); topPinRafRef.current = null }
+  }
+
+  // Force the reader to the top of the current chapter and HOLD it there through the async
+  // reflow that follows a fresh chapter load (Cmd+L, reference bar, book/chapter picker,
+  // paged prev/next). In continuous-scroll mode the top of the scroll container is the top of
+  // the whole book, not this chapter, so delegate to ContinuousChapterScroll's own
+  // chapter-anchored scroll instead of zeroing scrollTop.
+  function pinScrollTop() {
+    if (useAppStore.getState().continuousChapterScroll) {
+      clearTopPin()
+      const ch = tabStateRef.current?.chapter
+      if (ch != null) continuousScrollRef.current?.scrollToChapter(ch)
+      return
+    }
+    const key = passageKey()
+    topPinPassageRef.current = key
+    if (topPinRafRef.current != null) cancelAnimationFrame(topPinRafRef.current)
+    const startedAt = Date.now()
+    let stable = 0
+    const el0 = getScrollEl()
+    if (el0) { el0.scrollTop = 0; virtualScrollPctRef.current = 0; lastMainScrollTopRef.current = 0 }
+    const tick = () => {
+      topPinRafRef.current = null
+      if (topPinPassageRef.current !== key) return  // passage changed, or a real user scroll released it
+      const el = getScrollEl()
+      if (el) {
+        if (el.scrollTop > 1) { el.scrollTop = 0; stable = 0 }
+        else stable++
+        virtualScrollPctRef.current = 0
+        lastMainScrollTopRef.current = 0
+      }
+      if (stable >= 3 || Date.now() - startedAt > 1200) { topPinPassageRef.current = null; return }
+      topPinRafRef.current = requestAnimationFrame(tick)
+    }
+    topPinRafRef.current = requestAnimationFrame(tick)
   }
 
   // ── Centred-outline model helpers ────────────────────────────────────────────
@@ -2548,10 +2622,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // new passage's scrollPosition.
     const savedForBook = tabStateRef.current.bookId
     const savedForChapter = tabStateRef.current.chapter
+    // Keep the live per-tab offset current to THIS scroll event, not just the trailing 150ms
+    // debounce. setTabScrollPos is a cheap keyed write with no reactive subscribers (it bails
+    // when unchanged), so there's no cost to doing it every event — and it means a tab-switch
+    // flush that can't read the DOM (compare/search view, detached panel) folds a value that's
+    // current to the last scroll, never one that's up to 150ms — or much more — stale.
+    if (tabId && Date.now() >= suppressScrollSaveUntilRef.current && !topPinActive()) {
+      setTabScrollPos(tabId, scrollTop)
+    }
     if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
     scrollSaveTimerRef.current = setTimeout(() => {
       scrollSaveTimerRef.current = null
       if (Date.now() < suppressScrollSaveUntilRef.current) return
+      if (topPinActive()) return  // a land-at-top pin owns this passage's offset right now
       if (activeTabRef.current?.id !== tabId) return
       if (tabStateRef.current.bookId !== savedForBook || tabStateRef.current.chapter !== savedForChapter) return
       // Ephemeral keyed write — NOT updateTabState({ scrollPosition }), which rebuilt the whole
