@@ -122,6 +122,21 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.14] - 2026-09-08
+
+### Scripture reading
+
+- Cmd+L / reference-bar jumps now reliably land at the top of the passage and
+  hold there while the chapter finishes loading, instead of sometimes staying
+  partway down the previous scroll position. Continuous Chapter Scroll jumps now
+  scroll to the chapter heading rather than the top of the whole book.
+- Switching Scripture tabs saves your current scroll position more reliably: the
+  live position is now kept current to every scroll event (not just a trailing
+  debounce), so a tab-switch flush that can't read the view directly still
+  restores the up-to-date position rather than an older one.
+
+---
+
 ## [0.6.13] - 2026-09-08
 
 ### Scripture reading
