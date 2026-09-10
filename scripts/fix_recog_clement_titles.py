@@ -165,7 +165,7 @@ RCL5 = [
     "Peter's Salutation", "Suffering the Effect of Sin", "Faith and Unbelief",
     "Ignorance the Mother of Evils", "Advantages of Knowledge", "Free-Will",
     "Responsibility of Knowledge", "Desires of the Flesh to Be Subdued",
-    "The Two Kingdoms", "Jesus the True Prophet",
+    "The Two Kingdoms", "Yeshua the True Prophet",  # ANF reads "Jesus"; app convention
     "The Expectation of the Gentiles", "Call of the Gentiles",
     "Invitation of the Gentiles", "Idols Unprofitable", "Folly of Idolatry",
     "God Alone a Fit Object of Worship", "Suggestions of the Old Serpent",
