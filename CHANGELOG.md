@@ -122,7 +122,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.6.15] - 2026-09-09
 
 ### Text data fixes
 
@@ -140,6 +140,14 @@ SCENARIO 5 — Abandon a beta series and restart
   a trailing verse, and Book III ch 49 had a footnote ("An alteration intended
   to improve.") spliced into the running text. All removed/repaired; affected
   chapters renumbered so verses run 1..N again.
+- **Recognitions of Clement**: Book IX was missing two chapters — the seed had
+  merged ANF 25+26 and 28+29 (one merged heading survived as the four one-word
+  verses "Gospel / More / Powerful / Than"). Split back out; Book IX now has its
+  full 38 chapters, numbered 1–38.
+- **Recognitions of Clement**: every chapter now shows its ANF (Roberts-
+  Donaldson) title as a heading above the text — 509 titles across all ten
+  books, e.g. Book III ch 45 "Ten Commandments Corresponding to the Plagues of
+  Egypt". Titles are shown verbatim from the Ante-Nicene Fathers edition.
 
 ---
 

@@ -502,7 +502,7 @@ const MAX_CHAPTERS: Partial<Record<string, number>> = {
   TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
   GAD: 14, TJOB: 12, '1CL': 65, TJAC: 8, '2BA': 85,
   RCL1: 74, RCL2: 72, RCL3: 65, RCL4: 37, RCL5: 36,
-  RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 36, RCL10: 72,
+  RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 38, RCL10: 72,
 }
 
 /**
