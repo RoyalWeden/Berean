@@ -256,7 +256,7 @@ export interface Verse {
   text_tagged?: string   // space-separated tokens: "word{H7225}" or "*word{}" (italic) or "word{}" (no strongs)
   hasNote?: boolean
   hasHighlight?: boolean
-  title?: string   // faint section heading rendered above this verse (currently only t12p.db)
+  title?: string   // faint section heading rendered above this verse (recog_clement.db: ANF chapter titles, on verse 1 of each chapter)
 }
 
 export interface StrongsWord {

@@ -122,6 +122,35 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.15] - 2026-09-09
+
+### Text data fixes
+
+- **1 Clement** chapter numbering was off by one for the whole book: the opening
+  salutation ("The Church of God which sojourneth in Rome…") had been stored as
+  chapter 1, so every reference from there on was one ahead of Lightfoot's
+  numbering (what the app called 42 was really 41, etc.). The salutation is now
+  an unnumbered prologue (same convention as Sirach), and the 65 chapters are
+  renumbered to match standard citations. Any personal verse notes previously
+  attached to a 1 Clement chapter will now sit one chapter later than before.
+- **Recognitions of Clement**: 23 chapters opened with a stray fragment of the
+  ANF chapter heading as their first "verse" (e.g. Book III ch 45 began with a
+  lone "Plagues of Egypt.", ch 46 with "Moses."). Book VIII ch 16 had three
+  blank "_" verses, Book III chs 10/11 had an orphaned closing quotation mark as
+  a trailing verse, and Book III ch 49 had a footnote ("An alteration intended
+  to improve.") spliced into the running text. All removed/repaired; affected
+  chapters renumbered so verses run 1..N again.
+- **Recognitions of Clement**: Book IX was missing two chapters — the seed had
+  merged ANF 25+26 and 28+29 (one merged heading survived as the four one-word
+  verses "Gospel / More / Powerful / Than"). Split back out; Book IX now has its
+  full 38 chapters, numbered 1–38.
+- **Recognitions of Clement**: every chapter now shows its ANF (Roberts-
+  Donaldson) title as a heading above the text — 509 titles across all ten
+  books, e.g. Book III ch 45 "Ten Commandments Corresponding to the Plagues of
+  Egypt". Titles are shown verbatim from the Ante-Nicene Fathers edition.
+
+---
+
 ## [0.6.14] - 2026-09-08
 
 ### Scripture reading
