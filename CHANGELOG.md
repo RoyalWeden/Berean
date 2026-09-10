@@ -122,6 +122,16 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.16] - 2026-09-09
+
+### Text data fixes
+
+- The Recognitions of Clement chapter title "Jesus the True Prophet" (Book V
+  ch 10) now reads "Yeshua the True Prophet", matching the naming used
+  elsewhere in the app.
+
+---
+
 ## [0.6.15] - 2026-09-09
 
 ### Text data fixes
