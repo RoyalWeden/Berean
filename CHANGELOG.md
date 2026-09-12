@@ -122,6 +122,23 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.17] - 2026-09-11
+
+### Scripture reading
+
+- Fixed a stale "← back to note" pill lingering in the Bible reference bar
+  after navigating away via a cross-reference, search result, or other
+  non-note link — it now only shows right after actually coming from that
+  note.
+- The reference bar's back/forward and navigation-history menu now show the
+  specific verse (e.g. "Galatians 3:12") instead of just the chapter when a
+  navigation targeted one, and correctly return you to that verse.
+- Jumping to a different verse within the chapter you already have open
+  (e.g. from a cross-reference in the side panel) is now tracked in
+  navigation history, so back/forward can return to it.
+
+---
+
 ## [0.6.16] - 2026-09-09
 
 ### Text data fixes
