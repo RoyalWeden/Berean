@@ -1596,9 +1596,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // to skip past the duplicate before reaching the previous real entry.
     useAppStore.getState().pushTabNav(activeTab.id, {
       type: 'bible',
-      title,
+      title: historyTitle,
       bookId: tabState.bookId,
       chapter: tabState.chapter,
+      verse: tabState.targetVerse,
       translation: textId.toUpperCase(),
     })
   }, [tabState.bookId, tabState.chapter, tabState.endChapter, tabState.searchMode, currentBook, activeTab?.id, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
