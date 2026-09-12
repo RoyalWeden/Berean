@@ -16,6 +16,7 @@ import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
+import { useVibrantPanelRect } from '@/hooks/useVibrantPanelRect'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
@@ -1204,6 +1205,11 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // this panel was the last-focused panel (activePanelId === 'lexicon').
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
   const lexiconContentRef = useRef<HTMLDivElement>(null)
+  // Like BibleRightPanel.tsx, this panel doesn't self-paint an opaque background, so on mac
+  // it shows the genuinely-vibrant .mosaic-window straight through — see global.css and
+  // useVibrantPanelRect's own comments. Harmless no-op when this panel isn't hosted in a
+  // mosaic tile (e.g. `floating` mode), since there's nothing to exclude then either.
+  useVibrantPanelRect(lexiconContentRef)
   const [localFindOpen, setLocalFindOpen] = useState(false)
   const [localFindQuery, setLocalFindQuery] = useState('')
   const [findMatchCount, setFindMatchCount] = useState(0)

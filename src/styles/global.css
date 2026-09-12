@@ -1344,6 +1344,22 @@ body {
   overflow: hidden;
 }
 
+/* On mac, this window is genuinely transparent with OS vibrancy (`transparent: true,
+   vibrancy: 'sidebar'`, electron/main.ts) the same way Sidebar.tsx/ShellHeader.tsx already
+   are (.sidebar-vibrant/.topbar-vibrant, both ~60% opaque). Panels that don't self-paint
+   their own opaque background — BibleRightPanel.tsx (Notes), LexiconPanel.tsx — render
+   exactly this .mosaic-window background, so softening it here lets real vibrancy read
+   through for them. Panels that DO self-paint (BiblePanel.tsx, YouTubeTab.tsx repaint their
+   own bg-[rgb(var(--color-surface-3))] on top) are unaffected either way — this rule sits
+   underneath their opaque paint. 85%, not the sidebar/header's 60%: panels hold denser text
+   content than the icon-only sidebar rail, so more opacity was chosen for legibility — see
+   docs/native-mac-checklist.md's decision log if this needs retuning.
+   `[data-platform="darwin"]` (set by src/lib/applyTheme.ts) gates this to mac only, since
+   the window itself is only transparent there — Windows keeps the fully opaque rule above. */
+:root[data-platform="darwin"] .mosaic-window {
+  background: rgb(var(--color-surface-3) / 0.85) !important;
+}
+
 .mosaic-window-toolbar {
   display: none !important;
 }
@@ -1861,10 +1877,61 @@ html.theme-anim-bg body::before {
      what's supposed to be neutral OS-blurred desktop vibrancy — worst at the window's top-left
      corner where the sidebar and header overlap, and along the whole left edge where the
      (usually widest) sidebar sits. `--berean-sidebar-w`/`--berean-header-h` are kept live by
-     Sidebar.tsx's and ShellHeader.tsx's own effects; clip-path excludes exactly those two real,
-     currently-rendered rects (0px when collapsed / not yet measured) rather than a static guess,
-     so this stays correct across sidebar resizes/collapse and any header height change. */
-  clip-path: inset(var(--berean-header-h, 0px) 0 0 var(--berean-sidebar-w, 0px));
+     Sidebar.tsx's and ShellHeader.tsx's own effects.
+
+     A third hole was added once .mosaic-window panels (Notes/Lexicon) also became genuinely
+     vibrant on mac (docs/native-mac-checklist.md, "Panel translucency") — same double-tint
+     problem, but that panel isn't pinned to a screen edge the way the sidebar/header are, so a
+     single `clip-path: inset()` (one rectangle only) can't express "everywhere except these
+     THREE independent rects." Switched to `mask-image` layers instead: layer 0 is a full-page
+     "show everywhere" base, and each further layer punches one rect-shaped hole out of the
+     accumulated result via `-webkit-mask-composite: destination-out` (standard hole-punch
+     technique — each layer subtracts its own area from what came before it in the list).
+     `--berean-panel-*` are kept live by useVibrantPanelRect (src/hooks/useVibrantPanelRect.ts),
+     mounted once per currently-vibrant panel; defaults to a 0×0 rect (no-op hole) when none is
+     mounted. KNOWN LIMITATION: only ONE panel rect is tracked/excluded. If more than one
+     non-self-painting vibrant panel is visible at once (e.g. a four-square compare layout with
+     multiple Lexicon tiles open), only the last-mounted one is excluded — the others would still
+     show the double-tint. Accepted for now since the default/common layout (Bible left / Notes
+     right) has at most one; revisit if that turns out to matter in practice. */
+  --berean-panel-x: -9999px;
+  --berean-panel-y: -9999px;
+  --berean-panel-w: 0px;
+  --berean-panel-h: 0px;
+  -webkit-mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000);
+  -webkit-mask-size:
+    100% 100%,
+    var(--berean-sidebar-w, 0px) 100%,
+    100% var(--berean-header-h, 0px),
+    var(--berean-panel-w) var(--berean-panel-h);
+  -webkit-mask-position:
+    0 0,
+    0 0,
+    0 0,
+    var(--berean-panel-x) var(--berean-panel-y);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: source-over, destination-out, destination-out, destination-out;
+  mask-image:
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000),
+    linear-gradient(#000, #000);
+  mask-size:
+    100% 100%,
+    var(--berean-sidebar-w, 0px) 100%,
+    100% var(--berean-header-h, 0px),
+    var(--berean-panel-w) var(--berean-panel-h);
+  mask-position:
+    0 0,
+    0 0,
+    0 0,
+    var(--berean-panel-x) var(--berean-panel-y);
+  mask-repeat: no-repeat;
+  mask-composite: add, exclude, exclude, exclude;
 }
 
 /* Reported: subtle was near-invisible, and noticeable/bold both needed to read as clearly

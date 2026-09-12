@@ -38,20 +38,20 @@ already be implemented. Items below reflect real state, not the original assumpt
       (`ActivePanel.tsx:16-21`, `FloatingShell.tsx:19`)
 - [x] **Electron hygiene** — `contextIsolation: true`, `nodeIntegration: false`, scoped
       `contextBridge` preload on every window type; no `ipcRenderer.sendSync` anywhere
+- [x] **Panel translucency** — root cause was `.mosaic-window`'s shared opaque background
+      (`global.css`), not the panel components themselves. `BiblePanel.tsx`/`YouTubeTab.tsx`
+      self-paint opaque on top and were already fine; `BibleRightPanel.tsx` (Notes) and
+      `LexiconPanel.tsx` didn't, so they were the actually-flat panels. Fixed with a
+      `:root[data-platform="darwin"] .mosaic-window` rule at 85% opacity (mac-only, matches
+      the window's real `transparent: true, vibrancy: 'sidebar'`), plus
+      `src/hooks/useVibrantPanelRect.ts` extending the existing ambient-background-animation
+      exclusion (previously sidebar+header only) to also exclude whichever panel is vibrant,
+      via a `mask-image` hole-punch (clip-path alone can't express 3 independent rects).
+      Known limitation: only one panel's hole is tracked at a time — fine for the default
+      layout, may need revisiting for exotic multi-panel layouts. See decision log.
 
 ## Open — Phase 1: Native Mac feel
 
-- [ ] **Panel translucency** — sidebar/right-panel backgrounds use opaque theme surface
-      vars (`bg-[rgb(var(--color-surface-1))]` etc. in `Sidebar.tsx`, `BibleRightPanel.tsx`).
-      Window-level vibrancy has nothing to blur through on these specific panels. Needs a
-      decision on how translucent (full color-mix like `AiLookupPanel.tsx:20-21` uses, or
-      something lighter) — **not yet decided, discuss before implementing**
-- [ ] **Hardcoded-blue cleanup** — spots bypassing the theme-var system:
-  - `src/components/bible/VerseRow.tsx:1776` — LXX cross-reference source badge
-  - `src/components/notes/NoteBadgeRow.tsx:65` — note verse-ref pill (closest thing to a
-    "note indicator" still using hardcoded blue)
-  - `src/components/settings/ESwordImporter.tsx:283` — note-type badge
-  - `src/lib/notePreviewRender.ts:695` — hardcoded `#3b82f6` verse border
 - [ ] **File / Help menus** — currently only Berean (mac)/Edit/View(dev-only)/Window
       exist (`electron/main.ts:336-427`). No File menu, no Help menu.
 - [ ] **⌘[ / ⌘] accelerators** — `prevChapter`/`nextChapter`/`navBack`/`navForward`
@@ -86,6 +86,19 @@ body — don't flag as non-native.")_
 - 2026-09-12: Checklist doc rewritten against actual codebase state before any Phase 1
   code changes; original brief was significantly stale (most "unconfirmed" items were
   already done). See `feature/native-audit-skill` branch.
+- 2026-09-12: **Hardcoded-blue cleanup closed as not-a-bug.** All 4 originally-flagged
+  spots (`VerseRow.tsx:1776`, `NoteBadgeRow.tsx:65`, `ESwordImporter.tsx:283`,
+  `notePreviewRender.ts:695`) are intentional fixed categorical-color coding (translation
+  badges, note-type/source badges, a note-preview theme's own hardcoded palette) — not
+  accent-color violations. Don't re-flag these; the app deliberately uses a whole palette
+  of fixed semantic colors for badges (amber=Daily, red=Video, violet=Idiom/eSword,
+  sky=BibleGateway, blue=verse-ref/verse-type, etc.), independent of the live theme/accent.
+- 2026-09-12: **Panel translucency** — scoped to soften `.mosaic-window` itself (not a
+  narrower per-panel class), since it's the shared root cause and self-painting panels
+  (Bible, YouTube) are naturally unaffected. Chose **85% opaque** for panels (vs. the
+  sidebar/header's 60%) since panels hold denser text content — retune here if it reads
+  wrong once tested. Extended the ambient-background-animation exclusion to match, accepting
+  the "only one panel rect tracked" limitation rather than building a multi-panel registry.
 
 ---
 

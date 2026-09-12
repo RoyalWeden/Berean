@@ -37,6 +37,19 @@ export function applyThemeToDocument(opts: ApplyThemeOptions): void {
     backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
   } = opts
 
+  // Not actually theme-dependent — a static OS fact — but set here (not directly in
+  // App.tsx) for the same reason every other cross-window attribute lives in this shared
+  // function: App.tsx, FloatingShell.tsx, and ViewerApp.tsx all call this, so setting it
+  // anywhere else risks the exact "only the main window got it" bug this file exists to
+  // prevent (see file header comment). CSS reads it to scope mac-only vibrancy rules
+  // (`:root[data-platform="darwin"] .mosaic-window`, global.css) since `window.__berean_platform`
+  // itself is only readable from JS, not selectable from pure CSS.
+  if (typeof window !== 'undefined' && window.__berean_platform === 'darwin') {
+    html.dataset.platform = 'darwin'
+  } else {
+    delete html.dataset.platform
+  }
+
   ALL_PRESET_CLASSES.forEach((cls) => html.classList.remove(cls))
 
   const baseId = (themePreset && themePreset !== 'system-accent') ? themePreset.replace(/-(?:dark|light)$/, '') : ''

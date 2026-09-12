@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, NotepadText, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon, PanelRightOpen, Columns2 } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums, DerivationText } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
+import { useVibrantPanelRect } from '@/hooks/useVibrantPanelRect'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import { useAppStore } from '@/store'
@@ -1314,6 +1315,11 @@ export default function BibleRightPanel({
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const visibleTab = forcedTab ?? activeTab
   const panelRootRef = useRef<HTMLDivElement>(null)
+  // This panel doesn't self-paint an opaque background (unlike BiblePanel/YouTubeTab), so on
+  // mac it shows the genuinely-vibrant .mosaic-window straight through — see global.css and
+  // useVibrantPanelRect's own comments for why the ambient background animation needs this
+  // panel's live rect to avoid double-tinting it.
+  useVibrantPanelRect(panelRootRef)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastScrollTopRef = useRef<number>(initialScrollTop ?? 0)
   // Restore scroll into whichever sub-tab's container is initially mounted (only the active
