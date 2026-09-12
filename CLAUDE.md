@@ -957,7 +957,11 @@ git push origin feature/sidebar
   push, and delete the worktree. Use the `cleanup-merge` skill
   (`.claude/skills/cleanup-merge/SKILL.md`) to do this — don't improvise the
   merge/push/cleanup steps ad hoc.
+- **Native-Mac feel/polish requests use the `native-mac-audit` skill.** Its
+  checklist lives at `docs/native-mac-checklist.md` (living status doc, update
+  as items land) — don't maintain a separate list. See
+  `.claude/skills/native-mac-audit/SKILL.md`.
 
 ---
 
-*End of CLAUDE.md — last updated May 2026*
+*End of CLAUDE.md — last updated September 2026*
