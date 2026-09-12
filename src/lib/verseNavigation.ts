@@ -104,7 +104,13 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
     scrollPosition: 0,
     ...(newTranslation ? { translation: newTranslation } : {}),
     ...(scriptureBack ? { scriptureBack } : {}),
-    ...(noteBack !== undefined ? { noteBack } : {}),
+    // Always resolve, never "leave whatever was there before": every call site either
+    // knows it's navigating FROM a note ref click (passes the note to return to) or
+    // doesn't (passes nothing) — the latter must CLEAR any stale noteBack, not preserve
+    // it, or the "← back to note" pill in the reference bar keeps pointing at a note
+    // that's no longer where the user actually came from (e.g. clicking an unrelated
+    // cross-reference in the side panel left the old note's pill sitting there).
+    noteBack: noteBack ?? null,
   })
   s.setActiveSpace('scripture')
 

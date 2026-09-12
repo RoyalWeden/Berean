@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { SpaceId, Tab, TabState, TabType, TagsTabState, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
-import { bookName } from '@/lib/parseRef'
+import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
@@ -1411,6 +1411,7 @@ export const useAppStore = create<AppState>()(
           // Deduplicate: skip if identical to current top
           if (top && top.type === full.type &&
               top.bookId === full.bookId && top.chapter === full.chapter &&
+              top.verse === full.verse &&
               top.translation === full.translation &&
               top.noteId === full.noteId && top.strongsNum === full.strongsNum &&
               top.videoId === full.videoId &&
@@ -1459,7 +1460,7 @@ export const useAppStore = create<AppState>()(
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
             ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: entry.scrollPosition ?? 0, targetVerse: undefined, searchMode: false,
+            scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
           })
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
@@ -1492,7 +1493,7 @@ export const useAppStore = create<AppState>()(
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
             ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: entry.scrollPosition ?? 0, targetVerse: undefined, searchMode: false,
+            scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
           })
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
@@ -2277,9 +2278,11 @@ export const useAppStore = create<AppState>()(
               const isFreshlyCreated = freshlyCreatedBibleTabIds.has(tabId)
               const newBookId = ('bookId' in ns ? ns.bookId : cur.bookId) as string | undefined
               const newChapter = ('chapter' in ns ? ns.chapter : cur.chapter) as number | undefined
+              const curVerse = cur.targetVerse as number | undefined
               // Book or chapter navigation — seed origin then push destination
               if (newBookId && newChapter && (newBookId !== cur.bookId || newChapter !== cur.chapter)) {
                 const newTranslation = (('translation' in ns ? ns.translation : cur.translation) as string | undefined) ?? 'KJVA'
+                const newVerse = ('targetVerse' in ns ? ns.targetVerse : undefined) as number | undefined
                 // Seed stack with current position if empty — but only when that current
                 // position is real (not this tab's just-created GEN/1 placeholder), otherwise
                 // this fabricates a phantom history stop nobody ever actually visited.
@@ -2289,8 +2292,8 @@ export const useAppStore = create<AppState>()(
                   const originChapter = cur.chapter as number | undefined
                   if (originBookId && originChapter && !isFreshlyCreated) {
                     get().pushTabNav(tabId, {
-                      type: 'bible', title: `${bookName(originBookId)} ${originChapter}`,
-                      bookId: originBookId, chapter: originChapter,
+                      type: 'bible', title: bookChapterVerseLabel(originBookId, originChapter, curVerse),
+                      bookId: originBookId, chapter: originChapter, verse: curVerse,
                       translation: (cur.translation as string | undefined) ?? 'KJVA',
                     })
                   }
@@ -2303,26 +2306,56 @@ export const useAppStore = create<AppState>()(
                 // no preceding saveScrollBeforeTabChange.
                 stampNavEntryScroll(get, tabId, (get().scrollByTab[tabId] ?? cur.scrollPosition) as number | undefined)
                 get().pushTabNav(tabId, {
-                  type: 'bible', title: `${bookName(newBookId)} ${newChapter}`,
-                  bookId: newBookId, chapter: newChapter, translation: newTranslation,
+                  type: 'bible', title: bookChapterVerseLabel(newBookId, newChapter, newVerse),
+                  bookId: newBookId, chapter: newChapter, verse: newVerse, translation: newTranslation,
                 })
               } else if ('translation' in ns && ns.translation && ns.translation !== cur.translation) {
-                // Translation-only change (same book/chapter, different text)
+                // Translation-only change (same book/chapter, different text) — the verse (if
+                // any) carries over unchanged, since only the text switched underneath it.
                 const bId = cur.bookId as string | undefined
                 const ch = cur.chapter as number | undefined
                 const existing2 = get().tabNavStacks[tabId]
                 if (!existing2 || existing2.stack.length === 0) {
                   if (bId && ch && !isFreshlyCreated) {
                     get().pushTabNav(tabId, {
-                      type: 'bible', title: `${bookName(bId)} ${ch}`,
-                      bookId: bId, chapter: ch, translation: (cur.translation as string) ?? 'KJVA',
+                      type: 'bible', title: bookChapterVerseLabel(bId, ch, curVerse),
+                      bookId: bId, chapter: ch, verse: curVerse,
+                      translation: (cur.translation as string) ?? 'KJVA',
                     })
                   }
                 }
                 freshlyCreatedBibleTabIds.delete(tabId)
                 get().pushTabNav(tabId, {
-                  type: 'bible', title: `${bookName(bId ?? 'GEN')} ${ch ?? 1}`,
-                  bookId: bId, chapter: ch, translation: ns.translation as string,
+                  type: 'bible', title: bookChapterVerseLabel(bId ?? 'GEN', ch ?? 1, curVerse),
+                  bookId: bId, chapter: ch, verse: curVerse, translation: ns.translation as string,
+                })
+              } else if (
+                'targetVerse' in ns && typeof ns.targetVerse === 'number' && ns.targetVerse !== curVerse &&
+                newBookId && newChapter
+              ) {
+                // Verse-only navigation — landed on a different verse of the SAME chapter
+                // already open (e.g. a cross-reference or verse-note click in a side panel
+                // pointing back into this chapter). Book/chapter didn't change, so the two
+                // branches above never fire for this, and it used to leave no nav-history
+                // entry at all — Cmd+[ / the history dropdown couldn't return to exactly
+                // where the user had been. (Clearing targetVerse back to undefined, e.g.
+                // clearTargetVerse() after the jump-scroll settles, is deliberately NOT
+                // treated as a navigation here — only landing on an actual verse number is.)
+                const existing3 = get().tabNavStacks[tabId]
+                if (!existing3 || existing3.stack.length === 0) {
+                  if (!isFreshlyCreated) {
+                    get().pushTabNav(tabId, {
+                      type: 'bible', title: bookChapterVerseLabel(newBookId, newChapter, curVerse),
+                      bookId: newBookId, chapter: newChapter, verse: curVerse,
+                      translation: (cur.translation as string | undefined) ?? 'KJVA',
+                    })
+                  }
+                }
+                freshlyCreatedBibleTabIds.delete(tabId)
+                get().pushTabNav(tabId, {
+                  type: 'bible', title: bookChapterVerseLabel(newBookId, newChapter, ns.targetVerse as number),
+                  bookId: newBookId, chapter: newChapter, verse: ns.targetVerse as number,
+                  translation: (cur.translation as string | undefined) ?? 'KJVA',
                 })
               }
               // Compare mode toggle

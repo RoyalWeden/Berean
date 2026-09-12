@@ -450,6 +450,10 @@ export interface TabNavEntry {
   title: string
   bookId?: string
   chapter?: number
+  /** Specific verse within `chapter`, when navigation targeted one (e.g. a cross-reference or
+   *  search-result click) rather than the chapter as a whole — lets the nav-history dropdown
+   *  and back/forward show/restore "Book Ch:Verse" instead of collapsing to just "Book Ch". */
+  verse?: number
   translation?: string
   noteId?: string
   strongsNum?: string
