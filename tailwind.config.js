@@ -37,7 +37,22 @@ module.exports = {
         'surface-selected': 'var(--color-surface-selected)',
         'accent-muted': 'var(--color-accent-muted)',
         'accent-hover': 'var(--color-accent-hover)',
+        'accent-raised': 'var(--color-accent-raised)',
+        'accent-pressed': 'var(--color-accent-pressed)',
+        'accent-active': 'var(--color-accent-active)',
         'focus-ring': 'var(--color-focus-ring)',
+        // ── Interactive glass (M2) + lift scale ──
+        control: 'var(--control-bg)',
+        'control-hover': 'var(--control-bg-hover)',
+        'control-pressed': 'var(--control-bg-pressed)',
+        'control-selected': 'var(--control-selected-bg)',
+        field: 'var(--control-field-bg)',
+        hairline: 'var(--hairline)',
+        highlight: 'var(--highlight)',
+        'lift-1': 'var(--lift-1)',
+        'lift-2': 'var(--lift-2)',
+        'lift-3': 'var(--lift-3)',
+        'lift-4': 'var(--lift-4)',
         // Feature palettes
         'trail-warm': 'rgb(var(--trail-warm) / <alpha-value>)',
         'trail-cool': 'rgb(var(--trail-cool) / <alpha-value>)',
@@ -81,7 +96,8 @@ module.exports = {
         1: 'var(--shadow-1)',
         2: 'var(--shadow-2)',
         3: 'var(--shadow-3)',
-        focus: '0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px var(--color-focus-ring)'
+        focus: '0 0 0 1.5px rgb(var(--color-surface-1)), 0 0 0 3.5px var(--color-focus-ring)',
+        control: 'var(--control-highlight), 0 1px 2px -1px rgb(0 0 0 / 0.25)'
       },
       zIndex: {
         raised: 'var(--z-raised)',

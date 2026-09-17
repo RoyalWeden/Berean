@@ -21,7 +21,7 @@ export const RefChip = forwardRef<HTMLElement, Base & (ButtonHTMLAttributes<HTML
       SIZE[size], VARIANT[variant], className,
     )
     if ('onClick' in rest && rest.onClick) {
-      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" className={cx(cls, 'focus-ring cursor-pointer hover:brightness-110')} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)} />
+      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" className={cx(cls, 'focus-ring cursor-pointer transition-[filter] duration-fast hover:brightness-115 active:brightness-90 disabled:opacity-40 disabled:pointer-events-none')} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)} />
     }
     return <span ref={ref as React.Ref<HTMLSpanElement>} className={cls} {...(rest as HTMLAttributes<HTMLSpanElement>)} />
   },

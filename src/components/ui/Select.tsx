@@ -99,14 +99,16 @@ export function Select<T extends string>({
           'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
           SIZE[size],
           variant === 'field'
-            ? 'bg-surface-4/40 border border-transparent text-text-primary hover:bg-surface-4/55 aria-expanded:bg-surface-1 aria-expanded:border-border'
-            : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover aria-expanded:bg-surface-hover',
+            ? 'control-field bg-field text-text-primary pr-1 hover:bg-surface-1/75 active:bg-surface-1 aria-expanded:bg-surface-1 aria-expanded:shadow-focus'
+            : 'text-text-secondary hover:text-text-primary hover:bg-control-hover active:bg-control-pressed aria-expanded:bg-control-pressed',
           className,
         )}
       >
         {current?.icon && <current.icon size={size === 'sm' ? 12 : 14} strokeWidth={1.75} className="text-text-muted flex-shrink-0" />}
         <span className={cx('truncate', !current && 'text-text-muted')}>{current?.label ?? placeholder ?? '—'}</span>
-        <ChevronDown size={size === 'sm' ? 11 : 12} strokeWidth={2} className="text-text-muted flex-shrink-0 -mr-0.5" />
+        {variant === 'field'
+          ? <span className={cx('inline-flex items-center justify-center rounded-control bg-control text-text-secondary flex-shrink-0 transition-transform duration-base ease-mac', size === 'sm' ? 'w-[18px] h-[18px]' : 'w-5 h-5', pos && 'rotate-180')}><ChevronDown size={size === 'sm' ? 10 : 11} strokeWidth={2.25} /></span>
+          : <ChevronDown size={size === 'sm' ? 11 : 12} strokeWidth={2} className={cx('text-text-muted flex-shrink-0 -mr-0.5 transition-transform duration-base ease-mac', pos && 'rotate-180')} />}
       </button>
       {pos && createPortal(
         <MenuPositioner x={pos.x} y={pos.y} align={align} style={{ zIndex: 'var(--z-menu)' as unknown as number }}>

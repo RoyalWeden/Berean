@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
+import { createContext, forwardRef, useCallback, useContext, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
@@ -10,8 +10,12 @@ import { SectionLabel } from './SectionLabel'
  * Position it with `MenuPositioner` (src/lib/usePositionedMenu.ts) exactly as before; this
  * only owns the material, radius, padding and arrow-key roving between items.
  */
-export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { dense?: boolean }>(
-  function MenuSurface({ className, children, dense, onKeyDown, ...rest }, ref) {
+/** When true, every MenuItem reserves the leading check column so labels align in menus that mix
+ *  radio items and plain items. Set on MenuSurface via `inset`. */
+const MenuInsetContext = createContext(false)
+
+export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { dense?: boolean; inset?: boolean }>(
+  function MenuSurface({ className, children, dense, inset = false, onKeyDown, ...rest }, ref) {
     const handleKey = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
       onKeyDown?.(e)
       if (e.defaultPrevented) return
@@ -26,15 +30,17 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
       items[next]?.focus()
     }, [onKeyDown])
     return (
-      <div
-        ref={ref}
-        role="menu"
-        onKeyDown={handleKey}
-        className={cx('material-popover rounded-menu text-footnote text-text-primary select-none min-w-[160px]', dense ? 'p-0.5' : 'p-1', className)}
-        {...rest}
-      >
-        {children}
-      </div>
+      <MenuInsetContext.Provider value={inset}>
+        <div
+          ref={ref}
+          role="menu"
+          onKeyDown={handleKey}
+          className={cx('material-popover rounded-menu text-footnote text-text-primary select-none min-w-[160px]', dense ? 'p-0.5' : 'p-1', className)}
+          {...rest}
+        >
+          {children}
+        </div>
+      </MenuInsetContext.Provider>
     )
   },
 )
@@ -56,6 +62,7 @@ export interface MenuItemProps extends Omit<HTMLAttributes<HTMLButtonElement>, '
 export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function MenuItem(
   { icon: Icon, label, shortcut, trailing, danger, active, disabled, description, className, ...rest }, ref,
 ) {
+  const inset = useContext(MenuInsetContext)
   return (
     <button
       ref={ref}
@@ -66,26 +73,27 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
       className={cx(
         'group/mi flex w-full items-center gap-2.5 px-2.5 rounded-card text-left outline-none cursor-pointer',
         description ? 'py-1.5' : 'h-7',
-        'transition-colors duration-fast',
+        'transition-colors duration-fast active:brightness-90',
         'disabled:opacity-40 disabled:pointer-events-none',
+        // NSMenu highlight: accent fill + white text (danger: destructive fill)
         danger
-          ? 'text-destructive hover:bg-destructive/12 focus-visible:bg-destructive/12'
-          : 'text-text-primary hover:bg-surface-hover focus-visible:bg-surface-hover',
+          ? 'text-destructive hover:bg-destructive hover:text-white focus-visible:bg-destructive focus-visible:text-white'
+          : 'text-text-primary hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white',
         className,
       )}
       {...rest}
     >
-      {active !== undefined && (
-        <Check size={12} strokeWidth={2.25} className={cx('flex-shrink-0 -ml-0.5', active ? 'text-accent' : 'opacity-0')} />
+      {(active !== undefined || inset) && (
+        <Check size={12} strokeWidth={2.25} className={cx('flex-shrink-0 -ml-0.5', active ? 'text-accent group-hover/mi:text-white group-focus-visible/mi:text-white' : 'opacity-0')} />
       )}
-      {Icon && <Icon size={14} strokeWidth={1.75} className={cx('flex-shrink-0', danger ? '' : 'text-text-muted group-hover/mi:text-text-secondary')} />}
+      {Icon && <Icon size={14} strokeWidth={1.75} className={cx('flex-shrink-0', danger ? '' : 'text-text-muted group-hover/mi:text-white/85 group-focus-visible/mi:text-white/85')} />}
       <span className="flex-1 min-w-0">
         <span className="block truncate">{label}</span>
-        {description && <span className="block truncate text-caption2 text-text-muted">{description}</span>}
+        {description && <span className="block truncate text-caption2 text-text-muted group-hover/mi:text-white/75 group-focus-visible/mi:text-white/75">{description}</span>}
       </span>
       {shortcut && (/^[⌘⇧⌥⌃↵↑↓←→]/.test(shortcut)
-        ? <ShortcutKeys keys={shortcut} className="ml-auto opacity-70" />
-        : <span className="ml-auto text-caption2 text-text-muted">{shortcut}</span>)}
+        ? <ShortcutKeys keys={shortcut} className="ml-auto opacity-70 group-hover/mi:opacity-90" />
+        : <span className="ml-auto text-caption2 text-text-muted group-hover/mi:text-white/75 group-focus-visible/mi:text-white/75">{shortcut}</span>)}
       {trailing}
     </button>
   )

@@ -4,14 +4,16 @@
 
 /* Arc-inspired dark theme tokens */
 :root {
-  --color-surface-1: 17 17 20;
-  --color-surface-2: 22 22 27;
-  --color-surface-3: 28 28 35;
-  --color-surface-4: 38 38 47;
+  /* Default dark — re-tuned Sept 2026 to macOS-dark-like separation: window (1) darker than
+     the sidebar/bar ground (2); content (3) sits between them so bars visibly lift off it. */
+  --color-surface-1: 24 24 28;
+  --color-surface-2: 31 31 37;
+  --color-surface-3: 27 27 32;
+  --color-surface-4: 48 48 58;
   --color-accent: 100 120 220;
   --color-text-primary: 230 230 238;
-  --color-text-secondary: 140 140 160;
-  --color-text-muted: 80 80 100;
+  --color-text-secondary: 150 150 170;
+  --color-text-muted: 104 104 124;
   --color-red-letter: 248 113 113;
   --font-size-base: 16px;
   --line-height-comfortable: 1.75;
@@ -20,10 +22,11 @@
 }
 
 .light {
-  --color-surface-1: 245 245 248;
-  --color-surface-2: 235 235 242;
+  /* Default light — off-white window/sidebar vs white content (macOS light) */
+  --color-surface-1: 240 240 244;
+  --color-surface-2: 232 232 238;
   --color-surface-3: 255 255 255;
-  --color-surface-4: 220 220 230;
+  --color-surface-4: 214 214 224;
   --color-accent: 80 100 200;
   --color-text-primary: 20 20 28;
   --color-text-secondary: 80 80 100;
@@ -48,15 +51,37 @@
   --color-separator: rgb(var(--color-surface-4) / 0.5);
   --color-border: rgb(var(--color-surface-4) / 0.85);
 
+  /* Theme-independent "lift" — text-tinted alphas that visibly raise a surface off ANY ground
+     (dark or light, saturated or muted preset). Materials and controls are built from these
+     so hierarchy never depends on how far apart a preset's surface-1..4 happen to be. */
+  --lift-1: rgb(var(--color-text-primary) / 0.04);
+  --lift-2: rgb(var(--color-text-primary) / 0.07);
+  --lift-3: rgb(var(--color-text-primary) / 0.11);
+  --lift-4: rgb(var(--color-text-primary) / 0.16);
+  --hairline: rgb(var(--color-text-primary) / 0.08);
+  --highlight: rgb(var(--color-text-primary) / 0.10);   /* inset top edge on glass */
+
+  /* M2 — interactive glass (controls). rest → hover → pressed; selected = raised thumb. */
+  --control-bg: var(--lift-2);
+  --control-bg-hover: var(--lift-3);
+  --control-bg-pressed: var(--lift-4);
+  --control-border: var(--hairline);
+  --control-highlight: inset 0 1px 0 var(--highlight);
+  --control-selected-bg: color-mix(in srgb, rgb(var(--color-surface-3)) 90%, rgb(var(--color-text-primary)) 10%);
+  --control-field-bg: rgb(var(--color-surface-1) / 0.55);
+
   /* Interactive / elevated surfaces */
   --color-surface-elevated: color-mix(in srgb, rgb(var(--color-surface-2)) 96%, rgb(var(--color-text-primary)) 4%);
-  --color-surface-hover: rgb(var(--color-surface-4) / 0.55);
-  --color-surface-pressed: rgb(var(--color-surface-4) / 0.85);
+  --color-surface-hover: var(--lift-2);
+  --color-surface-pressed: var(--lift-4);
   /* Neutral selection for sidebar/list rows (Finder-style, works on every accent) */
   --color-surface-selected: color-mix(in srgb, rgb(var(--color-surface-4)) 88%, rgb(var(--color-text-primary)) 12%);
   /* Accent-tinted selection for rail/nav/chips/settings-nav "current" states */
   --color-accent-muted: rgb(var(--color-accent) / 0.14);
   --color-accent-hover: rgb(var(--color-accent) / 0.22);
+  --color-accent-raised: color-mix(in srgb, rgb(var(--color-accent)) 92%, white 8%);    /* primary hover */
+  --color-accent-pressed: color-mix(in srgb, rgb(var(--color-accent)) 86%, black 14%);   /* primary pressed */
+  --color-accent-active: rgb(var(--color-accent) / 0.30);                                 /* accent-tinted pressed */
   --color-focus-ring: rgb(var(--color-accent) / 0.7);
 
   /* Semantic status pigments — scheme-aware via .scheme-light / .scheme-dark
@@ -75,12 +100,16 @@
   /* Materials: base surface + alpha + blur radius. Bars deliberately have NO blur —
      on mac the window itself is transparent with native vibrancy behind it, so the OS
      already blurs the desktop; a CSS backdrop-filter there would blur our own text. */
-  --material-bar-bg: rgb(var(--color-surface-2) / 0.6);
-  --material-bar-bg-opaque: rgb(var(--color-surface-2));
+  --material-content: rgb(var(--color-surface-3));                       /* M0 */
+  --material-bar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.62) 97%, rgb(var(--color-text-primary)) 3%);   /* M1 */
+  --material-bar-bg-opaque: color-mix(in srgb, rgb(var(--color-surface-2)) 97%, rgb(var(--color-text-primary)) 3%);
+  --material-sidebar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.74) 97%, rgb(var(--color-text-primary)) 3%);
+  --material-elevated-bg: rgb(var(--color-surface-1) / min(0.97, calc(0.84 * var(--glass-alpha-mult))));  /* M3+ */
+  --material-elevated-blur: 24px;
   --material-panel-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.78 * var(--glass-alpha-mult))));
   --material-panel-blur: 14px;
   --material-popover-bg: rgb(var(--color-surface-1) / min(0.98, calc(0.86 * var(--glass-alpha-mult))));
-  --material-popover-blur: 14px;
+  --material-popover-blur: 16px;
   --material-sheet-bg: rgb(var(--color-surface-1) / min(0.985, calc(0.94 * var(--glass-alpha-mult))));
   --material-sheet-blur: 16px;
   --material-control-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.72 * var(--glass-alpha-mult))));
@@ -1714,8 +1743,35 @@ body {
    .material-popover — menus, context menus, dropdowns, tooltips, hover cards, popovers.
    .material-sheet   — modal sheets / dialogs (denser so long-form content stays legible).
    .material-control — a single floating capsule control (e.g. the notes editor toolbar).   */
-.material-bar { background: var(--material-bar-bg-opaque); }
+.material-bar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--highlight); }
 html[data-vibrant] .material-bar { background: var(--material-bar-bg); }
+/* Sidebar ground: same material, slightly more opaque than the toolbar (macOS 27 sidebars
+   are darker/denser than the toolbar strip above them). */
+.material-sidebar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--highlight); }
+html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
+.material-content { background: var(--material-content); }
+
+/* Interactive glass (M2) — the resting surface of every visible control (toolbar buttons,
+   secondary buttons, fields, segmented tracks, pill groups). Hover/pressed swap the fill only. */
+.control-glass {
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  box-shadow: var(--control-highlight), 0 1px 2px -1px rgb(0 0 0 / calc(0.25 * var(--shadow-strength)));
+}
+.control-field {
+  background: var(--control-field-bg);
+  box-shadow: inset 0 0 0 1px var(--control-border);
+}
+
+/* Elevated glass (M3+) — Spotlight-class floating windows inside the app: History, ⌘K,
+   Tab Switcher. More blur than a popover, lighter scrim than a sheet. */
+.material-elevated {
+  background: var(--material-elevated-bg);
+  backdrop-filter: blur(var(--material-elevated-blur)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--material-elevated-blur)) saturate(1.5);
+  border: 1px solid var(--hairline);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-3);
+}
 
 .material-panel {
   background: var(--material-panel-bg);
@@ -1749,6 +1805,7 @@ html[data-vibrant] .material-bar { background: var(--material-bar-bg); }
 /* Opaque windows have nothing behind them to blur — drop the filter (GPU cost) and rely on the
    alpha alone; the alpha still lets the app's own content beneath a popover show through. */
 html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(var(--color-surface-2) / 0.97); }
+.material-panel { box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2); }
 
 /* Global reduced-motion: every CSS transition/animation collapses to (near) zero. framer-motion
    is covered separately by <MotionConfig reducedMotion="user"> at each renderer root. */
@@ -1764,8 +1821,28 @@ html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdr
 /* Focus ring — keyboard only, never on mouse clicks. Shared by every ui/ primitive. */
 .focus-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px var(--color-focus-ring);
+  box-shadow: 0 0 0 1.5px rgb(var(--color-surface-1)), 0 0 0 3.5px var(--color-focus-ring);
 }
+
+/* ── Slider (ui/Slider.tsx) — native range styled as an NSSlider ─────────────────────── */
+.ui-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 16px; background: transparent; cursor: pointer;
+}
+.ui-slider:disabled { opacity: 0.4; cursor: default; }
+.ui-slider::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 9999px;
+  background: linear-gradient(to right, rgb(var(--color-accent)) 0 var(--slider-fill, 0%), var(--lift-3) var(--slider-fill, 0%) 100%);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.ui-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 9999px;
+  background: white; border: 1px solid rgb(0 0 0 / 0.12);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(0 0 0 / 0.08);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.ui-slider:active::-webkit-slider-thumb { transform: scale(1.06); }
+.ui-slider:focus-visible { outline: none; }
+.ui-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 0 0 3px var(--color-focus-ring); }
 
 /* Inline Strong's numbers are absolutely positioned in the leading gap under each word
    (StrongsInline.tsx's .strongs-chip-abs) so they add ZERO layout — toggling them on/off just

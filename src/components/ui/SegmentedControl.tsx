@@ -24,6 +24,7 @@ export interface SegmentedControlProps<T extends string> {
   /** Accessible group label. */
   'aria-label'?: string
   className?: string
+  disabled?: boolean
 }
 
 const SIZE = {
@@ -37,7 +38,7 @@ const SIZE = {
  * Notes' view-mode/word-mode pills, Lexicon's sort toggle and ImportModal's underline tabs.
  */
 export function SegmentedControl<T extends string>({
-  value, options, onChange, size = 'sm', fill, className, 'aria-label': ariaLabel,
+  value, options, onChange, size = 'sm', fill, className, 'aria-label': ariaLabel, disabled,
 }: SegmentedControlProps<T>) {
   const layoutId = useId()
   const s = SIZE[size]
@@ -45,9 +46,10 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cx('no-drag inline-flex items-stretch p-0.5 rounded-control bg-surface-4/45 flex-shrink-0', fill && 'flex w-full', className)}
+      aria-disabled={disabled || undefined}
+      className={cx('no-drag inline-flex items-stretch p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)] flex-shrink-0', fill && 'flex w-full', disabled && 'opacity-40 pointer-events-none', className)}
     >
-      {options.map(({ value: v, label, icon: Icon, title, disabled }) => {
+      {options.map(({ value: v, label, icon: Icon, title, disabled: segDisabled }) => {
         const on = v === value
         const btn = (
           <button
@@ -56,20 +58,20 @@ export function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={on}
             aria-label={label ? undefined : title}
-            disabled={disabled}
+            disabled={segDisabled}
             onClick={() => !on && onChange(v)}
             className={cx(
               'focus-ring relative inline-flex items-center justify-center rounded-control font-medium select-none whitespace-nowrap cursor-pointer',
               'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
               s.seg, fill && 'flex-1',
-              on ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary',
+              on ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-lift-1 active:bg-lift-3',
             )}
           >
             {on && (
               <motion.span
                 layoutId={layoutId}
                 transition={SPRING_SNAPPY}
-                className="absolute inset-0 rounded-control bg-surface-1 shadow-1"
+                className="absolute inset-0 rounded-control bg-control-selected border border-hairline shadow-1"
                 aria-hidden
               />
             )}

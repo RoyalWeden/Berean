@@ -34,6 +34,27 @@
 `applyThemeToDocument()` sets `scheme-dark`/`scheme-light` on `<html>` (plus `color-scheme`) so
 scheme-specific values need one rule, not 73.
 
+### Material hierarchy (M0–M4) — "chrome is glass, content is clean"
+| Level | Class / token | Used for |
+|---|---|---|
+| M0 Content | `.material-content` / `bg-surface-3` | Scripture, notes, lexicon, any reading/information surface. Opaque, quiet. |
+| M1 Integrated | `.material-bar`, `.material-sidebar` | Window toolbar, sidebar ground, panel/list headers, filter rows (`Toolbar`). Translucent only on the vibrant main window; lifted 3% toward text + inset top highlight so it separates from M0 on every theme. |
+| M2 Interactive glass | `.control-glass`, `.control-field`, `bg-control(-hover/-pressed/-selected)` | Every visible control at rest: toolbar buttons, secondary buttons, chips, segmented tracks, fields, pill groups. Built from text-tinted `--lift-*` so it shows on dark/light/saturated/muted presets alike. |
+| M3 Elevated glass | `.material-popover`, `.material-elevated`, `.material-panel` | Menus, popovers, tooltips, hover cards; History/⌘K/Tab Switcher (`elevated`: 24px blur, light scrim); Scripture side panel (`panel`). |
+| M4 Modal | `.material-sheet` | Settings, importers, onboarding, print preview — denser, dark scrim + 4px blur. |
+
+### Control state matrix (every primitive)
+| State | Recipe |
+|---|---|
+| rest | ghost = transparent; glass = `control-glass` (lift-2 + hairline + inset highlight + shadow-1); field = `control-field` |
+| hover | `bg-control-hover` (lift-3); fields lift to surface-1/75 |
+| pressed | `bg-control-pressed` (lift-4) + 0.97 scale on icon buttons; filled buttons go to `accent-pressed` |
+| selected (neutral current) | `bg-control-selected` raised thumb (segmented, IconButton `selected`) or `bg-surface-selected` (rows) |
+| active (accent "mode on") | `bg-accent-muted text-accent` → hover `accent-hover` → pressed `accent-active` |
+| focus-visible | `.focus-ring` (1.5px ground + 3.5px accent) — never on mouse clicks (fields ring on focus, like NSTextField) |
+| disabled | `opacity-40`; IconButton keeps pointer events so the tooltip can explain why |
+| menu hover | NSMenu: `bg-accent text-white` (danger: destructive fill) |
+
 ### Materials (`.material-*` classes)
 | Class | Where | Recipe |
 |---|---|---|
@@ -90,7 +111,31 @@ globally (CSS media rule + `<MotionConfig reducedMotion="user">` in `main.tsx`).
 | `TextField` / `SearchField` | capsule inputs; `SearchField` has clear + Esc |
 | `Select` | custom listbox — never a native `<select>` |
 | `Tooltip` | label + optional shortcut keycaps |
+| `Toolbar` | M1 bar row; children default to glass controls (`ControlSurfaceContext`) |
+| `ListRow` | the one list/tree/sidebar row: leading · title/subtitle · meta · trailing (sibling actions, keyboard reachable); `selected`/`current`/`bar`/`dense` |
+| `Chip` | capsule filter/tag/badge; `selected`, `count`, `tint`, `onRemove` — never changes weight |
+| `Checkbox` / `Radio` / `Slider` / `TextArea` / `OptionCard` / `DisclosureRow` / `SectionHeader` / `ColorSwatchRow` | form + list building blocks |
 | `EmptyState`, `SectionLabel`, `RefChip`, `Divider`, `Kbd`, `Switch`, `ActionPillGroup` | |
+
+## Consistency matrix (tick per component as it is verified in code)
+| Component | Typography | Material | Border | Radius | Hover | Press | Selected | Focus | Dark/Light |
+|---|---|---|---|---|---|---|---|---|---|
+| Primitives (ui/) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Toolbar / window header | | | | | | | | | |
+| Sidebar + tab rows | | | | | | | | | |
+| Calendar | | | | | | | | | |
+| Scripture header + reader chrome | | | | | | | | | |
+| Side panel (Notes/Lexicon/Cross Refs) | | | | | | | | | |
+| Scripture search / pickers | | | | | | | | | |
+| Notes (home, tree, list, editor chrome) | | | | | | | | | |
+| Lexicon | | | | | | | | | |
+| Tags | | | | | | | | | |
+| History | | | | | | | | | |
+| ⌘K palette / Find / Tab switcher | | | | | | | | | |
+| Menus / popovers / tooltips | | | | | | | | | |
+| Settings / dialogs / onboarding | | | | | | | | | |
+| Study Trail chrome | | | | | | | | | |
+| YouTube / AI lookup / audio / PDF / viewer | | | | | | | | | |
 
 ## Consistency gate (must return 0 / allowlist before merge)
 See the "Phase 9" commands in the plan; summary: no `text-[Npx]`, no hex outside
@@ -125,3 +170,8 @@ no inline Radix `Tooltip.Content`, no inline `fontFamily:'serif'`.
   design system governs chrome typography only.
 - 2026-09-16 — `npm run lint` has no ESLint config in this repo (pre-existing); verification is
   `npm run typecheck` + `npm test` + the grep gate.
+- 2026-09-17 — Pass 2: Default dark/light palettes re-tuned to macOS-like separation (named
+  presets untouched); materials/controls built from text-tinted `--lift-*` so hierarchy is
+  theme-independent; menu hover is NSMenu accent+white; History/⌘K/Tab Switcher use
+  `.material-elevated` with a light scrim (Spotlight-class); Study Trail keeps its mono-italic
+  timeline titles as a feature identity while its chrome uses system controls.
