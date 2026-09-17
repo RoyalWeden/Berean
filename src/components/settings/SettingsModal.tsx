@@ -173,6 +173,8 @@ export default function SettingsModal() {
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   const setThemePreset = useAppStore((s) => s.setThemePreset)
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
+  const setGlassAppearance = useAppStore((s) => s.setGlassAppearance)
   const setBackgroundAnimationEnabled = useAppStore((s) => s.setBackgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const setBackgroundAnimationStyle = useAppStore((s) => s.setBackgroundAnimationStyle)
@@ -634,6 +636,27 @@ export default function SettingsModal() {
                         </button>
                       )
                     })()}
+                  </div>
+
+                  {/* Glass appearance — Berean's version of macOS 27's system transparency slider.
+                      Scales every translucent material's opacity (menus, popovers, side panel,
+                      sheets) via --glass-alpha-mult; see docs/design-system.md → Materials. */}
+                  <div data-anchor="Glass" className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text-primary">Glass appearance</p>
+                      <p className="text-caption text-text-muted leading-snug">How much shows through menus, panels and sheets.</p>
+                    </div>
+                    <SegmentedControl
+                      size="sm"
+                      value={glassAppearance}
+                      onChange={setGlassAppearance}
+                      aria-label="Glass appearance"
+                      options={[
+                        { value: 'clear', label: 'Clear' },
+                        { value: 'regular', label: 'Regular' },
+                        { value: 'tinted', label: 'Tinted' },
+                      ]}
+                    />
                   </div>
 
                   {/* Ambient background animation — a handful of themes (see ThemePicker.tsx's
