@@ -1,0 +1,29 @@
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes } from 'react'
+import { cx } from './cx'
+
+export type RefChipVariant = 'default' | 'lxx' | 'lexicon' | 'neutral'
+
+const VARIANT: Record<RefChipVariant, string> = {
+  default: 'text-accent bg-accent-muted',
+  lxx: 'text-[rgb(var(--link-lxx-ref))] bg-[rgb(var(--link-lxx-ref)/0.14)]',
+  lexicon: 'text-[rgb(var(--link-lexicon-ref))] bg-[rgb(var(--link-lexicon-ref)/0.14)]',
+  neutral: 'text-text-secondary bg-surface-4/60',
+}
+const SIZE = { xs: 'text-micro px-1 py-px', sm: 'text-caption2 px-1.5 py-0.5' }
+
+type Base = { variant?: RefChipVariant; size?: 'xs' | 'sm'; className?: string }
+
+/** Monospace reference chip ("Gen 1:1", "H7225"). Renders a <button> when `onClick` is given. */
+export const RefChip = forwardRef<HTMLElement, Base & (ButtonHTMLAttributes<HTMLButtonElement> | HTMLAttributes<HTMLSpanElement>)>(
+  function RefChip({ variant = 'default', size = 'sm', className, ...rest }, ref) {
+    const cls = cx(
+      'inline-flex items-center font-mono font-semibold rounded-chip leading-none whitespace-nowrap tabular-nums',
+      SIZE[size], VARIANT[variant], className,
+    )
+    if ('onClick' in rest && rest.onClick) {
+      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" className={cx(cls, 'focus-ring cursor-pointer hover:brightness-110')} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)} />
+    }
+    return <span ref={ref as React.Ref<HTMLSpanElement>} className={cls} {...(rest as HTMLAttributes<HTMLSpanElement>)} />
+  },
+)
+export default RefChip

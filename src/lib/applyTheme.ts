@@ -28,16 +28,34 @@ export interface ApplyThemeOptions {
   backgroundAnimationEnabled?: boolean
   backgroundAnimationStyle?: 'auto' | AnimationStyle
   backgroundAnimationIntensity?: AnimationIntensity
+  /** Settings → Appearance → Glass appearance. Scales every material's alpha via
+   *  `--glass-alpha-mult` (mirrors macOS 27's system transparency slider). */
+  glassAppearance?: GlassAppearance
 }
+
+export type GlassAppearance = 'clear' | 'regular' | 'tinted'
+export const GLASS_ALPHA_MULT: Record<GlassAppearance, number> = { clear: 0.8, regular: 1, tinted: 1.18 }
 
 export function applyThemeToDocument(opts: ApplyThemeOptions): void {
   const html = document.documentElement
   const {
     theme, themePreset, systemIsDark, systemAccentColor,
     backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+    glassAppearance,
   } = opts
 
   ALL_PRESET_CLASSES.forEach((cls) => html.classList.remove(cls))
+
+  // Design-system scheme flag. The 73 theme classes only define the 11 base palette vars;
+  // anything that must differ between a light and a dark ground (status pigments, shadow
+  // strength, selection mix — see global.css's `.scheme-light` block) keys off this ONE class
+  // instead of hand-listing every preset. Also sets `color-scheme` so native form controls,
+  // scrollbars and <select> popups follow the app rather than the OS.
+  const isDark = theme === 'system' ? systemIsDark : theme === 'dark'
+  html.classList.toggle('scheme-dark', isDark)
+  html.classList.toggle('scheme-light', !isDark)
+  html.style.colorScheme = isDark ? 'dark' : 'light'
+  html.style.setProperty('--glass-alpha-mult', String(GLASS_ALPHA_MULT[glassAppearance ?? 'regular']))
 
   const baseId = (themePreset && themePreset !== 'system-accent') ? themePreset.replace(/-(?:dark|light)$/, '') : ''
 

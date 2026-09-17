@@ -133,6 +133,7 @@ export default function App() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
   // Keep the module-level Hermas prefs (used by getTranslationForBook + hermasMap,
   // which are pure and called from many places) in sync with the chosen translation.
@@ -374,7 +375,7 @@ export default function App() {
     const tabsSig = SPACE_IDS
       .map((sp) => (storeTabs[sp] ?? []).map((t) => `${t.id}~${t.title}~${t.isPinned ? 1 : 0}`).join(','))
       .join('|')
-    const sig = `${tabsSig}::${theme}::${themePreset}::${backgroundAnimationEnabled}::${backgroundAnimationStyle}::${backgroundAnimationIntensity}`
+    const sig = `${tabsSig}::${theme}::${themePreset}::${backgroundAnimationEnabled}::${backgroundAnimationStyle}::${backgroundAnimationIntensity}::${glassAppearance}`
     if (sig === lastBroadcastSigRef.current) return
     lastBroadcastSigRef.current = sig
     const timer = setTimeout(() => {
@@ -383,12 +384,12 @@ export default function App() {
       // blindly overwriting it.
       const payload = {
         tabs: storeTabs, theme, themePreset, updatedAt: Date.now(),
-        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
       }
       window.app.broadcastTabState?.(payload)
     }, 150) // debounce
     return () => clearTimeout(timer)
-  }, [storeTabs, theme, themePreset, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [storeTabs, theme, themePreset, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   // Only one overlay (find bar, "More" menu, Settings) open at a time — the
   // Bible find bar is global store state, so it closes here on the shared
@@ -571,9 +572,9 @@ export default function App() {
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   // Sync per-section font families
   useEffect(() => {
@@ -600,6 +601,7 @@ export default function App() {
     // scripture and notes sections override it with their own vars.
     const uiFont = uiFontFamily === 'system' ? NATIVE_FONT_STACK : (fontMap[uiFontFamily] ?? 'inherit')
     document.body.style.fontFamily = uiFont
+    document.documentElement.style.setProperty('--font-ui', uiFont)
   }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
 
   // ── On mount: load history, settings, check onboarding, vault reconcile ──

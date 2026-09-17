@@ -46,6 +46,7 @@ export default function FloatingShell() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
 
   // ── On mount: apply the right-clicked tab's params to the active scripture tab ──
@@ -113,9 +114,9 @@ export default function FloatingShell() {
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   useEffect(() => {
     // Listen for theme broadcasts from the main window.
@@ -125,7 +126,7 @@ export default function FloatingShell() {
     window.app.onTabStateUpdate?.((payload) => {
       const p = payload as {
         theme?: string; themePreset?: string
-        backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: string; backgroundAnimationIntensity?: string
+        backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: string; backgroundAnimationIntensity?: string; glassAppearance?: string
       }
       const update: Record<string, unknown> = {}
       if (p.theme !== undefined) update.theme = p.theme
@@ -133,6 +134,7 @@ export default function FloatingShell() {
       if (p.backgroundAnimationEnabled !== undefined) update.backgroundAnimationEnabled = p.backgroundAnimationEnabled
       if (p.backgroundAnimationStyle !== undefined) update.backgroundAnimationStyle = p.backgroundAnimationStyle
       if (p.backgroundAnimationIntensity !== undefined) update.backgroundAnimationIntensity = p.backgroundAnimationIntensity
+      if (p.glassAppearance !== undefined) update.glassAppearance = p.glassAppearance
       if (Object.keys(update).length) useAppStore.setState(update)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps

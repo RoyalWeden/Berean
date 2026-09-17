@@ -138,6 +138,7 @@ export default function ViewerApp() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const [localScale, setLocalScale] = useState(storeScale)
 
   const [systemIsDark, setSystemIsDark] = useState(
@@ -179,7 +180,7 @@ export default function ViewerApp() {
     if (viewerTheme === 'system') {
       applyThemeToDocument({
         theme, themePreset, systemIsDark, systemAccentColor,
-        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
       })
       return
     }
@@ -192,7 +193,7 @@ export default function ViewerApp() {
     const effectiveDark = viewerTheme === 'dark'
     html.classList.toggle('dark', effectiveDark)
     html.classList.toggle('light', !effectiveDark)
-  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   // Keep the ref in sync every render so handleContent (stable, deps []) sees the latest payload.
   payloadRef.current = payload

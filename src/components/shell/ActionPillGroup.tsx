@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
 
 /**
- * Shared "joined action pill" wrapper — bordered, rounded, with a hairline divider between
+ * Shared "joined action pill" wrapper — a capsule cluster with hairline dividers between
  * children (all but the last). SidebarTopBar.tsx's back/forward/history nav and BiblePanel.tsx's
  * chapter-nav prev/pick/next each independently invented their own version of this (different
  * radius, different divider mechanism) before being unified onto this one. For grouping
- * independent actions — not mutually-exclusive selection, which is HeaderSegmentedToggle.tsx's job.
+ * independent actions — not mutually-exclusive selection, which is SegmentedControl's job.
+ * Children are typically `IconButton`s with `className="rounded-none"` so the capsule is the
+ * group's, not each button's.
  */
 interface Props {
   children: ReactNode
@@ -23,7 +25,7 @@ export default function ActionPillGroup({ children, className = '', align = 'cen
       // action-pill-group: a stable marker PanelHeader.tsx's floating-header CSS (global.css)
       // targets directly, rather than guessing at this component's Tailwind utility classes —
       // see that rule's own comment for why it needs to single this component out specifically.
-      className={`action-pill-group no-drag flex ${align === 'stretch' ? 'items-stretch' : 'items-center'} rounded-shell border border-[rgb(var(--color-surface-4))] overflow-hidden flex-shrink-0 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-[rgb(var(--color-surface-4))] ${className}`}
+      className={`action-pill-group no-drag flex ${align === 'stretch' ? 'items-stretch' : 'items-center'} rounded-control border border-border bg-surface-4/25 overflow-hidden flex-shrink-0 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-separator [&>*]:rounded-none ${className}`}
     >
       {children}
     </div>

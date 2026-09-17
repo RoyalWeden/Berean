@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { MotionConfig } from 'framer-motion'
 import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
 import ViewerApp from '@/components/viewer/ViewerApp'
@@ -47,6 +48,18 @@ const isFloatMode = searchParams.get('float') === '1'
 const isViewerMode = searchParams.get('viewer') === '1'
 const isStudyTrailMode = searchParams.get('studyTrail') === '1'
 const isVersePickerMode = searchParams.get('versePicker') === '1'
+
+// Design-system window stamps (read by global.css). `data-window` names which renderer root
+// this is; `data-vibrant` is present ONLY where the BrowserWindow is genuinely transparent with
+// native vibrancy behind it — the main window on macOS (electron/main.ts) — so `.material-bar`
+// can be translucent there and fall back to an opaque paint everywhere else (Windows, and every
+// secondary window: pop-out tab, presenter/viewer, Study Trail, verse picker are all opaque).
+{
+  const html = document.documentElement
+  html.dataset.window = isViewerMode ? 'viewer' : isStudyTrailMode ? 'trail' : isVersePickerMode ? 'picker' : isFloatMode ? 'float' : 'main'
+  if (html.dataset.window === 'main' && window.__berean_platform === 'darwin') html.dataset.vibrant = ''
+  else delete html.dataset.vibrant
+}
 
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
@@ -163,6 +176,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isFloatMode ? <FloatingShell /> : <App />}
+    {/* reducedMotion="user": every framer-motion animation in every window honors the OS
+        "Reduce motion" setting (CSS transitions are covered by global.css's media rule). */}
+    <MotionConfig reducedMotion="user">
+      {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isFloatMode ? <FloatingShell /> : <App />}
+    </MotionConfig>
   </React.StrictMode>
 )

@@ -198,6 +198,7 @@ export default function StudyTrailApp() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
   const setAskChapterJumpReason = useAppStore((s) => s.setStudyTrailAskChapterJumpReason)
   const [systemIsDark, setSystemIsDark] = useState(
@@ -212,9 +213,9 @@ export default function StudyTrailApp() {
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   async function refresh() {
     const rows = await window.studyTrail.listSessions()

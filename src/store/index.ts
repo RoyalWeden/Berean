@@ -267,6 +267,7 @@ export interface AppState {
     tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number
     backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: AppState['backgroundAnimationStyle']
     backgroundAnimationIntensity?: AppState['backgroundAnimationIntensity']
+    glassAppearance?: AppState['glassAppearance']
   }) => void
 
   // Cross-panel lexicon communication
@@ -629,6 +630,10 @@ export interface AppState {
   setBackgroundAnimationStyle: (v: AppState['backgroundAnimationStyle']) => void
   backgroundAnimationIntensity: import('@/lib/themePresets').AnimationIntensity
   setBackgroundAnimationIntensity: (v: AppState['backgroundAnimationIntensity']) => void
+  // Glass appearance (design system) — scales every translucent material's opacity, mirroring
+  // macOS 27's system transparency slider: 'clear' shows more through, 'tinted' is denser.
+  glassAppearance: import('@/lib/applyTheme').GlassAppearance
+  setGlassAppearance: (v: AppState['glassAppearance']) => void
   // Live macOS accent color ("r g b" string, matching the other palette fields) — runtime
   // only, not persisted; populated from systemPreferences.getAccentColor() via IPC and kept
   // live via the 'accent-color-changed' event. Backs the 'system-accent' theme preset.
@@ -1158,6 +1163,8 @@ export const useAppStore = create<AppState>()(
       setBackgroundAnimationStyle: (v) => set({ backgroundAnimationStyle: v }),
       backgroundAnimationIntensity: 'noticeable',
       setBackgroundAnimationIntensity: (v) => set({ backgroundAnimationIntensity: v }),
+      glassAppearance: 'regular',
+      setGlassAppearance: (v) => set({ glassAppearance: v }),
       systemAccentColor: null,
       setSystemAccentColor: (v) => set({ systemAccentColor: v }),
 
@@ -2474,6 +2481,7 @@ export const useAppStore = create<AppState>()(
         if (payload.backgroundAnimationEnabled !== undefined) update.backgroundAnimationEnabled = payload.backgroundAnimationEnabled
         if (payload.backgroundAnimationStyle !== undefined) update.backgroundAnimationStyle = payload.backgroundAnimationStyle
         if (payload.backgroundAnimationIntensity !== undefined) update.backgroundAnimationIntensity = payload.backgroundAnimationIntensity
+        if (payload.glassAppearance !== undefined) update.glassAppearance = payload.glassAppearance
         set(update)
       },
 
@@ -3044,6 +3052,7 @@ export const useAppStore = create<AppState>()(
         backgroundAnimationEnabled: state.backgroundAnimationEnabled,
         backgroundAnimationStyle: state.backgroundAnimationStyle,
         backgroundAnimationIntensity: state.backgroundAnimationIntensity,
+        glassAppearance: state.glassAppearance,
         scriptureFontFamily: state.scriptureFontFamily,
         notesFontFamily: state.notesFontFamily,
         noteTypingLook: state.noteTypingLook,
@@ -3161,6 +3170,7 @@ const ASK_WHY_SYNC_KEY = 'berean-ask-why-sync'
 const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = [
   'theme', 'themePreset', 'systemAccentColor',
   'backgroundAnimationEnabled', 'backgroundAnimationStyle', 'backgroundAnimationIntensity',
+  'glassAppearance',
 ]
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
