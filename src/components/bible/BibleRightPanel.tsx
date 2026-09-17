@@ -1710,9 +1710,10 @@ export default function BibleRightPanel({
         }
       }}
     >
-      {/* Tab strip — hidden when a tab is forced externally. Real tab shapes (top-rounded
-          only, active tab flush against the content below it) rather than a plain segmented
-          control, with a drag/right-click "pop out"/"merge back" affordance.
+      {/* Tab strip — hidden when a tab is forced externally. Styled as a capsule segmented
+          control (the design system's mutually-exclusive selector) but hand-built rather than
+          <SegmentedControl>, because each segment is also a drag source / drop target for the
+          "pop out"/"merge back" affordance (right-click too).
           BOTH slots use the same switchable multi-button strip (each filtered to whatever
           isn't already claimed by the OTHER slot) — a popped-out panel can hold more than one
           tab (dragging an additional tab into it adds a second button; dragging its last
@@ -1720,9 +1721,9 @@ export default function BibleRightPanel({
           same switcher slot A has, not a fixed single-tab label. Both get a close button once
           a second panel exists. */}
       {!forcedTab && (
-        <div className="flex items-center gap-1 px-1.5 pt-1.5 border-b border-separator flex-shrink-0">
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-separator flex-shrink-0" role="radiogroup" aria-label="Side panel">
           <div
-            className={`flex items-center gap-0.5 flex-1 min-w-0 rounded-t-shell transition-colors ${dragOverStrip ? 'ring-2 ring-accent/50' : ''}`}
+            className={`flex items-stretch gap-0.5 flex-1 min-w-0 p-0.5 rounded-control bg-surface-4/45 transition-[box-shadow] ${dragOverStrip ? 'ring-2 ring-accent/50' : ''}`}
             // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
             // for custom MIME strings across Chromium/Electron versions, and this drop zone only
             // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
@@ -1768,23 +1769,22 @@ export default function BibleRightPanel({
                   }}
                   onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
                   onClick={() => { onTabChange(tab); void closeSidebarNote() }}
+                  role="radio"
+                  aria-checked={active}
                   className={`
-                    relative flex-1 flex items-center justify-center gap-1 text-caption2 py-1.5 font-medium
-                    transition-colors cursor-pointer rounded-t-shell border-t border-x
-                    ${active
-                      ? 'text-accent border-border bg-surface-2'
-                      : 'text-text-muted hover:text-text-secondary border-transparent'
-                    }
+                    focus-ring relative flex-1 flex items-center justify-center gap-1.5 h-[26px] px-2 text-caption font-medium
+                    rounded-control transition-colors duration-base ease-mac cursor-pointer select-none whitespace-nowrap
+                    ${active ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}
                   `}
                 >
                   {active && (
                     <motion.div
                       layoutId={`right-panel-tab-pill-${slotId}`}
-                      className="absolute inset-0 rounded-t-shell bg-accent-muted pointer-events-none"
+                      className="absolute inset-0 rounded-control bg-surface-1 shadow-1 pointer-events-none"
                       transition={SPRING_SNAPPY}
                     />
                   )}
-                  <Icon size={11} className="relative z-10 flex-shrink-0" />
+                  <Icon size={13} strokeWidth={active ? 2 : 1.75} className="relative z-10 flex-shrink-0" />
                   <span className="relative z-10">{PANEL_TAB_LABEL[tab]}</span>
                 </button>
               )
