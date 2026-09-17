@@ -35,11 +35,11 @@ function BiblePreview({ state }: { state: BibleTabState }) {
     <div className="w-full h-full flex flex-col gap-0.5 overflow-hidden">
       {/* Translation badge */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-[8px] font-bold tracking-wide px-1 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] leading-none">
+        <span className="text-micro font-bold tracking-wide px-1 py-0.5 rounded-chip bg-accent-muted text-accent leading-none">
           {state.translation?.toUpperCase() ?? 'KJVA'}
         </span>
         {state.compareMode && (
-          <span className="text-[8px] font-bold tracking-wide px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] leading-none">
+          <span className="text-micro font-bold tracking-wide px-1 py-0.5 rounded-chip bg-surface-4 text-text-muted leading-none">
             CMP
           </span>
         )}
@@ -47,9 +47,9 @@ function BiblePreview({ state }: { state: BibleTabState }) {
       {/* Simulated verse lines */}
       <div className="flex flex-col gap-[3px] mt-0.5 flex-1 overflow-hidden">
         {[70, 90, 55, 80, 65].map((w, i) => (
-          <div key={i} className="h-[3px] rounded-full bg-[rgb(var(--color-text-muted))] opacity-30" style={{ width: `${w}%` }} />
+          <div key={i} className="h-[3px] rounded-full bg-text-muted opacity-30" style={{ width: `${w}%` }} />
         ))}
-        <div className="h-[3px] rounded-full bg-[rgb(var(--color-text-muted))] opacity-20" style={{ width: '40%' }} />
+        <div className="h-[3px] rounded-full bg-text-muted opacity-20" style={{ width: '40%' }} />
       </div>
     </div>
   )
@@ -59,15 +59,17 @@ function NotePreview({ state }: { state: NoteTabState }) {
   return (
     <div className="w-full h-full flex flex-col gap-0.5 overflow-hidden">
       {/* Title line */}
-      <div className="h-[4px] rounded-full bg-[rgb(var(--color-text-primary))] opacity-40" style={{ width: '80%' }} />
+      <div className="h-[4px] rounded-full bg-text-primary opacity-40" style={{ width: '80%' }} />
       {/* Note lines */}
       <div className="flex flex-col gap-[3px] mt-1 flex-1 overflow-hidden">
         {[95, 85, 70, 90, 60].map((w, i) => (
-          <div key={i} className="h-[3px] rounded-full bg-[rgb(var(--color-text-muted))] opacity-25" style={{ width: `${w}%` }} />
+          <div key={i} className="h-[3px] rounded-full bg-text-muted opacity-25" style={{ width: `${w}%` }} />
         ))}
-        <div className="h-[3px] rounded-full bg-[rgb(var(--color-text-muted))] opacity-15" style={{ width: '50%' }} />
+        <div className="h-[3px] rounded-full bg-text-muted opacity-15" style={{ width: '50%' }} />
       </div>
-      {/* Verse tag if applicable */}
+      {/* Verse tag if applicable — literal color matches this space's identity hue
+          (SPACE_CONFIG.notes), same accepted-literal treatment as TabBar.tsx's
+          per-type tab icon colors. */}
       {state.verseRef && (
         <div className="flex-shrink-0 h-[3px] rounded-full bg-[rgb(234,179,8)] opacity-40" style={{ width: '55%' }} />
       )}
@@ -83,7 +85,7 @@ function LexiconPreview({ state }: { state: LexiconTabState }) {
       {state.strongsNum ? (
         <>
           <span
-            className="text-[11px] font-bold leading-none"
+            className="text-caption font-bold leading-none"
             style={{ color }}
           >
             {state.strongsNum}
@@ -108,7 +110,7 @@ function YouTubePreview() {
   return (
     <div className="w-full h-full flex items-center justify-center overflow-hidden">
       {/* Mini video thumbnail placeholder */}
-      <div className="w-full h-full rounded-sm bg-[rgb(var(--color-surface-4))] flex items-center justify-center relative overflow-hidden">
+      <div className="w-full h-full rounded-card bg-surface-4 flex items-center justify-center relative overflow-hidden">
         {/* 16:9 letterbox lines */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-black/30" />
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-black/30" />
@@ -132,7 +134,7 @@ function SearchPreview({ state }: { state: SearchTabState }) {
         {[75, 60, 85, 55].map((w, i) => (
           <div key={i} className="flex items-center gap-1">
             <div className="w-[3px] h-[3px] rounded-full bg-[rgb(167,139,250)] opacity-40 flex-shrink-0" />
-            <div className="h-[2.5px] rounded-full bg-[rgb(var(--color-text-muted))] opacity-20" style={{ width: `${w}%` }} />
+            <div className="h-[2.5px] rounded-full bg-text-muted opacity-20" style={{ width: `${w}%` }} />
           </div>
         ))}
       </div>
@@ -195,10 +197,11 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
   return (
     // Outer overlay: pointer-events-auto so backdrop click closes the switcher.
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-auto"
+      className="fixed inset-0 z-critical flex items-center justify-center pointer-events-auto"
       onMouseDown={onClose}
     >
-      {/* Backdrop */}
+      {/* Backdrop — a plain scrim, not a "material" surface, so it keeps its own
+          inline blur rather than adopting one of the named `.material-*` recipes. */}
       <motion.div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
@@ -208,7 +211,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
 
       {/* Switcher card — stop propagation so clicks inside don't trigger backdrop close */}
       <motion.div
-        className="relative pointer-events-auto glass-panel rounded-shell-lg px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
+        className="relative pointer-events-auto material-sheet rounded-sheet px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
         onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.95, y: -6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -231,10 +234,10 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
                 transition={{ delay: Math.min(i * 0.02, 0.2), duration: 0.15 }}
                 whileHover={{ scale: isSelected ? 1.04 : 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className={`flex flex-col w-[96px] rounded-shell overflow-hidden cursor-pointer focus:outline-none ${
+                className={`flex flex-col w-[96px] rounded-card overflow-hidden cursor-pointer focus:outline-none ${
                   isSelected
-                    ? 'bg-[rgb(var(--color-surface-4))]'
-                    : 'bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))]/70'
+                    ? 'bg-surface-selected'
+                    : 'bg-surface-3 hover:bg-surface-hover'
                 }`}
                 style={isSelected ? { outline: `2px solid ${cfg.color}`, outlineOffset: '-2px' } : undefined}
               >
@@ -247,20 +250,21 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
                 </div>
 
                 {/* Footer: badge + title */}
-                <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-[rgb(var(--color-surface-4))/50]">
-                  {/* Space badge pill */}
+                <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-separator">
+                  {/* Space badge pill — literal per-space identity color (SPACE_CONFIG),
+                      same accepted-literal treatment as TabBar.tsx's tab icon colors. */}
                   <div
-                    className="w-4 h-4 rounded-md flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    className="w-4 h-4 rounded-chip flex items-center justify-center text-micro font-bold text-white flex-shrink-0"
                     style={{ backgroundColor: cfg.color }}
                   >
                     {cfg.abbrev}
                   </div>
                   {/* Tab title */}
                   <p
-                    className={`text-[9px] leading-tight truncate flex-1 min-w-0 ${
+                    className={`text-micro leading-tight truncate flex-1 min-w-0 ${
                       isSelected
-                        ? 'text-[rgb(var(--color-text-primary))] font-medium'
-                        : 'text-[rgb(var(--color-text-muted))]'
+                        ? 'text-text-primary font-medium'
+                        : 'text-text-muted'
                     }`}
                   >
                     {tab.title}
@@ -275,7 +279,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
             preview, still most-recent-first and part of the same keyboard
             cycle/selection as the cards above (index continues from cardTabs). */}
         {listTabs.length > 0 && (
-          <div className="w-full max-h-[180px] overflow-y-auto flex flex-col gap-0.5 border-t border-[rgb(var(--color-surface-4))] pt-2">
+          <div className="w-full max-h-[180px] overflow-y-auto flex flex-col gap-0.5 border-t border-separator pt-2">
             {listTabs.map((tab, j) => {
               const i = MAX_CARDS + j
               const cfg = SPACE_CONFIG[tab.spaceId]
@@ -287,18 +291,18 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
                   type="button"
                   onClick={() => onSelectTab(tab.spaceId, tab.tabId)}
                   onMouseEnter={() => handleHover(i)}
-                  className={`flex items-center gap-2 px-2 py-1 rounded-shell text-left cursor-pointer transition-colors ${
-                    isSelected ? 'bg-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-accent))/15]' : 'hover:bg-[rgb(var(--color-surface-4))]/50'
+                  className={`flex items-center gap-2 px-2 py-1 rounded-row text-left cursor-pointer transition-colors ${
+                    isSelected ? 'bg-surface-selected hover:bg-accent-muted' : 'hover:bg-surface-hover'
                   }`}
                 >
                   <div
-                    className="w-4 h-4 rounded-md flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    className="w-4 h-4 rounded-chip flex items-center justify-center text-micro font-bold text-white flex-shrink-0"
                     style={{ backgroundColor: cfg.color }}
                   >
                     {cfg.abbrev}
                   </div>
-                  <p className={`text-[11px] leading-tight truncate flex-1 min-w-0 ${
-                    isSelected ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'
+                  <p className={`text-caption leading-tight truncate flex-1 min-w-0 ${
+                    isSelected ? 'text-text-primary font-medium' : 'text-text-muted'
                   }`}>
                     {tab.title}
                   </p>
@@ -310,12 +314,12 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
 
         {/* Selected tab status bar */}
         {selected && (
-          <div className="text-xs text-[rgb(var(--color-text-secondary))] border-t border-[rgb(var(--color-surface-4))] pt-3 w-full text-center">
+          <div className="text-footnote text-text-secondary border-t border-separator pt-3 w-full text-center">
             <span className="font-medium" style={{ color: SPACE_CONFIG[selected.spaceId].color }}>
               {SPACE_CONFIG[selected.spaceId].label}
             </span>
             {' · '}
-            <span className="text-[rgb(var(--color-text-primary))] font-medium">{selected.title}</span>
+            <span className="text-text-primary font-medium">{selected.title}</span>
           </div>
         )}
       </motion.div>

@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { EMOJI_CATEGORIES, ALL_EMOJI, type EmojiEntry } from '@/lib/emojiList'
+import { IconButton, SectionLabel } from '@/components/ui'
 
 export default function NoteIconPicker({
   x, y, currentIcon, onSelect, onRemove, onClose, menuRef,
@@ -47,25 +48,24 @@ export default function NoteIconPicker({
       ref={menuRef}
       x={x}
       y={y}
-      className="w-64 max-h-80 flex flex-col rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-xl overflow-hidden"
+      className="w-64 max-h-80 flex flex-col material-popover rounded-menu overflow-hidden"
     >
-      <div className="flex items-center gap-1.5 p-2 border-b border-[rgb(var(--color-surface-4))]">
+      <div className="flex items-center gap-1.5 p-2 border-b border-separator">
         <input
           ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search emoji…"
-          className="flex-1 min-w-0 bg-transparent outline-none text-xs text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+          className="flex-1 min-w-0 bg-transparent outline-none text-footnote text-text-primary placeholder:text-text-muted"
         />
         {currentIcon && (
-          <button
+          <IconButton
+            icon={X}
+            label="Remove icon"
+            size={20}
             onClick={() => { onRemove(); onClose() }}
-            title="Remove icon"
-            className="flex-shrink-0 p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors"
-          >
-            <X size={12} />
-          </button>
+          />
         )}
       </div>
       <div className="flex-1 overflow-y-auto p-2">
@@ -77,14 +77,12 @@ export default function NoteIconPicker({
               ))}
             </div>
           ) : (
-            <div className="py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">No matches</div>
+            <div className="py-6 text-center text-footnote text-text-muted">No matches</div>
           )
         ) : (
           EMOJI_CATEGORIES.map((cat) => (
             <div key={cat.label} className="mb-2 last:mb-0">
-              <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
-                {cat.label}
-              </div>
+              <SectionLabel className="px-1 pb-1">{cat.label}</SectionLabel>
               <div className="grid grid-cols-8 gap-0.5">
                 {cat.emoji.map((e) => (
                   <EmojiButton key={e.char} entry={e} onPick={pick} />
@@ -104,7 +102,7 @@ function EmojiButton({ entry, onPick }: { entry: EmojiEntry; onPick: (emoji: str
     <button
       onClick={() => onPick(entry.char)}
       title={entry.name}
-      className="flex items-center justify-center h-7 w-7 rounded text-base leading-none hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+      className="flex items-center justify-center h-7 w-7 rounded-card text-base leading-none hover:bg-surface-hover transition-colors"
     >
       {entry.char}
     </button>

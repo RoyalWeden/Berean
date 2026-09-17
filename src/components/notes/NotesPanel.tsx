@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
 import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -559,7 +560,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       <button
         onClick={() => setIdiomsModalOpen(true)}
         title="Export all idioms to a single PDF"
-        className="flex-shrink-0 p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+        className="flex-shrink-0 p-1 rounded cursor-pointer transition-colors text-text-muted hover:bg-surface-hover"
       >
         <BookText size={15} />
       </button>
@@ -1417,7 +1418,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={notesContentRef}
-      className="native-buttons flex flex-col h-full bg-[rgb(var(--color-surface-3))] relative"
+      className="native-buttons flex flex-col h-full bg-surface-3 relative"
       onMouseDown={() => setActivePanelId('notes')}
     >
       <FindBar
@@ -1446,9 +1447,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 iconPicker.openMenu({ x: r.left, y: r.bottom + 4 })
               }}
               title="Page icon — click to choose an emoji"
-              className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center text-center text-sm rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] outline-none text-[rgb(var(--color-text-primary))] transition-colors"
+              className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center text-center text-sm rounded-md bg-transparent hover:bg-surface-hover outline-none text-text-primary transition-colors"
             >
-              {activeNote.icon || <Plus size={14} className="text-[rgb(var(--color-text-muted))]/50" />}
+              {activeNote.icon || <Plus size={14} className="text-text-muted/50" />}
             </button>
             {iconPicker.menu && (
               <NoteIconPicker
@@ -1477,14 +1478,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     <span
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                       title="Open scripture reference"
-                      className="no-drag text-sm font-medium truncate cursor-pointer text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] transition-colors min-w-0"
+                      className="no-drag text-sm font-medium truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
                     >
                       {headerDisplayTitle(activeNote)}
                     </span>
                     <button
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                       title="Open scripture reference"
-                      className="no-drag flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors"
+                      className="no-drag flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-surface-hover text-text-muted hover:text-accent transition-colors"
                     >
                       <ExternalLink size={12} />
                     </button>
@@ -1493,7 +1494,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   </>
                 ) : (
                   <>
-                    <span className="text-sm font-medium truncate text-[rgb(var(--color-text-primary))] opacity-75 select-none min-w-0">
+                    <span className="text-subhead font-medium truncate text-text-primary opacity-75 select-none min-w-0">
                       {headerDisplayTitle(activeNote)}
                     </span>
                     <div className="flex-1 self-stretch" aria-hidden="true" />
@@ -1509,9 +1510,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               <>
                 <span
                   onClick={() => setTitleFocused(true)}
-                  className="no-drag text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))] min-w-0"
+                  className="no-drag text-subhead font-medium truncate cursor-text text-text-primary min-w-0"
                 >
-                  {activeNote.title || <span className="text-[rgb(var(--color-text-muted))]">Untitled</span>}
+                  {activeNote.title || <span className="text-text-muted">Untitled</span>}
                 </span>
                 <div className="flex-1 self-stretch" aria-hidden="true" />
               </>
@@ -1524,7 +1525,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 onKeyDown={handleTitleKeyDown}
                 onBlur={() => setTitleFocused(false)}
                 placeholder="Untitled"
-                className="no-drag flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                className="no-drag flex-1 text-subhead font-medium bg-transparent outline-none text-text-primary placeholder:text-text-muted"
               />
             )}
             {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
@@ -1550,20 +1551,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 single transaction just to grey out two buttons. */}
             {editorMode === 'edit' && (
               <div className="flex items-center">
-                <button
+                <IconButton
+                  icon={Undo2}
+                  label="Undo"
+                  tooltip={{ shortcut: '⌘Z' }}
+                  size={24}
                   onClick={() => editorCommandsRef.current?.undo()}
-                  title="Undo (⌘Z)"
-                  className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-                >
-                  <Undo2 size={13} />
-                </button>
-                <button
+                />
+                <IconButton
+                  icon={Redo2}
+                  label="Redo"
+                  tooltip={{ shortcut: '⌘⇧Z' }}
+                  size={24}
                   onClick={() => editorCommandsRef.current?.redo()}
-                  title="Redo (⌘⇧Z)"
-                  className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-                >
-                  <Redo2 size={13} />
-                </button>
+                />
               </div>
             )}
             {/* Quick "look" preset for the note editor while typing — separate,
@@ -1623,74 +1624,63 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               ]}
             />
             {youtubeIsPlaying && (
-              <button
+              <IconButton
+                icon={Paperclip}
+                label="Insert YouTube timestamp at cursor"
+                size={28}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   window.dispatchEvent(new CustomEvent('berean:requestTimestamp'))
                 }}
-                title="Insert YouTube timestamp at cursor"
-                className="p-1 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors"
-              >
-                <Paperclip size={14} />
-              </button>
+              />
             )}
           </>
         ) : restoringSpecificNote ? (
-          <span className="text-sm font-medium text-[rgb(var(--color-text-muted))] flex-1 opacity-60">Notes</span>
+          <span className="text-subhead font-medium text-text-muted flex-1 opacity-60">Notes</span>
         ) : (
           <>
-            <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] flex-1">Notes</span>
+            <span className="text-subhead font-medium text-text-primary flex-1">Notes</span>
             {/* View mode: list / folder / board — exactly one active, switchable from any of
                 the three at any time. */}
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-shell p-0.5">
-              {([
-                ['list',   List,       'List view',                'rounded-l-[11px] rounded-r-[6px]'],
-                ['folder', FolderTree, 'Folder view',               'rounded-[6px]'],
-                ['board',  Columns3,   'Board view (by status)',    'rounded-l-[6px] rounded-r-[11px]'],
-              ] as const).map(([mode, Icon, label, edgeRounding]) => (
-                <button
-                  key={mode}
-                  onClick={() => changeViewMode(mode)}
-                  title={label}
-                  className={`p-1 cursor-pointer transition-colors ${edgeRounding}
-                    ${viewMode === mode
-                      ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-accent))] shadow-sm'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-                    }`}
-                >
-                  <Icon size={14} />
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              size="sm"
+              value={viewMode}
+              onChange={changeViewMode}
+              aria-label="View mode"
+              options={[
+                { value: 'list', icon: List, title: 'List view' },
+                { value: 'folder', icon: FolderTree, title: 'Folder view' },
+                { value: 'board', icon: Columns3, title: 'Board view (by status)' },
+              ]}
+            />
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
             {/* Tag relationship graph */}
-            <button
+            <IconButton
+              icon={Waypoints}
+              label="Tag graph"
+              size={28}
               onClick={() => useAppStore.getState().openTagsGraph()}
-              title="Tag graph"
-              className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
-              <Waypoints size={15} />
-            </button>
+            />
             {/* Select mode toggle */}
-            <button
+            <IconButton
+              icon={CheckSquare}
+              label="Select notes"
+              size={28}
+              active={selectMode}
               onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
-              title="Select notes"
-              className={`p-1 rounded-shell cursor-pointer transition-colors ${selectMode ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-            >
-              <CheckSquare size={15} />
-            </button>
-            <button
+            />
+            <IconButton
+              icon={Plus}
+              label="New note"
+              tooltip={{ shortcut: '⌘⇧N' }}
+              size={28}
               onClick={createNote}
               onContextMenu={(e) => {
                 e.preventDefault()
                 setPlusMenu({ x: e.clientX, y: e.clientY })
               }}
-              title="New note (⌘⇧N) · right-click for more"
-              className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
-              <Plus size={16} />
-            </button>
+            />
           </>
         )}
       </TabHeaderPortal>
@@ -1698,26 +1688,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       {/* Plus-button context menu: new note / new folder */}
       {plusMenu && (
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setPlusMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPlusMenu(null) }} />
-          <MenuPositioner x={plusMenu.x} y={plusMenu.y}
-            className="min-w-[160px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-          >
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => { setPlusMenu(null); createNote() }}
-            >
-              <NotepadText size={13} className="flex-shrink-0" /> New note
-            </button>
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => {
-                setPlusMenu(null)
-                if (!folderView) changeViewMode('folder')
-                handleCreateFolder(null)
-              }}
-            >
-              <FolderPlus size={13} className="flex-shrink-0" /> New folder
-            </button>
+          <div className="fixed inset-0 z-menu" onClick={() => setPlusMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPlusMenu(null) }} />
+          <MenuPositioner x={plusMenu.x} y={plusMenu.y} className="min-w-[160px]">
+            <MenuSurface>
+              <MenuItem icon={NotepadText} label="New note" onClick={() => { setPlusMenu(null); createNote() }} />
+              <MenuItem
+                icon={FolderPlus}
+                label="New folder"
+                onClick={() => {
+                  setPlusMenu(null)
+                  if (!folderView) changeViewMode('folder')
+                  handleCreateFolder(null)
+                }}
+              />
+            </MenuSurface>
           </MenuPositioner>
         </>
       )}
@@ -1725,31 +1709,26 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       {/* Move-selected-to-folder menu (multi-select, folder view) */}
       {moveMenu && (
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setMoveMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMoveMenu(null) }} />
+          <div className="fixed inset-0 z-menu" onClick={() => setMoveMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMoveMenu(null) }} />
           <div
-            className="fixed z-[9999] min-w-[180px] max-h-72 overflow-y-auto bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+            className="fixed z-menu"
             style={{ left: Math.min(moveMenu.x, window.innerWidth - 200), top: Math.min(moveMenu.y, window.innerHeight - 320) }}
           >
-            <button
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => moveSelectedToFolder(null)}
-            >
-              <Home size={12} className="flex-shrink-0" /> No folder (root)
-            </button>
-            <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-            {orderedFolders(folders).map(({ folder, depth }) => (
-              <button
-                key={folder.id}
-                className="w-full text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer py-1.5"
-                style={{ paddingLeft: 12 + depth * 12, paddingRight: 12 }}
-                onClick={() => moveSelectedToFolder(folder.id)}
-              >
-                {folder.name}
-              </button>
-            ))}
-            {folders.length === 0 && (
-              <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No folders yet — create one first</div>
-            )}
+            <MenuSurface className="min-w-[180px] max-h-72 overflow-y-auto">
+              <MenuItem icon={Home} label="No folder (root)" onClick={() => moveSelectedToFolder(null)} />
+              <MenuSeparator />
+              {orderedFolders(folders).map(({ folder, depth }) => (
+                <MenuItem
+                  key={folder.id}
+                  label={folder.name}
+                  style={{ paddingLeft: 12 + depth * 12 }}
+                  onClick={() => moveSelectedToFolder(folder.id)}
+                />
+              ))}
+              {folders.length === 0 && (
+                <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet — create one first</div>
+              )}
+            </MenuSurface>
           </div>
         </>
       )}
@@ -1858,7 +1837,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           <div ref={homeWrapRef} className="relative flex-1 min-h-0 overflow-hidden">
           <div className="absolute inset-0 flex min-h-0 overflow-hidden">
           <div
-            className={`relative flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-[rgb(var(--color-surface-4))]' : 'w-full'}`}
+            className={`relative flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-separator' : 'w-full'}`}
             // Board view opts out of the cap — it wants the full pane. When the panel shows this
             // column flexes down toward its min; otherwise it caps at 760 and sits left.
             style={boardView ? undefined : {
@@ -1868,66 +1847,65 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           >
           <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
             {/* Search bar — with sort selector inline on the right */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-              <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-              <input
-                type="text"
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-separator flex-shrink-0">
+              <SearchField
+                size="sm"
+                bare
                 value={noteSearch}
-                onChange={(e) => setNoteSearch(e.target.value)}
+                onValueChange={setNoteSearch}
                 placeholder="Search notes…"
-                className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none min-w-0"
+                wrapperClassName="flex-1 min-w-0"
               />
-              {noteSearch && (
-                <button onClick={() => setNoteSearch('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
-                  <X size={13} />
-                </button>
-              )}
               {/* Word mode — only meaningful while actively searching; matches the same
                   all/any/phrase pills used in the floating search bar. */}
               {noteSearch.trim() && (
-                <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-shrink-0">
-                  {(['all', 'any', 'phrase'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setNoteSearchWordMode(m)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors capitalize
-                        ${noteSearchWordMode === m ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'}`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  size="sm"
+                  value={noteSearchWordMode}
+                  onChange={setNoteSearchWordMode}
+                  aria-label="Word match mode"
+                  className="flex-shrink-0"
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'any', label: 'Any' },
+                    { value: 'phrase', label: 'Phrase' },
+                  ]}
+                />
               )}
-              <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <select
+              <Divider orientation="vertical" />
+              <Select
+                variant="ghost"
+                size="sm"
                 value={noteSort}
-                onChange={e => setNoteSort(e.target.value as NoteSort)}
-                className="text-[10px] bg-transparent text-[rgb(var(--color-text-muted))] outline-none cursor-pointer hover:text-[rgb(var(--color-text-primary))] flex-shrink-0"
-                title="Sort notes"
-              >
-                <option value="modified">Modified</option>
-                <option value="created">Created</option>
-                <option value="name">A-Z</option>
-              </select>
+                onChange={(v) => setNoteSort(v)}
+                aria-label="Sort notes"
+                className="flex-shrink-0"
+                options={[
+                  { value: 'modified', label: 'Modified' },
+                  { value: 'created', label: 'Created' },
+                  { value: 'name', label: 'A-Z' },
+                ]}
+              />
               {/* Expand all toggle — only meaningful in list view (folder view has no
                   snippets, board view cards are already fixed-height). */}
               {viewMode === 'list' && (
                 <>
-                  <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-                  <button
+                  <Divider orientation="vertical" />
+                  <IconButton
+                    icon={AlignJustify}
+                    label={expandAll ? 'Collapse notes' : 'Expand all notes'}
+                    size={24}
+                    active={expandAll}
+                    className="flex-shrink-0"
                     onClick={() => setExpandAll(v => !v)}
-                    title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-                    className={`p-1 rounded-shell cursor-pointer transition-colors flex-shrink-0 ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-                  >
-                    <AlignJustify size={13} />
-                  </button>
+                  />
                 </>
               )}
             </div>
 
             {/* Filter chips bar (list view only) */}
             {!folderView && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
+            <div className="flex items-center gap-1 px-2 py-1 border-b border-separator flex-shrink-0 overflow-x-auto">
               {([
                 ['all',          'All'],
                 ['scripture',    'Scripture'],
@@ -1941,10 +1919,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <button
                   key={f}
                   onClick={() => setNoteFilter(f)}
-                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                  className={`flex-shrink-0 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
                     ${noteFilter === f
-                      ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                      ? 'bg-accent-muted text-accent'
+                      : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
                     }`}
                 >
                   {label}
@@ -1955,13 +1933,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
             {/* Status filter chips — independent axis from the type chips above, combinable */}
             {!folderView && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
+            <div className="flex items-center gap-1 px-2 py-1 border-b border-separator flex-shrink-0 overflow-x-auto">
               <button
                 onClick={() => setStatusFilter('all')}
-                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                className={`flex-shrink-0 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
                   ${statusFilter === 'all'
-                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                    ? 'bg-accent-muted text-accent'
+                    : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
                   }`}
               >
                 All statuses
@@ -1972,10 +1950,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   <button
                     key={s.id}
                     onClick={() => setStatusFilter(s.id)}
-                    className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                    className={`flex-shrink-0 flex items-center gap-1 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
                       ${statusFilter === s.id
-                        ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                        ? 'bg-accent-muted text-accent'
+                        : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
                       }`}
                   >
                     <Icon size={10} style={{ color: statusFilter === s.id ? undefined : s.color }} /> {s.label}
@@ -1984,10 +1962,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               })}
               <button
                 onClick={() => setStatusFilter('no-status')}
-                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                className={`flex-shrink-0 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
                   ${statusFilter === 'no-status'
-                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                    ? 'bg-accent-muted text-accent'
+                    : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
                   }`}
               >
                 No status
@@ -1997,32 +1975,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
             {/* Multi-select action bar */}
             {selectMode && (
-              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-4))/50]">
-                <span className="text-xs text-[rgb(var(--color-text-muted))] flex-1">
+              <div className="material-bar flex items-center gap-2 px-3 py-1.5 border-b border-separator flex-shrink-0">
+                <span className="text-footnote text-text-muted flex-1">
                   {selectedIds.length + selectedFolderIds.length} selected
                 </span>
                 {folderView && (selectedIds.length + selectedFolderIds.length) > 0 && (
-                  <button
-                    onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}
-                    className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer px-2 py-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] transition-colors"
-                  >
-                    <FolderInput size={11} /> Move to folder
-                  </button>
+                  <Button variant="ghost" size="sm" icon={FolderInput} onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}>
+                    Move to folder
+                  </Button>
                 )}
                 {(selectedIds.length + selectedFolderIds.length) > 0 && (
-                  <button
-                    onClick={deleteSelected}
-                    className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 cursor-pointer px-2 py-0.5 rounded hover:bg-red-500/15 transition-colors"
-                  >
-                    <Trash2 size={11} /> Delete selected
-                  </button>
+                  <Button variant="ghost" size="sm" icon={Trash2} className="text-destructive" onClick={deleteSelected}>
+                    Delete selected
+                  </Button>
                 )}
-                <button
-                  onClick={exitSelectMode}
-                  className="text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
-                >
+                <Button variant="ghost" size="sm" onClick={exitSelectMode}>
                   Cancel
-                </button>
+                </Button>
               </div>
             )}
 
@@ -2163,105 +2132,82 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       )}
       {/* Idiom creation modal */}
       {idiomModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/40" onClick={() => setIdiomModal(null)} />
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-            <div
-              className="pointer-events-auto w-80 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 flex flex-col gap-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">New Idiom Note</div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Term</label>
-                <input
-                  autoFocus
-                  value={idiomModal.term}
-                  onChange={e => setIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
-                  placeholder="e.g. fox"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
-                  onKeyDown={e => { if (e.key === 'Escape') setIdiomModal(null) }}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Meaning</label>
-                <input
-                  value={idiomModal.meaning}
-                  onChange={e => setIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
-                  placeholder="e.g. cunning, deception, false teachers"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
-                  onKeyDown={async e => {
-                    if (e.key === 'Enter') {
-                      await submitIdiomModal()
-                    } else if (e.key === 'Escape') { setIdiomModal(null) }
-                  }}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setIdiomModal(null)} className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">Cancel</button>
-                <button
-                  disabled={!idiomModal.term.trim()}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
-                  onClick={submitIdiomModal}
-                >
-                  Create
-                </button>
-              </div>
+        <Sheet open onOpenChange={(o) => { if (!o) setIdiomModal(null) }} size="sm" title="New Idiom Note">
+          <div className="p-5 flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-text-muted">Term</label>
+              <TextField
+                autoFocus
+                value={idiomModal.term}
+                onChange={e => setIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
+                placeholder="e.g. fox"
+                onKeyDown={e => { if (e.key === 'Escape') setIdiomModal(null) }}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-text-muted">Meaning</label>
+              <TextField
+                value={idiomModal.meaning}
+                onChange={e => setIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
+                placeholder="e.g. cunning, deception, false teachers"
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    await submitIdiomModal()
+                  } else if (e.key === 'Escape') { setIdiomModal(null) }
+                }}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setIdiomModal(null)}>Cancel</Button>
+              <Button variant="primary" size="sm" disabled={!idiomModal.term.trim()} onClick={submitIdiomModal}>
+                Create
+              </Button>
             </div>
           </div>
-        </>
+        </Sheet>
       )}
 
       {/* Convert note to idiom modal */}
       {convertIdiomModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/40" onClick={() => setConvertIdiomModal(null)} />
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-            <div
-              className="pointer-events-auto w-96 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 flex flex-col gap-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <div>
-                <div className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-0.5">Convert to Idiom Note</div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))]">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
-              </div>
+        <Sheet open onOpenChange={(o) => { if (!o) setConvertIdiomModal(null) }} size="sm" title="Convert to Idiom Note">
+          <div className="p-5 flex flex-col gap-4">
+              <div className="text-xs text-text-muted">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Term</label>
-                <input
+                <label className="text-xs text-text-muted">Term</label>
+                <TextField
                   autoFocus
                   value={convertIdiomModal.term}
                   onChange={e => setConvertIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
                   placeholder="e.g. fox"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Meaning <span className="opacity-60">(optional)</span></label>
-                <input
+                <label className="text-xs text-text-muted">Meaning <span className="opacity-60">(optional)</span></label>
+                <TextField
                   value={convertIdiomModal.meaning}
                   onChange={e => setConvertIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
                   placeholder="e.g. cunning, deception, false teachers"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
                 />
               </div>
               {convertIdiomModal.note.content.trim() && (
-                <div className="flex flex-col gap-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                  <div className="text-xs text-[rgb(var(--color-text-muted))]">This note has existing content. What should happen to it?</div>
+                <div className="flex flex-col gap-2 pt-2 border-t border-separator">
+                  <div className="text-xs text-text-muted">This note has existing content. What should happen to it?</div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[rgb(var(--color-text-secondary))]">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-text-secondary">
                       <input
                         type="radio"
                         checked={convertIdiomModal.keepContent}
                         onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: true } : m)}
-                        className="accent-[rgb(var(--color-accent))]"
+                        className="accent-accent"
                       />
                       Keep as body content of the idiom note
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[rgb(var(--color-text-secondary))]">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-text-secondary">
                       <input
                         type="radio"
                         checked={!convertIdiomModal.keepContent}
                         onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: false } : m)}
-                        className="accent-[rgb(var(--color-accent))]"
+                        className="accent-accent"
                       />
                       Clear body content (idiom term + meaning only)
                     </label>
@@ -2269,10 +2215,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 </div>
               )}
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setConvertIdiomModal(null)} className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">Cancel</button>
-                <button
+                <Button variant="ghost" size="sm" onClick={() => setConvertIdiomModal(null)}>Cancel</Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={!convertIdiomModal.term.trim()}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
                   onClick={async () => {
                     const { note, term, meaning, keepContent } = convertIdiomModal
                     if (!term.trim()) return
@@ -2292,11 +2239,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   }}
                 >
                   Convert
-                </button>
+                </Button>
               </div>
-            </div>
           </div>
-        </>
+        </Sheet>
       )}
 
       {versionHistoryOpen && activeNote && (
@@ -2326,16 +2272,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="fixed bottom-4 right-4 z-[500] flex items-center gap-2 pl-3 pr-2 py-2 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl text-[12px] text-[rgb(var(--color-text-secondary))]"
+              className="fixed bottom-4 right-4 z-critical flex items-center gap-2 pl-3 pr-2 py-2 material-popover rounded-menu text-footnote text-text-secondary"
             >
               <span>Click a note to open it</span>
-              <button
-                onClick={dismissOpenNoteHint}
-                title="Dismiss"
-                className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"
-              >
-                <X size={12} />
-              </button>
+              <IconButton icon={X} label="Dismiss" size={20} className="flex-shrink-0" onClick={dismissOpenNoteHint} />
             </motion.div>
           )}
         </AnimatePresence>,
@@ -2443,12 +2383,12 @@ function IdiomHeader({ note, onUpdate }: {
   const availableFieldDefs = IDIOM_FIELD_DEFS.filter((f) => !addedFields.has(f.key))
 
   return (
-    <div className="flex flex-col gap-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 px-4 pt-3 pb-2">
+    <div className="flex flex-col gap-1.5 border-b border-separator flex-shrink-0 px-4 pt-3 pb-2">
       <div className="flex items-start gap-2">
         {/* Term — the printed entry's own heading style (bold, uppercase, colored). */}
         <input
           key={note.id + '-term'}
-          className="flex-1 min-w-0 bg-transparent outline-none text-violet-400 placeholder:text-[rgb(var(--color-text-muted))] font-bold text-base uppercase tracking-wide"
+          className="flex-1 min-w-0 bg-transparent outline-none text-[rgb(var(--link-wikilink))] placeholder:text-text-muted font-bold text-base uppercase tracking-wide"
           placeholder="Term…"
           defaultValue={note.idiomTerm ?? note.title}
           onBlur={async (e) => {
@@ -2463,36 +2403,36 @@ function IdiomHeader({ note, onUpdate }: {
           <button
             onClick={() => setBehaviorMenuOpen((v) => !v)}
             title="Highlighting behavior"
-            className={`p-1 rounded cursor-pointer transition-colors ${behaviorMenuOpen ? 'text-violet-400 bg-violet-500/10' : 'text-[rgb(var(--color-text-muted))] hover:text-violet-400'}`}
+            className={`p-1 rounded cursor-pointer transition-colors ${behaviorMenuOpen ? 'text-[rgb(var(--link-wikilink))] bg-[rgb(var(--link-wikilink)/0.1)]' : 'text-text-muted hover:text-[rgb(var(--link-wikilink))]'}`}
           >
             <SlidersHorizontal size={14} />
           </button>
           {behaviorMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setBehaviorMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 w-64 rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg p-2.5 flex flex-col gap-2.5">
-                <button
-                  onClick={() => onUpdate({ idiomAutoVariants: !autoVariants })}
-                  className="flex items-center justify-between gap-2 text-left cursor-pointer group"
-                >
-                  <span className="text-xs text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))]">Also match plurals/possessives</span>
-                  <span className={`relative flex-shrink-0 w-8 h-4 rounded-full transition-colors ${autoVariants ? 'bg-violet-500' : 'bg-[rgb(var(--color-surface-4))]'}`}>
-                    <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${autoVariants ? 'translate-x-4' : ''}`} />
-                  </span>
-                </button>
-                <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                  <button onClick={() => setExamplesOpen((v) => !v)} className="w-full flex items-center justify-between text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
+              <div className="fixed inset-0 z-raised" onClick={() => setBehaviorMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-overlay w-64 material-popover rounded-menu p-2.5 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-2 group">
+                  <span className="text-xs text-text-secondary group-hover:text-text-primary">Also match plurals/possessives</span>
+                  <Switch
+                    checked={autoVariants}
+                    onCheckedChange={() => onUpdate({ idiomAutoVariants: !autoVariants })}
+                    checkedColorClass="bg-[rgb(var(--link-wikilink))]"
+                    label="Also match plurals/possessives"
+                  />
+                </div>
+                <div className="pt-2 border-t border-separator">
+                  <button onClick={() => setExamplesOpen((v) => !v)} className="w-full flex items-center justify-between text-xs text-text-secondary hover:text-text-primary cursor-pointer">
                     <span>Example sentences{examples.length > 0 ? ` (${examples.length})` : ''}</span>
                     <span>{examplesOpen ? '▾' : '▸'}</span>
                   </button>
-                  <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 mt-1">Not printed — just text to mine for scripture references.</p>
+                  <p className="text-caption2 text-text-muted opacity-70 mt-1">Not printed — just text to mine for scripture references.</p>
                   {examplesOpen && (
                     <div className="flex flex-col gap-1 mt-1.5">
                       {examples.map((ex, i) => (
                         <div key={i} className="flex items-center gap-1.5">
                           <input
                             defaultValue={ex}
-                            className="flex-1 text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))]"
+                            className="flex-1 text-xs bg-surface-4/40 rounded px-2 py-1 outline-none text-text-primary"
                             onBlur={(e) => {
                               const v = e.target.value.trim()
                               const next = [...examples]
@@ -2500,7 +2440,7 @@ function IdiomHeader({ note, onUpdate }: {
                               updateData({ examples: next })
                             }}
                           />
-                          <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer text-xs">×</button>
+                          <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-text-muted hover:text-destructive cursor-pointer text-xs">×</button>
                         </div>
                       ))}
                       <input
@@ -2509,7 +2449,7 @@ function IdiomHeader({ note, onUpdate }: {
                         onKeyDown={(e) => { if (e.key === 'Enter' && exInput.trim()) { e.preventDefault(); updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
                         onBlur={() => { if (exInput.trim()) { updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
                         placeholder="+ add an example sentence…"
-                        className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                        className="text-xs bg-transparent outline-none text-text-secondary placeholder:text-text-muted"
                       />
                     </div>
                   )}
@@ -2526,7 +2466,7 @@ function IdiomHeader({ note, onUpdate }: {
         defaultValue={note.idiomMeaning ?? ''}
         rows={1}
         placeholder="Meaning…"
-        className="w-full text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] bg-transparent outline-none resize-none leading-snug"
+        className="w-full text-sm text-text-primary placeholder:text-text-muted bg-transparent outline-none resize-none leading-snug"
         onBlur={async (e) => {
           const meaning = e.target.value.trim()
           if (meaning === (note.idiomMeaning ?? '')) return
@@ -2538,17 +2478,17 @@ function IdiomHeader({ note, onUpdate }: {
         <IdiomFieldWrap label="Aliases" onRemove={() => removeField('aliases')}>
           <div className="flex items-center gap-1.5 flex-wrap">
             {aliases.map((alias) => (
-              <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
+              <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-chip bg-[rgb(var(--link-wikilink)/0.15)] text-[rgb(var(--link-wikilink))] text-caption2 font-medium">
                 {alias}
                 <button
                   onClick={() => removeAlias(alias)}
-                  className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+                  className="text-[rgb(var(--link-wikilink))] hover:text-[rgb(var(--link-wikilink))] leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
                   title="Remove"
                 >×</button>
               </span>
             ))}
             <input
-              className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[120px] max-w-[180px]"
+              className="text-xs bg-transparent outline-none text-text-secondary placeholder:text-text-muted min-w-[120px] max-w-[180px]"
               placeholder="+ same idiom, different wording…"
               value={aliasInput}
               onChange={e => setAliasInput(e.target.value)}
@@ -2569,7 +2509,7 @@ function IdiomHeader({ note, onUpdate }: {
             defaultValue={data.explanation ?? ''}
             rows={2}
             placeholder="What it means, where it comes from…"
-            className="w-full text-xs text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] bg-transparent outline-none resize-y leading-relaxed"
+            className="w-full text-xs text-text-secondary placeholder:text-text-muted bg-transparent outline-none resize-y leading-relaxed"
             onBlur={(e) => { const v = e.target.value.trim(); if (v !== (data.explanation ?? '')) updateData({ explanation: v || undefined }) }}
           />
         </IdiomFieldWrap>
@@ -2585,7 +2525,7 @@ function IdiomHeader({ note, onUpdate }: {
         <IdiomFieldWrap label="References" onRemove={() => removeField('references')}>
           <IdiomChipRow items={verses} onChange={(next) => updateData({ verses: next })} placeholder="+ e.g. Luke 13:32…" />
           {autoVerses.length > 0 && (
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic mt-1">
+            <p className="text-caption2 text-text-muted italic mt-1">
               Also found in your text (included automatically, no need to add): {autoVerses.join(', ')}
             </p>
           )}
@@ -2596,24 +2536,20 @@ function IdiomHeader({ note, onUpdate }: {
         <div className="relative self-start">
           <button
             onClick={() => setAddFieldMenuOpen((v) => !v)}
-            className="text-[11px] text-[rgb(var(--color-text-muted))] hover:text-violet-400 cursor-pointer flex items-center gap-1 py-0.5"
+            className="text-caption text-text-muted hover:text-[rgb(var(--link-wikilink))] cursor-pointer flex items-center gap-1 py-0.5"
           >
             <span>+</span>
             <span>Add field</span>
           </button>
           {addFieldMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setAddFieldMenuOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-20 w-40 rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg py-1">
-                {availableFieldDefs.map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => addField(f.key)}
-                    className="w-full text-left px-3 py-1.5 text-xs text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
-                  >
-                    {f.label}
-                  </button>
-                ))}
+              <div className="fixed inset-0 z-raised" onClick={() => setAddFieldMenuOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-overlay w-40">
+                <MenuSurface>
+                  {availableFieldDefs.map((f) => (
+                    <MenuItem key={f.key} label={f.label} onClick={() => addField(f.key)} />
+                  ))}
+                </MenuSurface>
               </div>
             </>
           )}
@@ -2630,10 +2566,10 @@ function IdiomFieldWrap({ label, onRemove, children }: { label: string; onRemove
   return (
     <div className="flex flex-col gap-1 group/field">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--color-text-muted))]">{label}</span>
+        <span className="text-caption2 font-medium uppercase tracking-wide text-text-muted">{label}</span>
         <button
           onClick={onRemove}
-          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer opacity-0 group-hover/field:opacity-100 transition-opacity"
+          className="text-caption2 text-text-muted hover:text-destructive cursor-pointer opacity-0 group-hover/field:opacity-100 transition-opacity"
         >
           Remove
         </button>
@@ -2651,9 +2587,9 @@ function IdiomChipRow({ items, onChange, placeholder }: { items: string[]; onCha
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {items.map((it) => (
-        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-xs font-medium">
+        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-chip bg-[rgb(var(--link-wikilink)/0.15)] text-[rgb(var(--link-wikilink))] text-xs font-medium">
           {it}
-          <button onClick={() => onChange(items.filter((x) => x !== it))} className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100">×</button>
+          <button onClick={() => onChange(items.filter((x) => x !== it))} className="text-[rgb(var(--link-wikilink))] hover:text-[rgb(var(--link-wikilink))] leading-none cursor-pointer opacity-70 hover:opacity-100">×</button>
         </span>
       ))}
       <input
@@ -2662,7 +2598,7 @@ function IdiomChipRow({ items, onChange, placeholder }: { items: string[]; onCha
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ',') && input.trim()) { e.preventDefault(); add(input) } }}
         onBlur={() => { if (input.trim()) add(input) }}
         placeholder={placeholder}
-        className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[110px]"
+        className="text-xs bg-transparent outline-none text-text-secondary placeholder:text-text-muted min-w-[110px]"
       />
     </div>
   )

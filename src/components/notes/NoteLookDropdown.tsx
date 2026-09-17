@@ -1,6 +1,7 @@
 import * as Popover from '@radix-ui/react-popover'
 import { useState } from 'react'
-import { Type, Check, ChevronDown } from 'lucide-react'
+import { Type, ChevronDown } from 'lucide-react'
+import { Button, PopoverSurface, MenuItem, MenuLabel } from '@/components/ui'
 
 export interface NoteLook {
   value: string
@@ -27,42 +28,28 @@ export default function NoteLookDropdown({ value, onChange }: { value: string; o
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={ChevronDown}
+          iconTrailing
           title="Note look while typing"
-          className={`flex items-center gap-1 px-1.5 py-1 rounded-shell text-[10px] font-medium transition-colors cursor-pointer flex-shrink-0 ${
-            open
-              ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-secondary))]'
-          }`}
+          className={open ? 'bg-surface-hover text-text-primary' : ''}
         >
           <Type size={11} />
-          <ChevronDown size={9} className="opacity-60" />
-        </button>
+        </Button>
       </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="bottom"
-          align="end"
-          sideOffset={6}
-          className="z-50 w-40 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1"
-        >
-          <div className="text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide px-2 pt-1 pb-1.5">Note look</div>
-          {NOTE_LOOKS.map((look) => (
-            <button
-              key={look.value}
-              onClick={() => { onChange(look.value); setOpen(false) }}
-              className={`w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
-                ${look.value === current.value
-                  ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                  : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
-                }`}
-            >
-              <span className="flex-1 text-xs" style={{ fontFamily: look.sample }}>{look.label}</span>
-              {look.value === current.value && <Check size={11} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-            </button>
-          ))}
-        </Popover.Content>
-      </Popover.Portal>
+      <PopoverSurface side="bottom" align="end" innerClassName="w-40 p-1">
+        <MenuLabel>Note look</MenuLabel>
+        {NOTE_LOOKS.map((look) => (
+          <MenuItem
+            key={look.value}
+            active={look.value === current.value}
+            onClick={() => { onChange(look.value); setOpen(false) }}
+            label={<span style={{ fontFamily: look.sample }}>{look.label}</span>}
+          />
+        ))}
+      </PopoverSurface>
     </Popover.Root>
   )
 }

@@ -20,6 +20,7 @@ import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
+import { MenuSurface, MenuItem } from '@/components/ui'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
  *  combined Strong's+word query like "G5485 god" — any plain word from that same query
@@ -33,7 +34,7 @@ function highlightStrongs(text: string, matchWordIndices: number[], extraWords: 
       {segs.map((seg, i) => (
         <span key={i}>
           {seg.match
-            ? <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm font-semibold">{seg.text}</mark>
+            ? <mark className="bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip font-semibold">{seg.text}</mark>
             : seg.text}
           {i < segs.length - 1 ? ' ' : ''}
         </span>
@@ -213,7 +214,7 @@ function highlight(text: string, query: string, wordMode: WordMode = 'all'): Rea
     <>
       {parts.map((p, i) =>
         matchRe.test(p)
-          ? <mark key={i} className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{p}</mark>
+          ? <mark key={i} className="bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip">{p}</mark>
           : p
       )}
     </>
@@ -255,10 +256,10 @@ function highlightWithAnnotations(text: string, ranges: AnnotationRange[], query
     // a nested <mark> carrying its own `text-` colour overrides the inherited red, which is
     // why red letters vanished wherever a search match overlapped them.
     const cls: string[] = []
-    if (isMatch) cls.push('bg-yellow-400/30', 'rounded-sm')
+    if (isMatch) cls.push('bg-[rgb(var(--highlight-amber)/0.35)]', 'rounded-chip')
     if (ann?.isRedLetter) cls.push(RED_LETTER_CLASS)
     else if (ann?.isItalic) cls.push('italic', 'opacity-70')
-    else if (isMatch) cls.push('text-[rgb(var(--color-text-primary))]')
+    else if (isMatch) cls.push('text-text-primary')
     if (isMatch) nodes.push(<mark key={i} className={cls.join(' ')}>{slice}</mark>)
     else nodes.push(<span key={i} className={cls.join(' ')}>{slice}</span>)
   }
@@ -1170,12 +1171,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // One shared shape for EVERY control in the Advanced Search header (mode, word-mode, scope,
   // sort, result-length, tag filter) — compact 10px, fixed 22px height, bordered pill, accent
   // tint when active. Previously each was its own size/padding/radius/active-colour.
-  const CTL = 'flex items-center gap-1 text-[10px] leading-none h-[22px] px-2 rounded-md border transition-colors cursor-pointer flex-shrink-0'
-  const CTL_ON = 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))] font-semibold'
-  const CTL_OFF = 'bg-[rgb(var(--color-surface-3))] border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-text-muted))]/50'
+  const CTL = 'flex items-center gap-1 text-caption2 leading-none h-[22px] px-2 rounded-md border transition-colors cursor-pointer flex-shrink-0'
+  const CTL_ON = 'bg-accent/12 border-accent/40 text-accent font-semibold'
+  const CTL_OFF = 'bg-surface-3 border-border text-text-secondary hover:text-text-primary hover:border-text-muted/50'
 
   return (
-    <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-full bg-surface-3">
       {/* ── Shared TopBar slot: mode + word-mode pills, then the scope pill. All controls share
            the CTL shape defined above. ── */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
@@ -1252,8 +1253,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 flex-wrap">
-        <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-separator bg-surface-2 flex-shrink-0 flex-wrap">
+        <Search size={14} className="text-text-muted flex-shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -1261,31 +1262,31 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           onChange={(e) => handleInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search scripture, Strong's, or verse ref…"
-          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none min-w-0 basis-40"
+          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none min-w-0 basis-40"
         />
         {effectiveMode(query) !== 'crossref' && (
           <>
             {/* Sort pill: conjoined "mode dropdown" + "direction flip" — replaces the old
                 single-button relevance/book-order cycle. Direction is its own control
                 (applies to whichever mode is active) rather than folded into the cycle. */}
-            <div ref={sortMenuRef} className="flex items-stretch h-[22px] rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden flex-shrink-0">
+            <div ref={sortMenuRef} className="flex items-stretch h-[22px] rounded-md border border-border bg-surface-3 overflow-hidden flex-shrink-0">
               <button
                 onClick={() => {
                   if (!sortMenuOpen) { const r = sortMenuRef.current?.getBoundingClientRect(); if (r) setSortMenuPos({ left: r.left, top: r.bottom + 4 }) }
                   setSortMenuOpen((v) => !v)
                 }}
                 title="Sort order"
-                className="flex items-center gap-1 text-[10px] leading-none pl-2 pr-1.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-caption2 leading-none pl-2 pr-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer"
               >
                 {sortMode === 'relevance' ? <ArrowUpDown size={11} /> : <ListTree size={11} />}
                 {sortMode === 'relevance' ? 'Relevance' : 'Book order'}
                 <ChevronDown size={9} className={`transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
               </button>
-              <div className="w-px bg-[rgb(var(--color-surface-4))]" />
+              <div className="w-px bg-surface-4" />
               <button
                 onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
                 title={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
-                className="flex items-center px-1.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="flex items-center px-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer"
               >
                 {sortDirection === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
               </button>
@@ -1299,19 +1300,19 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               {sortMenuOpen && sortMenuPos && createPortal(
                 <div
                   ref={sortMenuContentRef}
-                  style={{ position: 'fixed', left: sortMenuPos.left, top: sortMenuPos.top, zIndex: 9999 }}
-                  className="min-w-[130px] rounded-shell context-menu overflow-hidden py-1"
+                  style={{ position: 'fixed', left: sortMenuPos.left, top: sortMenuPos.top, zIndex: 'var(--z-menu)' }}
+                  className="min-w-[130px] material-popover rounded-menu overflow-hidden py-1"
                 >
                   {([['relevance', 'Relevance', ArrowUpDown], ['bookOrder', 'Book order', ListTree]] as const).map(([m, label, Icon], i) => (
                     <button
                       key={m}
                       onClick={() => { setSortMode(m); setSortMenuOpen(false) }}
                       {...sortMenuNav.getItemProps(i)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-4 cursor-pointer transition-colors"
                     >
-                      <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                      <Icon size={12} className="flex-shrink-0 text-text-muted" />
                       <span className="flex-1">{label}</span>
-                      {sortMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                      {sortMode === m && <Check size={12} className="flex-shrink-0 text-accent" />}
                     </button>
                   ))}
                 </div>,
@@ -1343,8 +1344,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               {contextMenuOpen && contextMenuPos && createPortal(
                 <div
                   ref={contextMenuContentRef}
-                  style={{ position: 'fixed', right: contextMenuPos.right, top: contextMenuPos.top, zIndex: 9999 }}
-                  className="min-w-[150px] rounded-shell context-menu overflow-hidden py-1"
+                  style={{ position: 'fixed', right: contextMenuPos.right, top: contextMenuPos.top, zIndex: 'var(--z-menu)' }}
+                  className="min-w-[150px] material-popover rounded-menu overflow-hidden py-1"
                 >
                   {([
                     ['default', 'Compact', AlignJustify],
@@ -1354,14 +1355,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       key={m}
                       onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
                       {...contextMenuNav.getItemProps(i)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-4 cursor-pointer transition-colors"
                     >
-                      <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                      <Icon size={12} className="flex-shrink-0 text-text-muted" />
                       <span className="flex-1">{label}</span>
-                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-accent" />}
                     </button>
                   ))}
-                  <div className="h-px my-1 bg-[rgb(var(--color-surface-4))]" />
+                  <div className="h-px my-1 bg-surface-4" />
                   {([
                     ['plusMinus1', '±1 verse'],
                     ['plusMinus2', '±2 verses'],
@@ -1370,11 +1371,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       key={m}
                       onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
                       {...contextMenuNav.getItemProps(i + 2)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-4 cursor-pointer transition-colors"
                     >
-                      <span className="font-mono font-bold leading-none w-3 flex-shrink-0 text-center text-[rgb(var(--color-text-muted))]">±</span>
+                      <span className="font-mono font-bold leading-none w-3 flex-shrink-0 text-center text-text-muted">±</span>
                       <span className="flex-1">{label}</span>
-                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-accent" />}
                     </button>
                   ))}
                 </div>,
@@ -1515,9 +1516,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               key={key}
               onClick={onClick}
               {...navProps}
-              className={`flex items-center gap-2 ${full ? 'w-full px-3 py-2 text-sm' : 'px-2 py-1.5 text-[13px] rounded-md'} text-left cursor-pointer transition-colors ${selected ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
+              className={`flex items-center gap-2 ${full ? 'w-full px-3 py-2 text-sm' : 'px-2 py-1.5 text-subhead rounded-md'} text-left cursor-pointer transition-colors ${selected ? 'text-accent bg-accent/10' : 'text-text-primary hover:bg-surface-3'}`}
             >
-              <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${selected ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
+              <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${selected ? 'bg-accent border-accent' : 'border-border'}`}>
                 {selected && <Check size={9} className="text-white" />}
               </span>
               {content}
@@ -1542,12 +1543,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 pills PLUS separate expand state doing overlapping jobs. */}
             {scopePaletteOpen && createPortal(
               <div
-                className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+                className="fixed inset-0 z-critical flex items-center justify-center bg-black/40"
                 onMouseDown={(e) => { if (e.target === e.currentTarget) { setScopePaletteOpen(false); setScopeSearch('') } }}
               >
-                <div className="flex flex-col bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden w-[600px] max-h-[75vh]">
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                    <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                <div className="flex flex-col material-sheet rounded-sheet overflow-hidden w-[600px] max-h-[75vh]">
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-separator flex-shrink-0">
+                    <Search size={13} className="text-text-muted flex-shrink-0" />
                     <input
                       ref={scopeSearchRef}
                       type="text"
@@ -1563,12 +1564,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         else if (e.key === 'ArrowDown') { e.preventDefault(); testamentNav.focusCurrent() }
                       }}
                       placeholder="Search editions, testaments, or books…"
-                      className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
+                      className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted"
                     />
                     {isFiltered && (
                       <button
                         onClick={() => { setTextId('all'); setTestamentFilter('all'); setSelectedBooks([]) }}
-                        className="flex-shrink-0 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                        className="flex-shrink-0 text-caption2 text-accent hover:underline cursor-pointer"
                       >Clear all</button>
                     )}
                   </div>
@@ -1579,13 +1580,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       neither one IS a testament); "Pseudepigrapha" narrows to Other Books
                       the same way. This replaces having a whole separate pill row nested
                       inside the Canon Books section specifically. */}
-                  <div className="flex items-center gap-1 flex-wrap px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+                  <div className="flex items-center gap-1 flex-wrap px-3 py-2 border-b border-separator flex-shrink-0">
                     {scopeOptions.map((s, i) => (
                       <button
                         key={s}
                         onClick={() => { setTestamentFilter(s); setSelectedBooks([]) }}
                         {...testamentNav.getItemProps(i)}
-                        className={`text-[10.5px] px-2 py-1 rounded-full border cursor-pointer transition-colors ${testamentFilter === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        className={`text-caption px-2 py-1 rounded-full border cursor-pointer transition-colors ${testamentFilter === s ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
                       >
                         {s === 'all' ? 'All' : s}
                       </button>
@@ -1594,7 +1595,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
                   <div className="overflow-y-auto flex-1 py-1 min-h-[240px]">
                     {!hasEditionMatch && !hasCanonMatch && !hasOtherMatch && (
-                      <div className="px-3 py-6 text-sm text-center text-[rgb(var(--color-text-muted))]">
+                      <div className="px-3 py-6 text-sm text-center text-text-muted">
                         {scopeSearch ? `Nothing matches "${scopeSearch}"` : 'Nothing in this scope'}
                       </div>
                     )}
@@ -1608,7 +1609,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           textId === t.id,
                           () => selectTranslation(t.id),
                           <>
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.id === 'kjva' ? 'bg-amber-500' : 'bg-sky-500'}`} />
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.id === 'kjva' ? 'bg-warning' : 'bg-info'}`} />
                             {fullEditionLabel(t.id, t.label)}
                           </>,
                           true,
@@ -1618,7 +1619,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     )}
 
                     {hasEditionMatch && (hasCanonMatch || hasOtherMatch) && (
-                      <div className="mx-3 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+                      <div className="mx-3 my-1 h-px bg-surface-4" />
                     )}
 
                     {/* ── Canon Books — flat grid, no OT/NT/Apocrypha sub-headers: the scope
@@ -1635,7 +1636,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     )}
 
                     {hasCanonMatch && hasOtherMatch && (
-                      <div className="mx-3 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+                      <div className="mx-3 my-1 h-px bg-surface-4" />
                     )}
 
                     {/* ── Other Books — each pseudepigrapha text is its own single-book edition ── */}
@@ -1653,10 +1654,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           return (
                             <div key={t.id}>
                               <div className="flex items-center justify-between px-3 pt-1.5 pb-0.5">
-                                <p className="text-[10px] font-medium text-[rgb(var(--color-text-muted))]">{group.label}</p>
+                                <p className="text-caption2 font-medium text-text-muted">{group.label}</p>
                                 <button
                                   onClick={() => setSelectedBooks((cur) => toggleGroup(cur, group))}
-                                  className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${wholeGroupSelected ? 'text-[rgb(var(--color-accent))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                                  className={`text-caption2 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${wholeGroupSelected ? 'text-accent font-semibold' : 'text-text-muted hover:text-text-primary'}`}
                                 >
                                   {wholeGroupSelected ? 'Clear all' : 'Select all'}
                                 </button>
@@ -1673,11 +1674,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     )}
                   </div>
 
-                  <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-t border-[rgb(var(--color-surface-4))]">
-                    <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Esc to close</span>
+                  <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-t border-separator">
+                    <span className="text-caption2 text-text-muted">Esc to close</span>
                     <button
                       onClick={() => { setScopePaletteOpen(false); setScopeSearch('') }}
-                      className="text-[11px] font-semibold px-3 py-1 rounded-md bg-[rgb(var(--color-accent))] text-white cursor-pointer"
+                      className="text-caption font-semibold px-3 py-1 rounded-md bg-accent text-white cursor-pointer"
                     >Done</button>
                   </div>
                 </div>
@@ -1706,17 +1707,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       >
         {/* Cross-ref results */}
         {effectiveMode(query) === 'crossref' && crossRefsLoading && (
-          <div className="px-4 py-6 text-center text-sm text-[rgb(var(--color-text-muted))] animate-pulse">Finding cross-references…</div>
+          <div className="px-4 py-6 text-center text-sm text-text-muted animate-pulse">Finding cross-references…</div>
         )}
         {effectiveMode(query) === 'crossref' && versePreview && (
-          <div className="px-4 py-3 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]">
-            <p className="text-[10px] font-semibold text-[rgb(var(--color-accent))] mb-1">{versePreview.ref}</p>
-            <p className="text-xs text-[rgb(var(--color-text-primary))] leading-relaxed">{versePreview.text}</p>
+          <div className="px-4 py-3 border-b border-separator bg-surface-2">
+            <p className="text-caption2 font-semibold text-accent mb-1">{versePreview.ref}</p>
+            <p className="text-xs text-text-primary leading-relaxed">{versePreview.text}</p>
           </div>
         )}
         {effectiveMode(query) === 'crossref' && !crossRefsLoading && crossRefs.length > 0 && (
           <div>
-            <p className="px-4 py-1.5 text-[10px] text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] sticky top-0 z-10">
+            <p className="px-4 py-1.5 text-caption2 text-text-muted border-b border-separator bg-surface-2 sticky top-0 z-10">
               {crossRefs.length} cross-reference{crossRefs.length !== 1 ? 's' : ''} — sorted by strength
             </p>
             {crossRefs.map((r, i) => {
@@ -1729,14 +1730,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   key={i}
                   onClick={() => onNavigate(r.bookId, r.chapter, r.verse, 'kjva')}
                   onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: 'kjva', text: '', x: e.clientX, y: e.clientY }) }}
-                  className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
+                  className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-surface-4 transition-colors cursor-pointer border-b border-separator group"
                 >
-                  <span className="text-xs font-mono text-[rgb(var(--color-accent))] w-28 flex-shrink-0 pt-0.5 group-hover:underline">{ref}</span>
+                  <span className="text-xs font-mono text-accent w-28 flex-shrink-0 pt-0.5 group-hover:underline">{ref}</span>
                   <div className="flex-1 min-w-0">
-                    {r.text && <p className="text-xs text-[rgb(var(--color-text-primary))] leading-relaxed line-clamp-2">{r.text}</p>}
-                    <div className="mt-0.5 text-[9px] text-[rgb(var(--color-text-muted))]">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</div>
+                    {r.text && <p className="text-xs text-text-primary leading-relaxed line-clamp-2">{r.text}</p>}
+                    <div className="mt-0.5 text-micro text-text-muted">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</div>
                   </div>
-                  <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               )
             })}
@@ -1744,17 +1745,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         )}
         {effectiveMode(query) === 'crossref' && !crossRefsLoading && crossRefs.length === 0 && query.trim().length >= 2 && (
           <div className="px-4 py-12 text-center">
-            <GitFork size={24} className="mx-auto mb-3 text-[rgb(var(--color-text-muted))] opacity-30" />
-            <p className="text-sm text-[rgb(var(--color-text-secondary))]">
+            <GitFork size={24} className="mx-auto mb-3 text-text-muted opacity-30" />
+            <p className="text-sm text-text-secondary">
               {parseRef(query.trim()) ? 'No cross-references found' : 'Enter a verse reference (e.g. Gen 1:1)'}
             </p>
           </div>
         )}
         {effectiveMode(query) === 'crossref' && !query.trim() && (
           <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <GitFork size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1">Find cross-references for any verse</p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Type a verse reference like "Gen 1:1" or "John 3:16"</p>
+            <GitFork size={28} className="text-text-muted mb-3 opacity-30" />
+            <p className="text-xs text-text-muted mb-1">Find cross-references for any verse</p>
+            <p className="text-caption2 text-text-muted opacity-60">Type a verse reference like "Gen 1:1" or "John 3:16"</p>
           </div>
         )}
 
@@ -1763,12 +1764,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             normal search below, intersected with the tag filter. */}
         {effectiveMode(query) !== 'crossref' && selectedTagIds.length > 0 && query.trim().length < 2 && (
           <div className="py-1.5">
-            <p className="px-4 pt-0.5 pb-1 text-[10px] text-[rgb(var(--color-text-muted))]">
+            <p className="px-4 pt-0.5 pb-1 text-caption2 text-text-muted">
               {tagMembers.length} tagged {tagMembers.length === 1 ? 'item' : 'items'}
               {tagMatchAll && selectedTagIds.length > 1 ? ' · matching all selected tags' : ''}
             </p>
             {tagMembers.length === 0 ? (
-              <div className="px-4 py-10 text-center text-xs text-[rgb(var(--color-text-muted))]">Nothing tagged yet.</div>
+              <div className="px-4 py-10 text-center text-xs text-text-muted">Nothing tagged yet.</div>
             ) : (
               <TaggedVerseList
                 groups={tagMembers.map((m) => {
@@ -1802,13 +1803,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
         {/* Text + Strong's search results */}
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && loading && (
-          <div className="px-4 py-6 text-center text-sm text-[rgb(var(--color-text-muted))] animate-pulse">Searching…</div>
+          <div className="px-4 py-6 text-center text-sm text-text-muted animate-pulse">Searching…</div>
         )}
 
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && query.trim().length >= 2 && results.length === 0 && (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-[rgb(var(--color-text-secondary))]">No results for "{query}"</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">{effectiveMode(query) === 'strongs' ? 'No verses carry this Strong’s number' : 'Try a different phrase or text'}</p>
+            <p className="text-sm text-text-secondary">No results for "{query}"</p>
+            <p className="text-xs text-text-muted mt-1">{effectiveMode(query) === 'strongs' ? 'No verses carry this Strong’s number' : 'Try a different phrase or text'}</p>
           </div>
         )}
 
@@ -1817,7 +1818,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             {/* Testament/book filters already show as chips in the scope row above, so this
                 doesn't repeat them — just the count, and only the search term for Strong's
                 mode where there's no query text visible elsewhere to explain the results. */}
-            <p className="px-4 pt-0.5 pb-1 text-[10px] text-[rgb(var(--color-text-muted))]">
+            <p className="px-4 pt-0.5 pb-1 text-caption2 text-text-muted">
               {totalCount} result{totalCount !== 1 ? 's' : ''}
               {effectiveMode(query) === 'strongs' && (() => {
                 const parsed = parseMultiStrongsQuery(query)
@@ -1844,7 +1845,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     const key = row.key
                     const group = row.group
                     const collapsed = collapsedGroups.has(key)
-                    const editionDot = group.textId === 'kjva' ? 'bg-amber-500' : group.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
+                    const editionDot = group.textId === 'kjva' ? 'bg-warning' : group.textId === 'lxx' ? 'bg-info' : 'bg-text-muted'
                     // A collapsed group (or one with no results, in practice never happens
                     // since groups are only created from an actual match) has no result row
                     // to close the card's bottom — the header closes it itself instead.
@@ -1858,21 +1859,21 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                       >
                         <div
-                          className={`mx-2 flex items-center gap-2 px-3 py-2 bg-[rgb(var(--color-surface-3))] border-t border-l border-r border-[rgb(var(--color-surface-4))] rounded-t-lg cursor-pointer select-none hover:bg-[rgb(var(--color-surface-4))] transition-colors ${selfClosing ? 'border-b rounded-b-lg' : ''}`}
+                          className={`mx-2 flex items-center gap-2 px-3 py-2 bg-surface-3 border-t border-l border-r border-separator rounded-t-lg cursor-pointer select-none hover:bg-surface-4 transition-colors ${selfClosing ? 'border-b rounded-b-lg' : ''}`}
                           onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
                         >
-                          <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
-                          <BookOpen size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-                          <span className="text-[13px] font-semibold text-[rgb(var(--color-text-primary))]">{group.bookName}</span>
-                          <span className="text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))]/60 rounded-full px-1.5 py-0.5">{group.results.length}</span>
+                          <ChevronDown size={12} className={`text-text-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+                          <BookOpen size={12} className="text-text-muted flex-shrink-0" />
+                          <span className="text-subhead font-semibold text-text-primary">{group.bookName}</span>
+                          <span className="text-caption2 text-text-muted bg-surface-4/60 rounded-full px-1.5 py-0.5">{group.results.length}</span>
                           <div className="flex-1" />
                           {textId === 'all' && (
-                            <span className="flex items-center gap-1 text-[9.5px] text-[rgb(var(--color-text-secondary))] font-semibold uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-caption2 text-text-secondary font-semibold uppercase tracking-wide">
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${editionDot}`} />
                               {group.textLabel}
                             </span>
                           )}
-                          {group.testament && textId !== 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">{group.testament}</span>}
+                          {group.testament && textId !== 'all' && <span className="text-caption2 text-text-muted uppercase tracking-wide">{group.testament}</span>}
                         </div>
                       </div>
                     )
@@ -1891,16 +1892,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       <button
                         onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))}
                         onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                        className={`mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-[rgb(var(--color-surface-2))] border-l border-r border-[rgb(var(--color-surface-4))] ${isLastInGroup ? 'border-b rounded-b-lg' : ''} ${row.indexInGroup > 0 ? 'border-t border-[rgb(var(--color-surface-4))/50]' : ''} ${isFocused ? 'bg-[rgb(var(--color-accent))]/10 ring-inset ring-1 ring-[rgb(var(--color-accent))]/30' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
+                        className={`mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-surface-2 border-l border-r border-separator ${isLastInGroup ? 'border-b rounded-b-lg' : ''} ${row.indexInGroup > 0 ? 'border-t border-separator' : ''} ${isFocused ? 'bg-accent/10 ring-inset ring-1 ring-accent/30' : 'hover:bg-surface-3'}`}
                       >
-                        <span className="text-[10.5px] font-mono font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded-md w-14 flex-shrink-0 text-center py-1">
+                        <span className="text-caption font-mono font-semibold text-accent bg-accent/10 rounded-md w-14 flex-shrink-0 text-center py-1">
                           {r.chapter}:{r.verse_num}
                         </span>
                         {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {
                           const span = contextMode === 'plusMinus1' ? 1 : 2
                           const chapterVerses = getContextVerses(r)
                           if (!chapterVerses) {
-                            return <span className="flex-1 text-[13px] text-[rgb(var(--color-text-muted))] italic pt-0.5">Loading context…</span>
+                            return <span className="flex-1 text-subhead text-text-muted italic pt-0.5">Loading context…</span>
                           }
                           const lo = r.verse_num - span
                           const hi = r.verse_num + span
@@ -1917,8 +1918,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 // approximation, not exact, when the word replacer is on.
                                 const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId, vText)
                                 return (
-                                  <span key={v.verse_num} className={`text-[13px] leading-relaxed ${isMatch ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'}`}>
-                                    <span className="font-mono text-[10px] mr-1 opacity-70">{v.verse_num}</span>
+                                  <span key={v.verse_num} className={`text-subhead leading-relaxed ${isMatch ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
+                                    <span className="font-mono text-caption2 mr-1 opacity-70">{v.verse_num}</span>
                                     {isMatch && effectiveMode(query) === 'strongs'
                                       ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
                                       : isMatch
@@ -1934,7 +1935,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           // for typical one-sentence verse snippets, which made the toggle feel like it
                           // "did nothing" — clamping to a single line makes the two modes clearly
                           // different at a glance.
-                          <span className={`flex-1 text-[13px] text-[rgb(var(--color-text-primary))] leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
+                          <span className={`flex-1 text-subhead text-text-primary leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
                             {(() => {
                               const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
                                 ? applyWordReplacer(r.text, wordReplacerRules)
@@ -1995,7 +1996,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             })()}
                           </span>
                         )}
-                        <ChevronRight size={13} className="flex-shrink-0 mt-1 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ChevronRight size={13} className="flex-shrink-0 mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
                     </div>
                   )
@@ -2006,9 +2007,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && !query.trim() && (
           <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <Search size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1">Search across all scripture texts</p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Keywords, a reference, or a Strong's number (e.g. G5485) · Esc to return to reader</p>
+            <Search size={28} className="text-text-muted mb-3 opacity-30" />
+            <p className="text-xs text-text-muted mb-1">Search across all scripture texts</p>
+            <p className="text-caption2 text-text-muted opacity-60">Keywords, a reference, or a Strong's number (e.g. G5485) · Esc to return to reader</p>
           </div>
         )}
       </div>
@@ -2045,28 +2046,28 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             collapsedContent={
               <div className="flex flex-col items-center justify-center" style={{ gap: railIconGap }}>
                 {Array.from({ length: railIconCount }).map((_, i) => (
-                  <BookOpen key={i} size={railIconSize} className="text-[rgb(var(--color-text-muted))]" />
+                  <BookOpen key={i} size={railIconSize} className="text-text-muted" />
                 ))}
               </div>
             }
           >
-            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-              <Search size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-separator flex-shrink-0">
+              <Search size={11} className="text-text-muted flex-shrink-0" />
               <input
                 ref={railSearchRef}
                 value={railSearch}
                 onChange={(e) => setRailSearch(e.target.value)}
                 placeholder="Jump to book…"
-                className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))] min-w-0"
+                className="flex-1 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted min-w-0"
               />
             </div>
             <div className="overflow-y-auto flex-1 py-1">
               {railGroups.length === 0 && (
-                <div className="px-3 py-3 text-xs text-center text-[rgb(var(--color-text-muted))]">No match</div>
+                <div className="px-3 py-3 text-xs text-center text-text-muted">No match</div>
               )}
               {railGroups.map((g) => {
                 const key = `${g.textId}::${g.bookId}`
-                const editionDot = g.textId === 'kjva' ? 'bg-amber-500' : g.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
+                const editionDot = g.textId === 'kjva' ? 'bg-warning' : g.textId === 'lxx' ? 'bg-info' : 'bg-text-muted'
                 return (
                   <button
                     key={key}
@@ -2080,7 +2081,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
                       railPanelRef.current?.close()
                     }}
-                    className="flex items-start gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                    className="flex items-start gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-subhead text-left text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors cursor-pointer"
                   >
                     {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${editionDot}`} />}
                     {/* Wraps to 2 lines instead of truncating — a fixed-width panel plus
@@ -2090,7 +2091,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         for every OTHER (mostly short) row just to cover a few edge cases;
                         wrapping keeps the panel's width modest while never losing text. */}
                     <span className="flex-1 line-clamp-2 leading-snug">{g.bookName}</span>
-                    {textId === 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide flex-shrink-0 mt-0.5">{g.textLabel}</span>}
+                    {textId === 'all' && <span className="text-caption2 text-text-muted uppercase tracking-wide flex-shrink-0 mt-0.5">{g.textLabel}</span>}
                   </button>
                 )
               })}
@@ -2102,25 +2103,24 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
       {/* Right-click context menu for search results */}
       {ctxMenu && createPortal(
-        <div
+        <MenuSurface
           ref={ctxMenuRef}
-          className="fixed z-[9999] min-w-[190px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] py-1 overflow-hidden"
+          className="fixed z-menu min-w-[190px]"
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
         >
-          <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+          <MenuItem
+            icon={ChevronRight}
+            label="Open here"
             onClick={() => {
               onNavigate(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId, highlightForResult({
                 book_id: ctxMenu.bookId, chapter: ctxMenu.chapter, verse_num: ctxMenu.verse, text: ctxMenu.text, _textId: ctxMenu.textId,
               }))
               closeCtxMenu()
             }}
-          >
-            <ChevronRight size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Open here
-          </button>
-          <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+          />
+          <MenuItem
+            icon={Copy}
+            label="Copy verse"
             onClick={async () => {
               const { bookId: bId, chapter: ch, verse: vs, textId: tid, text: tx } = ctxMenu
               closeCtxMenu()
@@ -2129,36 +2129,27 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
               copyVerse(bId, ch, vs, text, tid === 'lxx')
             }}
-          >
-            <Copy size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Copy verse
-          </button>
-          <button
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+          />
+          <MenuItem
+            icon={Hash}
+            label="Copy reference"
             onClick={() => { copyVerseRef(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId === 'lxx'); closeCtxMenu() }}
-          >
-            <Hash size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Copy reference
-          </button>
+          />
           {onOpenInNewTab && (
-            <button
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+            <MenuItem
+              icon={BookOpen}
+              label="Open in new tab"
               onClick={() => { onOpenInNewTab(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId); closeCtxMenu() }}
-            >
-              <BookOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              Open in new tab
-            </button>
+            />
           )}
           {onOpenInFloating && (
-            <button
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+            <MenuItem
+              icon={ExternalLink}
+              label="Open in floating tab"
               onClick={() => { onOpenInFloating(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse); closeCtxMenu() }}
-            >
-              <ExternalLink size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              Open in floating tab
-            </button>
+            />
           )}
-        </div>,
+        </MenuSurface>,
         document.body
       )}
     </div>
@@ -2212,45 +2203,45 @@ function TagFilterMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[140] w-[230px] rounded-shell context-menu overflow-hidden flex flex-col"
-      style={{ left: pos.x, top: pos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.97)' }}
+      className="fixed z-menu w-[230px] material-popover rounded-menu overflow-hidden flex flex-col"
+      style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[11px] font-semibold text-[rgb(var(--color-text-secondary))]">
+      <div className="flex items-center justify-between px-3 pt-2 pb-1 text-caption font-semibold text-text-secondary">
         <span>Filter by tag</span>
         {selectedIds.length > 0 && (
-          <button onClick={onClear} className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer">Clear</button>
+          <button onClick={onClear} className="text-caption2 text-text-muted hover:text-accent cursor-pointer">Clear</button>
         )}
       </div>
       <div className="max-h-[240px] overflow-y-auto px-1.5 pb-1">
-        {tags.length === 0 && <div className="px-2 py-3 text-[11px] text-[rgb(var(--color-text-muted))] text-center">No tags yet.</div>}
+        {tags.length === 0 && <div className="px-2 py-3 text-caption text-text-muted text-center">No tags yet.</div>}
         {tags.map((t) => {
           const on = selectedIds.includes(t.id)
           return (
             <button
               key={t.id}
               onClick={() => onToggle(t.id)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[rgb(var(--color-text-primary))]"
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left rounded-row hover:bg-surface-hover cursor-pointer text-text-primary"
             >
-              <span className={`w-[13px] h-[13px] rounded border flex items-center justify-center flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
+              <span className={`w-[13px] h-[13px] rounded-chip border flex items-center justify-center flex-shrink-0 ${on ? 'bg-accent border-accent' : 'border-border'}`}>
                 {on && <Check size={10} className="text-white" />}
               </span>
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
               <span className="truncate">{t.name}</span>
-              <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
+              <span className="ml-auto text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>
             </button>
           )
         })}
       </div>
       {selectedIds.length > 1 && (
-        <label className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-secondary))] border-t border-[rgb(var(--color-surface-4))] cursor-pointer">
+        <label className="flex items-center gap-2 px-3 py-1.5 text-caption text-text-secondary border-t border-separator cursor-pointer">
           <input type="checkbox" checked={matchAll} onChange={(e) => onSetMatchAll(e.target.checked)} />
           Match all selected tags
         </label>
       )}
       <button
         onClick={onManage}
-        className="flex items-center gap-1 px-3 py-2 text-[11px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] border-t border-[rgb(var(--color-surface-4))] cursor-pointer"
+        className="flex items-center gap-1 px-3 py-2 text-caption text-text-muted hover:text-text-primary border-t border-separator cursor-pointer"
       >
         <Settings2 size={11} /> Manage tags…
       </button>

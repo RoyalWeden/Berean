@@ -65,7 +65,7 @@ export function StrongsContextMenu({
   })
 
   if (!target) return null
-  const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
+  const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-text-primary hover:bg-surface-hover transition-colors'
 
   function openFloating(num: string) {
     window.app.openFloatingTab?.('lexicon', { strongsNum: num })
@@ -76,14 +76,14 @@ export function StrongsContextMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[10000] min-w-[160px] rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl py-1"
+      className="fixed z-[10000] min-w-[160px] rounded-lg border border-separator bg-surface-1 shadow-xl py-1"
       style={{ left: target.x, top: target.y }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="px-3 py-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
+      <div className="px-3 py-1 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
         {target.strongsNum}
       </div>
-      <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+      <div className="mx-2 my-1 h-px bg-surface-4" />
       <button
         className={ITEM}
         onClick={() => { onOpen(target.strongsNum); onClose() }}
@@ -105,7 +105,7 @@ export function StrongsContextMenu({
         <ExternalLink size={12} className="flex-shrink-0" />
         Open in floating tab
       </button>
-      <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+      <div className="mx-2 my-1 h-px bg-surface-4" />
       <button
         className={ITEM}
         onClick={() => { navigator.clipboard.writeText(target.strongsNum); onClose() }}

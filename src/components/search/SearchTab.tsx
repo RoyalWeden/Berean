@@ -96,7 +96,7 @@ function highlight(text: string, query: string): React.ReactNode[] {
   const parts = text.split(new RegExp(`(${combined})`, 'gi'))
   return parts.map((p, i) =>
     new RegExp(`^(?:${combined})$`, 'i').test(p)
-      ? <mark key={i} className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{p}</mark>
+      ? <mark key={i} className="bg-yellow-400/30 text-text-primary rounded-sm">{p}</mark>
       : p
   )
 }
@@ -382,10 +382,10 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const showTestamentFilter = testamentFilter !== 'all' || true  // always show
 
   return (
-    <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-full bg-surface-3">
       {/* Search input row */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
-        <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+        <Search size={14} className="text-text-muted flex-shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -393,7 +393,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
           onChange={(e) => handleInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search scripture…"
-          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
           autoFocus
         />
         {/* Translation selector dropdown */}
@@ -402,8 +402,8 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
             onClick={() => setTranslationOpen((v) => !v)}
             className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-shell transition-colors cursor-pointer ${
               translationOpen
-                ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'
+                ? 'bg-surface-4 text-text-primary'
+                : 'bg-surface-4 text-text-secondary hover:text-text-primary'
             }`}
           >
             {currentLabel}
@@ -416,17 +416,17 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                 onClick={() => selectTranslation('all')}
                 className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
                   textId === 'all'
-                    ? 'text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                    ? 'text-accent'
+                    : 'text-text-primary hover:bg-surface-hover'
                 }`}
               >
                 <Check size={11} className={textId === 'all' ? 'opacity-100' : 'opacity-0'} />
                 <span className="text-xs font-medium">All texts</span>
               </button>
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
+              <div className="h-px bg-surface-4 my-1" />
               {/* Bible translations */}
               <div className="px-3 py-0.5">
-                <span className="text-[9px] uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Bible</span>
+                <span className="text-[9px] uppercase tracking-wide text-text-muted">Bible</span>
               </div>
               {SEARCH_TRANSLATIONS.filter((t) => t.category === 'bible').map((t) => (
                 <button
@@ -434,18 +434,18 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                   onClick={() => selectTranslation(t.id)}
                   className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
                     textId === t.id
-                      ? 'text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      ? 'text-accent'
+                      : 'text-text-primary hover:bg-surface-hover'
                   }`}
                 >
                   <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
                   <span className="text-xs">{t.label}</span>
                 </button>
               ))}
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
+              <div className="h-px bg-surface-4 my-1" />
               {/* Pseudepigrapha */}
               <div className="px-3 py-0.5">
-                <span className="text-[9px] uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Pseudepigrapha</span>
+                <span className="text-[9px] uppercase tracking-wide text-text-muted">Pseudepigrapha</span>
               </div>
               {SEARCH_TRANSLATIONS.filter((t) => t.category === 'pseudo').map((t) => (
                 <button
@@ -453,8 +453,8 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                   onClick={() => selectTranslation(t.id)}
                   className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
                     textId === t.id
-                      ? 'text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      ? 'text-accent'
+                      : 'text-text-primary hover:bg-surface-hover'
                   }`}
                 >
                   <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
@@ -467,15 +467,15 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       </TabHeaderPortal>
 
       {/* Filter + sort bar */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 flex-wrap">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-separator bg-surface-2 flex-shrink-0 flex-wrap">
         {(['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as TestamentFilter[]).map((f) => (
           <button
             key={f}
             onClick={() => setTestamentFilter(f)}
             className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
               testamentFilter === f
-                ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                ? 'bg-accent/16 border-accent/45 text-accent font-semibold'
+                : 'border-separator text-text-muted hover:border-border hover:text-text-primary'
             }`}
           >
             {f === 'all' ? 'All sections' : f}
@@ -484,7 +484,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         <div className="flex-1 min-w-0" />
         <button
           onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
-          className="text-[10px] px-2 py-0.5 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer flex-shrink-0"
+          className="text-[10px] px-2 py-0.5 rounded border border-separator text-text-muted hover:text-text-primary hover:border-border transition-colors cursor-pointer flex-shrink-0"
         >
           {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
         </button>
@@ -503,19 +503,19 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         }}
       >
         {loading && (
-          <div className="px-4 py-6 text-center text-sm text-[rgb(var(--color-text-muted))] animate-pulse">Searching…</div>
+          <div className="px-4 py-6 text-center text-sm text-text-muted animate-pulse">Searching…</div>
         )}
 
         {!loading && query.trim().length >= 2 && results.length === 0 && (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-[rgb(var(--color-text-secondary))]">No results for "{query}"</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">Try a different phrase or translation</p>
+            <p className="text-sm text-text-secondary">No results for "{query}"</p>
+            <p className="text-xs text-text-muted mt-1">Try a different phrase or translation</p>
           </div>
         )}
 
         {!loading && filteredAndSorted.length > 0 && (
           <div>
-            <p className="px-4 py-1.5 text-[10px] text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] sticky top-0 z-20">
+            <p className="px-4 py-1.5 text-[10px] text-text-muted border-b border-separator bg-surface-2 sticky top-0 z-20">
               {results.length >= 100 && textId !== 'all' ? '100+ results' : `${totalFilteredCount} result${totalFilteredCount !== 1 ? 's' : ''}`}
               {testamentFilter !== 'all' && ` in ${testamentFilter}`}
               {textId === 'all' && ` across all texts`}
@@ -525,16 +525,16 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
             {filteredAndSorted.map((group) => (
               <div key={`${group.textId}::${group.bookId}`}>
                 {/* Book / text header */}
-                <div className="flex items-center gap-1.5 px-4 py-1.5 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] sticky top-[29px] z-10">
-                  <BookOpen size={11} className="text-[rgb(var(--color-text-muted))]" />
-                  <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">{group.bookName}</span>
-                  <span className="text-[10px] text-[rgb(var(--color-text-muted))] ml-1">{group.results.length}</span>
+                <div className="flex items-center gap-1.5 px-4 py-1.5 bg-surface-2 border-b border-separator sticky top-[29px] z-10">
+                  <BookOpen size={11} className="text-text-muted" />
+                  <span className="text-xs font-semibold text-text-secondary">{group.bookName}</span>
+                  <span className="text-[10px] text-text-muted ml-1">{group.results.length}</span>
                   <div className="flex-1" />
                   {textId === 'all' && (
-                    <span className="text-[9px] text-[rgb(var(--color-accent))] font-medium uppercase tracking-wide">{group.textLabel}</span>
+                    <span className="text-[9px] text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
                   )}
                   {group.testament && textId !== 'all' && (
-                    <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">{group.testament}</span>
+                    <span className="text-[9px] text-text-muted uppercase tracking-wide">{group.testament}</span>
                   )}
                 </div>
 
@@ -543,15 +543,15 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                   <button
                     key={`${r._textId ?? textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
                     onClick={() => navigateToVerse(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
-                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
+                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors cursor-pointer border-b border-separator group"
                   >
-                    <span className="text-xs font-mono text-[rgb(var(--color-text-muted))] w-14 flex-shrink-0 pt-0.5">
+                    <span className="text-xs font-mono text-text-muted w-14 flex-shrink-0 pt-0.5">
                       {r.chapter}:{r.verse_num}
                     </span>
-                    <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] leading-relaxed">
+                    <span className="flex-1 text-xs text-text-primary leading-relaxed">
                       {highlight(r.text, query)}
                     </span>
-                    <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
                 ))}
               </div>
@@ -561,11 +561,11 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
 
         {!loading && !query.trim() && (
           <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <Search size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1">
+            <Search size={28} className="text-text-muted mb-3 opacity-30" />
+            <p className="text-xs text-text-muted mb-1">
               {textId === 'all' ? 'Searching all texts' : `Searching ${currentLabel}`}
             </p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Type to search · prefix with "lxx:", "enoch:", etc. to narrow</p>
+            <p className="text-[10px] text-text-muted opacity-60">Type to search · prefix with "lxx:", "enoch:", etc. to narrow</p>
           </div>
         )}
       </div>

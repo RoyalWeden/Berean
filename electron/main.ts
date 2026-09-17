@@ -523,7 +523,9 @@ function createViewerWindow(): void {
     minHeight: 400,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#111114',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: is.dev ? 'Berean Viewer [Dev]' : 'Berean Viewer',
     webPreferences: {
@@ -600,7 +602,9 @@ function createStudyTrailWindow(trailSessionId?: string): void {
     minHeight: 420,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#17151a',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: is.dev ? 'Study Trail [Dev]' : 'Study Trail',
     webPreferences: {
@@ -664,7 +668,9 @@ function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): 
     minHeight: 420,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#17151a',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: 'Pick verses',
     webPreferences: {
@@ -703,7 +709,9 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
     minHeight: 400,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#111114',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: is.dev ? 'Berean Float [Dev]' : 'Berean',
     webPreferences: {
@@ -771,8 +779,9 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     // macOS: transparent + native vibrancy so the sidebar column can show a true
     // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
     // this in an opaque window — it only blurs the app's own content, not what's
-    // behind the window). The renderer is responsible for keeping the main
-    // content column opaque via CSS (see .app-opaque-base in global.css) since
+    // behind the window). The renderer stamps `data-vibrant` on <html> for this
+    // window (src/main.tsx) so global.css's `.material-bar`/etc. know to render
+    // translucent here and fall back to an opaque paint everywhere else, since
     // the whole window surface is transparent now, not just the sidebar strip.
     // Windows keeps the original opaque background — vibrancy is mac-only.
     ...(isMacWin

@@ -1,10 +1,10 @@
 import { useRef, useEffect, useState } from 'react'
-import * as Tooltip from '@radix-ui/react-tooltip'
 import { ChevronLeft, ChevronRight, Undo2, Minimize2, Maximize2 } from 'lucide-react'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { zoomedFontSize } from '@/lib/zoom'
 import { toDateKey, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { IconButton, Tooltip } from '@/components/ui'
 
 export { toDateKey }
 
@@ -176,9 +176,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             muted→primary) — matches the warmer, accent-tinted hover treatment the recent Study
             Trail styling pass gave its own icon buttons, rather than everything staying in flat
             greyscale until clicked. */}
-        <button onClick={weekOnly ? prevWeek : prevMonth} className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
-          <ChevronLeft size={compact ? 15 : 17} />
-        </button>
+        <IconButton
+          icon={ChevronLeft}
+          label={weekOnly ? 'Previous week' : 'Previous month'}
+          size={24}
+          onClick={weekOnly ? prevWeek : prevMonth}
+        />
         {/* min-w-0 so this is actually allowed to shrink in a flex row — the extra collapse
             button pushed this row tighter than month view ever had to fit in, so the label
             could wrap onto a second line. Month name and year render as two separate spans so
@@ -186,35 +189,36 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             flex-shrink-0 and is never clipped. The week-spanning-months label ("Aug 30 – Sep 5")
             has no year to protect the same way, so it stays one plain truncatable span. */}
         {crossMonthLabel ? (
-          <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{crossMonthLabel}</span>
+          <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{crossMonthLabel}</span>
         ) : (
           <span className="flex items-baseline gap-1 min-w-0">
-            <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthName}</span>
-            <span className="font-medium whitespace-nowrap flex-shrink-0 text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
+            <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{monthName}</span>
+            <span className="font-medium whitespace-nowrap flex-shrink-0 text-subhead text-text-muted" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
           </span>
         )}
         {!(weekOnly ? weekIsCurrent : isCurrentMonth) && (
-          <button
+          <IconButton
+            icon={Undo2}
+            label={weekOnly ? 'Jump to current week' : 'Jump to current month'}
+            size={24}
             onClick={() => (weekOnly ? setWeekAnchor(new Date()) : onDateChange(new Date()))}
-            title={weekOnly ? 'Jump to current week' : 'Jump to current month'}
-            className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
-          >
-            <Undo2 size={compact ? 13 : 15} />
-          </button>
+          />
         )}
-        <button onClick={weekOnly ? nextWeek : nextMonth} className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer">
-          <ChevronRight size={compact ? 15 : 17} />
-        </button>
+        <IconButton
+          icon={ChevronRight}
+          label={weekOnly ? 'Next week' : 'Next month'}
+          size={24}
+          onClick={weekOnly ? nextWeek : nextMonth}
+        />
         {/* Collapse to just the current week (or expand back to the full month) — per direct
             feedback. weekAnchor resets to today each time it's turned ON, so re-collapsing
             always starts from "this week," not wherever a previous week nav left off. */}
-        <button
+        <IconButton
+          icon={weekOnly ? Maximize2 : Minimize2}
+          label={weekOnly ? 'Show full month' : 'Collapse to this week'}
+          size={24}
           onClick={() => { if (!weekOnly) setWeekAnchor(new Date()); setWeekOnly((v) => !v) }}
-          title={weekOnly ? 'Show full month' : 'Collapse to this week'}
-          className="p-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors duration-150 cursor-pointer"
-        >
-          {weekOnly ? <Maximize2 size={compact ? 12 : 14} /> : <Minimize2 size={compact ? 12 : 14} />}
-        </button>
+        />
         <span className="flex-1" />
         {/* Today action sits after everything else in this row (per explicit direction:
             "needs to be on the right of everything else in that part of the calendar") —
@@ -225,7 +229,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
       {/* Day headers */}
       <div className="grid grid-cols-7 mb-0.5">
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-          <div key={d} className={`text-center ${weekdayHeaderPad} text-[rgb(var(--color-text-muted))] font-medium`} style={{ fontSize: weekdayHeaderSize }}>{d}</div>
+          <div key={d} className={`text-center ${weekdayHeaderPad} text-caption2 text-text-muted font-medium`} style={{ fontSize: weekdayHeaderSize }}>{d}</div>
         ))}
       </div>
       {/* Day cells — week band + heatmap, combined (per direct feedback, continuing the picked
@@ -247,46 +251,39 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           // Heatmap alpha: scales with content length, capped so a single huge entry doesn't
           // max out and flatten the gradient for everything shorter than it.
           const heatAlpha = hasNote ? Math.min(0.85, 0.16 + Math.min(noteLength / 1500, 1) * 0.5) : 0
-          const squareSize = compact ? 'w-[22px] h-[22px]' : 'w-7 h-7'
+          // Fixed 22×22 regardless of `compact` — the two sizes had drifted apart for no real
+          // reason (compact already used 22px); unifying means one fewer thing zoom/heatmap
+          // math has to account for.
+          const squareSize = 'w-[22px] h-[22px]'
           return (
             <div
               key={dateKey}
-              className={band ? 'bg-[rgb(var(--color-accent))]/[0.09]' : ''}
-              style={band ? {
-                borderRadius: colIdx === 0 ? '8px 0 0 8px' : colIdx === 6 ? '0 8px 8px 0' : 0,
-              } : undefined}
+              className={band ? `bg-accent-muted ${colIdx === 0 ? 'rounded-l-control' : colIdx === 6 ? 'rounded-r-control' : ''}` : ''}
             >
-              <Tooltip.Root delayDuration={400}>
-                <Tooltip.Trigger asChild>
-                  <button
-                    onClick={() => onSelectDate(cellDate)}
-                    onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
-                    className="flex items-center justify-center w-full py-px cursor-pointer group"
+              <Tooltip
+                delay={400}
+                side="top"
+                label={`${cellDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} Daily Note`}
+              >
+                <button
+                  onClick={() => onSelectDate(cellDate)}
+                  onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
+                  className="flex items-center justify-center w-full py-px cursor-pointer group"
+                >
+                  <span
+                    className={`flex items-center justify-center ${squareSize} rounded-control leading-none transition-[filter,background-color] duration-150
+                      ${isToday ? 'bg-accent text-white font-semibold group-hover:brightness-125'
+                        : isSelected ? 'text-text-primary ring-1 ring-inset ring-border group-hover:bg-surface-hover'
+                        : 'text-text-secondary font-medium group-hover:bg-surface-hover'}`}
+                    style={{
+                      fontSize: dayCellSize,
+                      ...(hasNote && !isToday ? { background: `rgb(var(--color-accent) / ${heatAlpha})`, color: 'rgb(var(--color-text-primary))' } : {}),
+                    }}
                   >
-                    {/* group-hover:scale-110 — a small tactile lift on hover, matching the more
-                        "pleasurable to interact with" hover feedback the recent styling pass added
-                        elsewhere (real focus/hover states instead of a flat color swap only). */}
-                    <span
-                      className={`flex items-center justify-center ${squareSize} rounded-lg leading-none transition-[filter,background-color,transform] duration-150 group-hover:scale-110
-                        ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold group-hover:brightness-125'
-                          : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40 group-hover:bg-[rgb(var(--color-surface-4))]/60'
-                          : 'text-[rgb(var(--color-text-secondary))] font-medium group-hover:bg-[rgb(var(--color-surface-4))]'}`}
-                      style={{
-                        fontSize: dayCellSize,
-                        ...(hasNote && !isToday ? { background: `rgb(var(--color-accent) / ${heatAlpha})`, color: 'rgb(var(--color-text-primary))' } : {}),
-                      }}
-                    >
-                      {cellDate.getDate()}
-                    </span>
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Portal>
-                  <Tooltip.Content side="top" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg whitespace-nowrap">
-                    {cellDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} Daily Note
-                    <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              </Tooltip.Root>
+                    {cellDate.getDate()}
+                  </span>
+                </button>
+              </Tooltip>
             </div>
           )
         }
@@ -343,8 +340,8 @@ export default function CalendarWidget({ date, notes, anchor, onDateChange, onSe
   return (
     <div
       ref={ref}
-      style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateX(-100%)', zIndex: 9999 }}
-      className="glass-panel-modal rounded-shell-lg p-3 w-64"
+      style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateX(-100%)', zIndex: 'var(--z-menu)' } as React.CSSProperties}
+      className="material-popover rounded-menu p-3 w-64"
     >
       <CalendarGrid date={date} notes={notes} onDateChange={onDateChange} onSelectDate={onSelectDate} />
     </div>

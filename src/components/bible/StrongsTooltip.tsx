@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import * as Tooltip from '@radix-ui/react-tooltip'
+// Aliased away from the design system's own `Tooltip` (@/components/ui/Tooltip) — this is a
+// rich hover-card (lemma/gloss/loading state) with its own Provider-avoidance and positioning
+// logic, not a simple label tooltip, so it stays on raw Radix rather than that primitive.
+import * as RTip from '@radix-ui/react-tooltip'
 import type { LexiconEntry } from '@/types'
 import { useAppStore } from '@/store'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -89,9 +92,9 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
     // Strong's chips can share its `skipDelayDuration` fast-rehover window instead of every
     // single word re-incurring the full open delay. See that file's comment for why one provider
     // per chapter (not a global singleton) is the deliberate granularity.
-    <Tooltip.Root open={open} onOpenChange={handleOpenChange}>
-        <Tooltip.Trigger asChild>
-          {/* text-[10px] + leading-none are both load-bearing, together: `leading-none` alone
+    <RTip.Root open={open} onOpenChange={handleOpenChange}>
+        <RTip.Trigger asChild>
+          {/* text-caption2 + leading-none are both load-bearing, together: `leading-none` alone
               (line-height: 1) still resolves against whatever font-size this span INHERITS from
               the surrounding verse text (e.g. ~16px), not the ~9-10px chip actually rendered
               inside it — every caller here passes a small Strong's-number chip as `children`, so
@@ -103,16 +106,16 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
               visually swallow/overlap a stacked secondary number entirely. */}
           <span
             ref={triggerRef}
-            className="cursor-pointer leading-none text-[10px]"
+            className="cursor-pointer leading-none text-caption2"
             onClick={() => onClickEntry?.(strongsNum)}
             onPointerEnter={() => { pointerOverRef.current = true }}
             onPointerLeave={() => { pointerOverRef.current = false }}
           >
             {children}
           </span>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content side="top" sideOffset={sideOffset} collisionPadding={8} className="z-50 max-w-xs">
+        </RTip.Trigger>
+        <RTip.Portal>
+          <RTip.Content side="top" sideOffset={sideOffset} collisionPadding={8} className="z-popover max-w-xs">
             {/* Radix Content owns the positioning transform (Popper) — the entrance
                 animation lives on this inner wrapper instead, so the two never fight
                 over the `transform` property (see global.css radix-popup-in comment).
@@ -121,38 +124,38 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
                 the CSS animation plays on insertion regardless. */}
             <div
               className="
-                rounded-shell glass-panel px-3 py-2.5
+                material-popover rounded-menu px-3 py-2.5
                 origin-[var(--radix-tooltip-content-transform-origin)]
                 animate-radix-popup-in
               "
             >
               {contextNote && (
-                <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic leading-snug mb-1.5 pb-1.5 border-b border-[rgb(var(--color-surface-4))]">
+                <p className="text-caption2 text-text-muted italic leading-snug mb-1.5 pb-1.5 border-b border-separator">
                   {contextNote}
                 </p>
               )}
               {!loaded ? (
-                <span className="text-xs text-[rgb(var(--color-text-muted))]">Loading…</span>
+                <span className="text-xs text-text-muted">Loading…</span>
               ) : entry ? (
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-mono font-semibold text-[rgb(var(--color-accent))]">{entry.strongsNum}</span>
-                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">{entry.lemma}</span>
+                    <span className="text-xs font-mono font-semibold text-accent">{entry.strongsNum}</span>
+                    <span className="text-sm font-medium text-text-primary">{entry.lemma}</span>
                     {entry.transliteration && (
-                      <span className="text-xs text-[rgb(var(--color-text-muted))] italic">({entry.transliteration})</span>
+                      <span className="text-xs text-text-muted italic">({entry.transliteration})</span>
                     )}
                   </div>
                   {entry.gloss && (
-                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-snug">{restoreStrongsPrefixes(wr(entry.gloss))}</p>
+                    <p className="text-xs text-text-secondary leading-snug">{restoreStrongsPrefixes(wr(entry.gloss))}</p>
                   )}
                 </div>
               ) : (
-                <span className="text-xs text-[rgb(var(--color-text-muted))]">No entry for {strongsNum}</span>
+                <span className="text-xs text-text-muted">No entry for {strongsNum}</span>
               )}
             </div>
-            <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
+            <RTip.Arrow className="fill-surface-4" />
+          </RTip.Content>
+        </RTip.Portal>
+      </RTip.Root>
   )
 }

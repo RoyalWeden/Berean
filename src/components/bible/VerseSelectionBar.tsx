@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, Hash, NotepadText, Files, GitFork, Volume2, Palette, Tag, X, Check } from 'lucide-react'
+import { IconButton } from '@/components/ui'
 import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
@@ -165,8 +166,6 @@ export default function VerseSelectionBar() {
 
   if (sel.length === 0 || activeSpace !== 'scripture') return null
 
-  const BTN = 'flex items-center justify-center w-7 h-7 rounded text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent'
-
   // Ranges + label for tagging this selection (grouped per chapter into spans).
   const tagRanges = selectionToRanges(sel.map((r) => ({ bookId: r.bookId, chapter: r.chapter, verse: r.verse })))
   const tagLabel = rangesLabel(tagRanges)
@@ -174,37 +173,35 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className="fixed left-1/2 bottom-5 -translate-x-1/2 flex items-center gap-0.5 rounded-shell context-menu px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-lg"
+        className="fixed left-1/2 bottom-5 -translate-x-1/2 flex items-center gap-0.5 material-popover rounded-control px-1.5 py-1"
         // While a full-screen overlay (floating search / settings / history — all a z-50
         // bg-black/50 backdrop) is up, sit at z-49: still above every bit of app chrome so it
         // stays visible in the dimmed/blurred background, but behind the overlay itself.
-        style={{ backgroundColor: 'rgb(var(--color-surface-2) / 0.62)', zIndex: modalOpen ? 49 : 95 }}
+        style={{ zIndex: modalOpen ? 49 : 95 }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <span className="px-2 text-xs font-semibold text-[rgb(var(--color-text-secondary))] whitespace-nowrap">{sel.length} selected</span>
-        <div className="w-px self-stretch bg-[rgb(var(--color-surface-4))] mx-0.5" />
+        <span className="px-2 text-xs font-semibold text-text-secondary whitespace-nowrap">{sel.length} selected</span>
+        <div className="w-px self-stretch bg-surface-4 mx-0.5" />
 
-        <button className={BTN} title={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}>
-          {copied === 'verses' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
-        </button>
-        <button className={BTN} title={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}>
-          {copied === 'refs' ? <Check size={14} className="text-green-400" /> : <Hash size={14} />}
-        </button>
-        <button className={BTN} title="Add note" onClick={addNote}><NotepadText size={14} /></button>
-        <button className={BTN} title={single ? 'Show notes for this verse' : 'Select a single verse'} disabled={!single}
-          onClick={() => single && filterBiblePanelByVerse(`${single.bookId}.${single.chapter}.${single.verse}`)}><Files size={14} /></button>
-        <button className={BTN} title={single ? 'Show cross references' : 'Select a single verse'} disabled={!single}
-          onClick={() => single && openCrossRefsInBiblePanel(`${single.bookId}.${single.chapter}.${single.verse}`)}><GitFork size={14} /></button>
-        <button className={BTN} title="Play audio from here"
-          onClick={() => startPlaybackFrom(sel[0].bookId, sel[0].chapter, sel[0].verse, sel[0].textId)}><Volume2 size={14} /></button>
+        <IconButton size={28} tooltip={false} label={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} title={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}
+          icon={copied === 'verses' ? Check : Copy} iconClassName={copied === 'verses' ? 'text-success' : undefined} />
+        <IconButton size={28} tooltip={false} label={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} title={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}
+          icon={copied === 'refs' ? Check : Hash} iconClassName={copied === 'refs' ? 'text-success' : undefined} />
+        <IconButton size={28} tooltip={false} label="Add note" title="Add note" icon={NotepadText} onClick={addNote} />
+        <IconButton size={28} tooltip={false} label={single ? 'Show notes for this verse' : 'Select a single verse'} title={single ? 'Show notes for this verse' : 'Select a single verse'} icon={Files} disabled={!single}
+          onClick={() => single && filterBiblePanelByVerse(`${single.bookId}.${single.chapter}.${single.verse}`)} />
+        <IconButton size={28} tooltip={false} label={single ? 'Show cross references' : 'Select a single verse'} title={single ? 'Show cross references' : 'Select a single verse'} icon={GitFork} disabled={!single}
+          onClick={() => single && openCrossRefsInBiblePanel(`${single.bookId}.${single.chapter}.${single.verse}`)} />
+        <IconButton size={28} tooltip={false} label="Play audio from here" title="Play audio from here" icon={Volume2}
+          onClick={() => startPlaybackFrom(sel[0].bookId, sel[0].chapter, sel[0].verse, sel[0].textId)} />
 
-        <div className="w-px self-stretch bg-[rgb(var(--color-surface-4))] mx-0.5" />
-        <button ref={tagBtnRef} className={BTN} title="Tag verses"
-          onClick={() => setTagAnchor(tagAnchor ? null : tagBtnRef.current?.getBoundingClientRect() ?? null)}><Tag size={14} /></button>
-        <button ref={colorBtnRef} className={BTN} title="Highlight" onClick={() => setColorOpen((v) => !v)}><Palette size={14} /></button>
+        <div className="w-px self-stretch bg-surface-4 mx-0.5" />
+        <IconButton ref={tagBtnRef} size={28} tooltip={false} label="Tag verses" title="Tag verses" icon={Tag}
+          onClick={() => setTagAnchor(tagAnchor ? null : tagBtnRef.current?.getBoundingClientRect() ?? null)} />
+        <IconButton ref={colorBtnRef} size={28} tooltip={false} label="Highlight" title="Highlight" icon={Palette} onClick={() => setColorOpen((v) => !v)} />
 
-        <div className="w-px self-stretch bg-[rgb(var(--color-surface-4))] mx-0.5" />
-        <button className={BTN} title="Clear selection" onClick={clearVerseSelection}><X size={14} /></button>
+        <div className="w-px self-stretch bg-surface-4 mx-0.5" />
+        <IconButton size={28} tooltip={false} label="Clear selection" title="Clear selection" icon={X} onClick={clearVerseSelection} />
       </div>
 
       {colorOpen && colorBtnRef.current && (
@@ -256,8 +253,8 @@ function ColorGridPopover({ anchorRect, onPick, onRemove, onClose }: {
   return (
     <div
       ref={ref}
-      className="fixed z-[140] rounded-shell context-menu p-2"
-      style={{ left: pos.x, top: pos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.97)' }}
+      className="fixed z-overlay material-popover rounded-menu p-2"
+      style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="grid grid-cols-5 gap-1.5">
@@ -267,7 +264,7 @@ function ColorGridPopover({ anchorRect, onPick, onRemove, onClose }: {
         ))}
       </div>
       <button onClick={onRemove}
-        className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer">
+        className="mt-2 w-full flex items-center justify-center gap-1 text-caption text-text-muted hover:text-destructive cursor-pointer">
         <X size={11} /> Remove highlights
       </button>
     </div>

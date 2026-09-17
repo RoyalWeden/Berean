@@ -16,6 +16,7 @@ import { useAppStore } from '@/store'
 import { bookName, bookOrder } from '@/lib/parseRef'
 import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
+import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton } from '@/components/ui'
 
 // ── System (virtual) folders ─────────────────────────────────────────────────
 // Notes belong to a system folder by their type/tags. A note that has been moved
@@ -97,10 +98,6 @@ interface Props {
   onToggleSelectFolder?: (id: string) => void
   searchQuery?: string
 }
-
-const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left
-  text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]
-  hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer`
 
 export default function NotesFolderView({
   notes, folders, activeNoteId,
@@ -577,41 +574,34 @@ export default function NotesFolderView({
         onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : (onPreview ?? onSelect)(note) }}
         onDoubleClick={() => { if (!isRenaming && !isMoveMenuOpen && !selectMode) onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
-        style={{
-          paddingLeft: 12 + depth * 16,
-          // Dim accent wash across the whole row for the previewed note (much softer than the
-          // bright bar). Inline so it's not at the mercy of Tailwind's arbitrary-opacity parsing.
-          ...(activeNoteId === note.id ? { backgroundColor: 'rgb(var(--color-accent) / 0.16)' } : {}),
-        }}
+        style={{ paddingLeft: 12 + depth * 16 }}
         // Flat, no border — matches NotesList's row treatment (a bordered box around every
         // single row read as heavy/boxy and out of step with the rest of the app). Just a
-        // soft hover tint and a slightly stronger accent tint for the active note.
-        // Was hover:bg-surface-3 — but NotesPanel.tsx's own root container is ALSO
-        // bg-surface-3, so hovering a note row painted the identical color already behind it:
-        // zero contrast, invisible on every theme (not just one). Folder rows right above this
-        // one already correctly use surface-4 for exactly this reason; matched here too.
-        className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
+        // soft hover tint and a slightly stronger accent tint for the active note — same
+        // bg-surface-selected + accent-bar recipe as NotesList's selected/previewed row.
+        className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-row cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
           activeNoteId === note.id
-            ? 'font-medium'
-            : 'hover:bg-[rgb(var(--color-surface-4))]'
+            ? 'bg-surface-selected font-medium'
+            : 'hover:bg-surface-hover'
         }`}
       >
         {activeNoteId === note.id && (
-          <span className="absolute -left-1.5 top-1 bottom-1 w-[3px] rounded-full bg-[rgb(var(--color-accent))]" />
+          <span className="absolute -left-1.5 top-1 bottom-1 w-[3px] rounded-control bg-accent" />
         )}
         {selectMode && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSelectNote?.(note.id) }}
-            className="flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+            className="flex-shrink-0 text-text-muted hover:text-accent cursor-pointer"
           >
-            {isSelected ? <CheckSquare size={14} className="text-[rgb(var(--color-accent))]" /> : <Square size={14} />}
+            {isSelected ? <CheckSquare size={14} className="text-accent" /> : <Square size={14} />}
           </button>
         )}
-        <NotepadText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+        <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
         {isRenaming ? (
-          <input
+          <TextField
             ref={noteRenameRef}
+            size="sm"
             value={noteRenameVal}
             onChange={(e) => setNoteRenameVal(e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -620,10 +610,11 @@ export default function NotesFolderView({
               if (e.key === 'Escape') setRenamingNoteId(null)
             }}
             onBlur={() => commitNoteRename(note)}
-            className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-accent))/50] rounded px-1 outline-none text-[rgb(var(--color-text-primary))]"
+            wrapperClassName="flex-1 min-w-0"
+            className="h-5"
           />
         ) : (
-          <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
+          <span className="min-w-0 truncate text-xs text-text-primary">{note.title || 'Untitled'}</span>
         )}
         {/* Status indicator — same colored icon used in the list/board views, for a consistent
             at-a-glance status signal across every way of browsing notes. */}
@@ -635,59 +626,56 @@ export default function NotesFolderView({
         })()}
         {/* Hover action buttons — rename and move (not in select mode, not on system-folder notes) */}
         {!selectMode && !isRenaming && renameable && onRenameNote && (
-          <button
+          <IconButton
+            icon={Pencil}
+            label="Rename"
+            size={20}
+            className="opacity-0 group-hover:opacity-100"
             onClick={(e) => { e.stopPropagation(); setNoteRenameVal(note.title || ''); setRenamingNoteId(note.id) }}
-            title="Rename"
-            className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-opacity cursor-pointer"
-          >
-            <Pencil size={11} />
-          </button>
+          />
         )}
         {!selectMode && !isRenaming && movable && (
           <div className="relative" data-note-move-menu>
-            <button
+            <IconButton
+              icon={FolderInput}
+              label="Move to folder"
+              size={20}
+              className="opacity-0 group-hover:opacity-100"
               onClick={(e) => { e.stopPropagation(); setNoteMoveMenu(isMoveMenuOpen ? null : { noteId: note.id }) }}
-              title="Move to folder"
-              className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-opacity cursor-pointer"
-            >
-              <FolderInput size={11} />
-            </button>
+            />
             {isMoveMenuOpen && (
-              <div className="context-menu absolute right-0 top-full mt-0.5 z-50 min-w-[150px] max-h-48 overflow-y-auto rounded-shell-lg py-1">
+              <MenuSurface className="absolute right-0 top-full mt-0.5 z-menu max-h-48 overflow-y-auto min-w-[150px]">
                 {note.folderId != null && (
-                  <button
-                    className={MENU_ITEM}
+                  <MenuItem
+                    label="Move out (no folder)"
                     onClick={(e) => { e.stopPropagation(); onSetNoteFolder(note.id, null); setNoteMoveMenu(null) }}
-                  >
-                    Move out (no folder)
-                  </button>
+                  />
                 )}
                 {orderedFolders(folders).map(({ folder: f, depth: d }) => (
-                  <button
+                  <MenuItem
                     key={f.id}
                     disabled={f.id === note.folderId}
-                    className={`${MENU_ITEM} ${f.id === note.folderId ? 'opacity-40 cursor-default' : ''}`}
+                    label={f.name}
                     style={{ paddingLeft: 12 + d * 10 }}
                     onClick={(e) => { e.stopPropagation(); if (f.id !== note.folderId) { onSetNoteFolder(note.id, f.id); setNoteMoveMenu(null) } }}
-                  >
-                    {f.name}
-                  </button>
+                  />
                 ))}
                 {folders.length === 0 && (
-                  <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No folders yet</div>
+                  <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet</div>
                 )}
-              </div>
+              </MenuSurface>
             )}
           </div>
         )}
         {!selectMode && !isRenaming && (
-          <button
+          <IconButton
+            icon={Trash2}
+            label="Delete note"
+            size={20}
+            danger
+            className="opacity-0 group-hover:opacity-100"
             onClick={(e) => { e.stopPropagation(); onDelete(note) }}
-            title="Delete note"
-            className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 transition-opacity cursor-pointer"
-          >
-            <Trash2 size={11} />
-          </button>
+          />
         )}
       </div>
       {/* In-folder search snippets — more compact than list view */}
@@ -697,7 +685,7 @@ export default function NotesFolderView({
             <div
               key={i}
               onClick={() => onSelect(note)}
-              className="text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))/40] rounded px-1.5 py-0.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] truncate"
+              className="text-caption2 leading-snug text-text-secondary bg-surface-4/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-surface-hover truncate"
             >
               {applyFindHighlight(s, searchQuery!)}
             </div>
@@ -737,29 +725,30 @@ export default function NotesFolderView({
           onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id); onFolderSelect?.(folder.id) } }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setFolderMenu({ folder, x: e.clientX, y: e.clientY }); setFolderMoveOpen(false) }}
           style={{ paddingLeft: 8 + depth * 16 }}
-          className={`group flex items-center gap-1.5 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
-            dragOverId === folder.id ? 'bg-[rgb(var(--color-accent))/20] ring-1 ring-inset ring-[rgb(var(--color-accent))]'
-              : isSelected ? 'bg-[rgb(var(--color-accent))/10]' : 'hover:bg-[rgb(var(--color-surface-4))]'
+          className={`group flex items-center gap-1.5 pr-2 py-1.5 mx-1.5 rounded-row cursor-pointer transition-colors ${
+            dragOverId === folder.id ? 'bg-accent-muted ring-1 ring-inset ring-accent/40'
+              : isSelected ? 'bg-accent-muted' : 'hover:bg-surface-hover'
           }`}
         >
           {selectMode && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleSelectFolder?.(folder.id) }}
-              className="flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+              className="flex-shrink-0 text-text-muted hover:text-accent cursor-pointer"
             >
-              {isSelected ? <CheckSquare size={14} className="text-[rgb(var(--color-accent))]" /> : <Square size={14} />}
+              {isSelected ? <CheckSquare size={14} className="text-accent" /> : <Square size={14} />}
             </button>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); toggle(folder.id) }}
             className="flex-shrink-0 cursor-pointer"
           >
-            <ChevronRight size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+            <ChevronRight size={12} className={`text-text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
           </button>
-          {isOpen ? <FolderOpen size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" /> : <Folder size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+          {isOpen ? <FolderOpen size={13} className="flex-shrink-0 text-accent" /> : <Folder size={13} className="flex-shrink-0 text-accent" />}
           {isRenaming ? (
-            <input
+            <TextField
               ref={renameRef}
+              size="sm"
               value={renameVal}
               onChange={(e) => setRenameVal(e.target.value)}
               onClick={(e) => e.stopPropagation()}
@@ -768,25 +757,26 @@ export default function NotesFolderView({
                 if (e.key === 'Escape') setRenamingId(null)
               }}
               onBlur={() => { onRenameFolder(folder.id, renameVal.trim() || 'Folder'); setRenamingId(null) }}
-              className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-accent))/50] rounded px-1 outline-none text-[rgb(var(--color-text-primary))]"
+              wrapperClassName="flex-1 min-w-0"
+              className="h-5"
             />
           ) : (
-            <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-primary))]">{folder.name}</span>
+            <span className="min-w-0 truncate text-xs font-medium text-text-primary">{folder.name}</span>
           )}
           {/* "→ drop here" badge — shows for both note and folder drags */}
           {(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id ? (
-            <span className="ml-auto text-[10px] font-medium text-[rgb(var(--color-accent))] animate-pulse flex-shrink-0">→ here</span>
+            <span className="ml-auto text-caption2 font-medium text-accent animate-pulse flex-shrink-0">→ here</span>
           ) : (
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{fNotes.length || ''}</span>
+            <span className="text-caption2 text-text-muted">{fNotes.length || ''}</span>
           )}
           {!isRenaming && !selectMode && (
             <>
-              <button onClick={(e) => { e.stopPropagation(); onCreateFolder(folder.id) }} title="New subfolder"
-                className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-opacity cursor-pointer"><FolderPlus size={11} /></button>
-              <button onClick={(e) => { e.stopPropagation(); setRenameVal(folder.name); setRenamingId(folder.id) }} title="Rename"
-                className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-opacity cursor-pointer"><Pencil size={11} /></button>
-              <button onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id) }} title="Delete folder (notes move to root)"
-                className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 transition-opacity cursor-pointer"><Trash2 size={11} /></button>
+              <IconButton icon={FolderPlus} label="New subfolder" size={20} className="opacity-0 group-hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); onCreateFolder(folder.id) }} />
+              <IconButton icon={Pencil} label="Rename" size={20} className="opacity-0 group-hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); setRenameVal(folder.name); setRenamingId(folder.id) }} />
+              <IconButton icon={Trash2} label="Delete folder (notes move to root)" size={20} danger className="opacity-0 group-hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id) }} />
             </>
           )}
         </div>
@@ -833,14 +823,14 @@ export default function NotesFolderView({
               <div
                 onClick={() => toggle(bookFolderId)}
                 style={{ paddingLeft: 24 }}
-                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
               >
-                <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${bookIsOpen ? 'rotate-90' : ''}`} />
+                <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${bookIsOpen ? 'rotate-90' : ''}`} />
                 {bookIsOpen
-                  ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                  : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{bookName(bid)}</span>
-                <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
+                  ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
+                  : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
+                <span className="min-w-0 truncate text-xs text-text-secondary">{bookName(bid)}</span>
+                <span className="text-caption2 text-text-muted">{totalNotes || ''}</span>
               </div>
               {bookIsOpen && sortedChapters.map(([ch, chNotes]) => {
                 const chFolderId = `sys:${key}:${bid}:${ch}`
@@ -851,14 +841,14 @@ export default function NotesFolderView({
                     <div
                       onClick={() => toggle(chFolderId)}
                       style={{ paddingLeft: 40 }}
-                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
                     >
-                      <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${chIsOpen ? 'rotate-90' : ''}`} />
+                      <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${chIsOpen ? 'rotate-90' : ''}`} />
                       {chIsOpen
-                        ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                        : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                      <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">Chapter {ch}</span>
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{chNotes.length || ''}</span>
+                        ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
+                        : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
+                      <span className="min-w-0 truncate text-xs text-text-secondary">Chapter {ch}</span>
+                      <span className="text-caption2 text-text-muted">{chNotes.length || ''}</span>
                     </div>
                     {/* Notes inside chapter — depth=3 → paddingLeft=12+3*16=60 */}
                     {chIsOpen && chNotes.map((n) => renderNote(n, 3))}
@@ -889,14 +879,14 @@ export default function NotesFolderView({
               <div
                 onClick={() => toggle(yearFolderId)}
                 style={{ paddingLeft: 24 }}
-                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
               >
-                <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${yearIsOpen ? 'rotate-90' : ''}`} />
+                <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${yearIsOpen ? 'rotate-90' : ''}`} />
                 {yearIsOpen
-                  ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                  : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{year}</span>
-                <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
+                  ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
+                  : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
+                <span className="min-w-0 truncate text-xs text-text-secondary">{year}</span>
+                <span className="text-caption2 text-text-muted">{totalNotes || ''}</span>
               </div>
               {yearIsOpen && sortedMonths.map(([monthKey, mNotes]) => {
                 const monthFolderId = `sys:daily:${monthKey}`
@@ -909,14 +899,14 @@ export default function NotesFolderView({
                     <div
                       onClick={() => toggle(monthFolderId)}
                       style={{ paddingLeft: 40 }}
-                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
                     >
-                      <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${monthIsOpen ? 'rotate-90' : ''}`} />
+                      <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${monthIsOpen ? 'rotate-90' : ''}`} />
                       {monthIsOpen
-                        ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                        : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                      <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{mNotes.length || ''}</span>
+                        ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
+                        : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
+                      <span className="min-w-0 truncate text-xs text-text-secondary">{monthLabel}</span>
+                      <span className="text-caption2 text-text-muted">{mNotes.length || ''}</span>
                     </div>
                     {/* Notes inside month — depth=3, newest first (pre-sorted in dailySubGroups) */}
                     {monthIsOpen && mNotes.map((n) => renderNote(n, 3))}
@@ -961,13 +951,13 @@ export default function NotesFolderView({
             <div
               ref={(el) => { if (el) folderRowRefs.current.set(key, el); else folderRowRefs.current.delete(key) }}
               onClick={() => toggle(key)}
-              className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+              className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors"
             >
-              <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-              <Icon size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">{label}</span>
-              <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{sysNotes.length || ''}</span>
+              <ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+              <Icon size={13} className="flex-shrink-0 text-text-muted" />
+              <span className="min-w-0 truncate text-xs font-medium text-text-secondary">{label}</span>
+              <Lock size={9} className="text-text-muted opacity-50" />
+              <span className="text-caption2 text-text-muted">{sysNotes.length || ''}</span>
             </div>
             {isOpen && (
               key === 'daily'
@@ -985,24 +975,24 @@ export default function NotesFolderView({
       <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
         <div
           onClick={() => toggle('pdfs')}
-          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors"
         >
-          <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('pdfs') ? 'rotate-90' : ''}`} />
-          <FileType2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-          <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">PDFs</span>
-          <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{pdfs.length || ''}</span>
+          <ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${expanded.has('pdfs') ? 'rotate-90' : ''}`} />
+          <FileType2 size={13} className="flex-shrink-0 text-text-muted" />
+          <span className="min-w-0 truncate text-xs font-medium text-text-secondary">PDFs</span>
+          <Lock size={9} className="text-text-muted opacity-50" />
+          <span className="text-caption2 text-text-muted">{pdfs.length || ''}</span>
         </div>
         {expanded.has('pdfs') && (
           pdfs.length === 0
-            ? <div className="pl-8 pr-2 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No PDFs imported</div>
+            ? <div className="pl-8 pr-2 py-1.5 text-caption text-text-muted italic">No PDFs imported</div>
             : pdfs.map((p) => (
                 <div key={p.id}
                   onClick={() => openPdf(p.id, p.title)}
                   style={{ paddingLeft: 28 }}
-                  className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
-                  <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                  <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{p.title}</span>
+                  className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors">
+                  <FileText size={12} className="flex-shrink-0 text-text-muted" />
+                  <span className="min-w-0 truncate text-xs text-text-primary">{p.title}</span>
                 </div>
               ))
         )}
@@ -1022,40 +1012,41 @@ export default function NotesFolderView({
         <div
           data-folder-row
           onClick={() => toggle('trash')}
-          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors"
         >
-          <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('trash') ? 'rotate-90' : ''}`} />
-          <Trash2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-          <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">Trash</span>
-          <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{trashedNotes.length || ''}</span>
+          <ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${expanded.has('trash') ? 'rotate-90' : ''}`} />
+          <Trash2 size={13} className="flex-shrink-0 text-text-muted" />
+          <span className="min-w-0 truncate text-xs font-medium text-text-secondary">Trash</span>
+          <Lock size={9} className="text-text-muted opacity-50" />
+          <span className="text-caption2 text-text-muted">{trashedNotes.length || ''}</span>
         </div>
         {expanded.has('trash') && (
           trashedNotes.length === 0
-            ? <div className="pl-8 pr-2 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">Trash is empty</div>
+            ? <div className="pl-8 pr-2 py-1.5 text-caption text-text-muted italic">Trash is empty</div>
             : trashedNotes.map((n) => (
                 <div key={n.id}
                   style={{ paddingLeft: 28 }}
-                  className="group flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
-                  <NotepadText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  className="group flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-row hover:bg-surface-hover transition-colors">
+                  <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
                   <div className="flex-1 min-w-0">
-                    <div className="truncate text-xs text-[rgb(var(--color-text-secondary))]">{n.title || 'Untitled'}</div>
-                    <div className="text-[10px] text-[rgb(var(--color-text-muted))]">{deletedAgoLabel(n.deletedAt)}</div>
+                    <div className="truncate text-xs text-text-secondary">{n.title || 'Untitled'}</div>
+                    <div className="text-caption2 text-text-muted">{deletedAgoLabel(n.deletedAt)}</div>
                   </div>
-                  <button
-                    title="Restore"
+                  <IconButton
+                    icon={RotateCcw}
+                    label="Restore"
+                    size={20}
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100"
                     onClick={() => window.notes.restoreNote(n.id).then(() => useAppStore.getState().bumpNoteToken())}
-                    className="flex-shrink-0 p-1 rounded hover:bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  >
-                    <RotateCcw size={12} />
-                  </button>
-                  <button
-                    title="Delete forever"
+                  />
+                  <IconButton
+                    icon={Trash2}
+                    label="Delete forever"
+                    size={20}
+                    danger
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100"
                     onClick={() => window.notes.purgeTrashItem(n.id).then(() => useAppStore.getState().bumpNoteToken())}
-                    className="flex-shrink-0 p-1 rounded hover:bg-red-500/10 text-[rgb(var(--color-text-muted))] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  />
                 </div>
               ))
         )}
@@ -1063,46 +1054,44 @@ export default function NotesFolderView({
       {/* "Empty Trash" — reached via right-click on the Trash row above, not a per-item menu */}
       {trashMenu && createPortal(
         <MenuPositioner ref={trashMenuRef} x={trashMenu.x} y={trashMenu.y}>
-          <div className="glass-panel rounded-shell-lg py-1 min-w-[160px] shadow-xl">
-            <button
-              className={`${MENU_ITEM} text-red-400 hover:text-red-300 hover:bg-red-500/10`}
+          <MenuSurface className="min-w-[160px]">
+            <MenuItem
+              danger
+              icon={Trash2}
+              label="Empty Trash"
               onClick={() => { setTrashMenu(null); setConfirmEmptyTrash(true) }}
-            >
-              <Trash2 size={13} className="flex-shrink-0" /> Empty Trash
-            </button>
-          </div>
+            />
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}
       {confirmEmptyTrash && createPortal(
-        <div className="native-buttons fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
-          <div className="glass-panel rounded-shell-lg p-5 w-80 max-w-full">
+        <div className="native-buttons fixed inset-0 z-modal flex items-center justify-center bg-black/50">
+          <div className="material-popover rounded-menu p-5 w-80 max-w-full">
             <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
-              <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">
+              <AlertTriangle size={16} className="text-destructive flex-shrink-0" />
+              <p className="text-sm font-semibold text-text-primary">
                 Empty Trash?
               </p>
             </div>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-4">
+            <p className="text-xs text-text-muted mb-4">
               This will permanently delete {trashedNotes.length} note{trashedNotes.length === 1 ? '' : 's'} in Trash.
               This cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <button
-                className="px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-                onClick={() => setConfirmEmptyTrash(false)}
-              >
+              <Button variant="secondary" size="sm" onClick={() => setConfirmEmptyTrash(false)}>
                 Cancel
-              </button>
-              <button
-                className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors cursor-pointer"
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={() => {
                   window.notes.emptyTrash().then(() => useAppStore.getState().bumpNoteToken())
                   setConfirmEmptyTrash(false)
                 }}
               >
                 Delete Permanently
-              </button>
+              </Button>
             </div>
           </div>
         </div>,
@@ -1113,7 +1102,7 @@ export default function NotesFolderView({
       {/* Divider + New note/New folder row — hidden while searching, since neither
           action makes sense mid-search and the row was just clutter above the results. */}
       {!searchQuery && (
-        <div className="my-1 h-px bg-[rgb(var(--color-surface-4))] mx-2" />
+        <Divider className="my-1 mx-2" />
       )}
 
       {/* User folders + root notes — flex-1 so blank space below notes is also droppable */}
@@ -1126,32 +1115,23 @@ export default function NotesFolderView({
           }
         }}
         onDrop={(e) => onDropTo(e, null)}
-        className={`flex-1 ${dragOverId === '__root__' ? 'bg-[rgb(var(--color-accent))/10]' : ''}`}
+        className={`flex-1 ${dragOverId === '__root__' ? 'bg-accent-muted' : ''}`}
       >
         {!searchQuery && (
           <div className="flex items-center gap-1.5 pl-2 pr-2 py-1 min-h-[26px]">
             {(draggingNoteId || draggingFolderId) && dragOverId === '__root__' && (
-              <span className="text-[10px] text-[rgb(var(--color-accent))] animate-pulse">→ top level (no folder)</span>
+              <span className="text-caption2 text-accent animate-pulse">→ top level (no folder)</span>
             )}
             <div className="flex items-center gap-1">
               {onCreateNote && (
-                <button onClick={onCreateNote} title="New note"
-                  className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
-                  <FilePlus size={13} className="flex-shrink-0" /> New Note
-                </button>
+                <Button variant="ghost" size="sm" icon={FilePlus} onClick={onCreateNote}>New Note</Button>
               )}
-              {onCreateNote && <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />}
-              <button onClick={() => onCreateFolder(null)} title="New folder"
-                className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
-                <FolderPlus size={13} className="flex-shrink-0" /> New Folder
-              </button>
+              {onCreateNote && <Divider orientation="vertical" />}
+              <Button variant="ghost" size="sm" icon={FolderPlus} onClick={() => onCreateFolder(null)}>New Folder</Button>
               {onCreateIdiom && (
                 <>
-                  <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-                  <button onClick={onCreateIdiom} title="New idiom"
-                    className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
-                    <BookOpen size={13} className="flex-shrink-0" /> New Idiom
-                  </button>
+                  <Divider orientation="vertical" />
+                  <Button variant="ghost" size="sm" icon={BookOpen} onClick={onCreateIdiom}>New Idiom</Button>
                 </>
               )}
             </div>
@@ -1166,20 +1146,16 @@ export default function NotesFolderView({
       {/* Empty-space right-click menu — create note or folder */}
       {emptyMenu && onCreateNote && createPortal(
         <MenuPositioner ref={emptyMenuRef} x={emptyMenu.x} y={emptyMenu.y}
-          className="native-buttons context-menu min-w-[170px] rounded-shell-lg py-1 overflow-hidden"
+          className="native-buttons min-w-[170px]"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
-          <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
-            <NotepadText size={13} className="flex-shrink-0" /> New note
-          </button>
-          {onCreateIdiom && (
-            <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateIdiom() }}>
-              <BookOpen size={13} className="flex-shrink-0" /> New idiom
-            </button>
-          )}
-          <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateFolder(null) }}>
-            <FolderPlus size={13} className="flex-shrink-0" /> New folder
-          </button>
+          <MenuSurface>
+            <MenuItem icon={NotepadText} label="New note" onClick={() => { setEmptyMenu(null); onCreateNote() }} />
+            {onCreateIdiom && (
+              <MenuItem icon={BookOpen} label="New idiom" onClick={() => { setEmptyMenu(null); onCreateIdiom() }} />
+            )}
+            <MenuItem icon={FolderPlus} label="New folder" onClick={() => { setEmptyMenu(null); onCreateFolder(null) }} />
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}
@@ -1210,55 +1186,48 @@ export default function NotesFolderView({
       {/* Folder context menu */}
       {folderMenu && createPortal(
         <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
-          className="native-buttons context-menu min-w-[190px] rounded-shell-lg py-1 overflow-hidden"
+          className="native-buttons min-w-[190px]"
         >
+          <MenuSurface>
               {onCreateNoteInFolder && (
-                <button className={MENU_ITEM} onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
-                  <FilePlus size={13} className="flex-shrink-0" /> New note here
-                </button>
+                <MenuItem icon={FilePlus} label="New note here" onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }} />
               )}
               {onCreateIdiomInFolder && (
-                <button className={MENU_ITEM} onClick={() => { onCreateIdiomInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
-                  <BookOpen size={13} className="flex-shrink-0" /> New idiom here
-                </button>
+                <MenuItem icon={BookOpen} label="New idiom here" onClick={() => { onCreateIdiomInFolder(folderMenu.folder.id); setFolderMenu(null) }} />
               )}
-              <button className={MENU_ITEM} onClick={() => { onCreateFolder(folderMenu.folder.id); setFolderMenu(null) }}>
-                <FolderPlus size={13} className="flex-shrink-0" /> New subfolder
-              </button>
-              <button className={MENU_ITEM} onClick={() => { setRenameVal(folderMenu.folder.name); setRenamingId(folderMenu.folder.id); setFolderMenu(null) }}>
-                <Pencil size={13} className="flex-shrink-0" /> Rename
-              </button>
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button className={`${MENU_ITEM} justify-between`} onClick={() => setFolderMoveOpen(v => !v)}>
-                <span className="flex items-center gap-2.5"><FolderInput size={13} className="flex-shrink-0" /> Move into folder</span>
-                <ChevronRight size={11} className={`transition-transform ${folderMoveOpen ? 'rotate-90' : ''}`} />
-              </button>
+              <MenuItem icon={FolderPlus} label="New subfolder" onClick={() => { onCreateFolder(folderMenu.folder.id); setFolderMenu(null) }} />
+              <MenuItem icon={Pencil} label="Rename" onClick={() => { setRenameVal(folderMenu.folder.name); setRenamingId(folderMenu.folder.id); setFolderMenu(null) }} />
+              <MenuSeparator />
+              <MenuItem
+                icon={FolderInput}
+                label="Move into folder"
+                trailing={<ChevronRight size={11} className={`transition-transform ${folderMoveOpen ? 'rotate-90' : ''}`} />}
+                onClick={() => setFolderMoveOpen(v => !v)}
+              />
               {folderMoveOpen && (
-                <div className="border-t border-[rgb(var(--color-surface-4))] mt-1 pt-1 max-h-48 overflow-y-auto">
+                <div className="border-t border-separator mt-1 pt-1 max-h-48 overflow-y-auto">
                   {folderMenu.folder.parentId != null && (
-                    <button className={`${MENU_ITEM} pl-8`} onClick={() => { onSetFolderParent(folderMenu.folder.id, null); setFolderMenu(null) }}>
-                      Move to top level
-                    </button>
+                    <MenuItem className="pl-8" label="Move to top level" onClick={() => { onSetFolderParent(folderMenu.folder.id, null); setFolderMenu(null) }} />
                   )}
                   {folderMoveTargets.map(({ folder, depth }) => (
-                    <button
+                    <MenuItem
                       key={folder.id}
                       disabled={folder.id === folderMenu.folder.parentId}
-                      className={`${MENU_ITEM} ${folder.id === folderMenu.folder.parentId ? 'opacity-40 cursor-default' : ''}`}
+                      label={folder.name}
                       style={{ paddingLeft: 20 + depth * 12 }}
                       onClick={() => { if (folder.id !== folderMenu.folder.parentId) { onSetFolderParent(folderMenu.folder.id, folder.id); setFolderMenu(null) } }}
-                    >
-                      {folder.name}
-                    </button>
+                    />
                   ))}
                   {folderMoveTargets.length === 0 && (
-                    <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No other folders</div>
+                    <div className="px-3 py-1.5 text-caption text-text-muted italic">No other folders</div>
                   )}
                 </div>
               )}
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button
-                className={`${MENU_ITEM} text-red-400 hover:text-red-300 hover:bg-red-500/10`}
+              <MenuSeparator />
+              <MenuItem
+                danger
+                icon={Trash2}
+                label="Delete folder & contents"
                 onClick={() => {
                   const f = folderMenu.folder
                   setFolderMenu(null)
@@ -1269,40 +1238,32 @@ export default function NotesFolderView({
                     setConfirmDelete({ folder: f })
                   }
                 }}
-              >
-                <Trash2 size={13} className="flex-shrink-0" /> Delete folder & contents
-              </button>
+              />
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}
       {/* Custom confirm dialog for "Delete folder & contents" */}
       {confirmDelete && createPortal(
-        <div className="native-buttons fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
-          <div className="glass-panel rounded-shell-lg p-5 w-80 max-w-full">
-            <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">
+        <div className="native-buttons fixed inset-0 z-modal flex items-center justify-center bg-black/50">
+          <div className="material-popover rounded-menu p-5 w-80 max-w-full">
+            <p className="text-sm font-semibold text-text-primary mb-1">
               Delete &ldquo;{confirmDelete.folder.name}&rdquo;?
             </p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-4">
+            <p className="text-xs text-text-muted mb-4">
               This will permanently delete the folder and all notes inside it. This cannot be undone.
             </p>
-            <button
-              onClick={() => setSkipConfirmChecked((v) => !v)}
-              className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))] mb-4 cursor-pointer select-none"
-            >
-              <span className={`relative flex-shrink-0 w-8 h-4 rounded-full transition-colors ${skipConfirmChecked ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}>
-                <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${skipConfirmChecked ? 'translate-x-4' : ''}`} />
-              </span>
+            <label className="flex items-center gap-2 text-xs text-text-secondary mb-4 cursor-pointer select-none">
+              <Switch checked={skipConfirmChecked} onCheckedChange={() => setSkipConfirmChecked((v) => !v)} />
               Don&rsquo;t ask again
-            </button>
+            </label>
             <div className="flex gap-2 justify-end">
-              <button
-                className="px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-                onClick={() => setConfirmDelete(null)}
-              >
+              <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(null)}>
                 Cancel
-              </button>
-              <button
-                className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors cursor-pointer"
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={() => {
                   if (skipConfirmChecked) localStorage.setItem(SKIP_CONFIRM_KEY, 'true')
                   onDeleteFolderDeep(confirmDelete.folder.id)
@@ -1310,7 +1271,7 @@ export default function NotesFolderView({
                 }}
               >
                 Delete
-              </button>
+              </Button>
             </div>
           </div>
         </div>,
@@ -1349,24 +1310,24 @@ export default function NotesFolderView({
             collapsedContent={
               <div className="flex flex-col items-center justify-center" style={{ gap: railIconGap }}>
                 {Array.from({ length: railIconCount }).map((_, i) => (
-                  <FolderTree key={i} size={railIconSize} className="text-[rgb(var(--color-text-muted))]" />
+                  <FolderTree key={i} size={railIconSize} className="text-text-muted" />
                 ))}
               </div>
             }
           >
-            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-              <FolderTree size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-separator flex-shrink-0">
+              <FolderTree size={11} className="text-text-muted flex-shrink-0" />
               <input
                 ref={jumpRailSearchRef}
                 value={jumpRailSearch}
                 onChange={(e) => setJumpRailSearch(e.target.value)}
                 placeholder="Jump to folder…"
-                className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))] min-w-0"
+                className="flex-1 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted min-w-0"
               />
             </div>
             <div className="overflow-y-auto flex-1 py-1">
               {filteredJumpFolders.length === 0 && filteredJumpSystem.length === 0 && (
-                <div className="px-3 py-3 text-xs text-center text-[rgb(var(--color-text-muted))]">No match</div>
+                <div className="px-3 py-3 text-xs text-center text-text-muted">No match</div>
               )}
               {filteredJumpSystem.map(({ key, label, icon: Icon }) => (
                 <button
@@ -1375,11 +1336,11 @@ export default function NotesFolderView({
                     folderRowRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     jumpRailPanelRef.current?.close()
                   }}
-                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-row px-3 py-1.5 text-subhead text-left text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
                 >
-                  <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  <Icon size={12} className="flex-shrink-0 text-text-muted" />
                   <span className="flex-1 truncate">{label}</span>
-                  <Lock size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] opacity-50" />
+                  <Lock size={9} className="flex-shrink-0 text-text-muted opacity-50" />
                 </button>
               ))}
               {filteredJumpFolders.map((f) => (
@@ -1389,9 +1350,9 @@ export default function NotesFolderView({
                     folderRowRefs.current.get(f.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     jumpRailPanelRef.current?.close()
                   }}
-                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-row px-3 py-1.5 text-subhead text-left text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
                 >
-                  <Folder size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  <Folder size={12} className="flex-shrink-0 text-text-muted" />
                   <span className="flex-1 truncate">{f.name}</span>
                 </button>
               ))}

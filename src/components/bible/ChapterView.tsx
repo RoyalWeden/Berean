@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
-import * as Tooltip from '@radix-ui/react-tooltip'
+// Aliased away from the design system's `Tooltip` (@/components/ui/Tooltip) — only used here
+// as the shared per-chapter Radix Provider for StrongsTooltip.tsx's rich hover cards.
+import * as RadixTooltip from '@radix-ui/react-tooltip'
 import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2 } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import ShortcutKeys from '@/components/shell/ShortcutKeys'
+import { MenuSurface, MenuItem, MenuSeparator, EmptyState, RefChip, SectionLabel } from '@/components/ui'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
@@ -127,20 +129,17 @@ function HermasTaylorFootnoteRefs({ bookId, chapter, textId }: { bookId: string;
   }, [active, bookId, chapter])
   if (!active || refs.length === 0) return null
   return (
-    <div className="mt-6 pt-4 border-t border-[rgb(var(--color-surface-3))]">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))] mb-2">
-        Scripture references (Taylor footnotes)
-      </p>
+    <div className="mt-6 pt-4 border-t border-separator">
+      <SectionLabel className="mb-2">Scripture references (Taylor footnotes)</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
         {refs.map((r, i) => (
-          <button
+          <RefChip
             key={i}
             title={r.text || r.raw}
             onClick={() => navigateToScriptureRef(r)}
-            className="text-[11px] font-mono px-2 py-0.5 rounded border border-[rgb(var(--color-surface-3))] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
           >
             {bookName(r.bookId)} {r.chapter}:{r.verse}
-          </button>
+          </RefChip>
         ))}
       </div>
     </div>
@@ -294,19 +293,19 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className="inline-flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))]/70 bg-[rgb(var(--color-surface-3))] px-1.5 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/50 hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-surface-3 px-1.5 py-0.5 text-caption text-text-secondary hover:border-accent/50 hover:bg-surface-4 hover:text-accent transition-colors cursor-pointer whitespace-nowrap"
       >
         <span className="font-medium">{verseStr}</span>
         {!titleIsRef && <span className="opacity-60">· {cleanedTitle}</span>}
       </button>
       {tip && verseText && (
         <div
-          className={`absolute left-0 z-[200] w-[260px] rounded-shell glass-panel px-3 py-2 pointer-events-none ${
+          className={`absolute left-0 z-popover w-[260px] material-popover rounded-menu px-3 py-2 pointer-events-none ${
             tip.placeBelow ? 'top-full mt-1.5' : 'bottom-full mb-1.5'
           }`}
         >
-          <p className="text-[9px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{verseStr}</p>
-          <p className="text-[11px] text-[rgb(var(--color-text-primary))] leading-snug line-clamp-4">{verseText}</p>
+          <p className="text-micro font-mono font-semibold text-accent mb-1">{verseStr}</p>
+          <p className="text-caption text-text-primary leading-snug line-clamp-4">{verseText}</p>
         </div>
       )}
     </span>
@@ -322,11 +321,11 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
     <div className="mb-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--color-surface-4))]/60 bg-[rgb(var(--color-surface-2))]/50 px-2 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer select-none backdrop-blur-sm"
+        className="inline-flex items-center gap-1.5 rounded-control material-control px-2 py-0.5 text-caption text-text-secondary hover:text-text-primary transition-colors cursor-pointer select-none"
       >
-        <Link2 size={11} strokeWidth={2} className="text-[rgb(var(--color-text-muted))]" />
+        <Link2 size={11} strokeWidth={2} className="text-text-muted" />
         <span>{label}</span>
-        <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={12} className={`text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="mt-2 ml-1 flex flex-wrap gap-1.5">
@@ -353,7 +352,7 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
   const note = textId ? versificationNote(bookId, chapter, textId) : null
   if (!note) return null
   return (
-    <div className="mb-4 flex items-start gap-1.5 text-[11px] text-[rgb(var(--color-text-muted))] opacity-80">
+    <div className="mb-4 flex items-start gap-1.5 text-caption text-text-muted opacity-80">
       <BookOpen size={11} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
       <span>{note}</span>
     </div>
@@ -1102,10 +1101,10 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       <div className="px-8 py-6 space-y-3">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="flex gap-4 animate-pulse">
-            <div className="w-6 h-4 bg-[rgb(var(--color-surface-4))] rounded flex-shrink-0 mt-1" />
+            <div className="w-6 h-4 bg-surface-4/60 rounded-card flex-shrink-0 mt-1" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 bg-[rgb(var(--color-surface-4))] rounded w-full" />
-              {i % 2 === 0 && <div className="h-4 bg-[rgb(var(--color-surface-4))] rounded w-3/4" />}
+              <div className="h-4 bg-surface-4/60 rounded-card w-full" />
+              {i % 2 === 0 && <div className="h-4 bg-surface-4/60 rounded-card w-3/4" />}
             </div>
           </div>
         ))}
@@ -1119,9 +1118,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // the skeleton it replaced.
   if (verses.length === 0 && !loading) {
     return (
-      <div className="px-8 py-12 text-center text-[rgb(var(--color-text-muted))]">
-        No verses found for {bookId} {chapter}.
-      </div>
+      <EmptyState icon={BookOpen} title={`No verses found for ${bookId} ${chapter}.`} className="px-8 py-12" />
     )
   }
 
@@ -1144,14 +1141,14 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // multi-chapter range view — see viewTransitionName's own uniqueness comment above), and the
     // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
     // unrelated compare columns.
-    <Tooltip.Provider delayDuration={200} skipDelayDuration={500}>
+    <RadixTooltip.Provider delayDuration={200} skipDelayDuration={500}>
     <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
           columns) — sticky so it stays visible regardless of scroll position. */}
       {showSlowLoadIndicator && (
-        <div className="sticky top-2 z-10 float-right -mt-1 -mr-1 flex items-center gap-1.5 px-2 py-1 rounded-full bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-md text-[10px] text-[rgb(var(--color-text-muted))]">
-          <span className="w-3 h-3 rounded-full border-2 border-[rgb(var(--color-accent))] border-t-transparent animate-spin" />
+        <div className="sticky top-2 z-raised float-right -mt-1 -mr-1 flex items-center gap-1.5 px-2 py-1 material-popover rounded-control text-caption2 text-text-muted">
+          <span className="w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           Loading…
         </div>
       )}
@@ -1249,7 +1246,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
                   : `vv.${missingBefore.join(', ')}`
               return (
                 <p
-                  className="px-3 py-0.5 text-[10px] text-[rgb(var(--color-text-muted))] opacity-60 select-none"
+                  className="px-3 py-0.5 text-caption2 text-text-muted opacity-60 select-none"
                   title="Present in the KJV but not in this Septuagint text"
                 >
                   — {label} not in LXX —
@@ -1257,7 +1254,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               )
             })()}
             {verse.title && (
-              <div className="px-3 pt-3 pb-0.5 text-[11px] text-[rgb(var(--color-text-muted))] opacity-75">
+              <div className="px-3 pt-3 pb-0.5 text-caption text-text-muted opacity-75">
                 {verse.title}
               </div>
             )}
@@ -1315,15 +1312,13 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
 
       {/* Multi-verse selection toolbar — the actual "Copy verses"/"Copy selection"/
           "Add note on range" menu (VerseRow.tsx has its own, separate word/phrase-
-          selection toolbar that already uses `.context-menu`). This one was still on
-          `.glass-panel`, whose 72%-opacity background (see global.css) reads as much
-          more transparent than the rest of the app's popup menus — switched to the
-          same opaque `.context-menu` treatment for consistency. */}
+          selection toolbar). Now on the shared `MenuSurface` material/radius, same as
+          every other menu in the app. */}
       {multiToolbar && (
         <MenuPositioner x={multiToolbar.x} y={multiToolbar.y}
-          className="min-w-[200px] rounded-shell context-menu overflow-hidden py-1"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
+          <MenuSurface className="min-w-[200px] overflow-hidden !p-0 py-1">
           {/* Color grid: 3 rows × 5 colors */}
           <div className="px-3 py-2 space-y-1.5">
             {[0, 1, 2].map((row) => (
@@ -1341,7 +1336,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
                   <button
                     onClick={clearRangeHighlights}
                     title="Clear highlights from selection"
-                    className="ml-auto text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"
+                    className="ml-auto text-text-muted hover:text-destructive cursor-pointer"
                   >
                     <X size={11} />
                   </button>
@@ -1349,42 +1344,33 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               </div>
             ))}
           </div>
-          <div className="h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
+          <MenuSeparator />
+          <MenuItem
+            icon={Copy}
+            label="Copy verses"
+            shortcut="⌘C"
             onClick={copyFormatted}
-            className="flex items-center justify-between gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <span className="flex items-center gap-2">
-              <Copy size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              Copy verses
-            </span>
-            <ShortcutKeys keys="⌘C" className="flex-shrink-0" />
-          </button>
-          <button
+          />
+          {/* "⌘⇧C", not "⇧⌘C" — this was the app's one place spelling a Shift+Command
+              combo with the modifiers in the opposite order from every other surface
+              (and from CLAUDE.md §14's own shortcut table, which puts Cmd first). */}
+          <MenuItem
+            icon={Copy}
+            label="Copy selection"
+            shortcut="⌘⇧C"
             onClick={copyText}
-            className="flex items-center justify-between gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <span className="flex items-center gap-2">
-              <Copy size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              Copy selection
-            </span>
-            {/* "⌘⇧C", not "⇧⌘C" — this was the app's one place spelling a Shift+Command
-                combo with the modifiers in the opposite order from every other surface
-                (and from CLAUDE.md §14's own shortcut table, which puts Cmd first). */}
-            <ShortcutKeys keys="⌘⇧C" className="flex-shrink-0" />
-          </button>
-          <div className="h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
+          />
+          <MenuSeparator />
+          <MenuItem
+            icon={NotepadText}
+            label="Add note on range"
             onClick={addRangeNote}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Add note on range
-          </button>
+          />
+          </MenuSurface>
         </MenuPositioner>
       )}
     </div>
-    </Tooltip.Provider>
+    </RadixTooltip.Provider>
   )
 }
 

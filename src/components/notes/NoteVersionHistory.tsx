@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { X, RotateCcw, History, Eye, GitCompare, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { RotateCcw, Eye, GitCompare, Save } from 'lucide-react'
 import { diffWords } from 'diff'
 import { renderPreviewContent } from '@/lib/notePreviewRender'
 import { renderMarkdownToHTML } from './pm/staticRender'
 import type { NoteVersion } from '@/types'
+import { Sheet, SegmentedControl, Button } from '@/components/ui'
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts
@@ -26,7 +26,7 @@ const KIND_LABEL: Record<string, string> = { auto: 'Auto', manual: 'Saved', 'pre
 
 const LOADING_PLACEHOLDER = (
   <div className="flex items-center justify-center h-32">
-    <div className="w-5 h-5 rounded-full border-2 border-[rgb(var(--color-surface-4))] border-t-[rgb(var(--color-text-muted))] animate-spin" />
+    <div className="w-5 h-5 rounded-full border-2 border-separator border-t-text-muted animate-spin" />
   </div>
 )
 
@@ -119,7 +119,6 @@ export default function NoteVersionHistory({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'preview' | 'diff'>('preview')
   const [undoVersionId, setUndoVersionId] = useState<string | null>(null)
-  const overlayRef = useRef<HTMLDivElement>(null)
 
   async function reload() {
     const v = await window.notes.getNoteVersions(noteId).catch(() => [])
@@ -127,12 +126,6 @@ export default function NoteVersionHistory({
     return v
   }
   useEffect(() => { reload().then(v => setSelectedId(s => s ?? v[0]?.id ?? null)) }, [noteId]) // eslint-disable-line
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
 
   const selected = versions.find(v => v.id === selectedId) ?? null
 
@@ -169,107 +162,94 @@ export default function NoteVersionHistory({
     }
   }
 
-  return createPortal(
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-6"
-      style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      onMouseDown={(e) => { if (e.target === overlayRef.current) onClose() }}
-    >
-      <div
-        className="w-full max-w-4xl h-[80vh] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-          <History size={14} className="text-[rgb(var(--color-text-muted))]" />
-          <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Version history</span>
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{currentTitle || 'Untitled'}</span>
-          <div className="flex-1" />
-          <button
-            onClick={saveManual}
-            className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] px-2 py-1 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer mr-1"
-          >
-            <Save size={11} /> {justSaved ? 'Saved' : 'Save version'}
-          </button>
+  return (
+    <Sheet
+      open
+      onOpenChange={(o) => { if (!o) onClose() }}
+      size="xl"
+      title="Version history"
+      description={currentTitle || 'Untitled'}
+      bodyClassName="flex flex-col overflow-hidden"
+      headerActions={(
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Button variant="ghost" size="sm" icon={Save} onClick={saveManual}>
+            {justSaved ? 'Saved' : 'Save version'}
+          </Button>
           {selected && (
-            <div className="flex items-center bg-[rgb(var(--color-surface-3))] rounded-md p-0.5 mr-1">
-              <button onClick={() => setMode('diff')} className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] cursor-pointer ${mode === 'diff' ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))]'}`}><GitCompare size={10} />Changes</button>
-              <button onClick={() => setMode('preview')} className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] cursor-pointer ${mode === 'preview' ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))]'}`}><Eye size={10} />Preview</button>
+            <SegmentedControl
+              size="sm"
+              value={mode}
+              onChange={setMode}
+              aria-label="Version view mode"
+              options={[
+                { value: 'diff', label: 'Changes', icon: GitCompare },
+                { value: 'preview', label: 'Preview', icon: Eye },
+              ]}
+            />
+          )}
+        </div>
+      )}
+    >
+      <div className="flex flex-1 min-h-0 h-full">
+        {/* Version list */}
+        <div className="w-56 flex-shrink-0 border-r border-separator overflow-y-auto py-1">
+          {versions.length === 0 && (
+            <p className="px-3 py-4 text-footnote text-text-muted text-center">No saved versions yet. Versions are captured as you edit.</p>
+          )}
+          {versions.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setSelectedId(v.id)}
+              className={`w-full text-left px-3 py-2 border-l-2 transition-colors cursor-pointer ${
+                selectedId === v.id
+                  ? 'bg-surface-3 border-accent'
+                  : 'border-transparent hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-footnote text-text-primary">{relativeTime(v.createdAt)}</span>
+                <span className={`text-micro px-1 py-0.5 rounded-chip uppercase tracking-wide ${v.kind === 'manual' ? 'bg-accent-muted text-accent' : 'bg-surface-4 text-text-muted'}`}>{KIND_LABEL[v.kind] ?? v.kind}</span>
+              </div>
+              <div className="text-caption2 text-text-muted mt-0.5">{fullTime(v.createdAt)}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Viewer */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {selected ? (
+            <>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {mode === 'diff' ? (
+                  // Word-level diff rendered through the markdown engine — shows proper
+                  // headings, verse blocks, etc. with green/red change highlights.
+                  <RenderedDiffView prev={selected.content} next={currentContent} />
+                ) : (
+                  // Rendered preview — same renderPreviewContent engine as the diff view
+                  // so both tabs look identical in font, spacing, and element styles.
+                  <RenderedPreviewView content={selected.content} />
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2.5 border-t border-separator flex-shrink-0">
+                <span className="text-caption2 text-text-muted">
+                  {mode === 'diff' ? 'Changes vs. current — green = added since, red = removed since' : 'Read-only — restore to edit'}
+                </span>
+                <div className="flex-1" />
+                {undoVersionId && (
+                  <Button variant="ghost" size="sm" icon={RotateCcw} onClick={undo}>Undo restore</Button>
+                )}
+                <Button variant="primary" size="sm" icon={RotateCcw} onClick={() => restore(selected)}>
+                  Restore this version
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-subhead text-text-muted opacity-50">
+              Select a version to view
             </div>
           )}
-          <button onClick={onClose} className="p-1 rounded-md text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer">
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="flex flex-1 min-h-0">
-          {/* Version list */}
-          <div className="w-56 flex-shrink-0 border-r border-[rgb(var(--color-surface-4))] overflow-y-auto py-1">
-            {versions.length === 0 && (
-              <p className="px-3 py-4 text-xs text-[rgb(var(--color-text-muted))] text-center">No saved versions yet. Versions are captured as you edit.</p>
-            )}
-            {versions.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setSelectedId(v.id)}
-                className={`w-full text-left px-3 py-2 border-l-2 transition-colors cursor-pointer ${
-                  selectedId === v.id
-                    ? 'bg-[rgb(var(--color-surface-3))] border-[rgb(var(--color-accent))]'
-                    : 'border-transparent hover:bg-[rgb(var(--color-surface-2))]'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-[rgb(var(--color-text-primary))]">{relativeTime(v.createdAt)}</span>
-                  <span className={`text-[8px] px-1 py-0.5 rounded uppercase tracking-wide ${v.kind === 'manual' ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))]'}`}>{KIND_LABEL[v.kind] ?? v.kind}</span>
-                </div>
-                <div className="text-[9px] text-[rgb(var(--color-text-muted))] mt-0.5">{fullTime(v.createdAt)}</div>
-              </button>
-            ))}
-          </div>
-
-          {/* Viewer */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            {selected ? (
-              <>
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  {mode === 'diff' ? (
-                    // Word-level diff rendered through the markdown engine — shows proper
-                    // headings, verse blocks, etc. with green/red change highlights.
-                    <RenderedDiffView prev={selected.content} next={currentContent} />
-                  ) : (
-                    // Rendered preview — same renderPreviewContent engine as the diff view
-                    // so both tabs look identical in font, spacing, and element styles.
-                    <RenderedPreviewView content={selected.content} />
-                  )}
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2.5 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                  <span className="text-[10px] text-[rgb(var(--color-text-muted))]">
-                    {mode === 'diff' ? 'Changes vs. current — green = added since, red = removed since' : 'Read-only — restore to edit'}
-                  </span>
-                  <div className="flex-1" />
-                  {undoVersionId && (
-                    <button onClick={undo} className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] px-2 py-1 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer">
-                      <RotateCcw size={12} /> Undo restore
-                    </button>
-                  )}
-                  <button
-                    onClick={() => restore(selected)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-white bg-[rgb(var(--color-accent))] px-3 py-1.5 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                  >
-                    <RotateCcw size={12} /> Restore this version
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-sm text-[rgb(var(--color-text-muted))] opacity-50">
-                Select a version to view
-              </div>
-            )}
-          </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </Sheet>
   )
 }

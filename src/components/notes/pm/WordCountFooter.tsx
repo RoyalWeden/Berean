@@ -67,16 +67,16 @@ export default function WordCountFooter({ view, lastSavedAt }: { view: EditorVie
   }, [lastSavedAt])
 
   return (
-    <div className="absolute bottom-2 right-3 z-10 flex items-center gap-2 pointer-events-none select-none">
+    <div className="absolute bottom-2 right-3 z-raised flex items-center gap-2 pointer-events-none select-none">
       {lastSavedAt != null && (
         <span
-          className="flex items-center gap-1 rounded-full bg-[rgb(var(--color-surface-2))]/60 backdrop-blur-sm px-2 py-0.5 text-[11px] text-[rgb(var(--color-text-muted))] transition-opacity ease-out"
+          className="flex items-center gap-1 material-control rounded-control px-2 py-0.5 text-caption text-text-muted transition-opacity ease-out"
           style={{ opacity: saveFlashVisible ? 1 : 0, transitionDuration: `${SAVE_FLASH_FADE_MS}ms` }}
         >
           <Check size={11} strokeWidth={2.5} /> Saved
         </span>
       )}
-      <div className="rounded-full bg-[rgb(var(--color-surface-2))]/60 backdrop-blur-sm px-2 py-0.5 text-[11px] text-[rgb(var(--color-text-muted))]">
+      <div className="material-control rounded-control px-2 py-0.5 text-caption text-text-muted">
         {wordStats.words === 0
           ? (statsAreSelection ? '0 words selected' : '0 words')
           : statsAreSelection

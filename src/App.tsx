@@ -11,6 +11,7 @@ import StudyTrailSplitToast from '@/components/studyTrail/StudyTrailSplitToast'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { SPRING_SNAPPY, TWEEN_FAST } from '@/lib/motion'
 import Sidebar from '@/components/shell/Sidebar'
 import FloatingRail from '@/components/shell/FloatingRail'
 import ActivePanel from '@/components/shell/ActivePanel'
@@ -1054,21 +1055,16 @@ export default function App() {
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
   }), [tabMRUList, storeTabs])
 
-  // Deliberately a plain, DISTINCT background from ShellHeader's own (topbar-vibrant/
-  // surface-2) — an earlier version matched them so the notch behind ShellHeader's rounded
-  // bottom corners would render identically to the header itself, but that made the header
-  // read as a plain square bar again (the whole point of rounding those corners is for them
-  // to visibly stand out against what's behind).
-  // surface-3 (not surface-1) specifically — surface-1/2 are the app's "chrome" tone
-  // (deliberately a shade darker/grayer than content, e.g. 245/245/248 in the light theme,
-  // for the sidebar/header material), while surface-3 is the true content-area white
-  // (255/255/255 in light mode — <main> below uses this same token). The header's rounded
-  // corners sit above <main> on the right (always) and above Sidebar OR <main> on the left
-  // depending on collapse state — surface-1 showing through read as a visibly gray patch
-  // against the actually-white content beside it, reported as "a shadow"/gray fill in the
-  // corners that shouldn't be there. surface-3 is the closer match for the common case.
+  // Deliberately a plain, DISTINCT background from ShellHeader's own (`.material-bar`,
+  // surface-2) — surface-3 (not surface-1) specifically: surface-1/2 are the app's "chrome"
+  // tone (deliberately a shade darker/grayer than content, e.g. 245/245/248 in the light
+  // theme, for the sidebar/header material), while surface-3 is the true content-area white
+  // (255/255/255 in light mode — <main> below uses this same token). ShellHeader is now a
+  // flush, edge-to-edge bar (no rounded bottom corners, per the design-system's "real macOS
+  // toolbar" decision), so this root background only ever shows through where <main>/Sidebar
+  // haven't yet painted — surface-3 is the correct base tone for that either way.
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-screen overflow-hidden bg-surface-3">
       <TopBarSlotContext.Provider value={topBarSlot}>
         {/* ShellHeader spans the FULL window width — it folds what used to be two separate
             bars (SidebarTopBar.tsx docked above just the sidebar, TopBar.tsx docked beside it)
@@ -1109,10 +1105,12 @@ export default function App() {
                 exit={{ width: 0, opacity: 0 }}
                 // Opacity on its own quicker transition, finishing before the width collapse —
                 // see Sidebar.tsx's internal collapse-toggle spring for the matching fix and the
-                // full reasoning (width-only animation reads as a clip, not a fade).
+                // full reasoning (width-only animation reads as a clip, not a fade). Shared
+                // motion constants (@/lib/motion) rather than bespoke durations — SPRING_SNAPPY
+                // is the same spring Sidebar.tsx's own internal collapse toggle uses for width.
                 transition={{
-                  width: { duration: 0.22, ease: 'easeInOut' },
-                  opacity: { duration: 0.12, ease: 'easeOut' },
+                  width: SPRING_SNAPPY,
+                  opacity: TWEEN_FAST,
                 }}
                 className="flex"
                 style={{ overflow: 'hidden' }}
@@ -1128,7 +1126,7 @@ export default function App() {
               render them mid-transition. An inline `maxWidth` between two real lengths
               (`100%` ↔ `48rem`, never the keyword `none`, which CSS can't interpolate from)
               animates smoothly as a genuine reflow instead. */}
-          <main className={`flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))] ${noteFocusMode ? 'flex justify-center' : ''}`}>
+          <main className={`flex-1 overflow-hidden bg-surface-3 ${noteFocusMode ? 'flex justify-center' : ''}`}>
             <div
               className="w-full h-full transition-[max-width] duration-200 ease-in-out"
               style={{ maxWidth: noteFocusMode ? '48rem' : '100%' }}

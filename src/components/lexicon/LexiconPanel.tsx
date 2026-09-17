@@ -145,7 +145,7 @@ function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; match
           ? (
             <mark
               key={i}
-              className="berean-find-mark bg-yellow-400/40 text-[rgb(var(--color-text-primary))] rounded-sm not-italic font-medium"
+              className="berean-find-mark bg-yellow-400/40 text-text-primary rounded-sm not-italic font-medium"
             >
               {token}
             </mark>
@@ -179,7 +179,7 @@ function BdbNotesText({ text }: { text: string }) {
             <span
               key={i}
               title={t.raw}
-              className="italic text-[rgb(var(--color-accent))] opacity-80"
+              className="italic text-accent opacity-80"
             >{t.text}</span>
           )
         }
@@ -189,7 +189,7 @@ function BdbNotesText({ text }: { text: string }) {
               key={i}
               dir="ltr"
               title={`${t.text} occurrences in the Hebrew Bible`}
-              className="text-[rgb(var(--color-text-muted))] opacity-70"
+              className="text-text-muted opacity-70"
             >
               {t.text}<span className="text-[0.72em] opacity-60">&nbsp;occ.</span>
             </span>
@@ -237,7 +237,7 @@ export function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: 
               key={i}
               onClick={(e) => onNav(prefixed!, e.metaKey || e.ctrlKey)}
               onContextMenu={(e) => onContextMenu?.(e, prefixed!)}
-              className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+              className="font-mono text-accent hover:underline cursor-pointer"
             >
               {prefixed}
             </button>
@@ -310,21 +310,21 @@ function LexiconInfoPopover({ onClose }: { onClose: () => void }) {
   return (
     <div
       ref={ref}
-      className="absolute top-full right-0 mt-1 z-50 w-80 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden"
+      className="absolute top-full right-0 mt-1 z-50 w-80 bg-surface-1 border border-separator rounded-xl shadow-2xl overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
-        <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))]">How to read a lexicon entry</span>
-        <button onClick={onClose} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><X size={13} /></button>
+      <div className="px-4 py-3 border-b border-separator flex items-center justify-between">
+        <span className="text-xs font-semibold text-text-primary">How to read a lexicon entry</span>
+        <button onClick={onClose} className="text-text-muted hover:text-text-primary cursor-pointer"><X size={13} /></button>
       </div>
       <div className="overflow-y-auto max-h-80">
         {LEXICON_GUIDE.map((g) => (
-          <div key={g.section} className="px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] last:border-0">
+          <div key={g.section} className="px-4 py-2.5 border-b border-separator last:border-0">
             <div className="flex items-baseline gap-2 mb-0.5">
-              <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">{g.section}</span>
-              <code className="text-[9px] text-[rgb(var(--color-text-muted))] font-mono truncate">{g.example}</code>
+              <span className="text-[11px] font-semibold text-text-primary">{g.section}</span>
+              <code className="text-[9px] text-text-muted font-mono truncate">{g.example}</code>
             </div>
-            <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">{g.desc}</p>
+            <p className="text-[11px] text-text-secondary leading-relaxed">{g.desc}</p>
           </div>
         ))}
       </div>
@@ -529,19 +529,19 @@ function EntryView({
           <button
             onClick={onNoteBack}
             title={`Back to "${noteBack.title}"`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[120px] truncate"
+            className="flex items-center gap-1 text-xs text-accent hover:underline cursor-pointer flex-shrink-0 max-w-[120px] truncate"
           >
             <ArrowLeft size={11} className="flex-shrink-0" />
             <span className="truncate">{noteBack.title}</span>
           </button>
         )}
-        <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))] font-mono">{entry.strongsNum}</span>
+        <span className="text-sm font-semibold text-text-primary font-mono">{entry.strongsNum}</span>
         <LangBadge num={entry.strongsNum} />
         <div className="flex-1" />
         <button
           onClick={handleCopy}
           title="Copy Strong's number and definition"
-          className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          className="p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
         >
           {copied ? <CheckIcon size={14} className="text-green-400" /> : <Copy size={14} />}
         </button>
@@ -550,7 +550,7 @@ function EntryView({
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => setInfoOpen((v) => !v)}
             title="How to read a lexicon entry"
-            className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'}`}
+            className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-text-primary bg-surface-4' : 'text-text-muted hover:bg-surface-hover hover:text-text-primary'}`}
           >
             <Info size={14} />
           </button>
@@ -572,24 +572,24 @@ function EntryView({
         {/* Word + transliteration */}
         <div className="space-y-1">
           {entry.lemma && (
-            <div className="text-2xl font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}>
+            <div className="text-2xl font-medium text-text-primary" style={{ fontFamily: 'serif' }}>
               <span dir="rtl">{findQuery ? applyFindHighlight(entry.lemma, findQuery) : entry.lemma}</span>
             </div>
           )}
           <div className="flex items-baseline gap-2 flex-wrap">
             {entry.transliteration && (
-              <span className="text-base text-[rgb(var(--color-text-secondary))] italic">
+              <span className="text-base text-text-secondary italic">
                 {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
               </span>
             )}
             {entry.pronunciation && (
-              <span className="text-xs text-[rgb(var(--color-text-muted))]">({entry.pronunciation})</span>
+              <span className="text-xs text-text-muted">({entry.pronunciation})</span>
             )}
           </div>
         </div>
 
         {entry.gloss && (
-          <div className="text-sm text-[rgb(var(--color-text-primary))] font-medium bg-[rgb(var(--color-surface-4))] px-3 py-2 rounded-lg">
+          <div className="text-sm text-text-primary font-medium bg-surface-4 px-3 py-2 rounded-lg">
             {(() => {
               const isUnrepresented = entry.gloss.toLowerCase().includes('unrepresented in english')
               const rawGloss = isUnrepresented
@@ -618,7 +618,7 @@ function EntryView({
         {!expanded && (
           <button
             onClick={() => setExpanded(true)}
-            className="w-full text-center text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer py-1"
+            className="w-full text-center text-xs text-accent hover:underline cursor-pointer py-1"
           >
             Show full entry
           </button>
@@ -626,8 +626,8 @@ function EntryView({
         {expanded && (<>
         {entry.definition && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Definition</p>
-            <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Definition</p>
+            <p className="text-sm text-text-secondary leading-relaxed">
               <DerivationText text={wr(entry.definition)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} findQuery={findQuery} />
             </p>
           </div>
@@ -635,8 +635,8 @@ function EntryView({
 
         {hasDerivation && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Derivation</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed italic">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">Derivation</p>
+            <p className="text-xs text-text-muted leading-relaxed italic">
               <DerivationText text={wr(entry.derivation)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} />
             </p>
           </div>
@@ -644,10 +644,10 @@ function EntryView({
 
         {hasExtended && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
               {entry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
             </p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+            <p className="text-xs text-text-muted leading-relaxed">
               <BdbNotesText text={wr(entry.extendedDef)} />
             </p>
           </div>
@@ -655,21 +655,21 @@ function EntryView({
 
         {related.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-2">Derived terms</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-2">Derived terms</p>
             <div className="space-y-1">
               {related.map((r) => (
                 <button
                   key={r.strongsNum}
                   onClick={(e) => onNav(r.strongsNum, e.metaKey || e.ctrlKey)}
                   onContextMenu={(e) => strongsCtx.open(e, r.strongsNum)}
-                  className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left transition-colors"
+                  className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded hover:bg-surface-hover cursor-pointer text-left transition-colors"
                 >
-                  <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 w-10">{r.strongsNum}</span>
+                  <span className="font-mono text-[10px] text-text-muted flex-shrink-0 w-10">{r.strongsNum}</span>
                   {r.lemma && (
-                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}><span dir="rtl">{r.lemma}</span></span>
+                    <span className="text-sm font-medium text-text-primary" style={{ fontFamily: 'serif' }}><span dir="rtl">{r.lemma}</span></span>
                   )}
-                  <span className="text-xs text-[rgb(var(--color-text-muted))] italic flex-shrink-0">{r.transliteration}</span>
-                  <span className="text-xs text-[rgb(var(--color-text-secondary))] truncate">{r.gloss}</span>
+                  <span className="text-xs text-text-muted italic flex-shrink-0">{r.transliteration}</span>
+                  <span className="text-xs text-text-secondary truncate">{r.gloss}</span>
                 </button>
               ))}
             </div>
@@ -679,7 +679,7 @@ function EntryView({
         {/* Verse Occurrences */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
               Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </p>
             <div className="flex items-center gap-1.5">
@@ -687,7 +687,7 @@ function EntryView({
                 <button
                   onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
                   title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
-                  className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
+                  className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-separator text-text-secondary hover:border-accent/45 hover:bg-accent-hover/12 hover:text-accent transition-colors cursor-pointer"
                 >
                   <ScanSearch size={11} />
                   Open all in a tab
@@ -696,7 +696,7 @@ function EntryView({
               {occurrences.length > 10 && (
                 <button
                   onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-separator text-text-secondary hover:border-accent/45 hover:bg-accent-hover/12 hover:text-accent transition-colors cursor-pointer"
                 >
                   {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
                 </button>
@@ -750,12 +750,12 @@ function EntryView({
             return (
               <div className="mb-2 space-y-1.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
+                  <div className="flex items-center gap-0.5 bg-surface-1 border border-separator rounded-md p-0.5">
                     {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
                       <button
                         key={m}
                         onClick={() => setOccSort(m)}
-                        className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-surface-3 text-text-primary font-semibold' : 'text-text-muted hover:text-text-primary'}`}
                       >
                         {label}
                       </button>
@@ -771,7 +771,7 @@ function EntryView({
                         }
                         setOccBookMenuOpen((v) => !v)
                       }}
-                      className="flex items-center gap-1 text-[9.5px] px-2 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[140px]"
+                      className="flex items-center gap-1 text-[9.5px] px-2 py-1 rounded-md border border-separator bg-surface-1 text-text-secondary hover:text-text-primary cursor-pointer transition-colors max-w-[140px]"
                     >
                       <span className="truncate">{selectedBookLabel}</span>
                       <ChevronDown size={10} className={`flex-shrink-0 transition-transform ${occBookMenuOpen ? 'rotate-180' : ''}`} />
@@ -785,19 +785,19 @@ function EntryView({
                     >
                       <button
                         onClick={() => { setOccBookFilter('all'); setOccBookMenuOpen(false) }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-hover cursor-pointer transition-colors"
                       >
                         <span className="flex-1">All books ({occurrences.length})</span>
-                        {occBookFilter === 'all' && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                        {occBookFilter === 'all' && <CheckIcon size={12} className="flex-shrink-0 text-accent" />}
                       </button>
                       {bookOptions.map((b) => (
                         <button
                           key={b.id}
                           onClick={() => { setOccBookFilter(b.id); setOccBookMenuOpen(false) }}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-hover cursor-pointer transition-colors"
                         >
                           <span className="flex-1 truncate">{b.name} ({b.count})</span>
-                          {occBookFilter === b.id && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                          {occBookFilter === b.id && <CheckIcon size={12} className="flex-shrink-0 text-accent" />}
                         </button>
                       ))}
                     </div>,
@@ -806,10 +806,10 @@ function EntryView({
                 </div>
                 {hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide mr-0.5">Shown as:</span>
+                    <span className="text-[9px] text-text-muted uppercase tracking-wide mr-0.5">Shown as:</span>
                     <button
                       onClick={() => setOccWordFilter(new Set())}
-                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.size === 0 ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.size === 0 ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-separator text-text-muted hover:text-text-primary'}`}
                     >
                       All
                     </button>
@@ -817,7 +817,7 @@ function EntryView({
                       <button
                         key={w.key}
                         onClick={() => toggleWord(w.key)}
-                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.has(w.key) ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.has(w.key) ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-separator text-text-muted hover:text-text-primary'}`}
                       >
                         {w.display} ({w.count})
                       </button>
@@ -829,10 +829,10 @@ function EntryView({
           })()}
 
           {occurrencesLoading && (
-            <p className="text-xs text-[rgb(var(--color-text-muted))] text-center py-2">Loading…</p>
+            <p className="text-xs text-text-muted text-center py-2">Loading…</p>
           )}
           {!occurrencesLoading && occurrences.length === 0 && (
-            <p className="text-xs text-[rgb(var(--color-text-muted))]">No occurrence data available.</p>
+            <p className="text-xs text-text-muted">No occurrence data available.</p>
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
             let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
@@ -843,7 +843,7 @@ function EntryView({
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
             }
             if (visible.length === 0) {
-              return <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">No occurrences match the current filters.</p>
+              return <p className="text-xs text-text-muted py-2">No occurrences match the current filters.</p>
             }
             return (
             <div className="space-y-1">
@@ -856,27 +856,27 @@ function EntryView({
                     key={i}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
                     onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: wr(occ.text ?? '') })}
-                    className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
+                    className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-border hover:bg-surface-hover cursor-pointer transition-colors group"
                   >
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 flex-shrink-0 group-hover:bg-[rgb(var(--color-accent))]/18">
+                      <span className="font-mono text-[10px] font-semibold text-accent bg-accent/10 rounded px-1.5 py-0.5 flex-shrink-0 group-hover:bg-accent-hover/18">
                         {refLabel}
                       </span>
                       {occ.text_id === 'lxx' && (
-                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 rounded">
+                        <span className="text-[9px] text-text-muted bg-surface-4 px-1 rounded">
                           LXX
                         </span>
                       )}
                       {multipleMatches && (
-                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 rounded">
+                        <span className="text-[9px] text-text-muted bg-surface-4 px-1 rounded">
                           ×{occ.matchWordIndices?.length}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed mt-1">
+                    <p className="text-xs text-text-secondary leading-relaxed mt-1">
                       {occ.text
                         ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
-                        : <span className="italic text-[rgb(var(--color-text-muted))]">—</span>
+                        : <span className="italic text-text-muted">—</span>
                       }
                     </p>
                   </button>
@@ -892,7 +892,7 @@ function EntryView({
         {!(occurrences.length <= 10 || showAllOccurrences) && (
           <button
             onClick={() => setExpanded(false)}
-            className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
+            className="w-full text-center text-xs text-text-muted hover:text-text-primary hover:underline cursor-pointer py-1"
           >
             Show less
           </button>
@@ -902,20 +902,20 @@ function EntryView({
       </div>
 
       {/* Prev / Next navigation */}
-      <div className="flex items-center border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
+      <div className="flex items-center border-t border-separator flex-shrink-0">
         <button
           onClick={() => adjacent.prev && onNav(adjacent.prev, false)}
           disabled={!adjacent.prev}
-          className="flex-1 flex items-center gap-1 px-4 py-2.5 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+          className="flex-1 flex items-center gap-1 px-4 py-2.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
         >
           <ChevronLeft size={14} />
           {adjacent.prev}
         </button>
-        <div className="w-px h-5 bg-[rgb(var(--color-surface-4))]" />
+        <div className="w-px h-5 bg-surface-4" />
         <button
           onClick={() => adjacent.next && onNav(adjacent.next, false)}
           disabled={!adjacent.next}
-          className="flex-1 flex items-center justify-end gap-1 px-4 py-2.5 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+          className="flex-1 flex items-center justify-end gap-1 px-4 py-2.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
         >
           {adjacent.next}
           <ChevronRight size={14} />
@@ -1058,8 +1058,8 @@ function SearchView({
         onOpenNewTab={() => { if (ctxEntry) { onOpenNewTab?.(ctxEntry); searchCtx.close() } }}
       />
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="relative">
-        <BookMarked size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Lexicon</span>
+        <BookMarked size={14} className="text-text-muted flex-shrink-0" />
+        <span className="text-sm font-medium text-text-primary">Lexicon</span>
         <div className="ml-auto flex items-center gap-1">
           <HeaderSegmentedToggle
             value={lang}
@@ -1075,7 +1075,7 @@ function SearchView({
               onMouseDown={(e) => e.stopPropagation()}
               onClick={() => setInfoOpen((v) => !v)}
               title="How to read a lexicon entry"
-              className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-text-primary bg-surface-4' : 'text-text-muted hover:bg-surface-hover hover:text-text-primary'}`}
             >
               <Info size={13} />
             </button>
@@ -1084,15 +1084,15 @@ function SearchView({
         </div>
       </TabHeaderPortal>
 
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
-        <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-separator">
+        <Search size={13} className="text-text-muted flex-shrink-0" />
         <input ref={inputRef} type="text" value={query}
           onChange={(e) => handleInput(e.target.value)} onKeyDown={handleKeyDown}
           placeholder="H7225 · G3056 · beginning..."
-          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none" />
+          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none" />
         {query && (
           <button onClick={() => { setQuery(''); setResults([]) }}
-            className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
+            className="text-text-muted hover:text-text-primary cursor-pointer">
             <X size={13} />
           </button>
         )}
@@ -1107,38 +1107,38 @@ function SearchView({
           scrollSaveTimerRef.current = setTimeout(() => onScrollChange?.(top), 150)
         }}
       >
-        {loading && <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">Searching…</div>}
+        {loading && <div className="px-4 py-6 text-center text-xs text-text-muted">Searching…</div>}
         {!loading && results.length === 0 && query.trim().length >= 2 && (
-          <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">No results for "{query}"</div>
+          <div className="px-4 py-6 text-center text-xs text-text-muted">No results for "{query}"</div>
         )}
         {!loading && results.length === 0 && query.trim().length < 2 && (
           <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-            <BookMarked size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-40" />
-            <p className="text-sm text-[rgb(var(--color-text-secondary))]">Search Strong's lexicon</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">Enter a Strong's number (H7225) or keyword</p>
+            <BookMarked size={28} className="text-text-muted mb-3 opacity-40" />
+            <p className="text-sm text-text-secondary">Search Strong's lexicon</p>
+            <p className="text-xs text-text-muted mt-1">Enter a Strong's number (H7225) or keyword</p>
           </div>
         )}
         {!loading && results.length > 0 && (
-          <div className="divide-y divide-[rgb(var(--color-surface-4))]">
+          <div className="divide-y divide-separator">
             {results.map((entry, i) => (
               <button key={entry.strongsNum} onClick={() => onSelect(entry)}
                 onContextMenu={(e) => { setCtxEntry(entry); searchCtx.open(e, entry.strongsNum) }}
                 className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
-                  i === selectedIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))]'
+                  i === selectedIdx ? 'bg-surface-4' : 'hover:bg-surface-hover'
                 }`}>
-                <span className="font-mono text-xs text-[rgb(var(--color-text-muted))] flex-shrink-0 mt-0.5 w-12">{entry.strongsNum}</span>
+                <span className="font-mono text-xs text-text-muted flex-shrink-0 mt-0.5 w-12">{entry.strongsNum}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5 mb-0.5">
                     {entry.lemma && (
-                      <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}><span dir="rtl">{entry.lemma}</span></span>
+                      <span className="text-sm font-medium text-text-primary" style={{ fontFamily: 'serif' }}><span dir="rtl">{entry.lemma}</span></span>
                     )}
                     {entry.transliteration && (
-                      <span className="text-xs text-[rgb(var(--color-text-muted))] italic">
+                      <span className="text-xs text-text-muted italic">
                         {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-[rgb(var(--color-text-secondary))] truncate">
+                  <p className="text-xs text-text-secondary truncate">
                     {(() => { const t = wr(entry.gloss); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
                   </p>
                 </div>

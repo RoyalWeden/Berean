@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, ArrowLeft, Search, Copy, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { Select, TextField, Button, SectionLabel, IconButton } from '@/components/ui'
 
 // ── Book data for the "All supported books" sub-view ────────────────────────
 
@@ -565,58 +566,56 @@ function VerseBuilder() {
   }
 
   return (
-    <div className="bg-[rgb(var(--color-surface-3))] rounded-xl border border-[rgb(var(--color-surface-4))] p-4 space-y-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Verse builder</p>
+    <div className="bg-surface-3 rounded-card border border-border p-4 space-y-3">
+      <SectionLabel>Verse builder</SectionLabel>
       <div className="space-y-2">
         <div className="flex gap-2 items-center">
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-12 flex-shrink-0">Book</span>
-          <select
-            value={bookIdx}
-            onChange={(e) => { setBookIdx(Number(e.target.value)); setChapter('1'); setStartVerse('1'); setEndVerse('') }}
-            className="flex-1 bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs px-2 py-1.5 rounded-lg outline-none cursor-pointer min-w-0"
-          >
-            {flatBooks.map((b, i) => (
-              <option key={b.id} value={i}>{b.name}</option>
-            ))}
-          </select>
+          <span className="text-caption2 text-text-muted w-12 flex-shrink-0">Book</span>
+          <Select
+            size="sm"
+            className="flex-1 min-w-0"
+            value={String(bookIdx)}
+            onChange={(v) => { setBookIdx(Number(v)); setChapter('1'); setStartVerse('1'); setEndVerse('') }}
+            options={flatBooks.map((b, i) => ({ value: String(i), label: b.name }))}
+            aria-label="Book"
+          />
         </div>
         <div className="flex gap-2 items-center">
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-12 flex-shrink-0">Chapter</span>
-          <input
+          <span className="text-caption2 text-text-muted w-12 flex-shrink-0">Chapter</span>
+          <TextField
+            size="sm"
             type="number" min={1} value={chapter}
             onChange={(e) => setChapter(e.target.value)}
-            className="w-20 bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs px-2 py-1.5 rounded-lg outline-none"
+            wrapperClassName="w-20"
           />
         </div>
         <div className="flex gap-2 items-center">
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-12 flex-shrink-0">Verse</span>
-          <input
+          <span className="text-caption2 text-text-muted w-12 flex-shrink-0">Verse</span>
+          <TextField
+            size="sm"
             type="number" min={1} placeholder="start" value={startVerse}
             onChange={(e) => setStartVerse(e.target.value)}
-            className="w-20 bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs px-2 py-1.5 rounded-lg outline-none placeholder:text-[rgb(var(--color-text-muted))]"
+            wrapperClassName="w-20"
           />
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))]">–</span>
-          <input
+          <span className="text-caption2 text-text-muted">–</span>
+          <TextField
+            size="sm"
             type="number" min={1} placeholder="end (optional)" value={endVerse}
             onChange={(e) => setEndVerse(e.target.value)}
-            className="w-32 bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs px-2 py-1.5 rounded-lg outline-none placeholder:text-[rgb(var(--color-text-muted))]"
+            wrapperClassName="w-32"
           />
         </div>
       </div>
       {/* Preview + copy */}
       <div className="flex items-center gap-2 pt-1">
-        <code className="flex-1 text-xs font-mono px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-accent))] border border-[rgb(var(--color-surface-4))]">
+        <code className="flex-1 text-xs font-mono px-3 py-2 rounded-control bg-surface-1 text-accent border border-border">
           {ref}
         </code>
-        <button
-          onClick={copyRef}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] transition-colors cursor-pointer flex-shrink-0"
-        >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
+        <Button variant="ghost" size="sm" icon={copied ? Check : Copy} className="bg-accent-muted text-accent flex-shrink-0" onClick={copyRef}>
           {copied ? 'Copied' : 'Copy'}
-        </button>
+        </Button>
       </div>
-      <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+      <p className="text-caption2 text-text-muted">
         Paste this into any note — it will auto-detect as a clickable reference.
       </p>
     </div>
@@ -650,19 +649,19 @@ function AllBooksView() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Search + stats */}
-      <div className="px-5 pt-4 pb-3 border-b border-[rgb(var(--color-surface-4))] space-y-3 flex-shrink-0">
+      <div className="px-5 pt-4 pb-3 border-b border-separator space-y-3 flex-shrink-0">
         <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))]" />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
           <input
             autoFocus
             type="text"
             placeholder="Search books…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs pl-7 pr-3 py-2 rounded-lg outline-none placeholder:text-[rgb(var(--color-text-muted))]"
+            className="w-full bg-surface-4 text-text-primary text-xs pl-7 pr-3 py-2 rounded-lg outline-none placeholder:text-text-muted"
           />
         </div>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+        <p className="text-caption2 text-text-muted">
           {totalBooks} {totalBooks === 1 ? 'book' : 'books'} · type any name or abbreviation in your note to create a clickable link
         </p>
       </div>
@@ -673,25 +672,25 @@ function AllBooksView() {
         {!query && <VerseBuilder />}
 
         {filtered.length === 0 ? (
-          <p className="text-xs text-[rgb(var(--color-text-muted))] text-center py-6">No books match "{query}"</p>
+          <p className="text-xs text-text-muted text-center py-6">No books match "{query}"</p>
         ) : (
           filtered.map((group) => (
             <div key={group.group}>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">{group.group}</p>
+              <p className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mb-1.5">{group.group}</p>
               <div className="grid grid-cols-1 gap-0.5">
                 {group.books.map((book) => {
                   const exRef = `${book.abbr} ${book.exampleChapter}:${book.exampleVerse}`
                   return (
                     <div
                       key={book.id}
-                      className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-[rgb(var(--color-surface-4))] transition-colors group"
+                      className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors group"
                     >
-                      <span className="text-xs text-[rgb(var(--color-text-primary))] w-44 flex-shrink-0 truncate">{book.name}</span>
-                      <code className="text-[10px] font-mono text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded flex-shrink-0 group-hover:bg-[rgb(var(--color-surface-2))]">
+                      <span className="text-xs text-text-primary w-44 flex-shrink-0 truncate">{book.name}</span>
+                      <code className="text-caption2 font-mono text-text-muted bg-surface-4 px-1.5 py-0.5 rounded flex-shrink-0 group-hover:bg-surface-hover">
                         {book.abbr}
                       </code>
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">e.g.</span>
-                      <code className="text-[10px] font-mono text-[rgb(var(--color-accent))] flex-shrink-0">{exRef}</code>
+                      <span className="text-caption2 text-text-muted flex-shrink-0">e.g.</span>
+                      <code className="text-caption2 font-mono text-accent flex-shrink-0">{exRef}</code>
                     </div>
                   )
                 })}
@@ -742,28 +741,28 @@ export default function MarkdownReferenceModal() {
           className="
             fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
             z-50 w-full max-w-2xl max-h-[84vh]
-            bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
+            bg-surface-2 border border-separator
             rounded-xl shadow-2xl overflow-hidden flex flex-col
           "
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-separator flex-shrink-0">
             <div className="flex items-center gap-2">
               {showBack && (
                 <button
                   onClick={goBack}
-                  className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  className="p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
                 >
                   <ArrowLeft size={15} />
                 </button>
               )}
-              <Dialog.Title className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">
+              <Dialog.Title className="text-sm font-semibold text-text-primary">
                 {title}
               </Dialog.Title>
             </div>
             <button
               onClick={handleClose}
-              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              className="p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
             >
               <X size={16} />
             </button>
@@ -798,14 +797,14 @@ function IndexView({ onSelect }: { onSelect: (item: RefItem) => void }) {
         <button
           key={item.id}
           onClick={() => onSelect(item)}
-          className="text-left flex items-start gap-3 p-3 rounded-lg bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer group"
+          className="text-left flex items-start gap-3 p-3 rounded-lg bg-surface-3 hover:bg-surface-hover transition-colors cursor-pointer group"
         >
-          <code className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-accent))] flex-shrink-0 mt-0.5 group-hover:bg-[rgb(var(--color-surface-4))]">
+          <code className="text-caption font-mono px-1.5 py-0.5 rounded bg-surface-1 text-accent flex-shrink-0 mt-0.5 group-hover:bg-surface-hover">
             {item.syntax.split('\n')[0]}
           </code>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">{item.label}</p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 line-clamp-2">{item.description}</p>
+            <p className="text-xs font-medium text-text-primary truncate">{item.label}</p>
+            <p className="text-caption2 text-text-muted mt-0.5 line-clamp-2">{item.description}</p>
           </div>
         </button>
       ))}
@@ -820,37 +819,37 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
     <div className="px-6 py-5 space-y-5">
       {/* Syntax */}
       <div>
-        <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-2">Syntax</p>
-        <code className="block px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-accent))] text-sm font-mono whitespace-pre-wrap">
+        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Syntax</p>
+        <code className="block px-3 py-2 rounded-lg bg-surface-4 text-accent text-sm font-mono whitespace-pre-wrap">
           {item.syntax}
         </code>
       </div>
 
       {/* What it does */}
       <div>
-        <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-2">What it does</p>
-        <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">{item.description}</p>
+        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">What it does</p>
+        <p className="text-sm text-text-secondary leading-relaxed">{item.description}</p>
       </div>
 
       {/* Why use it */}
       <div>
-        <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-2">Why use it</p>
-        <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">{item.why}</p>
+        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Why use it</p>
+        <p className="text-sm text-text-secondary leading-relaxed">{item.why}</p>
       </div>
 
       {/* Examples */}
       <div>
-        <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-2">Examples</p>
+        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Examples</p>
         <div className="space-y-2">
           {item.examples.map((ex, i) => (
-            <div key={i} className="rounded-lg bg-[rgb(var(--color-surface-3))] overflow-hidden">
-              <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
-                <p className="text-[9px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">You type</p>
-                <code className="text-xs font-mono text-[rgb(var(--color-text-primary))] whitespace-pre-wrap">{ex.input}</code>
+            <div key={i} className="rounded-lg bg-surface-3 overflow-hidden">
+              <div className="px-3 py-2 border-b border-separator">
+                <p className="text-micro font-semibold text-text-muted uppercase tracking-wider mb-1">You type</p>
+                <code className="text-xs font-mono text-text-primary whitespace-pre-wrap">{ex.input}</code>
               </div>
               <div className="px-3 py-2">
-                <p className="text-[9px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">Result</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))] whitespace-pre-wrap">{ex.output}</p>
+                <p className="text-micro font-semibold text-text-muted uppercase tracking-wider mb-1">Result</p>
+                <p className="text-xs text-text-secondary whitespace-pre-wrap">{ex.output}</p>
               </div>
             </div>
           ))}
@@ -861,22 +860,22 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
       {item.hasAllBooksPanel && (
         <button
           onClick={onOpenAllBooks}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer group"
+          className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-surface-3 border border-separator hover:bg-surface-hover transition-colors cursor-pointer group"
         >
           <div className="text-left">
-            <p className="text-xs font-medium text-[rgb(var(--color-text-primary))]">All supported books</p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5">
+            <p className="text-xs font-medium text-text-primary">All supported books</p>
+            <p className="text-caption2 text-text-muted mt-0.5">
               Browse every book · search by name or abbreviation · build a verse reference
             </p>
           </div>
-          <ArrowLeft size={14} className="rotate-180 text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-accent))] transition-colors flex-shrink-0 ml-3" />
+          <ArrowLeft size={14} className="rotate-180 text-text-muted group-hover:text-accent transition-colors flex-shrink-0 ml-3" />
         </button>
       )}
 
       {/* Notes */}
       {item.notes && (
-        <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-accent))/8] border border-[rgb(var(--color-accent))/20]">
-          <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">{item.notes}</p>
+        <div className="px-3 py-2 rounded-lg bg-accent-muted border border-accent/20">
+          <p className="text-xs text-text-secondary leading-relaxed">{item.notes}</p>
         </div>
       )}
     </div>

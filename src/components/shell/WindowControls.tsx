@@ -23,13 +23,13 @@ export default function WindowControls() {
   const btnBase =
     'flex items-center justify-center flex-shrink-0 h-8 w-[46px] ' +
     'transition-colors duration-75 cursor-pointer select-none ' +
-    'text-[rgb(var(--color-text-primary))] app-no-drag'
+    'text-text-primary app-no-drag'
 
   return (
     <div className="flex items-center flex-shrink-0 h-8 app-no-drag" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       {/* Minimize — ─ */}
       <button
-        className={`${btnBase} hover:bg-white/10`}
+        className={`${btnBase} hover:bg-surface-hover`}
         title="Minimize"
         onClick={() => window.windowControls?.minimize()}
       >
@@ -40,7 +40,7 @@ export default function WindowControls() {
 
       {/* Maximize / Restore */}
       <button
-        className={`${btnBase} hover:bg-white/10`}
+        className={`${btnBase} hover:bg-surface-hover`}
         title={isMaximized ? 'Restore' : 'Maximize'}
         onClick={() => window.windowControls?.maximize()}
       >

@@ -1,7 +1,6 @@
-import * as Popover from '@radix-ui/react-popover'
 import { MoreHorizontal } from 'lucide-react'
 import { useState, useEffect, useRef, type ReactNode } from 'react'
-import ShortcutKeys from './ShortcutKeys'
+import { IconButton, Popover, PopoverTrigger, PopoverSurface, MenuItem, MenuSeparator } from '@/components/ui'
 
 export interface OverflowItem {
   key: string
@@ -95,62 +94,59 @@ export default function HeaderOverflowMenu({ items, className = '' }: { items: O
 
   if (items.length === 0) return null
   return (
-    <Popover.Root
+    <Popover
       open={open}
       onOpenChange={(next) => {
         if (next) window.dispatchEvent(new CustomEvent('berean:closeMenus'))
         setOpen(next)
       }}
     >
-      <Popover.Trigger asChild>
-        <button
+      <PopoverTrigger asChild>
+        <IconButton
           ref={triggerRef}
-          title="More"
+          icon={MoreHorizontal}
+          label="More"
+          size={28}
           onMouseEnter={openOnHover}
           onMouseLeave={() => { cancelHoverOpen(); scheduleHoverClose() }}
-          className={`no-drag flex items-center justify-center w-7 h-7 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0 ${className}`}
-        >
-          <MoreHorizontal size={14} />
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          ref={contentRef}
-          side="bottom"
-          align="end"
-          sideOffset={6}
-          onMouseEnter={keepHoverOpen}
-          onMouseLeave={scheduleHoverClose}
-          className="glass-panel z-50 min-w-[180px] rounded-shell overflow-hidden py-1 text-xs"
-        >
-          {items.map((item) => (
-            <div key={item.key}>
-              {item.divider && <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />}
-              {item.render ? item.render() : (
-                <button
-                  onClick={item.onClick}
-                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
-                    item.danger
-                      ? 'text-[rgb(var(--color-text-muted))] hover:bg-red-500/15 hover:text-red-400'
-                      : item.active
-                      ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                  }`}
-                >
-                  <span className="relative flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5">
-                    {item.icon}
-                    {item.badge && (
-                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] opacity-70" />
-                    )}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverSurface
+        ref={contentRef}
+        side="bottom"
+        align="end"
+        sideOffset={6}
+        onMouseEnter={keepHoverOpen}
+        onMouseLeave={scheduleHoverClose}
+        innerClassName="min-w-[180px] p-1"
+        style={{ zIndex: 'var(--z-menu)' } as React.CSSProperties}
+      >
+        {items.map((item) => (
+          <div key={item.key}>
+            {item.divider && <MenuSeparator />}
+            {item.render ? item.render() : (
+              <MenuItem
+                onClick={item.onClick}
+                active={item.active}
+                danger={item.danger}
+                shortcut={item.shortcut}
+                label={
+                  <span className="flex items-center gap-2.5">
+                    <span className="relative flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5">
+                      {item.icon}
+                      {item.badge && (
+                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-accent opacity-70" />
+                      )}
+                    </span>
+                    <span className="flex-1 truncate">{item.label}</span>
                   </span>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.shortcut && <ShortcutKeys keys={item.shortcut} className="flex-shrink-0" />}
-                </button>
-              )}
-            </div>
-          ))}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+                }
+              />
+            )}
+          </div>
+        ))}
+      </PopoverSurface>
+    </Popover>
   )
 }

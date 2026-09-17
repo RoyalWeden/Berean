@@ -6,7 +6,7 @@ import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
-import ShortcutKeys from './ShortcutKeys'
+import { IconButton, MenuSurface, MenuItem, MenuSeparator, MenuLabel, RefChip } from '@/components/ui'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -101,7 +101,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   }, [])
 
   if (tabs.length === 0) {
-    return <div className="px-3 py-2 text-xs text-[rgb(var(--color-text-muted))]">No open tabs</div>
+    return <div className="px-3 py-2 text-footnote text-text-muted">No open tabs</div>
   }
 
   // ── Drag handlers ──────────────────────────────────────────────────────
@@ -594,7 +594,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             // of an abrupt reflow — the "make tab reordering feel smoother" half of this request.
             <motion.div key={tab.id} layout="position" transition={{ type: 'spring', stiffness: 500, damping: 40 }} className="relative">
               {showInsertBefore && (
-                <div className="absolute top-0 left-1 right-1 h-0.5 rounded-full bg-[rgb(var(--color-accent))] z-10 -translate-y-px pointer-events-none" />
+                <div className="absolute top-0 left-1 right-1 h-0.5 rounded-full bg-accent z-10 -translate-y-px pointer-events-none" />
               )}
 
               {/* data-tab-idx is read by handleContainerDrop to identify the target tab */}
@@ -609,30 +609,21 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 onDragEnd={handleDragEnd}
                 onContextMenu={(e) => handleContextMenu(e, tab)}
                 className={`
-                  no-drag group relative flex items-stretch gap-2 rounded-shell px-2 py-1.5
-                  select-none transition-colors duration-100
+                  no-drag group relative flex items-stretch gap-2 rounded-row px-2 h-7
+                  select-none transition-colors duration-100 text-footnote
                   ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
                   ${isCrossSpaceTarget
-                    ? 'ring-2 ring-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                    ? 'ring-2 ring-accent bg-accent-muted text-accent'
                     : isActive
-                      ? 'text-[rgb(var(--color-text-primary))]'
-                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
+                      ? 'text-text-primary font-medium'
+                      : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                   }
                 `}
               >
                 {isActive && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
-                    // group-hover here is what actually gives an ALREADY-active tab hover
-                    // feedback — without it, hovering an active tab (whose own row has no
-                    // hover: classes, since its highlight comes entirely from this pill) showed
-                    // nothing at all. Previously this swapped the pill's background to a much
-                    // lower-opacity accent tint on hover, which *replaced* (rather than layered
-                    // on top of) the solid active fill — reading as the tab losing its selected
-                    // look the instant you hovered it. `brightness` composites on top of
-                    // whatever color is already there instead of overriding it, so the active
-                    // fill stays fully visible and simply intensifies on hover.
-                    className="absolute inset-0 rounded-shell bg-[rgb(var(--color-surface-4))] transition-[filter] duration-100 group-hover:brightness-125"
+                    className="absolute inset-0 rounded-row bg-surface-selected"
                     transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                   />
                 )}
@@ -651,27 +642,24 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                       <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     )}
                   </span>
-                  <span className="truncate text-xs" style={{ zoom: appZoom }}>{displayTitle}</span>
+                  <span className="truncate" style={{ zoom: appZoom }}>{displayTitle}</span>
                   {isCompare && (
-                    <GitCompare size={10} className="flex-shrink-0 text-[rgb(var(--color-accent))] opacity-80" aria-label="Compare mode" />
+                    <GitCompare size={10} className="flex-shrink-0 text-accent opacity-80" aria-label="Compare mode" />
                   )}
-                  {isLXX && (
-                    <span className="flex-shrink-0 text-[9px] px-1 py-0 rounded font-semibold bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">LXX</span>
-                  )}
+                  {isLXX && <RefChip variant="lxx" size="xs" className="flex-shrink-0">LXX</RefChip>}
                 </div>
-                <button
+                <IconButton
+                  icon={X}
+                  label="Close tab"
+                  size={20}
+                  tooltip={false}
                   onClick={(e) => { e.stopPropagation(); onTabClose(tab) }}
-                  className={`relative z-10 self-center flex-shrink-0 rounded p-0.5
-                    text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]
-                    hover:bg-[rgb(var(--color-surface-4))] transition-opacity cursor-pointer
-                    ${isActive ? 'opacity-40 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                >
-                  <X size={11} />
-                </button>
+                  className={`relative z-10 self-center transition-opacity ${isActive ? 'opacity-40 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                />
               </div>
 
               {showInsertAfter && (
-                <div className="absolute bottom-0 left-1 right-1 h-0.5 rounded-full bg-[rgb(var(--color-accent))] z-10 translate-y-px pointer-events-none" />
+                <div className="absolute bottom-0 left-1 right-1 h-0.5 rounded-full bg-accent z-10 translate-y-px pointer-events-none" />
               )}
             </motion.div>
           )
@@ -679,7 +667,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       </div>
 
       {contextMenu && createPortal(
-        <div
+        <MenuSurface
           ref={menuRef}
           // WebkitAppRegion: 'no-drag' — this menu is portaled to document.body, so it can land,
           // purely by screen coordinates, over the top header bar's app-drag-region (especially
@@ -688,12 +676,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           // hit-testing before the renderer ever sees it — every other portaled menu in this
           // codebase (MenuPositioner, ShellHeader's nav dropdown, Sidebar's own popups) already
           // carries this for the identical reason; this one was the one place missing it.
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className="min-w-44 rounded-shell context-menu p-1 text-xs no-drag"
+          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 'var(--z-menu)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className="min-w-44 no-drag"
         >
           {contextMenu.tab.type !== 'tags' && (
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          <MenuItem
+            icon={ExternalLink}
+            label="Open in floating tab"
             onClick={() => {
               // Note tabs use type='note' internally but the float shell checks for 'notes'
               const floatType = contextMenu.tab.type === 'note' ? 'notes' : contextMenu.tab.type
@@ -717,14 +706,12 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               onTabClose(contextMenu.tab)
               closeContextMenu()
             }}
-          >
-            <ExternalLink size={12} />
-            Open in floating tab
-          </button>
+          />
           )}
           {contextMenu.tab.type !== 'tags' && (
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          <MenuItem
+            icon={Copy}
+            label="Duplicate tab"
             onClick={() => {
               const store = useAppStore.getState()
               const newTab = {
@@ -742,56 +729,48 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               store.addTab(newTab)
               closeContextMenu()
             }}
-          >
-            <Copy size={12} />
-            Duplicate tab
-          </button>
+          />
           )}
-          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          <MenuSeparator />
+          <MenuItem
+            icon={Archive}
+            label="Archive tab"
             onClick={() => {
               archiveTab(contextMenu.tab.spaceId, contextMenu.tab.id)
               closeContextMenu()
             }}
-          >
-            <Archive size={12} />
-            Archive tab
-          </button>
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
+          />
+          <MenuItem
+            icon={Trash2}
+            label="Close tab"
+            // The one item in this menu with a real keybinding (⌘W, per Settings →
+            // Shortcuts) — carried as MenuItem's own `shortcut` prop (keycap chip),
+            // same as every other menu in the app.
+            shortcut="⌘W"
+            danger
             onClick={() => {
               onTabClose(contextMenu.tab)
               closeContextMenu()
             }}
-          >
-            <Trash2 size={12} />
-            Close tab
-            {/* The one item in this menu with a real keybinding (⌘W, per Settings →
-                Shortcuts) — carries the same styled keycap chip dropdown menus already
-                use (HeaderOverflowMenu.tsx) instead of leaving it undiscoverable. */}
-            <ShortcutKeys keys="⌘W" className="ml-auto flex-shrink-0" />
-          </button>
+          />
           {otherSessions.length > 0 && (
             <>
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">Move to session</div>
+              <MenuSeparator />
+              <MenuLabel>Move to session</MenuLabel>
               {otherSessions.map((session) => (
-                <button
+                <MenuItem
                   key={session.id}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  icon={Layers}
+                  label={session.name}
                   onClick={() => {
                     moveTabToSession(contextMenu.tab.spaceId, contextMenu.tab.id, session.id)
                     closeContextMenu()
                   }}
-                >
-                  <Layers size={12} />
-                  {session.name}
-                </button>
+                />
               ))}
             </>
           )}
-        </div>,
+        </MenuSurface>,
         document.body
       )}
     </>

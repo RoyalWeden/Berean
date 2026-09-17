@@ -22,6 +22,7 @@ import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
+import { Button, IconButton } from '@/components/ui'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
@@ -2863,7 +2864,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   if (tabState.searchMode) {
     const isDedicatedSearchTab = activeTab?.id === 'scripture-search-dedicated'
     return (
-      <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
+      <div className="flex flex-col h-full bg-surface-3">
         <ScriptureSearchView
           // BiblePanel itself is a single persistent instance shared across every 'bible' tab
           // (no key on <BiblePanel/> in ActivePanel.tsx — it resets its OWN state manually on
@@ -3019,7 +3020,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={panelRootRef}
-      className="relative flex flex-col h-full bg-[rgb(var(--color-surface-3))]"
+      className="relative flex flex-col h-full bg-surface-3"
       onMouseDown={() => setActivePanelId('bible')}
     >
       {/* Reference bar. Floating only: pulled OUT of normal flex flow (`absolute`, layered via
@@ -3047,7 +3048,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             carries ordinary chapter history. Restored as an explicit pill instead, matching
             how LexiconPanel already solves the exact same problem for its own tab. */}
         {tabState.noteBack && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ArrowLeft}
             onClick={() => {
               if (!tabState.noteBack) return
               requestOpenNote(tabState.noteBack.noteId)
@@ -3055,11 +3059,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               if (activeTab) updateTabState('scripture', activeTab.id, { noteBack: null })
             }}
             title={`Back to "${tabState.noteBack.title}"`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[120px]"
+            className="flex-shrink-0 max-w-[120px] text-accent hover:text-accent"
           >
-            <ArrowLeft size={11} className="flex-shrink-0" />
             <span className="truncate">{tabState.noteBack.title}</span>
-          </button>
+          </Button>
         )}
         {isCompareMode ? (
           <>
@@ -3071,27 +3074,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               editions={EDITIONS}
               currentTextId={addPanelTextId ?? textId}
               onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<PanelRightDashed size={16} />}
-              triggerTitle="Add comparison panel"
-              triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
+              triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel" size={28} />}
               popoverHeader={describeComparePanels()}
             />
             {/* Sync scroll — only meaningful once 2+ columns share the same chapter (a
                 different translation of the same passage); grays out otherwise rather
                 than disappearing, so it's discoverable before the precondition is met. */}
-            <HintTooltip label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}>
-              <button
-                onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
-                disabled={!compareSyncEligible}
-                className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default ${
-                  tabState.compareSyncScroll
-                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-                }`}
-              >
-                <Link2 size={15} />
-              </button>
-            </HintTooltip>
+            <IconButton
+              icon={Link2}
+              label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}
+              size={28}
+              active={tabState.compareSyncScroll}
+              disabled={!compareSyncEligible}
+              onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
+            />
           </>
         ) : (
           <>
@@ -3103,9 +3099,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 same grouped-button treatment with different radii/dividers
                 before being unified onto one primitive. */}
             <ActionPillGroup align="stretch">
-              <button onClick={prevChapter} title="Previous chapter" className="flex items-center justify-center w-7 h-7 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-                <ChevronLeft size={17} />
-              </button>
+              <IconButton icon={ChevronLeft} label="Previous chapter" size={28} onClick={prevChapter} />
               {/* ── Unified book / chapter / edition / translation picker ──
                   The PDF library button now lives at the end of this picker's own
                   Edition row (as an icon) instead of a separate standalone toolbar
@@ -3121,19 +3115,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onOpenPdfLibrary={!floating && pdfFeatureEnabled ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
                 segmented
               />
-              <button onClick={nextChapter} title="Next chapter" className="flex items-center justify-center w-7 h-7 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-                <ChevronRight size={17} />
-              </button>
+              <IconButton icon={ChevronRight} label="Next chapter" size={28} onClick={nextChapter} />
             </ActionPillGroup>
             {/* Tag this whole chapter — the discoverable, always-visible entry point
                 (the per-verse popover's "Tag chapter…" item still works too). */}
-            <button
+            <IconButton
+              icon={TagIcon}
+              label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
+              size={28}
               onClick={(e) => setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())}
-              title={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
-              className="flex items-center justify-center w-8 h-8 rounded-md border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
-            >
-              <TagIcon size={15} />
-            </button>
+            />
             {chapterTagRect && (() => {
               const ranges = chapterRanges(tabState.bookId, tabState.chapter)
               return (
@@ -3156,9 +3147,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               editions={EDITIONS}
               currentTextId={addPanelTextId ?? textId}
               onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<PanelRightDashed size={16} />}
-              triggerTitle="Add comparison panel (pick a book/chapter)"
-              triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
+              triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel (pick a book/chapter)" size={28} />}
               popoverHeader={describeComparePanels()}
             />
             {/* Annotation info button — the panel below is portaled to document.body with
@@ -3168,8 +3157,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 being silently clipped — appearing to do nothing when clicked. */}
             {ANNOTATION_KEYS[textId] && (
               <div>
-                <button
+                <IconButton
                   ref={infoRef}
+                  icon={Info}
+                  label="Text annotations key"
+                  size={28}
+                  selected={infoOpen}
                   onClick={(e) => {
                     if (!infoOpen) {
                       const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -3177,16 +3170,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                     }
                     setInfoOpen((v) => !v)
                   }}
-                  title="Text annotations key"
-                  className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                >
-                  <Info size={13} />
-                </button>
+                />
                 {infoOpen && infoPos && createPortal(
                   <div
                     ref={infoPanelRef}
-                    style={{ position: 'fixed', left: infoPos.x, top: infoPos.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    className="w-72 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
+                    style={{ position: 'fixed', left: infoPos.x, top: infoPos.y, zIndex: 'var(--z-popover)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="w-72 material-popover rounded-menu overflow-hidden"
                     onMouseDown={(e) => e.stopPropagation()}>
                     {(() => {
                       const annInfo = ANNOTATION_KEYS[textId]
@@ -3208,17 +3197,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       const hasKeys = (annInfo?.keys.length ?? 0) > 0
                       return (
                         <>
-                          <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
-                            <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">
+                          <div className="px-3 py-2 border-b border-separator flex items-center justify-between">
+                            <span className="text-xs font-semibold text-text-secondary">
                               {editionForTextId(textId)?.label ?? TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
                             </span>
                             {annInfo?.canHide && hasKeys && (
                               <button
                                 onClick={toggleAll}
-                                className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                                className={`flex items-center gap-1 text-caption2 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
                                   allHidden
-                                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
+                                    ? 'bg-accent-muted text-accent'
+                                    : 'text-text-muted hover:bg-surface-hover'
                                 }`}
                               >
                                 {allHidden ? <Eye size={10} /> : <EyeOff size={10} />}
@@ -3228,12 +3217,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                           </div>
                           {/* Source / edition description — shown above annotation keys */}
                           {annInfo?.description && (
-                            <p className="px-3 pt-2 pb-1 text-[11px] leading-relaxed text-[rgb(var(--color-text-muted))] italic">
+                            <p className="px-3 pt-2 pb-1 text-caption leading-relaxed text-text-muted italic">
                               {annInfo.description}
                             </p>
                           )}
                           {hasKeys && (
-                            <div className={`px-3 space-y-2.5 ${annInfo?.description ? 'pt-1 pb-2 border-t border-[rgb(var(--color-surface-4))]' : 'py-2'}`}>
+                            <div className={`px-3 space-y-2.5 ${annInfo?.description ? 'pt-1 pb-2 border-t border-separator' : 'py-2'}`}>
                               {annInfo?.keys.map((k) => {
                                 const isHidden = hidden.includes(k.key)
                                 return (
@@ -3243,21 +3232,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                                         <button
                                           onClick={() => toggleKey(k.key)}
                                           title={isHidden ? 'Show this annotation' : 'Hide this annotation'}
-                                          className={`cursor-pointer transition-colors ${isHidden ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                                          className={`cursor-pointer transition-colors ${isHidden ? 'text-accent' : 'text-text-muted hover:text-text-primary'}`}
                                         >
                                           {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
                                         </button>
                                       )}
-                                      <code className={`text-[10px] font-mono px-1.5 py-0.5 rounded text-[rgb(var(--color-text-primary))] ${isHidden ? 'bg-[rgb(var(--color-surface-4))] line-through opacity-50' : 'bg-[rgb(var(--color-surface-4))]'}`}>{k.symbol}</code>
+                                      <code className={`text-caption2 font-mono px-1.5 py-0.5 rounded text-text-primary ${isHidden ? 'bg-surface-4 line-through opacity-50' : 'bg-surface-4'}`}>{k.symbol}</code>
                                     </div>
-                                    <span className={`text-[11px] leading-relaxed ${isHidden ? 'text-[rgb(var(--color-text-muted))] line-through' : 'text-[rgb(var(--color-text-secondary))]'}`}>{k.meaning}</span>
+                                    <span className={`text-caption leading-relaxed ${isHidden ? 'text-text-muted line-through' : 'text-text-secondary'}`}>{k.meaning}</span>
                                   </div>
                                 )
                               })}
                             </div>
                           )}
                           {!hasKeys && !annInfo?.description && (
-                            <p className="px-3 py-2 text-[11px] text-[rgb(var(--color-text-muted))]">No annotation markers in this text.</p>
+                            <p className="px-3 py-2 text-caption text-text-muted">No annotation markers in this text.</p>
                           )}
                         </>
                       )
@@ -3327,8 +3316,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   }}
                   className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
                     layoutPickerOpen
-                      ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      ? 'text-accent bg-accent/8'
+                      : 'text-text-primary hover:bg-surface-4'
                   }`}
                 >
                   <span className="flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5"><LayoutDashboard /></span>
@@ -3340,7 +3329,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         />
         {(textId === 'kjva' || textId === 'lxx') && currentBook && counterpartBookIds.has(currentBook.id) && (
           <HintTooltip label={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ArrowLeftRight}
             onClick={() => {
               if (!activeTab) return
               const target = textId === 'lxx' ? 'KJVA' : 'LXX'
@@ -3371,25 +3363,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, target.toLowerCase()),
               }))
             }}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
           >
-            <ArrowLeftRight size={14} />
-            <span>{textId === 'lxx' ? 'KJV' : 'LXX'}</span>
-          </button>
+            {textId === 'lxx' ? 'KJV' : 'LXX'}
+          </Button>
           </HintTooltip>
         )}
         <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={Layers}
+          selected={tabState.showStrongs}
           onClick={() => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) }}
-          className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-            tabState.showStrongs
-              ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-          }`}
         >
-          <Layers size={14} />
-          <span>Strong's</span>
-        </button>
+          Strong's
+        </Button>
         </HintTooltip>
         {/* Layout picker now lives in the overflow menu below (see 'layout'
             item) — hidden entirely in floating windows (layout is locked to
@@ -3414,18 +3402,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )}
         {/* Toggle right panel — hidden in floating windows (no side panel there) */}
         {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
-          <HintTooltip label={rightPanelOpen ? 'Close side panel' : 'Open side panel'}>
-          <button
+          <IconButton
+            icon={PanelRight}
+            label={rightPanelOpen ? 'Close side panel' : 'Open side panel'}
+            size={28}
+            selected={rightPanelOpen}
             onClick={toggleRightPanel}
-            className={`p-1 rounded transition-colors cursor-pointer ${
-              rightPanelOpen
-                ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
-            <PanelRight size={15} />
-          </button>
-          </HintTooltip>
+          />
         )}
         </div>
         {/* Pause + laser + selection + close now live in the floating PresenterControls panel.
@@ -3445,7 +3428,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           actually docked at the bottom of the screen. */}
       {verseDigitAccum && (
         <div
-          className="fixed left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl flex items-center gap-2 pointer-events-none select-none"
+          className="fixed left-1/2 -translate-x-1/2 z-overlay px-4 py-2 material-popover rounded-menu flex items-center gap-2 pointer-events-none select-none"
           style={{
             bottom: BOTTOM_PANEL_HEIGHT_LAYOUTS.has(currentLayout)
               ? (currentLayout === 'split-bottom'
@@ -3454,8 +3437,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               : 64,
           }}
         >
-          <span className="text-xs text-[rgb(var(--color-text-muted))]">Go to verse</span>
-          <span className="text-lg font-bold text-[rgb(var(--color-text-primary))] font-mono">{verseDigitAccum}</span>
+          <span className="text-xs text-text-muted">Go to verse</span>
+          <span className="text-lg font-bold text-text-primary font-mono">{verseDigitAccum}</span>
         </div>
       )}
 
@@ -3666,7 +3649,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             the presenter window. Scrolls with content (absolute inside the scroll container). */}
         {presenterBand && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-[5]"
+            className="absolute left-0 right-0 pointer-events-none z-raised"
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
@@ -3684,9 +3667,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             }}
           >
             <span
-              className="absolute top-0.5 right-1 px-1.5 text-[9px] font-bold uppercase tracking-wide rounded"
+              className="absolute top-0.5 right-1 px-1.5 text-micro font-bold uppercase tracking-wide rounded text-white"
               style={{
-                color: '#fff',
                 background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
               }}
             >
@@ -3845,12 +3827,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       <div className="group relative w-3.5 flex-shrink-0 flex justify-center cursor-col-resize">
         <div
           onMouseDown={handleResizeMouseDown}
-          className="w-1 h-full hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+          className="w-1 h-full hover:bg-accent-hover transition-colors bg-transparent"
         >
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+            <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
+            <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
+            <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
           </div>
         </div>
       </div>
@@ -3858,12 +3840,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const vDivider = (
       <div
         onMouseDown={handleVResizeMouseDown}
-        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-hover transition-colors bg-transparent"
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+          <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
+          <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
+          <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
         </div>
       </div>
     )
@@ -3895,8 +3877,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
       case 'scripture-focus':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0 justify-center bg-[rgb(var(--color-surface-3))]">
-            <div className="w-full max-w-3xl overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-1))]">
+          <div className="flex-1 flex overflow-hidden min-h-0 justify-center bg-surface-3">
+            <div className="w-full max-w-3xl overflow-hidden flex flex-col min-h-0 bg-surface-1 rounded-sheet">
               {scriptureView}
             </div>
           </div>
@@ -3974,11 +3956,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                     {/* Slot B (popped out) renders BEFORE slot A — the popped-out panel always
                         sits on the left of the original, per explicit direction. */}
                     {rightPanelSlotB && (
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
                       </div>
                     )}
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
                       <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
                     </div>
                   </div>
@@ -4014,11 +3996,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 ml-1.5">
                     {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
                     {rightPanelSlotB && (
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
                       </div>
                     )}
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
                       <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
                     </div>
                   </div>
@@ -4040,9 +4022,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 {hDivider}
                 <div className="flex-[3] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
+                  <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4059,9 +4041,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 {hDivider}
                 <div className="flex-[1.5] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
+                  <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4090,7 +4072,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   {hDivider}
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 material-panel rounded-menu">
                     <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A', 'notes')}</div>
                   </div>
                 </motion.div>
@@ -4107,9 +4089,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {vDivider}
             <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
               {rightPanelSlotB && (
-                <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('B')}</div>
               )}
-              <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
+              <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('A')}</div>
             </div>
           </div>
         )
@@ -4120,7 +4102,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 material-panel rounded-menu">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -4130,7 +4112,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'notes-top':
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 material-panel rounded-menu">
               {panelEl('A', 'notes')}
             </div>
             {vDivider}
@@ -4164,7 +4146,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             </div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 material-panel rounded-menu">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -4176,8 +4158,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-[rgb(var(--color-surface-4))]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-separator">
                 {panelEl('A', 'lexicon')}
               </div>
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">
@@ -4193,7 +4175,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const lcVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-hover transition-colors bg-transparent"
           />
         )
         return (
@@ -4202,18 +4184,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 flex overflow-hidden min-h-0">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
                 {panelEl('A', 'lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 material-panel rounded-menu">
                 {panelEl('A', 'notes')}
               </div>
-              <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="w-px bg-surface-4 flex-shrink-0" />
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
                 {panelEl('A', 'crossrefs')}
               </div>
             </div>
@@ -4225,7 +4207,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'commentary':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 material-panel rounded-menu">
               {panelEl('A', 'notes')}
             </div>
             {hDivider}
@@ -4237,13 +4219,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'triple-col':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 material-panel rounded-menu">
               {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
               {panelEl('A', 'lexicon')}
             </div>
           </div>
@@ -4255,7 +4237,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const sbVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-hover transition-colors bg-transparent"
           />
         )
         return (
@@ -4263,11 +4245,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 material-panel rounded-menu">
                 {panelEl('A', 'notes')}
               </div>
-              <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="w-px bg-surface-4 flex-shrink-0" />
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
                 {panelEl('A', 'lexicon')}
               </div>
             </div>

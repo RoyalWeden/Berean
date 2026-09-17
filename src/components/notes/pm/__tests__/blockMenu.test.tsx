@@ -41,7 +41,7 @@ function openBlockMenuFor(el: HTMLElement, blockIndex: number) {
 }
 
 function menuButton(text: string): HTMLElement | null {
-  return Array.from(document.querySelectorAll('.context-menu button')).find((b) => b.textContent?.trim() === text) as HTMLElement | undefined ?? null
+  return Array.from(document.querySelectorAll('[role="menu"] button')).find((b) => b.textContent?.trim() === text) as HTMLElement | undefined ?? null
 }
 
 describe('BlockMenu — Duplicate/Delete/Turn into/Copy link', () => {

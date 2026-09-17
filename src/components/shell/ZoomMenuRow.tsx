@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ZoomIn } from 'lucide-react'
+import { ZoomIn, Minus, Plus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { zoomPercent, ZOOM_MIN, ZOOM_MAX } from '@/lib/zoom'
+import { IconButton, TextField } from '@/components/ui'
 
 /**
  * Zoom row, shown from the rail's Zoom button. Replaces the old per-panel
@@ -30,16 +31,10 @@ export default function ZoomMenuRow() {
 
   return (
     <div className="flex items-center gap-1.5 w-full px-2.5 py-1.5">
-      <span className="flex-shrink-0 text-[rgb(var(--color-text-primary))] [&_svg]:w-3.5 [&_svg]:h-3.5"><ZoomIn /></span>
-      <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))]">Zoom</span>
-      <button
-        onClick={() => adjust(-1)}
-        title="Zoom out (⌘−)"
-        className="flex items-center justify-center w-5 h-5 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors text-xs leading-none font-medium"
-      >
-        −
-      </button>
-      <input
+      <ZoomIn size={14} className="flex-shrink-0 text-text-primary" />
+      <span className="flex-1 text-footnote text-text-primary">Zoom</span>
+      <IconButton icon={Minus} label="Zoom out" tooltip={{ shortcut: '⌘−' }} size={24} onClick={() => adjust(-1)} />
+      <TextField
         type="text"
         inputMode="numeric"
         value={displayValue}
@@ -51,19 +46,14 @@ export default function ZoomMenuRow() {
           if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).blur() }
           if (e.key === 'Escape') { e.preventDefault(); setDraft(null); (e.target as HTMLInputElement).blur() }
         }}
-        className="w-9 text-center text-[11px] tabular-nums bg-[rgb(var(--color-surface-4))] rounded px-0.5 py-0.5 text-[rgb(var(--color-text-primary))] outline-none focus:ring-1 focus:ring-[rgb(var(--color-accent))]"
+        size="sm"
+        className="w-14 text-center"
       />
-      <button
-        onClick={() => adjust(1)}
-        title="Zoom in (⌘+)"
-        className="flex items-center justify-center w-5 h-5 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors text-xs leading-none font-medium"
-      >
-        +
-      </button>
+      <IconButton icon={Plus} label="Zoom in" tooltip={{ shortcut: '⌘+' }} size={24} onClick={() => adjust(1)} />
       <button
         onClick={() => reset()}
         title="Reset to 100% (⌘0)"
-        className="flex-shrink-0 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors"
+        className="flex-shrink-0 text-caption2 text-text-muted hover:text-accent cursor-pointer transition-colors"
       >
         Reset
       </button>

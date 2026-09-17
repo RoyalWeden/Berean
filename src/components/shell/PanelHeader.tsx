@@ -10,25 +10,14 @@ import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
  * dropped `app-drag-region` in docked mode; Search never had floating
  * handling at all).
  *
- * `floating` gets its own distinct look: no bar background at all (the row
- * itself is fully transparent, laid directly over the panel's own content,
- * so any plain text/spacer sitting between controls stays fully visible
- * against the panel behind it) — each actual CONTROL (a button/link, or an
- * `ActionPillGroup` cluster) instead floats on its own as a small frosted
- * chip, via the `.floating-header-buttons` CSS rule in global.css. That rule
- * deliberately targets only `button`/`a`/`[role=button]`/`.action-pill-group`
- * among this row's direct children — not every direct child indiscriminately
- * — so a layout spacer or plain text sibling never gets an unwanted chip
- * background of its own. See that rule's own comment for the radius handling
- * too (forced to a full pill on plain controls, since most have none of
- * their own — left alone on `.action-pill-group`, which already has one).
- * A "Pop Out Tab" window (FloatingShell.tsx) is a real separate top-level
- * BrowserWindow, plain and OPAQUE (no `transparent`/`vibrancy`, see
- * createFloatingWindow in main.ts) — `.floating-header-buttons`'s chips use
- * `backdrop-filter` (blurs the app's OWN DOM behind them, i.e. content
- * scrolling under the header) rather than `.topbar-vibrant`'s OS-level
- * vibrancy, which needs window transparency to have anything behind it to
- * blur and would just be a flat tint here.
+ * `floating` is now a REAL bar, not a transparent row of individually-chipped
+ * floating controls — macOS 27 dropped the "floating chip toolbar" idiom
+ * (see docs/design-system.md's decision log: "Toolbars are real bars, not
+ * floating chip clusters — the floating pop-out window header will become a
+ * bar too"). Both variants now share the one `.material-bar` recipe; the
+ * only real difference is the traffic-light inset a floating "Pop Out Tab"
+ * window (FloatingShell.tsx, a real separate top-level BrowserWindow) needs
+ * to clear its own traffic lights, vs. a docked panel's plain padding.
  *
  * Window-drag on this bar uses the manual JS-tracked `useWindowDrag` hook, not a real
  * `-webkit-app-region: drag` CSS region (this used to be `app-drag-region`) — see that hook's
@@ -49,10 +38,8 @@ export default function PanelHeader({
   return (
     <div
       onMouseDown={onMouseDown}
-      className={`flex items-center gap-2 h-11 flex-shrink-0 no-drag select-none ${
-        floating
-          ? 'floating-header-buttons pl-[76px] pr-4'
-          : 'border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] px-4'
+      className={`flex items-center gap-2 h-11 flex-shrink-0 no-drag select-none material-bar border-b border-separator ${
+        floating ? 'pl-traffic-lights pr-3' : 'px-3'
       } ${className}`}
     >
       {children}

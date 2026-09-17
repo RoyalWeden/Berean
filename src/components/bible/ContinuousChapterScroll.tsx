@@ -6,6 +6,7 @@ import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_ST
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useAppStore } from '@/store'
+import { SectionLabel } from '@/components/ui'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -267,7 +268,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
         {/* Presenter visible-region band */}
         {presenterBand && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-[5]"
+            className="absolute left-0 right-0 pointer-events-none z-raised"
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
@@ -277,9 +278,8 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
             }}
           >
             <span
-              className="absolute top-0.5 right-1 px-1.5 text-[9px] font-bold uppercase tracking-wide rounded"
+              className="absolute top-0.5 right-1 px-1.5 text-micro font-bold uppercase tracking-wide rounded text-white"
               style={{
-                color: '#fff',
                 background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
               }}
             >
@@ -308,15 +308,15 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
                 else headingRefs.current.delete(ch)
               }}
               data-chapter={ch}
-              className="group sticky top-0 z-10 px-8 py-2 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2"
+              className="group sticky top-0 z-raised px-8 py-2 material-bar border-b border-separator flex items-center gap-2"
             >
-              <span className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider select-none">
+              <SectionLabel className="select-none">
                 {bookName(bookId)} {ch}
-              </span>
+              </SectionLabel>
               <button
                 onClick={(e) => setChapterTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), ch })}
                 title={`Tag ${bookName(bookId)} ${ch} (whole chapter)`}
-                className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                className="text-text-muted hover:text-accent cursor-pointer"
               >
                 <TagIcon size={12} />
               </button>

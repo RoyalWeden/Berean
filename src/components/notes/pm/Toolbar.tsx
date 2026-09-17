@@ -206,10 +206,10 @@ export default function Toolbar({
   }
 
   const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-md flex-shrink-0'
-  const active = 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-  const inactive = 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
+  const active = 'bg-accent-muted text-accent'
+  const inactive = 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
   const cls = (isActive: boolean) => `${iconBtn} ${isActive ? active : inactive}`
-  const sep = <div className="w-px h-5 bg-[rgb(var(--color-surface-4))] mx-0.5 flex-shrink-0" />
+  const sep = <div className="w-px h-5 bg-surface-4 mx-0.5 flex-shrink-0" />
 
   // Any dropdown open (portaled to document.body) counts as "in use" even if the
   // cursor has moved off the capsule itself to reach the dropdown — otherwise the
@@ -225,10 +225,9 @@ export default function Toolbar({
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       className={`
-        absolute top-2 left-1/2 -translate-x-1/2 z-20 max-w-[calc(100%-1.5rem)]
-        flex items-center gap-0.5 px-2 py-1 rounded-full
-        bg-[rgb(var(--color-surface-2))]/70 backdrop-blur-md
-        border border-[rgb(var(--color-surface-4))]/70 shadow-lg shadow-black/10
+        absolute top-2 left-1/2 -translate-x-1/2 z-raised max-w-[calc(100%-1.5rem)]
+        flex items-center gap-0.5 px-2 py-1 rounded-control
+        material-control
         flex-shrink-0 overflow-x-auto overflow-y-hidden transition-opacity duration-200 ${opacityCls}
       `}
     >
@@ -434,7 +433,7 @@ export default function Toolbar({
           <button
             title="Close"
             onMouseDown={() => window.windowControls?.close()}
-            className={`${iconBtn} text-[rgb(var(--color-text-secondary))] hover:bg-red-500/20 hover:text-red-400`}
+            className={`${iconBtn} text-text-secondary hover:bg-destructive/20 hover:text-destructive`}
           >
             <X size={14} />
           </button>
@@ -445,10 +444,10 @@ export default function Toolbar({
       {openDropdown !== 'none' && dropdownPos && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: 'fixed', left: dropdownPos.left, top: dropdownPos.top, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          style={{ position: 'fixed', left: dropdownPos.left, top: dropdownPos.top, zIndex: 'var(--z-menu)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           {openDropdown === 'type' && (
-            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+            <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex items-center gap-0.5">
               {/* Icons + labels from the shared block-type config (src/lib/blockTypeIcons.ts)
                   — these were plain-text "H1".."H6"/"¶" labels, a third icon vocabulary on
                   top of the block menu's and slash menu's Lucide glyphs for the same levels. */}
@@ -469,7 +468,7 @@ export default function Toolbar({
           )}
 
           {openDropdown === 'list' && (
-            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+            <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex items-center gap-0.5">
               <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
               <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
               <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
@@ -478,7 +477,7 @@ export default function Toolbar({
           )}
 
           {openDropdown === 'highlight' && (
-            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-2 w-[168px]">
+            <div className="pm-toolbar-solid material-popover rounded-menu p-2 w-[168px]">
               <div className="grid grid-cols-5 gap-1.5 mb-1.5">
                 {HIGHLIGHT_COLOR_IDS.map((id) => (
                   <button
@@ -492,7 +491,7 @@ export default function Toolbar({
               </div>
               <button
                 onMouseDown={removeHighlight}
-                className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 text-caption py-1 rounded-md cursor-pointer text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
               >
                 <Ban size={11} /> Remove highlight
               </button>
@@ -500,7 +499,7 @@ export default function Toolbar({
           )}
 
           {openDropdown === 'table' && (
-            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex flex-col gap-0.5 min-w-[160px]">
+            <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex flex-col gap-0.5 min-w-[160px]">
               <button
                 onMouseDown={() => { run(addRowAfter); setOpenDropdown('none') }}
                 className={`${iconBtn} ${inactive} flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
@@ -519,10 +518,10 @@ export default function Toolbar({
               >
                 <Columns3 size={13} /> Delete column
               </button>
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-0.5" />
+              <div className="h-px bg-surface-4 my-0.5" />
               <button
                 onMouseDown={() => { run(deleteTable); setOpenDropdown('none') }}
-                className={`${iconBtn} text-red-400 hover:bg-red-500/15 flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
+                className={`${iconBtn} text-destructive hover:bg-destructive/15 flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
               >
                 <Trash2 size={13} /> Delete table
               </button>
@@ -530,7 +529,7 @@ export default function Toolbar({
           )}
 
           {openDropdown === 'link' && (
-            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1.5 flex items-center gap-1 w-[240px]">
+            <div className="pm-toolbar-solid material-popover rounded-menu p-1.5 flex items-center gap-1 w-[240px]">
               <input
                 ref={linkInputRef}
                 type="text"
@@ -541,7 +540,7 @@ export default function Toolbar({
                   else if (e.key === 'Escape') setOpenDropdown('none')
                 }}
                 placeholder="https://…"
-                className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] focus:outline-none focus:border-[rgb(var(--color-accent))]"
+                className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-surface-1 border border-separator text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
               />
               <button
                 onMouseDown={submitLink}

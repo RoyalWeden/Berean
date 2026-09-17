@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { useAppStore } from '@/store'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import Ribbon from './Ribbon'
 
 // ── Floating hover-expand wrapper around Ribbon.tsx ──────────────────────────
@@ -12,7 +13,7 @@ import Ribbon from './Ribbon'
 // never visually overlap anything; in practice that dock itself read as an
 // unwanted "vertical rectangle" sitting between Sidebar and content even
 // though it had no background of its own (Sidebar's own right-edge shadow —
-// see Sidebar.tsx's `sidebar-vibrant` box-shadow — bled into it). A small
+// see Sidebar.tsx's `.material-bar` box-shadow — bled into it). A small
 // floating pill has a far smaller footprint than a full-height column, so
 // it's a better trade than reserving real layout space just to avoid ever
 // touching content.
@@ -106,7 +107,7 @@ export default function FloatingRail() {
 
   return createPortal(
     <div
-      className="no-drag fixed z-40 transition-[left] duration-200 ease-in-out"
+      className="no-drag fixed z-raised transition-[left] duration-200 ease-in-out"
       style={{ top: `calc(50% + ${headerHeight / 2}px)`, left, transform: 'translateY(-50%)' }}
       onMouseEnter={open}
       onMouseMove={onMove}
@@ -117,20 +118,13 @@ export default function FloatingRail() {
           width: hovered ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
           height: hovered ? ribbonHeight : COLLAPSED_HEIGHT,
         }}
-        transition={{ type: 'spring', stiffness: 500, damping: 45 }}
+        transition={SPRING_SNAPPY}
         style={{ borderRadius: hovered ? EXPANDED_RADIUS : RADIUS }}
-        // More translucent (75%/85%) with a lighter blur — enough that content behind the
-        // rail is genuinely visible through it without being distracting, rather than the
-        // near-opaque 90%/95% this had before. The idle-state `opacity-55` that used to sit
-        // on THIS element doesn't anymore — it used to dim the box AND everything inside it
-        // together (background alpha and the dots' own color both getting scaled down at
-        // once), which on top of the newly-more-transparent background left the idle dots
-        // reading as barely-there/broken. The "recedes when idle" cue now lives on the
-        // background/shadow only (via bg-*/85 above and shadow-lg below); the dots get
-        // their own independent, much milder fade further down instead.
-        className={`relative border border-[rgb(var(--color-surface-4))] backdrop-blur-[2px] ${
-          hovered ? 'bg-[rgb(var(--color-surface-2))]/75 shadow-2xl cursor-default' : 'bg-[rgb(var(--color-surface-2))]/85 shadow-lg cursor-pointer'
-        }`}
+        // One shared translucent material for both states (idle pill and expanded card) —
+        // `.material-popover` already owns the blur/border/shadow recipe every other hover
+        // card in the app uses; the geometry (width/height/radius) is still what actually
+        // reads as "collapsed" vs "expanded", not a separate background treatment.
+        className={`relative material-popover ${hovered ? 'rounded-menu cursor-default' : 'rounded-control cursor-pointer'}`}
       >
         <div className="absolute inset-0 overflow-hidden flex flex-col" style={{ borderRadius: hovered ? EXPANDED_RADIUS : RADIUS }}>
           <div
@@ -147,7 +141,7 @@ export default function FloatingRail() {
             style={{ opacity: hovered ? 0 : 0.7, pointerEvents: hovered ? 'none' : 'auto' }}
           >
             {[0, 1, 2].map((i) => (
-              <span key={i} className="w-1 h-1 rounded-full bg-[rgb(var(--color-text-muted))]" />
+              <span key={i} className="w-1 h-1 rounded-full bg-text-muted" />
             ))}
           </div>
           <div

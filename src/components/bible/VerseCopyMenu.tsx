@@ -6,6 +6,7 @@ import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { MenuSurface, MenuItem } from '@/components/ui'
 
 export interface VerseCopyTarget {
   bookId: string
@@ -66,8 +67,6 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
   })
 
   if (!target) return null
-  const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
-  const ICON = 'flex-shrink-0 text-[rgb(var(--color-text-muted))]'
 
   function openVerse() {
     const store = useAppStore.getState()
@@ -116,28 +115,22 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
   }
 
   return createPortal(
-    <div
+    <MenuSurface
       ref={ref}
-      className="fixed z-[10000] min-w-[150px] rounded-shell context-menu overflow-hidden py-1"
+      className="fixed z-menu min-w-[150px]"
       style={{ left: target.x, top: target.y }}
       onClick={(e) => e.stopPropagation()}
     >
-      <button className={ITEM} onClick={() => { openVerse(); onClose() }}>
-        <BookOpen size={12} className={ICON} /> Open verse
-      </button>
-      <button className={ITEM} onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}>
-        <Copy size={12} className={ICON} /> {target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
-      </button>
-      <button className={ITEM} onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }}>
-        <Hash size={12} className={ICON} /> Copy reference
-      </button>
-      <button className={ITEM} onClick={() => { openInNewTab(); onClose() }}>
-        <ExternalLink size={12} className={ICON} /> Open in new tab
-      </button>
-      <button className={ITEM} onClick={() => { openInFloatingTab(); onClose() }}>
-        <ExternalLink size={12} className={ICON} /> Open in floating tab
-      </button>
-    </div>,
+      <MenuItem icon={BookOpen} label="Open verse" onClick={() => { openVerse(); onClose() }} />
+      <MenuItem
+        icon={Copy}
+        label={target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
+        onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}
+      />
+      <MenuItem icon={Hash} label="Copy reference" onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }} />
+      <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { openInNewTab(); onClose() }} />
+      <MenuItem icon={ExternalLink} label="Open in floating tab" onClick={() => { openInFloatingTab(); onClose() }} />
+    </MenuSurface>,
     document.body,
   )
 }

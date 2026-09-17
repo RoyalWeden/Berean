@@ -157,21 +157,21 @@ export default function SelectionToolbar({
   const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-md flex-shrink-0'
   // Bumped well past the original 18% — too transparent to read clearly
   // against the toolbar's own already-translucent glass-panel background.
-  const active = 'bg-[rgb(var(--color-accent))/35] text-[rgb(var(--color-accent))]'
-  const inactive = 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
+  const active = 'bg-accent-muted text-accent'
+  const inactive = 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
   const cls = (isActive: boolean) => `${iconBtn} ${isActive ? active : inactive}`
-  const sep = <div className="w-px h-5 bg-[rgb(var(--color-surface-4))] mx-0.5 flex-shrink-0" />
+  const sep = <div className="w-px h-5 bg-surface-4 mx-0.5 flex-shrink-0" />
 
   // Before the first layout measurement, render off-screen (never at a
   // guessed on-screen spot) so there's no visible flash-then-jump — the
   // useLayoutEffect above corrects this synchronously before paint.
   const style = pos
-    ? { position: 'fixed' as const, left: pos.left, top: pos.top, zIndex: 60 }
-    : { position: 'fixed' as const, left: -9999, top: -9999, zIndex: 60 }
+    ? { position: 'fixed' as const, left: pos.left, top: pos.top, zIndex: 'var(--z-popover)' as const }
+    : { position: 'fixed' as const, left: -9999, top: -9999, zIndex: 'var(--z-popover)' as const }
 
   return (
     <div ref={rootRef} style={style} onMouseDown={(e) => e.preventDefault()}>
-      <div className="pm-toolbar-solid relative flex items-center gap-0.5 rounded-xl px-1 py-1 shadow-2xl">
+      <div className="pm-toolbar-solid material-popover relative flex items-center gap-0.5 rounded-menu px-1 py-1">
         {/* Text type */}
         <HintTooltip label="Text type" side="top">
           <button
@@ -268,7 +268,7 @@ export default function SelectionToolbar({
              toolbar stays intact and visible while a focused set of options
              appears just below whichever button was clicked. ── */}
         {openDropdown === 'type' && (
-          <div className="absolute top-full left-0 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+          <div className="pm-toolbar-solid absolute top-full left-0 mt-1.5 material-popover rounded-menu p-1 flex items-center gap-0.5">
             {/* Icons + labels come from the shared block-type config rather than the
                 plain-text "H1".."H6" labels this used to duplicate independently of
                 Toolbar.tsx's own identical array. */}
@@ -285,7 +285,7 @@ export default function SelectionToolbar({
                 </button>
               )
             })}
-            <div className="w-px h-4 mx-0.5 bg-[rgb(var(--color-surface-4))]" />
+            <div className="w-px h-4 mx-0.5 bg-surface-4" />
             {/* Wraps the selected text's containing block(s) in a new thread — same
                 editorCommands.ts wrapInThread() the persistent Toolbar's own "Thread" option
                 uses. */}
@@ -300,7 +300,7 @@ export default function SelectionToolbar({
         )}
 
         {openDropdown === 'list' && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+          <div className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-1 flex items-center gap-0.5">
             <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
             <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
             <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
@@ -309,7 +309,7 @@ export default function SelectionToolbar({
         )}
 
         {openDropdown === 'highlight' && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-2 w-[168px]">
+          <div className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-2 w-[168px]">
             <div className="grid grid-cols-5 gap-1.5 mb-1.5">
               {HIGHLIGHT_COLOR_IDS.map((id) => (
                 <button
@@ -323,7 +323,7 @@ export default function SelectionToolbar({
             </div>
             <button
               onMouseDown={removeHighlight}
-              className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 text-caption py-1 rounded-md cursor-pointer text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
             >
               <Ban size={11} /> Remove highlight
             </button>
@@ -332,7 +332,7 @@ export default function SelectionToolbar({
 
         {openDropdown === 'link' && (
           <div
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1.5 flex items-center gap-1 w-[240px]"
+            className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-1.5 flex items-center gap-1 w-[240px]"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <input
@@ -345,7 +345,7 @@ export default function SelectionToolbar({
                 else if (e.key === 'Escape') setOpenDropdown('none')
               }}
               placeholder="https://…"
-              className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] focus:outline-none focus:border-[rgb(var(--color-accent))]"
+              className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-surface-1 border border-separator text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
             />
             <button
               onMouseDown={submitLink}

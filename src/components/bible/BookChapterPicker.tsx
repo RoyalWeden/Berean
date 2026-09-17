@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, cloneElement, isValidElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, Search, FileUp } from 'lucide-react'
 import type { Book } from '@/types'
@@ -7,6 +7,7 @@ import { isHermasBook, getHermasSections, getHermasSection, hermasVariantForText
 import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { editionForTextId, type Edition } from '@/lib/bibleTexts'
 import { bookName } from '@/lib/parseRef'
+import { RefChip } from '@/components/ui'
 
 interface BookChapterPickerProps {
   books: Book[]
@@ -222,10 +223,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
       key={book.id}
       ref={book.id === activeBookId ? activeBookRowRef : undefined}
       onClick={() => setActiveBookId(book.id)}
-      className={`w-full text-left px-3 py-1.5 text-sm cursor-pointer transition-colors rounded-sm ${
+      className={`w-full text-left px-3 py-1.5 text-sm cursor-pointer transition-colors rounded-row ${
         book.id === activeBookId
-          ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] font-medium'
-          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'
+          ? 'bg-surface-selected text-text-primary font-medium'
+          : 'text-text-primary hover:bg-surface-hover'
       }`}
     >
       {book.name}
@@ -233,23 +234,34 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   )
 
   const GroupLabel = ({ label }: { label: string }) => (
-    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+    <div className="px-3 pt-2 pb-1 text-caption2 font-semibold uppercase tracking-wider text-text-muted">
       {label}
     </div>
   )
 
   return (
     <div className={wrapperClassName ?? 'relative'} ref={containerRef}>
-      {/* Trigger — custom (e.g. an "add panel" icon) or the default book + chapter label */}
+      {/* Trigger — custom (e.g. an "add panel" icon, typically an <IconButton>) or the default
+          book + chapter label. When `triggerLabel` is a primitive that already renders its own
+          <button> (IconButton), it's cloned in place with the ref/handler wired on rather than
+          wrapped in a second <button> — avoids nested interactive elements. */}
       {triggerLabel ? (
-        <button
-          ref={triggerRef}
-          onClick={() => setOpen((o) => !o)}
-          title={triggerTitle}
-          className={triggerClassName ?? `p-1 rounded transition-colors cursor-pointer ${open ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'}`}
-        >
-          {triggerLabel}
-        </button>
+        isValidElement(triggerLabel) ? (
+          cloneElement(triggerLabel as React.ReactElement<Record<string, unknown>>, {
+            ref: triggerRef,
+            onClick: () => setOpen((o) => !o),
+            active: open,
+          })
+        ) : (
+          <button
+            ref={triggerRef}
+            onClick={() => setOpen((o) => !o)}
+            title={triggerTitle}
+            className={triggerClassName ?? `rounded-control transition-colors cursor-pointer ${open ? 'bg-surface-selected text-text-primary' : 'text-text-muted hover:bg-surface-hover hover:text-text-primary'}`}
+          >
+            {triggerLabel}
+          </button>
+        )
       ) : (
       <button
         ref={triggerRef}
@@ -259,22 +271,22 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             flex items-center gap-1 h-7 cursor-pointer transition-colors
             ${compact ? 'px-2 text-xs' : 'px-3 text-sm'}
             ${open
-              ? 'bg-[rgb(var(--color-accent))/12] text-[rgb(var(--color-accent))]'
-              : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+              ? 'bg-accent/12 text-accent'
+              : 'text-text-primary hover:bg-surface-4'
             }
           `
           : `
           flex items-center gap-1 rounded-md cursor-pointer transition-colors border
           ${compact ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 text-sm'}
           ${open
-            ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))]'
-            : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-accent))/50]'
+            ? 'border-accent bg-surface-3 text-text-primary'
+            : 'border-border bg-surface-3 text-text-primary hover:border-accent/50'
           }
         `}
       >
         <span className="font-medium whitespace-nowrap">{currentBook?.name ?? bookName(currentBookId)}</span>
         {currentBook && isHermasBook(currentBook.id) ? (
-          <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap">
+          <span className="text-text-muted text-caption2 whitespace-nowrap">
             {(() => {
               const hid = currentBook.id as HermasBookId
               const sec = getHermasSection(hid, currentChapter, hermasVariantForTextId(currentTextId))
@@ -285,12 +297,12 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             })()}
           </span>
         ) : currentBook && hasPrologueChapter(currentBook.id) && currentChapter === 0 ? (
-          <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap">Prologue</span>
+          <span className="text-text-muted text-caption2 whitespace-nowrap">Prologue</span>
         ) : (
-          <span className="text-[rgb(var(--color-text-muted))] text-[10px]">{currentChapter}</span>
+          <span className="text-text-muted text-caption2">{currentChapter}</span>
         )}
         {currentEdition && currentEdition.translations.length > 1 && currentTransLabel && (
-          <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap border-l border-[rgb(var(--color-surface-4))] pl-1.5 ml-0.5">
+          <span className="text-text-muted text-caption2 whitespace-nowrap border-l border-separator pl-1.5 ml-0.5">
             {currentTransLabel}
           </span>
         )}
@@ -298,11 +310,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             reading the Septuagint rather than KJVA, only distinguishable by actually reading
             the verse text or opening the picker itself. */}
         {currentTextId === 'lxx' && (
-          <span className="flex-shrink-0 text-[9px] font-bold tracking-wide leading-none px-1.5 py-[3px] rounded-full bg-sky-500/15 text-sky-500">
-            LXX
-          </span>
+          <RefChip variant="lxx" size="xs" className="flex-shrink-0">LXX</RefChip>
         )}
-        <ChevronDown size={compact ? 10 : 12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+        <ChevronDown size={compact ? 10 : 12} className="text-text-muted flex-shrink-0" />
       </button>
       )}
 
@@ -311,20 +321,19 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         <div
           ref={panelRef}
           className="
-            fixed z-[9999] flex flex-col
-            bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
-            rounded-xl shadow-2xl overflow-hidden
+            fixed z-menu flex flex-col
+            material-popover rounded-menu overflow-hidden
           "
           style={{ left: pos.left, top: pos.top, width: PANEL_W, maxHeight: PANEL_H }}
         >
           {popoverHeader && (
-            <div className="px-3 py-2 text-xs font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+            <div className="px-3 py-2 text-xs font-semibold text-accent bg-accent/10 border-b border-separator flex-shrink-0">
               {popoverHeader}
             </div>
           )}
           {/* Search */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-separator flex-shrink-0">
+            <Search size={13} className="text-text-muted flex-shrink-0" />
             <input
               ref={searchRef}
               type="text"
@@ -332,10 +341,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder={'Search books… or type “Genesis 3” and press Enter'}
-              className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
+              className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted"
             />
             {searchChapter !== null && activeBook && (
-              <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">
+              <span className="flex-shrink-0 text-caption2 font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent">
                 → ch {clampSearchChapter(searchChapter, activeBook)}
               </span>
             )}
@@ -344,16 +353,16 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           {/* Edition switcher — collapsed by default; expand with the round triangle toggle,
               or it auto-reveals when the search matches an edition name. */}
           {editions && editions.length > 1 && onSelectTranslation && (
-            <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+            <div className="px-3 py-2 border-b border-separator flex-shrink-0">
               <button
                 onClick={() => setEditionsExpanded((v) => !v)}
                 className="flex items-center gap-1.5 cursor-pointer group"
               >
-                <span className="flex items-center justify-center w-4 h-4 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] group-hover:border-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-text-primary))] transition-colors">
+                <span className="flex items-center justify-center w-4 h-4 rounded-full border border-border text-text-muted group-hover:border-text-muted group-hover:text-text-primary transition-colors">
                   {editionsShown ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                 </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Edition</span>
-                <span className="text-xs text-[rgb(var(--color-text-primary))] font-medium">{currentEditionLabel}</span>
+                <span className="text-caption2 font-semibold uppercase tracking-wider text-text-muted">Edition</span>
+                <span className="text-xs text-text-primary font-medium">{currentEditionLabel}</span>
               </button>
               {editionsShown && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
@@ -361,23 +370,23 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                     <button
                       key={e.id}
                       onClick={() => onSelectTranslation(e.translations[0].id)}
-                      className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                      className={`text-caption px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
                         e.id === currentEdition?.id
-                          ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                          : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                          ? 'bg-accent-muted border-accent/40 text-accent'
+                          : 'border-border text-text-muted hover:border-text-muted hover:text-text-primary'
                       }`}
                     >
                       {e.label}
                     </button>
                   ))}
                   {filteredEditions.length === 0 && (
-                    <span className="text-[11px] text-[rgb(var(--color-text-muted))]">No editions match</span>
+                    <span className="text-caption text-text-muted">No editions match</span>
                   )}
                   {onOpenPdfLibrary && (
                     <button
                       onClick={(e) => onOpenPdfLibrary((e.currentTarget as HTMLElement).getBoundingClientRect())}
                       title="PDF library — import or open a PDF"
-                      className="flex items-center justify-center w-6 h-6 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                      className="flex items-center justify-center w-6 h-6 rounded-full border border-border text-text-muted hover:border-text-muted hover:text-text-primary transition-colors cursor-pointer"
                     >
                       <FileUp size={12} />
                     </button>
@@ -390,16 +399,16 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           {/* Translation sub-picker — only when the current edition has multiple translations
               (e.g. Shepherd of Hermas: Roberts-Donaldson / Charles Taylor). */}
           {currentEdition && currentEdition.translations.length > 1 && onSelectTranslation && (
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 flex-wrap">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5">Translation</span>
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-separator flex-shrink-0 flex-wrap">
+              <span className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mr-0.5">Translation</span>
               {currentEdition.translations.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => onSelectTranslation(t.id)}
-                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                  className={`text-caption px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
                     t.id === currentTextId
-                      ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                      : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                      ? 'bg-accent-muted border-accent/40 text-accent'
+                      : 'border-border text-text-muted hover:border-text-muted hover:text-text-primary'
                   }`}
                 >
                   {t.label}
@@ -411,7 +420,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           {/* Two-column body */}
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Book list */}
-            <div className="w-[55%] overflow-y-auto py-1 border-r border-[rgb(var(--color-surface-4))]">
+            <div className="w-[55%] overflow-y-auto py-1 border-r border-separator">
               {otBooks.length > 0 && (
                 <>
                   <GroupLabel label="Old Testament" />
@@ -431,7 +440,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                 </>
               )}
               {filtered.length === 0 && (
-                <div className="px-3 py-4 text-sm text-center text-[rgb(var(--color-text-muted))]">
+                <div className="px-3 py-4 text-sm text-center text-text-muted">
                   No books found
                 </div>
               )}
@@ -444,7 +453,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                 <div className="flex flex-col gap-1">
                   {getHermasSections(activeBook.id as HermasBookId, hermasVariantForTextId(currentTextId)).map((section) => (
                     <div key={section.sectionName}>
-                      <div className="px-2 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+                      <div className="px-2 pt-1.5 pb-0.5 text-micro font-semibold uppercase tracking-wider text-text-muted">
                         {section.sectionName}
                       </div>
                       <div className="grid grid-cols-4 gap-0.5 pl-1">
@@ -454,10 +463,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                             ref={activeBook.id === currentBookId && ch === currentChapter ? currentChapterBtnRef : undefined}
                             onClick={() => selectChapter(ch)}
                             className={`
-                              flex items-center justify-center h-7 w-full text-[11px] rounded cursor-pointer transition-colors
+                              flex items-center justify-center h-7 w-full text-caption rounded-row cursor-pointer transition-colors
                               ${activeBook.id === currentBookId && ch === currentChapter
-                                ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
-                                : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                                ? 'bg-accent text-white font-semibold'
+                                : 'text-text-primary hover:bg-surface-hover'
                               }
                             `}
                             title={section.chapters.length === 1 ? section.sectionName : `${section.sectionName}.${subIdx + 1}`}
@@ -478,10 +487,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                     <button
                       onClick={() => selectChapter(0)}
                       className={`
-                        flex items-center justify-center h-7 w-full text-[11px] font-medium rounded cursor-pointer transition-colors
+                        flex items-center justify-center h-7 w-full text-caption font-medium rounded-row cursor-pointer transition-colors
                         ${activeBook.id === currentBookId && currentChapter === 0
-                          ? 'bg-[rgb(var(--color-accent))] text-white'
-                          : 'text-[rgb(var(--color-text-muted))] border border-dashed border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+                          ? 'bg-accent text-white'
+                          : 'text-text-muted border border-dashed border-border hover:bg-surface-hover hover:text-text-primary'
                         }
                       `}
                     >
@@ -495,10 +504,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                         ref={activeBook.id === currentBookId && n === currentChapter ? currentChapterBtnRef : undefined}
                         onClick={() => selectChapter(n)}
                         className={`
-                          flex items-center justify-center h-8 w-full text-xs rounded cursor-pointer transition-colors
+                          flex items-center justify-center h-8 w-full text-xs rounded-row cursor-pointer transition-colors
                           ${activeBook.id === currentBookId && n === currentChapter
-                            ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
-                            : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                            ? 'bg-accent text-white font-semibold'
+                            : 'text-text-primary hover:bg-surface-hover'
                           }
                         `}
                       >

@@ -1,11 +1,9 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
-import * as Popover from '@radix-ui/react-popover'
+import { Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
 import { motion } from 'framer-motion'
-import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarCheck, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
+import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarCheck, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
-import ShortcutKeys from './ShortcutKeys'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -15,6 +13,7 @@ import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { IconButton, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -82,7 +81,7 @@ export default function Sidebar() {
 
   // Publishes this sidebar's real width as a CSS var so global.css's ambient
   // background-animation layer (html.theme-anim-bg body::before) can clip itself out from
-  // behind it — on mac this sidebar is `.sidebar-vibrant` over a genuinely transparent Electron
+  // behind it — on mac this sidebar is `.material-bar` over a genuinely transparent Electron
   // window (`transparent: true, vibrancy: 'sidebar'` in electron/main.ts), not just a
   // translucent-looking CSS color, so the animated blob painting behind it visibly tinted what's
   // supposed to be neutral OS-blurred vibrancy — most noticeably along the whole left edge,
@@ -494,12 +493,6 @@ export default function Sidebar() {
       }}
       className="h-full flex-shrink-0 overflow-hidden relative"
     >
-    {/* disableHoverableContent — same fix as Ribbon.tsx: none of these
-        tooltips have interactive content, so Radix's hoverable-content grace
-        area (kept open/interactive between trigger and tooltip) served no
-        purpose and could overlap nearby context menus (tab-bar right-click,
-        book-picker) that open close to a tooltip-having trigger. */}
-    <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <aside
         style={{ width: sidebarWidth }}
         // no-drag, not app-drag-region: this used to be a real CSS drag region, which broke
@@ -516,11 +509,7 @@ export default function Sidebar() {
         // Ribbon.tsx — both still real app-drag-region) is unaffected; only "drag the window by
         // clicking blank sidebar chrome outside the tab list" is given up here, same tradeoff
         // already made for the tab-list area itself via the manual moveWindowBy() drag below.
-        className={`
-          native-buttons no-drag select-none flex flex-col flex-shrink-0 h-full
-          ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
-          border-r border-[rgb(var(--color-surface-4))]
-        `}
+        className="native-buttons no-drag select-none flex flex-col flex-shrink-0 h-full material-bar border-r border-separator"
         // Clicking anywhere in the sidebar (switching tabs/spaces, etc.) should close any
         // open overlay elsewhere (Ribbon's archive-tabs list, zoom popover, session menu) —
         // those already listen for this broadcast (see HeaderOverflowMenu.tsx, Ribbon.tsx,
@@ -538,12 +527,11 @@ export default function Sidebar() {
         // "click outside closes it" logic (the same file's mousedown-based onDown) already
         // correctly ignores clicks genuinely inside the menu; this second, broader broadcast
         // just wasn't excluding them at all. Guard: skip the broadcast for a click that
-        // originates inside ANY currently-open context menu (the shared `.context-menu` class
-        // every menu in the app already carries — see TabBar.tsx, VerseRow.tsx, Sidebar.tsx's
-        // own other menus, NoteContextMenu.tsx, etc.) — those clicks should be handled by
-        // that menu's own item, not treated as "user clicked away, close overlays."
+        // originates inside ANY currently-open context menu (`[role="menu"]`, the semantic
+        // marker MenuSurface itself renders — see Menu.tsx) — those clicks should be handled
+        // by that menu's own item, not treated as "user clicked away, close overlays."
         onClickCapture={(e) => {
-          if ((e.target as HTMLElement).closest('.context-menu')) return
+          if ((e.target as HTMLElement).closest('[role="menu"]')) return
           window.dispatchEvent(new Event('berean:closeMenus'))
         }}
       >
@@ -556,73 +544,61 @@ export default function Sidebar() {
              session list to switch; right-click (or the icon button) opens
              rename/change-icon/delete. ── */}
         <div className="px-2 pt-1 flex-shrink-0">
-          <Popover.Root open={sessionPopoverOpen} onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}>
-            <Popover.Trigger asChild>
+          <Popover open={sessionPopoverOpen} onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}>
+            <PopoverTrigger asChild>
               <button
-                className="sidebar-new-btn no-drag w-full flex items-center gap-1.5 px-2 py-1 rounded-shell text-left cursor-pointer min-w-0"
+                className="no-drag w-full flex items-center gap-1.5 px-2 py-1 rounded-control text-left cursor-pointer min-w-0 hover:bg-surface-hover transition-colors"
                 onContextMenu={(e) => {
                   e.preventDefault()
                   if (currentSession) openSessionMenu(e.clientX, e.clientY, currentSession.id, currentSession.name)
                 }}
               >
-                <CurrentSessionIcon size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-70" />
-                <span className="flex-1 text-[11px] text-[rgb(var(--color-text-muted))] truncate" style={{ zoom: appZoom }}>
+                <CurrentSessionIcon size={12} className="text-text-muted flex-shrink-0 opacity-70" />
+                <span className="flex-1 text-caption text-text-muted truncate" style={{ zoom: appZoom }}>
                   {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
                 </span>
-                <ChevronsUpDown size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-50" />
+                <ChevronsUpDown size={11} className="text-text-muted flex-shrink-0 opacity-50" />
               </button>
-            </Popover.Trigger>
-            <Popover.Portal>
-              <Popover.Content
-                side="bottom" align="start" sideOffset={4}
-                className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1"
-                // The rename/icon/delete submenu is portaled separately (to document.body,
-                // outside this Popover.Content), so Radix's own outside-interaction dismissal
-                // would otherwise treat clicks inside it as "outside" and auto-close this
-                // popover — undoing the point of keeping it open. Ignore interactions that
-                // land inside the still-open submenu.
-                onInteractOutside={(e) => {
-                  if (sessionMenuRef.current && sessionMenuRef.current.contains(e.target as Node)) e.preventDefault()
-                }}
-              >
-                {sessions.map((session) => {
-                  const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
-                  return (
-                    <button
-                      key={session.id}
-                      className={`sidebar-new-btn no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
-                        ${session.id === currentSessionId
-                          ? 'is-active text-[rgb(var(--color-accent))]'
-                          : 'text-[rgb(var(--color-text-secondary))]'
-                        }`}
-                      onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
-                      onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
-                    >
-                      <SessionIcon size={13} className="flex-shrink-0" />
-                      <span className="flex-1 text-xs truncate">{session.name}</span>
-                      {session.id === currentSessionId && <Check size={11} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-                    </button>
-                  )
-                })}
-                <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-                <button
-                  className="sidebar-new-btn no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] cursor-pointer"
-                  onClick={() => { createSession(); setSessionPopoverOpen(false) }}
-                >
-                  <Plus size={12} />
-                  {/* Was a bare "⌘⇧0" text span — now the app's standard keycap chip. */}
-                  New session <ShortcutKeys keys="⌘⇧0" className="ml-auto flex-shrink-0" />
-                </button>
-                <button
-                  className="sidebar-new-btn no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] cursor-pointer"
-                  onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
-                >
-                  <Settings size={12} />
-                  Manage sessions…
-                </button>
-              </Popover.Content>
-            </Popover.Portal>
-          </Popover.Root>
+            </PopoverTrigger>
+            <PopoverSurface
+              side="bottom" align="start" sideOffset={4}
+              innerClassName="w-52 p-1"
+              // The rename/icon/delete submenu is portaled separately (to document.body,
+              // outside this Popover's content), so Radix's own outside-interaction dismissal
+              // would otherwise treat clicks inside it as "outside" and auto-close this
+              // popover — undoing the point of keeping it open. Ignore interactions that
+              // land inside the still-open submenu.
+              onInteractOutside={(e) => {
+                if (sessionMenuRef.current && sessionMenuRef.current.contains(e.target as Node)) e.preventDefault()
+              }}
+            >
+              {sessions.map((session) => {
+                const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
+                return (
+                  <MenuItem
+                    key={session.id}
+                    icon={SessionIcon}
+                    label={session.name}
+                    active={session.id === currentSessionId}
+                    onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
+                    onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
+                  />
+                )
+              })}
+              <MenuSeparator />
+              <MenuItem
+                icon={Plus}
+                label="New session"
+                shortcut="⌘⇧0"
+                onClick={() => { createSession(); setSessionPopoverOpen(false) }}
+              />
+              <MenuItem
+                icon={Settings}
+                label="Manage sessions…"
+                onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
+              />
+            </PopoverSurface>
+          </Popover>
         </div>
 
         {/* ── Search / location bar — own row, full sidebar width. Back/forward nav,
@@ -633,76 +609,56 @@ export default function Sidebar() {
             {/* Location bar — shows breadcrumb, click to search in current tab */}
             <button
               onClick={() => openSearch('current')}
-              className="sidebar-new-btn flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-left cursor-pointer min-w-0"
+              className="flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-control bg-surface-4/40 hover:bg-surface-4/55 text-footnote text-left cursor-pointer min-w-0 transition-colors"
             >
-              <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+              <Search size={14} className="text-text-muted flex-shrink-0" />
               {tabTitle ? (
                 // Only show "Space > Tab" breadcrumb when the tab has a meaningful
                 // title different from the space name (e.g. "YouTube > Video Title").
                 // When the tab title equals the space name (default empty tab), show
                 // just the space label to avoid "YouTube > YouTube".
                 tabTitle.toLowerCase() === spaceLabel.toLowerCase() ? (
-                  <span className="text-[11px] text-[rgb(var(--color-text-secondary))] truncate flex-1" style={{ zoom: appZoom }}>{spaceLabel}</span>
+                  <span className="text-caption text-text-secondary truncate flex-1" style={{ zoom: appZoom }}>{spaceLabel}</span>
                 ) : (
                   <span className="flex items-center gap-0.5 min-w-0 flex-1" style={{ zoom: appZoom }}>
-                    <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">{spaceLabel}</span>
+                    <span className="text-caption2 text-text-muted flex-shrink-0">{spaceLabel}</span>
                     {breadcrumbTail.map((seg, i) => (
                       <span key={i} className="flex items-center gap-0.5 min-w-0">
-                        <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-50" />
-                        <span className={`text-[11px] text-[rgb(var(--color-text-secondary))] truncate ${i < breadcrumbTail.length - 1 ? 'flex-shrink-0' : ''}`}>{seg}</span>
+                        <ChevronRight size={9} className="text-text-muted flex-shrink-0 opacity-50" />
+                        <span className={`text-caption text-text-secondary truncate ${i < breadcrumbTail.length - 1 ? 'flex-shrink-0' : ''}`}>{seg}</span>
                       </span>
                     ))}
                   </span>
                 )
               ) : (
-                <span className="text-xs text-[rgb(var(--color-text-muted))] truncate" style={{ zoom: appZoom }}>Search…</span>
+                <span className="text-footnote text-text-muted truncate" style={{ zoom: appZoom }}>Search…</span>
               )}
             </button>
             {/* New tab search button */}
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  onClick={() => openSearch('new')}
-                  className="sidebar-new-btn p-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0"
-                >
-                  <Plus size={14} />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content side="right" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                  Search in new tab
-                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
+            <IconButton
+              icon={Plus}
+              label="Search in new tab"
+              size={28}
+              onClick={() => openSearch('new')}
+            />
           </div>
         </div>
 
-        {/* ── New-tab tile row — one square tile per space, always visible
+        {/* ── New-tab tile row — one icon button per space, always visible
              (not conditional on activeSpace). Ribbon.tsx no longer creates
              tabs at all, and the old space-header "+"/right-click "open new
              tab" menu are gone — this is the single "start a fresh tab of
              type X" affordance now. Precise switching to an EXISTING tab
              stays the flat list's job below. ── */}
-        <div className="flex gap-1.5 px-2 pt-1 pb-1.5 flex-shrink-0">
+        <div className="flex gap-1 px-2 pt-1 pb-1.5 flex-shrink-0">
           {SPACES.map(({ id, type, icon: Icon, tip }) => (
-            <Tooltip.Root key={id}>
-              <Tooltip.Trigger asChild>
-                <button
-                  onClick={() => createTab(type)}
-                  className="sidebar-new-btn no-drag group relative flex-1 flex items-center justify-center aspect-square max-h-9 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer overflow-hidden"
-                >
-                  <Icon size={15} className="transition-opacity group-hover:opacity-0" />
-                  <Plus size={15} className="absolute opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content side="bottom" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                  {tip}
-                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
+            <IconButton
+              key={id}
+              icon={Icon}
+              label={tip}
+              size={32}
+              onClick={() => createTab(type)}
+            />
           ))}
         </div>
 
@@ -804,15 +760,11 @@ export default function Sidebar() {
         {/* ── Daily-note calendar — pinned permanently at the bottom, not
              gated to the Notes space and not a toggle (sessions used to
              live in this footer slot; they moved to the rail as numbered
-             chips, freeing this spot for the calendar). Its own rounded card
-             (matching the search bar's surface-4 pill treatment above)
-             rather than a bare `border-t` hairline — now that Ribbon+Sidebar
-             read as one continuous vibrant surface, a single top-only line
-             was the one remaining "seam" in an otherwise unbroken field and
-             read as arbitrary rather than intentional. A self-contained
-             card gives it the same deliberate weight as the sidebar's other
-             grouped elements instead of floating on a lone divider. ── */}
-        <div className="mx-2 mb-2 mt-1.5 p-2 rounded-shell bg-[rgb(var(--color-surface-4))/40] border border-[rgb(var(--color-surface-4))/60] flex-shrink-0">
+             chips, freeing this spot for the calendar). A plain top hairline
+             (no bordered card) so it reads as a native sidebar section, the
+             same way Finder/Mail sidebar sections are just separated by a
+             rule rather than each getting their own card chrome. ── */}
+        <div className="mx-2 mb-2 mt-1.5 pt-2 border-t border-separator flex-shrink-0">
           <CalendarGrid
             date={sbCalendarDate}
             notes={sbCalendarNotes}
@@ -822,138 +774,106 @@ export default function Sidebar() {
             selectedDate={activeDailyDate}
             compact
             todayAction={
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  {/* Icon-only now (was a "📅 Today" text link) — per direct feedback, matches
-                      the nav arrows' own icon-only, color-only hover treatment. Sized up again
-                      (13→17) alongside the rest of this nav line (chevrons/month label in
-                      CalendarGrid) so it doesn't stay small while everything else around it
-                      grew. */}
-                  <button
-                    onClick={openTodaysDailyNote}
-                    onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: dailyNoteToday(), x: e.clientX, y: e.clientY }) }}
-                    className="no-drag p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
-                  >
-                    <CalendarCheck size={17} />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Portal>
-                  <Tooltip.Content side="top" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                    Today's daily note
-                    <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              </Tooltip.Root>
+              <IconButton
+                icon={CalendarCheck}
+                label="Today's daily note"
+                size={24}
+                onClick={openTodaysDailyNote}
+                onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: dailyNoteToday(), x: e.clientX, y: e.clientY }) }}
+              />
             }
           />
         </div>
 
-      </aside>
-
       {/* ── Tab-bar right-click context menu ── */}
       {tabBarMenu && createPortal(
-        <MenuPositioner ref={tabBarMenuRef} x={tabBarMenu.x} y={tabBarMenu.y}
-          className="min-w-44 rounded-shell glass-panel p-1 text-xs"
-        >
-          {SPACES.map(({ id, type, icon: Icon, tip }) => (
-            <button
-              key={id}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => { createTab(type); useAppStore.getState().setActiveSpace(id); setTabBarMenu(null) }}
-            >
-              <Icon size={12} />
-              {tip}
-            </button>
-          ))}
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { openSearch('new'); setTabBarMenu(null) }}
-          >
-            <Search size={12} />
-            Search / new tab…
-          </button>
-          <div className="my-1 border-t border-[rgb(var(--color-surface-4))]" />
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { toggleSidebar(); setTabBarMenu(null) }}
-          >
-            <PanelLeft size={12} className={sidebarCollapsed ? 'rotate-180' : ''} />
-            {sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
-          </button>
-          <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { openSettings(); setTabBarMenu(null) }}
-          >
-            <Settings size={12} />
-            Theme settings
-          </button>
+        <MenuPositioner ref={tabBarMenuRef} x={tabBarMenu.x} y={tabBarMenu.y}>
+          <MenuSurface className="min-w-44">
+            {SPACES.map(({ id, type, icon: Icon, tip }) => (
+              <MenuItem
+                key={id}
+                icon={Icon}
+                label={tip}
+                onClick={() => { createTab(type); useAppStore.getState().setActiveSpace(id); setTabBarMenu(null) }}
+              />
+            ))}
+            <MenuItem
+              icon={Search}
+              label="Search / new tab…"
+              onClick={() => { openSearch('new'); setTabBarMenu(null) }}
+            />
+            <MenuSeparator />
+            <MenuItem
+              icon={PanelLeft}
+              label={sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+              onClick={() => { toggleSidebar(); setTabBarMenu(null) }}
+            />
+            <MenuItem
+              icon={Settings}
+              label="Theme settings"
+              onClick={() => { openSettings(); setTabBarMenu(null) }}
+            />
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}
 
       {/* ── Scripture right-click → book list ── */}
       {bookMenu && createPortal(
-        <MenuPositioner ref={bookMenuRef} x={bookMenu.x} y={bookMenu.y}
-          className="w-56 max-h-[70vh] flex flex-col rounded-shell glass-panel text-xs"
-        >
-          {/* Filter input — sticky at top */}
-          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <Search size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-            <input
-              autoFocus
-              type="text"
-              value={bookMenu.filter}
-              onChange={(e) => setBookMenu(prev => prev ? { ...prev, filter: e.target.value } : null)}
-              placeholder="Filter books…"
-              className="flex-1 bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] text-[11px]"
-            />
-          </div>
-          <div className="overflow-y-auto flex-1 p-1">
-            {(() => {
-              const q = bookMenu.filter.toLowerCase()
-              const filtered = q ? bookMenu.books.filter(e => e.book.name.toLowerCase().includes(q)) : bookMenu.books
-              if (filtered.length === 0) {
-                return <div className="px-2 py-2 text-[rgb(var(--color-text-muted))] text-center">No books found</div>
-              }
-              if (q) {
-                // Flat list when filtering
-                return filtered.map(entry => (
-                  <button
-                    key={entry.book.id}
-                    className="w-full text-left px-2 py-1 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex items-center justify-between gap-2"
-                    onClick={() => openTabFromBook(entry)}
-                  >
-                    <span>{entry.book.name}</span>
-                    {entry.textId !== 'kjva' && (
-                      <span className="text-[9px] text-[rgb(var(--color-text-muted))] opacity-70 font-mono uppercase">{entry.textId}</span>
-                    )}
-                  </button>
-                ))
-              }
-              // Grouped by testament when not filtering
-              return (['OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as const).map((testament) => {
-                const group = filtered.filter(e => e.book.testament === testament)
-                if (group.length === 0) return null
-                return (
-                  <div key={testament}>
-                    <div className="px-2 py-0.5 text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wider opacity-60 mt-1">{testament}</div>
-                    {group.map(entry => (
-                      <button
-                        key={entry.book.id}
-                        className="w-full text-left px-2 py-1 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex items-center justify-between gap-2"
-                        onClick={() => openTabFromBook(entry)}
-                      >
-                        <span>{entry.book.name}</span>
-                        {entry.textId !== 'kjva' && (
-                          <span className="text-[9px] text-[rgb(var(--color-text-muted))] opacity-70 font-mono uppercase">{entry.textId}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )
-              })
-            })()}
-          </div>
+        <MenuPositioner ref={bookMenuRef} x={bookMenu.x} y={bookMenu.y}>
+          <MenuSurface className="w-56 max-h-[70vh] flex flex-col">
+            {/* Filter input — sticky at top */}
+            <div className="flex items-center gap-1.5 pb-1.5 border-b border-separator flex-shrink-0">
+              <Search size={11} className="text-text-muted flex-shrink-0" />
+              <TextField
+                autoFocus
+                bare
+                size="sm"
+                value={bookMenu.filter}
+                onChange={(e) => setBookMenu(prev => prev ? { ...prev, filter: e.target.value } : null)}
+                placeholder="Filter books…"
+                wrapperClassName="flex-1"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 pt-1">
+              {(() => {
+                const q = bookMenu.filter.toLowerCase()
+                const filtered = q ? bookMenu.books.filter(e => e.book.name.toLowerCase().includes(q)) : bookMenu.books
+                if (filtered.length === 0) {
+                  return <div className="px-2 py-2 text-text-muted text-center">No books found</div>
+                }
+                if (q) {
+                  // Flat list when filtering
+                  return filtered.map(entry => (
+                    <MenuItem
+                      key={entry.book.id}
+                      label={entry.book.name}
+                      trailing={entry.textId !== 'kjva' ? <span className="text-micro text-text-muted opacity-70 font-mono uppercase">{entry.textId}</span> : undefined}
+                      onClick={() => openTabFromBook(entry)}
+                    />
+                  ))
+                }
+                // Grouped by testament when not filtering
+                return (['OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as const).map((testament) => {
+                  const group = filtered.filter(e => e.book.testament === testament)
+                  if (group.length === 0) return null
+                  return (
+                    <div key={testament}>
+                      <MenuLabel className="mt-1">{testament}</MenuLabel>
+                      {group.map(entry => (
+                        <MenuItem
+                          key={entry.book.id}
+                          label={entry.book.name}
+                          trailing={entry.textId !== 'kjva' ? <span className="text-micro text-text-muted opacity-70 font-mono uppercase">{entry.textId}</span> : undefined}
+                          onClick={() => openTabFromBook(entry)}
+                        />
+                      ))}
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}
@@ -962,148 +882,91 @@ export default function Sidebar() {
         const menuSession = sessions.find((s) => s.id === sessionMenu.sessionId)
         const MenuSessionIcon = (SESSION_ICONS.find((i) => i.name === menuSession?.icon) ?? SESSION_ICONS[0]).Icon
         return createPortal(
-        <MenuPositioner ref={sessionMenuRef} x={sessionMenu.x} y={sessionMenu.y}
-          className={`rounded-shell glass-panel p-1 text-xs ${sessionMenuMode === 'icon' ? 'w-48' : 'min-w-44'}`}
-        >
-          {/* Live preview header — icon + name update in place as edits are made below,
-              so renaming/changing the icon is visible without closing the menu to check. */}
-          <div className="flex items-center gap-2 px-2 py-1.5 mb-1 border-b border-[rgb(var(--color-surface-4))]">
-            <MenuSessionIcon size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-            <span className="flex-1 text-[11px] font-medium text-[rgb(var(--color-text-secondary))] truncate">
-              {menuSession?.name ?? 'Session'}
-            </span>
-          </div>
-          {sessionMenuMode === 'rename' ? (
-            <input
-              autoFocus
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onFocus={(e) => e.currentTarget.select()}
-              onBlur={() => {
-                if (renameValue.trim()) renameSession(sessionMenu.sessionId, renameValue.trim())
-                setSessionMenuMode('default')
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                if (e.key === 'Escape') { e.preventDefault(); setSessionMenu(null); setSessionMenuMode('default') }
-              }}
-              className="w-full px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none transition-shadow focus:ring-2 focus:ring-[rgb(var(--color-accent))]"
-            />
-          ) : sessionMenuMode === 'icon' ? (
-            <>
-              <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">Session icon</div>
-              <div className="grid grid-cols-7 gap-0.5 p-1">
-                <button
-                  title="No icon (show number)"
-                  className={`flex items-center justify-center w-6 h-6 rounded-shell transition-all duration-100 cursor-pointer hover:scale-110 active:scale-90 ${
-                    !menuSession?.icon
-                      ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/50]'
-                      : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-                  }`}
-                  onClick={() => setSessionIcon(sessionMenu.sessionId, '')}
-                >
-                  <Hash size={13} />
-                </button>
-                {SESSION_ICONS.map(({ name, Icon }) => (
-                  <button
-                    key={name}
-                    title={name}
-                    className={`flex items-center justify-center w-6 h-6 rounded-shell transition-all duration-100 cursor-pointer hover:scale-110 active:scale-90 ${
-                      menuSession?.icon === name
-                        ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/50]'
-                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-                    }`}
-                    onClick={() => setSessionIcon(sessionMenu.sessionId, name)}
-                  >
-                    <Icon size={13} />
-                  </button>
-                ))}
-              </div>
-              <button
-                className="w-full flex items-center justify-center gap-1.5 mt-1 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => setSessionMenuMode('default')}
-              >
-                Done
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
-                onClick={() => setSessionMenuMode('rename')}
-              >
-                <Pencil size={12} />
-                Rename
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
-                onClick={() => setSessionMenuMode('icon')}
-              >
-                <Palette size={12} />
-                Change icon
-              </button>
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
-                onClick={() => { openSettingsToSessions(); setSessionMenu(null) }}
-              >
-                <Settings size={12} />
-                Manage sessions…
-              </button>
-              {sessions.length > 1 && (
-                <button
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
-                  onClick={() => { deleteSession(sessionMenu.sessionId); setSessionMenu(null) }}
-                >
-                  <Trash2 size={12} />
-                  Delete session
-                </button>
-              )}
-            </>
-          )}
+        <MenuPositioner ref={sessionMenuRef} x={sessionMenu.x} y={sessionMenu.y}>
+          <MenuSurface className={sessionMenuMode === 'icon' ? 'w-48' : 'min-w-44'}>
+            {/* Live preview header — icon + name update in place as edits are made below,
+                so renaming/changing the icon is visible without closing the menu to check. */}
+            <div className="flex items-center gap-2 px-2.5 py-1.5 mb-1 border-b border-separator">
+              <MenuSessionIcon size={12} className="text-text-muted flex-shrink-0" />
+              <span className="flex-1 text-caption font-medium text-text-secondary truncate">
+                {menuSession?.name ?? 'Session'}
+              </span>
+            </div>
+            {sessionMenuMode === 'rename' ? (
+              <TextField
+                autoFocus
+                size="sm"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={() => {
+                  if (renameValue.trim()) renameSession(sessionMenu.sessionId, renameValue.trim())
+                  setSessionMenuMode('default')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                  if (e.key === 'Escape') { e.preventDefault(); setSessionMenu(null); setSessionMenuMode('default') }
+                }}
+                wrapperClassName="px-1"
+              />
+            ) : sessionMenuMode === 'icon' ? (
+              <>
+                <MenuLabel>Session icon</MenuLabel>
+                <div className="grid grid-cols-7 gap-0.5 p-1">
+                  <IconButton
+                    icon={Hash}
+                    label="No icon (show number)"
+                    size={24}
+                    active={!menuSession?.icon}
+                    onClick={() => setSessionIcon(sessionMenu.sessionId, '')}
+                  />
+                  {SESSION_ICONS.map(({ name, Icon }) => (
+                    <IconButton
+                      key={name}
+                      icon={Icon}
+                      label={name}
+                      size={24}
+                      active={menuSession?.icon === name}
+                      onClick={() => setSessionIcon(sessionMenu.sessionId, name)}
+                    />
+                  ))}
+                </div>
+                <MenuItem label="Done" className="justify-center" onClick={() => setSessionMenuMode('default')} />
+              </>
+            ) : (
+              <>
+                <MenuItem icon={Pencil} label="Rename" onClick={() => setSessionMenuMode('rename')} />
+                <MenuItem icon={Palette} label="Change icon" onClick={() => setSessionMenuMode('icon')} />
+                <MenuSeparator />
+                <MenuItem icon={Settings} label="Manage sessions…" onClick={() => { openSettingsToSessions(); setSessionMenu(null) }} />
+                {sessions.length > 1 && (
+                  <MenuItem icon={Trash2} label="Delete session" danger onClick={() => { deleteSession(sessionMenu.sessionId); setSessionMenu(null) }} />
+                )}
+              </>
+            )}
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )})()}
 
       {/* ── Daily-note calendar right-click (grid cells + the "Today" shortcut) ── */}
       {dailyNoteMenu && createPortal(
-        <MenuPositioner ref={dailyNoteMenuRef} x={dailyNoteMenu.x} y={dailyNoteMenu.y}
-          className="min-w-[190px] rounded-shell context-menu py-1 overflow-hidden text-xs"
-        >
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { openDailyNoteInTab(dailyNoteMenu.date); setDailyNoteMenu(null) }}
-          >
-            <PanelRightOpen size={13} className="flex-shrink-0" /> Open
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { openDailyNoteInNewTab(dailyNoteMenu.date); setDailyNoteMenu(null) }}
-          >
-            <ExternalLink size={13} className="flex-shrink-0" /> Open in new tab
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { openDailyNoteInFloatingTab(dailyNoteMenu.date); setDailyNoteMenu(null) }}
-          >
-            <Monitor size={13} className="flex-shrink-0" /> Open in floating tab
-          </button>
-          {findDailyNote(sbCalendarNotes, dailyNoteMenu.date) && (
-            <>
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button
-                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
-                onClick={() => { deleteDailyNoteForDate(dailyNoteMenu.date); setDailyNoteMenu(null) }}
-              >
-                <Trash2 size={13} className="flex-shrink-0" /> Delete note
-              </button>
-            </>
-          )}
+        <MenuPositioner ref={dailyNoteMenuRef} x={dailyNoteMenu.x} y={dailyNoteMenu.y}>
+          <MenuSurface className="min-w-[190px]">
+            <MenuItem icon={PanelRightOpen} label="Open" onClick={() => { openDailyNoteInTab(dailyNoteMenu.date); setDailyNoteMenu(null) }} />
+            <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { openDailyNoteInNewTab(dailyNoteMenu.date); setDailyNoteMenu(null) }} />
+            <MenuItem icon={Monitor} label="Open in floating tab" onClick={() => { openDailyNoteInFloatingTab(dailyNoteMenu.date); setDailyNoteMenu(null) }} />
+            {findDailyNote(sbCalendarNotes, dailyNoteMenu.date) && (
+              <>
+                <MenuSeparator />
+                <MenuItem icon={Trash2} label="Delete note" danger onClick={() => { deleteDailyNoteForDate(dailyNoteMenu.date); setDailyNoteMenu(null) }} />
+              </>
+            )}
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}
-    </Tooltip.Provider>
+      </aside>
     {/* Resize handle — thin strip on the sidebar's right edge, only visible on hover (matching
         the side-panel's own hDivider convention in BiblePanel.tsx). Sits on the motion.div
         itself (not the inner aside) so it stays pinned to the right edge regardless of the
@@ -1112,9 +975,9 @@ export default function Sidebar() {
       <div
         onMouseDown={handleSidebarResizeMouseDown}
         title="Drag to resize"
-        className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 no-drag"
+        className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-raised no-drag"
       >
-        <div className="w-px h-full mx-auto bg-transparent group-hover:bg-[rgb(var(--color-accent))/40] transition-colors" />
+        <div className="w-px h-full mx-auto bg-transparent group-hover:bg-accent/40 transition-colors" />
       </div>
     )}
     </motion.div>

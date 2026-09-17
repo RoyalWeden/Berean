@@ -6,6 +6,7 @@ import { NodeSelection, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import type { Node as PMNode } from 'prosemirror-model'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
+import { MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
 import { bereanSchema as schema } from './schema'
 import { blockEnterAnimMeta } from './blockHandles'
 import type { BlockMenuTarget } from './blockHandles'
@@ -153,9 +154,6 @@ const QuoteIcon = BLOCK_TYPE_META.quote.icon
 const CalloutIcon = BLOCK_TYPE_META['callout-note'].icon
 const ThreadIcon = BLOCK_TYPE_META.thread.icon
 
-const ITEM = 'w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
-const HEADER = 'px-3 pt-1.5 pb-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider'
-const SEP = <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
 
 export default function BlockMenu({
   target, view, noteId, onClose,
@@ -264,59 +262,45 @@ export default function BlockMenu({
     <MenuPositioner
       x={target.rect.right + 6}
       y={target.rect.top}
-      className="native-buttons min-w-[190px] rounded-shell context-menu py-1 overflow-hidden"
+      className="native-buttons min-w-[190px]"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <button className={ITEM} onClick={duplicate}><Copy size={13} className="flex-shrink-0" /> Duplicate</button>
-      <button className={ITEM} onClick={copyLink}><Link2 size={13} className="flex-shrink-0" /> Copy link to block</button>
+      <MenuSurface>
+        <MenuItem icon={Copy} label="Duplicate" onClick={duplicate} />
+        <MenuItem icon={Link2} label="Copy link to block" onClick={copyLink} />
 
-      {canTurnInto && (
-        <>
-          {SEP}
-          <div className={HEADER}>Turn into</div>
-          {/* Paragraph + the FULL H1-H6 range — this menu used to stop at H3 while both
-              toolbars offered all six, so three heading levels were unreachable from a
-              block's own menu. Icons/labels come from the shared config so all four
-              surfaces show the same glyph for the same level. */}
-          {TEXT_TYPE_LEVELS.map(({ level, meta }) => {
-            const Icon = meta.icon
-            return (
-              <button
+        {canTurnInto && (
+          <>
+            <MenuSeparator />
+            <MenuLabel>Turn into</MenuLabel>
+            {/* Paragraph + the FULL H1-H6 range — this menu used to stop at H3 while both
+                toolbars offered all six, so three heading levels were unreachable from a
+                block's own menu. Icons/labels come from the shared config so all four
+                surfaces show the same glyph for the same level. */}
+            {TEXT_TYPE_LEVELS.map(({ level, meta }) => (
+              <MenuItem
                 key={level}
-                className={ITEM}
+                icon={meta.icon}
+                label={meta.label}
                 onClick={() => turnInto((n) => (level === 0
                   ? buildTextblock('paragraph', undefined, n)
                   : buildTextblock('heading', level, n)))}
-              >
-                <Icon size={13} className="flex-shrink-0" /> {meta.label}
-              </button>
-            )
-          })}
-          <button className={ITEM} onClick={() => turnInto((n) => buildList('bullet_list', n))}>
-            <BulletListIcon size={13} className="flex-shrink-0" /> Bulleted list
-          </button>
-          <button className={ITEM} onClick={() => turnInto((n) => buildList('ordered_list', n))}>
-            <OrderedListIcon size={13} className="flex-shrink-0" /> Numbered list
-          </button>
-          <button className={ITEM} onClick={() => turnInto((n) => buildContainer('blockquote', n))}>
-            <QuoteIcon size={13} className="flex-shrink-0" /> Quote
-          </button>
-          {/* buildContainer always produces a NOTE callout (its calloutType attr is
-              hardcoded), so this shows the NOTE variant's own icon rather than a generic
-              "some kind of callout" glyph — what you pick is exactly what you get. */}
-          <button className={ITEM} onClick={() => turnInto((n) => buildContainer('callout', n))}>
-            <CalloutIcon size={13} className="flex-shrink-0" /> Callout
-          </button>
-          <button className={ITEM} onClick={() => turnInto((n) => buildThreadFromNode(n))}>
-            <ThreadIcon size={13} className="flex-shrink-0" /> Thread
-          </button>
-        </>
-      )}
+              />
+            ))}
+            <MenuItem icon={BulletListIcon} label="Bulleted list" onClick={() => turnInto((n) => buildList('bullet_list', n))} />
+            <MenuItem icon={OrderedListIcon} label="Numbered list" onClick={() => turnInto((n) => buildList('ordered_list', n))} />
+            <MenuItem icon={QuoteIcon} label="Quote" onClick={() => turnInto((n) => buildContainer('blockquote', n))} />
+            {/* buildContainer always produces a NOTE callout (its calloutType attr is
+                hardcoded), so this shows the NOTE variant's own icon rather than a generic
+                "some kind of callout" glyph — what you pick is exactly what you get. */}
+            <MenuItem icon={CalloutIcon} label="Callout" onClick={() => turnInto((n) => buildContainer('callout', n))} />
+            <MenuItem icon={ThreadIcon} label="Thread" onClick={() => turnInto((n) => buildThreadFromNode(n))} />
+          </>
+        )}
 
-      {SEP}
-      <button className={`${ITEM} text-red-400 hover:text-red-300 hover:bg-red-500/10`} onClick={remove}>
-        <Trash2 size={13} className="flex-shrink-0" /> Delete
-      </button>
+        <MenuSeparator />
+        <MenuItem danger icon={Trash2} label="Delete" onClick={remove} />
+      </MenuSurface>
     </MenuPositioner>,
     document.body,
   )

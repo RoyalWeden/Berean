@@ -4,6 +4,7 @@ import type { SlashCommand } from './slashCommands'
 import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
+import { Select, Button, SectionLabel } from '@/components/ui'
 
 // Slash-command icons come straight from the shared block-type config, which is keyed
 // by the same ids SLASH_COMMANDS uses — so there is no local icon map to fall out of
@@ -29,20 +30,20 @@ export function StrongsSuggestPopup({
 }: { num: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
   return (
     <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
+      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
+      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
-      <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{num}</span>
+      <span className="text-caption2 font-mono font-semibold text-accent">{num}</span>
       <button
-        className="text-[10px] text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors font-medium flex items-center gap-1"
+        className="text-caption2 text-text-primary hover:text-accent cursor-pointer transition-colors font-medium flex items-center gap-1"
         onMouseDown={onInsert}
       >
         Insert Strong&apos;s block
         <ShortcutKeys keys="↵" className="ml-0.5" />
       </button>
       <button
-        className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+        className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer transition-colors"
         onMouseDown={onDismiss}
         title="Dismiss (Esc)"
       >
@@ -57,20 +58,20 @@ export function VerseSuggestPopup({
 }: { refText: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
   return (
     <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
+      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
+      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
-      <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{refText}</span>
+      <span className="text-caption2 font-mono font-semibold text-accent">{refText}</span>
       <button
-        className="text-[10px] text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors font-medium flex items-center gap-1"
+        className="text-caption2 text-text-primary hover:text-accent cursor-pointer transition-colors font-medium flex items-center gap-1"
         onMouseDown={onInsert}
       >
         Insert scripture block
         <ShortcutKeys keys="↵" className="ml-0.5" />
       </button>
       <button
-        className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+        className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer transition-colors"
         onMouseDown={onDismiss}
         title="Dismiss (Esc)"
       >
@@ -87,20 +88,20 @@ export function WikilinkPopup({
   const active = notes[activeIdx] ?? notes[0]
   return (
     <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden animate-radix-popup-in"
+      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
+      className="flex material-popover rounded-menu overflow-hidden animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
-      <div className="w-56 max-h-64 overflow-y-auto bg-[rgb(var(--color-surface-1))] py-1 flex-shrink-0">
+      <div className="w-56 max-h-64 overflow-y-auto py-1 flex-shrink-0">
         {notes.map((note, i) => (
           <button
             key={note.id}
             onMouseDown={() => onInsert(note)}
             onMouseEnter={() => onHoverIdx(i)}
-            className={`w-full text-left px-3 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
+            className={`text-left mx-1 w-[calc(100%-8px)] px-2.5 py-2 rounded-row text-sm cursor-pointer transition-colors flex items-center gap-2 border-l-2 ${
               i === activeIdx
-                ? 'bg-[rgb(var(--color-accent))]/20 text-[rgb(var(--color-text-primary))] border-l-2 border-[rgb(var(--color-accent))]'
-                : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] border-l-2 border-transparent'
+                ? 'bg-surface-selected text-text-primary border-accent'
+                : 'text-text-secondary hover:bg-surface-hover border-transparent'
             }`}
           >
             <span className="truncate">{note.title || 'Untitled'}</span>
@@ -108,14 +109,14 @@ export function WikilinkPopup({
         ))}
       </div>
       {active && (
-        <div className="w-64 max-h-64 overflow-y-auto bg-[rgb(var(--color-surface-2))] border-l border-[rgb(var(--color-surface-4))] p-3 flex-shrink-0">
-          <p className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] mb-1.5 truncate">
+        <div className="w-64 max-h-64 overflow-y-auto bg-surface-2/60 border-l border-separator p-3 flex-shrink-0">
+          <p className="text-caption font-semibold text-text-primary mb-1.5 truncate">
             {active.title || 'Untitled'}
           </p>
           {active.verseRef && (
-            <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{formatDottedVerseRef(active.verseRef)}</p>
+            <p className="text-micro text-accent mb-1.5 font-mono">{formatDottedVerseRef(active.verseRef)}</p>
           )}
-          <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
+          <p className="text-caption2 text-text-secondary leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
             {(active.content || '')
               .replace(/^---[\s\S]*?---\n?/, '')
               .replace(/#{1,6}\s/g, '')
@@ -143,11 +144,11 @@ export function RefHoverPreview({
 }: { x: number; y: number; refLabel: string; text: string; loading: boolean }) {
   return (
     <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none animate-radix-popup-in"
+      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
+      className="max-w-xs px-3 py-2 material-popover rounded-menu pointer-events-none animate-radix-popup-in"
     >
-      <p className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{refLabel}</p>
-      <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed line-clamp-6">
+      <p className="text-caption2 font-mono font-semibold text-accent mb-1">{refLabel}</p>
+      <p className="text-caption text-text-secondary leading-relaxed line-clamp-6">
         {loading ? 'Loading…' : (text || 'Not found')}
       </p>
     </div>
@@ -191,50 +192,42 @@ export function VersePickerPopup({
 
   return (
     <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 9999 }}
-      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px] animate-radix-popup-in"
+      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-menu)' }}
+      className="pm-toolbar-solid material-popover rounded-menu p-2 flex flex-col gap-1.5 w-[220px] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
-      <select
+      <Select
+        size="sm"
         value={bookId}
-        onChange={(e) => { setBookId(e.target.value); setChapter(1) }}
-        className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
-      >
-        {books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-      </select>
+        onChange={(v) => { setBookId(v); setChapter(1) }}
+        options={books.map((b) => ({ value: b.id, label: b.name }))}
+        aria-label="Book"
+      />
       <div className="flex items-center gap-1.5">
-        <select
-          value={chapter}
-          onChange={(e) => setChapter(Number(e.target.value))}
-          className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
-        >
-          {Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => (
-            <option key={c} value={c}>Ch {c}</option>
-          ))}
-        </select>
-        <select
-          value={verse}
-          onChange={(e) => setVerse(Number(e.target.value))}
-          className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
-        >
-          {Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => (
-            <option key={v} value={v}>Vs {v}</option>
-          ))}
-        </select>
+        <Select
+          size="sm"
+          className="flex-1 min-w-0"
+          value={String(chapter)}
+          onChange={(v) => setChapter(Number(v))}
+          options={Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => ({ value: String(c), label: `Ch ${c}` }))}
+          aria-label="Chapter"
+        />
+        <Select
+          size="sm"
+          className="flex-1 min-w-0"
+          value={String(verse)}
+          onChange={(v) => setVerse(Number(v))}
+          options={Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => ({ value: String(v), label: `Vs ${v}` }))}
+          aria-label="Verse"
+        />
       </div>
       <div className="flex items-center gap-1.5 justify-end pt-0.5">
-        <button
-          onMouseDown={onDismiss}
-          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors px-1.5 py-1"
-        >
+        <Button variant="ghost" size="sm" onMouseDown={onDismiss}>
           Cancel
-        </button>
-        <button
-          onMouseDown={() => onInsert(bookId, chapter, verse)}
-          className="text-[10px] font-medium text-white bg-[rgb(var(--color-accent))] hover:opacity-90 rounded-md px-2.5 py-1 cursor-pointer transition-opacity"
-        >
+        </Button>
+        <Button variant="primary" size="sm" onMouseDown={() => onInsert(bookId, chapter, verse)}>
           Insert
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -252,13 +245,13 @@ export function SlashCommandPopup({
   })
   return (
     <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="w-64 max-h-80 overflow-y-auto shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg bg-[rgb(var(--color-surface-1))] py-1 animate-radix-popup-in"
+      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
+      className="w-64 max-h-80 overflow-y-auto material-popover rounded-menu py-1 animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       {groups.map(({ group, items }) => (
         <div key={group}>
-          <div className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{group}</div>
+          <SectionLabel className="px-3 pt-2 pb-1">{group}</SectionLabel>
           {items.map(({ cmd, idx }) => {
             const Icon = BLOCK_TYPE_META[cmd.id]?.icon
             return (
@@ -266,18 +259,18 @@ export function SlashCommandPopup({
                 key={cmd.id}
                 onMouseDown={() => onSelect(cmd)}
                 onMouseEnter={() => onHoverIdx(idx)}
-                className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors flex items-center gap-2.5 border-l-2 ${
+                className={`text-left mx-1 w-[calc(100%-8px)] px-2.5 py-1.5 rounded-row text-xs cursor-pointer transition-colors flex items-center gap-2.5 border-l-2 ${
                   idx === activeIdx
-                    ? 'bg-[rgb(var(--color-accent))]/25 border-l-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))] font-medium'
-                    : 'border-l-transparent text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))]'
+                    ? 'bg-surface-selected border-l-accent text-text-primary font-medium'
+                    : 'border-l-transparent text-text-secondary hover:bg-surface-hover'
                 }`}
               >
-                <span className="w-6 h-6 flex-shrink-0 rounded flex items-center justify-center bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))]">
+                <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-surface-3 text-text-secondary">
                   {Icon && <Icon size={13} />}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block truncate font-medium text-[rgb(var(--color-text-primary))]">{cmd.label}</span>
-                  <span className="block truncate text-[10px] text-[rgb(var(--color-text-muted))]">{cmd.description}</span>
+                  <span className="block truncate font-medium text-text-primary">{cmd.label}</span>
+                  <span className="block truncate text-caption2 text-text-muted">{cmd.description}</span>
                 </span>
               </button>
             )

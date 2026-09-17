@@ -9,6 +9,7 @@ import type { Note, NoteStatus } from '@/types'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NoteBadgeRow } from './NoteBadgeRow'
 import NoteIcon from './NoteIcon'
+import { EmptyState } from '@/components/ui'
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
@@ -127,15 +128,12 @@ export default function NotesList({
 
   if (notes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-        <NotepadText size={32} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-40" />
-        <p className="text-sm text-[rgb(var(--color-text-secondary))]">No notes yet</p>
-        <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">
-          Click a verse number to add a verse note, or press{' '}
-          <ShortcutKeys keys="⌘⇧N" className="align-middle" />{' '}
-          for a general note.
-        </p>
-      </div>
+      <EmptyState
+        icon={NotepadText}
+        title="No notes yet"
+        hint={<>Click a verse number to add a verse note, or press{' '}<ShortcutKeys keys="⌘⇧N" className="align-middle" />{' '}for a general note.</>}
+        className="h-full"
+      />
     )
   }
 
@@ -167,14 +165,9 @@ export default function NotesList({
               // by at a glance when not hovering; this restores just enough structure without
               // going back to a full box around every entry. Skipped on the very last note.
               className={`absolute top-0 left-0 w-full px-2 py-0.5 ${
-                virtualRow.index < sortedNotes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
+                virtualRow.index < sortedNotes.length - 1 ? 'border-b border-separator' : ''
               }`}
-              style={{
-                transform: `translateY(${virtualRow.start}px)`,
-                // Dim accent wash across the whole previewed row (softer than the side bar).
-                // Inline so it doesn't depend on Tailwind's arbitrary-opacity parsing.
-                ...(isPreviewed ? { backgroundColor: 'rgb(var(--color-accent) / 0.16)' } : {}),
-              }}
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
             >
             <div
               draggable={!selectMode && !renamingNoteId}
@@ -199,12 +192,11 @@ export default function NotesList({
               // and the Linear-style accent bar below for the "this one's active" signal. The
               // previous bordered-card-per-row treatment (bg + border on every single row) read
               // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
-              className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
-                ${isPreviewed
-                  ? '' /* the full-width wash lives on the wrapper above; keep the card clear */
-                  : isSelected
-                  ? 'bg-[rgb(var(--color-accent))/8]'
-                  : 'hover:bg-[rgb(var(--color-surface-3))]'
+              // Selected/previewed share one recipe with NotesFolderView's active row.
+              className={`relative group flex items-stretch rounded-row transition-colors overflow-hidden
+                ${isSelected || isPreviewed
+                  ? 'bg-surface-selected'
+                  : 'hover:bg-surface-hover'
                 }`}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -215,8 +207,7 @@ export default function NotesList({
             >
               {/* Linear-style left accent bar — solid when selected/previewed, fades in on hover */}
               <div
-                className={`absolute left-0 top-0 bottom-0 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
-                  ${isPreviewed ? 'w-1' : 'w-0.5'}
+                className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-control bg-accent origin-center transition-transform duration-100
                   ${isSelected || isPreviewed ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
               />
 
@@ -224,10 +215,10 @@ export default function NotesList({
               {selectMode && (
                 <button
                   onClick={() => onToggleSelect?.(note.id)}
-                  className="flex items-center pl-3 pr-1 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer flex-shrink-0"
+                  className="flex items-center pl-3 pr-1 text-text-muted hover:text-accent cursor-pointer flex-shrink-0"
                 >
                   {isSelected
-                    ? <CheckSquare size={15} className="text-[rgb(var(--color-accent))]" />
+                    ? <CheckSquare size={15} className="text-accent" />
                     : <Square size={15} />
                   }
                 </button>
@@ -260,12 +251,12 @@ export default function NotesList({
                     }}
                     onBlur={() => commitRename(note.id, renameValue)}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm font-medium text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))] rounded px-1 w-full outline-none border border-[rgb(var(--color-accent))/50]"
+                    className="text-subhead font-medium text-text-primary bg-surface-4 rounded-control px-1 w-full outline-none border border-accent/50"
                   />
                 ) : (
                   <span className="flex items-center gap-1 w-full min-w-0">
                     <NoteIcon icon={note.icon} size={13} />
-                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
+                    <span className="text-subhead font-medium text-text-primary truncate">
                       {findQuery ? applyFindHighlight(note.title || 'Untitled', findQuery) : (note.title || 'Untitled')}
                     </span>
                   </span>
@@ -273,7 +264,7 @@ export default function NotesList({
                 {!isRenaming && (
                   <>
                     <span
-                      className={`text-xs text-[rgb(var(--color-text-muted))] w-full ${expandAll ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}
+                      className={`text-footnote text-text-muted w-full ${expandAll ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}
                       style={expandAll ? undefined : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                     >
                       {findQuery
@@ -282,7 +273,7 @@ export default function NotesList({
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <NoteBadgeRow note={note} />
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]">
+                      <span className="text-caption2 text-text-muted">
                         {formatDate(note.createdAt)}
                         {note.updatedAt !== note.createdAt && (
                           <span className="opacity-60"> · {timeAgo(note.updatedAt)}</span>
@@ -302,10 +293,10 @@ export default function NotesList({
                   onClick={(e) => { e.stopPropagation(); onTogglePinned(note) }}
                   className={`
                     absolute right-9 top-1/2 -translate-y-1/2
-                    p-1.5 rounded transition-opacity cursor-pointer
+                    p-1.5 rounded-control transition-opacity cursor-pointer
                     ${note.pinned
-                      ? 'text-[rgb(var(--color-accent))] opacity-100'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] opacity-0 group-hover:opacity-100'
+                      ? 'text-accent opacity-100'
+                      : 'text-text-muted hover:text-text-primary hover:bg-surface-hover opacity-0 group-hover:opacity-100'
                     }
                   `}
                   title={note.pinned ? 'Unpin note' : 'Pin note'}
@@ -320,8 +311,8 @@ export default function NotesList({
                   onClick={(e) => { e.stopPropagation(); onDelete(note) }}
                   className="
                     absolute right-2 top-1/2 -translate-y-1/2
-                    p-1.5 rounded opacity-0 group-hover:opacity-100
-                    text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/15
+                    p-1.5 rounded-control opacity-0 group-hover:opacity-100
+                    text-text-muted hover:text-destructive hover:bg-destructive/15
                     transition-opacity cursor-pointer
                   "
                   title="Delete note"
@@ -337,7 +328,7 @@ export default function NotesList({
                   <div
                     key={i}
                     onClick={() => onSelect(note)}
-                    className="text-[11px] leading-snug text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))/40] rounded px-2 py-1 cursor-pointer hover:bg-[rgb(var(--color-surface-4))]"
+                    className="text-caption leading-snug text-text-secondary bg-surface-4/40 rounded-card px-2 py-1 cursor-pointer hover:bg-surface-hover"
                   >
                     {applyFindHighlight(s, searchQuery!)}
                   </div>

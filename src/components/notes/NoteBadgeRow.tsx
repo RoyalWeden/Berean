@@ -8,21 +8,23 @@ import { noteStatusMeta } from '@/lib/noteStatus'
 // same way — the type/source/status badges used to be reimplemented per-surface, which is how
 // the board view ended up with none of them at all while the list view had all three.
 
+const WIKILINK_BADGE = 'bg-[rgb(var(--link-wikilink)/0.15)] text-[rgb(var(--link-wikilink))]'
+
 export function noteTypeBadge(note: Note): { label: string; cls: string } | null {
   if (note.type === 'daily' || note.type === 'journal' ||
       (note.type === 'general' && !!(note.title?.startsWith('Daily — ') || note.title?.startsWith('Journal — '))))
-    return { label: 'Daily', cls: 'bg-amber-500/15 text-amber-400' }
-  if (note.type === 'youtube') return { label: 'Video', cls: 'bg-red-500/15 text-red-400' }
-  if (note.type === 'idiom') return { label: 'Idiom', cls: 'bg-violet-500/15 text-violet-400' }
+    return { label: 'Daily', cls: 'bg-warning/15 text-warning' }
+  if (note.type === 'youtube') return { label: 'Video', cls: 'bg-destructive/15 text-destructive' }
+  if (note.type === 'idiom') return { label: 'Idiom', cls: WIKILINK_BADGE }
   if (note.verseRef || note.type === 'verse') return null // shown via the verseRef chip instead
   return null
 }
 
 export function noteSourceBadge(note: Note): { label: string; cls: string } | null {
   if (note.tags?.includes('biblegateway'))
-    return { label: 'BG', cls: 'bg-sky-500/15 text-sky-400' }
+    return { label: 'BG', cls: 'bg-info/15 text-info' }
   if (note.tags?.includes('esword'))
-    return { label: 'eSw', cls: 'bg-violet-500/15 text-violet-400' }
+    return { label: 'eSw', cls: WIKILINK_BADGE }
   return null
 }
 
@@ -37,7 +39,7 @@ export function formatVerseRef(ref: string): string {
   return verse ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
 }
 
-const PILL = 'text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none'
+const PILL = 'text-caption2 font-medium px-1.5 py-0.5 rounded-chip leading-none'
 
 /** The badge set (type, source, status, verse ref) for one note — same order, same pill style,
  *  everywhere it's used. Renders as a Fragment (no wrapping element) so callers can drop these
@@ -48,7 +50,7 @@ export function NoteBadgeRow({ note, size = 'md', showStatus = true }: { note: N
   const badge = noteTypeBadge(note)
   const sourceBadge = noteSourceBadge(note)
   const status = showStatus ? noteStatusMeta(note.status) : null
-  const pill = size === 'sm' ? `${PILL} text-[9px]` : PILL
+  const pill = size === 'sm' ? `${PILL} text-micro` : PILL
   return (
     <Fragment>
       {badge && <span className={`${pill} ${badge.cls}`}>{badge.label}</span>}
@@ -62,7 +64,7 @@ export function NoteBadgeRow({ note, size = 'md', showStatus = true }: { note: N
         </span>
       )}
       {note.verseRef && (
-        <span className={`${pill} text-blue-400 bg-blue-500/15`}>
+        <span className={`${pill} text-accent bg-accent-muted`}>
           {formatVerseRef(note.verseRef)}
         </span>
       )}

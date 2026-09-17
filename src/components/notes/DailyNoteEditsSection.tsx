@@ -3,13 +3,10 @@ import { createPortal } from 'react-dom'
 import { CalendarClock, Clock, ArrowUpDown, ExternalLink, Monitor, PanelRightOpen } from 'lucide-react'
 import type { Note } from '@/types'
 import { usePositionedMenu, MenuPositioner } from '@/lib/usePositionedMenu'
+import { SectionLabel, MenuSurface, MenuItem } from '@/components/ui'
 
 type SortMode = 'recency' | 'changes'
 type SortDir = 'desc' | 'asc'
-
-const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left
-  text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]
-  hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer`
 
 interface Props {
   /** "YYYY-MM-DD" date the open daily note represents — notes are matched against this, not
@@ -85,22 +82,22 @@ export default function DailyNoteEditsSection({ dateKey, dailyNoteId, allNotes, 
   if (editedNotes.length === 0) return null
 
   return (
-    <div className="rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden">
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+    <div className="rounded-card border border-border bg-surface-3 overflow-hidden">
+      <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
         <CalendarClock size={9} />
         Edited today
-        <span className="ml-auto rounded-full bg-[rgb(var(--color-surface-4))] px-1.5 py-0 text-[9px] text-[rgb(var(--color-text-secondary))]">{editedNotes.length}</span>
-      </div>
+        <span className="ml-auto rounded-chip bg-surface-4 px-1.5 py-0 text-caption2 normal-case tracking-normal font-medium text-text-secondary">{editedNotes.length}</span>
+      </SectionLabel>
       <div className="flex items-center gap-1 px-2.5 pb-1.5">
         {([['recency', 'Recent', Clock], ['changes', 'Changes', ArrowUpDown]] as const).map(([mode, label, Icon]) => (
           <button
             key={mode}
             onClick={() => cycleSort(mode)}
             title={sortMode === mode ? (sortDir === 'desc' ? `${label}: newest/most first` : `${label}: oldest/least first`) : `Sort by ${label.toLowerCase()}`}
-            className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full cursor-pointer transition-colors ${
+            className={`flex items-center gap-1 text-micro px-1.5 py-0.5 rounded-control cursor-pointer transition-colors ${
               sortMode === mode
-                ? 'bg-[rgb(var(--color-accent))]/16 text-[rgb(var(--color-accent))] font-semibold'
-                : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                ? 'bg-accent-muted text-accent font-semibold'
+                : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
             }`}
           >
             <Icon size={9} />
@@ -115,14 +112,13 @@ export default function DailyNoteEditsSection({ dateKey, dailyNoteId, allNotes, 
             key={note.id}
             onClick={() => onSelect(note)}
             onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ note, x: e.clientX, y: e.clientY }) }}
-            className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-shell text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer truncate leading-snug"
-            style={{ fontSize: '10px' }}
+            className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-row text-caption2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer truncate leading-snug"
             title={note.title || 'Untitled'}
           >
-            <span className="w-[3px] h-[3px] rounded-full bg-[rgb(var(--color-text-muted))] flex-shrink-0" />
+            <span className="w-[3px] h-[3px] rounded-full bg-text-muted flex-shrink-0" />
             <span className="flex-1 truncate">{note.title || 'Untitled'}</span>
             {delta !== 0 && (
-              <span className={`flex-shrink-0 text-[9px] font-mono ${delta > 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+              <span className={`flex-shrink-0 text-micro font-mono ${delta > 0 ? 'text-success' : 'text-destructive'}`}>
                 {delta > 0 ? '+' : ''}{delta}
               </span>
             )}
@@ -130,16 +126,12 @@ export default function DailyNoteEditsSection({ dateKey, dailyNoteId, allNotes, 
         ))}
       </div>
       {ctxMenu && createPortal(
-        <MenuPositioner ref={ctxMenuRef} x={ctxMenu.x} y={ctxMenu.y} className="min-w-[180px] rounded-shell context-menu py-1 overflow-hidden">
-          <button className={MENU_ITEM} onClick={() => { onSelect(ctxMenu.note); closeCtxMenu() }}>
-            <PanelRightOpen size={13} className="flex-shrink-0" /> Open
-          </button>
-          <button className={MENU_ITEM} onClick={() => { onOpenNewTab(ctxMenu.note); closeCtxMenu() }}>
-            <ExternalLink size={13} className="flex-shrink-0" /> Open in new tab
-          </button>
-          <button className={MENU_ITEM} onClick={() => { onOpenInFloatingTab(ctxMenu.note); closeCtxMenu() }}>
-            <Monitor size={13} className="flex-shrink-0" /> Open in floating tab
-          </button>
+        <MenuPositioner ref={ctxMenuRef} x={ctxMenu.x} y={ctxMenu.y} className="min-w-[180px]">
+          <MenuSurface>
+            <MenuItem icon={PanelRightOpen} label="Open" onClick={() => { onSelect(ctxMenu.note); closeCtxMenu() }} />
+            <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { onOpenNewTab(ctxMenu.note); closeCtxMenu() }} />
+            <MenuItem icon={Monitor} label="Open in floating tab" onClick={() => { onOpenInFloatingTab(ctxMenu.note); closeCtxMenu() }} />
+          </MenuSurface>
         </MenuPositioner>,
         document.body
       )}

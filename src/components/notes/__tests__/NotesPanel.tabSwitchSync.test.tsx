@@ -135,7 +135,9 @@ describe('NotesPanel tab-switch state sync', () => {
 
     // Open the "More" overflow menu, then click "Version history" — reaches the exact code
     // path (setVersionHistoryOpen(true)) the a2cc922 fix's note-scoped-modal-reset effect guards.
-    const moreBtn = Array.from(document.querySelectorAll('button')).find((b) => b.title === 'More') as HTMLButtonElement
+    // The trigger is now an IconButton (HeaderOverflowMenu.tsx), which exposes its accessible
+    // name via `aria-label` (plus a Tooltip on hover) rather than a native `title` attribute.
+    const moreBtn = Array.from(document.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === 'More') as HTMLButtonElement
     expect(moreBtn).toBeTruthy()
     await act(async () => {
       moreBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))

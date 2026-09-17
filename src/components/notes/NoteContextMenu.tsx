@@ -8,12 +8,9 @@ import {
 import type { Note, NoteFolder, NoteStatus } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
+import { MenuSurface, MenuItem, MenuSeparator } from '@/components/ui'
 
 export interface SessionInfo { id: string; name: string; icon?: string }
-
-const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left
-  text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]
-  hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer`
 
 // Flatten the folder tree into a depth-indented ordered list (for the move submenu).
 export function orderedFolders(folders: NoteFolder[]): { folder: NoteFolder; depth: number }[] {
@@ -95,68 +92,55 @@ export default function NoteContextMenu({
 
   return createPortal(
     <>
-    <MenuPositioner ref={ref} x={x} y={y}
-      className="native-buttons min-w-[190px] rounded-shell context-menu py-1 overflow-hidden"
-    >
+    <MenuPositioner ref={ref} x={x} y={y} className="native-buttons min-w-[190px]">
+      <MenuSurface>
       {onOpenNewTab && (
-        <button className={MENU_ITEM} onClick={() => { onOpenNewTab(note); onClose() }}>
-          <ExternalLink size={13} className="flex-shrink-0" /> Open in new tab
-        </button>
+        <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { onOpenNewTab(note); onClose() }} />
       )}
       {onOpenInFloatingTab && (
-        <button className={MENU_ITEM} onClick={() => { onOpenInFloatingTab(note); onClose() }}>
-          <Monitor size={13} className="flex-shrink-0" /> Open in floating tab
-        </button>
+        <MenuItem icon={Monitor} label="Open in floating tab" onClick={() => { onOpenInFloatingTab(note); onClose() }} />
       )}
-      <button className={MENU_ITEM} onClick={() => { onSelect(note); onClose() }}>
-        <PanelRightOpen size={13} className="flex-shrink-0" /> Open in current tab
-      </button>
+      <MenuItem icon={PanelRightOpen} label="Open in current tab" onClick={() => { onSelect(note); onClose() }} />
 
       {onExportPdf && (
-        <button className={MENU_ITEM} onClick={() => { onExportPdf(note); onClose() }}>
-          <Printer size={13} className="flex-shrink-0" /> Export to PDF / Print
-        </button>
+        <MenuItem icon={Printer} label="Export to PDF / Print" onClick={() => { onExportPdf(note); onClose() }} />
       )}
 
       {canRename && (
-        <button className={MENU_ITEM} onClick={() => { onRename!(note); onClose() }}>
-          <Pencil size={13} className="flex-shrink-0" /> Rename
-        </button>
+        <MenuItem icon={Pencil} label="Rename" onClick={() => { onRename!(note); onClose() }} />
       )}
 
       {/* Move to folder (folder view, movable notes only) */}
       {showMove && (
         <>
-          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button className={`${MENU_ITEM} justify-between`} onClick={() => setShowFolders(v => !v)}>
-            <span className="flex items-center gap-2.5">
-              <FolderInput size={13} className="flex-shrink-0" /> Move to folder
-            </span>
-            <ChevronRight size={11} className={`transition-transform ${showFolders ? 'rotate-90' : ''}`} />
-          </button>
+          <MenuSeparator />
+          <MenuItem
+            icon={FolderInput}
+            label="Move to folder"
+            trailing={<ChevronRight size={11} className={`transition-transform ${showFolders ? 'rotate-90' : ''}`} />}
+            onClick={() => setShowFolders(v => !v)}
+          />
           {showFolders && (
-            <div className="border-t border-[rgb(var(--color-surface-4))] mt-1 pt-1 max-h-48 overflow-y-auto">
+            <div className="border-t border-separator mt-1 pt-1 max-h-48 overflow-y-auto">
               {currentFolderId != null && (
-                <button
-                  className={`${MENU_ITEM} pl-8`}
+                <MenuItem
+                  icon={FolderMinus}
+                  label="Move out (no folder)"
+                  className="pl-8"
                   onClick={() => { onMoveToFolder!(note, null); onClose() }}
-                >
-                  <FolderMinus size={12} className="flex-shrink-0" /> Move out (no folder)
-                </button>
+                />
               )}
               {orderedFolders(folders!).map(({ folder, depth }) => (
-                <button
+                <MenuItem
                   key={folder.id}
                   disabled={folder.id === currentFolderId}
-                  className={`${MENU_ITEM} ${folder.id === currentFolderId ? 'opacity-40 cursor-default' : ''}`}
+                  label={folder.name}
                   style={{ paddingLeft: 20 + depth * 12 }}
                   onClick={() => { if (folder.id !== currentFolderId) { onMoveToFolder!(note, folder.id); onClose() } }}
-                >
-                  {folder.name}
-                </button>
+                />
               ))}
               {folders!.length === 0 && (
-                <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No folders yet</div>
+                <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet</div>
               )}
             </div>
           )}
@@ -166,44 +150,42 @@ export default function NoteContextMenu({
       {/* Set status — flyout, see statusFlyout state above for why it's not inline */}
       {onSetStatus && (
         <>
-          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
+          <MenuSeparator />
+          <MenuItem
             ref={statusBtnRef}
-            className={`${MENU_ITEM} justify-between ${statusFlyout ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : ''}`}
+            icon={CircleDashed}
+            label="Set status"
+            active={statusFlyout ? true : undefined}
+            trailing={<ChevronRight size={11} />}
+            className={statusFlyout ? 'bg-surface-hover text-text-primary' : ''}
             onClick={() => {
               if (statusFlyout) { setStatusFlyout(null); return }
               const r = statusBtnRef.current?.getBoundingClientRect()
               if (r) setStatusFlyout({ x: r.right + 2, y: r.top })
             }}
-          >
-            <span className="flex items-center gap-2.5">
-              <CircleDashed size={13} className="flex-shrink-0" /> Set status
-            </span>
-            <ChevronRight size={11} />
-          </button>
+          />
         </>
       )}
 
       {/* Open in session */}
       {sessions && sessions.length > 0 && onOpenInSession && (
         <>
-          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button className={`${MENU_ITEM} justify-between`} onClick={() => setShowSessions(v => !v)}>
-            <span className="flex items-center gap-2.5">
-              <Layers size={13} className="flex-shrink-0" /> Open in session
-            </span>
-            <ChevronRight size={11} className={`transition-transform ${showSessions ? 'rotate-90' : ''}`} />
-          </button>
+          <MenuSeparator />
+          <MenuItem
+            icon={Layers}
+            label="Open in session"
+            trailing={<ChevronRight size={11} className={`transition-transform ${showSessions ? 'rotate-90' : ''}`} />}
+            onClick={() => setShowSessions(v => !v)}
+          />
           {showSessions && (
-            <div className="border-t border-[rgb(var(--color-surface-4))] mt-1 pt-1">
+            <div className="border-t border-separator mt-1 pt-1">
               {sessions.map(s => (
-                <button
+                <MenuItem
                   key={s.id}
-                  className={`${MENU_ITEM} pl-8`}
+                  label={<>{s.icon && <span className="mr-1">{s.icon}</span>}{s.name}</>}
+                  className="pl-8"
                   onClick={() => { onOpenInSession(note, s.id); onClose() }}
-                >
-                  {s.icon && <span className="mr-1">{s.icon}</span>}{s.name}
-                </button>
+                />
               ))}
             </div>
           )}
@@ -212,48 +194,35 @@ export default function NoteContextMenu({
 
       {onConvertToIdiom && note.type !== 'idiom' && (
         <>
-          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button className={MENU_ITEM} onClick={() => { onConvertToIdiom(note); onClose() }}>
-            <BookOpen size={13} className="flex-shrink-0" /> Convert to idiom note
-          </button>
+          <MenuSeparator />
+          <MenuItem icon={BookOpen} label="Convert to idiom note" onClick={() => { onConvertToIdiom(note); onClose() }} />
         </>
       )}
 
       {onDelete && (
         <>
-          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
-            className={`${MENU_ITEM} text-red-400 hover:text-red-300 hover:bg-red-500/10`}
-            onClick={() => { onDelete(note); onClose() }}
-          >
-            <Trash2 size={13} className="flex-shrink-0" /> Delete
-          </button>
+          <MenuSeparator />
+          <MenuItem danger icon={Trash2} label="Delete" onClick={() => { onDelete(note); onClose() }} />
         </>
       )}
+      </MenuSurface>
     </MenuPositioner>
 
     {statusFlyout && onSetStatus && (
-      <MenuPositioner ref={statusFlyoutRef} x={statusFlyout.x} y={statusFlyout.y}
-        className="native-buttons min-w-[160px] rounded-shell context-menu py-1 overflow-hidden"
-      >
-        <button
-          className={MENU_ITEM}
-          onClick={() => { onSetStatus(note, null); setStatusFlyout(null); onClose() }}
-        >
-          <CircleDashed size={12} className="flex-shrink-0 opacity-60" /> No status
-        </button>
-        {NOTE_STATUSES.map((s) => {
-          const Icon = s.icon
-          return (
-            <button
+      <MenuPositioner ref={statusFlyoutRef} x={statusFlyout.x} y={statusFlyout.y} className="native-buttons min-w-[160px]">
+        <MenuSurface>
+          <MenuItem
+            label={<span className="flex items-center gap-2.5"><CircleDashed size={14} strokeWidth={1.75} className="opacity-60" /><span>No status</span></span>}
+            onClick={() => { onSetStatus(note, null); setStatusFlyout(null); onClose() }}
+          />
+          {NOTE_STATUSES.map((s) => (
+            <MenuItem
               key={s.id}
-              className={MENU_ITEM}
+              label={<span className="flex items-center gap-2.5"><s.icon size={14} strokeWidth={1.75} style={{ color: s.color }} /><span>{s.label}</span></span>}
               onClick={() => { onSetStatus(note, s.id); setStatusFlyout(null); onClose() }}
-            >
-              <Icon size={12} className="flex-shrink-0" style={{ color: s.color }} /> {s.label}
-            </button>
-          )
-        })}
+            />
+          ))}
+        </MenuSurface>
       </MenuPositioner>
     )}
     </>,

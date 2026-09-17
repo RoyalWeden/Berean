@@ -74,11 +74,11 @@ function StrongsInline({
   // on every word of the hovered number's contiguous phrase) — no CSS group hover, so it works
   // for multi-word phrases and cross-verse matches, not just one word.
   const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-full border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color,box-shadow] duration-150 cursor-pointer'
-  const CHIP_ACCENT = 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent)/0.15)] border-[rgb(var(--color-accent)/0.25)]'
-  const chipPrimary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-40`
-  const chipSecondary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-25`
+  const CHIP_ACCENT = 'text-accent bg-accent/15 border-accent/25'
+  const chipPrimary = `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-40`
+  const chipSecondary = `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-25`
   // Grammatical particles: dimmer still, muted colour.
-  const chipParen = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4)/0.6)] border-[rgb(var(--color-surface-4))] opacity-30`
+  const chipParen = `${CHIP_BASE} text-micro text-text-muted bg-surface-4/60 border-border opacity-30`
   // The word text — `.strongs-word` is the target the phrase-highlight class paints behind.
   const WORD_LINK = 'strongs-word rounded-[3px] transition-colors duration-150 px-[2px] -mx-[2px]'
   // Very short adjacent words ("of the", "and") would otherwise sit with their (centered) chips
@@ -199,7 +199,7 @@ function StrongsInline({
     : wordNode
   return (
     <span
-      className="mr-[0.25em] cursor-pointer border-b border-dashed border-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] transition-colors"
+      className="mr-[0.25em] cursor-pointer border-b border-dashed border-text-muted hover:border-accent hover:text-accent transition-colors"
       onClick={() => onWordClick?.(word.replace(/[^a-zA-Z]/g, '').toLowerCase())}
       title="Click to search Strong's lexicon"
     >
