@@ -56,7 +56,6 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
         display: 'flex', alignItems: 'center', gap: 9, margin: '18px 0 8px', padding: '7px 12px',
         borderRadius: 9, background: 'rgb(var(--color-accent) / 0.10)',
         border: '1px solid rgb(var(--color-accent) / 0.28)',
-        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
       }}
     >
       <button

@@ -6,21 +6,21 @@ import { stripAnnotations } from '@/lib/annotationFilters'
 import { laserToPoint } from '@/lib/presenterOverlay'
 import { measureContentHeight } from '@/lib/presenterBand'
 import { planPsalmSuperscription, resolveTitleLine, trimVerseOneText, trimVerseOneTagged, extractVerseOneTaggedTitle } from '@/lib/psalmSuperscription'
+import { RED_LETTER_COLOR, HIGHLIGHT_COLOR_IDS, highlightWordBg, highlightDotColor } from '@/styles/highlightPalette'
+import { IconButton } from '@/components/ui'
+import { Eraser, X } from 'lucide-react'
 import type { OverlayLaser } from '@/lib/presenterOverlay'
 import type { DisplayToken } from '@/lib/verseUtils'
 import type { ViewerOverlay } from '@/types/electron'
-import type { Verse } from '@/types'
+import type { HighlightColor, Verse } from '@/types'
 
-const RED_LETTER_COLOR = 'rgb(248 113 113)' // text-red-400 — words of Yeshua
-
-const WORD_HIGHLIGHT_BG: Record<string, string> = {
-  yellow: 'rgba(234,179,8,0.5)',   orange: 'rgba(251,146,60,0.5)',  amber:  'rgba(251,191,36,0.5)',
-  red:    'rgba(248,113,113,0.5)', rose:   'rgba(251,113,133,0.5)', pink:   'rgba(244,114,182,0.5)',
-  violet: 'rgba(167,139,250,0.5)', purple: 'rgba(192,132,252,0.5)', indigo: 'rgba(129,140,248,0.5)',
-  blue:   'rgba(96,165,250,0.5)',  sky:    'rgba(56,189,248,0.5)',  cyan:   'rgba(34,211,238,0.5)',
-  teal:   'rgba(45,212,191,0.5)',  green:  'rgba(74,222,128,0.5)',  lime:   'rgba(163,230,53,0.5)',
-}
-const COLOR_IDS = Object.keys(WORD_HIGHLIGHT_BG)
+// Viewer's own char-level highlight rendering can't use Tailwind's `bg-[...]` arbitrary-value
+// classes (per-character spans, generated at runtime) — resolve highlightWordBg() to a plain
+// CSS color string per color id once, from the shared highlightPalette.ts source of truth.
+const WORD_HIGHLIGHT_BG: Record<string, string> = Object.fromEntries(
+  HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightWordBg(id)])
+)
+const COLOR_IDS = HIGHLIGHT_COLOR_IDS
 
 export interface DBHighlight {
   id: string
@@ -658,41 +658,21 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       {/* Viewer-only highlight color picker */}
       {selTb && (
         <div
-          className="fixed z-50 flex items-center gap-1 p-1.5 rounded-xl shadow-2xl"
-          style={{
-            left: selTb.x,
-            top: selTb.y,
-            transform: 'translate(-50%, -100%)',
-            background: 'rgb(var(--color-surface-2, 30 30 40))',
-            border: '1px solid rgb(var(--color-surface-4, 60 60 80))',
-          }}
+          className="fixed z-popover flex items-center gap-1 p-1.5 material-popover rounded-menu"
+          style={{ left: selTb.x, top: selTb.y, transform: 'translate(-50%, -100%)' }}
           onMouseDown={(e) => e.preventDefault()}
         >
           {COLOR_IDS.map((id) => (
             <button
               key={id}
               onClick={() => applyHighlight(id)}
-              className="w-4 h-4 rounded-full hover:scale-125 transition-transform flex-shrink-0"
-              style={{ background: WORD_HIGHLIGHT_BG[id], border: '1.5px solid rgba(255,255,255,0.25)' }}
+              className="w-4 h-4 rounded-full hover:scale-125 transition-transform flex-shrink-0 border border-border"
+              style={{ background: highlightDotColor(id) }}
             />
           ))}
           {/* Eraser — removes any highlight under the selection */}
-          <button
-            onClick={removeHighlight}
-            title="Remove highlight"
-            className="ml-1 w-4 h-4 rounded-full flex items-center justify-center hover:scale-125 transition-transform flex-shrink-0"
-            style={{ background: 'transparent', border: '1.5px dashed rgba(255,255,255,0.5)', color: textColor, fontSize: 9, lineHeight: 1 }}
-          >
-            ⌫
-          </button>
-          <button
-            onClick={removeHighlight}
-            title="Remove highlight / close"
-            className="ml-0.5 text-xs px-1 rounded opacity-50 hover:opacity-100 transition-opacity"
-            style={{ color: textColor }}
-          >
-            ✕
-          </button>
+          <IconButton icon={Eraser} label="Remove highlight" size={20} tooltip={false} onClick={removeHighlight} />
+          <IconButton icon={X} label="Close" size={20} tooltip={false} onClick={removeHighlight} className="opacity-50 hover:opacity-100" />
         </div>
       )}
     </div>

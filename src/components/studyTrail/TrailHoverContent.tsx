@@ -24,7 +24,7 @@ function fmtDuration(ms: number): string {
 
 const rowStyle: React.CSSProperties = { fontSize: 11, color: 'rgb(var(--color-text-secondary))', lineHeight: 1.5 }
 const dividerStyle: React.CSSProperties = { height: 1, background: 'rgb(var(--color-surface-4))', margin: '6px 0' }
-const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
+const TIER_COLOR: Record<number, string> = { 1: 'rgb(var(--trail-cool))', 2: 'rgb(var(--color-accent))', 3: 'rgb(var(--trail-warm))' }
 const TIER_LABEL: Record<number, string> = { 1: 'clear', 2: 'soft', 3: 'ambiguous' }
 
 // A small note/pencil button shared by every hover card (node, connection, tangent bullet) —

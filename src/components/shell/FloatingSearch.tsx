@@ -16,6 +16,7 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
+import { IconButton, MenuSurface, MenuItem, SectionLabel } from '@/components/ui'
 import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
 
 interface CrossRef {
@@ -1267,8 +1268,8 @@ export default function FloatingSearch() {
           <motion.div
             className="
               fixed left-1/2 top-[12%]
-              z-50 w-full max-w-2xl
-              glass-panel-modal rounded-shell-lg overflow-hidden
+              z-critical w-full max-w-2xl
+              material-sheet rounded-sheet overflow-hidden
             "
             initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
@@ -1278,8 +1279,8 @@ export default function FloatingSearch() {
           <Dialog.Title className="sr-only">Search</Dialog.Title>
 
           {/* Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgb(var(--color-surface-4))]">
-            <Search size={18} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-separator">
+            <Search size={18} className="text-text-muted flex-shrink-0" />
             {/* Ghost-text destination hint (Safari/Spotlight-style) — an invisible spacer
                 spanning the already-typed text, so the actual suggestion label starts
                 exactly at the caret, sitting behind the real <input> (which has a
@@ -1291,7 +1292,7 @@ export default function FloatingSearch() {
               <div aria-hidden className="absolute inset-0 flex items-center text-sm pointer-events-none whitespace-pre overflow-hidden">
                 <span className="invisible">{query}</span>
                 {predictedSpace && selectedIdx < 0 && (
-                  <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 opacity-35 text-[rgb(var(--color-text-muted))] text-[11px]">
+                  <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 opacity-35 text-text-muted text-caption">
                     → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
                   </span>
                 )}
@@ -1304,29 +1305,29 @@ export default function FloatingSearch() {
                 onKeyDown={handleKeyDown}
                 placeholder="Gen 1:1 · Exodus 20 · in the beginning..."
                 className="
-                  relative w-full bg-transparent text-[rgb(var(--color-text-primary))]
-                  placeholder:text-[rgb(var(--color-text-muted))] text-sm outline-none
+                  relative w-full bg-transparent text-text-primary
+                  placeholder:text-text-muted text-sm outline-none
                 "
               />
             </div>
             {crossRefLoading && (
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] animate-pulse flex-shrink-0">…</span>
+              <span className="text-caption2 text-text-muted animate-pulse flex-shrink-0">…</span>
             )}
             {isStrongs && (
-              <span className="text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] px-1.5 py-0.5 rounded">
+              <span className="text-caption2 font-semibold text-accent bg-accent-muted px-1.5 py-0.5 rounded-chip">
                 Strong's
               </span>
             )}
             {/* Clear the query (and any selected tag filters). OT/NT scoping lives
                 in the advanced Scripture search, not here. */}
             {(query.length > 0 || selectedTags.length > 0) && (
-              <button
+              <IconButton
+                icon={X}
+                label="Clear search"
+                size={20}
+                className="flex-shrink-0"
                 onClick={() => { setQuery(''); setSelectedTags([]); setTagFocusIdx(0); setSelectedIdx(-1); if (debounceRef.current) clearTimeout(debounceRef.current); setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([]); inputRef.current?.focus() }}
-                title="Clear search"
-                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-md text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-              >
-                <X size={13} />
-              </button>
+              />
             )}
             {/* Word mode dropdown — moved here (right-aligned in the input row, where the
                 user is actually typing) from the footer, so it's immediately next to the
@@ -1342,35 +1343,33 @@ export default function FloatingSearch() {
                 setWordModeMenuOpen((v) => !v)
               }}
               title="Word matching"
-              className="flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] px-1.5 py-0.5 text-[10px] font-medium text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))/50] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+              className="flex items-center gap-1 rounded-control border border-border bg-surface-3 px-1.5 py-0.5 text-caption2 font-medium text-text-secondary hover:border-accent/50 hover:text-text-primary transition-colors cursor-pointer flex-shrink-0"
             >
               {WORD_MODE_LABELS[searchWordMode]}
               <ChevronDown size={9} className={`transition-transform ${wordModeMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {wordModeMenuOpen && wordModeMenuPos && createPortal(
-              <div
+              // pointerEvents: 'auto' is required here — Radix's Dialog (this whole search
+              // bar is a Dialog.Root) sets `pointer-events: none` on <body> while modal-open
+              // so only ITS OWN portaled content stays interactive; this dropdown is a
+              // SEPARATE portal appended directly to document.body (a sibling to Radix's
+              // own portal, not inside it), so without overriding it back to 'auto' here it
+              // inherited that body-level lock — clicks passed straight through it to
+              // whatever result row sat behind it (reported as "cursor going through it").
+              <MenuSurface
                 ref={wordModeMenuRef}
-                // pointerEvents: 'auto' is required here — Radix's Dialog (this whole search
-                // bar is a Dialog.Root) sets `pointer-events: none` on <body> while modal-open
-                // so only ITS OWN portaled content stays interactive; this dropdown is a
-                // SEPARATE portal appended directly to document.body (a sibling to Radix's
-                // own portal, not inside it), so without overriding it back to 'auto' here it
-                // inherited that body-level lock — clicks passed straight through it to
-                // whatever result row sat behind it (reported as "cursor going through it").
-                style={{ position: 'fixed', left: wordModeMenuPos.left, top: wordModeMenuPos.top, zIndex: 9999, pointerEvents: 'auto' }}
-                className="min-w-[130px] rounded-shell context-menu overflow-hidden py-1"
+                style={{ position: 'fixed', left: wordModeMenuPos.left, top: wordModeMenuPos.top, zIndex: 'var(--z-menu)' as unknown as number, pointerEvents: 'auto' }}
+                className="min-w-[130px]"
               >
                 {(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => (
-                  <button
+                  <MenuItem
                     key={m}
+                    label={WORD_MODE_LABELS[m]}
+                    active={searchWordMode === m}
                     onClick={() => { handleWordModeChange(m); setWordModeMenuOpen(false) }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                  >
-                    <span className="flex-1">{WORD_MODE_LABELS[m]}</span>
-                    {searchWordMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-                  </button>
+                  />
                 ))}
-              </div>,
+              </MenuSurface>,
               document.body
             )}
           </div>
@@ -1378,16 +1377,16 @@ export default function FloatingSearch() {
           {/* Verse-tag chips — selected (removable) + candidates (click to add).
               A floating pill group tucked just under the input, no hard divider. */}
           {(selectedTags.length > 0 || candidateTags.length > 0) && (
-            <div className="mx-2.5 mt-2 mb-1 rounded-xl bg-[rgb(var(--color-surface-3))]/50 px-3 py-2 flex flex-col gap-2">
+            <div className="mx-2.5 mt-2 mb-1 rounded-card bg-surface-3/50 px-3 py-2 flex flex-col gap-2">
               {selectedTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] font-medium mr-0.5">Filter by tag</span>
+                  <span className="text-caption2 uppercase tracking-wide text-text-muted font-medium mr-0.5">Filter by tag</span>
                   {selectedTags.map((t) => (
                     <button
                       key={t.id}
                       onClick={() => removeTag(t.id)}
                       title={`Remove #${t.name}`}
-                      className="group inline-flex items-center gap-1 rounded-full bg-[rgb(var(--color-accent))/16] border border-[rgb(var(--color-accent))/40] px-2 py-0.5 text-[11px] font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/24] transition-colors cursor-pointer"
+                      className="group inline-flex items-center gap-1 rounded-full bg-accent/16 border border-accent/40 px-2 py-0.5 text-caption font-medium text-accent hover:bg-accent/24 transition-colors cursor-pointer"
                     >
                       <Tag size={10} />
                       {t.name}
@@ -1399,7 +1398,7 @@ export default function FloatingSearch() {
               {candidateTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   {selectedTags.length === 0 && (
-                    <span className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] font-semibold mr-1">Tags</span>
+                    <span className="text-caption2 uppercase tracking-wide text-text-muted font-semibold mr-1">Tags</span>
                   )}
                   {candidateTags.map((t, idx) => (
                     <button
@@ -1410,10 +1409,10 @@ export default function FloatingSearch() {
                       // Candidates stay neutral — no accent. The keyboard-focused one
                       // (↑↓ in "#" mode) gets a plain surface fill, not the accent used
                       // for the SELECTED chips above.
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer border-[rgb(var(--color-surface-4))] ${
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-medium transition-colors cursor-pointer border-border ${
                         isTagMode && idx === tagFocusIdx
-                          ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                          : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]/60 hover:text-[rgb(var(--color-text-primary))]'
+                          ? 'bg-surface-4 text-text-primary'
+                          : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                       }`}
                     >
                       <Tag size={10} className="opacity-60" />
@@ -1439,11 +1438,6 @@ export default function FloatingSearch() {
                 // Only highlight matches on verse/note sub-text, not ref labels
                 const highlightQ = (r.type === 'verse' || r.type === 'note' || r.type === 'youtube') ? cleanQuery : ''
                 const isSelected = i === selectedIdx
-                const sharedStyle = isSelected ? {
-                  backgroundColor: 'rgb(var(--color-accent) / 0.18)',
-                  borderLeft: '2px solid rgb(var(--color-accent))',
-                  paddingLeft: '14px',
-                } : { borderLeft: '2px solid transparent', paddingLeft: '14px' }
 
                 return (
                   <button
@@ -1455,19 +1449,20 @@ export default function FloatingSearch() {
                     // navigation, rather than only ever falling back to the smart-prediction
                     // jump once the cursor has clearly indicated an actual row.
                     onMouseEnter={() => setSelectedIdx(i)}
-                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer hover:bg-[rgb(var(--color-surface-3))]"
-                    style={sharedStyle}
+                    className={`w-full flex items-start gap-3 px-4 py-2.5 rounded-row text-left transition-colors cursor-pointer border-l-2 ${
+                      isSelected ? 'bg-surface-selected border-accent' : 'border-transparent hover:bg-surface-hover'
+                    }`}
                   >
-                    <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'tag' ? <Tag size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
+                    <span className="flex-shrink-0 mt-0.5 text-text-muted">
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-[rgb(var(--highlight-red))]" /> : r.type === 'crossref' ? <GitFork size={14} className="text-accent" /> : r.type === 'command' ? <Terminal size={14} className="text-accent" /> : r.type === 'tag' ? <Tag size={14} className="text-accent" /> : <Hash size={14} />}
                     </span>
                     <span className="flex-1 min-w-0 flex items-center justify-between gap-2">
                       <span className="min-w-0">
-                        <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] block">
+                        <span className="text-sm font-medium text-text-primary block">
                           {r.label}
                         </span>
                         {r.type !== 'command' && (
-                          <span className={`text-xs text-[rgb(var(--color-text-muted))] block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
+                          <span className={`text-xs text-text-muted block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
                             {highlightQ
                               ? applyFindHighlight(r.sub, r.highlightTerms?.length ? r.highlightTerms : highlightQ, searchWordMode)
                               : r.sub}
@@ -1491,9 +1486,9 @@ export default function FloatingSearch() {
                 className="overflow-y-auto py-1"
                 style={{ maxHeight: `min(${DENSITY_HEIGHT[floatingSearchDensity]}, calc(88vh - 7rem))` }}
               >
-                <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] font-semibold">
+                <SectionLabel className="px-4 pt-2 pb-1">
                   Recent
-                </div>
+                </SectionLabel>
                 {recentSearchQueries.map((q, i) => (
                   <button
                     key={i}
@@ -1504,23 +1499,23 @@ export default function FloatingSearch() {
                       const tid = det ? det.textId : searchTextId
                       runSearch(det ? det.cleanQuery : q, tid, searchWordMode)
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-surface-hover transition-colors cursor-pointer"
                   >
-                    <Clock size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-                    <span className="text-sm text-[rgb(var(--color-text-secondary))]">{q}</span>
+                    <Clock size={13} className="text-text-muted flex-shrink-0" />
+                    <span className="text-sm text-text-secondary">{q}</span>
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-4 text-center text-xs text-[rgb(var(--color-text-muted))]">
+              <div className="px-4 py-4 text-center text-xs text-text-muted">
                 Try{' '}
-                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Gen 1:1</span>
+                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">Gen 1:1</span>
                 {' · '}
-                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Exodus 20</span>
+                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">Exodus 20</span>
                 {' · '}
-                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">in the beginning</span>
+                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">in the beginning</span>
                 {' · '}
-                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">&gt; toggle strongs</span>
+                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">&gt; toggle strongs</span>
               </div>
             )
           )}
@@ -1530,22 +1525,22 @@ export default function FloatingSearch() {
               search affordance + quick destination icons; the ↑↓ / ↵ hints and
               the new/current-tab badge were removed as noise. */}
           {!isCommandMode && (query.trim().length > 0 || isTagMode || selectedTags.length > 0) && (
-            <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
+            <div className="px-4 py-2 border-t border-separator flex items-center gap-3 text-xs text-text-muted">
               {isTagMode && candidateTags.length > 0 && (
-                <span className="inline-flex items-center gap-1 text-[10.5px] font-medium whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 text-caption2 font-medium whitespace-nowrap">
                   <ShortcutKeys keys="↵" /> add tag
                 </span>
               )}
               {isTagMode && verseTags.length === 0 && (
-                <span className="text-[10.5px] font-medium whitespace-nowrap">No verse tags yet</span>
+                <span className="text-caption2 font-medium whitespace-nowrap">No verse tags yet</span>
               )}
               <div className="flex-1" />
               <button
                 onClick={openAdvancedScriptureSearch}
-                className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
               >
                 <ShortcutKeys keys="⇧↵" />
-                <span className="text-[10.5px] font-medium whitespace-nowrap">
+                <span className="text-caption2 font-medium whitespace-nowrap">
                   {selectedTags.length > 0
                     ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`
                     : 'Advanced scripture search'}
@@ -1559,13 +1554,13 @@ export default function FloatingSearch() {
                   {[
                     { label: 'Search Notes',   icon: <NotepadText size={15} />, run: () => openNotesSearchTab(query.trim()) },
                     { label: 'Search Lexicon', icon: <BookMarked size={15} />, run: () => openLexiconSearchTab(query.trim()) },
-                    { label: 'Search YouTube', icon: <Youtube size={15} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
+                    { label: 'Search YouTube', icon: <Youtube size={15} className="text-[rgb(var(--highlight-red))]" />, run: () => openYouTubeSearchTab(query.trim()) },
                   ].map((d) => (
                     <button
                       key={d.label}
                       title={d.label}
                       onClick={() => { closeSearch(); d.run() }}
-                      className="w-7 h-7 flex items-center justify-center rounded-md text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
                     >
                       {d.icon}
                     </button>

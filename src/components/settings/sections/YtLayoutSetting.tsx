@@ -10,14 +10,14 @@ export default function YtLayoutSetting() {
         <button
           key={def.id}
           onClick={() => set(def.id)}
-          className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg text-left border transition-all cursor-pointer text-xs
+          className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-card text-left border transition-all cursor-pointer text-xs
             ${layout === def.id
-              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/20]'
-              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+              ? 'border-accent bg-accent-muted text-accent hover:bg-accent-hover'
+              : 'border-border text-text-secondary hover:bg-surface-hover'
             }`}
         >
           <span className="font-semibold">{def.label}</span>
-          <span className="text-[9px] text-[rgb(var(--color-text-muted))] leading-snug">{def.description}</span>
+          <span className="text-micro text-text-muted leading-snug">{def.description}</span>
         </button>
       ))}
     </div>

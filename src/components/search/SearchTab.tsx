@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
+import { Search, BookOpen, ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { recordNavigation } from '@/lib/verseNavigation'
@@ -8,6 +8,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
+import { SearchField, Select, EmptyState, RefChip } from '@/components/ui'
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
@@ -96,7 +97,7 @@ function highlight(text: string, query: string): React.ReactNode[] {
   const parts = text.split(new RegExp(`(${combined})`, 'gi'))
   return parts.map((p, i) =>
     new RegExp(`^(?:${combined})$`, 'i').test(p)
-      ? <mark key={i} className="bg-yellow-400/30 text-text-primary rounded-sm">{p}</mark>
+      ? <mark key={i} className="bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip">{p}</mark>
       : p
   )
 }
@@ -126,12 +127,10 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const [results, setResults] = useState<RawResult[]>([])
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(false)
-  const [translationOpen, setTranslationOpen] = useState(false)
   const [testamentFilter, setTestamentFilter] = useState<TestamentFilter>('all')
   const [sortMode, setSortMode] = useState<SortMode>('relevance')
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const translationRef = useRef<HTMLDivElement>(null)
   const resultsScrollRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -162,18 +161,6 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       .then((raw) => setBooks(raw.map((b) => ({ ...b, name: normalizeBookName(b.name) }))))
       .catch(() => {})
   }, [textId])
-
-  // Close translation dropdown on outside click
-  useEffect(() => {
-    if (!translationOpen) return
-    function onDown(e: MouseEvent) {
-      if (translationRef.current && !translationRef.current.contains(e.target as Node)) {
-        setTranslationOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [translationOpen])
 
   // Pick up pending search query (e.g. from FloatingSearch)
   useEffect(() => {
@@ -280,7 +267,6 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   function selectTranslation(tid: string) {
     setTextId(tid)
     setResults([])
-    setTranslationOpen(false)
     if (query.trim().length >= 2) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => runSearch(query, tid), 100)
@@ -385,96 +371,48 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     <div className="flex flex-col h-full bg-surface-3">
       {/* Search input row */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
-        <Search size={14} className="text-text-muted flex-shrink-0" />
-        <input
+        <SearchField
           ref={inputRef}
-          type="text"
+          size="sm"
+          bare
           value={query}
-          onChange={(e) => handleInput(e.target.value)}
+          onValueChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder="Search scripture…"
-          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
+          wrapperClassName="flex-1 min-w-0"
           autoFocus
         />
         {/* Translation selector dropdown */}
-        <div ref={translationRef} className="relative flex-shrink-0">
-          <button
-            onClick={() => setTranslationOpen((v) => !v)}
-            className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-shell transition-colors cursor-pointer ${
-              translationOpen
-                ? 'bg-surface-4 text-text-primary'
-                : 'bg-surface-4 text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {currentLabel}
-            <ChevronDown size={10} className={`transition-transform ${translationOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {translationOpen && (
-            <div className="glass-panel absolute top-full right-0 mt-1 z-50 min-w-[180px] rounded-shell overflow-hidden py-1">
-              {/* All texts option */}
-              <button
-                onClick={() => selectTranslation('all')}
-                className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                  textId === 'all'
-                    ? 'text-accent'
-                    : 'text-text-primary hover:bg-surface-hover'
-                }`}
-              >
-                <Check size={11} className={textId === 'all' ? 'opacity-100' : 'opacity-0'} />
-                <span className="text-xs font-medium">All texts</span>
-              </button>
-              <div className="h-px bg-surface-4 my-1" />
-              {/* Bible translations */}
-              <div className="px-3 py-0.5">
-                <span className="text-[9px] uppercase tracking-wide text-text-muted">Bible</span>
-              </div>
-              {SEARCH_TRANSLATIONS.filter((t) => t.category === 'bible').map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => selectTranslation(t.id)}
-                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                    textId === t.id
-                      ? 'text-accent'
-                      : 'text-text-primary hover:bg-surface-hover'
-                  }`}
-                >
-                  <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs">{t.label}</span>
-                </button>
-              ))}
-              <div className="h-px bg-surface-4 my-1" />
-              {/* Pseudepigrapha */}
-              <div className="px-3 py-0.5">
-                <span className="text-[9px] uppercase tracking-wide text-text-muted">Pseudepigrapha</span>
-              </div>
-              {SEARCH_TRANSLATIONS.filter((t) => t.category === 'pseudo').map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => selectTranslation(t.id)}
-                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                    textId === t.id
-                      ? 'text-accent'
-                      : 'text-text-primary hover:bg-surface-hover'
-                  }`}
-                >
-                  <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs">{t.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <Select
+          value={textId}
+          onChange={selectTranslation}
+          variant="ghost"
+          size="sm"
+          align="right"
+          aria-label="Translation"
+          className="flex-shrink-0"
+          options={[
+            { value: 'all', label: 'All texts' },
+            ...SEARCH_TRANSLATIONS.map((t, i, arr) => ({
+              value: t.id,
+              label: t.label,
+              group: i === 0 || arr[i - 1].category !== t.category
+                ? (t.category === 'bible' ? 'Bible' : 'Pseudepigrapha')
+                : undefined,
+            })),
+          ]}
+        />
       </TabHeaderPortal>
 
       {/* Filter + sort bar */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-separator bg-surface-2 flex-shrink-0 flex-wrap">
+      <div className="material-bar flex items-center gap-1.5 px-3 py-1.5 border-b border-separator flex-shrink-0 flex-wrap">
         {(['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as TestamentFilter[]).map((f) => (
           <button
             key={f}
             onClick={() => setTestamentFilter(f)}
-            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
+            className={`text-caption2 px-2 py-0.5 rounded-control border transition-colors cursor-pointer flex-shrink-0 ${
               testamentFilter === f
-                ? 'bg-accent/16 border-accent/45 text-accent font-semibold'
+                ? 'bg-accent-muted border-accent/45 text-accent font-semibold'
                 : 'border-separator text-text-muted hover:border-border hover:text-text-primary'
             }`}
           >
@@ -484,7 +422,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         <div className="flex-1 min-w-0" />
         <button
           onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
-          className="text-[10px] px-2 py-0.5 rounded border border-separator text-text-muted hover:text-text-primary hover:border-border transition-colors cursor-pointer flex-shrink-0"
+          className="text-caption2 px-2 py-0.5 rounded-control border border-separator text-text-muted hover:text-text-primary hover:border-border transition-colors cursor-pointer flex-shrink-0"
         >
           {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
         </button>
@@ -503,19 +441,20 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         }}
       >
         {loading && (
-          <div className="px-4 py-6 text-center text-sm text-text-muted animate-pulse">Searching…</div>
+          <EmptyState compact title="Searching…" className="animate-pulse" />
         )}
 
         {!loading && query.trim().length >= 2 && results.length === 0 && (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-text-secondary">No results for "{query}"</p>
-            <p className="text-xs text-text-muted mt-1">Try a different phrase or translation</p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title={`No results for "${query}"`}
+            hint="Try a different phrase or translation"
+          />
         )}
 
         {!loading && filteredAndSorted.length > 0 && (
           <div>
-            <p className="px-4 py-1.5 text-[10px] text-text-muted border-b border-separator bg-surface-2 sticky top-0 z-20">
+            <p className="material-bar px-4 py-1.5 text-caption2 text-text-muted border-b border-separator sticky top-0 z-raised">
               {results.length >= 100 && textId !== 'all' ? '100+ results' : `${totalFilteredCount} result${totalFilteredCount !== 1 ? 's' : ''}`}
               {testamentFilter !== 'all' && ` in ${testamentFilter}`}
               {textId === 'all' && ` across all texts`}
@@ -525,16 +464,16 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
             {filteredAndSorted.map((group) => (
               <div key={`${group.textId}::${group.bookId}`}>
                 {/* Book / text header */}
-                <div className="flex items-center gap-1.5 px-4 py-1.5 bg-surface-2 border-b border-separator sticky top-[29px] z-10">
+                <div className="material-bar flex items-center gap-1.5 px-4 py-1.5 border-b border-separator sticky top-[29px] z-raised">
                   <BookOpen size={11} className="text-text-muted" />
                   <span className="text-xs font-semibold text-text-secondary">{group.bookName}</span>
-                  <span className="text-[10px] text-text-muted ml-1">{group.results.length}</span>
+                  <span className="text-caption2 text-text-muted ml-1">{group.results.length}</span>
                   <div className="flex-1" />
                   {textId === 'all' && (
-                    <span className="text-[9px] text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
+                    <span className="text-micro text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
                   )}
                   {group.testament && textId !== 'all' && (
-                    <span className="text-[9px] text-text-muted uppercase tracking-wide">{group.testament}</span>
+                    <span className="text-micro text-text-muted uppercase tracking-wide">{group.testament}</span>
                   )}
                 </div>
 
@@ -545,9 +484,9 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                     onClick={() => navigateToVerse(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors cursor-pointer border-b border-separator group"
                   >
-                    <span className="text-xs font-mono text-text-muted w-14 flex-shrink-0 pt-0.5">
+                    <RefChip size="sm" variant="neutral" className="w-14 justify-center flex-shrink-0">
                       {r.chapter}:{r.verse_num}
-                    </span>
+                    </RefChip>
                     <span className="flex-1 text-xs text-text-primary leading-relaxed">
                       {highlight(r.text, query)}
                     </span>
@@ -560,13 +499,11 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         )}
 
         {!loading && !query.trim() && (
-          <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <Search size={28} className="text-text-muted mb-3 opacity-30" />
-            <p className="text-xs text-text-muted mb-1">
-              {textId === 'all' ? 'Searching all texts' : `Searching ${currentLabel}`}
-            </p>
-            <p className="text-[10px] text-text-muted opacity-60">Type to search · prefix with "lxx:", "enoch:", etc. to narrow</p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title={textId === 'all' ? 'Searching all texts' : `Searching ${currentLabel}`}
+            hint={'Type to search · prefix with "lxx:", "enoch:", etc. to narrow'}
+          />
         )}
       </div>
     </div>

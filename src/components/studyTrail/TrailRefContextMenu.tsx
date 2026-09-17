@@ -169,12 +169,12 @@ export function TrailRefContextMenu({
             <div style={{ display: 'flex', gap: 4, padding: '2px 4px' }}>
               <button
                 className="trail-ctx-btn" onClick={() => { menu.onDelete!(); onClose() }}
-                style={{ ...menuBtnStyle, color: '#e08468', flex: 1 }}
+                style={{ ...menuBtnStyle, color: 'rgb(var(--trail-warm))', flex: 1 }}
               >Delete</button>
               <button className="trail-ctx-btn" onClick={() => setConfirmingDelete(false)} style={{ ...menuBtnStyle, flex: 1 }}>Cancel</button>
             </div>
           ) : (
-            <MenuItem icon={<Trash2 size={13} />} label="Delete" color="#e08468" onClick={() => setConfirmingDelete(true)} />
+            <MenuItem icon={<Trash2 size={13} />} label="Delete" color="rgb(var(--trail-warm))" onClick={() => setConfirmingDelete(true)} />
           )}
         </>
       )}

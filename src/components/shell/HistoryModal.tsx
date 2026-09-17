@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 'react'
-import * as Tooltip from '@radix-ui/react-tooltip'
+import * as Dialog from '@radix-ui/react-dialog'
 import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
+import { IconButton, Tooltip } from '@/components/ui'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
@@ -63,15 +64,18 @@ function EntryIcon({ type, size = 12 }: { type: EntryType; size?: number }) {
   }
 }
 
+// Reuses the highlight-pigment palette (global.css) for categorical distinction — these are
+// visual groupings, not status colors, so they draw from the same allowlisted swatch set as
+// text highlights/tags rather than forcing 8 categories onto the 4 semantic status tokens.
 const TYPE_COLOR: Record<EntryType, string> = {
-  bible:          'text-[rgb(var(--color-accent))]',
-  note:           'text-emerald-400',
-  lexicon:        'text-purple-400',
-  youtube:        'text-red-400',
-  search:         'text-amber-400',
-  'strongs-click':'text-indigo-400',
-  compare:        'text-sky-400',
-  import:         'text-teal-400',
+  bible:          'text-accent',
+  note:           'text-[rgb(var(--highlight-green))]',
+  lexicon:        'text-[rgb(var(--highlight-purple))]',
+  youtube:        'text-[rgb(var(--highlight-red))]',
+  search:         'text-[rgb(var(--highlight-amber))]',
+  'strongs-click':'text-[rgb(var(--highlight-indigo))]',
+  compare:        'text-[rgb(var(--highlight-sky))]',
+  import:         'text-[rgb(var(--highlight-teal))]',
 }
 
 const TYPE_LABEL: Record<EntryType, string> = {
@@ -180,10 +184,10 @@ function TypeChip({ type, active, onClick }: { type: EntryType; active: boolean;
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${
+      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-caption2 font-medium border transition-colors cursor-pointer ${
         active
           ? `${TYPE_COLOR[type]} border-current bg-current/10`
-          : 'text-[rgb(var(--color-text-muted))] border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))]'
+          : 'text-text-muted border-border hover:border-text-muted'
       }`}
     >
       <EntryIcon type={type} size={9} />
@@ -196,7 +200,7 @@ function TypeChip({ type, active, onClick }: { type: EntryType; active: boolean;
 
 function SessionBadge({ name }: { name: string }) {
   return (
-    <span className="text-[9px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] font-medium leading-none flex-shrink-0 max-w-[72px] truncate">
+    <span className="text-micro px-1 py-0.5 rounded bg-surface-4 text-text-muted font-medium leading-none flex-shrink-0 max-w-[72px] truncate">
       {name}
     </span>
   )
@@ -234,24 +238,24 @@ const HistoryItem = memo(function HistoryItem({
   return (
     <div className="group relative">
       {dayLabelText && (
-        <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-1))]">
+        <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-micro font-semibold uppercase tracking-wider text-text-muted bg-surface-1">
           {dayLabelText}
         </div>
       )}
       <div className="flex items-center">
         <button
           onClick={() => onNavigate(entry)}
-          className="flex-1 flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer min-w-0 rounded"
+          className="flex-1 flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-hover transition-colors cursor-pointer min-w-0 rounded"
         >
           <span className={`${TYPE_COLOR[entry.type]} flex-shrink-0`}>
             <EntryIcon type={entry.type} size={11} />
           </span>
           <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
-            <span className="text-xs text-[rgb(var(--color-text-primary))] truncate leading-tight">
+            <span className="text-xs text-text-primary truncate leading-tight">
               {displayTitle}
             </span>
             {entry.translation && (
-              <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
+              <span className="text-micro text-text-muted flex-shrink-0">
                 {entry.translation.toUpperCase()}
               </span>
             )}
@@ -278,7 +282,7 @@ const HistoryItem = memo(function HistoryItem({
                   })
                 }}
                 title={`Jump to ${entry.verseRef}`}
-                className="text-[9px] text-[rgb(var(--color-accent))] hover:underline flex-shrink-0 cursor-pointer"
+                className="text-micro text-accent hover:underline flex-shrink-0 cursor-pointer"
               >
                 → {entry.verseRef}
               </span>
@@ -290,14 +294,14 @@ const HistoryItem = memo(function HistoryItem({
               role="button"
               onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
               title={`Visited ${visits.length} times — show all`}
-              className="flex items-center gap-0.5 text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] rounded-full px-1.5 py-0.5 flex-shrink-0 cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
+              className="flex items-center gap-0.5 text-micro text-text-muted bg-surface-4 rounded-full px-1.5 py-0.5 flex-shrink-0 cursor-pointer hover:text-text-primary"
             >
               ×{visits.length}
               <ChevronDown size={8} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
             </span>
           )}
           {entry.sessionName && <SessionBadge name={entry.sessionName} />}
-          <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0 tabular-nums">
+          <span className="text-micro text-text-muted flex-shrink-0 tabular-nums">
             {formatTime(entry.timestamp)}
           </span>
         </button>
@@ -305,26 +309,26 @@ const HistoryItem = memo(function HistoryItem({
         <button
           onClick={(e) => { e.stopPropagation(); visits.forEach(v => onDelete(v.id)) }}
           title={repeated ? 'Remove all visits' : 'Remove from history'}
-          className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer mr-1"
+          className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-destructive cursor-pointer mr-1"
         >
           <X size={10} />
         </button>
       </div>
       {/* Expanded timestamp list for repeated visits */}
       {repeated && open && (
-        <div className="ml-9 mr-2 mb-1 border-l border-[rgb(var(--color-surface-4))]">
+        <div className="ml-9 mr-2 mb-1 border-l border-separator">
           {visits.map((v) => (
             <div key={v.id} className="flex items-center group/ts">
               <button
                 onClick={() => onNavigate(v)}
-                className="flex-1 text-left pl-3 py-0.5 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer rounded tabular-nums"
+                className="flex-1 text-left pl-3 py-0.5 text-caption2 text-text-muted hover:text-text-primary hover:bg-surface-hover cursor-pointer rounded tabular-nums"
               >
                 {formatTime(v.timestamp)}
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(v.id) }}
                 title="Remove this visit"
-                className="flex-shrink-0 p-1 rounded opacity-0 group-hover/ts:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer mr-1"
+                className="flex-shrink-0 p-1 rounded opacity-0 group-hover/ts:opacity-100 text-text-muted hover:text-destructive cursor-pointer mr-1"
               >
                 <X size={9} />
               </button>
@@ -348,7 +352,6 @@ export default function HistoryModal() {
   const loadMoreHistory       = useAppStore((s) => s.loadMoreHistory)
   const historyHasMore        = useAppStore((s) => s.historyHasMore)
   const noteChangeToken   = useAppStore((s) => s.noteChangeToken)
-  const overlayRef       = useRef<HTMLDivElement>(null)
   const navigate         = useNavigate()
 
   // Live note id → title map, so a renamed note shows its current title in History
@@ -583,94 +586,74 @@ export default function HistoryModal() {
   const visibleGroups = showAllFlat ? visitGroups : visitGroups.slice(0, FLAT_LIST_CAP)
   const hiddenCount = visitGroups.length - visibleGroups.length
 
-  if (!historyOpen) return null
-
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-[8vh]"
-      style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', pointerEvents: 'all' }}
-      onMouseDown={(e) => { if (e.target === overlayRef.current) closeHistory() }}
-    >
-      <div
-        className="w-full max-w-[520px] rounded-shell-lg flex flex-col overflow-hidden border border-[rgb(var(--color-surface-4))] shadow-2xl bg-[rgb(var(--color-surface-1))]"
-        style={{ maxHeight: '78vh' }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+    <Dialog.Root open={historyOpen} onOpenChange={(open) => !open && closeHistory()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-modal bg-black/40 animate-fade-in" style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-[8vh] -translate-x-1/2 z-modal w-full max-w-[520px] material-sheet rounded-sheet flex flex-col overflow-hidden outline-none animate-radix-popup-in"
+          style={{ maxHeight: '78vh' }}
+        >
         {/* ── Header ── */}
         <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-shrink-0">
-          <Clock size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-          <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">History</span>
+          <Clock size={13} className="text-text-muted flex-shrink-0" />
+          <Dialog.Title className="text-sm font-semibold text-text-primary">History</Dialog.Title>
           <span
-            className="text-[10px] text-[rgb(var(--color-text-muted))] flex-1 text-right"
+            className="text-caption2 text-text-muted flex-1 text-right"
             title={`Showing ${filtered.length} of ${history.length} entries${history.length >= 500 ? ' (history keeps the most recent 500)' : ''}`}
           >
             {filtersActive || hideRoutineReading ? `${filtered.length} of ${history.length}` : `${history.length} entries`}
           </span>
-          <button
-            onClick={closeHistory}
-            className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-          >
-            <X size={13} />
-          </button>
+          <IconButton icon={X} label="Close" size={24} onClick={closeHistory} tooltip={false} />
         </div>
 
         {/* ── Content-type tabs ── */}
-        <Tooltip.Provider delayDuration={200}>
-          <div className="flex items-center gap-0.5 px-3 pb-2 flex-shrink-0">
-            {HISTORY_TABS.map((tab) => {
-              const active = activeHistoryTab === tab.key
-              const Icon = tab.icon
-              const count = tabCounts[tab.key]
-              return (
-                <Tooltip.Root key={tab.key}>
-                  <Tooltip.Trigger asChild>
-                    <button
-                      onClick={() => setActiveHistoryTab(tab.key)}
-                      className={`flex items-center justify-center px-2.5 py-1 rounded-shell text-xs font-medium transition-colors cursor-pointer flex-shrink-0 ${
-                        active
-                          ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                          : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
-                      }`}
-                    >
-                      {Icon && <Icon size={13} className="flex-shrink-0" />}
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content side="bottom" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                      {tab.label} · {count}
-                      <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              )
-            })}
-          </div>
-        </Tooltip.Provider>
+        <div className="flex items-center gap-0.5 px-3 pb-2 flex-shrink-0">
+          {HISTORY_TABS.map((tab) => {
+            const active = activeHistoryTab === tab.key
+            const Icon = tab.icon
+            const count = tabCounts[tab.key]
+            return (
+              <Tooltip key={tab.key} label={`${tab.label} · ${count}`} side="bottom">
+                <button
+                  onClick={() => setActiveHistoryTab(tab.key)}
+                  className={`flex items-center justify-center px-2.5 py-1 rounded-control text-xs font-medium transition-colors cursor-pointer flex-shrink-0 ${
+                    active
+                      ? 'bg-accent-muted text-accent'
+                      : 'text-text-muted hover:bg-surface-hover hover:text-text-primary'
+                  }`}
+                >
+                  {Icon && <Icon size={13} className="flex-shrink-0" />}
+                </button>
+              </Tooltip>
+            )
+          })}
+        </div>
 
         {/* ── Search bar — always visible ── */}
         <div className="px-3 pb-2 flex-shrink-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] focus-within:border-[rgb(var(--color-accent))/50] transition-colors">
-            <Search size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-control bg-surface-3 border border-border focus-within:border-accent/50 transition-colors">
+            <Search size={12} className="text-text-muted flex-shrink-0" />
             <input
               ref={searchRef}
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search history…"
-              className="flex-1 text-xs bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+              className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-muted"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
+              <button onClick={() => setSearchQuery('')} className="text-text-muted hover:text-text-primary cursor-pointer flex-shrink-0">
                 <X size={10} />
               </button>
             )}
             {/* Sort + filter controls inline with search bar */}
-            <div className="flex items-center gap-1 border-l border-[rgb(var(--color-surface-4))] pl-2 ml-1 flex-shrink-0">
+            <div className="flex items-center gap-1 border-l border-separator pl-2 ml-1 flex-shrink-0">
               <button
                 onClick={() => setSortNewest(v => !v)}
                 title={sortNewest ? 'Newest first' : 'Oldest first'}
-                className="text-[9px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer px-1 tabular-nums"
+                className="text-micro text-text-muted hover:text-text-primary transition-colors cursor-pointer px-1 tabular-nums"
               >
                 {sortNewest ? '↓ New' : '↑ Old'}
               </button>
@@ -679,8 +662,8 @@ export default function HistoryModal() {
                 title="Filter by date or type"
                 className={`p-0.5 rounded transition-colors cursor-pointer ${
                   showFilters || dateFilter || typeFilters.size > 0
-                    ? 'text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                    ? 'text-accent'
+                    : 'text-text-muted hover:text-text-primary'
                 }`}
               >
                 <SlidersHorizontal size={11} />
@@ -690,28 +673,28 @@ export default function HistoryModal() {
         </div>
 
         {/* Divider */}
-        <div className="border-t border-[rgb(var(--color-surface-4))] flex-shrink-0" />
+        <div className="border-t border-separator flex-shrink-0" />
 
         {/* ── Filter panel ── */}
         {showFilters && (
-          <div className="px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 space-y-2 bg-[rgb(var(--color-surface-2))]">
+          <div className="px-4 py-2.5 border-b border-separator flex-shrink-0 space-y-2 bg-surface-2">
             {/* Study vs. All — only ever refines the Scripture tab's own list; "All"
                 always shows every visit regardless of this toggle (see preTabFiltered). */}
             {activeHistoryTab === 'scripture' && (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">Reads</span>
-                <div className="flex items-center rounded-full border border-[rgb(var(--color-surface-4))] overflow-hidden text-[9px] font-medium">
+                <span className="text-caption2 text-text-muted w-9 flex-shrink-0">Reads</span>
+                <div className="flex items-center rounded-full border border-border overflow-hidden text-micro font-medium">
                   <button
                     onClick={() => setHideRoutineReading(true)}
                     title="Hide routine chapter-to-chapter reading, keep deliberate actions"
-                    className={`px-2 py-0.5 cursor-pointer transition-colors ${hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    className={`px-2 py-0.5 cursor-pointer transition-colors ${hideRoutineReading ? 'bg-accent/20 text-accent' : 'text-text-muted hover:text-text-primary'}`}
                   >
                     Study only
                   </button>
                   <button
                     onClick={() => setHideRoutineReading(false)}
                     title="Show everything, including routine chapter-to-chapter reading"
-                    className={`px-2 py-0.5 cursor-pointer transition-colors ${!hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    className={`px-2 py-0.5 cursor-pointer transition-colors ${!hideRoutineReading ? 'bg-accent/20 text-accent' : 'text-text-muted hover:text-text-primary'}`}
                   >
                     All reads
                   </button>
@@ -720,17 +703,17 @@ export default function HistoryModal() {
             )}
             {/* Date picker */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">Date</span>
+              <span className="text-caption2 text-text-muted w-9 flex-shrink-0">Date</span>
               <input
                 type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="flex-1 text-xs px-2 py-1 rounded-shell bg-[rgb(var(--color-surface-4))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/50] cursor-pointer"
+                className="flex-1 text-xs px-2 py-1 rounded-control bg-surface-4 border border-border text-text-primary outline-none focus:border-accent/50 cursor-pointer"
               />
               {dateFilter && (
                 <button
                   onClick={() => setDateFilter('')}
-                  className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer px-1"
+                  className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer px-1"
                 >
                   <X size={10} />
                 </button>
@@ -738,14 +721,14 @@ export default function HistoryModal() {
             </div>
             {/* Type chips */}
             <div className="flex items-center gap-1 flex-wrap">
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">Type</span>
+              <span className="text-caption2 text-text-muted w-9 flex-shrink-0">Type</span>
               {ALL_TYPES.map(t => (
                 <TypeChip key={t} type={t} active={typeFilters.has(t)} onClick={() => toggleType(t)} />
               ))}
               {typeFilters.size > 0 && (
                 <button
                   onClick={() => setTypeFilters(new Set())}
-                  className="text-[9px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer ml-1"
+                  className="text-micro text-text-muted hover:text-text-primary cursor-pointer ml-1"
                 >
                   Clear
                 </button>
@@ -767,7 +750,7 @@ export default function HistoryModal() {
           }}
         >
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-2 text-[rgb(var(--color-text-muted))]">
+            <div className="flex flex-col items-center justify-center py-14 gap-2 text-text-muted">
               <Clock size={26} className="opacity-25" />
               <span className="text-sm opacity-50">
                 {history.length === 0 ? 'No history yet' : searchQuery ? `No results for "${searchQuery}"` : 'No matches for current filters'}
@@ -794,7 +777,7 @@ export default function HistoryModal() {
               {hiddenCount > 0 && (
                 <button
                   onClick={() => setShowAllFlat(true)}
-                  className="w-full text-center py-1.5 text-[10px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+                  className="w-full text-center py-1.5 text-caption2 text-accent hover:bg-surface-hover cursor-pointer transition-colors"
                 >
                   Show {hiddenCount} more
                 </button>
@@ -805,14 +788,15 @@ export default function HistoryModal() {
 
         {/* ── Footer ── */}
         {history.length > 0 && (
-          <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0 flex items-center justify-end gap-1">
-            <Trash2 size={10} className="text-[rgb(var(--color-text-muted))] opacity-50" />
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-50">
+          <div className="px-4 py-2 border-t border-separator flex-shrink-0 flex items-center justify-end gap-1">
+            <Trash2 size={10} className="text-text-muted opacity-50" />
+            <span className="text-caption2 text-text-muted opacity-50">
               Clear history in Settings → Danger
             </span>
           </div>
         )}
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

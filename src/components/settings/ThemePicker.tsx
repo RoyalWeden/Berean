@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { IconButton, SegmentedControl } from '@/components/ui'
 import {
   THEME_PRESETS, resolvePresetClass, presetFamilies, type ThemePresetDef, type AnimationStyle,
 } from '@/lib/themePresets'
@@ -98,15 +99,16 @@ export default function ThemePicker({
 
   return createPortal(
     <div
-      className="no-drag fixed inset-0 z-[20000] flex flex-col bg-black/60 backdrop-blur-sm"
+      className="no-drag fixed inset-0 z-critical flex flex-col bg-black/40 animate-fade-in"
+      style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="flex flex-col flex-1 min-h-0 max-w-5xl w-full mx-auto my-6 rounded-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-2xl overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 max-w-5xl w-full mx-auto my-6 material-sheet rounded-sheet overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[rgb(var(--color-surface-3))] flex-shrink-0">
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-separator flex-shrink-0">
           <div>
-            <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Themes</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))]">{THEME_PRESETS.length} presets — pick one to apply it instantly</p>
+            <p className="text-sm font-semibold text-text-primary">Themes</p>
+            <p className="text-xs text-text-muted">{THEME_PRESETS.length} presets — pick one to apply it instantly</p>
           </div>
           <div className="flex items-center gap-2">
             {/* Always shown now, even when the app's own color mode is "system" — previewVariant
@@ -118,35 +120,29 @@ export default function ThemePicker({
                 showing in the preview... just shows the basic thing". ThemeCard now always
                 renders the full mock-up using previewVariant; there's no content-less fallback
                 left to need hiding this behind. */}
-            <div className="flex items-center rounded-full border border-[rgb(var(--color-surface-4))] p-0.5 text-xs">
-              {(['dark', 'light'] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setPreviewVariant(v)}
-                  className={`px-2.5 py-1 rounded-full capitalize cursor-pointer transition-colors ${
-                    previewVariant === v ? 'bg-[rgb(var(--color-accent))] text-white' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-            <button onClick={onClose} className="p-1.5 rounded-md text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer">
-              <X size={16} />
-            </button>
+            <SegmentedControl
+              aria-label="Preview variant"
+              value={previewVariant}
+              onChange={setPreviewVariant}
+              options={[
+                { value: 'dark', label: 'Dark' },
+                { value: 'light', label: 'Light' },
+              ]}
+            />
+            <IconButton icon={X} label="Close" size={28} onClick={onClose} />
           </div>
         </div>
 
         {/* Family filter chips */}
-        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-[rgb(var(--color-surface-3))] flex-shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-separator flex-shrink-0 overflow-x-auto">
           {families.map((f) => (
             <button
               key={f}
               onClick={() => setActiveFamily(f)}
               className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
                 activeFamily === f
-                  ? 'bg-[rgb(var(--color-accent))] text-white'
-                  : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                  ? 'bg-accent text-white'
+                  : 'bg-surface-3 text-text-secondary hover:bg-surface-hover'
               }`}
             >
               {f}
@@ -215,10 +211,10 @@ function ThemeCard({
     <button
       onClick={onSelect}
       title={label}
-      className={`group text-left rounded-xl border p-1.5 transition-all cursor-pointer ${
+      className={`group text-left rounded-card border p-1.5 transition-all cursor-pointer ${
         active
-          ? 'border-[rgb(var(--color-accent))] ring-2 ring-[rgb(var(--color-accent))/50]'
-          : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))]'
+          ? 'border-accent ring-2 ring-accent'
+          : 'border-border hover:border-text-muted'
       }`}
     >
       {/* Mini APP mock-up — a small non-clickable replica of Berean's actual shell (sidebar
@@ -279,7 +275,7 @@ function ThemeCard({
               <div className="h-[3px] rounded-full flex-1" style={{ background: `rgb(${text})`, opacity: 0.35 }} />
             </div>
             <div
-              className="mt-1 self-start px-2.5 py-1 rounded-full text-[9px] font-medium"
+              className="mt-1 self-start px-2.5 py-1 rounded-full text-micro font-medium"
               style={{ background: `rgb(${accent})`, color: `rgb(${bg})` }}
             >
               Button
@@ -301,7 +297,7 @@ function ThemeCard({
           </div>
         )}
       </div>
-      <p className={`mt-1.5 px-0.5 text-[11px] font-medium truncate ${active ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+      <p className={`mt-1.5 px-0.5 text-caption font-medium truncate ${active ? 'text-accent' : 'text-text-secondary'}`}>
         {label}
       </p>
     </button>

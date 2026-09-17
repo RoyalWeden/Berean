@@ -28,7 +28,7 @@ export default function SessionHoverContent({ session, tags }: { session: TrailS
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 12, marginBottom: 2 }}>
         <span style={{
           width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-          background: session.status === 'live' ? '#4fc3ae' : session.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
+          background: session.status === 'live' ? 'rgb(var(--trail-cool))' : session.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-muted))',
         }} />
         {session.name}
       </div>

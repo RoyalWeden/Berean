@@ -170,7 +170,7 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
               // Soft radial gradient + layered shadow (rather than a flat surface-2 fill) so the
               // bubble reads as "floating above" the bar instead of "pasted on" — plus a small
               // speech-bubble tail (below) pointing down at the exact bar position it reports.
-              className="fixed z-[9999] pointer-events-none flex items-center justify-center rounded-full border border-[rgb(var(--color-surface-4))]"
+              className="fixed z-critical pointer-events-none flex items-center justify-center rounded-full border border-border"
               style={{
                 left: bubblePos.x, top: bubblePos.y,
                 width: 44, height: 44,
@@ -182,10 +182,10 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
                   circle's border on its visible (lower-right) edges so it reads as one continuous
                   callout shape rather than a separate floating diamond. */}
               <span
-                className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 rotate-45 border-r border-b border-[rgb(var(--color-surface-4))]"
+                className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 rotate-45 border-r border-b border-separator"
                 style={{ background: 'rgb(var(--color-surface-1))' }}
               />
-              <span className="relative text-[15px] font-semibold text-[rgb(var(--color-text-primary))] tabular-nums">
+              <span className="relative text-title3 font-semibold text-text-primary tabular-nums">
                 {bubbleVerseNum}
               </span>
             </motion.div>
@@ -198,10 +198,10 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`relative w-full rounded-full bg-[rgb(var(--color-surface-4))] cursor-pointer transition-[height] duration-150 ${expanded ? 'h-2' : 'h-[3px]'}`}
+        className={`relative w-full rounded-full bg-surface-4 cursor-pointer transition-[height] duration-150 ${expanded ? 'h-2' : 'h-[3px]'}`}
       >
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-[rgb(var(--color-accent))] transition-[width] duration-150"
+          className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-150"
           style={{ width: `${fraction * 100}%` }}
         />
       </div>

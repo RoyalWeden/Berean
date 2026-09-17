@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
 import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, NotepadText, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { IconButton } from '@/components/ui'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -16,12 +17,9 @@ const MAX_WIDTH = 700
 const MAX_HEIGHT = 800
 const MARGIN = 16
 
-// Near-opaque (~92%, a genuinely subtle ~8% see-through), via an explicit color-mix()
-// instead of a Tailwind arbitrary-value opacity modifier (`bg-[...]/NN`) — that approach
-// rendered far more transparent than intended, so this sidesteps any ambiguity about
-// whether/how Tailwind compiles opacity onto a fully custom `rgb(var(--x))` value.
-const PANEL_BG = { backgroundColor: 'color-mix(in srgb, rgb(var(--color-surface-1)) 92%, transparent)' }
-const HEADER_BG = { backgroundColor: 'color-mix(in srgb, rgb(var(--color-surface-2)) 92%, transparent)' }
+// Panel material — see the design system's `.material-panel` recipe (surface-2 @ 0.78 + blur +
+// hairline + shadow-2, alpha scaling with Settings → Appearance → Glass appearance). Replaces the
+// old bespoke near-opaque color-mix() backgrounds this panel used to hand-roll.
 
 // Rotated through for the empty-state example — one worked sample question shouldn't be the
 // only thing shown every time. Covers the different question shapes the pipeline actually
@@ -144,25 +142,25 @@ function StrongsCard({ card }: { card: AiLookupStrongsCard }) {
   return (
     <button
       onClick={() => { ensureTab('lexicon'); openLexiconEntry(card.strongsNum); setActiveSpace('lexicon') }}
-      className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-3 py-2.5 transition-colors cursor-pointer"
+      className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-3 py-2.5 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <BookOpenText size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
-        <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">{card.strongsNum}</span>
-        {card.transliteration && <span className="text-[11px] italic text-[rgb(var(--color-text-secondary))]">{card.transliteration}</span>}
-        {card.lemma && <span className="text-[11px] text-[rgb(var(--color-text-muted))]">{card.lemma}</span>}
+        <BookOpenText size={12} className="flex-shrink-0 text-accent" />
+        <span className="text-caption font-semibold text-text-primary">{card.strongsNum}</span>
+        {card.transliteration && <span className="text-caption italic text-text-secondary">{card.transliteration}</span>}
+        {card.lemma && <span className="text-caption text-text-muted">{card.lemma}</span>}
       </div>
       {card.gloss && (
-        <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">
-          <span className="text-[rgb(var(--color-text-muted))]">Renders as: </span>{card.gloss}
+        <p className="text-caption text-text-secondary leading-snug">
+          <span className="text-text-muted">Renders as: </span>{card.gloss}
         </p>
       )}
       {card.derivation && (
-        <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-snug mt-0.5">
-          <span className="text-[rgb(var(--color-text-muted))]">Derivation: </span>{card.derivation}
+        <p className="text-caption text-text-muted leading-snug mt-0.5">
+          <span className="text-text-muted">Derivation: </span>{card.derivation}
         </p>
       )}
-      <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1">
+      <p className="text-caption2 text-text-muted mt-1">
         {card.occurrenceCount} occurrence{card.occurrenceCount === 1 ? '' : 's'} in Scripture · click for full entry
       </p>
     </button>
@@ -178,18 +176,18 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
   return (
     <button
       onClick={() => { ensureTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
-      className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
+      className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-2.5 py-2 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-1.5 mb-0.5">
-        <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-        <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] truncate">{note.title}</span>
+        <NotepadText size={11} className="flex-shrink-0 text-text-muted" />
+        <span className="text-caption font-semibold text-text-primary truncate">{note.title}</span>
         {note.isIdiom && (
-          <span className="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">
+          <span className="flex-shrink-0 text-micro px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">
             idiom{note.idiomTerm ? `: ${note.idiomTerm}` : ''}
           </span>
         )}
       </div>
-      {note.snippet && <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug line-clamp-2">{note.snippet}</p>}
+      {note.snippet && <p className="text-caption text-text-secondary leading-snug line-clamp-2">{note.snippet}</p>}
     </button>
   )
 }
@@ -207,17 +205,17 @@ function VideoCard({ video }: { video: AiLookupVideoResult }) {
   return (
     <button
       onClick={() => { openYouTubeVideoInNewTab(video.videoId, startSeconds); setActiveSpace('youtube') }}
-      className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
+      className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
     >
       {video.thumbnailUrl
         ? <img src={video.thumbnailUrl} alt="" className="w-14 h-9 rounded object-cover flex-shrink-0" />
-        : <Youtube size={20} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
+        : <Youtube size={20} className="flex-shrink-0 text-text-muted" />}
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] leading-snug line-clamp-2">{video.title}</p>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">
+        <p className="text-caption font-semibold text-text-primary leading-snug line-clamp-2">{video.title}</p>
+        <p className="text-caption2 text-text-muted truncate">
           {video.channelName}{video.startMs != null ? ` — at ${formatTimestamp(startSeconds)}` : ''}
         </p>
-        {video.snippet && <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-snug line-clamp-2 mt-0.5">"{video.snippet}"</p>}
+        {video.snippet && <p className="text-caption2 text-text-secondary leading-snug line-clamp-2 mt-0.5">"{video.snippet}"</p>}
       </div>
     </button>
   )
@@ -241,7 +239,7 @@ function formatTimestamp(totalSeconds: number): string {
  *  as a label, not a sentence of AI prose). */
 function SourceBadge({ text }: { text: string }) {
   return (
-    <div className="inline-flex items-start gap-1.5 max-w-full text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-2))] rounded-full px-2.5 py-1 border border-[rgb(var(--color-surface-4))]">
+    <div className="inline-flex items-start gap-1.5 max-w-full text-caption2 text-text-muted bg-surface-2 rounded-full px-2.5 py-1 border border-border">
       <Quote size={10} className="flex-shrink-0 mt-0.5 opacity-70" />
       <span>{text}</span>
     </div>
@@ -597,45 +595,40 @@ export default function AiLookupPanel() {
 
   return (
     <div
-      // Deliberately near-opaque, not a real translucent "glass" panel — see PANEL_BG comment.
-      // z-[600] (Round 11, was z-50): the note editor's own popups/menus/toolbar dropdowns use
-      // z-[9999]/z-[10000]/z-60 — clicking one of those while it happened to overlap this
-      // panel's screen position was painting ABOVE the panel and intercepting the click (z-50
-      // lost to all of them), which read as "the note thinks I'm clicking on it" even though the
-      // user was clicking the panel. z-[600] sits comfortably above ordinary app chrome/floating
-      // surfaces (the highest other one found was z-[500]) but still well below the 9998+ tier
-      // reserved for context menus/popups — including the ones this panel spawns itself
-      // (VerseCopyMenu/StrongsContextMenu, both z-[10000]), so those still correctly paint above
-      // it, same as before. `.no-drag` on the FULL container now too, not just the header/resize
-      // handle — this codebase has hit Electron's OS-level drag-region hit-testing bug before
-      // (it ignores paint order/visibility, only screen-space overlap), and a user-resizable,
-      // user-draggable panel like this one can end up overlapping the top drag-region strip.
+      // z-overlay (Round 11, was z-[600]): the note editor's own popups/menus/toolbar dropdowns
+      // (z-menu) — clicking one of those while it happened to overlap this panel's screen
+      // position was painting ABOVE the panel and intercepting the click, which read as "the note
+      // thinks I'm clicking on it" even though the user was clicking the panel. z-overlay sits
+      // comfortably above ordinary app chrome but still below z-menu, so real context menus/popups
+      // — including the ones this panel spawns itself (VerseCopyMenu/StrongsContextMenu) — still
+      // correctly paint above it. `.no-drag` on the FULL container now too, not just the
+      // header/resize handle — this codebase has hit Electron's OS-level drag-region hit-testing
+      // bug before (it ignores paint order/visibility, only screen-space overlap), and a
+      // user-resizable, user-draggable panel like this one can end up overlapping the top
+      // drag-region strip.
       //
-      // While Settings is open, drop below its z-50 overlay (which is otherwise well under this
-      // panel's normal z-[600]) instead of sitting on top of the modal — Settings' own backdrop
-      // (bg-black/50 + blur(4px)) then dims/blurs this panel exactly like it already does to the
-      // rest of the app, with no separate dim treatment needed here. Also disabled so nothing
-      // underneath the modal is clickable/scrollable while it's covered.
-      className={`no-drag fixed flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden ${settingsOpen ? 'z-40 pointer-events-none' : 'z-[600]'}`}
-      style={{ left: pos.x, top: pos.y, width: size.width, height: size.height, ...PANEL_BG }}
+      // While Settings is open, drop to z-raised (well under the Sheet's z-modal) instead of
+      // sitting on top of the modal — Settings' own backdrop then dims/blurs this panel exactly
+      // like it already does to the rest of the app, with no separate dim treatment needed here.
+      // Also disabled so nothing underneath the modal is clickable/scrollable while it's covered.
+      className={`no-drag fixed flex flex-col material-panel rounded-menu overflow-hidden ${settingsOpen ? 'z-raised pointer-events-none' : 'z-overlay'}`}
+      style={{ left: pos.x, top: pos.y, width: size.width, height: size.height }}
     >
       {/* Header — drag handle */}
       <div
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
-        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] cursor-grab active:cursor-grabbing select-none"
-        style={HEADER_BG}
+        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-separator cursor-grab active:cursor-grabbing select-none"
       >
-        <Sparkles size={14} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
-        <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))] flex-1 truncate">Berean Chat</span>
-        <button onClick={newChat} title="New chat" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
-          <Plus size={14} />
-        </button>
-        <button onClick={() => setHistoryOpen((v) => !v)} title="Chat history" className={`p-1 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer ${historyOpen ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
-          <HistoryIcon size={14} />
-        </button>
-        <button
+        <Sparkles size={14} className="text-accent flex-shrink-0" />
+        <span className="text-xs font-semibold text-text-primary flex-1 truncate">Berean Chat</span>
+        <IconButton icon={Plus} label="New chat" size={24} onClick={newChat} />
+        <IconButton icon={HistoryIcon} label="Chat history" size={24} active={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />
+        <IconButton
+          icon={X}
+          label="Close"
+          size={24}
           // Speed round: used to also call window.aiLookup.unloadModel() here, which forced an
           // immediate Ollama unload on every panel close — guaranteeing the NEXT open pays a cold
           // model load (~2.7s) even if the user reopens seconds later (e.g. accidental close, or
@@ -643,11 +636,7 @@ export default function AiLookupPanel() {
           // already reclaims the memory once the user has genuinely stopped asking questions;
           // closing the panel doesn't need its own, more aggressive unload path on top of that.
           onClick={() => setOpen(false)}
-          title="Close"
-          className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer"
-        >
-          <X size={14} />
-        </button>
+        />
       </div>
 
       {/* Commentary / Deep search — floating pill toggles sharing one row instead of two
@@ -655,13 +644,13 @@ export default function AiLookupPanel() {
           background shows through. Hidden while viewing chat history — these settings apply
           to the NEXT question, which isn't relevant while just browsing past chats. */}
       {!historyOpen && (
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-separator">
           <button
             onClick={() => setCommentaryOn(!commentaryOn)}
-            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-caption px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
               commentaryOn
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white shadow-sm'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))]'
+                ? 'bg-accent border-accent text-white shadow-sm'
+                : 'border-border text-text-muted hover:border-accent'
             }`}
           >
             <MessageSquareText size={11} /> Commentary
@@ -669,10 +658,10 @@ export default function AiLookupPanel() {
           <button
             onClick={() => setAgenticOn(!agenticOn)}
             title="Verifies the results actually answer your question and refines the search (up to twice more) if not — slower, off by default."
-            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-caption px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
               agenticOn
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white shadow-sm'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))]'
+                ? 'bg-accent border-accent text-white shadow-sm'
+                : 'border-border text-text-muted hover:border-accent'
             }`}
           >
             <SearchCheck size={11} /> Deep search
@@ -680,10 +669,10 @@ export default function AiLookupPanel() {
           <button
             onClick={() => setUseTabContext(!useTabContext)}
             title="Sends whatever's in your currently active tab (chapter, note, lexicon entry, video) as extra context — you can also just mention it inline, e.g. 'this chapter', without turning this on."
-            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-caption px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
               useTabContext
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white shadow-sm'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))]'
+                ? 'bg-accent border-accent text-white shadow-sm'
+                : 'border-border text-text-muted hover:border-accent'
             }`}
           >
             <Eye size={11} /> This tab
@@ -697,14 +686,14 @@ export default function AiLookupPanel() {
         <>
           <div ref={bodyRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
             {!availability.available && availability.checked && (
-              <div className="text-xs text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-2))] rounded-shell p-3 leading-relaxed">
+              <div className="text-xs text-text-muted bg-surface-2 rounded-shell p-3 leading-relaxed">
                 Ollama isn't running on this machine. Install it from{' '}
-                <button className="text-[rgb(var(--color-accent))] underline cursor-pointer" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</button>
+                <button className="text-accent underline cursor-pointer" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</button>
                 {' '}and pull a model (e.g. <code>ollama pull gemma3:4b</code>), then reopen this panel.
               </div>
             )}
             {messages.length === 0 && availability.available && (
-              <p className="text-xs text-[rgb(var(--color-text-muted))] text-center pt-6">
+              <p className="text-xs text-text-muted text-center pt-6">
                 Ask where something is in Scripture, or for verses about a topic — e.g. "{examplePrompt}"
               </p>
             )}
@@ -734,12 +723,12 @@ export default function AiLookupPanel() {
                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(mi) }
                             if (e.key === 'Escape') setEditingIndex(null)
                           }}
-                          className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-2))] rounded-shell px-2.5 py-1.5 outline-none border border-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))]"
+                          className="flex-1 min-w-0 text-xs bg-surface-2 rounded-shell px-2.5 py-1.5 outline-none border border-accent text-text-primary"
                         />
-                        <button onClick={() => submitEdit(mi)} title="Save & regenerate" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-accent))] cursor-pointer flex-shrink-0">
+                        <button onClick={() => submitEdit(mi)} title="Save & regenerate" className="p-1 rounded hover:bg-surface-hover text-accent cursor-pointer flex-shrink-0">
                           <Send size={12} />
                         </button>
-                        <button onClick={() => setEditingIndex(null)} title="Cancel" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0">
+                        <button onClick={() => setEditingIndex(null)} title="Cancel" className="p-1 rounded hover:bg-surface-hover text-text-muted cursor-pointer flex-shrink-0">
                           <X size={12} />
                         </button>
                       </div>
@@ -751,18 +740,18 @@ export default function AiLookupPanel() {
                     <button
                       onClick={() => copyMessage(mi, m.content)}
                       title="Copy message"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-hover text-text-muted cursor-pointer flex-shrink-0"
                     >
-                      {copiedIndex === mi ? <Check size={11} className="text-[rgb(var(--color-accent))]" /> : <Copy size={11} />}
+                      {copiedIndex === mi ? <Check size={11} className="text-accent" /> : <Copy size={11} />}
                     </button>
                     <button
                       onClick={() => { setEditingIndex(mi); setEditValue(m.content) }}
                       title="Edit & regenerate"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-hover text-text-muted cursor-pointer flex-shrink-0"
                     >
                       <Pencil size={11} />
                     </button>
-                    <div className="max-w-[85%] rounded-shell bg-[rgb(var(--color-accent))/14] text-[rgb(var(--color-text-primary))] text-xs px-3 py-2">{m.content}</div>
+                    <div className="max-w-[85%] rounded-shell bg-accent/14 text-text-primary text-xs px-3 py-2">{m.content}</div>
                   </div>
                 )
               }
@@ -788,7 +777,7 @@ export default function AiLookupPanel() {
               return (
                 <div key={mi} className="flex justify-start">
                   <div className="max-w-full w-full space-y-2">
-                    {m.content && <p className="text-xs text-[rgb(var(--color-text-muted))]">{m.content}</p>}
+                    {m.content && <p className="text-xs text-text-muted">{m.content}</p>}
                     {m.summary && (
                       // Deterministic branches (quote-lookup, notes-only) always return
                       // `keywords: []` — the normal guess/keyword pipeline never does, since it
@@ -799,7 +788,7 @@ export default function AiLookupPanel() {
                       // these shouldn't look like a chat reply.
                       keywords.length === 0
                         ? <SourceBadge text={m.summary} />
-                        : <p className="text-xs text-[rgb(var(--color-text-primary))] italic">{m.summary}</p>
+                        : <p className="text-xs text-text-primary italic">{m.summary}</p>
                     )}
                     {m.strongsCard && <StrongsCard card={m.strongsCard} />}
                     {(m.notes ?? []).length > 0 && (
@@ -834,27 +823,27 @@ export default function AiLookupPanel() {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
                             })}
-                            className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
+                            className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-2.5 py-2 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-1.5 mb-0.5">
-                              <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">
+                              <span className="text-caption font-semibold text-text-primary">
                                 {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
                               </span>
-                              {r.noted && <BookMarked size={11} className="text-[rgb(var(--color-accent))]" />}
+                              {r.noted && <BookMarked size={11} className="text-accent" />}
                             </div>
-                            <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">
+                            <p className="text-caption text-text-secondary leading-snug">
                               <HighlightedText
                                 text={activeWordReplacerRules.length > 0 ? applyWordReplacer(r.text, activeWordReplacerRules) : r.text}
                                 keywords={displayKeywords}
                               />
                             </p>
-                            {r.commentary && <p className="text-[11px] text-[rgb(var(--color-accent))] mt-1 leading-snug">{r.commentary}</p>}
+                            {r.commentary && <p className="text-caption text-accent mt-1 leading-snug">{r.commentary}</p>}
                           </button>
                           {nested.length > 0 && (
                             <>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setCrossRefsOpen((prev) => ({ ...prev, [crKey]: !crOpen })) }}
-                                className="mt-1 flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                                className="mt-1 flex items-center gap-1 text-caption2 text-text-muted hover:text-accent cursor-pointer"
                               >
                                 {crOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                                 <Link2 size={10} /> {nested.length} related
@@ -872,10 +861,10 @@ export default function AiLookupPanel() {
                                       key={ci}
                                       onClick={() => navigateToResult(cr, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                                       onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
-                                      className="text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))]/70 px-2 py-1 transition-colors cursor-pointer max-w-full"
+                                      className="text-left rounded-shell border border-border hover:border-accent bg-surface-2/70 px-2 py-1 transition-colors cursor-pointer max-w-full"
                                     >
-                                      <span className="text-[10px] font-semibold text-[rgb(var(--color-text-secondary))]">{cr.bookName} {cr.chapter}:{cr.verse}</span>
-                                      <p className="text-[10px] text-[rgb(var(--color-text-muted))] leading-tight mt-0.5 line-clamp-2">
+                                      <span className="text-caption2 font-semibold text-text-secondary">{cr.bookName} {cr.chapter}:{cr.verse}</span>
+                                      <p className="text-caption2 text-text-muted leading-tight mt-0.5 line-clamp-2">
                                         {activeWordReplacerRules.length > 0 ? applyWordReplacer(cr.text, activeWordReplacerRules) : cr.text}
                                       </p>
                                     </button>
@@ -891,7 +880,7 @@ export default function AiLookupPanel() {
                     {hasMore && (
                       <button
                         onClick={() => setExpanded((prev) => ({ ...prev, [mi]: primary.length }))}
-                        className="w-full flex items-center justify-center gap-1 text-[11px] text-[rgb(var(--color-accent))] hover:underline py-1 cursor-pointer"
+                        className="w-full flex items-center justify-center gap-1 text-caption text-accent hover:underline py-1 cursor-pointer"
                       >
                         <ChevronDown size={12} /> Show {primary.length - shown} more
                       </button>
@@ -901,8 +890,8 @@ export default function AiLookupPanel() {
                         etc) question — kept visible but clearly secondary, not the headline
                         answer, with a note explaining why it's here instead of leading. */}
                     {(m.related ?? []).length > 0 && (
-                      <div className="pt-1 border-t border-[rgb(var(--color-surface-4))] space-y-1.5">
-                        {m.relatedNote && <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic">{m.relatedNote}</p>}
+                      <div className="pt-1 border-t border-separator space-y-1.5">
+                        {m.relatedNote && <p className="text-caption2 text-text-muted italic">{m.relatedNote}</p>}
                         {m.related!.map((r, ri) => (
                           <button
                             key={ri}
@@ -911,12 +900,12 @@ export default function AiLookupPanel() {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
                             })}
-                            className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))]/70 px-2.5 py-1.5 transition-colors cursor-pointer"
+                            className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2/70 px-2.5 py-1.5 transition-colors cursor-pointer"
                           >
-                            <span className="text-[10px] font-semibold text-[rgb(var(--color-text-secondary))]">
+                            <span className="text-caption2 font-semibold text-text-secondary">
                               {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
                             </span>
-                            <p className="text-[10px] text-[rgb(var(--color-text-muted))] leading-snug mt-0.5">
+                            <p className="text-caption2 text-text-muted leading-snug mt-0.5">
                               {activeWordReplacerRules.length > 0 ? applyWordReplacer(r.text, activeWordReplacerRules) : r.text}
                             </p>
                           </button>
@@ -928,25 +917,25 @@ export default function AiLookupPanel() {
               )
             })}
             {loading && (
-              <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
+              <div className="flex items-center gap-2 text-xs text-text-muted">
                 <Loader2 size={13} className="animate-spin" /> {progressStatus}
               </div>
             )}
           </div>
 
-          <div className="flex items-end gap-2 px-2.5 py-2 border-t border-[rgb(var(--color-surface-4))]">
+          <div className="flex items-end gap-2 px-2.5 py-2 border-t border-separator">
             <AutoGrowTextarea
               value={input}
               onChange={setInput}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               placeholder={availability.available ? 'Ask where something is, or for verses about a topic…' : 'Ollama not running'}
               disabled={!availability.available || loading}
-              className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-2))] rounded-shell px-2.5 py-1.5 outline-none border border-transparent focus:border-[rgb(var(--color-accent))] disabled:opacity-50 text-[rgb(var(--color-text-primary))]"
+              className="flex-1 min-w-0 text-xs bg-surface-2 rounded-shell px-2.5 py-1.5 outline-none border border-transparent focus:border-accent disabled:opacity-50 text-text-primary"
             />
             <button
               onClick={send}
               disabled={!availability.available || loading || !input.trim()}
-              className="p-1.5 rounded-shell bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 cursor-pointer disabled:cursor-default flex-shrink-0"
+              className="p-1.5 rounded-shell bg-accent text-white disabled:opacity-40 cursor-pointer disabled:cursor-default flex-shrink-0"
             >
               <Send size={13} />
             </button>
@@ -965,7 +954,7 @@ export default function AiLookupPanel() {
         title="Resize"
         className="no-drag absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize touch-none"
       >
-        <svg viewBox="0 0 16 16" className="w-full h-full text-[rgb(var(--color-text-muted))] opacity-50">
+        <svg viewBox="0 0 16 16" className="w-full h-full text-text-muted opacity-50">
           <path d="M14 2 L2 14 M14 8 L8 14" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
         </svg>
       </div>

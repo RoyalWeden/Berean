@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { Minus, Plus } from 'lucide-react'
+import { IconButton } from '@/components/ui'
 import { useAppStore } from '@/store'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -306,8 +308,7 @@ export default function ViewerApp() {
 
   return (
     <div
-      className="relative h-screen w-screen overflow-hidden"
-      style={{ background: 'rgb(var(--color-surface-1))' }}
+      className="relative h-screen w-screen overflow-hidden bg-surface-1"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -315,7 +316,7 @@ export default function ViewerApp() {
           text); only a translucent pill sits behind the centered title for legibility.
           The whole strip stays draggable and clears the macOS traffic lights. */}
       <div
-        className="absolute top-0 left-0 right-0 z-20 flex items-center justify-center"
+        className="absolute top-0 left-0 right-0 z-raised flex items-center justify-center"
         style={{
           height: 34,
           paddingLeft: 78, // clear macOS traffic lights
@@ -325,20 +326,13 @@ export default function ViewerApp() {
         } as React.CSSProperties}
       >
         <span
-          className="truncate"
+          className="truncate material-control rounded-control text-text-primary"
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: textColor,
             letterSpacing: '0.01em',
             maxWidth: '78%',
             padding: '2px 12px',
-            borderRadius: 9999,
-            // Translucent only behind the text — "almost see through it"
-            background: 'rgb(var(--color-surface-2, 24 24 32) / 0.42)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            border: '1px solid rgb(var(--color-surface-3, 50 50 70) / 0.45)',
           }}
         >
           {title}
@@ -403,12 +397,8 @@ export default function ViewerApp() {
         {/* Side panel (only for bible payloads with an active side panel) */}
         {payload.kind === 'bible' && bibleSidePanel && showSidePanel && (
           <div
-            className="flex-shrink-0 h-full overflow-hidden"
-            style={{
-              width: '38%',
-              borderLeft: '1px solid rgb(var(--color-surface-3, 50 50 70))',
-              background: 'rgb(var(--color-surface-2, 24 24 32))',
-            }}
+            className="flex-shrink-0 h-full overflow-hidden border-l border-separator bg-surface-2"
+            style={{ width: '38%' }}
           >
             {bibleSidePanel.type === 'note' && (
               <NoteView noteId={bibleSidePanel.noteId} fontScale={localScale} muteColor={muteColor} textColor={textColor} scrollRef={sidePanelScrollRef} />
@@ -437,7 +427,7 @@ export default function ViewerApp() {
           presenter audience see what's now showing even when scrolled past the header. */}
       {payload.kind !== 'idle' && (
         <div
-          className="absolute left-0 right-0 z-30 flex justify-center pointer-events-none"
+          className="absolute left-0 right-0 z-overlay flex justify-center pointer-events-none"
           style={{
             top: 50,
             opacity: flashVisible ? 1 : 0,
@@ -445,16 +435,11 @@ export default function ViewerApp() {
           }}
         >
           <div
+            className="material-sheet rounded-control text-text-primary"
             style={{
               padding: '8px 20px',
-              borderRadius: 9999,
-              background: 'rgba(0,0,0,0.62)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.12)',
               fontSize: Math.round(20 * localScale),
               fontWeight: 700,
-              color: '#fff',
               maxWidth: '80%',
               textAlign: 'center',
               whiteSpace: 'nowrap',
@@ -470,35 +455,16 @@ export default function ViewerApp() {
       {/* Hover overlay — zoom + side panel toggle */}
       {hovered && (
         <div
-          className="absolute bottom-5 right-5 z-50 flex items-center gap-2 rounded-full px-3 py-2 shadow-2xl"
-          style={{
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            WebkitAppRegion: 'no-drag',
-            border: '1px solid rgba(255,255,255,0.12)',
-          } as React.CSSProperties}
+          className="no-drag absolute bottom-5 right-5 z-popover flex items-center gap-2 material-control rounded-control px-3 py-2"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
           {/* Zoom controls (side-panel visibility is controlled from the main window) */}
-          <button
-            onClick={() => changeScale(-0.125)}
-            className="w-6 h-6 flex items-center justify-center rounded-full text-sm font-bold transition-colors hover:bg-white/20"
-            style={{ color: 'rgba(255,255,255,0.8)' }}
-          >
-            −
-          </button>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', minWidth: 34, textAlign: 'center' }}>
+          <IconButton icon={Minus} label="Zoom out" size={24} tooltip={false} onClick={() => changeScale(-0.125)} />
+          <span className="text-caption text-text-secondary" style={{ minWidth: 34, textAlign: 'center' }}>
             {Math.round(localScale * 100)}%
           </span>
-          <button
-            onClick={() => changeScale(0.125)}
-            className="w-6 h-6 flex items-center justify-center rounded-full text-sm font-bold transition-colors hover:bg-white/20"
-            style={{ color: 'rgba(255,255,255,0.8)' }}
-          >
-            +
-          </button>
+          <IconButton icon={Plus} label="Zoom in" size={24} tooltip={false} onClick={() => changeScale(0.125)} />
         </div>
       )}
     </div>

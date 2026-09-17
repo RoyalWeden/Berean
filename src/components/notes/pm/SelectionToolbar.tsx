@@ -10,6 +10,7 @@ import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } fr
 // Styled-keycap hover hints, same as the persistent Toolbar and the rest of the app —
 // replacing native `title="Bold (⌘B)"` attributes (see Toolbar.tsx's import comment).
 import { HintTooltip } from '@/components/shell/HintTooltip'
+import { IconButton, Button, Divider, MenuItem, TextField } from '@/components/ui'
 
 const ThreadIcon = BLOCK_TYPE_META.thread.icon
 
@@ -154,13 +155,11 @@ export default function SelectionToolbar({
     setOpenDropdown('none')
   }
 
-  const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-md flex-shrink-0'
-  // Bumped well past the original 18% — too transparent to read clearly
-  // against the toolbar's own already-translucent glass-panel background.
-  const active = 'bg-accent-muted text-accent'
+  // Kept for the one control below that isn't a plain icon button: the dash-list glyph
+  // (a text character, not a lucide icon).
+  const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-control flex-shrink-0'
   const inactive = 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
-  const cls = (isActive: boolean) => `${iconBtn} ${isActive ? active : inactive}`
-  const sep = <div className="w-px h-5 bg-surface-4 mx-0.5 flex-shrink-0" />
+  const sep = <Divider orientation="vertical" className="mx-0.5" />
 
   // Before the first layout measurement, render off-screen (never at a
   // guessed on-screen spot) so there's no visible flash-then-jump — the
@@ -174,94 +173,60 @@ export default function SelectionToolbar({
       <div className="pm-toolbar-solid material-popover relative flex items-center gap-0.5 rounded-menu px-1 py-1">
         {/* Text type */}
         <HintTooltip label="Text type" side="top">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={currentBlockTypeMeta(view).icon}
+            selected={openDropdown === 'type'}
             onMouseDown={() => setOpenDropdown((v) => (v === 'type' ? 'none' : 'type'))}
-            className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 px-2`}
+            className="px-2"
           >
-            {(() => { const Icon = currentBlockTypeMeta(view).icon; return <Icon size={14} /> })()}
             <ChevronDown size={10} />
-          </button>
+          </Button>
         </HintTooltip>
 
         {/* Thread — its own standalone button, not a "Text type" dropdown entry (same
             reasoning as the persistent Toolbar.tsx's identical button). */}
-        <HintTooltip label="Thread" side="top">
-          <button onMouseDown={() => cmds.wrapInThread()} className={cls(false)}><ThreadIcon size={14} /></button>
-        </HintTooltip>
+        <IconButton icon={ThreadIcon} label="Thread" size={24} tooltip={{ side: 'top' }} onMouseDown={() => cmds.wrapInThread()} />
         {sep}
 
         {/* Inline marks */}
-        <HintTooltip label="Bold" shortcut="⌘B" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.strong))} className={cls(isMarkActive('strong'))}><Bold size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Italic" shortcut="⌘I" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.em))} className={cls(isMarkActive('em'))}><Italic size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Underline" shortcut="⌘U" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.underline))} className={cls(isMarkActive('underline'))}><Underline size={14} /></button>
-        </HintTooltip>
+        <IconButton icon={Bold} label="Bold" size={24} tooltip={{ shortcut: '⌘B', side: 'top' }} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
+        <IconButton icon={Italic} label="Italic" size={24} tooltip={{ shortcut: '⌘I', side: 'top' }} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
+        <IconButton icon={Underline} label="Underline" size={24} tooltip={{ shortcut: '⌘U', side: 'top' }} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
         {/* Label-only — strikethrough has no keymap.ts binding, unlike the marks around it. */}
-        <HintTooltip label="Strikethrough" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.strike))} className={cls(isMarkActive('strike'))}><Strikethrough size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Code" shortcut="⌘`" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.code))} className={cls(isMarkActive('code'))}><Code size={14} /></button>
-        </HintTooltip>
+        <IconButton icon={Strikethrough} label="Strikethrough" size={24} tooltip={{ side: 'top' }} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
+        <IconButton icon={Code} label="Code" size={24} tooltip={{ shortcut: '⌘`', side: 'top' }} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
 
         {/* Highlight */}
-        <HintTooltip label="Highlight" shortcut="⌘⇧H" side="top">
-          <button
-            onMouseDown={() => setOpenDropdown((v) => (v === 'highlight' ? 'none' : 'highlight'))}
-            className={cls(openDropdown === 'highlight' || isMarkActive('highlight'))}
-          >
-            <Highlighter size={14} />
-          </button>
-        </HintTooltip>
+        <IconButton
+          icon={Highlighter}
+          label="Highlight"
+          size={24}
+          tooltip={{ shortcut: '⌘⇧H', side: 'top' }}
+          active={openDropdown === 'highlight' || isMarkActive('highlight')}
+          onMouseDown={() => setOpenDropdown((v) => (v === 'highlight' ? 'none' : 'highlight'))}
+        />
 
         {sep}
-        <HintTooltip label="Link" side="top">
-          <button
-            onMouseDown={() => { if (openDropdown === 'link') setOpenDropdown('none'); else openLinkPopover() }}
-            className={cls(openDropdown === 'link' || isMarkActive('link'))}
-          >
-            <Link2 size={14} />
-          </button>
-        </HintTooltip>
+        <IconButton
+          icon={Link2}
+          label="Link"
+          size={24}
+          tooltip={{ side: 'top' }}
+          active={openDropdown === 'link' || isMarkActive('link')}
+          onMouseDown={() => { if (openDropdown === 'link') setOpenDropdown('none'); else openLinkPopover() }}
+        />
         {sep}
 
         {/* Lists */}
-        <HintTooltip label="List type" side="top">
-          <button
-            onMouseDown={() => setOpenDropdown((v) => (v === 'list' ? 'none' : 'list'))}
-            className={`${iconBtn} ${openDropdown === 'list' ? active : inactive}`}
-          >
-            <List size={14} />
-          </button>
-        </HintTooltip>
-        <HintTooltip label="Blockquote" side="top">
-          <button
-            onMouseDown={cmds.toggleBlockquote}
-            className={cls(false)}
-          >
-            <Quote size={14} />
-          </button>
-        </HintTooltip>
-        <HintTooltip label="Outdent" shortcut="⇧Tab" side="top">
-          <button onMouseDown={cmds.outdent} className={cls(false)}><IndentDecrease size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Indent" shortcut="Tab" side="top">
-          <button
-            onMouseDown={cmds.indent}
-            className={cls(false)}
-          >
-            <IndentIncrease size={14} />
-          </button>
-        </HintTooltip>
+        <IconButton icon={List} label="List type" size={24} tooltip={{ side: 'top' }} active={openDropdown === 'list'} onMouseDown={() => setOpenDropdown((v) => (v === 'list' ? 'none' : 'list'))} />
+        <IconButton icon={Quote} label="Blockquote" size={24} tooltip={{ side: 'top' }} onMouseDown={cmds.toggleBlockquote} />
+        <IconButton icon={IndentDecrease} label="Outdent" size={24} tooltip={{ shortcut: '⇧Tab', side: 'top' }} onMouseDown={cmds.outdent} />
+        <IconButton icon={IndentIncrease} label="Indent" size={24} tooltip={{ shortcut: 'Tab', side: 'top' }} onMouseDown={cmds.indent} />
 
         {sep}
-        <HintTooltip label="Suppress auto-detected refs" shortcut="⌘⇧R" side="top">
-          <button onMouseDown={() => run(toggleSuppressCommand)} className={cls(false)}><Link2Off size={14} /></button>
-        </HintTooltip>
+        <IconButton icon={Link2Off} label="Suppress auto-detected refs" size={24} tooltip={{ shortcut: '⌘⇧R', side: 'top' }} onMouseDown={() => run(toggleSuppressCommand)} />
 
         {/* ── Dropdowns: anchored popovers, layered over the toolbar rather
              than replacing its row — this is the "fluid" part: the main
@@ -272,39 +237,29 @@ export default function SelectionToolbar({
             {/* Icons + labels come from the shared block-type config rather than the
                 plain-text "H1".."H6" labels this used to duplicate independently of
                 Toolbar.tsx's own identical array. */}
-            {TEXT_TYPE_LEVELS.map(({ level, meta }) => {
-              const Icon = meta.icon
-              return (
-                <button
-                  key={level}
-                  title={meta.label}
-                  onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
-                  className={`${iconBtn} ${inactive} px-2 py-1`}
-                >
-                  <Icon size={14} />
-                </button>
-              )
-            })}
-            <div className="w-px h-4 mx-0.5 bg-surface-4" />
+            {TEXT_TYPE_LEVELS.map(({ level, meta }) => (
+              <IconButton
+                key={level}
+                icon={meta.icon}
+                label={meta.label}
+                size={24}
+                onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
+              />
+            ))}
+            <Divider orientation="vertical" className="mx-0.5" />
             {/* Wraps the selected text's containing block(s) in a new thread — same
                 editorCommands.ts wrapInThread() the persistent Toolbar's own "Thread" option
                 uses. */}
-            <button
-              title="Thread"
-              onMouseDown={() => { cmds.wrapInThread(); setOpenDropdown('none') }}
-              className={`${iconBtn} ${inactive} px-2 py-1`}
-            >
-              <ThreadIcon size={14} />
-            </button>
+            <IconButton icon={ThreadIcon} label="Thread" size={24} onMouseDown={() => { cmds.wrapInThread(); setOpenDropdown('none') }} />
           </div>
         )}
 
         {openDropdown === 'list' && (
           <div className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-1 flex items-center gap-0.5">
-            <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
+            <IconButton icon={List} label="Bullet list" size={24} onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
             <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
-            <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
-            <button title="Task list" onMouseDown={toggleTaskList} className={`${iconBtn} ${inactive}`}><CheckSquare size={14} /></button>
+            <IconButton icon={ListOrdered} label="Numbered list" size={24} onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
+            <IconButton icon={CheckSquare} label="Task list" size={24} onMouseDown={toggleTaskList} />
           </div>
         )}
 
@@ -321,12 +276,7 @@ export default function SelectionToolbar({
                 />
               ))}
             </div>
-            <button
-              onMouseDown={removeHighlight}
-              className="w-full flex items-center justify-center gap-1.5 text-caption py-1 rounded-md cursor-pointer text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
-            >
-              <Ban size={11} /> Remove highlight
-            </button>
+            <MenuItem icon={Ban} label="Remove highlight" onMouseDown={removeHighlight} />
           </div>
         )}
 
@@ -335,9 +285,9 @@ export default function SelectionToolbar({
             className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-1.5 flex items-center gap-1 w-[240px]"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <input
+            <TextField
               ref={linkInputRef}
-              type="text"
+              size="sm"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               onKeyDown={(e) => {
@@ -345,14 +295,9 @@ export default function SelectionToolbar({
                 else if (e.key === 'Escape') setOpenDropdown('none')
               }}
               placeholder="https://…"
-              className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-surface-1 border border-separator text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+              wrapperClassName="flex-1 min-w-0"
             />
-            <button
-              onMouseDown={submitLink}
-              className={`${iconBtn} ${inactive} text-xs px-2 py-1`}
-            >
-              Apply
-            </button>
+            <Button variant="ghost" size="sm" onMouseDown={submitLink}>Apply</Button>
           </div>
         )}
       </div>

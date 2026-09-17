@@ -743,19 +743,19 @@ export default function TasksPanel() {
   // ── Minimized chip ─────────────────────────────────────────────────────────
   if (tasksMinimized) {
     return createPortal(
-      <div className="fixed right-5 z-[9999]" style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}>
+      <div className="fixed right-5 z-overlay" style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}>
         <button
           onClick={unminimizeTasks}
-          className="flex items-center gap-2 px-3 py-2 rounded-full bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-lg hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-3 py-2 rounded-full bg-surface-2 border border-border shadow-lg hover:bg-surface-hover transition-colors cursor-pointer"
         >
           {allDone
-            ? <Sparkles size={13} className="text-[rgb(var(--color-accent))]" />
-            : <CheckCircle2 size={13} className="text-[rgb(var(--color-accent))]" />
+            ? <Sparkles size={13} className="text-accent" />
+            : <CheckCircle2 size={13} className="text-accent" />
           }
-          <span className="text-xs font-medium text-[rgb(var(--color-text-primary))]">
+          <span className="text-xs font-medium text-text-primary">
             {allDone ? 'Getting Started — all done!' : `Getting Started · ${doneCount}/${TOTAL}`}
           </span>
-          <ChevronRight size={12} className="text-[rgb(var(--color-text-muted))] -rotate-90" />
+          <ChevronRight size={12} className="text-text-muted -rotate-90" />
         </button>
       </div>,
       document.body,
@@ -765,44 +765,44 @@ export default function TasksPanel() {
   // ── Expanded panel ─────────────────────────────────────────────────────────
   return createPortal(
     <div
-      className="fixed right-5 z-[9999] w-[360px] flex flex-col rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl overflow-hidden"
+      className="fixed right-5 z-overlay w-[360px] flex flex-col material-popover rounded-menu overflow-hidden"
       style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-separator flex-shrink-0">
         <div className="flex items-center gap-2">
           {allDone
-            ? <Sparkles size={14} className="text-[rgb(var(--color-accent))]" />
-            : <CheckCircle2 size={14} className="text-[rgb(var(--color-accent))]" />
+            ? <Sparkles size={14} className="text-accent" />
+            : <CheckCircle2 size={14} className="text-accent" />
           }
-          <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Getting Started</span>
-          <span className="text-xs text-[rgb(var(--color-text-muted))]">{doneCount}/{TOTAL}</span>
+          <span className="text-sm font-semibold text-text-primary">Getting Started</span>
+          <span className="text-xs text-text-muted">{doneCount}/{TOTAL}</span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={minimizeTasks} title="Minimize"
-            className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+            className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer">
             <ChevronDown size={13} />
           </button>
           <button onClick={closeTasks} title="Dismiss"
-            className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+            className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer">
             <X size={13} />
           </button>
         </div>
       </div>
 
       {/* Global progress bar */}
-      <div className="h-0.5 bg-[rgb(var(--color-surface-4))] flex-shrink-0">
-        <div className="h-full bg-[rgb(var(--color-accent))] transition-all duration-500"
+      <div className="h-0.5 bg-surface-4 flex-shrink-0">
+        <div className="h-full bg-accent transition-all duration-500"
           style={{ width: `${(doneCount / TOTAL) * 100}%` }} />
       </div>
 
       {/* All-done banner */}
       {allDone && (
-        <div className="px-4 py-3 bg-[rgb(var(--color-accent))/8] border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-          <p className="text-xs text-[rgb(var(--color-accent))] font-medium">
+        <div className="px-4 py-3 bg-accent/8 border-b border-separator flex-shrink-0">
+          <p className="text-xs text-accent font-medium">
             You've explored every feature — you know Berean well!
           </p>
-          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5">
+          <p className="text-caption2 text-text-muted mt-0.5">
             Reset anytime via Settings → About → Replay walkthrough.
           </p>
         </div>
@@ -810,7 +810,7 @@ export default function TasksPanel() {
 
       {/* Scrollable body — stopPropagation on wheel prevents Radix Dialog from swallowing scroll events */}
       <div
-        className="overflow-y-scroll"
+        className="overflow-y-auto"
         style={{ maxHeight: '480px', transform: 'translateZ(0)', contain: 'paint' }}
         onWheel={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
@@ -821,21 +821,21 @@ export default function TasksPanel() {
           const allSectionDone = sectionDone === sectionTotal
 
           return (
-            <div key={section.id} className={sIdx > 0 ? 'border-t border-[rgb(var(--color-surface-4))]' : ''}>
+            <div key={section.id} className={sIdx > 0 ? 'border-t border-separator' : ''}>
               {/* Section header */}
               <div className="px-4 pt-3 pb-2">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+                    <span className="text-micro font-bold uppercase tracking-widest text-text-muted">
                       {section.label}
                     </span>
                     {allSectionDone && (
-                      <CheckCircle2 size={10} className="text-[rgb(var(--color-accent))] opacity-80" />
+                      <CheckCircle2 size={10} className="text-accent opacity-80" />
                     )}
                   </div>
-                  <span className="text-[9px] text-[rgb(var(--color-text-muted))]">{sectionDone}/{sectionTotal}</span>
+                  <span className="text-micro text-text-muted">{sectionDone}/{sectionTotal}</span>
                 </div>
-                <div className="h-0.5 rounded-full bg-[rgb(var(--color-surface-4))] overflow-hidden">
+                <div className="h-0.5 rounded-full bg-surface-4 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
@@ -863,17 +863,17 @@ export default function TasksPanel() {
                           done
                             ? 'opacity-40 cursor-pointer'
                             : isExpanded
-                            ? 'bg-[rgb(var(--color-surface-3))] cursor-pointer'
-                            : 'hover:bg-[rgb(var(--color-surface-3))] cursor-pointer'
+                            ? 'bg-surface-3 cursor-pointer'
+                            : 'hover:bg-surface-hover cursor-pointer'
                         }`}
                       >
-                        <div className={`mt-px flex-shrink-0 ${done || isExpanded ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
+                        <div className={`mt-px flex-shrink-0 ${done || isExpanded ? 'text-accent' : 'text-text-muted'}`}>
                           {done ? <CheckCircle2 size={13} /> : <Icon size={13} />}
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-xs font-medium leading-snug ${done ? 'line-through text-[rgb(var(--color-text-muted))]' : 'text-[rgb(var(--color-text-primary))]'}`}>
+                            <span className={`text-xs font-medium leading-snug ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
                               {task.title}
                             </span>
                             {task.shortcut && !done && (
@@ -882,16 +882,16 @@ export default function TasksPanel() {
                           </div>
                           {!done && (
                             <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-[10px] text-[rgb(var(--color-text-muted))] leading-relaxed flex-1">
+                              <p className="text-caption2 text-text-muted leading-relaxed flex-1">
                                 {task.subtitle}
                               </p>
                               {stepsTotal > 0 && (
-                                <span className={`flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                                <span className={`flex-shrink-0 text-micro font-medium px-1.5 py-0.5 rounded-full ${
                                   stepsDone === stepsTotal
-                                    ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                                    ? 'bg-accent/15 text-accent'
                                     : stepsDone > 0
-                                    ? 'bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                                    : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))]'
+                                    ? 'bg-accent/10 text-accent'
+                                    : 'bg-surface-4 text-text-muted'
                                 }`}>
                                   {stepsDone}/{stepsTotal}
                                 </span>
@@ -900,12 +900,12 @@ export default function TasksPanel() {
                           )}
                         </div>
 
-                        <ChevronRight size={11} className={`flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))] transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        <ChevronRight size={11} className={`flex-shrink-0 mt-0.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       </button>
 
                       {/* Expanded checklist */}
                       {isExpanded && (
-                        <div className="mx-1 mb-1 px-3 py-3 rounded-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]">
+                        <div className="mx-1 mb-1 px-3 py-3 rounded-lg bg-surface-1 border border-border">
                           <ol className="space-y-3 mb-3">
                             {task.steps.map((step, i) => {
                               const key      = `${task.id}:${step.id}`
@@ -922,30 +922,30 @@ export default function TasksPanel() {
                                   <div className="flex-shrink-0 mt-0.5">
                                     {isDetectable ? (
                                       stepDone
-                                        ? <CheckCircle2 size={13} className="text-[rgb(var(--color-accent))]" />
-                                        : <Circle size={13} className={isNext ? 'text-[rgb(var(--color-accent))] opacity-70' : 'text-[rgb(var(--color-text-muted))] opacity-40'} />
+                                        ? <CheckCircle2 size={13} className="text-accent" />
+                                        : <Circle size={13} className={isNext ? 'text-accent opacity-70' : 'text-text-muted opacity-40'} />
                                     ) : (
                                       <span className="w-[13px] flex items-center justify-center mt-px">
-                                        <span className="w-1 h-1 rounded-full bg-[rgb(var(--color-text-muted))] opacity-40 inline-block" />
+                                        <span className="w-1 h-1 rounded-full bg-text-muted opacity-40 inline-block" />
                                       </span>
                                     )}
                                   </div>
 
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-baseline gap-1.5">
-                                      <span className="text-[9px] text-[rgb(var(--color-text-muted))] font-mono flex-shrink-0 opacity-60">{i + 1}.</span>
-                                      <span className={`text-[11px] leading-snug ${
+                                      <span className="text-micro text-text-muted font-mono flex-shrink-0 opacity-60">{i + 1}.</span>
+                                      <span className={`text-caption leading-snug ${
                                         stepDone
-                                          ? 'line-through text-[rgb(var(--color-text-muted))]'
+                                          ? 'line-through text-text-muted'
                                           : isNext
-                                          ? 'text-[rgb(var(--color-text-primary))] font-medium'
-                                          : 'text-[rgb(var(--color-text-secondary))]'
+                                          ? 'text-text-primary font-medium'
+                                          : 'text-text-secondary'
                                       }`}>
                                         {step.text}
                                       </span>
                                     </div>
                                     {step.hint && !stepDone && (
-                                      <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1 leading-relaxed pl-4">
+                                      <p className="text-caption2 text-text-muted mt-1 leading-relaxed pl-4">
                                         {step.hint}
                                       </p>
                                     )}
@@ -956,15 +956,15 @@ export default function TasksPanel() {
                           </ol>
 
                           {task.action && task.actionLabel && !done && (
-                            <div className="flex items-center gap-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                            <div className="flex items-center gap-2 pt-2 border-t border-separator">
                               <button
                                 onClick={() => { task.action!(); setExpandedId(null) }}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-card text-caption2 font-semibold bg-accent text-white hover:opacity-90 transition-opacity cursor-pointer"
                               >
                                 {task.actionLabel}
                                 <ArrowRight size={10} />
                               </button>
-                              <p className="text-[9px] text-[rgb(var(--color-text-muted))] italic leading-snug flex-1">
+                              <p className="text-micro text-text-muted italic leading-snug flex-1">
                                 Steps complete automatically as you do them.
                               </p>
                             </div>
@@ -982,11 +982,11 @@ export default function TasksPanel() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">Replay via Settings → About</p>
+      <div className="flex items-center justify-between px-4 py-2.5 border-t border-separator flex-shrink-0">
+        <p className="text-caption2 text-text-muted">Replay via Settings → About</p>
         <button
           onClick={closeTasks}
-          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          className="text-caption2 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
         >
           Dismiss
         </button>

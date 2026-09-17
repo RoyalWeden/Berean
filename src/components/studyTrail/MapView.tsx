@@ -515,8 +515,8 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             onClick={() => onOpenPrompt(conn)}
             title="Why did you jump here?"
             style={{
-              fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)',
-              border: '1px solid rgba(224,132,104,0.4)', borderRadius: 999, width: 15, height: 15,
+              fontSize: 10, fontWeight: 700, color: 'rgb(var(--trail-warm))', background: 'rgb(var(--trail-warm) / 0.14)',
+              border: '1px solid rgb(var(--trail-warm) / 0.4)', borderRadius: 999, width: 15, height: 15,
               lineHeight: '13px', cursor: 'pointer', flexShrink: 0,
             }}
           >?</button>
@@ -2321,10 +2321,10 @@ export default function MapView({
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
             <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (
-          <div style={{ fontSize: 11, color: '#e08468', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: 'rgb(var(--trail-warm))', marginBottom: 10 }}>
             {needsInputCount} connection{needsInputCount === 1 ? '' : 's'} could use a reason — click a <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13,
-              borderRadius: 999, background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', fontSize: 9, fontWeight: 700,
+              borderRadius: 999, background: 'rgb(var(--trail-warm) / 0.14)', border: '1px solid rgb(var(--trail-warm) / 0.4)', fontSize: 9, fontWeight: 700,
             }}>?</span> below (never required — dismiss any of them any time).
           </div>
         )}
@@ -2532,13 +2532,12 @@ export default function MapView({
           return (
             <>
               {railState && (
-                <div style={{
+                <div className="material-control" style={{
                   position: 'fixed', left: scrollRect.left + 10,
                   top: scrollRect.top + RAIL_TOP + railState.progress * RAIL_SLIDE_RANGE,
-                  zIndex: 30, pointerEvents: 'none',
+                  zIndex: 'var(--z-raised)' as unknown as number, pointerEvents: 'none',
                   fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))',
-                  background: 'rgb(var(--color-surface-1) / 0.85)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-                  border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 6, padding: '3px 7px',
+                  padding: '3px 7px',
                   opacity: timeRailOpacity,
                   transition: 'top 220ms ease, opacity 120ms ease',
                 }}>
@@ -2629,7 +2628,7 @@ export default function MapView({
               className="trail-ctx-btn"
               disabled={busySelection}
               onClick={deleteSelection}
-              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: '#e08468', cursor: 'pointer' }}
+              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: 'rgb(var(--trail-warm))', cursor: 'pointer' }}
             >Delete</button>
             <button
               className="trail-ctx-btn"

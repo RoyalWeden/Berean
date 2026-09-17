@@ -3,6 +3,7 @@ import { BookOpen, Hash, NotepadText, GitBranch, Layers } from 'lucide-react'
 import type { TrailSearchHit } from '@/types/studyTrail'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { navigateTrailRef, type TrailRef } from './trailNav'
+import { SearchField, Select } from '@/components/ui'
 
 // SEARCH — the Study Trail window's third tab. Per direct feedback, alongside the Threads tab
 // "there still should be a way to search all study trail notes and such by having an additional
@@ -111,15 +112,12 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid rgb(var(--color-surface-4))' }}>
-        <input
+        <SearchField
           ref={inputRef}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onValueChange={setQuery}
           placeholder="Search every stop, jump, note and session…"
-          style={{
-            width: '100%', fontSize: 13, padding: '7px 11px', background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, color: 'rgb(var(--color-text-primary))',
-          }}
+          wrapperClassName="w-full"
         />
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {KINDS.map((k) => (
@@ -135,16 +133,12 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
             >{k.label}</button>
           ))}
           <span style={{ flex: 1 }} />
-          <select
+          <Select
             value={range}
-            onChange={(e) => setRange(e.target.value)}
-            style={{
-              fontSize: 11, padding: '3px 6px', borderRadius: 7, background: 'rgb(var(--color-surface-2))',
-              border: '1px solid rgb(var(--color-surface-4))', color: 'rgb(var(--color-text-secondary))',
-            }}
-          >
-            {RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-          </select>
+            onChange={setRange}
+            options={RANGES.map((r) => ({ value: r.id, label: r.label }))}
+            aria-label="Date range"
+          />
         </div>
       </div>
 

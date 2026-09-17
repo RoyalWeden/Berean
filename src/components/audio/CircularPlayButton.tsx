@@ -28,7 +28,7 @@ export default function CircularPlayButton({ fraction, isPaused, finished, onTog
   return (
     <button
       onClick={onToggle}
-      className="relative flex items-center justify-center rounded-full bg-[rgb(var(--color-accent))] text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm"
+      className="relative flex items-center justify-center rounded-full bg-accent text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm"
       style={{ width: SIZE, height: SIZE }}
       title={finished ? 'Finished' : isPaused ? 'Resume' : 'Pause'}
     >

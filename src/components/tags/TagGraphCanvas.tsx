@@ -205,7 +205,7 @@ export default function TagGraphCanvas(props: Props) {
   return (
     <div
       ref={scrollRef}
-      className="absolute inset-0 overflow-hidden bg-[rgb(var(--color-surface-1))] cursor-grab active:cursor-grabbing"
+      className="absolute inset-0 overflow-hidden bg-surface-1 cursor-grab active:cursor-grabbing"
       onPointerDown={onBgPointerDown}
       onPointerMove={onBgPointerMove}
       onPointerUp={onBgPointerUp}
@@ -332,7 +332,7 @@ export default function TagGraphCanvas(props: Props) {
             >
               {showLabels && (
                 <span
-                  className="absolute whitespace-nowrap text-xs font-medium text-[rgb(var(--color-text-primary))]"
+                  className="absolute whitespace-nowrap text-xs font-medium text-text-primary"
                   style={{ top: '100%', marginTop: 3, textShadow: '0 1px 2px rgb(var(--color-surface-1)), 0 0 4px rgb(var(--color-surface-1))' }}
                 >
                   {tag.name}
@@ -344,7 +344,7 @@ export default function TagGraphCanvas(props: Props) {
       </div>
 
       {hoverEdge && createPortal(
-        <div className="fixed z-[160] pointer-events-none px-2.5 py-1.5 rounded-shell glass-panel text-xs max-w-[240px] text-[rgb(var(--color-text-primary))]"
+        <div className="fixed z-popover pointer-events-none px-2.5 py-1.5 material-popover rounded-menu text-xs max-w-[240px] text-text-primary"
           style={{ left: hoverEdge.x + 12, top: hoverEdge.y + 12 }}>
           {hoverEdge.note}
         </div>,

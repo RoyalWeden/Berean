@@ -6,8 +6,9 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FileText, Upload, Trash2, Search, X } from 'lucide-react'
+import { FileText, Upload, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { SearchField, MenuItem, IconButton } from '@/components/ui'
 import type { PdfDoc } from '@/types'
 
 interface Props {
@@ -69,42 +70,36 @@ export default function PdfPicker({ anchor, onClose }: Props) {
   const top = anchor.y
 
   return createPortal(
-    <div ref={ref} className="fixed z-[9999] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+    <div ref={ref} className="fixed z-popover material-popover rounded-menu overflow-hidden flex flex-col"
       style={{ left, top, width: W, maxHeight: '60vh' }}>
-      {/* Search + import */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
-        <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <input autoFocus value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter PDFs…"
-          className="flex-1 bg-transparent text-sm outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-0" />
-        {filter && <button onClick={() => setFilter('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><X size={12} /></button>}
+      {/* Search */}
+      <div className="px-2 pt-2 pb-1.5">
+        <SearchField value={filter} onValueChange={setFilter} placeholder="Filter PDFs…" autoFocus />
       </div>
 
-      <button onClick={handleImport} disabled={importing}
-        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] border-b border-[rgb(var(--color-surface-4))] cursor-pointer disabled:opacity-50">
-        <Upload size={13} /> {importing ? 'Importing…' : 'Import a PDF…'}
-      </button>
+      <div className="px-1 pb-1 border-b border-separator">
+        <MenuItem icon={Upload} label={importing ? 'Importing…' : 'Import a PDF…'} onClick={handleImport} disabled={importing} className="text-accent" />
+      </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-1">
         {filtered.length === 0 && (
-          <div className="px-3 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">
+          <div className="px-3 py-6 text-center text-caption2 text-text-muted">
             {pdfs.length === 0 ? 'No PDFs yet — import one above' : 'No matches'}
           </div>
         )}
         {filtered.map((p) => (
           <button key={p.id} onClick={() => { openPdf(p.id, p.title); onClose() }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left group">
-            <FileText size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+            className="group w-full flex items-center gap-2.5 px-2.5 py-2 rounded-row hover:bg-surface-hover cursor-pointer text-left">
+            <FileText size={14} className="text-text-muted flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">{p.title}</p>
-              <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+              <p className="text-footnote font-medium text-text-primary truncate">{p.title}</p>
+              <p className="text-caption2 text-text-muted">
                 {p.pageCount ? `${p.pageCount} pages · ` : ''}{(p.fileSize / 1024 / 1024).toFixed(1)} MB
               </p>
             </div>
-            <button onClick={(e) => handleDelete(e, p.id)} title="Delete"
-              className="p-1 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 transition-opacity cursor-pointer">
-              <Trash2 size={12} />
-            </button>
+            <IconButton icon={Trash2} label="Delete" size={20} danger tooltip={false}
+              className="opacity-0 group-hover:opacity-100" onClick={(e) => handleDelete(e, p.id)} />
           </button>
         ))}
       </div>

@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
 import { useSwipeDismissGesture } from '@/hooks/useSwipeDismissGesture'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { IconButton } from '@/components/ui'
 import type { TrailConnection } from '@/types/studyTrail'
 import ReasonPromptPopover, { TrailReasonFormBody } from './ReasonPromptPopover'
 
@@ -224,23 +225,19 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   return createPortal(
     <div
       ref={setRefs}
-      className="no-drag"
+      className="no-drag material-popover rounded-menu"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       style={{
-        position: 'fixed', right: rightPx, bottom: bottomPx, zIndex: modalOpen ? 40 : 200, width: PILL_WIDTH,
-        // Translucent so it reads as a transient overlay, not a solid panel — matches the app's
-        // other floating rails (FloatingHoverPanel/FloatingRail). Solid on hover/while typing.
-        background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.9)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        border: '1px solid rgb(var(--color-surface-4) / 0.7)',
-        borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', overflow: 'hidden',
+        position: 'fixed', right: rightPx, bottom: bottomPx,
+        zIndex: (modalOpen ? 'var(--z-raised)' : 'var(--z-popover)') as unknown as number,
+        width: PILL_WIDTH, overflow: 'hidden',
         opacity: swipeOpacity, transform: `translateY(${swipeTranslateY}px)`,
         // No transition while the finger is actively dragging (the hook's own per-frame ease
         // handles smoothing); restore the spring/settle transition otherwise.
         transition: (swipeActive && swiping)
           ? 'none'
-          : `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
+          : `right 160ms ease, bottom 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
       }}
     >
       {/* Collapsed CTA — hidden once expanded (hover or touched); no dismiss × here (per direct
@@ -276,15 +273,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
             <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
               {question}
             </span>
-            <button
-              className="trail-ctx-btn"
-              onClick={onClose}
-              title="Dismiss"
-              style={{
-                background: 'transparent', border: 'none', borderRadius: 6,
-                color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0,
-              }}
-            ><X size={11} /></button>
+            <IconButton icon={X} label="Dismiss" size={20} tooltip={false} onClick={onClose} className="flex-shrink-0" />
           </div>
         )}
         {/* key={local.id} — the same fix as ReasonPromptPopover's own usage in MapView.tsx: a

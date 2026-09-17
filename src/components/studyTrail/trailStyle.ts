@@ -159,5 +159,5 @@ export const CARET_COLLAPSED_ROTATE = 'rotate(-90deg)'
 export const TIER_DOT: Record<number, string | null> = {
   1: null,
   2: 'rgb(var(--color-text-muted))',
-  3: '#e08468',
+  3: 'rgb(var(--trail-warm))',
 }

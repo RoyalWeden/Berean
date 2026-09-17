@@ -193,7 +193,7 @@ export default function AudioPlayer() {
           // this is what makes the circle-to-capsule morph one coherent shape animation instead
           // of two independently-configured pieces.
           style={{ borderRadius: expanded ? 26 : 20 }}
-          className="relative flex flex-col-reverse items-stretch shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur overflow-hidden"
+          className="relative flex flex-col-reverse items-stretch material-sheet overflow-hidden"
         >
           {/* Collapsed section — first in DOM order + flex-col-reverse pins it to the card's
               visual bottom, so it never shifts as the card above it grows/shrinks. The idle
@@ -251,28 +251,28 @@ export default function AudioPlayer() {
                       right beside it instead of buried in the speed/voice row underneath. */}
                   <div className="flex items-center justify-center gap-1 pt-0.5 select-none">
                     {audioPlayback.finished ? (
-                      <CheckCircle2 size={12} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
+                      <CheckCircle2 size={12} className="text-accent flex-shrink-0" />
                     ) : (
-                      <AudioLines size={12} className={`text-[rgb(var(--color-accent))] flex-shrink-0 ${audioPlayback.isPaused ? '' : 'animate-pulse'}`} />
+                      <AudioLines size={12} className={`text-accent flex-shrink-0 ${audioPlayback.isPaused ? '' : 'animate-pulse'}`} />
                     )}
                     {showSyncRow ? (
                       <button
                         onClick={jumpToPlaying}
-                        className="flex items-center gap-1 px-1 py-0.5 -my-0.5 rounded text-[11px] font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/12] cursor-pointer transition-colors whitespace-nowrap"
+                        className="flex items-center gap-1 px-1 py-0.5 -my-0.5 rounded-card text-caption font-medium text-accent hover:bg-accent/12 cursor-pointer transition-colors whitespace-nowrap"
                         title="Jump to what's playing"
                       >
                         {label}
                         <ArrowDownToLine size={11} />
                       </button>
                     ) : (
-                      <span className="text-[11px] font-medium text-[rgb(var(--color-text-primary))] whitespace-nowrap">
+                      <span className="text-caption font-medium text-text-primary whitespace-nowrap">
                         {audioPlayback.finished ? 'Finished' : label}
                       </span>
                     )}
                     {showSyncRow && (
                       <button
                         onClick={playThisChapterInstead}
-                        className="flex items-center justify-center w-5 h-5 rounded-full text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors flex-shrink-0"
+                        className="flex items-center justify-center w-5 h-5 rounded-full text-text-secondary hover:bg-surface-hover hover:text-text-primary cursor-pointer transition-colors flex-shrink-0"
                         title="Read this chapter instead — retarget Read Aloud to what you're viewing"
                       >
                         <BookHeadphones size={12} />
@@ -296,7 +296,7 @@ export default function AudioPlayer() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => skipVerse('prev')}
-                        className="flex items-center justify-center w-7 h-7 rounded-full text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+                        className="flex items-center justify-center w-7 h-7 rounded-full text-text-muted hover:text-text-primary hover:bg-surface-hover cursor-pointer transition-colors"
                         title="Previous verse"
                       >
                         <SkipBack size={13} />
@@ -305,7 +305,7 @@ export default function AudioPlayer() {
 
                     <button
                       onClick={togglePlayPause}
-                      className="flex items-center justify-center w-8 h-8 mx-1.5 rounded-full bg-[rgb(var(--color-accent))] text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                      className="flex items-center justify-center w-8 h-8 mx-1.5 rounded-full bg-accent text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm"
                       title={audioPlayback.isPaused ? 'Resume' : 'Pause'}
                     >
                       {audioPlayback.isPaused ? <Play size={14} className="translate-x-[1px]" /> : <Pause size={14} />}
@@ -314,7 +314,7 @@ export default function AudioPlayer() {
                     <div className="flex items-center justify-start gap-1">
                       <button
                         onClick={() => skipVerse('next')}
-                        className="flex items-center justify-center w-7 h-7 rounded-full text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+                        className="flex items-center justify-center w-7 h-7 rounded-full text-text-muted hover:text-text-primary hover:bg-surface-hover cursor-pointer transition-colors"
                         title="Next verse"
                       >
                         <SkipForward size={13} />
@@ -324,12 +324,12 @@ export default function AudioPlayer() {
                           "close this player," freeing this spot for the queue button. */}
                       <button
                         onClick={() => setQueuePopoverOpen(!queuePopoverOpen)}
-                        className={`relative flex items-center justify-center w-7 h-7 rounded-full cursor-pointer transition-colors ${queuePopoverOpen ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/12] hover:bg-[rgb(var(--color-accent))/20]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
+                        className={`relative flex items-center justify-center w-7 h-7 rounded-full cursor-pointer transition-colors ${queuePopoverOpen ? 'text-accent bg-accent/12 hover:bg-accent/20' : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'}`}
                         title="Playlist queue"
                       >
                         <ListMusic size={13} />
                         {playbackQueue.length > 0 && (
-                          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[rgb(var(--color-accent))] text-white text-[8px] font-medium leading-3 text-center">
+                          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-accent text-white text-micro font-medium leading-3 text-center">
                             {playbackQueue.length}
                           </span>
                         )}
@@ -370,16 +370,16 @@ export default function AudioPlayer() {
                     cramped to comfortably drag at w-11's 44px; the 0.25 step across a 0.25-3
                     range now has real room per notch instead of being squeezed into a couple
                     dozen pixels total. */}
-                <div className="w-[300px] px-2.5 py-2 flex items-center gap-1.5 border-b border-[rgb(var(--color-surface-3))]">
-                  <Gauge size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                <div className="w-[300px] px-2.5 py-2 flex items-center gap-1.5 border-b border-separator">
+                  <Gauge size={12} className="text-text-muted flex-shrink-0" />
                   <input
                     type="range" min={0.25} max={3} step={0.25}
                     value={ttsRate}
                     onChange={(e) => setTTSRate(parseFloat(e.target.value))}
                     title={`${ttsRate.toFixed(2)}x`}
-                    className="w-28 accent-[rgb(var(--color-accent))] flex-shrink-0"
+                    className="w-28 accent-accent flex-shrink-0"
                   />
-                  <span className="text-[10px] font-medium text-[rgb(var(--color-text-secondary))] w-7 flex-shrink-0 tabular-nums">{ttsRate.toFixed(2)}x</span>
+                  <span className="text-caption2 font-medium text-text-secondary w-7 flex-shrink-0 tabular-nums">{ttsRate.toFixed(2)}x</span>
 
                   {voices.length > 0 && (
                     // No auto-preview here (unlike Settings → Audio) — this picker can be used
@@ -401,7 +401,7 @@ export default function AudioPlayer() {
           {expanded && (
             <button
               onClick={stopPlayback}
-              className="absolute top-1.5 right-1.5 z-10 flex items-center justify-center w-6 h-6 rounded-full text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+              className="absolute top-1.5 right-1.5 z-raised flex items-center justify-center w-6 h-6 rounded-full text-text-muted hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
               title="Stop"
             >
               <X size={14} />

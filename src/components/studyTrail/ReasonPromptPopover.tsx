@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
 import { formatVerseTieReference, parseVerseTieReferenceToNumbers } from '@/lib/verseRangeFormat'
 import TrailPopoverShell from './TrailPopoverShell'
+import { Button, IconButton } from '@/components/ui'
 import type { TrailConnection } from '@/types/studyTrail'
 
 // The unified reason/note popover — ONE place a note lives for ANY connection, any clarity
@@ -208,30 +209,21 @@ export function TrailReasonFormBody({
         onBlur={() => setNoteFocused(false)}
         placeholder="Add a note (optional)"
         rows={autoSave ? 3 : 2}
+        className={`w-full rounded-card bg-surface-4/40 border border-transparent hover:bg-surface-4/55 focus:bg-surface-1 focus:border-border text-text-primary placeholder:text-text-muted outline-none transition-[background-color,border-color,box-shadow] duration-base ease-mac ${noteFocused ? 'shadow-focus' : ''}`}
         style={{
-          width: '100%', background: 'rgb(var(--color-surface-2))',
-          border: `1px solid ${noteFocused ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
-          borderRadius: 9, padding: '8px 10px', color: 'rgb(var(--color-text-primary))', fontSize: 12,
+          padding: '8px 10px', fontSize: 12,
           resize: 'none', fontFamily: 'inherit', marginBottom: 14, lineHeight: 1.5,
-          boxShadow: noteFocused ? '0 0 0 3px rgb(var(--color-accent) / 0.15)' : 'none',
-          transition: 'border-color 120ms ease, box-shadow 120ms ease', outline: 'none',
         }}
       />
 
       <div style={{ marginBottom: 4 }}>
-        <button
-          className="trail-ctx-btn"
+        <Button
+          variant="ghost" size="sm" icon={MapPin} selected disabled={!pickerAvailable}
           onClick={openPicker}
-          disabled={!pickerAvailable}
           title={pickerAvailable ? 'Pick which verses this connection ties together' : 'Verse ties need both a known origin and destination chapter'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600,
-            color: pickerAvailable ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
-            background: pickerAvailable ? 'rgb(var(--color-accent) / 0.1)' : 'rgb(var(--color-surface-2))',
-            border: 'none', borderRadius: 999, cursor: pickerAvailable ? 'pointer' : 'default',
-            padding: '5px 10px', opacity: pickerAvailable ? 1 : 0.6,
-          }}
-        ><MapPin size={12} /> {tieFrom || tieTo ? 'Edit verse ties' : 'Pick verses'}</button>
+        >
+          {tieFrom || tieTo ? 'Edit verse ties' : 'Pick verses'}
+        </Button>
         {(tieFrom || tieTo) && (
           <div style={{ fontSize: 10.5, marginTop: 6, color: 'rgb(var(--color-text-muted))', lineHeight: 1.6 }}>
             {tieFrom && <div><span style={{ fontWeight: 700 }}>From:</span> {tieFrom}</div>}
@@ -242,23 +234,14 @@ export function TrailReasonFormBody({
 
       {!autoSave && (
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
-          <button
-            className="trail-ctx-btn"
-            onClick={deleteNote} title="Delete your note"
-            style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '5px 8px', color: '#e08468', cursor: 'pointer' }}
-          ><Trash2 size={12} /></button>
+          <IconButton
+            icon={Trash2} label="Delete your note" size={24} tooltip={false}
+            className="text-trail-warm hover:bg-trail-warm/10 border border-border"
+            onClick={deleteNote}
+          />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="trail-ctx-btn"
-              onClick={notNow}
-              style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', borderRadius: 7, padding: '3px 6px', cursor: 'pointer' }}
-            >Not now</button>
-            <button
-              className="trail-btn-accent"
-              onClick={save}
-              disabled={saving}
-              style={{ fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
-            >Save</button>
+            <Button variant="ghost" size="sm" onClick={notNow}>Not now</Button>
+            <Button variant="primary" size="sm" loading={saving} onClick={save}>Save</Button>
           </div>
         </div>
       )}
@@ -309,7 +292,7 @@ export default function ReasonPromptPopover({
   function onDragEnd() { dragRef.current = null }
 
   return createPortal(
-    <div ref={cardRef} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: modalOpen ? 40 : 100 }}>
+    <div ref={cardRef} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: (modalOpen ? 'var(--z-raised)' : 'var(--z-popover)') as unknown as number }}>
       <TrailPopoverShell
         title={title ?? 'Why did you jump here?'}
         onClose={onClose}

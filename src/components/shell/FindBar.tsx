@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { X, ChevronUp, ChevronDown, Search } from 'lucide-react'
+import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { TextField, IconButton, SegmentedControl } from '@/components/ui'
 
 type WordMode = 'phrase' | 'all' | 'any'
 
@@ -100,17 +101,17 @@ export default function FindBar({
 
   return (
     <div
-      className="glass-panel fixed z-[200] rounded-shell-lg overflow-hidden transition-[right] duration-150 animate-fade-in-drop"
+      className="material-popover fixed z-overlay rounded-menu overflow-hidden transition-[right] duration-150 animate-fade-in-drop"
       style={{ top: 50, right: rightOffset, width: 360 }}
       onMouseDown={(e) => e.stopPropagation()}
       onMouseEnter={pauseAutoDismiss}
       onMouseLeave={resetAutoDismiss}
     >
       <div className="flex items-center gap-1.5 px-3 py-2">
-        <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <input
+        <TextField
           ref={inputRef}
-          type="text"
+          size="sm"
+          bare
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={(e) => {
@@ -121,14 +122,13 @@ export default function FindBar({
           onFocus={resetAutoDismiss}
           placeholder={placeholder}
           spellCheck={false}
-          className={`flex-1 bg-transparent text-sm outline-none min-w-0 placeholder:text-[rgb(var(--color-text-muted))] ${
-            noMatch ? 'text-red-400' : 'text-[rgb(var(--color-text-primary))]'
-          }`}
+          className={noMatch ? 'text-destructive' : undefined}
+          wrapperClassName="flex-1 min-w-0"
         />
 
         {/* Match counter */}
         {hasMatches && (
-          <span className="text-[11px] text-[rgb(var(--color-text-muted))] flex-shrink-0 tabular-nums">
+          <span className="text-caption text-text-muted flex-shrink-0 tabular-nums">
             {matchCount === 0
               ? 'No matches'
               : `${(currentMatch ?? 0) + 1} / ${matchCount}`}
@@ -137,70 +137,62 @@ export default function FindBar({
 
         {/* Prev / Next arrows */}
         {onPrev && (
-          <button
+          <IconButton
+            icon={ChevronUp}
+            label="Previous match"
+            tooltip={{ shortcut: '⇧↵' }}
+            size={24}
             onClick={onPrev}
-            title="Previous match (⇧↵)"
             disabled={!hasMatches || matchCount === 0}
-            className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
-          >
-            <ChevronUp size={13} />
-          </button>
+          />
         )}
         {onNext && (
-          <button
+          <IconButton
+            icon={ChevronDown}
+            label="Next match"
+            tooltip={{ shortcut: '↵' }}
+            size={24}
             onClick={onNext}
-            title="Next match (↵)"
             disabled={!hasMatches || matchCount === 0}
-            className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
-          >
-            <ChevronDown size={13} />
-          </button>
+          />
         )}
 
         {/* Auto-open badge */}
         {autoOpen && (
-          <span className="text-[9px] text-[rgb(var(--color-text-muted))] px-1.5 py-0.5 rounded-shell bg-[rgb(var(--color-surface-4))] flex-shrink-0 uppercase tracking-wide">
+          <span className="text-micro text-text-muted px-1.5 py-0.5 rounded-chip bg-surface-4 flex-shrink-0 uppercase tracking-wide">
             auto
           </span>
         )}
 
         {/* Close */}
-        <button
-          onClick={onClose}
-          title="Close (Esc)"
-          className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-        >
-          <X size={13} />
-        </button>
+        <IconButton icon={X} label="Close" tooltip={{ shortcut: 'Esc' }} size={24} onClick={onClose} className="flex-shrink-0" />
       </div>
 
       {/* Word mode toggle row */}
       {showWordMode && (
-        <div className="px-3 py-1.5 bg-[rgb(var(--color-surface-4))/25] border-t border-[rgb(var(--color-surface-4))] flex items-center gap-1.5">
-          <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] flex-shrink-0">Match</span>
-          {(['phrase', 'all', 'any'] as WordMode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => onWordModeChange?.(m)}
-              className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
-                wordMode === m
-                  ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                  : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
-              }`}
-            >
-              {m === 'phrase' ? 'Phrase' : m === 'all' ? 'All words' : 'Any word'}
-            </button>
-          ))}
+        <div className="px-3 py-1.5 bg-surface-4/25 border-t border-separator flex items-center gap-1.5">
+          <span className="text-micro uppercase tracking-wider text-text-muted flex-shrink-0">Match</span>
+          <SegmentedControl
+            size="sm"
+            aria-label="Word match mode"
+            value={wordMode}
+            onChange={(m) => onWordModeChange?.(m)}
+            options={[
+              { value: 'phrase', label: 'Phrase' },
+              { value: 'all', label: 'All words' },
+              { value: 'any', label: 'Any word' },
+            ]}
+          />
         </div>
       )}
 
       {/* Advanced search row (scripture context only) */}
       {showAdvancedSearch && (
-        <div className="px-3 py-1.5 bg-[rgb(var(--color-surface-4))/25] border-t border-[rgb(var(--color-surface-4))] flex items-center justify-between">
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Find in page</span>
+        <div className="px-3 py-1.5 bg-surface-4/25 border-t border-separator flex items-center justify-between">
+          <span className="text-caption2 text-text-muted">Find in page</span>
           <button
             onClick={handleAdvancedSearch}
-            className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+            className="text-caption2 text-accent hover:underline cursor-pointer"
           >
             Advanced scripture search →
           </button>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
+import { RefChip } from '@/components/ui'
 import type { ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
 
 interface Props {
@@ -117,9 +118,7 @@ export default function ViewerCrossRefs({
               )}
               {g.refs.map((r, ri) => (
                 <div key={ri} style={{ marginBottom: 6, lineHeight: 1.5 }}>
-                  <span style={{ fontSize: labelFs, color: accentColor, fontWeight: 600, fontFamily: 'monospace' }}>
-                    {refLabel(r)}
-                  </span>
+                  <RefChip style={{ fontSize: labelFs }}>{refLabel(r)}</RefChip>
                   {r.text && (
                     <span style={{ fontSize: fs, color: textColor }}> — {r.text}</span>
                   )}

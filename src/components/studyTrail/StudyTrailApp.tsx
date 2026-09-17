@@ -16,6 +16,7 @@ import {
   readTrailWindowPrefs, setTrailWindowPrefs, EVERYTHING_SCROLL_KEY,
   TRAIL_ZOOM_MIN, TRAIL_ZOOM_MAX, type TrailHeaderPos,
 } from './trailWindowPrefs'
+import { IconButton } from '@/components/ui'
 
 // 'review' is gone — it was a per-session recap list that Michael said outright he wouldn't use.
 // Threads answers "what have I been chasing across sessions"; Search covers every stop, jump,
@@ -590,7 +591,7 @@ export default function StudyTrailApp() {
               className={s.status === 'live' ? 'trail-live-dot' : undefined}
               style={{
                 width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
+                background: s.status === 'live' ? 'rgb(var(--trail-cool))' : s.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-muted))',
               }}
             />
             {renamingId === s.id ? (
@@ -653,7 +654,7 @@ export default function StudyTrailApp() {
             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
               <button
                 onClick={(e) => confirmDelete(e, s.id)}
-                style={{ fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
+                style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--trail-warm))', background: 'rgb(var(--trail-warm) / 0.14)', border: '1px solid rgb(var(--trail-warm) / 0.4)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
               >Delete</button>
               <button
                 onClick={cancelDelete}
@@ -667,8 +668,8 @@ export default function StudyTrailApp() {
               onMouseLeave={() => setHoveredDeleteId((h) => h === s.id ? null : h)}
               title="Delete this session"
               style={{
-                fontSize: 13, lineHeight: 1, color: isXHovered ? '#e08468' : 'rgb(var(--color-text-muted))',
-                background: isXHovered ? 'rgba(224,132,104,0.14)' : 'transparent', borderRadius: 5,
+                fontSize: 13, lineHeight: 1, color: isXHovered ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-muted))',
+                background: isXHovered ? 'rgb(var(--trail-warm) / 0.14)' : 'transparent', borderRadius: 5,
                 border: 'none', cursor: 'pointer', padding: '1px 5px', flexShrink: 0,
               }}
             >×</button>
@@ -835,7 +836,7 @@ export default function StudyTrailApp() {
               onClick={bulkDelete}
               style={{
                 width: '100%', marginBottom: 8, fontSize: 11, fontWeight: 600, padding: '6px 8px', cursor: 'pointer',
-                background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 7, color: '#e08468',
+                background: 'rgb(var(--trail-warm) / 0.14)', border: '1px solid rgb(var(--trail-warm) / 0.4)', borderRadius: 7, color: 'rgb(var(--trail-warm))',
               }}
             >Delete {selectedIds.size} session{selectedIds.size === 1 ? '' : 's'}</button>
           )}
@@ -945,33 +946,19 @@ export default function StudyTrailApp() {
                   title="Back to the month calendar"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', flexShrink: 0,
-                    background: 'rgb(var(--color-surface-3) / 0.7)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+                    background: 'rgb(var(--color-surface-3) / 0.7)',
                     border: 'none', borderRadius: 6, cursor: 'pointer',
                     color: 'rgb(var(--color-text-secondary))', fontSize: 10.5, fontWeight: 600,
                   }}
                 ><CalendarDays size={12} /> Months</button>
                 <span style={{ flex: 1 }} />
-                <button
-                  onClick={() => setCreatingSession(true)}
-                  title="New session"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
-                    background: 'rgb(var(--color-accent) / 0.14)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-                    border: 'none', borderRadius: 6, cursor: 'pointer',
-                    color: 'rgb(var(--color-accent))', flexShrink: 0,
-                  }}
-                ><Plus size={13} /></button>
+                <IconButton icon={Plus} label="New session" size={24} active onClick={() => setCreatingSession(true)} />
                 {sessions.length > 0 && (
-                  <button
+                  <IconButton
+                    icon={ListChecks} label={selectMode ? 'Cancel selecting' : 'Select multiple to delete'} size={24}
+                    active={selectMode}
                     onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
-                    title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
-                      background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3) / 0.5)',
-                      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', border: 'none', borderRadius: 6, cursor: 'pointer',
-                      color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
-                    }}
-                  ><ListChecks size={13} /></button>
+                  />
                 )}
               </div>
             </div>
@@ -1095,7 +1082,7 @@ export default function StudyTrailApp() {
                     const height = Math.max(16, (clipEnd - clipStart) / 60_000 * PX_PER_MIN)
                     const lane = laneOf.get(s.id) ?? 0
                     const selected = selectedId === s.id && mainTab === 'map'
-                    const color = s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-secondary))'
+                    const color = s.status === 'live' ? 'rgb(var(--trail-cool))' : s.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-secondary))'
                     return renamingId === s.id ? (
                       <input
                         key={s.id}
@@ -1176,7 +1163,7 @@ export default function StudyTrailApp() {
                   </div>
                 </div>
               )}
-              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468', marginTop: 4 }}>Delete</button>
+              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: 'rgb(var(--trail-warm))', marginTop: 4 }}>Delete</button>
             </div>
           )
         })()}

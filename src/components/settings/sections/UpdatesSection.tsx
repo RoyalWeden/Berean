@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, Download, RotateCcw } from 'lucide-react'
-import Switch from '@/components/shell/Switch'
+import { Switch, Button } from '@/components/ui'
 import { useAppStore } from '@/store'
 
 const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
@@ -83,26 +83,23 @@ export default function UpdatesSection() {
     return (
       <div className="space-y-5">
         <div>
-          <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">{version ? `v${version}` : '—'}</p>
+          <p className="text-sm font-semibold text-text-primary">Berean</p>
+          <p className="text-xs text-text-muted font-mono mt-0.5">{version ? `v${version}` : '—'}</p>
         </div>
-        <div className="px-4 py-4 rounded-xl bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-3">
-          <p className="text-sm text-[rgb(var(--color-text-primary))] font-medium">Updates via Mac App Store</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+        <div className="px-4 py-4 rounded-card bg-surface-3 border border-border space-y-3">
+          <p className="text-sm text-text-primary font-medium">Updates via Mac App Store</p>
+          <p className="text-xs text-text-muted leading-relaxed">
             This copy of Berean was installed from the Mac App Store. Updates are delivered automatically by Apple — no manual action needed. To check now, open the App Store and go to Updates.
           </p>
-          <button
-            onClick={() => window.app.openExternal('macappstore://apps.apple.com')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
+          <Button variant="secondary" size="sm" onClick={() => window.app.openExternal('macappstore://apps.apple.com')}>
             Open App Store
-          </button>
+          </Button>
         </div>
-        <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
           <span>Download page & release notes:</span>
           <button
             onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
-            className="text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+            className="text-accent hover:underline cursor-pointer"
           >
             royalweden.github.io/Berean
           </button>
@@ -116,8 +113,8 @@ export default function UpdatesSection() {
     <div className="space-y-5">
       {/* Version badge */}
       <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">
+        <p className="text-sm font-semibold text-text-primary">Berean</p>
+        <p className="s-desc text-xs text-text-muted font-mono mt-0.5">
           {version ? `v${version}` : '—'}
         </p>
       </div>
@@ -125,8 +122,8 @@ export default function UpdatesSection() {
       {/* Auto-check toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Check for updates automatically</p>
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+          <p className="text-sm font-medium text-text-primary">Check for updates automatically</p>
+          <p className="s-desc text-xs text-text-muted mt-0.5">
             Checks on launch (6 seconds after startup), then again every 5 minutes while Berean stays open
           </p>
         </div>
@@ -139,8 +136,8 @@ export default function UpdatesSection() {
       {autoCheck && (
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Automatically download updates</p>
-            <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+            <p className="text-sm font-medium text-text-primary">Automatically download updates</p>
+            <p className="s-desc text-xs text-text-muted mt-0.5">
               Download as soon as a new version is found — you'll still confirm before restarting to install
             </p>
           </div>
@@ -151,55 +148,55 @@ export default function UpdatesSection() {
       {/* Beta channel toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Beta updates</p>
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+          <p className="text-sm font-medium text-text-primary">Beta updates</p>
+          <p className="s-desc text-xs text-text-muted mt-0.5">
             Receive pre-release builds — may contain unfinished features or bugs
           </p>
         </div>
-        <Switch checked={betaChannel} onCheckedChange={() => toggleBeta(!betaChannel)} checkedColorClass="bg-amber-500" />
+        <Switch checked={betaChannel} onCheckedChange={() => toggleBeta(!betaChannel)} checkedColorClass="bg-warning" />
       </div>
 
       {/* Status card */}
-      <div className="px-3 py-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] min-h-[52px]">
+      <div className="px-3 py-3 rounded-card bg-surface-3 border border-border min-h-[52px]">
         {st === 'idle' && (
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Click "Check for Updates" to check now.</p>
+          <p className="s-desc text-xs text-text-muted">Click "Check for Updates" to check now.</p>
         )}
         {st === 'checking' && (
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] animate-pulse">Checking for updates…</p>
+          <p className="s-desc text-xs text-text-muted animate-pulse">Checking for updates…</p>
         )}
         {st === 'current' && (
-          <p className="text-xs text-green-400">You're on the latest version.</p>
+          <p className="text-xs text-success">You're on the latest version.</p>
         )}
         {st === 'available' && (
-          <p className="text-xs text-[rgb(var(--color-accent))]">
+          <p className="text-xs text-accent">
             Version {updateStatus.version} is available.
           </p>
         )}
         {st === 'downloading' && (
           <div>
-            <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
+            <p className="s-desc text-xs text-text-muted mb-2">
               Downloading update… {updateStatus.percent ?? 0}%
             </p>
-            <div className="h-1.5 bg-[rgb(var(--color-surface-4))] rounded-full overflow-hidden">
+            <div className="h-1.5 bg-surface-4 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[rgb(var(--color-accent))] rounded-full transition-all duration-300"
+                className="h-full bg-accent rounded-full transition-all duration-300"
                 style={{ width: `${updateStatus.percent ?? 0}%` }}
               />
             </div>
           </div>
         )}
         {st === 'ready' && (
-          <p className="text-xs text-green-400">
+          <p className="text-xs text-success">
             Version {updateStatus.version} downloaded — ready to install.
           </p>
         )}
         {st === 'error' && (
-          <p className="text-xs text-red-400 leading-relaxed">
+          <p className="text-xs text-destructive leading-relaxed">
             {updateStatus.message ?? 'Unknown error during update check.'}
           </p>
         )}
         {(st === 'current' || st === 'error' || st === 'available' || st === 'ready') && lastCheckedAt && (
-          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
+          <p className="text-caption2 text-text-muted mt-1.5">
             Last checked {timeAgo(lastCheckedAt)}
           </p>
         )}
@@ -208,46 +205,34 @@ export default function UpdatesSection() {
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         {(st === 'idle' || st === 'current' || st === 'error') && (
-          <button
-            onClick={checkNow}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            <RefreshCw size={11} />
+          <Button variant="secondary" size="sm" icon={RefreshCw} onClick={checkNow}>
             Check for Updates
-          </button>
+          </Button>
         )}
         {st === 'available' && (
-          <button
-            onClick={downloadUpdate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Download size={11} />
+          <Button variant="primary" size="sm" icon={Download} onClick={downloadUpdate}>
             Download Update
-          </button>
+          </Button>
         )}
         {st === 'ready' && (
-          <button
-            onClick={installUpdate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <RotateCcw size={11} />
+          <Button variant="primary" size="sm" icon={RotateCcw} onClick={installUpdate}>
             Restart & Install
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Footer: GitHub Pages link + distribution note */}
-      <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
+      <div className="px-3 py-2 rounded-card bg-surface-3 border border-border space-y-1.5">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
           <span>Download page & release notes:</span>
           <button
             onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
-            className="text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+            className="text-accent hover:underline cursor-pointer"
           >
             royalweden.github.io/Berean
           </button>
         </div>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+        <p className="text-caption2 text-text-muted">
           Only the installed app (not dev build) can receive automatic updates.
         </p>
       </div>

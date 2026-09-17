@@ -1,4 +1,5 @@
 import { GripHorizontal, X } from 'lucide-react'
+import { IconButton } from '@/components/ui'
 
 // Shared visual shell for every note/reason-related popover in the Study Trail window
 // (ReasonPromptPopover, the arrival prompt's full-popup variant) — per direct feedback ("make
@@ -20,19 +21,13 @@ export default function TrailPopoverShell({
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }) {
   return (
-    <div
-      className="no-drag"
-      style={{
-        width, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-        borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.4)', overflow: 'hidden',
-      }}
-    >
+    <div className="no-drag material-popover rounded-menu" style={{ width, overflow: 'hidden' }}>
       <div
         {...dragHandleProps}
-        className="no-drag"
+        className="no-drag border-b border-separator"
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-          padding: '8px 10px', borderBottom: '1px solid rgb(var(--color-surface-4))',
+          padding: '8px 10px',
           cursor: dragHandleProps ? 'grab' : 'default', userSelect: 'none',
           ...dragHandleProps?.style,
         }}
@@ -41,9 +36,7 @@ export default function TrailPopoverShell({
           {dragHandleProps && <GripHorizontal size={12} color="rgb(var(--color-text-muted))" />}
           {title}
         </div>
-        <button className="trail-ctx-btn" onClick={onClose} style={{ background: 'transparent', border: 'none', borderRadius: 6, padding: 2, color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}>
-          <X size={14} />
-        </button>
+        <IconButton icon={X} label="Close" size={20} tooltip={false} onClick={onClose} />
       </div>
       <div style={{ padding: 12 }}>{children}</div>
     </div>

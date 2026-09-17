@@ -9,7 +9,7 @@ import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import type { ScriptureLayout } from '@/types'
 import { BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { migrateAllNotes, type MigrationResult } from '@/lib/noteMigration'
-import Switch from '@/components/shell/Switch'
+import { Switch, SectionLabel, IconButton, Select, TextField, SearchField, Button, SegmentedControl } from '@/components/ui'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import SectionAnchorChips from './SectionAnchorChips'
 import YtLayoutSetting from './sections/YtLayoutSetting'
@@ -28,14 +28,28 @@ import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { THEME_PRESETS } from '@/lib/themePresets'
 import ThemePicker from './ThemePicker'
 
+const FONT_FAMILY_OPTIONS = [
+  { value: 'system', label: 'System default' },
+  { value: 'serif', label: 'Serif (Georgia)' },
+  { value: 'sansserif', label: 'Sans-serif (Inter)' },
+  { value: 'mono', label: 'Monospace' },
+  { value: 'garamond', label: 'EB Garamond' },
+  { value: 'palatino', label: 'Palatino' },
+  { value: 'merriweather', label: 'Merriweather' },
+  { value: 'lora', label: 'Lora' },
+  { value: 'crimson', label: 'Crimson Text' },
+  { value: 'sourceserif', label: 'Source Serif 4' },
+  { value: 'nunito', label: 'Nunito' },
+]
+
 function MarkdownRefButton({ onClose }: { onClose: () => void }) {
   const open = useAppStore((s) => s.openMarkdownReference)
   return (
     <button
       onClick={() => { onClose(); setTimeout(open, 100) }}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-3 border border-border text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer w-full text-left"
     >
-      <BookOpen size={14} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+      <BookOpen size={14} className="flex-shrink-0 text-accent" />
       Markdown reference guide
     </button>
   )
@@ -468,7 +482,7 @@ export default function SettingsModal() {
     // there's no visible difference in the modal behavior Settings loses in the meantime.
     <Dialog.Root open={settingsOpen} onOpenChange={(open) => !open && closeSettings()} modal={!themePickerOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" style={{ backdropFilter: 'blur(4px)' }} />
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-modal animate-fade-in" style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
         <Dialog.Content
           aria-describedby={undefined}
           // While ThemePicker is open, every click inside it is technically "outside"
@@ -478,70 +492,58 @@ export default function SettingsModal() {
           onPointerDownOutside={(e) => { if (themePickerOpen) e.preventDefault() }}
           onInteractOutside={(e) => { if (themePickerOpen) e.preventDefault() }}
           className="
-            glass-panel-modal
+            material-sheet
             fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-            z-50 w-full max-w-2xl max-h-[80vh]
-            rounded-shell-lg overflow-hidden flex flex-col
+            z-modal w-full max-w-2xl max-h-[80vh]
+            rounded-sheet overflow-hidden flex flex-col
           "
         >
           {/* Header */}
-          <div className="flex items-center gap-3 px-6 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <Dialog.Title className="text-base font-semibold text-[rgb(var(--color-text-primary))] flex-1">
+          <div className="flex items-center gap-3 px-6 py-3 border-b border-separator flex-shrink-0">
+            <Dialog.Title className="text-base font-semibold text-text-primary flex-1">
               Settings
             </Dialog.Title>
-            <button
-              onClick={closeSettings}
-              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
+            <IconButton icon={X} label="Close" size={24} onClick={closeSettings} tooltip={false} />
           </div>
 
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left nav */}
-            <div className="w-36 border-r border-[rgb(var(--color-surface-4))] flex-shrink-0 flex flex-col overflow-hidden">
+            <div className="w-36 border-r border-separator flex-shrink-0 flex flex-col overflow-hidden">
               {/* Search bar */}
-              <div className="px-1.5 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
-                <div className="flex items-center gap-1 px-2 py-1 rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                  <SearchIcon size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-                  <input
-                    value={settingsSearch}
-                    onChange={(e) => {
-                      setSettingsSearch(e.target.value)
-                      // Auto-navigate when exactly one section matches
-                      const q = e.target.value.trim().toLowerCase()
-                      if (q) {
-                        const matches = NAV.filter((n) =>
-                          n.label.toLowerCase().includes(q) ||
-                          (n.keywords ?? []).some((k) => k.toLowerCase().includes(q))
-                        )
-                        if (matches.length === 1) {
-                          changeSection(matches[0].id)
-                          useAppStore.getState().bumpSettingsNavToken()
-                        }
+              <div className="px-1.5 py-1.5 border-b border-separator">
+                <SearchField
+                  size="sm"
+                  value={settingsSearch}
+                  onValueChange={(v) => {
+                    setSettingsSearch(v)
+                    // Auto-navigate when exactly one section matches
+                    const q = v.trim().toLowerCase()
+                    if (q) {
+                      const matches = NAV.filter((n) =>
+                        n.label.toLowerCase().includes(q) ||
+                        (n.keywords ?? []).some((k) => k.toLowerCase().includes(q))
+                      )
+                      if (matches.length === 1) {
+                        changeSection(matches[0].id)
+                        useAppStore.getState().bumpSettingsNavToken()
                       }
-                    }}
-                    placeholder="Search…"
-                    className="flex-1 min-w-0 bg-transparent text-[10px] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
-                  />
-                  {settingsSearch && (
-                    <button onClick={() => setSettingsSearch('')} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-                      <X size={9} />
-                    </button>
-                  )}
-                </div>
+                    }
+                  }}
+                  placeholder="Search…"
+                  wrapperClassName="w-full"
+                />
               </div>
               <div className="flex-1 overflow-y-auto p-1.5 space-y-px">
               {filteredNav.length === 0
-                ? <p className="px-2 py-2 text-[10px] text-[rgb(var(--color-text-muted))]">No matches</p>
+                ? <p className="px-2 py-2 text-caption2 text-text-muted">No matches</p>
                 : filteredNav.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => { changeSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}
-                  className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-shell text-xs transition-colors cursor-pointer ${
+                  className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-row text-xs transition-colors cursor-pointer ${
                     section === n.id
-                      ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      ? 'bg-accent-muted text-accent'
+                      : 'text-text-secondary hover:bg-surface-hover'
                   }`}
                 >
                   <n.icon size={13} className="flex-shrink-0" />
@@ -569,8 +571,8 @@ export default function SettingsModal() {
                 <>
                   {/* Color mode: Dark / Light / System — controls all themes including presets */}
                   <div data-anchor="Color mode">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Color mode</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls dark or light for all themes and preset palettes</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Color mode</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Controls dark or light for all themes and preset palettes</p>
                     <div className="flex gap-2">
                       {([['system', Monitor, 'System'], ['dark', Moon, 'Dark'], ['light', Sun, 'Light']] as const).map(([t, Icon, label]) => (
                         <button
@@ -580,8 +582,8 @@ export default function SettingsModal() {
                             flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm
                             border transition-colors cursor-pointer
                             ${theme === t
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:bg-surface-hover'
                             }
                           `}
                         >
@@ -599,8 +601,8 @@ export default function SettingsModal() {
                       reused below by the ambient-animation section too, to detect when the
                       active theme carries its own curated animation. */}
                   <div data-anchor="Theme">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Theme</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p className="text-sm font-medium text-text-primary mb-1">Theme</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">
                       {theme === 'system' ? 'Previews show dark/light split — system picks automatically' : `Showing ${previewVariant} variants`}
                     </p>
                     {(() => {
@@ -612,9 +614,9 @@ export default function SettingsModal() {
                       return (
                         <button
                           onClick={() => setThemePickerOpen(true)}
-                          className="w-full flex items-center gap-3 p-3 rounded-lg border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer text-left"
+                          className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-text-muted transition-colors cursor-pointer text-left"
                         >
-                          <div className="w-14 h-10 rounded-md overflow-hidden relative flex-shrink-0 border border-[rgb(var(--color-surface-4))]">
+                          <div className="w-14 h-10 rounded-md overflow-hidden relative flex-shrink-0 border border-border">
                             {theme === 'system' && !isSystemAccent ? (
                               <div className="absolute inset-0" style={{
                                 background: `linear-gradient(135deg, rgb(${activePreset.dark.bg}) 50%, rgb(${activePreset.light.bg}) 50%)`
@@ -625,10 +627,10 @@ export default function SettingsModal() {
                             <div className="absolute inset-y-0 left-0 w-2.5" style={{ background: `rgb(${accent ?? swatchColors?.accent ?? activePreset.dark.accent})` }} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">{label}</p>
-                            <p className="text-xs text-[rgb(var(--color-text-muted))]">37 themes — click to browse &amp; preview</p>
+                            <p className="text-sm font-medium text-text-primary">{label}</p>
+                            <p className="text-xs text-text-muted">37 themes — click to browse &amp; preview</p>
                           </div>
-                          <Palette size={16} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                          <Palette size={16} className="text-text-muted flex-shrink-0" />
                         </button>
                       )
                     })()}
@@ -650,14 +652,14 @@ export default function SettingsModal() {
                       lock, only visually overridden while it's in effect. */}
                   <div data-anchor="Background">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Ambient background animation</p>
+                      <p className="text-sm font-medium text-text-primary">Ambient background animation</p>
                       <Switch
                         checked={backgroundAnimationEnabled || curatedAnimationActive}
                         onCheckedChange={() => setBackgroundAnimationEnabled(!backgroundAnimationEnabled)}
                         disabled={curatedAnimationActive}
                       />
                     </div>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p className="s-desc text-xs text-text-muted mb-3">
                       {curatedAnimationActive
                         ? `${activePreset.label} has its own animation, so this is on and locked — switch to a different theme to change it.`
                         : 'A few themes always have one; this lets any theme get a subtle motion effect using its own accent color.'}
@@ -665,7 +667,7 @@ export default function SettingsModal() {
                     {(backgroundAnimationEnabled || curatedAnimationActive) && (
                       <div className="space-y-3 pl-0.5">
                         <div>
-                          <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-1.5">Style</p>
+                          <p className="text-xs text-text-secondary mb-1.5">Style</p>
                           {/* Locked to Auto while the active theme has its own curated style — that
                               style is its signature look and isn't swappable (App.tsx's effective-
                               style computation ignores this setting entirely in that case, so an
@@ -680,8 +682,8 @@ export default function SettingsModal() {
                                   curatedAnimationActive ? 'cursor-default opacity-40' : 'cursor-pointer'
                                 } ${
                                   (curatedAnimationActive ? s === 'auto' : backgroundAnimationStyle === s)
-                                    ? 'bg-[rgb(var(--color-accent))] text-white'
-                                    : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                                    ? 'bg-accent text-white'
+                                    : 'bg-surface-3 text-text-secondary hover:bg-surface-hover'
                                 }`}
                               >
                                 {s}
@@ -690,7 +692,7 @@ export default function SettingsModal() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-1.5">Intensity</p>
+                          <p className="text-xs text-text-secondary mb-1.5">Intensity</p>
                           <div className="flex gap-1.5">
                             {(['subtle', 'noticeable', 'bold'] as const).map((i) => (
                               <button
@@ -698,8 +700,8 @@ export default function SettingsModal() {
                                 onClick={() => setBackgroundAnimationIntensity(i)}
                                 className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-medium capitalize cursor-pointer transition-colors border ${
                                   backgroundAnimationIntensity === i
-                                    ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                                    : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))]'
+                                    ? 'border-accent bg-accent/10 text-accent'
+                                    : 'border-border text-text-secondary hover:bg-surface-hover'
                                 }`}
                               >
                                 {i}
@@ -713,8 +715,8 @@ export default function SettingsModal() {
 
                   {/* Font family per section */}
                   <div data-anchor="Fonts">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Section fonts</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Choose typefaces independently for each area</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Section fonts</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Choose typefaces independently for each area</p>
                     <div className="space-y-3">
                       {([
                         ['UI chrome', uiFontFamily, setUiFontFamily],
@@ -722,24 +724,13 @@ export default function SettingsModal() {
                         ['Notes', notesFontFamily, setNotesFontFamily],
                       ] as [string, string, (v: string) => void][]).map(([label, value, setter]) => (
                         <div key={label} className="flex items-center gap-3">
-                          <span className="s-desc text-xs text-[rgb(var(--color-text-muted))] w-20 flex-shrink-0">{label}</span>
-                          <select
+                          <span className="s-desc text-xs text-text-muted w-20 flex-shrink-0">{label}</span>
+                          <Select
                             value={value}
-                            onChange={(e) => setter(e.target.value)}
-                            className="flex-1 bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs px-2 py-1.5 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer"
-                          >
-                            <option value="system">System default</option>
-                            <option value="serif">Serif (Georgia)</option>
-                            <option value="sansserif">Sans-serif (Inter)</option>
-                            <option value="mono">Monospace</option>
-                            <option value="garamond">EB Garamond</option>
-                            <option value="palatino">Palatino</option>
-                            <option value="merriweather">Merriweather</option>
-                            <option value="lora">Lora</option>
-                            <option value="crimson">Crimson Text</option>
-                            <option value="sourceserif">Source Serif 4</option>
-                            <option value="nunito">Nunito</option>
-                          </select>
+                            onChange={setter}
+                            className="flex-1"
+                            options={FONT_FAMILY_OPTIONS}
+                          />
                         </div>
                       ))}
                     </div>
@@ -750,49 +741,47 @@ export default function SettingsModal() {
               {section === 'reading' && (
                 <>
                   <div data-anchor="Translation">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default translation</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Used when opening a new Bible tab</p>
-                    <select
+                    <p className="text-sm font-medium text-text-primary mb-1">Default translation</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Used when opening a new Bible tab</p>
+                    <Select
+                      size="md"
                       value={defaultBibleTranslation}
-                      onChange={(e) => saveTranslation(e.target.value)}
-                      className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-sm px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer focus:border-[rgb(var(--color-accent))] transition-colors"
-                    >
-                      {DEFAULT_TRANSLATIONS.map((t) => (
-                        <option key={t.id} value={t.id}>{t.label}</option>
-                      ))}
-                    </select>
+                      onChange={saveTranslation}
+                      className="w-full"
+                      options={DEFAULT_TRANSLATIONS.map((t) => ({ value: t.id, label: t.label }))}
+                    />
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Shepherd of Hermas translation</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Which translation to show for the Visions, Mandates, and Similitudes. Taylor uses finer verse divisions and includes Similitude 7; it is a best-effort OCR ingest still being proofread.</p>
-                    <select
+                    <p className="text-sm font-medium text-text-primary mb-1">Shepherd of Hermas translation</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Which translation to show for the Visions, Mandates, and Similitudes. Taylor uses finer verse divisions and includes Similitude 7; it is a best-effort OCR ingest still being proofread.</p>
+                    <Select
+                      size="md"
                       value={hermasTranslation}
-                      onChange={(e) => setHermasTranslation(e.target.value)}
-                      className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-sm px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer focus:border-[rgb(var(--color-accent))] transition-colors"
-                    >
-                      <option value="hermas">Roberts-Donaldson (Ante-Nicene Fathers)</option>
-                      <option value="hermas_taylor">Charles Taylor (1903)</option>
-                    </select>
+                      onChange={setHermasTranslation}
+                      className="w-full"
+                      options={[
+                        { value: 'hermas', label: 'Roberts-Donaldson (Ante-Nicene Fathers)' },
+                        { value: 'hermas_taylor', label: 'Charles Taylor (1903)' },
+                      ]}
+                    />
                   </div>
 
                   <div data-anchor="Layout">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default scripture layout</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout for new scripture tabs — can be overridden per-tab using the layout button in the tab toolbar</p>
-                    <select
+                    <p className="text-sm font-medium text-text-primary mb-1">Default scripture layout</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Starting layout for new scripture tabs — can be overridden per-tab using the layout button in the tab toolbar</p>
+                    <Select
+                      size="md"
                       value={defaultScriptureLayout}
-                      onChange={(e) => setDefaultScriptureLayout(e.target.value as ScriptureLayout)}
-                      className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-sm px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer focus:border-[rgb(var(--color-accent))] transition-colors"
-                    >
-                      {LAYOUT_DEFS.map((def) => (
-                        <option key={def.id} value={def.id}>{def.label} — {def.description}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setDefaultScriptureLayout(v as ScriptureLayout)}
+                      className="w-full"
+                      options={LAYOUT_DEFS.map((def) => ({ value: def.id, label: `${def.label} — ${def.description}` }))}
+                    />
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Open note alongside scripture</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Where the note appears when using the "Open alongside scripture" button in the notes toolbar</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Open note alongside scripture</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Where the note appears when using the "Open alongside scripture" button in the notes toolbar</p>
                     <div className="flex gap-2">
                       {([
                         { value: 'right',  label: 'Right panel' },
@@ -805,8 +794,8 @@ export default function SettingsModal() {
                           className={`
                             px-3 py-1.5 rounded-lg text-sm border transition-colors cursor-pointer
                             ${noteTransformLayout === value
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:bg-surface-hover'
                             }
                           `}
                         >
@@ -817,8 +806,8 @@ export default function SettingsModal() {
                   </div>
 
                   <div data-anchor="Text & size">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Line height</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Spacing between verse lines</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Line height</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Spacing between verse lines</p>
                     <div className="flex gap-2">
                       {(['compact', 'comfortable', 'spacious'] as const).map((h) => (
                         <button
@@ -827,8 +816,8 @@ export default function SettingsModal() {
                           className={`
                             px-3 py-1.5 rounded-lg text-sm capitalize border transition-colors cursor-pointer
                             ${bibleLineHeight === h
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:bg-surface-hover'
                             }
                           `}
                         >
@@ -839,8 +828,8 @@ export default function SettingsModal() {
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Floating search density</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls how many results are visible before scrolling — compact shows fewer lines, spacious shows more context</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Floating search density</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Controls how many results are visible before scrolling — compact shows fewer lines, spacious shows more context</p>
                     <div className="flex gap-2">
                       {(['compact', 'comfortable', 'spacious'] as const).map((d) => (
                         <button
@@ -849,8 +838,8 @@ export default function SettingsModal() {
                           className={`
                             px-3 py-1.5 rounded-lg text-sm capitalize border transition-colors cursor-pointer
                             ${floatingSearchDensity === d
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:bg-surface-hover'
                             }
                           `}
                         >
@@ -861,8 +850,8 @@ export default function SettingsModal() {
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Bible text size</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Font size for verse text (px)</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Bible text size</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Font size for verse text (px)</p>
                     <div className="flex items-center gap-3">
                       <input
                         type="range"
@@ -871,16 +860,16 @@ export default function SettingsModal() {
                         step={1}
                         value={bibleFontSize}
                         onChange={(e) => saveFontSize(Number(e.target.value))}
-                        className="flex-1 accent-[rgb(var(--color-accent))]"
+                        className="flex-1 accent-accent"
                       />
-                      <span className="text-sm font-mono text-[rgb(var(--color-text-secondary))] w-8">{bibleFontSize}</span>
+                      <span className="text-sm font-mono text-text-secondary w-8">{bibleFontSize}</span>
                     </div>
                   </div>
 
                   {/* Auto-close tabs */}
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Auto-close inactive tabs</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Automatically close tabs that haven't been visited for the selected period</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Auto-close inactive tabs</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Automatically close tabs that haven't been visited for the selected period</p>
                     <div className="flex flex-wrap gap-2">
                       {([
                         [0, 'Never'],
@@ -897,8 +886,8 @@ export default function SettingsModal() {
                           className={`
                             px-3 py-1.5 rounded-lg text-xs border transition-colors cursor-pointer
                             ${autoCloseTabsAfter === ms
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:bg-surface-hover'
                             }
                           `}
                         >
@@ -911,49 +900,34 @@ export default function SettingsModal() {
                   {/* ── Show verse numbers ── */}
                   <div data-anchor="Verse display" className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Show verse numbers</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Display verse numbers in the reading panel</p>
+                      <p className="text-sm font-medium text-text-primary">Show verse numbers</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Display verse numbers in the reading panel</p>
                     </div>
-                    <button
-                      onClick={() => setShowVerseNumbers(!showVerseNumbers)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${showVerseNumbers ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showVerseNumbers ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={showVerseNumbers} onCheckedChange={() => setShowVerseNumbers(!showVerseNumbers)} />
                   </div>
 
                   {/* ── Red letters ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Red letter text</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Highlight words of Yeshua in the KJVA text (requires tagged source)</p>
+                      <p className="text-sm font-medium text-text-primary">Red letter text</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Highlight words of Yeshua in the KJVA text (requires tagged source)</p>
                     </div>
-                    <button
-                      onClick={() => setShowRedLetters(!showRedLetters)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${showRedLetters ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showRedLetters ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={showRedLetters} onCheckedChange={() => setShowRedLetters(!showRedLetters)} />
                   </div>
 
                   {/* ── Continuous chapter scroll ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Continuous chapter scroll</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Load the next and previous chapters automatically as you scroll, with chapter heading dividers</p>
+                      <p className="text-sm font-medium text-text-primary">Continuous chapter scroll</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Load the next and previous chapters automatically as you scroll, with chapter heading dividers</p>
                     </div>
-                    <button
-                      onClick={() => setContinuousChapterScroll(!continuousChapterScroll)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${continuousChapterScroll ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${continuousChapterScroll ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={continuousChapterScroll} onCheckedChange={() => setContinuousChapterScroll(!continuousChapterScroll)} />
                   </div>
 
                   {/* ── Word replacer (divine-name restoration etc.) — affects how
                        scripture text displays, so it lives here rather than Notes ── */}
-                  <div data-anchor="Word replacer" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Word replacer</p>
+                  <div data-anchor="Word replacer" className="pt-2 border-t border-separator">
+                    <SectionLabel className="mb-3">Word replacer</SectionLabel>
                     <WordReplacerSection
                       enabled={wordReplacerEnabled}
                       rules={wordReplacerRules}
@@ -966,21 +940,21 @@ export default function SettingsModal() {
 
               {section === 'notes' && (
                 <div className="space-y-5">
-                  <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] -mt-2">
+                  <p className="s-desc text-xs text-text-muted -mt-2">
                     Control how Berean auto-detects references while you write notes.
                   </p>
 
                   {/* Verse tags */}
                   <div data-anchor="Verse tags" className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse tags</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm font-medium text-text-primary">Verse tags</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         Group verses or whole chapters under named tags. Reference a tag in a note with <code>#name</code>; filter the Advanced Scripture Search by tag.
                       </p>
                     </div>
                     <button
                       onClick={() => { useAppStore.getState().openTagsGraph(); useAppStore.getState().closeSettings() }}
-                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"
+                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border text-text-primary hover:bg-surface-hover cursor-pointer flex-shrink-0"
                     >
                       <Tag size={13} /> Manage tags
                     </button>
@@ -989,91 +963,63 @@ export default function SettingsModal() {
                   {/* Verse refs toggle */}
                   <div data-anchor="Reference detection" className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-detect verse references</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm font-medium text-text-primary">Auto-detect verse references</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         Highlight and make clickable any Bible reference typed in a note (e.g. Genesis 1:1). Clicking navigates the Scripture panel.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setNoteVerseRefsEnabled(!noteVerseRefsEnabled)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        noteVerseRefsEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteVerseRefsEnabled ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={noteVerseRefsEnabled} onCheckedChange={() => setNoteVerseRefsEnabled(!noteVerseRefsEnabled)} />
                   </div>
 
                   {/* Lexicon refs toggle */}
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-detect lexicon references</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm font-medium text-text-primary">Auto-detect lexicon references</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         Highlight and make clickable any Strong's number typed in a note (e.g. H7225 or G3056). Clicking opens the lexicon entry.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setNoteLexiconRefsEnabled(!noteLexiconRefsEnabled)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        noteLexiconRefsEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteLexiconRefsEnabled ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={noteLexiconRefsEnabled} onCheckedChange={() => setNoteLexiconRefsEnabled(!noteLexiconRefsEnabled)} />
                   </div>
 
                   {/* Auto em dash toggle */}
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto em dash</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm font-medium text-text-primary">Auto em dash</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         Typing two hyphens (--) converts them into an em dash (—) automatically.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setAutoEmDash(!autoEmDash)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        autoEmDash ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoEmDash ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={autoEmDash} onCheckedChange={() => setAutoEmDash(!autoEmDash)} />
                   </div>
 
                   {/* Scripture block auto-format toggle */}
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-format verse blocks</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-                        When a verse reference is followed by its text, it is displayed as a styled scripture block (left border, bold reference) — but the text stays plain, so copying it gives back the original text only. Works for multi-line blocks (reference line + numbered verses) and single-line verses (e.g. <span className="font-mono text-[10px]">1 John 2:4 He that saith…</span>). A bare reference alone is not affected.
+                      <p className="text-sm font-medium text-text-primary">Auto-format verse blocks</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
+                        When a verse reference is followed by its text, it is displayed as a styled scripture block (left border, bold reference) — but the text stays plain, so copying it gives back the original text only. Works for multi-line blocks (reference line + numbered verses) and single-line verses (e.g. <span className="font-mono text-caption2">1 John 2:4 He that saith…</span>). A bare reference alone is not affected.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setNoteScriptureBlock(!noteScriptureBlock)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        noteScriptureBlock ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteScriptureBlock ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={noteScriptureBlock} onCheckedChange={() => setNoteScriptureBlock(!noteScriptureBlock)} />
                   </div>
 
                   {/* Default status for new notes */}
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default status for new notes</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p className="text-sm font-medium text-text-primary mb-1">Default status for new notes</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">
                       Most notes aren't expected to need a status — leave this as "No status" unless you want every new note pre-tagged.
                     </p>
-                    <select
+                    <Select
+                      size="md"
                       value={defaultNoteStatus}
-                      onChange={(e) => saveDefaultNoteStatus(e.target.value)}
-                      className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-sm px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer focus:border-[rgb(var(--color-accent))] transition-colors"
-                    >
-                      <option value="none">No status</option>
-                      {NOTE_STATUSES.map((s) => (
-                        <option key={s.id} value={s.id}>{s.label}</option>
-                      ))}
-                    </select>
+                      onChange={saveDefaultNoteStatus}
+                      className="w-full"
+                      options={[
+                        { value: 'none', label: 'No status' },
+                        ...NOTE_STATUSES.map((s) => ({ value: s.id, label: s.label })),
+                      ]}
+                    />
                   </div>
 
                   {/* Strong's block suggestion — was previously tucked inside the collapsed
@@ -1085,8 +1031,8 @@ export default function SettingsModal() {
                       other everyday, always-visible toggles instead. */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Strong's block suggestion</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
+                      <p className="text-sm font-medium text-text-primary">Strong's block suggestion</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
                     </div>
                     <Switch checked={noteStrongsBlockSuggest} onCheckedChange={() => setNoteStrongsBlockSuggest(!noteStrongsBlockSuggest)} />
                   </div>
@@ -1094,14 +1040,14 @@ export default function SettingsModal() {
                   {/* Verse block suggestion — same promotion, same reason */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse block suggestion</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
+                      <p className="text-sm font-medium text-text-primary">Verse block suggestion</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
                     </div>
                     <Switch checked={noteVerseBlockSuggest} onCheckedChange={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)} />
                   </div>
 
-                  <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">
+                  <div className="px-3 py-2 rounded-lg bg-surface-3 border border-border">
+                    <p className="s-desc text-xs text-text-secondary leading-relaxed">
                       To suppress auto-detection for a specific piece of text, select it in the editor and press <ShortcutKeys keys="⌘⇧R" className="align-middle" /> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
                   </div>
@@ -1109,16 +1055,16 @@ export default function SettingsModal() {
                   {/* ── Advanced: fine-tuning knobs for the block-suggestion system,
                        tucked away rather than sitting flat alongside everyday toggles ── */}
                   <details className="group">
-                    <summary className="text-xs font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] cursor-pointer select-none list-none flex items-center gap-1">
+                    <summary className="text-xs font-medium text-text-muted hover:text-text-secondary cursor-pointer select-none list-none flex items-center gap-1">
                       <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
                       Advanced
                     </summary>
-                    <div className="mt-3 space-y-4 pl-4 border-l border-[rgb(var(--color-surface-4))]">
+                    <div className="mt-3 space-y-4 pl-4 border-l border-separator">
                       {/* Side-panel note editor: verse/Strong's block SUGGESTION popups (independent) */}
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Suggest verse &amp; Strong's blocks in side panel</p>
-                          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                          <p className="text-sm font-medium text-text-primary">Suggest verse &amp; Strong's blocks in side panel</p>
+                          <p className="s-desc text-xs text-text-muted mt-0.5">
                             In the scripture tab's side-panel note editor, show the popups that offer to turn a typed reference (e.g. Gen 1:1) or Strong's number into a block. Blocks already in the note still format either way.
                           </p>
                         </div>
@@ -1129,8 +1075,8 @@ export default function SettingsModal() {
                       {noteScriptureBlock && (
                         <div className="pl-1">
                           <div className="flex items-center justify-between mb-1">
-                            <p className="text-xs font-medium text-[rgb(var(--color-text-secondary))]">Verse-text match sensitivity</p>
-                            <span className="text-xs font-mono text-[rgb(var(--color-accent))]">{Math.round(noteScriptureBlockThreshold * 100)}%</span>
+                            <p className="text-xs font-medium text-text-secondary">Verse-text match sensitivity</p>
+                            <span className="text-xs font-mono text-accent">{Math.round(noteScriptureBlockThreshold * 100)}%</span>
                           </div>
                           <input
                             type="range"
@@ -1139,10 +1085,10 @@ export default function SettingsModal() {
                             step={5}
                             value={Math.round(noteScriptureBlockThreshold * 100)}
                             onChange={(e) => setNoteScriptureBlockThreshold(Number(e.target.value) / 100)}
-                            className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
+                            className="w-full accent-accent cursor-pointer"
                           />
-                          <p className="text-[11px] text-[rgb(var(--color-text-muted))] mt-1 leading-relaxed">
-                            A line only formats when at least this percent of the actual verse text is present. Higher = stricter. This prevents formatting a line where you're just commenting on a verse (e.g. <span className="font-mono text-[10px]">Genesis 5:4 my thoughts here</span>).
+                          <p className="text-caption text-text-muted mt-1 leading-relaxed">
+                            A line only formats when at least this percent of the actual verse text is present. Higher = stricter. This prevents formatting a line where you're just commenting on a verse (e.g. <span className="font-mono text-caption2">Genesis 5:4 my thoughts here</span>).
                           </p>
                         </div>
                       )}
@@ -1151,8 +1097,8 @@ export default function SettingsModal() {
 
                   {/* Markdown reference guide */}
                   <div data-anchor="Editor">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Markdown reference</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
+                    <p className="text-sm font-medium text-text-primary mb-1">Markdown reference</p>
+                    <p className="s-desc text-xs text-text-muted mb-2">
                       A full guide to note formatting, verse references, wikilinks, and all supported book names.
                     </p>
                     <MarkdownRefButton onClose={closeSettings} />
@@ -1160,8 +1106,8 @@ export default function SettingsModal() {
 
                   {/* ── Bullet list style ── */}
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Bullet list style</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Symbol used at each indent level in unordered lists</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Bullet list style</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Symbol used at each indent level in unordered lists</p>
                     <div className="grid grid-cols-1 gap-1.5">
                       {Object.entries(BULLET_STYLE_DEFS).map(([id, def]) => (
                         <button
@@ -1169,19 +1115,19 @@ export default function SettingsModal() {
                           onClick={() => setNoteBulletStyle(id)}
                           className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors cursor-pointer ${
                             noteBulletStyle === id
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                              : 'border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))]'
+                              ? 'border-accent bg-accent/10'
+                              : 'border-border hover:bg-surface-hover'
                           }`}
                         >
-                          <span className={`text-xs font-medium w-16 flex-shrink-0 ${noteBulletStyle === id ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+                          <span className={`text-xs font-medium w-16 flex-shrink-0 ${noteBulletStyle === id ? 'text-accent' : 'text-text-secondary'}`}>
                             {def.label}
                           </span>
                           {/* Preview: 3 indent levels */}
-                          <span className="flex items-center gap-3 font-mono text-[11px] text-[rgb(var(--color-text-secondary))]">
+                          <span className="flex items-center gap-3 font-mono text-caption text-text-secondary">
                             {def.symbols.slice(0, 3).map((sym, i) => (
                               <span key={i} className="flex items-center gap-1">
-                                <span className="text-[rgb(var(--color-text-muted))] text-[9px]" style={{ marginLeft: `${i * 10}px` }}>{sym}</span>
-                                <span className="text-[rgb(var(--color-text-muted))] opacity-50 text-[9px]">item</span>
+                                <span className="text-text-muted text-micro" style={{ marginLeft: `${i * 10}px` }}>{sym}</span>
+                                <span className="text-text-muted opacity-50 text-micro">item</span>
                               </span>
                             ))}
                           </span>
@@ -1193,52 +1139,37 @@ export default function SettingsModal() {
                   {/* ── Heading divider lines ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Heading divider lines</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a subtle separator line below each heading. Also affects how sections collapse — the divider marks where each section ends.</p>
+                      <p className="text-sm font-medium text-text-primary">Heading divider lines</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Show a subtle separator line below each heading. Also affects how sections collapse — the divider marks where each section ends.</p>
                     </div>
-                    <button
-                      onClick={() => setNoteHeadingDivider(!noteHeadingDivider)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteHeadingDivider ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteHeadingDivider ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={noteHeadingDivider} onCheckedChange={() => setNoteHeadingDivider(!noteHeadingDivider)} />
                   </div>
 
                   {/* ── Spell check in notes ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Spell check</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Underline misspelled words in the notes editor</p>
+                      <p className="text-sm font-medium text-text-primary">Spell check</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Underline misspelled words in the notes editor</p>
                     </div>
-                    <button
-                      onClick={() => setNoteSpellCheck(!noteSpellCheck)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteSpellCheck ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteSpellCheck ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={noteSpellCheck} onCheckedChange={() => setNoteSpellCheck(!noteSpellCheck)} />
                   </div>
 
                   {/* ── Auto-copy on highlight ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Copy verse on highlight</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Automatically copy the verse text to clipboard when a highlight color is applied</p>
+                      <p className="text-sm font-medium text-text-primary">Copy verse on highlight</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Automatically copy the verse text to clipboard when a highlight color is applied</p>
                     </div>
-                    <button
-                      onClick={() => setAutoCopyOnHighlight(!autoCopyOnHighlight)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${autoCopyOnHighlight ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoCopyOnHighlight ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={autoCopyOnHighlight} onCheckedChange={() => setAutoCopyOnHighlight(!autoCopyOnHighlight)} />
                   </div>
 
                   {/* ── Default editor mode ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Default editor mode</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Starting view when opening a note — Edit is editable, View is read-only</p>
+                      <p className="text-sm font-medium text-text-primary">Default editor mode</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Starting view when opening a note — Edit is editable, View is read-only</p>
                     </div>
-                    <div className="flex items-center bg-[rgb(var(--color-surface-3))] rounded-md p-0.5 gap-px flex-shrink-0">
+                    <div className="flex items-center bg-surface-3 rounded-md p-0.5 gap-px flex-shrink-0">
                       {(['edit', 'view'] as const).map((m) => {
                         const labels: Record<string, string> = { edit: 'Edit', view: 'View' }
                         const isActive = defaultNoteEditorMode === m
@@ -1246,10 +1177,10 @@ export default function SettingsModal() {
                           <button
                             key={m}
                             onClick={() => setDefaultNoteEditorMode(m)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer select-none ${
+                            className={`px-2 py-0.5 rounded text-caption2 font-medium transition-all cursor-pointer select-none ${
                               isActive
-                                ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm'
-                                : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
+                                ? 'bg-surface-1 text-text-primary shadow-sm'
+                                : 'text-text-muted hover:text-text-secondary'
                             }`}
                           >
                             {labels[m]}
@@ -1262,25 +1193,18 @@ export default function SettingsModal() {
                   {/* ── Confirm before deleting notes ── */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Confirm before deleting notes</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a prompt when deleting a note that has content</p>
+                      <p className="text-sm font-medium text-text-primary">Confirm before deleting notes</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">Show a prompt when deleting a note that has content</p>
                     </div>
-                    <button
-                      onClick={() => setConfirmNoteDelete(!confirmNoteDelete)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        confirmNoteDelete ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${confirmNoteDelete ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={confirmNoteDelete} onCheckedChange={() => setConfirmNoteDelete(!confirmNoteDelete)} />
                   </div>
 
                   {/* ── Normalize note formatting (post-ProseMirror-migration) ── */}
-                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div className="pt-2 border-t border-separator">
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Normalize note formatting</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                        <p className="text-sm font-medium text-text-primary">Normalize note formatting</p>
+                        <p className="s-desc text-xs text-text-muted mt-0.5">
                           Notes written under the old editor may render slightly differently now (line breaks, table spacing, list style).
                           This re-saves every note through the new editor once so they all look consistent — the original content of any
                           changed note is kept in Version History first.
@@ -1289,7 +1213,7 @@ export default function SettingsModal() {
                       {migrationState.phase === 'idle' && (
                         <button
                           onClick={() => setMigrationState({ phase: 'confirming' })}
-                          className="flex-shrink-0 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-colors bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
+                          className="flex-shrink-0 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-colors bg-surface-3 hover:bg-surface-hover text-text-primary"
                         >
                           Normalize all notes
                         </button>
@@ -1298,10 +1222,10 @@ export default function SettingsModal() {
 
                     {migrationState.phase === 'confirming' && (
                       <div className="mt-2 flex items-center justify-end gap-2">
-                        <span className="text-xs text-[rgb(var(--color-text-muted))]">Re-save every note now? (originals are kept in Version History)</span>
+                        <span className="text-xs text-text-muted">Re-save every note now? (originals are kept in Version History)</span>
                         <button
                           onClick={() => setMigrationState({ phase: 'idle' })}
-                          className="px-2.5 py-1 rounded text-xs cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))]"
+                          className="px-2.5 py-1 rounded text-xs cursor-pointer text-text-muted hover:bg-surface-hover"
                         >
                           Cancel
                         </button>
@@ -1311,7 +1235,7 @@ export default function SettingsModal() {
                             const result = await migrateAllNotes((p) => setMigrationState({ phase: 'running', done: p.done, total: p.total }))
                             setMigrationState({ phase: 'done', result })
                           }}
-                          className="px-2.5 py-1 rounded text-xs font-medium cursor-pointer bg-[rgb(var(--color-accent))] text-white hover:opacity-90"
+                          className="px-2.5 py-1 rounded text-xs font-medium cursor-pointer bg-accent text-white hover:opacity-90"
                         >
                           Normalize now
                         </button>
@@ -1320,13 +1244,13 @@ export default function SettingsModal() {
 
                     {migrationState.phase === 'running' && (
                       <div className="mt-2">
-                        <div className="h-1.5 rounded-full bg-[rgb(var(--color-surface-3))] overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
                           <div
-                            className="h-full bg-[rgb(var(--color-accent))] transition-all"
+                            className="h-full bg-accent transition-all"
                             style={{ width: migrationState.total > 0 ? `${(migrationState.done / migrationState.total) * 100}%` : '2%' }}
                           />
                         </div>
-                        <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1">
+                        <p className="text-caption2 text-text-muted mt-1">
                           {migrationState.total > 0 ? `${migrationState.done} / ${migrationState.total} notes checked…` : 'Starting…'}
                         </p>
                       </div>
@@ -1334,14 +1258,14 @@ export default function SettingsModal() {
 
                     {migrationState.phase === 'done' && (
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <p className="text-[11px] text-[rgb(var(--color-text-secondary))]">
+                        <p className="text-caption text-text-secondary">
                           {migrationState.result.changed} note{migrationState.result.changed === 1 ? '' : 's'} updated,{' '}
                           {migrationState.result.unchanged} already fine
                           {migrationState.result.failed > 0 ? `, ${migrationState.result.failed} failed (unchanged, safe to retry)` : ''}.
                         </p>
                         <button
                           onClick={() => setMigrationState({ phase: 'idle' })}
-                          className="flex-shrink-0 px-2.5 py-1 rounded text-xs cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))]"
+                          className="flex-shrink-0 px-2.5 py-1 rounded text-xs cursor-pointer text-text-muted hover:bg-surface-hover"
                         >
                           Dismiss
                         </button>
@@ -1350,76 +1274,56 @@ export default function SettingsModal() {
                   </div>
 
                   {/* ── Daily notes ── */}
-                  <div data-anchor="Daily notes" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Daily notes</p>
+                  <div data-anchor="Daily notes" className="pt-2 border-t border-separator">
+                    <SectionLabel className="mb-3">Daily notes</SectionLabel>
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Continuous daily notes scroll</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">In the Daily filter view, scroll through consecutive days as a journal with date dividers — click any day to open it for editing</p>
+                        <p className="text-sm font-medium text-text-primary">Continuous daily notes scroll</p>
+                        <p className="s-desc text-xs text-text-muted mt-0.5">In the Daily filter view, scroll through consecutive days as a journal with date dividers — click any day to open it for editing</p>
                       </div>
-                      <button
-                        onClick={() => setContinuousDailyScroll(!continuousDailyScroll)}
-                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${continuousDailyScroll ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${continuousDailyScroll ? 'translate-x-5' : ''}`} />
-                      </button>
+                      <Switch checked={continuousDailyScroll} onCheckedChange={() => setContinuousDailyScroll(!continuousDailyScroll)} />
                     </div>
                   </div>
 
                   {/* ── Print & export defaults — co-located since it's the same
                        "notes output" concern; per-note overrides still live in the
                        print-preview modal itself. ── */}
-                  <div data-anchor="Print & export" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Print &amp; export defaults</p>
+                  <div data-anchor="Print & export" className="pt-2 border-t border-separator">
+                    <SectionLabel className="mb-3">Print &amp; export defaults</SectionLabel>
                     <PrintExportSection />
                   </div>
 
                   {/* ── Idiom notes ── */}
-                  <div data-anchor="Idiom notes" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Idiom notes</p>
+                  <div data-anchor="Idiom notes" className="pt-2 border-t border-separator">
+                    <SectionLabel className="mb-3">Idiom notes</SectionLabel>
 
                     <div className="flex items-center justify-between gap-4 mb-3">
                       <div>
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Highlight idiom words in verse text</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Underline words in verse text that match a term in your idiom notes</p>
+                        <p className="text-sm font-medium text-text-primary">Highlight idiom words in verse text</p>
+                        <p className="s-desc text-xs text-text-muted mt-0.5">Underline words in verse text that match a term in your idiom notes</p>
                       </div>
-                      <button
-                        onClick={() => setIdiomHighlightEnabled(!idiomHighlightEnabled)}
-                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${idiomHighlightEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomHighlightEnabled ? 'translate-x-5' : ''}`} />
-                      </button>
+                      <Switch checked={idiomHighlightEnabled} onCheckedChange={() => setIdiomHighlightEnabled(!idiomHighlightEnabled)} />
                     </div>
 
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Show hover tooltip for idiom words</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Display the term and its meaning when hovering an underlined idiom word</p>
+                        <p className="text-sm font-medium text-text-primary">Show hover tooltip for idiom words</p>
+                        <p className="s-desc text-xs text-text-muted mt-0.5">Display the term and its meaning when hovering an underlined idiom word</p>
                       </div>
-                      <button
-                        onClick={() => setIdiomHoverPreviewEnabled(!idiomHoverPreviewEnabled)}
-                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${idiomHoverPreviewEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomHoverPreviewEnabled ? 'translate-x-5' : ''}`} />
-                      </button>
+                      <Switch checked={idiomHoverPreviewEnabled} onCheckedChange={() => setIdiomHoverPreviewEnabled(!idiomHoverPreviewEnabled)} />
                     </div>
                   </div>
 
                   {/* ── Panel gestures ── */}
-                  <div data-anchor="Panel gestures" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Panel gestures</p>
+                  <div data-anchor="Panel gestures" className="pt-2 border-t border-separator">
+                    <SectionLabel className="mb-3">Panel gestures</SectionLabel>
 
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Two-finger swipe to open/close side panel</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Swipe left/right with two fingers on the trackpad, anywhere over the Scripture reading area, to open or close the right side panel</p>
+                        <p className="text-sm font-medium text-text-primary">Two-finger swipe to open/close side panel</p>
+                        <p className="s-desc text-xs text-text-muted mt-0.5">Swipe left/right with two fingers on the trackpad, anywhere over the Scripture reading area, to open or close the right side panel</p>
                       </div>
-                      <button
-                        onClick={() => setSwipePanelGestureEnabled(!swipePanelGestureEnabled)}
-                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${swipePanelGestureEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${swipePanelGestureEnabled ? 'translate-x-5' : ''}`} />
-                      </button>
+                      <Switch checked={swipePanelGestureEnabled} onCheckedChange={() => setSwipePanelGestureEnabled(!swipePanelGestureEnabled)} />
                     </div>
                   </div>
 
@@ -1430,24 +1334,17 @@ export default function SettingsModal() {
                 <>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Markdown vault sync</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm font-medium text-text-primary">Markdown vault sync</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         Write notes to a local Markdown folder and keep them in sync automatically — your edits save immediately, and changes made externally (Obsidian, Octarine, Logseq, iA Writer, or any Markdown app) are picked up live.
                       </p>
                     </div>
-                    <button
-                      onClick={() => toggleVaultSync(!vaultSync)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        vaultSync ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${vaultSync ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={vaultSync} onCheckedChange={() => toggleVaultSync(!vaultSync)} />
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Vault folder</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
+                    <p className="text-sm font-medium text-text-primary mb-1">Vault folder</p>
+                    <p className="s-desc text-xs text-text-muted mb-2">
                       Choose the root folder where Berean will read and write <span className="font-mono">.md</span> files
                     </p>
                     <div className="flex gap-2 items-center">
@@ -1456,7 +1353,7 @@ export default function SettingsModal() {
                         value={vaultPath}
                         onChange={(e) => setVaultPath(e.target.value)}
                         onBlur={(e) => saveVaultPath(e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
+                        className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-surface-3 border border-border text-text-primary outline-none focus:border-accent"
                         placeholder="/path/to/your/notes-folder"
                       />
                       <button
@@ -1465,13 +1362,13 @@ export default function SettingsModal() {
                           if (picked) { setVaultPath(picked); saveVaultPath(picked) }
                         }}
                         title="Browse for vault folder"
-                        className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+                        className="p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer flex-shrink-0"
                       >
                         <FolderOpen size={14} />
                       </button>
                     </div>
                     {vaultPath && (
-                      <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
+                      <p className="text-caption2 text-text-muted mt-1.5">
                         Notes saved under <span className="font-mono">{vaultPath}/berean-notes/</span>
                       </p>
                     )}
@@ -1485,14 +1382,14 @@ export default function SettingsModal() {
                       Collapsed by default — not part of the routine sync flow. */}
                   {vaultPath && (
                     <details className="group">
-                      <summary className="text-xs font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] cursor-pointer select-none list-none flex items-center gap-1">
+                      <summary className="text-xs font-medium text-text-muted hover:text-text-secondary cursor-pointer select-none list-none flex items-center gap-1">
                         <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
                         Advanced
                       </summary>
-                      <div className="mt-3 space-y-3 pl-4 border-l border-[rgb(var(--color-surface-4))]">
+                      <div className="mt-3 space-y-3 pl-4 border-l border-separator">
                         <div className="flex gap-2 flex-wrap items-start">
                           <div>
-                            <p data-anchor="Export" className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Export now</p>
+                            <p data-anchor="Export" className="text-sm font-medium text-text-primary mb-1">Export now</p>
                             <div className="flex items-center gap-3 flex-wrap">
                               <button
                                 onClick={async () => {
@@ -1509,19 +1406,19 @@ export default function SettingsModal() {
                                   }
                                 }}
                                 disabled={exportingAll}
-                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer disabled:opacity-40 transition-colors"
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent/15 text-accent hover:bg-accent/25 cursor-pointer disabled:opacity-40 transition-colors"
                               >
                                 {exportingAll ? 'Exporting…' : 'Export all data now'}
                               </button>
                               {exportResult && (
-                                <p className="text-[10px] text-emerald-400">
+                                <p className="text-caption2 text-success">
                                   ✓ {exportResult.notes} notes · {exportResult.highlights} highlights · {exportResult.history} history entries · {exportResult.pdfs} PDFs
                                 </p>
                               )}
                             </div>
                           </div>
                           <div>
-                            <p data-anchor="Import" className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Import from vault</p>
+                            <p data-anchor="Import" className="text-sm font-medium text-text-primary mb-1">Import from vault</p>
                             <div className="flex items-center gap-3 flex-wrap">
                               <button
                                 onClick={async () => {
@@ -1539,12 +1436,12 @@ export default function SettingsModal() {
                                   }
                                 }}
                                 disabled={importingAll}
-                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/15] hover:text-[rgb(var(--color-accent))] cursor-pointer disabled:opacity-40 transition-colors"
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-surface-4 text-text-secondary hover:bg-accent/15 hover:text-accent cursor-pointer disabled:opacity-40 transition-colors"
                               >
                                 {importingAll ? 'Importing…' : 'Restore from vault'}
                               </button>
                               {importResult && (
-                                <p className={`text-[10px] ${importResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                                <p className={`text-caption2 ${importResult.success ? 'text-success' : 'text-destructive'}`}>
                                   {importResult.success
                                     ? `✓ ${importResult.notes} notes · ${importResult.highlights} highlights · ${importResult.noteFolders} folders · ${importResult.pdfs} PDFs`
                                     : `Failed: ${importResult.reason}`}
@@ -1554,14 +1451,14 @@ export default function SettingsModal() {
                           </div>
                         </div>
                         {importingAll && (
-                          <p className="text-[10px] text-[rgb(var(--color-text-muted))]">Importing from vault — vault data takes precedent over local data…</p>
+                          <p className="text-caption2 text-text-muted">Importing from vault — vault data takes precedent over local data…</p>
                         )}
                       </div>
                     </details>
                   )}
 
-                  <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">
+                  <div className="px-3 py-2 rounded-lg bg-surface-3 border border-border">
+                    <p className="s-desc text-xs text-text-secondary leading-relaxed">
                       All data is always stored in Berean's internal database. The vault folder is a backup destination — Berean writes files there as you edit, watches for external changes, and periodically re-exports everything as a safety net. Vault data is never deleted when the app is uninstalled — to restore after a reinstall or on a new machine, just point to the same vault folder; it imports automatically when data is found.
                     </p>
                   </div>
@@ -1572,47 +1469,40 @@ export default function SettingsModal() {
                 <>
                   {/* Default YouTube layout */}
                   <div data-anchor="Layout">
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default layout</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout when a YouTube tab opens a video</p>
+                    <p className="text-sm font-medium text-text-primary mb-1">Default layout</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">Starting layout when a YouTube tab opens a video</p>
                     <YtLayoutSetting />
                   </div>
 
                   {/* Auto PiP */}
                   <div data-anchor="Picture-in-Picture" className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto Picture-in-Picture</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm font-medium text-text-primary">Auto Picture-in-Picture</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         Float the video in PiP automatically when switching away from the YouTube space
                       </p>
                     </div>
-                    <button
-                      onClick={() => setAutoPiP(!autoPiP)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        autoPiP ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoPiP ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={autoPiP} onCheckedChange={() => setAutoPiP(!autoPiP)} />
                   </div>
 
                   {/* Watch History */}
                   <div data-anchor="Watch history">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Watch history</p>
+                      <p className="text-sm font-medium text-text-primary">Watch history</p>
                       {watchHistory.length > 0 && (
                         <button
                           onClick={handleClearHistory}
-                          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer transition-colors"
+                          className="text-caption2 text-text-muted hover:text-destructive cursor-pointer transition-colors"
                         >
                           Clear all
                         </button>
                       )}
                     </div>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p className="s-desc text-xs text-text-muted mb-3">
                       Videos you've watched and where you left off.
                     </p>
                     {watchHistory.length === 0 ? (
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] italic">No watch history yet.</p>
+                      <p className="s-desc text-xs text-text-muted italic">No watch history yet.</p>
                     ) : (() => {
                       // Group by month then day
                       const byMonth: Record<string, Record<string, typeof watchHistory>> = {}
@@ -1641,7 +1531,7 @@ export default function SettingsModal() {
                               <div key={monthKey}>
                                 <button
                                   onClick={toggleMonth}
-                                  className="flex items-center gap-1 w-full text-left py-0.5 text-[11px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                                  className="flex items-center gap-1 w-full text-left py-0.5 text-caption font-semibold text-text-muted uppercase tracking-wider hover:text-text-primary transition-colors cursor-pointer"
                                 >
                                   {monthCollapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
                                   {monthLabel}
@@ -1661,7 +1551,7 @@ export default function SettingsModal() {
                                         <div key={dayKey}>
                                           <button
                                             onClick={toggleDay}
-                                            className="flex items-center gap-1 w-full text-left py-0.5 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] transition-colors cursor-pointer"
+                                            className="flex items-center gap-1 w-full text-left py-0.5 text-caption2 text-text-muted hover:text-text-secondary transition-colors cursor-pointer"
                                           >
                                             {dayCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
                                             {dayLabel}
@@ -1675,35 +1565,35 @@ export default function SettingsModal() {
                                                 return (
                                                   <div
                                                     key={entry.videoId}
-                                                    className="flex items-center gap-2.5 p-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]"
+                                                    className="flex items-center gap-2.5 p-2 rounded-lg bg-surface-3 border border-border"
                                                   >
                                                     {entry.thumbnailUrl && (
                                                       <img
                                                         src={entry.thumbnailUrl}
                                                         alt=""
-                                                        className="w-14 h-9 object-cover rounded flex-shrink-0 bg-[rgb(var(--color-surface-4))]"
+                                                        className="w-14 h-9 object-cover rounded flex-shrink-0 bg-surface-4"
                                                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                                                       />
                                                     )}
                                                     <div className="flex-1 min-w-0">
-                                                      <p className="text-xs font-medium text-[rgb(var(--color-text-primary))] line-clamp-1">
+                                                      <p className="text-xs font-medium text-text-primary line-clamp-1">
                                                         {entry.title || entry.videoId}
                                                       </p>
-                                                      <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+                                                      <p className="text-caption2 text-text-muted">
                                                         {entry.channelName} · Watched to {pos}
                                                       </p>
                                                     </div>
                                                     <button
                                                       onClick={() => handleJumpToVideo(entry.videoId)}
                                                       title="Jump to video"
-                                                      className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors flex-shrink-0"
+                                                      className="p-1 rounded text-text-muted hover:text-accent hover:bg-surface-hover cursor-pointer transition-colors flex-shrink-0"
                                                     >
                                                       <ExternalLink size={12} />
                                                     </button>
                                                     <button
                                                       onClick={() => handleRemoveFromHistory(entry.videoId)}
                                                       title="Remove from history"
-                                                      className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors flex-shrink-0"
+                                                      className="p-1 rounded text-text-muted hover:text-destructive hover:bg-surface-hover cursor-pointer transition-colors flex-shrink-0"
                                                     >
                                                       <Trash2 size={12} />
                                                     </button>
@@ -1727,14 +1617,14 @@ export default function SettingsModal() {
 
                   {/* YouTube Account / Sign In */}
                   <div>
-                    <p data-anchor="Account" className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">YouTube account</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p data-anchor="Account" className="text-sm font-medium text-text-primary mb-1">YouTube account</p>
+                    <p className="s-desc text-xs text-text-muted mb-3">
                       Sign in to YouTube to sync your subscriptions, history, and watch-later list across sessions.
                       Your login is stored in the app's persistent YouTube session and shared with the YouTube tab.
                     </p>
                     {showYTSignIn ? (
                       <>
-                        <div className="rounded-lg overflow-hidden border border-[rgb(var(--color-surface-4))] mb-2" style={{ height: '380px' }}>
+                        <div className="rounded-lg overflow-hidden border border-border mb-2" style={{ height: '380px' }}>
                           <webview
                             src="https://accounts.google.com/ServiceLogin?service=youtube"
                             partition="persist:youtube"
@@ -1743,7 +1633,7 @@ export default function SettingsModal() {
                         </div>
                         <button
                           onClick={() => setShowYTSignIn(false)}
-                          className="s-desc text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+                          className="s-desc text-xs text-text-muted hover:text-text-primary cursor-pointer transition-colors"
                         >
                           Close
                         </button>
@@ -1752,7 +1642,7 @@ export default function SettingsModal() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => { setShowYTSignIn(true); setYtSignedOut(false) }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:bg-surface-hover cursor-pointer transition-colors"
                         >
                           Sign into YouTube
                         </button>
@@ -1762,12 +1652,12 @@ export default function SettingsModal() {
                             setShowYTSignIn(false)
                             setYtSignedOut(true)
                           }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-red-400 hover:bg-red-400/10 hover:border-red-400/50 cursor-pointer transition-colors"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm text-destructive hover:bg-destructive/10 hover:border-destructive/50 cursor-pointer transition-colors"
                         >
                           Sign out
                         </button>
                         {ytSignedOut && (
-                          <span className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Session cleared.</span>
+                          <span className="s-desc text-xs text-text-muted">Session cleared.</span>
                         )}
                       </div>
                     )}
@@ -1780,17 +1670,17 @@ export default function SettingsModal() {
               {section === 'shortcuts' && (
                 <div>
                   <div className="flex items-center gap-2 mb-4">
-                    <Keyboard size={14} className="text-[rgb(var(--color-text-muted))]" />
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Keyboard shortcuts</p>
+                    <Keyboard size={14} className="text-text-muted" />
+                    <p className="text-sm font-medium text-text-primary">Keyboard shortcuts</p>
                   </div>
                   <div className="space-y-4">
                     {SHORTCUT_GROUPS.map((group) => (
                       <div key={group.label}>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">{group.label}</p>
+                        <SectionLabel className="mb-1.5">{group.label}</SectionLabel>
                         <div className="space-y-0.5">
                           {group.shortcuts.map((s) => (
-                            <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-[rgb(var(--color-surface-4))/50]">
-                              <span className="text-sm text-[rgb(var(--color-text-secondary))]">{s.action}</span>
+                            <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-separator">
+                              <span className="text-sm text-text-secondary">{s.action}</span>
                               <ShortcutKeys keys={s.key} />
                             </div>
                           ))}
@@ -1804,14 +1694,14 @@ export default function SettingsModal() {
               {section === 'viewer' && (
                 <div className="flex flex-col gap-6">
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Viewer window</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-0">
+                    <p className="text-sm font-medium text-text-primary mb-1">Viewer window</p>
+                    <p className="s-desc text-xs text-text-muted mb-0">
                       Open a second window to display Bible text on an external monitor or projector. Toggle with <ShortcutKeys keys="⌘⇧B" className="align-middle" />.
                     </p>
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Font scale</p>
+                    <SectionLabel>Font scale</SectionLabel>
                     <div className="flex items-center gap-3">
                       {[1.0, 1.25, 1.5, 1.75, 2.0].map((scale) => (
                         <button
@@ -1819,8 +1709,8 @@ export default function SettingsModal() {
                           onClick={() => setViewerFontScale(scale)}
                           className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors cursor-pointer ${
                             viewerFontScale === scale
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:border-text-muted'
                           }`}
                         >
                           {Math.round(scale * 100)}%
@@ -1830,7 +1720,7 @@ export default function SettingsModal() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Theme override</p>
+                    <SectionLabel>Theme override</SectionLabel>
                     <div className="flex items-center gap-3">
                       {(['system', 'light', 'dark'] as const).map((t) => (
                         <button
@@ -1838,8 +1728,8 @@ export default function SettingsModal() {
                           onClick={() => setViewerTheme(t)}
                           className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors cursor-pointer capitalize ${
                             viewerTheme === t
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))]'
+                              ? 'border-accent bg-accent/10 text-accent'
+                              : 'border-border text-text-secondary hover:border-text-muted'
                           }`}
                         >
                           {t === 'system' ? 'Follow app' : t}
@@ -1853,24 +1743,24 @@ export default function SettingsModal() {
               {section === 'studyTrail' && (
                 <div className="flex flex-col gap-6">
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Study Trail</p>
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-0">
+                    <p className="text-sm font-medium text-text-primary mb-1">Study Trail</p>
+                    <p className="s-desc text-xs text-text-muted mb-0">
                       A separate window that passively maps your navigation between chapters, cross-references,
                       and word studies — sessions, the map/review views, and pause/rename/delete all live in that
                       window itself, opened from the sidebar rail.
                     </p>
                     <button
                       onClick={() => window.app.openStudyTrailWindow?.()}
-                      className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer"
+                      className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border text-text-secondary hover:border-text-muted transition-colors cursor-pointer"
                     >
                       <ExternalLink size={12} /> Open Study Trail window
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div className="flex items-center justify-between gap-4 pt-2 border-t border-separator">
                     <div>
-                      <p className="text-sm text-[rgb(var(--color-text-primary))]">Ask why you jumped chapters</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="text-sm text-text-primary">Ask why you jumped chapters</p>
+                      <p className="s-desc text-xs text-text-muted mt-0.5">
                         When you jump to a chapter Study Trail isn't already confident about the reason for
                         (a search result, a manual book/chapter pick, a tab switch — not a cross-reference or
                         word lookup, which already have a known reason), a small dismissible prompt appears
@@ -1878,12 +1768,7 @@ export default function SettingsModal() {
                         Off by default. Also toggleable from the Study Trail window's own title bar.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setStudyTrailAskChapterJumpReason(!studyTrailAskChapterJumpReason)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${studyTrailAskChapterJumpReason ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${studyTrailAskChapterJumpReason ? 'translate-x-5' : ''}`} />
-                    </button>
+                    <Switch checked={studyTrailAskChapterJumpReason} onCheckedChange={() => setStudyTrailAskChapterJumpReason(!studyTrailAskChapterJumpReason)} />
                   </div>
                 </div>
               )}
@@ -1895,21 +1780,21 @@ export default function SettingsModal() {
               {section === 'data' && (
                 <div className="space-y-6">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Import</p>
+                    <SectionLabel className="mb-3">Import</SectionLabel>
                     <ImportSection />
                   </div>
-                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Navigation &amp; app history</p>
+                  <div className="pt-4 border-t border-separator">
+                    <SectionLabel className="mb-3">Navigation &amp; app history</SectionLabel>
                     <HistorySection />
                   </div>
-                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Workspaces</p>
+                  <div className="pt-4 border-t border-separator">
+                    <SectionLabel className="mb-3">Workspaces</SectionLabel>
                     <WorkspacesSection />
                   </div>
-                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                  <div className="pt-4 border-t border-separator">
                     <SessionsSection />
                   </div>
-                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                  <div className="pt-4 border-t border-separator">
                     <DangerSection />
                   </div>
                 </div>
@@ -1919,8 +1804,8 @@ export default function SettingsModal() {
               {section === 'about' && (
                 <div className="space-y-6">
                   <AboutSection />
-                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Updates</p>
+                  <div className="pt-4 border-t border-separator">
+                    <SectionLabel className="mb-3">Updates</SectionLabel>
                     <UpdatesSection />
                   </div>
                 </div>
@@ -1928,7 +1813,7 @@ export default function SettingsModal() {
 
               {section === 'experimental' && (
                 <div className="space-y-6">
-                  <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
+                  <p className="s-desc text-xs text-text-muted">
                     Opt-in features that are off by default — usually because of a known cost or
                     rough edge, not because they&apos;re unfinished.
                   </p>
@@ -1985,19 +1870,19 @@ function VaultSyncStatus() {
       <button
         onClick={syncNow}
         disabled={status === 'running'}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-50"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer disabled:opacity-50"
       >
         <RefreshCw size={11} className={status === 'running' ? 'animate-spin' : ''} />
         {status === 'running' ? 'Syncing…' : 'Sync now'}
       </button>
       {status === 'idle' && !lastSyncedAt && (
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Syncing automatically</p>
+        <p className="s-desc text-xs text-text-muted">Syncing automatically</p>
       )}
       {status === 'done' && (
-        <p className="text-xs text-emerald-400">✓ Synced just now</p>
+        <p className="text-xs text-success">✓ Synced just now</p>
       )}
       {status === 'error' && (
-        <p className="text-xs text-red-400">Sync failed — check vault path</p>
+        <p className="text-xs text-destructive">Sync failed — check vault path</p>
       )}
     </div>
   )

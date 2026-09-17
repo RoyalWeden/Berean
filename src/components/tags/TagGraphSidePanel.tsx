@@ -42,11 +42,11 @@ interface Props {
 const ARROW_GLYPH = { none: Minus, forward: ArrowRight, backward: ArrowLeft, both: ArrowLeftRight }
 
 const ROW =
-  'w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left rounded-shell ' +
-  'hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer text-[rgb(var(--color-text-primary))]'
+  'w-full flex items-center gap-2 px-3 py-1.5 text-subhead text-left rounded-row ' +
+  'hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer text-text-primary'
 const INPUT =
-  'w-full px-2 py-1.5 text-[13px] rounded-shell bg-[rgb(var(--color-surface-1))/60] border border-[rgb(var(--color-surface-4))/60] ' +
-  'outline-none focus:border-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]'
+  'w-full px-2 py-1.5 text-subhead rounded-control bg-surface-1/60 border border-border ' +
+  'outline-none focus:border-accent text-text-primary placeholder:text-text-muted'
 
 export default function TagGraphSidePanel(props: Props) {
   const {
@@ -72,7 +72,7 @@ export default function TagGraphSidePanel(props: Props) {
   }, [edges])
 
   return (
-    <div className="h-full w-[300px] flex-shrink-0 border-r border-[rgb(var(--color-surface-4))/50] glass-panel flex flex-col">
+    <div className="h-full w-[300px] flex-shrink-0 border-r border-separator material-panel flex flex-col">
       {selected ? (
         <TagInspector
           tag={selected}
@@ -87,9 +87,9 @@ export default function TagGraphSidePanel(props: Props) {
         />
       ) : (
         <>
-          <div className="p-3 flex flex-col gap-2 border-b border-[rgb(var(--color-surface-4))/50]">
+          <div className="p-3 flex flex-col gap-2 border-b border-separator">
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))]" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
                 value={search}
                 onChange={(e) => onSearch(e.target.value)}
@@ -99,7 +99,7 @@ export default function TagGraphSidePanel(props: Props) {
               {search && (
                 <button
                   onClick={() => onSearch('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
                 >
                   <X size={13} />
                 </button>
@@ -118,7 +118,7 @@ export default function TagGraphSidePanel(props: Props) {
               <button
                 type="submit"
                 title="Create tag"
-                className="p-1.5 rounded-shell bg-[rgb(var(--color-accent))] text-white cursor-pointer hover:brightness-110 transition-[filter]"
+                className="p-1.5 rounded-control bg-accent text-white cursor-pointer hover:brightness-110 transition-[filter]"
               >
                 <Plus size={14} />
               </button>
@@ -130,17 +130,17 @@ export default function TagGraphSidePanel(props: Props) {
               <button key={t.id} onClick={() => onSelectTag(t.id)} className={ROW}>
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
                 <span className="truncate flex-1">{t.name}</span>
-                <span className="flex items-center gap-1.5 text-[11px] text-[rgb(var(--color-text-secondary))] flex-shrink-0">
+                <span className="flex items-center gap-1.5 text-caption text-text-secondary flex-shrink-0">
                   <span>{t.verseCount}{t.chapterCount ? `+${t.chapterCount}ch` : ''}</span>
                   <span className="inline-flex items-center gap-0.5" title="relationships">
-                    <ArrowLeftRight size={10} className="text-[rgb(var(--color-text-muted))]" />
+                    <ArrowLeftRight size={10} className="text-text-muted" />
                     {edgeCount.get(t.id) ?? 0}
                   </span>
                 </span>
               </button>
             ))}
             {filtered.length === 0 && (
-              <div className="px-3 py-5 text-xs text-center text-[rgb(var(--color-text-muted))]">No tags.</div>
+              <div className="px-3 py-5 text-xs text-center text-text-muted">No tags.</div>
             )}
           </div>
         </>
@@ -158,7 +158,7 @@ function SlotSwatches({ value, hasOverride, onPick }: { value: number | null; ha
           title={`Colour ${i + 1}`}
           onClick={() => onPick(i)}
           className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${
-            value === i && !hasOverride ? 'ring-2 ring-[rgb(var(--color-text-primary))] ring-offset-1 ring-offset-transparent' : ''
+            value === i && !hasOverride ? 'ring-2 ring-text-primary ring-offset-1 ring-offset-transparent' : ''
           }`}
           style={{ backgroundColor: tagSlotVar(i) }}
         />
@@ -259,10 +259,10 @@ function TagInspector({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-3 border-b border-[rgb(var(--color-surface-4))/50] flex flex-col gap-2.5">
+      <div className="p-3 border-b border-separator flex flex-col gap-2.5">
         <button
           onClick={onBack}
-          className="flex items-center gap-1 self-start px-1.5 py-0.5 -ml-1.5 rounded text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          className="flex items-center gap-1 self-start px-1.5 py-0.5 -ml-1.5 rounded-card text-caption text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
         >
           <ChevronLeft size={13} /> All tags
         </button>
@@ -277,27 +277,27 @@ function TagInspector({
         <div className="flex items-center gap-1">
           <button
             onClick={() => setMergeOpen((v) => !v)}
-            className="flex items-center gap-1 px-1.5 py-1 rounded text-[11px] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-1.5 py-1 rounded-card text-caption text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
           >
             <Merge size={12} /> Merge
           </button>
           <button
             onClick={() => onDelete(tag.id)}
-            className="flex items-center gap-1 px-1.5 py-1 rounded text-[11px] text-[rgb(var(--highlight-red))] hover:bg-red-500/15 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-1.5 py-1 rounded-card text-caption text-destructive hover:bg-destructive/15 transition-colors cursor-pointer"
           >
             <Trash2 size={12} /> Delete
           </button>
-          <span className="ml-auto text-[11px] text-[rgb(var(--color-text-secondary))]">
+          <span className="ml-auto text-caption text-text-secondary">
             {tag.verseCount} verses{tag.chapterCount ? ` · ${tag.chapterCount} ch` : ''}
           </span>
         </div>
         {mergeOpen && (
-          <div className="max-h-[140px] overflow-y-auto rounded-shell border border-[rgb(var(--color-surface-4))/60]">
+          <div className="max-h-[140px] overflow-y-auto rounded-menu border border-border">
             {tags.filter((t) => t.id !== tag.id).map((t) => (
               <button
                 key={t.id}
                 onClick={() => { onMerge(tag.id, t.id); setMergeOpen(false); onBack() }}
-                className="w-full text-left px-2 py-1.5 text-xs hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer text-[rgb(var(--color-text-primary))]"
+                className="w-full text-left px-2 py-1.5 text-xs hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer text-text-primary"
               >
                 Merge into “{t.name}”
               </button>
@@ -309,7 +309,7 @@ function TagInspector({
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
         {connected.length > 0 && (
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-secondary))] mb-1.5">Connected tags</div>
+            <div className="text-caption2 uppercase tracking-wide text-text-secondary mb-1.5">Connected tags</div>
             <div className="flex flex-col gap-0.5">
               {connected.map(({ edge, other, outgoing }) => {
                 const Glyph = ARROW_GLYPH[edge.arrows]
@@ -317,12 +317,12 @@ function TagInspector({
                   <button
                     key={edge.id}
                     onClick={() => onSelectTag(other!.id)}
-                    className="w-full flex items-start gap-2 px-2 py-1.5 rounded-shell text-[13px] text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                    className="w-full flex items-start gap-2 px-2 py-1.5 rounded-row text-subhead text-left hover:bg-surface-hover transition-colors cursor-pointer"
                   >
-                    <Glyph size={13} className={`mt-0.5 flex-shrink-0 text-[rgb(var(--color-text-muted))] ${outgoing ? '' : 'rotate-180'}`} />
+                    <Glyph size={13} className={`mt-0.5 flex-shrink-0 text-text-muted ${outgoing ? '' : 'rotate-180'}`} />
                     <span className="flex-1 min-w-0">
-                      <span className="text-[rgb(var(--color-text-primary))]">{other!.name}</span>
-                      {edge.note && <span className="block text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{edge.note}</span>}
+                      <span className="text-text-primary">{other!.name}</span>
+                      {edge.note && <span className="block text-caption text-text-secondary truncate">{edge.note}</span>}
                     </span>
                   </button>
                 )
@@ -332,11 +332,11 @@ function TagInspector({
         )}
 
         <div>
-          <div className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-secondary))] mb-1.5 px-3">Verses</div>
+          <div className="text-caption2 uppercase tracking-wide text-text-secondary mb-1.5 px-3">Verses</div>
           {members == null ? (
-            <div className="text-xs text-[rgb(var(--color-text-muted))] px-3">Loading…</div>
+            <div className="text-xs text-text-muted px-3">Loading…</div>
           ) : members.length === 0 ? (
-            <div className="text-xs text-[rgb(var(--color-text-muted))] px-3">No verses tagged yet.</div>
+            <div className="text-xs text-text-muted px-3">No verses tagged yet.</div>
           ) : (
             <TaggedVerseList groups={verseGroups} onNavigate={openVerseInCurrentTab} outerMargin={false} />
           )}

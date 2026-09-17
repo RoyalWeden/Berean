@@ -148,9 +148,9 @@ export default function PdfPage({
         ))}
       </div>
       {!rendered && visible && (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">Rendering…</div>
+        <div className="absolute inset-0 flex items-center justify-center text-xs text-text-muted">Rendering…</div>
       )}
-      <div className="absolute -bottom-2 right-1 text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-2))] px-1 rounded pointer-events-none">{pageNumber}</div>
+      <div className="absolute -bottom-2 right-1 text-micro text-text-muted bg-surface-2 px-1 rounded-chip pointer-events-none">{pageNumber}</div>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight, ArrowLeft, ArrowLeftRight, Minus, Ban, Trash2 } from 'lucide-react'
 import { TAG_SLOT_COUNT, tagSlotVar } from '@/lib/tagPalette'
+import { Button } from '@/components/ui'
 import type { TagEdge, TagEdgeArrows } from '@/types'
 
 const ARROW_OPTS: Array<{ id: TagEdgeArrows; icon: typeof Minus; tip: string }> = [
@@ -22,9 +23,9 @@ export interface EdgeDraft {
 }
 
 const SEG =
-  'flex-1 flex items-center justify-center py-1 rounded-shell cursor-pointer border transition-colors'
-const SEG_ON = 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/15]'
-const SEG_OFF = 'border-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))]'
+  'flex-1 flex items-center justify-center py-1 rounded-card cursor-pointer border transition-colors'
+const SEG_ON = 'border-accent bg-accent/15'
+const SEG_OFF = 'border-border hover:bg-surface-hover'
 
 export default function TagEdgeEditorPopover({
   draft, at, sourceName, targetName, onChange, onCommitDraft, onDelete, onClose,
@@ -64,21 +65,21 @@ export default function TagEdgeEditorPopover({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[150] w-[272px] rounded-shell-lg glass-panel p-3 flex flex-col gap-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.35)] native-buttons"
+      className="fixed z-popover w-[272px] material-popover rounded-menu p-3 flex flex-col gap-2.5 native-buttons"
       style={{ left: Math.max(8, at.x - 136), top: Math.max(8, at.y + 8) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="text-xs text-[rgb(var(--color-text-secondary))] truncate">
-        <span className="font-semibold text-[rgb(var(--color-text-primary))]">{sourceName}</span>
+      <div className="text-xs text-text-secondary truncate">
+        <span className="font-semibold text-text-primary">{sourceName}</span>
         <span className="mx-1">→</span>
-        <span className="font-semibold text-[rgb(var(--color-text-primary))]">{targetName}</span>
+        <span className="font-semibold text-text-primary">{targetName}</span>
       </div>
 
       <div className="flex items-center gap-1">
         {ARROW_OPTS.map(({ id, icon: Icon, tip }) => (
           <button key={id} title={tip} onClick={() => apply({ arrows: id })}
             className={`${SEG} ${local.arrows === id ? SEG_ON : SEG_OFF}`}>
-            <Icon size={14} className="text-[rgb(var(--color-text-primary))]" />
+            <Icon size={14} className="text-text-primary" />
           </button>
         ))}
       </div>
@@ -87,19 +88,19 @@ export default function TagEdgeEditorPopover({
         {Array.from({ length: TAG_SLOT_COUNT }, (_, i) => (
           <button key={i} title={`Colour ${i + 1}`} onClick={() => apply({ color: String(i) })}
             className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${
-              local.color === String(i) ? 'ring-2 ring-[rgb(var(--color-text-primary))] ring-offset-1 ring-offset-transparent' : ''
+              local.color === String(i) ? 'ring-2 ring-text-primary ring-offset-1 ring-offset-transparent' : ''
             }`}
             style={{ backgroundColor: tagSlotVar(i) }} />
         ))}
         <button title="Neutral line" onClick={() => apply({ color: null })}
-          className={`w-4 h-4 rounded-full flex items-center justify-center cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] ${
-            local.color == null ? 'ring-2 ring-[rgb(var(--color-text-primary))] ring-offset-1 ring-offset-transparent' : ''
+          className={`w-4 h-4 rounded-full flex items-center justify-center cursor-pointer transition-colors text-text-muted hover:text-text-primary ${
+            local.color == null ? 'ring-2 ring-text-primary ring-offset-1 ring-offset-transparent' : ''
           }`}>
           <Ban size={11} />
         </button>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))] cursor-pointer">
+      <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
         <input type="checkbox" checked={local.dashed} onChange={(e) => apply({ dashed: e.target.checked })} />
         Dashed line
       </label>
@@ -110,20 +111,17 @@ export default function TagEdgeEditorPopover({
         onBlur={() => { onChange({ note: local.note }); if (!draft.id) onCommitDraft() }}
         placeholder="Relationship note (shown on hover)…"
         rows={2}
-        className="text-[13px] rounded-shell bg-[rgb(var(--color-surface-1))/60] border border-[rgb(var(--color-surface-4))/60] px-2 py-1.5 outline-none focus:border-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))] resize-none placeholder:text-[rgb(var(--color-text-muted))]"
+        className="text-subhead rounded-card bg-surface-1/60 border border-border px-2 py-1.5 outline-none focus:border-accent text-text-primary resize-none placeholder:text-text-muted"
       />
 
       <div className="flex items-center justify-between">
         {draft.id ? (
           <button onClick={onDelete}
-            className="flex items-center gap-1 px-1.5 py-1 rounded text-[11px] text-[rgb(var(--highlight-red))] hover:bg-red-500/15 transition-colors cursor-pointer">
+            className="flex items-center gap-1 px-1.5 py-1 rounded-card text-caption text-destructive hover:bg-destructive/15 transition-colors cursor-pointer">
             <Trash2 size={12} /> Delete
           </button>
-        ) : <span className="text-[11px] text-[rgb(var(--color-text-muted))]">Set anything or press Enter to keep</span>}
-        <button onClick={onClose}
-          className="text-xs px-2.5 py-1 rounded-shell text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">
-          Done
-        </button>
+        ) : <span className="text-caption text-text-muted">Set anything or press Enter to keep</span>}
+        <Button variant="ghost" size="sm" onClick={onClose}>Done</Button>
       </div>
     </div>,
     document.body,
