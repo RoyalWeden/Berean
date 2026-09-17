@@ -38,7 +38,7 @@ const KEY_ICON_MAP: Record<string, keyof typeof SF_ICONS> = {
 function Keycap({ children }: { children: string }) {
   const iconName = KEY_ICON_MAP[children]
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] font-mono text-[10px] leading-none">
+    <kbd className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-chip bg-surface-4 text-text-secondary font-mono text-caption2 leading-none">
       {iconName ? <SFIcon name={iconName} size={9} /> : children}
     </kbd>
   )
@@ -59,7 +59,7 @@ export default function ShortcutKeys({ keys, className = '' }: { keys: string; c
         const tokens = isPhrase ? null : trimmed.match(KEY_TOKEN_RE)
         return (
           <span key={ai} className="inline-flex items-center gap-1">
-            {ai > 0 && <span className="text-[9px] text-[rgb(var(--color-text-muted))]">or</span>}
+            {ai > 0 && <span className="text-micro text-text-muted">or</span>}
             {tokens && tokens.length > 0 ? (
               tokens.map((tok, ti) => <Keycap key={ti}>{tok}</Keycap>)
             ) : (

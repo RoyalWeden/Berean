@@ -1705,40 +1705,6 @@ body {
   animation: radix-popup-in 0.14s ease-out;
 }
 
-/* ── macOS native sidebar vibrancy ────────────────────────────────────────────
-   The BrowserWindow is created with { transparent: true, vibrancy: 'sidebar' }
-   on macOS only (electron/main.ts) — a true frosted-glass effect against the
-   desktop/other windows, which plain CSS backdrop-blur cannot produce in an
-   opaque window (it only blurs the app's own DOM, not what's behind the
-   window). This class makes the sidebar's own background semi-transparent so
-   that native blur actually shows through; applied conditionally in
-   Sidebar.tsx via window.__berean_platform === 'darwin' since the window is
-   only transparent on mac — Windows keeps its original opaque background and
-   must not get a see-through sidebar with nothing behind it to blur. No
-   backdrop-filter here: the OS already blurs what's behind the window, adding
-   our own blur on top would blur the sidebar's own text/icons too. */
-.sidebar-vibrant {
-  /* MIGRATION ALIAS → .material-bar (delete once no consumer remains) */
-  background: var(--material-bar-bg);
-  /* Subtle depth cues only — no backdrop-filter (see note above: the OS already
-     blurs what's behind the transparent window, so adding our own blur here
-     would blur the sidebar's own text/icons too). A soft inset top highlight
-     plus a faint right-edge shadow give the sidebar the same "distinct surface"
-     read its own popovers (.glass-panel) already have, without re-blurring. */
-  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 1px 0 12px -4px rgb(0 0 0 / 0.25);
-}
-
-/* Same translucent-vibrancy background as .sidebar-vibrant, WITHOUT its box-shadow —
-   ShellHeader.tsx uses this instead of .sidebar-vibrant: the right-edge shadow that
-   class bakes in was designed for a vertical sidebar's side edge, but on the header
-   it rendered as an unwanted shadow along the header's bottom edge (reported as
-   "the top bar still has the shadow" even after ShellHeader's own shadow-* class was
-   removed — this box-shadow, inherited from .sidebar-vibrant, was the real source). */
-.topbar-vibrant {
-  /* MIGRATION ALIAS → .material-bar (delete once no consumer remains) */
-  background: var(--material-bar-bg);
-}
-
 /* ── Materials (design system) ──────────────────────────────────────────────
    .material-bar     — toolbars / sidebar ground. Translucent ONLY on a vibrant window
                        (html[data-vibrant], stamped by main.tsx for the main window on mac);
@@ -1799,131 +1765,6 @@ html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdr
 .focus-ring:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px var(--color-focus-ring);
-}
-
-/* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
-   Reusable treatment for sidebar, floating search, context menus, tooltips.
-   NOTE: PresenterControls.tsx's older glass pattern (95% opaque + default 8px
-   Tailwind blur) reads as an almost-solid panel — the opacity leaves too
-   little of the backdrop showing through for the blur to be visible at all.
-   This is deliberately more translucent (72%) with a stronger blur + a touch
-   of saturation boost, so the frosted effect is actually perceptible against
-   whatever is behind the panel (verse text, sidebar content, etc).
-   Blur radius was 24px — trimmed to 14px (GPU compositor cost scales with the
-   square of the radius, so this is a meaningful saving, not a cosmetic tweak)
-   after profiling showed these panels recompositing every scroll frame and
-   competing for GPU budget with OS-level screen mirroring (AirPlay/Screen
-   Mirroring casting while scrolling in the app). Still visibly frosted at
-   14px against typical content behind it.                                  */
-.glass-panel {
-  /* MIGRATION ALIAS → .material-popover (delete once no consumer remains) */
-  background: var(--material-popover-bg);
-  backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
-  border: 1px solid var(--color-separator);
-  box-shadow: var(--shadow-2);
-}
-
-/* ── Floating panel header buttons (Pop Out Tab window) ──────────────────────
-   PanelHeader.tsx's `floating` row itself has NO background at all — no shared
-   bar for buttons to sit flush inside. Instead, only the row's actual CONTROLS
-   (plain buttons/links, and ActionPillGroup's segmented clusters, tagged via
-   its own `.action-pill-group` marker class) get a small frosted chip each —
-   deliberately NOT every direct child indiscriminately (an earlier version of
-   this rule used `> *`, which also painted a background behind plain text/
-   spacer elements that aren't controls at all — e.g. a `flex-1` spacer between
-   button groups — hiding the transparency the point of this whole treatment
-   was to show, and covering text that should have read directly against the
-   panel's own content). Anything that isn't a `button`/`a`/`[role="button"]`/
-   `.action-pill-group` stays fully transparent, so the header reads as a loose
-   cluster of floating controls with visible gaps between them, not a bar.
-   `border-radius` IS forced here (unlike the first pass) — most of these are
-   plain small icon buttons with no radius of their own at all, so a background
-   with no matching radius rendered as a sharp-cornered box behind a round
-   icon ("looked clipped"); forcing a full pill radius on plain controls (a
-   `button`/`a`/`[role=button]` selector has strictly higher specificity than
-   a single Tailwind utility class, so this correctly wins over whatever
-   `rounded-*` a given button happened to declare for the DOCKED context,
-   giving every floating chip one consistent radius language) while leaving
-   `.action-pill-group` to its own already-correct `rounded-shell` — forcing a
-   full pill radius on a WIDE multi-segment group would look wrong, not a
-   plain small square icon button. Tailwind's own `hover:bg-*` utilities on
-   these same elements still win on hover — a `button`/`a`/`[role=button]`/
-   `.action-pill-group` selector's specificity is still lower than a single
-   hover pseudo-class utility, so the frosted chip background is exactly the
-   RESTING state, not a competing coat of paint.
-
-   Also reaches ONE level through a plain `<div>` (`> div > button` etc.) — several trigger
-   components (BookChapterPicker.tsx's own `<div className={wrapperClassName ?? 'relative'}>`
-   is the one that surfaced this: a positioning wrapper around its real `<button>`, needed so
-   its dropdown panel can anchor to it) render their actual control one level deeper than the
-   header row itself, so the plain direct-child selectors above never reached them, leaving
-   those specific buttons with no chip ("some of the buttons... look like floating tabs" but
-   not these). Popover/dropdown PANEL content doesn't defeat this: every menu in this codebase
-   portals its open panel straight to `document.body` (see HeaderOverflowMenu.tsx and
-   YouTubeTab.tsx's own comment on why), so it's never actually a DOM descendant of the header
-   to begin with — only the trigger button sitting inside its wrapper div is. */
-.floating-header-buttons > button,
-.floating-header-buttons > a,
-.floating-header-buttons > [role="button"],
-.floating-header-buttons > div > button,
-.floating-header-buttons > div > a,
-.floating-header-buttons > div > [role="button"],
-.floating-header-buttons > .action-pill-group {
-  background: var(--material-control-bg);
-  backdrop-filter: blur(var(--material-control-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--material-control-blur)) saturate(1.4);
-  box-shadow: var(--shadow-1);
-}
-.floating-header-buttons > button,
-.floating-header-buttons > a,
-.floating-header-buttons > [role="button"],
-.floating-header-buttons > div > button,
-.floating-header-buttons > div > a,
-.floating-header-buttons > div > [role="button"] {
-  border-radius: 9999px;
-}
-
-/* ── Glass panel, modal variant ───────────────────────────────────────────────
-   For large, primary-content modals (Settings, the Cmd+K search palette,
-   Print/export preview) rather than small transient popovers — .glass-panel's
-   72% opacity is right for a glanceable context menu, but reads as too
-   see-through once it's the main surface holding dense, long-form content
-   (settings text, a full print-preview page): verse text or sidebar content
-   showing through hurts legibility rather than reading as intentional
-   "frosted chrome". Keeps the same blur/saturation character, just far less
-   transparent, paired with a blurred (not just dimmed) backdrop overlay so
-   the content behind the modal still reads as "there, but out of focus"
-   rather than a flat dark scrim. Blur radius trimmed 24px → 16px for the same
-   GPU-cost reason as .glass-panel above — kept slightly higher than
-   .glass-panel's 14px since modals are larger, more central, and stay
-   mounted longer, so a touch more blur is worth the marginal extra cost.    */
-.glass-panel-modal {
-  /* MIGRATION ALIAS → .material-sheet (delete once no consumer remains) */
-  background: var(--material-sheet-bg);
-  backdrop-filter: blur(var(--material-sheet-blur)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--material-sheet-blur)) saturate(1.3);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-3);
-}
-
-/* ── Context menu (flat, opaque — matches real NSMenu behavior) ──────────────
-   Right-click/dropdown menus were split between .glass-panel (blurred) in some
-   files and a flat bordered card in others — two competing "the" menu look.
-   Real AppKit menus are crisp and opaque, not heavily blurred, so this
-   standardizes on that: no backdrop-filter (menus are short-lived and small,
-   so there's no meaningful GPU saving to chase here — the point is just visual
-   consistency, not performance). Scoped to actual context/dropdown menus only;
-   .glass-panel itself is unchanged and still used by tooltips/popovers/modals. */
-.context-menu {
-  /* MIGRATION ALIAS → .material-popover. Decision (design system, Sept 2026): menus are the
-     same translucent Liquid Glass material as popovers — modern macOS menus are vibrant, not
-     flat. Delete once no consumer remains. */
-  background: var(--material-popover-bg);
-  backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
-  border: 1px solid var(--color-separator);
-  box-shadow: var(--shadow-2);
 }
 
 /* Inline Strong's numbers are absolutely positioned in the leading gap under each word
@@ -2041,7 +1882,7 @@ html.theme-anim-bg body::before {
   z-index: 40;
   pointer-events: none;
   /* Reported: the animation "looks kind of off near the left." Root cause — on mac, Sidebar and
-     ShellHeader use `.sidebar-vibrant`/`.topbar-vibrant`, which sit inside a genuinely
+     ShellHeader use `.material-bar` (translucent on the vibrant main window), which sit inside a genuinely
      transparent Electron window (`transparent: true, vibrancy: 'sidebar'`, electron/main.ts),
      not just a translucent CSS color. This layer is a normal opaque-DOM-content paint, so
      wherever it sits BEHIND one of those two real vibrant surfaces, its color visibly tints
@@ -2197,25 +2038,3 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
   filter: brightness(0.9);
 }
 
-/* Sidebar's "new tab per space" tiles, the search / location bar (+ its "+" button), and the
-   session switcher rows. Their old `hover:bg-[rgb(var(--color-accent))/NN]` Tailwind
-   arbitrary-opacity utilities barely shifted the colour — the hover read as "not being
-   hovered" (direct feedback). Match how the tab rows highlight: a neutral light-grey lift, not
-   an accent tint. Mixing white into the resting surface lifts both the transparent-rest
-   buttons (session switcher) and the surface-4-rest ones (tiles, search bar) in the right
-   direction. */
-.sidebar-new-btn {
-  transition: background-color 120ms ease, color 120ms ease;
-}
-.sidebar-new-btn:hover {
-  background-color: color-mix(in srgb, white 16%, rgb(var(--color-surface-4)));
-  color: rgb(var(--color-text-primary));
-}
-/* The currently-selected session row keeps its accent tint at rest; on hover it gets the same
-   neutral lift layered a little brighter so it still clearly reacts. */
-.sidebar-new-btn.is-active {
-  background-color: color-mix(in srgb, rgb(var(--color-accent)) 15%, transparent);
-}
-.sidebar-new-btn.is-active:hover {
-  background-color: color-mix(in srgb, white 12%, color-mix(in srgb, rgb(var(--color-accent)) 18%, rgb(var(--color-surface-4))));
-}

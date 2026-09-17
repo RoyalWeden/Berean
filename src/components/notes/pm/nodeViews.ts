@@ -469,7 +469,7 @@ export function studyTrailEmbedNodeView(node: PMNode): NodeView {
   const needsInputBadge = document.createElement('span')
   needsInputBadge.style.fontSize = '0.72em'
   needsInputBadge.style.fontWeight = '700'
-  needsInputBadge.style.color = '#e08468'
+  needsInputBadge.style.color = 'rgb(var(--trail-warm))'
   needsInputBadge.style.background = 'rgba(224,132,104,0.14)'
   needsInputBadge.style.borderRadius = '999px'
   needsInputBadge.style.padding = '1px 7px'

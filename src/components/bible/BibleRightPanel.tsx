@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, NotepadText, Copy, Hash, ScanSearch, Check as CheckIcon, PanelRightOpen, Columns2 } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums, DerivationText } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -329,7 +330,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         </div>
         <div data-panel-scroll-root className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {activeEntry.lemma && (
-            <div className="text-xl font-medium text-text-primary" style={{ fontFamily: 'serif' }}>
+            <div className="text-xl font-medium text-text-primary font-lemma">
               <span dir="rtl">{activeEntry.lemma}</span>
             </div>
           )}
@@ -394,7 +395,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                     className="w-full flex items-baseline gap-1.5 px-1.5 py-1 rounded hover:bg-surface-4 cursor-pointer text-left transition-colors"
                   >
                     <span className="font-mono text-micro text-text-muted w-9 flex-shrink-0">{r.strongsNum}</span>
-                    {r.lemma && <span className="text-xs font-medium text-text-primary" dir="rtl" style={{ fontFamily: 'serif' }}>{r.lemma}</span>}
+                    {r.lemma && <span className="text-xs font-medium text-text-primary font-lemma" dir="rtl">{r.lemma}</span>}
                     <span className="text-caption text-text-secondary truncate">{r.gloss}</span>
                   </button>
                 ))}
@@ -1780,7 +1781,7 @@ export default function BibleRightPanel({
                     <motion.div
                       layoutId={`right-panel-tab-pill-${slotId}`}
                       className="absolute inset-0 rounded-t-shell bg-accent-muted pointer-events-none"
-                      transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                      transition={SPRING_SNAPPY}
                     />
                   )}
                   <Icon size={11} className="relative z-10 flex-shrink-0" />

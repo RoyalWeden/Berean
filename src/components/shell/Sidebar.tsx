@@ -1,5 +1,6 @@
 import { Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
 import { motion } from 'framer-motion'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarCheck, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
@@ -488,7 +489,7 @@ export default function Sidebar() {
         // No spring while actively dragging the resize handle — a spring lagging behind the
         // live mouse position during a drag reads as sluggish/rubbery; only collapse/expand
         // (not a manual resize) benefits from the spring feel.
-        width: isResizingSidebar ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 45 },
+        width: isResizingSidebar ? { duration: 0 } : SPRING_SNAPPY,
         opacity: { duration: 0.12, ease: 'easeOut', delay: sidebarCollapsed ? 0 : 0.05 },
       }}
       className="h-full flex-shrink-0 overflow-hidden relative"

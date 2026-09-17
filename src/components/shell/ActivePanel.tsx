@@ -1,3 +1,4 @@
+import { EmptyState as UiEmptyState } from '@/components/ui'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
@@ -34,15 +35,7 @@ if (typeof window !== 'undefined') {
 }
 
 function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-8">
-      <BookOpen size={32} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
-      <p className="text-sm text-[rgb(var(--color-text-muted))]">No tab open</p>
-      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1 opacity-60">
-        Click a space button to open a new tab
-      </p>
-    </div>
-  )
+  return <UiEmptyState icon={BookOpen} title="No tab open" hint="Click a space button to open a new tab" className="h-full" />
 }
 
 // One always-mounted layer. `visible` toggles `display` (not visibility/opacity):

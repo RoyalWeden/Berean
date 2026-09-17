@@ -86,7 +86,7 @@ function LexiconView({ strongsId, fontScale, muteColor, textColor, accentColor, 
     <div ref={scrollRef} className="h-full overflow-y-auto px-8 pb-6 pt-12 space-y-4">
       <div className="flex items-baseline gap-3 flex-wrap">
         <span style={{ fontSize: Math.round(16 * fontScale), color: accentColor }} className="font-mono font-bold">{data.strongsNum}</span>
-        {data.lemma && <span style={{ fontSize: Math.round(26 * fontScale), fontFamily: 'serif', color: textColor }} className="font-bold"><span dir="rtl">{data.lemma}</span></span>}
+        {data.lemma && <span style={{ fontSize: Math.round(26 * fontScale), fontFamily: 'var(--font-lemma)', color: textColor }} className="font-bold"><span dir="rtl">{data.lemma}</span></span>}
         {data.transliteration && <span style={{ fontSize: Math.round(14 * fontScale), color: muteColor }} className="italic">({data.transliteration})</span>}
       </div>
       {data.gloss && <p style={{ fontSize: Math.round(14 * fontScale), color: textColor }} className="font-medium">{wr(data.gloss)}</p>}

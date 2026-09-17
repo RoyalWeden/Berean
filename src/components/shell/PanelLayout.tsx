@@ -60,7 +60,7 @@ export default function PanelLayout() {
       case 'lexicon-panel': return <ErrorBoundary label="Lexicon panel error"><ZoomedPanel><LexiconPanel /></ZoomedPanel></ErrorBoundary>
       case 'youtube-panel': return <ErrorBoundary label="YouTube error"><ZoomedPanel><YouTubeTab /></ZoomedPanel></ErrorBoundary>
       case 'search-panel':  return <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>
-      default: return <div className="p-4 text-[rgb(var(--color-text-muted))]">Panel</div>
+      default: return <div className="p-4 text-text-muted">Panel</div>
     }
   }
 

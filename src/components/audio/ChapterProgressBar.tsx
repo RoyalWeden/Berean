@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SPRING_GENTLE } from '@/lib/motion'
 import { useChapterProgress } from '@/hooks/useChapterProgress'
 
 interface ChapterProgressBarProps {
@@ -166,7 +167,7 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
               initial={{ x: '-50%', y: '-100%', scale: 0.5, opacity: 0 }}
               animate={{ x: '-50%', y: '-100%', scale: 1, opacity: 1 }}
               exit={{ x: '-50%', y: '-100%', scale: 0.5, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={SPRING_GENTLE}
               // Soft radial gradient + layered shadow (rather than a flat surface-2 fill) so the
               // bubble reads as "floating above" the bar instead of "pasted on" — plus a small
               // speech-bubble tail (below) pointing down at the exact bar position it reports.

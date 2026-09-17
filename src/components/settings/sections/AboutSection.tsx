@@ -65,11 +65,11 @@ function SimulateFirstLaunchButton() {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-card border border-dashed border-orange-500/40 bg-orange-500/5">
-      <span className="text-caption2 font-mono text-orange-400 flex-shrink-0">DEV</span>
+    <div className="flex items-center gap-2 px-3 py-2 rounded-card border border-dashed border-warning/40 bg-orange-500/5">
+      <span className="text-caption2 font-mono text-warning flex-shrink-0">DEV</span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-orange-300">Simulate first launch</p>
-        <p className="text-caption2 text-orange-400/70 leading-snug">
+        <p className="text-xs font-medium text-warning">Simulate first launch</p>
+        <p className="text-caption2 text-warning/70 leading-snug">
           Clears all onboarding state &amp; reloads. Tests the full first-run experience.
         </p>
       </div>
@@ -78,8 +78,8 @@ function SimulateFirstLaunchButton() {
         disabled={busy}
         className={`flex-shrink-0 px-2.5 py-1 rounded-chip text-caption font-medium transition-colors cursor-pointer disabled:opacity-50 ${
           confirming
-            ? 'bg-orange-500 text-white hover:bg-orange-600'
-            : 'bg-surface-4 text-orange-300 hover:bg-orange-500/20'
+            ? 'bg-warning text-white hover:brightness-110'
+            : 'bg-surface-4 text-warning hover:bg-warning/20'
         }`}
       >
         {busy ? 'Resetting…' : confirming ? 'Confirm reset' : 'Reset'}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion } from 'framer-motion'
+import { SPRING_GENTLE } from '@/lib/motion'
 import { BookOpen, FolderOpen, Folder, NotepadText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree } from 'lucide-react'
 import { useAppStore } from '@/store'
 import BibleGatewayImporter from '@/components/settings/BibleGatewayImporter'
@@ -1322,7 +1323,7 @@ export default function Onboarding() {
             style={{ maxHeight: '90vh' }}
             initial={{ opacity: 0, scale: 0.96, x: '-50%', y: 'calc(-50% + 8px)' }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            transition={SPRING_GENTLE}
           >
         <Dialog.Title className="sr-only">Berean setup</Dialog.Title>
 

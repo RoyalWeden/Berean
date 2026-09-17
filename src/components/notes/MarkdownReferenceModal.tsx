@@ -735,12 +735,12 @@ export default function MarkdownReferenceModal() {
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && handleClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-modal" style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
         <Dialog.Content
           aria-describedby={undefined}
           className="
             fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-            z-50 w-full max-w-2xl max-h-[84vh]
+            z-modal w-full max-w-2xl max-h-[84vh]
             bg-surface-2 border border-separator
             rounded-xl shadow-2xl overflow-hidden flex flex-col
           "

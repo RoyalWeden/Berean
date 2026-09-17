@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
+import { SPRING_SNAPPY } from '@/lib/motion'
 
 // ── Shared "hover trigger → floating card" widget ───────────────────────────
 //
@@ -177,7 +178,7 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
         >
           <motion.div
             animate={{ width: expanded ? expandedWidth : collapsedWidth, height: expanded ? expandedHeight : collapsedHeight }}
-            transition={{ type: 'spring', stiffness: 500, damping: 45 }}
+            transition={SPRING_SNAPPY}
             style={{ borderRadius: expanded ? RADIUS : collapsedRadius }}
             // Shares the material-popover recipe (translucent + blur + hairline + shadow-2)
             // that every other hover-expand rail (NoteSidePanel trigger, ScriptureSearchView's

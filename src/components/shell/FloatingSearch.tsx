@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ChevronDown, Check, Tag, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SPRING_GENTLE } from '@/lib/motion'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName, type ParsedRef } from '@/lib/parseRef'
@@ -1251,7 +1252,7 @@ export default function FloatingSearch() {
               used everywhere else in this codebase for outside-click, e.g. BookChapterPicker.tsx),
               clicking the overlay sometimes did nothing. */}
           <motion.div
-            className="fixed inset-0 bg-black/50 z-50"
+            className="fixed inset-0 bg-black/40 z-critical"
             style={{ backdropFilter: 'blur(4px)' }}
             onClick={closeSearch}
             initial={{ opacity: 0 }}
@@ -1274,7 +1275,7 @@ export default function FloatingSearch() {
             initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
             exit={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            transition={SPRING_GENTLE}
           >
           <Dialog.Title className="sr-only">Search</Dialog.Title>
 

@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
+import { SPRING_SNAPPY } from '@/lib/motion'
 import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
@@ -592,7 +593,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             // in this exact list (the `layoutId="active-tab-pill"` background below), so this
             // reuses the same mechanism to smoothly slide tabs into their new positions instead
             // of an abrupt reflow — the "make tab reordering feel smoother" half of this request.
-            <motion.div key={tab.id} layout="position" transition={{ type: 'spring', stiffness: 500, damping: 40 }} className="relative">
+            <motion.div key={tab.id} layout="position" transition={SPRING_SNAPPY} className="relative">
               {showInsertBefore && (
                 <div className="absolute top-0 left-1 right-1 h-0.5 rounded-full bg-accent z-10 -translate-y-px pointer-events-none" />
               )}
@@ -624,7 +625,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   <motion.div
                     layoutId="active-tab-pill"
                     className="absolute inset-0 rounded-row bg-surface-selected"
-                    transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                    transition={SPRING_SNAPPY}
                   />
                 )}
                 {/* This inner element only needs to lay out the label content now — the
@@ -639,7 +640,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   <span className="relative flex-shrink-0">
                     <Icon size={13} style={{ color: TAB_ICON_COLORS[tab.type] }} className="opacity-80" />
                     {tab.type === 'youtube' && tab.id === activeYouTubeTabId && youtubeIsPlaying && (
-                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                     )}
                   </span>
                   <span className="truncate" style={{ zoom: appZoom }}>{displayTitle}</span>

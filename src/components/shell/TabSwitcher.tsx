@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SpaceId, Tab, BibleTabState, NoteTabState, LexiconTabState, YouTubeTabState, SearchTabState } from '@/types'
 import { motion } from 'framer-motion'
+import { SPRING_GENTLE } from '@/lib/motion'
 
 export interface SwitcherTab {
   spaceId: SpaceId
@@ -203,7 +204,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
       {/* Backdrop — a plain scrim, not a "material" surface, so it keeps its own
           inline blur rather than adopting one of the named `.material-*` recipes. */}
       <motion.div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/40" style={{ backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.12 }}
@@ -215,7 +216,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
         onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.95, y: -6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+        transition={SPRING_GENTLE}
       >
 
         {/* Tab cards row — only the MAX_CARDS most recent */}
