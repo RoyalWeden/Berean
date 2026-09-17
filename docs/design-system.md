@@ -110,9 +110,17 @@ no inline Radix `Tooltip.Content`, no inline `fontFamily:'serif'`.
   the floating pop-out window header will become a bar too.
 - 2026-09-16 — Bars never use `backdrop-filter` (the OS already blurs behind the transparent main
   window; a CSS blur there would blur our own text). Blur only on popover/panel/sheet/control.
-- 2026-09-16 — Accepted literal colors: macOS traffic-light hexes in `notes/pm/Toolbar.tsx`
-  (they depict the real buttons), Windows close-button `#C42B1C` (Fluent spec), SVG graph
-  colors in `trailGraph.ts`, highlight pigments, tag palette.
+- 2026-09-16 — Accepted literal colors (feature palettes / true colors, not chrome): macOS
+  traffic-light hexes in `notes/pm/Toolbar.tsx`, Windows close `#C42B1C`, `trailGraph.ts` SVG
+  colors, highlight pigments, tag palette, per-space tab icon colors (`TabBar.tsx`), note-status
+  colors (`lib/noteStatus.ts`), callout tints (`lib/noteTextBlocks.ts`), print paper themes
+  (`lib/notePreviewRender.ts`), idiom-export defaults, the crash overlay in `main.tsx` (runs
+  before CSS), the YouTube letterbox `#000`, thumbnail overlay chips, the presenter laser red,
+  and ThemePicker's 1/10-scale theme preview card.
+- 2026-09-17 — Study Trail keeps its inline numeric z-indexes (separate window; reordering its
+  simultaneous hover-card/menu/toast layers needs visual QA first).
+- 2026-09-17 — Menu "current" items render a leading checkmark (`MenuItem active`), replacing
+  the previous accent-tinted row — macOS menu convention.
 - 2026-09-16 — Scripture/Notes body fonts, sizes and line-heights remain user settings; the
   design system governs chrome typography only.
 - 2026-09-16 — `npm run lint` has no ESLint config in this repo (pre-existing); verification is
