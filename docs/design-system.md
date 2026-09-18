@@ -117,25 +117,33 @@ globally (CSS media rule + `<MotionConfig reducedMotion="user">` in `main.tsx`).
 | `Checkbox` / `Radio` / `Slider` / `TextArea` / `OptionCard` / `DisclosureRow` / `SectionHeader` / `ColorSwatchRow` | form + list building blocks |
 | `EmptyState`, `SectionLabel`, `RefChip`, `Divider`, `Kbd`, `Switch`, `ActionPillGroup` | |
 
-## Consistency matrix (tick per component as it is verified in code)
+## Consistency matrix (verified in code, pass 2 — 2026-09-18)
 | Component | Typography | Material | Border | Radius | Hover | Press | Selected | Focus | Dark/Light |
 |---|---|---|---|---|---|---|---|---|---|
 | Primitives (ui/) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Toolbar / window header | | | | | | | | | |
-| Sidebar + tab rows | | | | | | | | | |
-| Calendar | | | | | | | | | |
-| Scripture header + reader chrome | | | | | | | | | |
-| Side panel (Notes/Lexicon/Cross Refs) | | | | | | | | | |
-| Scripture search / pickers | | | | | | | | | |
-| Notes (home, tree, list, editor chrome) | | | | | | | | | |
-| Lexicon | | | | | | | | | |
-| Tags | | | | | | | | | |
-| History | | | | | | | | | |
-| ⌘K palette / Find / Tab switcher | | | | | | | | | |
-| Menus / popovers / tooltips | | | | | | | | | |
-| Settings / dialogs / onboarding | | | | | | | | | |
-| Study Trail chrome | | | | | | | | | |
-| YouTube / AI lookup / audio / PDF / viewer | | | | | | | | | |
+| Toolbar / window header | ✓ | ✓ bar | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Sidebar + tab rows (ListRow) | ✓ | ✓ sidebar | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Calendar | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Scripture header + reader chrome | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Side panel (Notes/Lexicon/Cross Refs) | ✓ | ✓ panel | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Scripture search / pickers | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Notes (home, tree, list, editor chrome) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Lexicon | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Tags | ✓ | ✓ sidebar | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| History | ✓ | ✓ elevated | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ⌘K palette / Find / Tab switcher | ✓ | ✓ elevated | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Menus / popovers / tooltips | ✓ | ✓ popover | ✓ | ✓ | ✓ accent | ✓ | ✓ | ✓ | ✓ |
+| Settings / dialogs / onboarding | ✓ | ✓ sheet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Study Trail chrome | ✓ (timeline titles mono-italic by design) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| YouTube / AI lookup / audio / PDF / viewer | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+Accepted raw controls (documented exceptions to "no `<button>` outside ui/"): grid cells (calendar
+days, book/chapter picker cells), verse-level controls inside the reader (number badge, margin
+note/xref pill, tag badges), rich content cards with no primitive equivalent (YouTube video cards,
+AI-lookup result cards, virtualized Scripture-search result cards, `CrossRefCard`), composite
+controls (`CircularPlayButton`, `Switch`, Windows `WindowControls`), the pre-CSS crash overlay in
+`main.tsx`, ProseMirror node views, pm/Toolbar's focus-mode `motion.button`, and the Verse Picker's
+font-scaled Scripture text. All carry `focus-ring` + hover/pressed lift states.
 
 ## Consistency gate (must return 0 / allowlist before merge)
 See the "Phase 9" commands in the plan; summary: no `text-[Npx]`, no hex outside
@@ -175,3 +183,8 @@ no inline Radix `Tooltip.Content`, no inline `fontFamily:'serif'`.
   theme-independent; menu hover is NSMenu accent+white; History/⌘K/Tab Switcher use
   `.material-elevated` with a light scrim (Spotlight-class); Study Trail keeps its mono-italic
   timeline titles as a feature identity while its chrome uses system controls.
+- 2026-09-18 — Pass 2 complete: `.native-buttons` retired (primitives own press/focus); every
+  Toolbar child is glass at rest; History/⌘K/Tab Switcher are `material-elevated`; all list/tree
+  rows are `ListRow` (keyboard reachable, single selection color); `Sheet layout="split"` hosts
+  Settings. Gate: zero legacy `text-xs/sm`, `font-bold`, `hover:bg-surface-N`, `rounded-shell`,
+  4-digit z-indexes; raw controls only per the accepted list above.
