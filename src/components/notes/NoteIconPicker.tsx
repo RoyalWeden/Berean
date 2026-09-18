@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { EMOJI_CATEGORIES, ALL_EMOJI, type EmojiEntry } from '@/lib/emojiList'
-import { IconButton, SectionLabel } from '@/components/ui'
+import { IconButton, SectionLabel, TextField, Button } from '@/components/ui'
 
 export default function NoteIconPicker({
   x, y, currentIcon, onSelect, onRemove, onClose, menuRef,
@@ -51,13 +51,13 @@ export default function NoteIconPicker({
       className="w-64 max-h-80 flex flex-col material-popover rounded-menu overflow-hidden"
     >
       <div className="flex items-center gap-1.5 p-2 border-b border-separator">
-        <input
+        <TextField
           ref={inputRef}
-          type="text"
+          bare
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search emoji…"
-          className="flex-1 min-w-0 bg-transparent outline-none text-footnote text-text-primary placeholder:text-text-muted"
+          wrapperClassName="flex-1 min-w-0"
         />
         {currentIcon && (
           <IconButton
@@ -99,12 +99,13 @@ export default function NoteIconPicker({
 
 function EmojiButton({ entry, onPick }: { entry: EmojiEntry; onPick: (emoji: string) => void }) {
   return (
-    <button
+    <Button
+      variant="ghost"
       onClick={() => onPick(entry.char)}
       title={entry.name}
-      className="flex items-center justify-center h-7 w-7 rounded-card text-base leading-none hover:bg-surface-hover transition-colors"
+      className="!h-7 !w-7 !p-0 rounded-card text-body leading-none"
     >
       {entry.char}
-    </button>
+    </Button>
   )
 }

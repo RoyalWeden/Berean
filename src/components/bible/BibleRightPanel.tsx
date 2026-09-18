@@ -309,13 +309,13 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         </Toolbar>
         <div data-panel-scroll-root className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {activeEntry.lemma && (
-            <div className="text-xl font-medium text-text-primary font-lemma">
+            <div className="text-title2 font-medium text-text-primary font-lemma">
               <span dir="rtl">{activeEntry.lemma}</span>
             </div>
           )}
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            {activeEntry.transliteration && <span className="text-sm text-text-secondary italic">{activeEntry.transliteration}</span>}
-            {activeEntry.pronunciation && <span className="text-xs text-text-muted">({activeEntry.pronunciation})</span>}
+            {activeEntry.transliteration && <span className="text-subhead text-text-secondary italic">{activeEntry.transliteration}</span>}
+            {activeEntry.pronunciation && <span className="text-footnote text-text-muted">({activeEntry.pronunciation})</span>}
           </div>
           {activeEntry.gloss && (
             <div className="text-footnote text-text-primary font-medium bg-surface-elevated px-2 py-1.5 rounded-card">
@@ -586,6 +586,40 @@ function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapt
   return <span className="text-text-muted"> {display}</span>
 }
 
+/** Shared cross-ref result card — RefChip (+ optional meta) over the verse preview, with an
+ *  optional footer line. Used by TSKe, classic, and note-derived cross-ref lists so the three
+ *  don't each hand-roll their own copy of this button. */
+function CrossRefCard({
+  refLabel, meta, bookId, chapter, verse, endVerse, footer, onClick, onContextMenu,
+}: {
+  refLabel: React.ReactNode
+  meta?: React.ReactNode
+  bookId: string
+  chapter: number
+  verse: number
+  endVerse?: number | null
+  footer?: React.ReactNode
+  onClick: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className="focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover transition-colors cursor-pointer group"
+    >
+      <div className="flex items-center gap-1.5">
+        <RefChip size="xs" className="w-fit">{refLabel}</RefChip>
+        {meta}
+      </div>
+      <p className="text-caption text-text-secondary leading-relaxed">
+        <VerseText bookId={bookId} chapter={chapter} verse={verse} endVerse={endVerse} />
+      </p>
+      {footer}
+    </button>
+  )
+}
+
 // ─── Chapter-level TSKe view ─────────────────────────────────────────────────
 
 /** Renders a collapsible ref row — shared by all three chapter views */
@@ -601,20 +635,14 @@ function VerseSection({
 }) {
   return (
     <div>
-      <button
+      <DisclosureRow
+        open={!isCollapsed}
         onClick={onToggle}
-        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-caption font-semibold transition-colors cursor-pointer ${
-          isActive ? 'bg-accent-muted hover:bg-accent-hover' : 'hover:bg-surface-hover'
-        }`}
-      >
-        <span className={`font-mono w-8 flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-muted'}`}>
-          v{verseNum}
-        </span>
-        <span className="text-micro text-text-muted flex-1 tabular-nums font-normal">{refCount} ref{refCount !== 1 ? 's' : ''}</span>
-        {isCollapsed
-          ? <ChevronRight size={10} className="text-text-muted flex-shrink-0" />
-          : <ChevronDown size={10} className="text-text-muted flex-shrink-0" />}
-      </button>
+        dense={false}
+        title={<span className={`font-mono ${isActive ? 'text-accent' : ''}`}>v{verseNum}</span>}
+        count={`${refCount} ref${refCount !== 1 ? 's' : ''}`}
+        className={isActive ? 'bg-accent-muted hover:bg-accent-hover px-3' : 'px-3'}
+      />
       {!isCollapsed && <div>{children}</div>}
     </div>
   )
@@ -674,35 +702,28 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                   const gCollapsed = collapsed.has(gKey)
                   return (
                     <div key={gi}>
-                      <button
+                      <DisclosureRow
+                        open={!gCollapsed}
+                        dense={false}
                         onClick={() => toggle(gKey)}
-                        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-surface-hover cursor-pointer text-left"
-                      >
-                        <SectionLabel className={`flex-1 normal-case tracking-normal ${group.isReciprocal ? 'italic' : ''}`}>
-                          {group.heading ?? (group.isReciprocal ? 'Reciprocal' : 'References')}
-                        </SectionLabel>
-                        <span className="text-micro text-text-muted tabular-nums">{group.refs.length}</span>
-                        {gCollapsed
-                          ? <ChevronRight size={9} className="text-text-muted flex-shrink-0" />
-                          : <ChevronDown size={9} className="text-text-muted flex-shrink-0" />}
-                      </button>
+                        className="px-3"
+                        title={<span className={group.isReciprocal ? 'italic' : undefined}>{group.heading ?? (group.isReciprocal ? 'Reciprocal' : 'References')}</span>}
+                        count={group.refs.length}
+                      />
                       {!gCollapsed && (
                         <div className="flex flex-col gap-1 pl-5 pr-2 pb-1.5">
                           {group.refs.map((r, ri) => (
-                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                              className="w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover transition-colors cursor-pointer group"
-                            >
-                              <RefChip size="xs" className="w-fit">
-                                {r.verse === 0
-                                  ? `${bookName(r.bookId)} ${r.chapter}`
-                                  : r.endVerse
-                                    ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                    : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
-                              </RefChip>
-                              <p className="text-caption text-text-secondary leading-relaxed">
-                                <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                              </p>
-                            </button>
+                            <CrossRefCard
+                              key={ri}
+                              refLabel={r.verse === 0
+                                ? `${bookName(r.bookId)} ${r.chapter}`
+                                : r.endVerse
+                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
+                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                              bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
+                              onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })}
+                              onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                            />
                           ))}
                         </div>
                       )}
@@ -722,35 +743,30 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                   return (
                     <div key={gi}>
                       {group.heading && (
-                        <button onClick={() => toggle(gKey)}
-                          className="w-full flex items-center gap-1.5 pl-5 pr-3 py-1 hover:bg-surface-hover cursor-pointer text-left"
-                        >
-                          <SectionLabel className={`flex-1 normal-case tracking-normal ${group.isReciprocal ? 'italic' : ''}`}>
-                            {group.heading}
-                          </SectionLabel>
-                          <span className="text-micro text-text-muted tabular-nums">{group.refs.length}</span>
-                          {gCollapsed
-                            ? <ChevronRight size={9} className="text-text-muted flex-shrink-0" />
-                            : <ChevronDown size={9} className="text-text-muted flex-shrink-0" />}
-                        </button>
+                        <DisclosureRow
+                          open={!gCollapsed}
+                          dense={false}
+                          indent={20}
+                          onClick={() => toggle(gKey)}
+                          className="pr-3"
+                          title={<span className={group.isReciprocal ? 'italic' : undefined}>{group.heading}</span>}
+                          count={group.refs.length}
+                        />
                       )}
                       {!gCollapsed && (
                         <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
                           {group.refs.map((r, ri) => (
-                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                              className="w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover transition-colors cursor-pointer group"
-                            >
-                              <RefChip size="xs" className="w-fit">
-                                {r.verse === 0
-                                  ? `${bookName(r.bookId)} ${r.chapter}`
-                                  : r.endVerse
-                                    ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                    : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
-                              </RefChip>
-                              <p className="text-caption text-text-secondary leading-relaxed">
-                                <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                              </p>
-                            </button>
+                            <CrossRefCard
+                              key={ri}
+                              refLabel={r.verse === 0
+                                ? `${bookName(r.bookId)} ${r.chapter}`
+                                : r.endVerse
+                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
+                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                              bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
+                              onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })}
+                              onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                            />
                           ))}
                         </div>
                       )}
@@ -810,23 +826,18 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
             {refs.map((r, i) => {
               const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
               return (
-                <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                  className="w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <RefChip size="xs" className="w-fit">
-                      {r.verse === 0
-                        ? `${bookName(r.bookId)} ${r.chapter}`
-                        : r.endVerse
-                          ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                          : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
-                    </RefChip>
-                    <span className="text-micro text-text-muted opacity-70 tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>
-                  </div>
-                  <p className="text-caption text-text-secondary leading-relaxed">
-                    <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                  </p>
-                </button>
+                <CrossRefCard
+                  key={i}
+                  refLabel={r.verse === 0
+                    ? `${bookName(r.bookId)} ${r.chapter}`
+                    : r.endVerse
+                      ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
+                      : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                  meta={<span className="text-micro text-text-muted opacity-70 tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
+                  bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
+                  onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })}
+                  onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                />
               )
             })}
           </div>
@@ -982,14 +993,14 @@ function UserNotesChapterView({
       {indirectNotes.length > 0 && (
         <div className="border-b border-separator">
           {/* Section header — collapsible */}
-          <button
+          <DisclosureRow
+            open={indirectSectionOpen}
+            dense={false}
             onClick={() => setIndirectSectionOpen(v => !v)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-3 hover:bg-surface-hover transition-colors cursor-pointer text-left"
-          >
-            <span className="text-lg flex-shrink-0 select-none text-text-muted">{indirectSectionOpen ? '▾' : '▸'}</span>
-            <SectionLabel className="flex-1">General mentions ({indirectNotes.length})</SectionLabel>
-            <span className="text-micro text-text-muted opacity-60 italic">connection may be indirect</span>
-          </button>
+            className="px-3"
+            title={`General mentions (${indirectNotes.length})`}
+            trailing={<span className="text-micro text-text-muted opacity-60 italic">connection may be indirect</span>}
+          />
 
           {indirectSectionOpen && (
             <div className="flex flex-col gap-0.5 p-1.5">
@@ -999,23 +1010,24 @@ function UserNotesChapterView({
                   <div key={note.id} className="rounded-row overflow-hidden">
                     {/* Note title row */}
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-row hover:bg-surface-hover group transition-colors">
-                      <button
+                      <IconButton
+                        icon={isExpanded ? ChevronDown : ChevronRight}
+                        label={isExpanded ? 'Collapse' : 'Expand'}
+                        size={20}
                         onClick={() => setExpandedIndirectIds(prev => {
                           const n = new Set(prev)
                           n.has(note.id) ? n.delete(note.id) : n.add(note.id)
                           return n
                         })}
-                        className="text-caption2 text-text-muted select-none cursor-pointer w-3 flex-shrink-0 leading-none hover:text-text-primary transition-colors"
-                      >
-                        {isExpanded ? '▾' : '▸'}
-                      </button>
+                      />
                       <NotepadText size={11} className="flex-shrink-0 text-text-muted" />
-                      <button
+                      <Button
+                        variant="ghost" size="sm"
+                        className="flex-1 h-auto py-0 px-0 justify-start font-medium text-text-secondary hover:text-text-primary min-w-0"
                         onClick={() => onNoteClick?.(note)}
-                        className="flex-1 text-left text-caption font-medium text-text-secondary truncate cursor-pointer hover:text-text-primary transition-colors min-w-0"
                       >
-                        {note.title || 'Untitled'}
-                      </button>
+                        <span className="truncate">{note.title || 'Untitled'}</span>
+                      </Button>
                       {verses.length > 0 && (
                         <span className="text-micro text-text-muted tabular-nums flex-shrink-0">
                           {verses.length} verse{verses.length !== 1 ? 's' : ''}
@@ -1058,20 +1070,19 @@ function UserNotesChapterView({
         const refList = (
           <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
             {refs.map((r, i) => (
-              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'notes', reason: r.sourceNoteTitle, fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                className="w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover transition-colors cursor-pointer group"
-              >
-                <RefChip size="xs" className="w-fit">
-                  <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                </RefChip>
-                <p className="text-caption text-text-secondary leading-relaxed">
-                  <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                </p>
-                <span className="flex items-center gap-1 text-micro text-text-muted">
-                  <NotepadText size={8} className="flex-shrink-0 opacity-70" />
-                  <span className="truncate">{r.sourceNoteTitle}</span>
-                </span>
-              </button>
+              <CrossRefCard
+                key={i}
+                refLabel={<RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />}
+                bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
+                footer={
+                  <span className="flex items-center gap-1 text-micro text-text-muted">
+                    <NotepadText size={8} className="flex-shrink-0 opacity-70" />
+                    <span className="truncate">{r.sourceNoteTitle}</span>
+                  </span>
+                }
+                onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'notes', reason: r.sourceNoteTitle, fromVerse: verseNum })}
+                onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+              />
             ))}
           </div>
         )
@@ -1588,7 +1599,7 @@ export default function BibleRightPanel({
         <button
           onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
           onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-          className="w-full text-left px-2 py-2.5 cursor-pointer min-w-0"
+          className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0"
         >
           <div className="flex items-center gap-1.5 min-w-0">
             {/* Note color dot — the same color-coding shown as a verse indicator
@@ -1598,7 +1609,7 @@ export default function BibleRightPanel({
               className="w-[6px] h-[6px] rounded-full flex-shrink-0"
               style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
             />
-            <span className="text-xs font-medium text-text-primary truncate">
+            <span className="text-footnote font-medium text-text-primary truncate">
               {note.title || 'Untitled'}
             </span>
           </div>
@@ -1660,9 +1671,9 @@ export default function BibleRightPanel({
           same switcher slot A has, not a fixed single-tab label. Both get a close button once
           a second panel exists. */}
       {!forcedTab && (
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-separator flex-shrink-0" role="radiogroup" aria-label="Side panel">
+        <Toolbar size="md" material="none" role="radiogroup" aria-label="Side panel">
           <div
-            className={`flex items-stretch gap-0.5 flex-1 min-w-0 p-0.5 rounded-control bg-surface-4/45 transition-[box-shadow] ${dragOverStrip ? 'ring-2 ring-accent/50' : ''}`}
+            className={`flex items-stretch gap-0.5 flex-1 min-w-0 p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)] transition-[box-shadow] ${dragOverStrip ? 'ring-2 ring-accent/50' : ''}`}
             // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
             // for custom MIME strings across Chromium/Electron versions, and this drop zone only
             // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
@@ -1719,7 +1730,7 @@ export default function BibleRightPanel({
                   {active && (
                     <motion.div
                       layoutId={`right-panel-tab-pill-${slotId}`}
-                      className="absolute inset-0 rounded-control bg-surface-1 shadow-1 pointer-events-none"
+                      className="absolute inset-0 rounded-control bg-control-selected border border-hairline shadow-1 pointer-events-none"
                       transition={SPRING_SNAPPY}
                     />
                   )}
@@ -1743,7 +1754,7 @@ export default function BibleRightPanel({
               onClick={slotId === 'B' ? onCloseSlotB : onCloseSlotA}
             />
           )}
-        </div>
+        </Toolbar>
       )}
 
       {/* Tab strip context menu — pop out (slot A → new slot B) / merge back (slot B → slot A) */}
@@ -1774,28 +1785,29 @@ export default function BibleRightPanel({
       {/* Notes tab — note open */}
       {mountedTabs.has('notes') && sidebarNote && (
         <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
-          <div className="flex items-center gap-2 px-2 py-1 border-b border-separator flex-shrink-0">
+          <Toolbar size="sm" material="none">
             <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={closeSidebarNote}>
               Notes
             </Button>
-            <input
+            <TextField
+              bare
+              wrapperClassName="flex-1 min-w-0"
               value={sidebarNote.title ?? ''}
               onChange={(e) => handleSidebarNoteTitle(e.target.value)}
               placeholder="Untitled"
-              className="flex-1 text-xs font-medium bg-transparent outline-none text-text-primary placeholder:text-text-muted min-w-0"
+              className="font-medium"
             />
-            <button
+            <IconButton
+              icon={ExternalLink}
+              label="Open in notes tab"
+              size={24}
               onClick={() => {
                 createNoteTab('note')
                 setActiveSpace('notes')
                 requestOpenNote(sidebarNote.id)
               }}
-              title="Open in notes tab"
-              className="p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer flex-shrink-0"
-            >
-              <ExternalLink size={11} />
-            </button>
-          </div>
+            />
+          </Toolbar>
           <div className="flex-1 overflow-hidden">
             <NoteEditor
               content={sidebarNote.content ?? ''}
@@ -1821,7 +1833,7 @@ export default function BibleRightPanel({
               single-row merge packed search + scope + sort + expand-all + new-note into
               one line, which went cramped/near-overflow well before the panel's resize
               minimum — splitting keeps every control a comfortable tap target. */}
-          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-separator flex-shrink-0">
+          <Toolbar size="sm" material="none">
             <SearchField
               size="sm"
               bare
@@ -1836,11 +1848,11 @@ export default function BibleRightPanel({
               }}
               placeholder="Search notes…"
               wrapperClassName="min-w-0 flex-1"
-              className="text-xs"
+              className="text-footnote"
             />
             <IconButton icon={Plus} label="New note" size={24} onClick={createChapterNote} />
-          </div>
-          <div className="flex items-center gap-1.5 px-2 py-1 border-b border-separator flex-shrink-0">
+          </Toolbar>
+          <Toolbar size="sm" material="none">
             <SegmentedControl
               size="sm"
               value={scope}
@@ -1872,7 +1884,7 @@ export default function BibleRightPanel({
               active={expandAll}
               onClick={() => setExpandAll(!expandAll)}
             />
-          </div>
+          </Toolbar>
 
           {/* Verse filter indicator — genuinely conditional context, not redundant chrome */}
           {verseFilter && (
@@ -1894,16 +1906,14 @@ export default function BibleRightPanel({
                     treatment as the "chapter notes" section below. */}
                 {scope === 'chapter' && !verseFilter && chapterMentionNotes.length > 0 && (
                   <div className="border-b border-separator">
-                    <button
+                    <DisclosureRow
+                      open={!mentionNotesCollapsed}
+                      dense={false}
                       onClick={() => setMentionNotesCollapsed((v) => !v)}
-                      className="w-full flex items-center gap-1.5 px-3 py-1.5 bg-surface-3 hover:bg-surface-hover cursor-pointer transition-colors"
-                    >
-                      {mentionNotesCollapsed
-                        ? <ChevronRight size={10} className="text-text-muted flex-shrink-0" />
-                        : <ChevronDown size={10} className="text-text-muted flex-shrink-0" />}
-                      <SectionLabel className="flex-1 text-left">mentions this chapter</SectionLabel>
-                      <span className="text-micro text-text-muted tabular-nums">{chapterMentionNotes.length}</span>
-                    </button>
+                      className="px-3"
+                      title="mentions this chapter"
+                      count={chapterMentionNotes.length}
+                    />
                     {!mentionNotesCollapsed && (
                       <div className="divide-y divide-separator">
                         {chapterMentionNotes.map((note) => {
@@ -1915,9 +1925,9 @@ export default function BibleRightPanel({
                             <div key={note.id} className="relative group transition-colors hover:bg-surface-hover rounded-row">
                               <button
                                 onClick={() => openSidebarNote(note)}
-                                className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
+                                className="focus-ring w-full text-left px-3 py-2.5 rounded-row cursor-pointer min-w-0"
                               >
-                                <div className="text-xs font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
+                                <div className="text-footnote font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
                                 <div className="text-caption2 text-text-muted mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
                               </button>
                               <IconButton
@@ -1941,16 +1951,14 @@ export default function BibleRightPanel({
                     via renderNoteRow, just grouped under its own toggle-able header. */}
                 {chapterLevelEntries.length > 0 && (
                   <div className="border-b border-separator">
-                    <button
+                    <DisclosureRow
+                      open={!chapterNotesCollapsed}
+                      dense={false}
                       onClick={() => setChapterNotesCollapsed((v) => !v)}
-                      className="w-full flex items-center gap-1.5 px-3 py-1.5 bg-surface-3 hover:bg-surface-hover cursor-pointer transition-colors"
-                    >
-                      {chapterNotesCollapsed
-                        ? <ChevronRight size={10} className="text-text-muted flex-shrink-0" />
-                        : <ChevronDown size={10} className="text-text-muted flex-shrink-0" />}
-                      <SectionLabel className="flex-1 text-left">chapter notes</SectionLabel>
-                      <span className="text-micro text-text-muted tabular-nums">{chapterLevelEntries.length}</span>
-                    </button>
+                      className="px-3"
+                      title="chapter notes"
+                      count={chapterLevelEntries.length}
+                    />
                     {!chapterNotesCollapsed && (
                       <div className="divide-y divide-separator">
                         {chapterLevelEntries.map(({ note, i }) => renderNoteRow(note, i))}
@@ -1968,9 +1976,9 @@ export default function BibleRightPanel({
                 {verseFilter && referencingNotes.length > 0 && (
                   <>
                     <div className="flex items-center gap-2 px-3 py-1.5 border-y border-separator bg-surface-2">
-                      <div className="h-px flex-1 bg-surface-4" />
+                      <div className="h-px flex-1 bg-separator" />
                       <SectionLabel className="whitespace-nowrap">also references this verse</SectionLabel>
-                      <div className="h-px flex-1 bg-surface-4" />
+                      <div className="h-px flex-1 bg-separator" />
                     </div>
                     <div className="divide-y divide-separator">
                       {referencingNotes.map((note) => {
@@ -1987,9 +1995,9 @@ export default function BibleRightPanel({
                             <button
                               onClick={() => openSidebarNote(note)}
                               onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                              className="w-full text-left px-2 py-2.5 cursor-pointer min-w-0"
+                              className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0"
                             >
-                              <div className="text-xs font-medium text-text-primary truncate">
+                              <div className="text-footnote font-medium text-text-primary truncate">
                                 {note.title || 'Untitled'}
                               </div>
                               <div className={`text-caption2 text-text-muted mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>

@@ -92,7 +92,7 @@ export default function NoteContextMenu({
 
   return createPortal(
     <>
-    <MenuPositioner ref={ref} x={x} y={y} className="native-buttons min-w-[190px]">
+    <MenuPositioner ref={ref} x={x} y={y} className="min-w-[190px]">
       <MenuSurface>
       {onOpenNewTab && (
         <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { onOpenNewTab(note); onClose() }} />
@@ -209,7 +209,7 @@ export default function NoteContextMenu({
     </MenuPositioner>
 
     {statusFlyout && onSetStatus && (
-      <MenuPositioner ref={statusFlyoutRef} x={statusFlyout.x} y={statusFlyout.y} className="native-buttons min-w-[160px]">
+      <MenuPositioner ref={statusFlyoutRef} x={statusFlyout.x} y={statusFlyout.y} className="min-w-[160px]">
         <MenuSurface>
           <MenuItem
             label={<span className="flex items-center gap-2.5"><CircleDashed size={14} strokeWidth={1.75} className="opacity-60" /><span>No status</span></span>}

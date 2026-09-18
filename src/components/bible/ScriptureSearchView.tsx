@@ -20,7 +20,10 @@ import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
-import { MenuSurface, MenuItem } from '@/components/ui'
+import {
+  ActionPillGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
+  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar,
+} from '@/components/ui'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
  *  combined Strong's+word query like "G5485 god" — any plain word from that same query
@@ -343,29 +346,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // produces canonical Genesis→Revelation order, which 'asc' keeps and 'desc' reverses).
   // Not persisted in tab state (unlike sortMode) — a lower-stakes secondary preference.
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [sortMenuOpen, setSortMenuOpen] = useState(false)
-  const [sortMenuPos, setSortMenuPos] = useState<{ left: number; top: number } | null>(null)
-  const sortMenuRef = useRef<HTMLDivElement>(null)
-  // The dropdown itself is portaled to document.body (see below — fixes a stacking-context
-  // bug where it rendered behind other content), so it's no longer a DOM descendant of
-  // sortMenuRef — this second ref covers the portaled content too, or every click inside the
-  // open menu would register as "outside" and close it before its own onClick even ran.
-  const sortMenuContentRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!sortMenuOpen) return
-    function onDown(e: MouseEvent) {
-      const t = e.target as Node
-      if (sortMenuRef.current?.contains(t)) return
-      if (sortMenuContentRef.current?.contains(t)) return
-      setSortMenuOpen(false)
-    }
-    window.addEventListener('mousedown', onDown, true)
-    return () => window.removeEventListener('mousedown', onDown, true)
-  }, [sortMenuOpen])
-  // Sort pill dropdown: relevance / book order — 2 items, single column. Focus resets
-  // to 0 whenever the dropdown opens (below), so it never opens focused on a stale item.
-  const sortMenuNav = useRovingGridNav({ itemCount: 2, columns: 1 })
-  useEffect(() => { if (sortMenuOpen) sortMenuNav.setFocusedIndex(0) }, [sortMenuOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
   // ── Verse-tag filter ──────────────────────────────────────────────────────────
   const verseTags = useAppStore((s) => s.verseTags)
@@ -459,26 +439,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // 'default' (compact, line-clamped snippet) / 'full' (whole verse, no clamp) / 'plusMinus1'
   // / 'plusMinus2' (the matched verse plus 1 or 2 verses of surrounding context on each side).
   const [contextMode, setContextMode] = useState<'default' | 'full' | 'plusMinus1' | 'plusMinus2'>('default')
-  const [contextMenuOpen, setContextMenuOpen] = useState(false)
-  const [contextMenuPos, setContextMenuPos] = useState<{ right: number; top: number } | null>(null)
-  const contextMenuRef = useRef<HTMLDivElement>(null)
-  // See sortMenuContentRef's comment — same reason, same fix.
-  const contextMenuContentRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!contextMenuOpen) return
-    function onDown(e: MouseEvent) {
-      const t = e.target as Node
-      if (contextMenuRef.current?.contains(t)) return
-      if (contextMenuContentRef.current?.contains(t)) return
-      setContextMenuOpen(false)
-    }
-    window.addEventListener('mousedown', onDown, true)
-    return () => window.removeEventListener('mousedown', onDown, true)
-  }, [contextMenuOpen])
-  // Compact/context-length dropdown: 4 items (default, full, ±1, ±2) across two visually
-  // separated groups but one continuous nav sequence — single column.
-  const contextMenuNav = useRovingGridNav({ itemCount: 4, columns: 1 })
-  useEffect(() => { if (contextMenuOpen) contextMenuNav.setFocusedIndex(0) }, [contextMenuOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const showContext = contextMode !== 'default'
   // Cache of whole-chapter verse data, keyed "textId:bookId:chapter" — fetched lazily, only
   // once a plusMinus mode is active and a given result's chapter is actually visible/rendered,
@@ -1168,43 +1128,34 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     }
   }
 
-  // One shared shape for EVERY control in the Advanced Search header (mode, word-mode, scope,
-  // sort, result-length, tag filter) — compact 10px, fixed 22px height, bordered pill, accent
-  // tint when active. Previously each was its own size/padding/radius/active-colour.
-  const CTL = 'flex items-center gap-1 text-caption2 leading-none h-[22px] px-2 rounded-md border transition-colors cursor-pointer flex-shrink-0'
-  const CTL_ON = 'bg-accent/12 border-accent/40 text-accent font-semibold'
-  const CTL_OFF = 'bg-surface-3 border-border text-text-secondary hover:text-text-primary hover:border-text-muted/50'
-
   return (
     <div className="flex flex-col h-full bg-surface-3">
-      {/* ── Shared TopBar slot: mode + word-mode pills, then the scope pill. All controls share
-           the CTL shape defined above. ── */}
+      {/* ── Shared TopBar slot: mode + word-mode pills, then the scope pill. ── */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {([['auto', 'All'], ['text', 'Text'], ['strongs', "Strong's"], ['crossref', 'Cross-ref']] as [SearchMode, string][]).map(([m, label]) => (
-            <button
-              key={m}
-              onClick={() => { setSearchMode(m); if (query.trim().length >= 2) runForMode(query) }}
-              className={`${CTL} ${searchMode === m ? CTL_ON : CTL_OFF}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          size="sm"
+          value={searchMode}
+          onChange={(m) => { setSearchMode(m); if (query.trim().length >= 2) runForMode(query) }}
+          options={[
+            { value: 'auto', label: 'All' },
+            { value: 'text', label: 'Text' },
+            { value: 'strongs', label: "Strong's" },
+            { value: 'crossref', label: 'Cross-ref' },
+          ]}
+        />
 
         {/* Word mode — permanent inline pills, text mode only (never in a modal/dropdown) */}
         {effectiveMode(query) === 'text' && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {([['all', 'All words'], ['any', 'Any word'], ['phrase', 'Phrase']] as [WordMode, string][]).map(([m, label]) => (
-              <button
-                key={m}
-                onClick={() => handleWordModeChange(m)}
-                className={`${CTL} ${wordMode === m ? CTL_ON : CTL_OFF}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            size="sm"
+            value={wordMode}
+            onChange={handleWordModeChange}
+            options={[
+              { value: 'all', label: 'All words' },
+              { value: 'any', label: 'Any word' },
+              { value: 'phrase', label: 'Phrase' },
+            ]}
+          />
         )}
 
         {/* Scope trigger — a single compact summary button, not the full chip row. The shared
@@ -1222,15 +1173,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           else if (selectedBooks.length > 1) scopeParts.push(`${selectedBooks.length} books`)
           const scopeSummary = scopeParts.length > 0 ? scopeParts.join(' · ') : 'All scripture'
           return (
-            <button
+            <Button
+              variant="secondary" size="sm" selected={isFiltered}
+              icon={BookOpen}
               onClick={() => openScopePalette()}
-              className={`${CTL} min-w-0 ${isFiltered ? CTL_ON : CTL_OFF}`}
               title="Scope: edition, testament, and books"
+              className="min-w-0"
             >
-              <BookOpen size={11} className="flex-shrink-0" />
               <span className="truncate max-w-[160px]">{scopeSummary}</span>
               <ChevronDown size={9} className="flex-shrink-0" />
-            </button>
+            </Button>
           )
         })()}
 
@@ -1254,134 +1206,54 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-separator bg-surface-2 flex-shrink-0 flex-wrap">
-        <Search size={14} className="text-text-muted flex-shrink-0" />
-        <input
+        <SearchField
           ref={inputRef}
-          type="text"
+          bare
           value={query}
-          onChange={(e) => handleInput(e.target.value)}
+          onValueChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder="Search scripture, Strong's, or verse ref…"
-          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none min-w-0 basis-40"
+          wrapperClassName="flex-1 min-w-0 basis-40"
         />
         {effectiveMode(query) !== 'crossref' && (
           <>
             {/* Sort pill: conjoined "mode dropdown" + "direction flip" — replaces the old
                 single-button relevance/book-order cycle. Direction is its own control
                 (applies to whichever mode is active) rather than folded into the cycle. */}
-            <div ref={sortMenuRef} className="flex items-stretch h-[22px] rounded-md border border-border bg-surface-3 overflow-hidden flex-shrink-0">
-              <button
-                onClick={() => {
-                  if (!sortMenuOpen) { const r = sortMenuRef.current?.getBoundingClientRect(); if (r) setSortMenuPos({ left: r.left, top: r.bottom + 4 }) }
-                  setSortMenuOpen((v) => !v)
-                }}
-                title="Sort order"
-                className="flex items-center gap-1 text-caption2 leading-none pl-2 pr-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer"
-              >
-                {sortMode === 'relevance' ? <ArrowUpDown size={11} /> : <ListTree size={11} />}
-                {sortMode === 'relevance' ? 'Relevance' : 'Book order'}
-                <ChevronDown size={9} className={`transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              <div className="w-px bg-surface-4" />
-              <button
+            <ActionPillGroup>
+              <Select
+                variant="ghost" size="sm"
+                aria-label="Sort order"
+                value={sortMode}
+                onChange={setSortMode}
+                options={[
+                  { value: 'relevance', label: 'Relevance', icon: ArrowUpDown },
+                  { value: 'bookOrder', label: 'Book order', icon: ListTree },
+                ]}
+              />
+              <IconButton
+                icon={sortDirection === 'desc' ? ArrowDown : ArrowUp}
+                label={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+                size={28}
                 onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
-                title={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
-                className="flex items-center px-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer"
-              >
-                {sortDirection === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
-              </button>
-              {/* Portaled to document.body with a fixed position computed from the trigger's
-                  own rect (like every other menu in this file, e.g. the results' right-click
-                  ctxMenu below) — an in-flow `absolute` dropdown here sat inside the header
-                  row's own stacking context, which a sibling ancestor elsewhere in the tree
-                  outranked, so it rendered visually BEHIND other content instead of on top of
-                  it despite its own z-50. Escaping to the body's top-level stacking context via
-                  a portal is what actually fixes that, not a bigger z-index number. */}
-              {sortMenuOpen && sortMenuPos && createPortal(
-                <div
-                  ref={sortMenuContentRef}
-                  style={{ position: 'fixed', left: sortMenuPos.left, top: sortMenuPos.top, zIndex: 'var(--z-menu)' }}
-                  className="min-w-[130px] material-popover rounded-menu overflow-hidden py-1"
-                >
-                  {([['relevance', 'Relevance', ArrowUpDown], ['bookOrder', 'Book order', ListTree]] as const).map(([m, label, Icon], i) => (
-                    <button
-                      key={m}
-                      onClick={() => { setSortMode(m); setSortMenuOpen(false) }}
-                      {...sortMenuNav.getItemProps(i)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-4 cursor-pointer transition-colors"
-                    >
-                      <Icon size={12} className="flex-shrink-0 text-text-muted" />
-                      <span className="flex-1">{label}</span>
-                      {sortMode === m && <Check size={12} className="flex-shrink-0 text-accent" />}
-                    </button>
-                  ))}
-                </div>,
-                document.body
-              )}
-            </div>
+              />
+            </ActionPillGroup>
 
             {/* Context-length dropdown — was a compact/full flip button; now a 4-way picker
                 (default snippet / full verse / ± context) since "±1 verse" / "±2 verses" have
                 no natural binary toggle counterpart. */}
-            <div ref={contextMenuRef} className="flex-shrink-0">
-              <button
-                onClick={() => {
-                  if (!contextMenuOpen) { const r = contextMenuRef.current?.getBoundingClientRect(); if (r) setContextMenuPos({ right: window.innerWidth - r.right, top: r.bottom + 4 }) }
-                  setContextMenuOpen((v) => !v)
-                }}
-                title="Result length"
-                className={`${CTL} ${showContext ? CTL_ON : CTL_OFF}`}
-              >
-                {contextMode === 'default' && <AlignJustify size={11} />}
-                {contextMode === 'full' && <Rows size={11} />}
-                {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') && <span className="font-mono font-bold leading-none">±</span>}
-                {contextMode === 'default' && 'Compact'}
-                {contextMode === 'full' && 'Full'}
-                {contextMode === 'plusMinus1' && '±1 verse'}
-                {contextMode === 'plusMinus2' && '±2 verses'}
-                <ChevronDown size={9} className={`transition-transform ${contextMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {contextMenuOpen && contextMenuPos && createPortal(
-                <div
-                  ref={contextMenuContentRef}
-                  style={{ position: 'fixed', right: contextMenuPos.right, top: contextMenuPos.top, zIndex: 'var(--z-menu)' }}
-                  className="min-w-[150px] material-popover rounded-menu overflow-hidden py-1"
-                >
-                  {([
-                    ['default', 'Compact', AlignJustify],
-                    ['full', 'Full verse', Rows],
-                  ] as const).map(([m, label, Icon], i) => (
-                    <button
-                      key={m}
-                      onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
-                      {...contextMenuNav.getItemProps(i)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-4 cursor-pointer transition-colors"
-                    >
-                      <Icon size={12} className="flex-shrink-0 text-text-muted" />
-                      <span className="flex-1">{label}</span>
-                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-accent" />}
-                    </button>
-                  ))}
-                  <div className="h-px my-1 bg-surface-4" />
-                  {([
-                    ['plusMinus1', '±1 verse'],
-                    ['plusMinus2', '±2 verses'],
-                  ] as const).map(([m, label], i) => (
-                    <button
-                      key={m}
-                      onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
-                      {...contextMenuNav.getItemProps(i + 2)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-text-primary hover:bg-surface-4 cursor-pointer transition-colors"
-                    >
-                      <span className="font-mono font-bold leading-none w-3 flex-shrink-0 text-center text-text-muted">±</span>
-                      <span className="flex-1">{label}</span>
-                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-accent" />}
-                    </button>
-                  ))}
-                </div>,
-                document.body
-              )}
-            </div>
+            <Select
+              variant="ghost" size="sm"
+              aria-label="Result length"
+              value={contextMode}
+              onChange={setContextMode}
+              options={[
+                { value: 'default', label: 'Compact', icon: AlignJustify },
+                { value: 'full', label: 'Full verse', icon: Rows },
+                { value: 'plusMinus1', label: '±1 verse' },
+                { value: 'plusMinus2', label: '±2 verses' },
+              ]}
+            />
 
             {/* Verse-tag filter — lives in this wrapping header row (not the non-wrapping
                 TopBar portal, where it got clipped off the right edge). */}
@@ -1390,16 +1262,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
               const summary = !on ? 'Any tag' : names.length === 1 ? names[0] : `${names.length} tags${tagMatchAll ? ' · all' : ''}`
               return (
-                <button
+                <Button
                   ref={tagFilterBtnRef}
+                  variant="secondary" size="sm" selected={on}
+                  icon={Tag}
                   onClick={() => setTagFilterMenuOpen((v) => !v)}
-                  className={`${CTL} ${on ? CTL_ON : CTL_OFF}`}
                   title="Filter results by verse tag"
                 >
-                  <Tag size={11} className="flex-shrink-0" />
                   <span className="truncate max-w-[140px]">{summary}</span>
                   <ChevronDown size={9} className="flex-shrink-0" />
-                </button>
+                </Button>
               )
             })()}
           </>
@@ -1512,17 +1384,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         // alongside its own onClick — not every scopeItem call site participates in nav.
         function scopeItem(key: string, selected: boolean, onClick: () => void, content: React.ReactNode, full = true, navProps?: ReturnType<ReturnType<typeof useRovingGridNav>['getItemProps']>) {
           return (
-            <button
+            <Checkbox
               key={key}
-              onClick={onClick}
+              checked={selected}
+              onChange={onClick}
               {...navProps}
-              className={`flex items-center gap-2 ${full ? 'w-full px-3 py-2 text-sm' : 'px-2 py-1.5 text-subhead rounded-md'} text-left cursor-pointer transition-colors ${selected ? 'text-accent bg-accent/10' : 'text-text-primary hover:bg-surface-3'}`}
-            >
-              <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${selected ? 'bg-accent border-accent' : 'border-border'}`}>
-                {selected && <Check size={9} className="text-white" />}
-              </span>
-              {content}
-            </button>
+              label={content}
+              className={`rounded-row hover:bg-lift-2 transition-colors ${full ? 'w-full px-3 py-2' : 'px-2 py-1.5'}`}
+            />
           )
         }
 
@@ -1543,17 +1412,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 pills PLUS separate expand state doing overlapping jobs. */}
             {scopePaletteOpen && createPortal(
               <div
-                className="fixed inset-0 z-critical flex items-center justify-center bg-black/40"
+                className="fixed inset-0 z-critical flex items-center justify-center bg-black/20"
                 onMouseDown={(e) => { if (e.target === e.currentTarget) { setScopePaletteOpen(false); setScopeSearch('') } }}
               >
-                <div className="flex flex-col material-sheet rounded-sheet overflow-hidden w-[600px] max-h-[75vh]">
-                  <div className="flex items-center gap-2 px-3 py-2 border-b border-separator flex-shrink-0">
-                    <Search size={13} className="text-text-muted flex-shrink-0" />
-                    <input
+                <div className="flex flex-col material-elevated rounded-sheet overflow-hidden w-[600px] max-h-[75vh]">
+                  <Toolbar size="sm" material="none">
+                    <SearchField
                       ref={scopeSearchRef}
-                      type="text"
+                      bare
+                      wrapperClassName="flex-1"
                       value={scopeSearch}
-                      onChange={(e) => setScopeSearch(e.target.value)}
+                      onValueChange={setScopeSearch}
                       onKeyDown={(e) => {
                         if (e.key === 'Escape') { setScopePaletteOpen(false); setScopeSearch('') }
                         // Arrow keys typed while focus is still in the search box do nothing on
@@ -1564,15 +1433,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         else if (e.key === 'ArrowDown') { e.preventDefault(); testamentNav.focusCurrent() }
                       }}
                       placeholder="Search editions, testaments, or books…"
-                      className="flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-muted"
                     />
                     {isFiltered && (
-                      <button
+                      <Button
+                        variant="ghost" size="sm"
                         onClick={() => { setTextId('all'); setTestamentFilter('all'); setSelectedBooks([]) }}
-                        className="flex-shrink-0 text-caption2 text-accent hover:underline cursor-pointer"
-                      >Clear all</button>
+                      >Clear all</Button>
                     )}
-                  </div>
+                  </Toolbar>
 
                   {/* One scope pill row, governing everything below it — not just a
                       Canon-Books-only filter anymore. "OT"/"NT"/"Apocrypha" narrow to canon
@@ -1580,24 +1448,22 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       neither one IS a testament); "Pseudepigrapha" narrows to Other Books
                       the same way. This replaces having a whole separate pill row nested
                       inside the Canon Books section specifically. */}
-                  <div className="flex items-center gap-1 flex-wrap px-3 py-2 border-b border-separator flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-wrap px-3 py-2 border-b border-separator flex-shrink-0">
                     {scopeOptions.map((s, i) => (
-                      <button
+                      <Chip
                         key={s}
+                        selected={testamentFilter === s}
                         onClick={() => { setTestamentFilter(s); setSelectedBooks([]) }}
                         {...testamentNav.getItemProps(i)}
-                        className={`text-caption px-2 py-1 rounded-full border cursor-pointer transition-colors ${testamentFilter === s ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
                       >
                         {s === 'all' ? 'All' : s}
-                      </button>
+                      </Chip>
                     ))}
                   </div>
 
                   <div className="overflow-y-auto flex-1 py-1 min-h-[240px]">
                     {!hasEditionMatch && !hasCanonMatch && !hasOtherMatch && (
-                      <div className="px-3 py-6 text-sm text-center text-text-muted">
-                        {scopeSearch ? `Nothing matches "${scopeSearch}"` : 'Nothing in this scope'}
-                      </div>
+                      <EmptyState compact title={scopeSearch ? `Nothing matches "${scopeSearch}"` : 'Nothing in this scope'} />
                     )}
 
                     {/* ── Bible Edition — which translation of the canon to search. ── */}
@@ -1636,7 +1502,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     )}
 
                     {hasCanonMatch && hasOtherMatch && (
-                      <div className="mx-3 my-1 h-px bg-surface-4" />
+                      <div className="mx-3 my-1 h-px bg-separator" />
                     )}
 
                     {/* ── Other Books — each pseudepigrapha text is its own single-book edition ── */}
@@ -1655,12 +1521,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             <div key={t.id}>
                               <div className="flex items-center justify-between px-3 pt-1.5 pb-0.5">
                                 <p className="text-caption2 font-medium text-text-muted">{group.label}</p>
-                                <button
+                                <Button
+                                  variant="ghost" size="sm" selected={wholeGroupSelected}
+                                  className="h-auto px-1.5 py-0.5 text-caption2"
                                   onClick={() => setSelectedBooks((cur) => toggleGroup(cur, group))}
-                                  className={`text-caption2 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${wholeGroupSelected ? 'text-accent font-semibold' : 'text-text-muted hover:text-text-primary'}`}
                                 >
                                   {wholeGroupSelected ? 'Clear all' : 'Select all'}
-                                </button>
+                                </Button>
                               </div>
                               <div className="grid grid-cols-3 gap-0.5 px-2 pb-1.5">
                                 {filteredSubBooks.map((b, i) =>
@@ -1674,13 +1541,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     )}
                   </div>
 
-                  <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-t border-separator">
+                  <Toolbar size="sm" material="none" edge="top" className="justify-between">
                     <span className="text-caption2 text-text-muted">Esc to close</span>
-                    <button
+                    <Button
+                      variant="primary" size="sm"
                       onClick={() => { setScopePaletteOpen(false); setScopeSearch('') }}
-                      className="text-caption font-semibold px-3 py-1 rounded-md bg-accent text-white cursor-pointer"
-                    >Done</button>
-                  </div>
+                    >Done</Button>
+                  </Toolbar>
                 </div>
               </div>,
               document.body
@@ -1707,56 +1574,53 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       >
         {/* Cross-ref results */}
         {effectiveMode(query) === 'crossref' && crossRefsLoading && (
-          <div className="px-4 py-6 text-center text-sm text-text-muted animate-pulse">Finding cross-references…</div>
+          <div className="px-4 py-6 text-center text-subhead text-text-muted animate-pulse">Finding cross-references…</div>
         )}
         {effectiveMode(query) === 'crossref' && versePreview && (
           <div className="px-4 py-3 border-b border-separator bg-surface-2">
             <p className="text-caption2 font-semibold text-accent mb-1">{versePreview.ref}</p>
-            <p className="text-xs text-text-primary leading-relaxed">{versePreview.text}</p>
+            <p className="text-footnote text-text-primary leading-relaxed">{versePreview.text}</p>
           </div>
         )}
         {effectiveMode(query) === 'crossref' && !crossRefsLoading && crossRefs.length > 0 && (
           <div>
-            <p className="px-4 py-1.5 text-caption2 text-text-muted border-b border-separator bg-surface-2 sticky top-0 z-10">
+            <SectionHeader className="sticky top-0 z-raised bg-surface-2 px-4 py-1.5">
               {crossRefs.length} cross-reference{crossRefs.length !== 1 ? 's' : ''} — sorted by strength
-            </p>
-            {crossRefs.map((r, i) => {
-              const ref = r.endVerse
-                ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`
-              const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
-              return (
-                <button
-                  key={i}
-                  onClick={() => onNavigate(r.bookId, r.chapter, r.verse, 'kjva')}
-                  onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: 'kjva', text: '', x: e.clientX, y: e.clientY }) }}
-                  className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-surface-4 transition-colors cursor-pointer border-b border-separator group"
-                >
-                  <span className="text-xs font-mono text-accent w-28 flex-shrink-0 pt-0.5 group-hover:underline">{ref}</span>
-                  <div className="flex-1 min-w-0">
-                    {r.text && <p className="text-xs text-text-primary leading-relaxed line-clamp-2">{r.text}</p>}
-                    <div className="mt-0.5 text-micro text-text-muted">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</div>
-                  </div>
-                  <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              )
-            })}
+            </SectionHeader>
+            <div className="divide-y divide-separator">
+              {crossRefs.map((r, i) => {
+                const ref = r.endVerse
+                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
+                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`
+                const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
+                return (
+                  <ListRow
+                    key={i}
+                    className="rounded-none px-4"
+                    onClick={() => onNavigate(r.bookId, r.chapter, r.verse, 'kjva')}
+                    onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: 'kjva', text: '', x: e.clientX, y: e.clientY }) }}
+                    leading={<span className="font-mono text-caption text-accent w-24 flex-shrink-0">{ref}</span>}
+                    title={r.text ? <span className="whitespace-normal">{r.text}</span> : undefined}
+                    subtitle={`${'●'.repeat(strength)}${'○'.repeat(5 - strength)}`}
+                    trailing={<ChevronRight size={11} className="text-text-muted" />}
+                  />
+                )
+              })}
+            </div>
           </div>
         )}
         {effectiveMode(query) === 'crossref' && !crossRefsLoading && crossRefs.length === 0 && query.trim().length >= 2 && (
-          <div className="px-4 py-12 text-center">
-            <GitFork size={24} className="mx-auto mb-3 text-text-muted opacity-30" />
-            <p className="text-sm text-text-secondary">
-              {parseRef(query.trim()) ? 'No cross-references found' : 'Enter a verse reference (e.g. Gen 1:1)'}
-            </p>
-          </div>
+          <EmptyState
+            icon={GitFork}
+            title={parseRef(query.trim()) ? 'No cross-references found' : 'Enter a verse reference (e.g. Gen 1:1)'}
+          />
         )}
         {effectiveMode(query) === 'crossref' && !query.trim() && (
-          <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <GitFork size={28} className="text-text-muted mb-3 opacity-30" />
-            <p className="text-xs text-text-muted mb-1">Find cross-references for any verse</p>
-            <p className="text-caption2 text-text-muted opacity-60">Type a verse reference like "Gen 1:1" or "John 3:16"</p>
-          </div>
+          <EmptyState
+            icon={GitFork}
+            title="Find cross-references for any verse"
+            hint={'Type a verse reference like "Gen 1:1" or "John 3:16"'}
+          />
         )}
 
         {/* Verse-tag browse: when tags are selected but there's no active text query, list
@@ -1769,7 +1633,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               {tagMatchAll && selectedTagIds.length > 1 ? ' · matching all selected tags' : ''}
             </p>
             {tagMembers.length === 0 ? (
-              <div className="px-4 py-10 text-center text-xs text-text-muted">Nothing tagged yet.</div>
+              <EmptyState title="Nothing tagged yet." />
             ) : (
               <TaggedVerseList
                 groups={tagMembers.map((m) => {
@@ -1803,14 +1667,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
         {/* Text + Strong's search results */}
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && loading && (
-          <div className="px-4 py-6 text-center text-sm text-text-muted animate-pulse">Searching…</div>
+          <div className="px-4 py-6 text-center text-subhead text-text-muted animate-pulse">Searching…</div>
         )}
 
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && query.trim().length >= 2 && results.length === 0 && (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-text-secondary">No results for "{query}"</p>
-            <p className="text-xs text-text-muted mt-1">{effectiveMode(query) === 'strongs' ? 'No verses carry this Strong’s number' : 'Try a different phrase or text'}</p>
-          </div>
+          <EmptyState
+            title={`No results for "${query}"`}
+            hint={effectiveMode(query) === 'strongs' ? 'No verses carry this Strong’s number' : 'Try a different phrase or text'}
+          />
         )}
 
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && filteredGroups.length > 0 && (
@@ -1858,14 +1722,15 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         className={`absolute top-0 left-0 w-full ${virtualRow.index > 0 ? 'pt-1.5' : ''}`}
                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                       >
-                        <div
-                          className={`mx-2 flex items-center gap-2 px-3 py-2 bg-surface-3 border-t border-l border-r border-separator rounded-t-lg cursor-pointer select-none hover:bg-surface-4 transition-colors ${selfClosing ? 'border-b rounded-b-lg' : ''}`}
+                        <button
+                          type="button"
+                          className={`focus-ring w-full mx-2 flex items-center gap-2 px-3 py-2 bg-surface-3 border-t border-l border-r border-separator rounded-t-card cursor-pointer select-none hover:bg-lift-2 transition-colors ${selfClosing ? 'border-b rounded-b-card' : ''}`}
                           onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
                         >
                           <ChevronDown size={12} className={`text-text-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
                           <BookOpen size={12} className="text-text-muted flex-shrink-0" />
                           <span className="text-subhead font-semibold text-text-primary">{group.bookName}</span>
-                          <span className="text-caption2 text-text-muted bg-surface-4/60 rounded-full px-1.5 py-0.5">{group.results.length}</span>
+                          <RefChip variant="neutral" size="xs">{group.results.length}</RefChip>
                           <div className="flex-1" />
                           {textId === 'all' && (
                             <span className="flex items-center gap-1 text-caption2 text-text-secondary font-semibold uppercase tracking-wide">
@@ -1874,7 +1739,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             </span>
                           )}
                           {group.testament && textId !== 'all' && <span className="text-caption2 text-text-muted uppercase tracking-wide">{group.testament}</span>}
-                        </div>
+                        </button>
                       </div>
                     )
                   }
@@ -1892,11 +1757,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       <button
                         onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))}
                         onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                        className={`mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-surface-2 border-l border-r border-separator ${isLastInGroup ? 'border-b rounded-b-lg' : ''} ${row.indexInGroup > 0 ? 'border-t border-separator' : ''} ${isFocused ? 'bg-accent/10 ring-inset ring-1 ring-accent/30' : 'hover:bg-surface-3'}`}
+                        className={`focus-ring mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-surface-2 border-l border-r border-separator ${isLastInGroup ? 'border-b rounded-b-card' : ''} ${row.indexInGroup > 0 ? 'border-t border-separator' : ''} ${isFocused ? 'bg-accent/10 ring-inset ring-1 ring-accent/30' : 'hover:bg-lift-2'}`}
                       >
-                        <span className="text-caption font-mono font-semibold text-accent bg-accent/10 rounded-md w-14 flex-shrink-0 text-center py-1">
+                        <RefChip size="sm" className="w-14 flex-shrink-0 justify-center py-1">
                           {r.chapter}:{r.verse_num}
-                        </span>
+                        </RefChip>
                         {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {
                           const span = contextMode === 'plusMinus1' ? 1 : 2
                           const chapterVerses = getContextVerses(r)
@@ -2006,11 +1871,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         )}
 
         {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && !query.trim() && (
-          <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <Search size={28} className="text-text-muted mb-3 opacity-30" />
-            <p className="text-xs text-text-muted mb-1">Search across all scripture texts</p>
-            <p className="text-caption2 text-text-muted opacity-60">Keywords, a reference, or a Strong's number (e.g. G5485) · Esc to return to reader</p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title="Search across all scripture texts"
+            hint="Keywords, a reference, or a Strong's number (e.g. G5485) · Esc to return to reader"
+          />
         )}
       </div>
 
@@ -2051,25 +1916,25 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               </div>
             }
           >
-            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-separator flex-shrink-0">
-              <Search size={11} className="text-text-muted flex-shrink-0" />
-              <input
+            <Toolbar size="sm" material="none">
+              <SearchField
                 ref={railSearchRef}
+                bare
+                wrapperClassName="flex-1 min-w-0"
                 value={railSearch}
-                onChange={(e) => setRailSearch(e.target.value)}
+                onValueChange={setRailSearch}
                 placeholder="Jump to book…"
-                className="flex-1 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted min-w-0"
               />
-            </div>
+            </Toolbar>
             <div className="overflow-y-auto flex-1 py-1">
               {railGroups.length === 0 && (
-                <div className="px-3 py-3 text-xs text-center text-text-muted">No match</div>
+                <EmptyState compact title="No match" />
               )}
               {railGroups.map((g) => {
                 const key = `${g.textId}::${g.bookId}`
                 const editionDot = g.textId === 'kjva' ? 'bg-warning' : g.textId === 'lxx' ? 'bg-info' : 'bg-text-muted'
                 return (
-                  <button
+                  <ListRow
                     key={key}
                     onClick={() => {
                       const idx = headerFlatIndex.get(key)
@@ -2081,18 +1946,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
                       railPanelRef.current?.close()
                     }}
-                    className="flex items-start gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-subhead text-left text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors cursor-pointer"
-                  >
-                    {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${editionDot}`} />}
-                    {/* Wraps to 2 lines instead of truncating — a fixed-width panel plus
-                        single-line truncation was cutting off names like "Recognitions,
-                        Book 10" to the point of being unreadable. Widening the panel to fit
-                        the single longest name outright would make it noticeably bulkier
-                        for every OTHER (mostly short) row just to cover a few edge cases;
-                        wrapping keeps the panel's width modest while never losing text. */}
-                    <span className="flex-1 line-clamp-2 leading-snug">{g.bookName}</span>
-                    {textId === 'all' && <span className="text-caption2 text-text-muted uppercase tracking-wide flex-shrink-0 mt-0.5">{g.textLabel}</span>}
-                  </button>
+                    leading={textId === 'all' ? <span className={`w-2 h-2 rounded-full flex-shrink-0 ${editionDot}`} /> : undefined}
+                    // Wraps to 2 lines instead of truncating — a fixed-width panel plus
+                    // single-line truncation was cutting off names like "Recognitions,
+                    // Book 10" to the point of being unreadable.
+                    title={<span className="whitespace-normal">{g.bookName}</span>}
+                    meta={textId === 'all' ? g.textLabel : undefined}
+                  />
                 )
               })}
             </div>
@@ -2210,41 +2070,36 @@ function TagFilterMenu({
       <div className="flex items-center justify-between px-3 pt-2 pb-1 text-caption font-semibold text-text-secondary">
         <span>Filter by tag</span>
         {selectedIds.length > 0 && (
-          <button onClick={onClear} className="text-caption2 text-text-muted hover:text-accent cursor-pointer">Clear</button>
+          <Button variant="ghost" size="sm" className="h-auto px-1 text-caption2" onClick={onClear}>Clear</Button>
         )}
       </div>
       <div className="max-h-[240px] overflow-y-auto px-1.5 pb-1">
-        {tags.length === 0 && <div className="px-2 py-3 text-caption text-text-muted text-center">No tags yet.</div>}
+        {tags.length === 0 && <EmptyState compact title="No tags yet." />}
         {tags.map((t) => {
           const on = selectedIds.includes(t.id)
           return (
-            <button
+            <MenuItem
               key={t.id}
               onClick={() => onToggle(t.id)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left rounded-row hover:bg-surface-hover cursor-pointer text-text-primary"
-            >
-              <span className={`w-[13px] h-[13px] rounded-chip border flex items-center justify-center flex-shrink-0 ${on ? 'bg-accent border-accent' : 'border-border'}`}>
-                {on && <Check size={10} className="text-white" />}
-              </span>
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
-              <span className="truncate">{t.name}</span>
-              <span className="ml-auto text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>
-            </button>
+              label={
+                <span className="flex items-center gap-2 min-w-0 flex-1">
+                  <Checkbox checked={on} onChange={() => {}} tabIndex={-1} className="pointer-events-none" />
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
+                  <span className="truncate flex-1">{t.name}</span>
+                  <span className="text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>
+                </span>
+              }
+            />
           )
         })}
       </div>
       {selectedIds.length > 1 && (
-        <label className="flex items-center gap-2 px-3 py-1.5 text-caption text-text-secondary border-t border-separator cursor-pointer">
-          <input type="checkbox" checked={matchAll} onChange={(e) => onSetMatchAll(e.target.checked)} />
-          Match all selected tags
-        </label>
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-caption text-text-secondary border-t border-separator">
+          <span>Match all selected tags</span>
+          <Switch checked={matchAll} onCheckedChange={() => onSetMatchAll(!matchAll)} />
+        </div>
       )}
-      <button
-        onClick={onManage}
-        className="flex items-center gap-1 px-3 py-2 text-caption text-text-muted hover:text-text-primary border-t border-separator cursor-pointer"
-      >
-        <Settings2 size={11} /> Manage tags…
-      </button>
+      <MenuItem icon={Settings2} label="Manage tags…" onClick={onManage} />
     </div>,
     document.body,
   )

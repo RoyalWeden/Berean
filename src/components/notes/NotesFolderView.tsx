@@ -5,7 +5,7 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, NotepadText, Trash2,
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
-  BookMarked, CheckSquare, Square, FolderInput, FileType2, FolderTree,
+  BookMarked, FolderInput, FileType2, FolderTree,
   RotateCcw, AlertTriangle,
 } from 'lucide-react'
 import type { Note, NoteFolder, NoteStatus, PdfDoc } from '@/types'
@@ -16,7 +16,7 @@ import { useAppStore } from '@/store'
 import { bookName, bookOrder } from '@/lib/parseRef'
 import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
-import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton } from '@/components/ui'
+import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton, Checkbox, DisclosureRow, ListRow } from '@/components/ui'
 
 // ── System (virtual) folders ─────────────────────────────────────────────────
 // Notes belong to a system folder by their type/tags. A note that has been moved
@@ -221,7 +221,7 @@ export default function NotesFolderView({
   const draggingNoteRef = useRef<Note | null>(null)
   // Row DOM refs for the search jump rail below — keyed by folder id (user folders) or
   // the SystemKey string (locked folders), scrollIntoView'd when a rail entry is clicked.
-  const folderRowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const folderRowRefs = useRef<Map<string, HTMLElement>>(new Map())
   const [jumpRailSearch, setJumpRailSearch] = useState('')
   const jumpRailSearchRef = useRef<HTMLInputElement>(null)
   const jumpRailPanelRef = useRef<FloatingHoverPanelHandle>(null)
@@ -590,12 +590,9 @@ export default function NotesFolderView({
           <span className="absolute -left-1.5 top-1 bottom-1 w-[3px] rounded-control bg-accent" />
         )}
         {selectMode && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleSelectNote?.(note.id) }}
-            className="flex-shrink-0 text-text-muted hover:text-accent cursor-pointer"
-          >
-            {isSelected ? <CheckSquare size={14} className="text-accent" /> : <Square size={14} />}
-          </button>
+          <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Checkbox checked={isSelected} onChange={() => onToggleSelectNote?.(note.id)} />
+          </span>
         )}
         <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
         {isRenaming ? (
@@ -614,7 +611,7 @@ export default function NotesFolderView({
             className="h-5"
           />
         ) : (
-          <span className="min-w-0 truncate text-xs text-text-primary">{note.title || 'Untitled'}</span>
+          <span className="min-w-0 truncate text-footnote text-text-primary">{note.title || 'Untitled'}</span>
         )}
         {/* Status indicator — same colored icon used in the list/board views, for a consistent
             at-a-glance status signal across every way of browsing notes. */}
@@ -731,19 +728,19 @@ export default function NotesFolderView({
           }`}
         >
           {selectMode && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleSelectFolder?.(folder.id) }}
-              className="flex-shrink-0 text-text-muted hover:text-accent cursor-pointer"
-            >
-              {isSelected ? <CheckSquare size={14} className="text-accent" /> : <Square size={14} />}
-            </button>
+            <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <Checkbox checked={isSelected} onChange={() => onToggleSelectFolder?.(folder.id)} />
+            </span>
           )}
-          <button
+          <IconButton
+            icon={ChevronRight}
+            label={isOpen ? 'Collapse' : 'Expand'}
+            tooltip={false}
+            size={20}
+            variant="ghost"
+            iconClassName={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
             onClick={(e) => { e.stopPropagation(); toggle(folder.id) }}
-            className="flex-shrink-0 cursor-pointer"
-          >
-            <ChevronRight size={12} className={`text-text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-          </button>
+          />
           {isOpen ? <FolderOpen size={13} className="flex-shrink-0 text-accent" /> : <Folder size={13} className="flex-shrink-0 text-accent" />}
           {isRenaming ? (
             <TextField
@@ -761,7 +758,7 @@ export default function NotesFolderView({
               className="h-5"
             />
           ) : (
-            <span className="min-w-0 truncate text-xs font-medium text-text-primary">{folder.name}</span>
+            <span className="min-w-0 truncate text-footnote font-medium text-text-primary">{folder.name}</span>
           )}
           {/* "→ drop here" badge — shows for both note and folder drags */}
           {(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id ? (
@@ -819,37 +816,31 @@ export default function NotesFolderView({
           const totalNotes = sortedChapters.reduce((sum, [, ns]) => sum + ns.length, 0)
           return (
             <div key={bookFolderId}>
-              {/* Book virtual folder — depth=1, paddingLeft=8+1*16=24 */}
-              <div
+              {/* Book virtual folder — depth=1, indent=8+1*16=24 */}
+              <DisclosureRow
+                open={bookIsOpen}
                 onClick={() => toggle(bookFolderId)}
-                style={{ paddingLeft: 24 }}
-                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
-              >
-                <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${bookIsOpen ? 'rotate-90' : ''}`} />
-                {bookIsOpen
-                  ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
-                  : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
-                <span className="min-w-0 truncate text-xs text-text-secondary">{bookName(bid)}</span>
-                <span className="text-caption2 text-text-muted">{totalNotes || ''}</span>
-              </div>
+                indent={24}
+                icon={bookIsOpen ? FolderOpen : Folder}
+                title={bookName(bid)}
+                count={totalNotes || undefined}
+                className="mx-1.5"
+              />
               {bookIsOpen && sortedChapters.map(([ch, chNotes]) => {
                 const chFolderId = `sys:${key}:${bid}:${ch}`
                 const chIsOpen = expanded.has(chFolderId)
                 return (
                   <div key={chFolderId}>
-                    {/* Chapter virtual folder — depth=2, paddingLeft=8+2*16=40 */}
-                    <div
+                    {/* Chapter virtual folder — depth=2, indent=8+2*16=40 */}
+                    <DisclosureRow
+                      open={chIsOpen}
                       onClick={() => toggle(chFolderId)}
-                      style={{ paddingLeft: 40 }}
-                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
-                    >
-                      <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${chIsOpen ? 'rotate-90' : ''}`} />
-                      {chIsOpen
-                        ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
-                        : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
-                      <span className="min-w-0 truncate text-xs text-text-secondary">Chapter {ch}</span>
-                      <span className="text-caption2 text-text-muted">{chNotes.length || ''}</span>
-                    </div>
+                      indent={40}
+                      icon={chIsOpen ? FolderOpen : Folder}
+                      title={`Chapter ${ch}`}
+                      count={chNotes.length || undefined}
+                      className="mx-1.5"
+                    />
                     {/* Notes inside chapter — depth=3 → paddingLeft=12+3*16=60 */}
                     {chIsOpen && chNotes.map((n) => renderNote(n, 3))}
                   </div>
@@ -876,18 +867,15 @@ export default function NotesFolderView({
           return (
             <div key={yearFolderId}>
               {/* Year virtual folder — depth=1 */}
-              <div
+              <DisclosureRow
+                open={yearIsOpen}
                 onClick={() => toggle(yearFolderId)}
-                style={{ paddingLeft: 24 }}
-                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
-              >
-                <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${yearIsOpen ? 'rotate-90' : ''}`} />
-                {yearIsOpen
-                  ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
-                  : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
-                <span className="min-w-0 truncate text-xs text-text-secondary">{year}</span>
-                <span className="text-caption2 text-text-muted">{totalNotes || ''}</span>
-              </div>
+                indent={24}
+                icon={yearIsOpen ? FolderOpen : Folder}
+                title={year}
+                count={totalNotes || undefined}
+                className="mx-1.5"
+              />
               {yearIsOpen && sortedMonths.map(([monthKey, mNotes]) => {
                 const monthFolderId = `sys:daily:${monthKey}`
                 const monthIsOpen = expanded.has(monthFolderId)
@@ -896,18 +884,15 @@ export default function NotesFolderView({
                 return (
                   <div key={monthFolderId}>
                     {/* Month virtual folder — depth=2 */}
-                    <div
+                    <DisclosureRow
+                      open={monthIsOpen}
                       onClick={() => toggle(monthFolderId)}
-                      style={{ paddingLeft: 40 }}
-                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors select-none"
-                    >
-                      <ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${monthIsOpen ? 'rotate-90' : ''}`} />
-                      {monthIsOpen
-                        ? <FolderOpen size={12} className="flex-shrink-0 text-text-muted" />
-                        : <Folder    size={12} className="flex-shrink-0 text-text-muted" />}
-                      <span className="min-w-0 truncate text-xs text-text-secondary">{monthLabel}</span>
-                      <span className="text-caption2 text-text-muted">{mNotes.length || ''}</span>
-                    </div>
+                      indent={40}
+                      icon={monthIsOpen ? FolderOpen : Folder}
+                      title={monthLabel}
+                      count={mNotes.length || undefined}
+                      className="mx-1.5"
+                    />
                     {/* Notes inside month — depth=3, newest first (pre-sorted in dailySubGroups) */}
                     {monthIsOpen && mNotes.map((n) => renderNote(n, 3))}
                   </div>
@@ -938,7 +923,7 @@ export default function NotesFolderView({
   }
 
   return (
-    <div className="py-1 text-sm min-h-full flex flex-col" onContextMenu={handleEmptyContextMenu}>
+    <div className="py-1 text-body min-h-full flex flex-col" onContextMenu={handleEmptyContextMenu}>
       {/* System folders (locked) — entire section blocks context menu to prevent "New note" appearing.
           While searching, a folder with zero matching notes is hidden entirely rather than shown
           collapsed-and-empty (matches how user folders already behave during search). */}
@@ -948,17 +933,16 @@ export default function NotesFolderView({
         const useSubFolders = key === 'verse' || key === 'esword' || key === 'biblegateway'
         return (
           <div key={key} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
-            <div
+            <DisclosureRow
               ref={(el) => { if (el) folderRowRefs.current.set(key, el); else folderRowRefs.current.delete(key) }}
+              open={isOpen}
               onClick={() => toggle(key)}
-              className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors"
-            >
-              <ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-              <Icon size={13} className="flex-shrink-0 text-text-muted" />
-              <span className="min-w-0 truncate text-xs font-medium text-text-secondary">{label}</span>
-              <Lock size={9} className="text-text-muted opacity-50" />
-              <span className="text-caption2 text-text-muted">{sysNotes.length || ''}</span>
-            </div>
+              icon={Icon}
+              title={label}
+              count={sysNotes.length || undefined}
+              trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+              className="mx-1.5"
+            />
             {isOpen && (
               key === 'daily'
                 ? renderDailyContent()
@@ -973,27 +957,28 @@ export default function NotesFolderView({
       {/* PDFs (locked) — imported PDF documents; hidden unless the experimental feature is on */}
       {pdfFeatureEnabled && (
       <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
-        <div
+        <DisclosureRow
+          open={expanded.has('pdfs')}
           onClick={() => toggle('pdfs')}
-          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors"
-        >
-          <ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${expanded.has('pdfs') ? 'rotate-90' : ''}`} />
-          <FileType2 size={13} className="flex-shrink-0 text-text-muted" />
-          <span className="min-w-0 truncate text-xs font-medium text-text-secondary">PDFs</span>
-          <Lock size={9} className="text-text-muted opacity-50" />
-          <span className="text-caption2 text-text-muted">{pdfs.length || ''}</span>
-        </div>
+          icon={FileType2}
+          title="PDFs"
+          count={pdfs.length || undefined}
+          trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+          className="mx-1.5"
+        />
         {expanded.has('pdfs') && (
           pdfs.length === 0
             ? <div className="pl-8 pr-2 py-1.5 text-caption text-text-muted italic">No PDFs imported</div>
             : pdfs.map((p) => (
-                <div key={p.id}
+                <ListRow
+                  key={p.id}
+                  dense
+                  indent={28}
                   onClick={() => openPdf(p.id, p.title)}
-                  style={{ paddingLeft: 28 }}
-                  className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors">
-                  <FileText size={12} className="flex-shrink-0 text-text-muted" />
-                  <span className="min-w-0 truncate text-xs text-text-primary">{p.title}</span>
-                </div>
+                  leading={<FileText size={12} />}
+                  title={p.title}
+                  className="mx-1.5"
+                />
               ))
         )}
       </div>
@@ -1009,45 +994,43 @@ export default function NotesFolderView({
         e.stopPropagation()
         if (trashedNotes.length > 0) setTrashMenu({ x: e.clientX, y: e.clientY })
       }}>
-        <div
+        <DisclosureRow
           data-folder-row
+          open={expanded.has('trash')}
           onClick={() => toggle('trash')}
-          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-row hover:bg-surface-hover transition-colors"
-        >
-          <ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${expanded.has('trash') ? 'rotate-90' : ''}`} />
-          <Trash2 size={13} className="flex-shrink-0 text-text-muted" />
-          <span className="min-w-0 truncate text-xs font-medium text-text-secondary">Trash</span>
-          <Lock size={9} className="text-text-muted opacity-50" />
-          <span className="text-caption2 text-text-muted">{trashedNotes.length || ''}</span>
-        </div>
+          icon={Trash2}
+          title="Trash"
+          count={trashedNotes.length || undefined}
+          trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+          className="mx-1.5"
+        />
         {expanded.has('trash') && (
           trashedNotes.length === 0
             ? <div className="pl-8 pr-2 py-1.5 text-caption text-text-muted italic">Trash is empty</div>
             : trashedNotes.map((n) => (
-                <div key={n.id}
-                  style={{ paddingLeft: 28 }}
-                  className="group flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-row hover:bg-surface-hover transition-colors">
-                  <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-xs text-text-secondary">{n.title || 'Untitled'}</div>
-                    <div className="text-caption2 text-text-muted">{deletedAgoLabel(n.deletedAt)}</div>
-                  </div>
-                  <IconButton
-                    icon={RotateCcw}
-                    label="Restore"
-                    size={20}
-                    className="flex-shrink-0 opacity-0 group-hover:opacity-100"
-                    onClick={() => window.notes.restoreNote(n.id).then(() => useAppStore.getState().bumpNoteToken())}
-                  />
-                  <IconButton
-                    icon={Trash2}
-                    label="Delete forever"
-                    size={20}
-                    danger
-                    className="flex-shrink-0 opacity-0 group-hover:opacity-100"
-                    onClick={() => window.notes.purgeTrashItem(n.id).then(() => useAppStore.getState().bumpNoteToken())}
-                  />
-                </div>
+                <ListRow
+                  key={n.id}
+                  indent={28}
+                  className="mx-1.5"
+                  leading={<NotepadText size={12} />}
+                  title={n.title || 'Untitled'}
+                  subtitle={deletedAgoLabel(n.deletedAt)}
+                  trailing={<>
+                    <IconButton
+                      icon={RotateCcw}
+                      label="Restore"
+                      size={20}
+                      onClick={() => window.notes.restoreNote(n.id).then(() => useAppStore.getState().bumpNoteToken())}
+                    />
+                    <IconButton
+                      icon={Trash2}
+                      label="Delete forever"
+                      size={20}
+                      danger
+                      onClick={() => window.notes.purgeTrashItem(n.id).then(() => useAppStore.getState().bumpNoteToken())}
+                    />
+                  </>}
+                />
               ))
         )}
       </div>
@@ -1066,15 +1049,15 @@ export default function NotesFolderView({
         document.body
       )}
       {confirmEmptyTrash && createPortal(
-        <div className="native-buttons fixed inset-0 z-modal flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50">
           <div className="material-popover rounded-menu p-5 w-80 max-w-full">
             <div className="flex items-center gap-2 mb-1">
               <AlertTriangle size={16} className="text-destructive flex-shrink-0" />
-              <p className="text-sm font-semibold text-text-primary">
+              <p className="text-body font-semibold text-text-primary">
                 Empty Trash?
               </p>
             </div>
-            <p className="text-xs text-text-muted mb-4">
+            <p className="text-footnote text-text-muted mb-4">
               This will permanently delete {trashedNotes.length} note{trashedNotes.length === 1 ? '' : 's'} in Trash.
               This cannot be undone.
             </p>
@@ -1146,7 +1129,7 @@ export default function NotesFolderView({
       {/* Empty-space right-click menu — create note or folder */}
       {emptyMenu && onCreateNote && createPortal(
         <MenuPositioner ref={emptyMenuRef} x={emptyMenu.x} y={emptyMenu.y}
-          className="native-buttons min-w-[170px]"
+          className="min-w-[170px]"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <MenuSurface>
@@ -1186,7 +1169,7 @@ export default function NotesFolderView({
       {/* Folder context menu */}
       {folderMenu && createPortal(
         <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
-          className="native-buttons min-w-[190px]"
+          className="min-w-[190px]"
         >
           <MenuSurface>
               {onCreateNoteInFolder && (
@@ -1245,15 +1228,15 @@ export default function NotesFolderView({
       )}
       {/* Custom confirm dialog for "Delete folder & contents" */}
       {confirmDelete && createPortal(
-        <div className="native-buttons fixed inset-0 z-modal flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50">
           <div className="material-popover rounded-menu p-5 w-80 max-w-full">
-            <p className="text-sm font-semibold text-text-primary mb-1">
+            <p className="text-body font-semibold text-text-primary mb-1">
               Delete &ldquo;{confirmDelete.folder.name}&rdquo;?
             </p>
-            <p className="text-xs text-text-muted mb-4">
+            <p className="text-footnote text-text-muted mb-4">
               This will permanently delete the folder and all notes inside it. This cannot be undone.
             </p>
-            <label className="flex items-center gap-2 text-xs text-text-secondary mb-4 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-footnote text-text-secondary mb-4 cursor-pointer select-none">
               <Switch checked={skipConfirmChecked} onCheckedChange={() => setSkipConfirmChecked((v) => !v)} />
               Don&rsquo;t ask again
             </label>
@@ -1316,45 +1299,46 @@ export default function NotesFolderView({
             }
           >
             <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-separator flex-shrink-0">
-              <FolderTree size={11} className="text-text-muted flex-shrink-0" />
-              <input
+              <TextField
                 ref={jumpRailSearchRef}
+                bare
+                icon={FolderTree}
+                size="sm"
                 value={jumpRailSearch}
                 onChange={(e) => setJumpRailSearch(e.target.value)}
                 placeholder="Jump to folder…"
-                className="flex-1 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted min-w-0"
+                wrapperClassName="flex-1 min-w-0"
               />
             </div>
             <div className="overflow-y-auto flex-1 py-1">
               {filteredJumpFolders.length === 0 && filteredJumpSystem.length === 0 && (
-                <div className="px-3 py-3 text-xs text-center text-text-muted">No match</div>
+                <div className="px-3 py-3 text-footnote text-center text-text-muted">No match</div>
               )}
               {filteredJumpSystem.map(({ key, label, icon: Icon }) => (
-                <button
+                <ListRow
                   key={key}
+                  className="mx-1"
                   onClick={() => {
                     folderRowRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     jumpRailPanelRef.current?.close()
                   }}
-                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-row px-3 py-1.5 text-subhead text-left text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
-                >
-                  <Icon size={12} className="flex-shrink-0 text-text-muted" />
-                  <span className="flex-1 truncate">{label}</span>
-                  <Lock size={9} className="flex-shrink-0 text-text-muted opacity-50" />
-                </button>
+                  leading={<Icon size={12} />}
+                  title={label}
+                  trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+                  trailingAlways
+                />
               ))}
               {filteredJumpFolders.map((f) => (
-                <button
+                <ListRow
                   key={f.id}
+                  className="mx-1"
                   onClick={() => {
                     folderRowRefs.current.get(f.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     jumpRailPanelRef.current?.close()
                   }}
-                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-row px-3 py-1.5 text-subhead text-left text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
-                >
-                  <Folder size={12} className="flex-shrink-0 text-text-muted" />
-                  <span className="flex-1 truncate">{f.name}</span>
-                </button>
+                  leading={<Folder size={12} />}
+                  title={f.name}
+                />
               ))}
             </div>
           </FloatingHoverPanel>

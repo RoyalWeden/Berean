@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import type { ScriptureLayout } from '@/types'
+import { OptionCard, SectionLabel, Button } from '@/components/ui'
 
 // ─── Layout metadata ─────────────────────────────────────────────────────────
 
@@ -154,43 +155,35 @@ export default function LayoutPicker({ current, onSelect, onClose, defaultLayout
       ref={ref}
       className="absolute top-full right-0 mt-1 z-popover w-[420px] material-popover rounded-menu p-3"
     >
-      <div className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mb-2 px-1">
-        Panel Layout
-      </div>
+      <SectionLabel className="mb-2 px-1">Panel Layout</SectionLabel>
       <div className="grid grid-cols-3 gap-1.5">
         {LAYOUT_DEFS.map((def) => {
           const isActive = current === def.id
           const isDefault = defaultLayout === def.id
           return (
-            <button
+            <OptionCard
               key={def.id}
+              selected={isActive}
               onClick={() => { onSelect(def.id); onClose() }}
-              title={def.description}
-              className={`
-                relative flex flex-col gap-1.5 p-2 rounded-row border transition-colors cursor-pointer text-left
-                ${isActive
-                  ? 'border-accent bg-accent-muted'
-                  : 'border-border hover:border-accent/50 hover:bg-surface-3'
-                }
-              `}
-            >
-              {/* Thumbnail */}
-              <div className="w-full h-[42px] rounded-card overflow-hidden">
-                <LayoutThumb id={def.id} />
-              </div>
-              {/* Label row */}
-              <div className="flex items-center gap-1 min-w-0">
-                <span className={`text-caption2 font-medium truncate flex-1 ${isActive ? 'text-accent' : 'text-text-primary'}`}>
-                  {def.label}
+              title={
+                <span className="flex items-center gap-1 min-w-0 w-full">
+                  <span className="truncate flex-1">{def.label}</span>
+                  {isActive && <Check size={10} className="text-accent flex-shrink-0" />}
+                  {isDefault && !isActive && (
+                    <span className="text-micro px-1 py-0.5 rounded-chip bg-surface-4 text-text-muted flex-shrink-0 leading-none">
+                      default
+                    </span>
+                  )}
                 </span>
-                {isActive && <Check size={10} className="text-accent flex-shrink-0" />}
-                {isDefault && !isActive && (
-                  <span className="text-micro px-1 py-0.5 rounded-chip bg-surface-4 text-text-muted flex-shrink-0 leading-none">
-                    default
-                  </span>
-                )}
-              </div>
-            </button>
+              }
+              aria-label={def.description}
+              className="gap-1.5"
+              preview={
+                <div className="w-full h-[42px] rounded-card overflow-hidden">
+                  <LayoutThumb id={def.id} />
+                </div>
+              }
+            />
           )
         })}
       </div>
@@ -198,12 +191,9 @@ export default function LayoutPicker({ current, onSelect, onClose, defaultLayout
       {/* Save as default */}
       {onSaveDefault && current !== defaultLayout && (
         <div className="mt-2 pt-2 border-t border-separator flex justify-end">
-          <button
-            onClick={() => { onSaveDefault(current); onClose() }}
-            className="text-caption2 text-accent hover:underline cursor-pointer px-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => { onSaveDefault(current); onClose() }}>
             Save as default layout
-          </button>
+          </Button>
         </div>
       )}
     </div>

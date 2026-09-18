@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 import type { Note, Book } from '@/types'
 import type { SlashCommand } from './slashCommands'
 import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
-import { Select, Button, SectionLabel } from '@/components/ui'
+import { Select, Button, IconButton, SectionLabel, ListRow } from '@/components/ui'
 
 // Slash-command icons come straight from the shared block-type config, which is keyed
 // by the same ids SLASH_COMMANDS uses — so there is no local icon map to fall out of
@@ -35,20 +36,11 @@ export function StrongsSuggestPopup({
       onMouseDown={(e) => e.preventDefault()}
     >
       <span className="text-caption2 font-mono font-semibold text-accent">{num}</span>
-      <button
-        className="text-caption2 text-text-primary hover:text-accent cursor-pointer transition-colors font-medium flex items-center gap-1"
-        onMouseDown={onInsert}
-      >
+      <Button variant="ghost" size="sm" onMouseDown={onInsert}>
         Insert Strong&apos;s block
         <ShortcutKeys keys="↵" className="ml-0.5" />
-      </button>
-      <button
-        className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer transition-colors"
-        onMouseDown={onDismiss}
-        title="Dismiss (Esc)"
-      >
-        ✕
-      </button>
+      </Button>
+      <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
     </div>
   )
 }
@@ -63,20 +55,11 @@ export function VerseSuggestPopup({
       onMouseDown={(e) => e.preventDefault()}
     >
       <span className="text-caption2 font-mono font-semibold text-accent">{refText}</span>
-      <button
-        className="text-caption2 text-text-primary hover:text-accent cursor-pointer transition-colors font-medium flex items-center gap-1"
-        onMouseDown={onInsert}
-      >
+      <Button variant="ghost" size="sm" onMouseDown={onInsert}>
         Insert scripture block
         <ShortcutKeys keys="↵" className="ml-0.5" />
-      </button>
-      <button
-        className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer transition-colors"
-        onMouseDown={onDismiss}
-        title="Dismiss (Esc)"
-      >
-        ✕
-      </button>
+      </Button>
+      <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
     </div>
   )
 }
@@ -94,18 +77,15 @@ export function WikilinkPopup({
     >
       <div className="w-56 max-h-64 overflow-y-auto py-1 flex-shrink-0">
         {notes.map((note, i) => (
-          <button
+          <ListRow
             key={note.id}
-            onMouseDown={() => onInsert(note)}
+            bar
+            current={i === activeIdx}
             onMouseEnter={() => onHoverIdx(i)}
-            className={`text-left mx-1 w-[calc(100%-8px)] px-2.5 py-2 rounded-row text-sm cursor-pointer transition-colors flex items-center gap-2 border-l-2 ${
-              i === activeIdx
-                ? 'bg-surface-selected text-text-primary border-accent'
-                : 'text-text-secondary hover:bg-surface-hover border-transparent'
-            }`}
-          >
-            <span className="truncate">{note.title || 'Untitled'}</span>
-          </button>
+            title={note.title || 'Untitled'}
+            className="mx-1"
+            buttonProps={{ onMouseDown: () => onInsert(note) }}
+          />
         ))}
       </div>
       {active && (
@@ -255,24 +235,21 @@ export function SlashCommandPopup({
           {items.map(({ cmd, idx }) => {
             const Icon = BLOCK_TYPE_META[cmd.id]?.icon
             return (
-              <button
+              <ListRow
                 key={cmd.id}
-                onMouseDown={() => onSelect(cmd)}
+                bar
+                current={idx === activeIdx}
                 onMouseEnter={() => onHoverIdx(idx)}
-                className={`text-left mx-1 w-[calc(100%-8px)] px-2.5 py-1.5 rounded-row text-xs cursor-pointer transition-colors flex items-center gap-2.5 border-l-2 ${
-                  idx === activeIdx
-                    ? 'bg-surface-selected border-l-accent text-text-primary font-medium'
-                    : 'border-l-transparent text-text-secondary hover:bg-surface-hover'
-                }`}
-              >
-                <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-surface-3 text-text-secondary">
-                  {Icon && <Icon size={13} />}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block truncate font-medium text-text-primary">{cmd.label}</span>
-                  <span className="block truncate text-caption2 text-text-muted">{cmd.description}</span>
-                </span>
-              </button>
+                buttonProps={{ onMouseDown: () => onSelect(cmd) }}
+                className="mx-1"
+                leading={
+                  <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-lift-1">
+                    {Icon && <Icon size={13} />}
+                  </span>
+                }
+                title={cmd.label}
+                subtitle={cmd.description}
+              />
             )
           })}
         </div>

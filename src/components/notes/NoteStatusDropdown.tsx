@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { ChevronDown, CircleDashed } from 'lucide-react'
 import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import type { NoteStatus } from '@/types'
-import { Button, PopoverSurface, MenuItem, MenuLabel } from '@/components/ui'
+import { Button, PopoverSurface, MenuItem, MenuLabel, cx } from '@/components/ui'
 
 // Status picker for a single note — used both in the note editor header (while writing) and
 // as a section inside NoteContextMenu (right-click from the list), per the user's request for
@@ -36,11 +36,14 @@ export default function NoteStatusDropdown({
             {current && <span>{current.label}</span>}
           </Button>
         ) : (
-          <button className="w-full flex items-center gap-2 rounded-card px-2.5 h-7 cursor-pointer text-left hover:bg-surface-hover text-text-secondary">
-            <CurrentIcon size={13} style={current ? { color: current.color } : undefined} />
-            <span className="flex-1 text-footnote">{current ? current.label : 'Set status'}</span>
-            <ChevronDown size={10} className="opacity-60" />
-          </button>
+          <MenuItem
+            className={cx('text-text-secondary', open && 'bg-lift-2')}
+            label={<span className="flex items-center gap-2">
+              <CurrentIcon size={13} style={current ? { color: current.color } : undefined} />
+              <span>{current ? current.label : 'Set status'}</span>
+            </span>}
+            trailing={<ChevronDown size={10} className="opacity-60" />}
+          />
         )}
       </Popover.Trigger>
       <PopoverSurface side="bottom" align="end" innerClassName="w-44 p-1">

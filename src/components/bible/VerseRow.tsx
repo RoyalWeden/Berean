@@ -23,7 +23,8 @@ import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
-import { MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import { Button, ColorSwatchRow, IconButton, ListRow, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
@@ -32,6 +33,11 @@ export { HIGHLIGHT_COLORS }
 export const NOTE_DOT_COLOR: Record<string, string> = Object.fromEntries(
   HIGHLIGHT_COLOR_IDS.map((c) => [c, highlightDotColor(c)]),
 ) as Record<string, string>
+
+// Shared swatch list for the highlight-color pickers (verse-number popover + selection
+// toolbar) — `rgb` is the bare CSS var name so `ColorSwatchRow` can wrap it as `rgb(var(--x))`;
+// see highlightPalette.ts's `cssVar` helper for why the var names follow this exact pattern.
+const HIGHLIGHT_SWATCHES: Swatch[] = HIGHLIGHT_COLORS.map((c) => ({ id: c.id, rgb: `var(--highlight-${c.id})`, label: c.label }))
 
 interface SelToolbarPos { x: number; y: number; startChar: number; endChar: number }
 
@@ -369,7 +375,7 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
         )
       })}
       {extra > 0 && (
-        <span className="pointer-events-none absolute left-[3px] top-[-8px] text-micro font-bold text-text-muted">+{extra}</span>
+        <span className="pointer-events-none absolute left-[3px] top-[-8px] text-micro font-semibold text-text-muted">+{extra}</span>
       )}
     </div>
   )
@@ -1543,29 +1549,14 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'verse' }); setPopoverOpen(false) }}
             />
             <MenuSeparator />
-            <div className="px-3 py-2 space-y-1.5">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="flex items-center gap-1.5">
-                  {HIGHLIGHT_COLORS.slice(row * 5, row * 5 + 5).map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => applyHighlight(c.id)}
-                      title={c.label}
-                      style={{ backgroundColor: c.dot }}
-                      className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${activeHighlight === c.id ? 'ring-2 ring-white/70 ring-offset-1' : ''}`}
-                    />
-                  ))}
-                  {row === 2 && activeHighlight && (
-                    <button
-                      onClick={removeHighlight}
-                      title="Remove highlight"
-                      className="ml-1 text-text-muted hover:text-destructive cursor-pointer"
-                    >
-                      <X size={11} />
-                    </button>
-                  )}
-                </div>
-              ))}
+            <div className="px-3 py-2">
+              <ColorSwatchRow
+                swatches={HIGHLIGHT_SWATCHES}
+                value={activeHighlight}
+                onChange={(id) => { if (id) applyHighlight(id as HighlightColor); else removeHighlight() }}
+                allowNone
+                size={16}
+              />
             </div>
           </MenuSurface>
         )}
@@ -1639,8 +1630,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             onClick={both ? undefined : (noteCount > 0 ? openVerseNotes : openNoteCrossRefs)}
             className={
               both
-                ? 'flex items-stretch rounded-full border border-border bg-surface-2 overflow-hidden'
-                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer transition-colors bg-[var(--tint)] hover:bg-[var(--tint-hover)]'
+                ? 'flex items-stretch rounded-control border border-border bg-surface-2 overflow-hidden'
+                : 'flex items-center rounded-control px-1 py-0.5 cursor-pointer transition-colors bg-[var(--tint)] hover:bg-[var(--tint-hover)]'
             }
             style={both ? undefined : tintVars(noteCount > 0 ? noteHex : 'rgb(var(--color-text-muted))', noteCount > 0 ? noteW : xrefLevel)}
           >
@@ -1651,7 +1642,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleNoteIconMouseEnter : undefined}
                 onMouseLeave={both ? handleNoteIconMouseLeave : undefined}
                 onClick={both ? openVerseNotes : undefined}
-                className={`flex items-center leading-none select-none transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-full bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
+                className={`focus-ring flex items-center leading-none select-none transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-control bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
                 style={{ color: noteHex, ...(both ? tintVars(noteHex, noteW) : {}) }}
               >
                 <span className="rounded-full bg-current" style={{ width: noteDotPx, height: noteDotPx, opacity: noteDotOpacity }} />
@@ -1660,7 +1651,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
 
             {/* Divider — the "middle" the pill is split on */}
             {both && (
-              <div className="w-px self-stretch bg-surface-4" />
+              <div className="w-px self-stretch bg-separator" />
             )}
 
             {/* Cross-ref half — verse/range specific only (chapter refs shown at chapter level) */}
@@ -1669,7 +1660,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleCrossRefIconMouseEnter : undefined}
                 onMouseLeave={both ? handleCrossRefIconMouseLeave : undefined}
                 onClick={both ? openNoteCrossRefs : undefined}
-                className={`flex items-center text-text-muted hover:text-text-primary transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-full bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
+                className={`focus-ring flex items-center text-text-muted hover:text-text-primary transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-control bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
                 style={both ? tintVars('rgb(var(--color-text-muted))', xrefLevel) : undefined}
               >
                 <GitFork size={xrefIconPx} strokeWidth={2.5} style={{ opacity: xrefIconOpacity }} />
@@ -1701,43 +1692,33 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 <p className="text-micro text-text-muted font-semibold uppercase tracking-wide">
                   {total === 1 ? '1 Note' : `${total} Notes`}
                 </p>
-                <button
-                  onClick={() => { setNoteHover(null); openVerseNotes() }}
-                  className="flex items-center gap-1 text-micro text-accent hover:underline cursor-pointer"
-                >
-                  <ExternalLink size={9} />
+                <Button variant="ghost" size="sm" icon={ExternalLink} className="h-auto px-1 text-micro" onClick={() => { setNoteHover(null); openVerseNotes() }}>
                   All in panel
-                </button>
+                </Button>
               </div>
 
               {/* Direct verse notes — cross-translation badges show which version a note belongs to */}
+              <div className="divide-y divide-separator">
               {vnShown.map((note) => {
                 // Show a translation badge when the note is from a different translation than the current view.
                 // LXX badge: KJV view showing an LXX note.  KJV badge: LXX view showing a KJV note.
                 const isCrossLxx  = note.textId === 'lxx'  && textId !== 'lxx'
                 const isCrossKjva = (note.textId === 'kjva' || note.textId == null) && textId === 'lxx'
                 return (
-                  <button
+                  <ListRow
                     key={note.id}
+                    dense
                     onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
                     onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-surface-3 cursor-pointer transition-colors border-b border-separator last:border-0 group"
-                  >
-                    <p className="flex items-center gap-1 text-caption2 font-medium text-text-primary group-hover:text-accent line-clamp-1 transition-colors">
-                      {isCrossLxx && (
-                        <RefChip size="xs" variant="lxx" className="shrink-0">LXX</RefChip>
-                      )}
-                      {isCrossKjva && (
-                        <RefChip size="xs" variant="neutral" className="shrink-0">KJV</RefChip>
-                      )}
-                      {note.title || 'Untitled'}
-                    </p>
-                    {note.content && (
-                      <p className="text-micro text-text-muted line-clamp-1 mt-px">
-                        {note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80)}
-                      </p>
-                    )}
-                  </button>
+                    title={
+                      <span className="flex items-center gap-1">
+                        {isCrossLxx && <RefChip size="xs" variant="lxx" className="shrink-0">LXX</RefChip>}
+                        {isCrossKjva && <RefChip size="xs" variant="neutral" className="shrink-0">KJV</RefChip>}
+                        {note.title || 'Untitled'}
+                      </span>
+                    }
+                    subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
+                  />
                 )
               })}
 
@@ -1745,38 +1726,33 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               {rnShown.length > 0 && (
                 <>
                   <div className="flex items-center gap-2 px-3 py-1 bg-surface-2">
-                    <div className="h-px flex-1 bg-surface-4" />
+                    <div className="h-px flex-1 bg-separator" />
                     <span className="text-micro font-semibold uppercase tracking-wider text-text-muted opacity-70 whitespace-nowrap">
                       also references
                     </span>
-                    <div className="h-px flex-1 bg-surface-4" />
+                    <div className="h-px flex-1 bg-separator" />
                   </div>
                   {rnShown.map((note) => (
-                    <button
+                    <ListRow
                       key={note.id}
+                      dense
                       onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
                       onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-surface-3 cursor-pointer transition-colors border-b border-separator last:border-0 group"
-                    >
-                      <p className="text-caption2 font-medium text-text-primary group-hover:text-accent line-clamp-1 transition-colors">
-                        {note.title || 'Untitled'}
-                      </p>
-                      {note.content && (
-                        <p className="text-micro text-text-muted line-clamp-1 mt-px">
-                          {note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80)}
-                        </p>
-                      )}
-                    </button>
+                      title={note.title || 'Untitled'}
+                      subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
+                    />
                   ))}
                 </>
               )}
+              </div>
               {hiddenCount > 0 && (
-                <button
+                <Button
+                  variant="ghost" size="sm"
+                  className="w-full justify-center sticky bottom-0 bg-surface-1 rounded-none"
                   onClick={() => { setNoteHover(null); openVerseNotes() }}
-                  className="w-full text-center px-3 py-1.5 text-micro text-accent hover:bg-surface-3 cursor-pointer transition-colors sticky bottom-0 bg-surface-1"
                 >
                   +{hiddenCount} more — open all in panel
-                </button>
+                </Button>
               )}
             </div>
               )
@@ -1797,37 +1773,37 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 <p className="text-micro text-text-muted font-semibold uppercase tracking-wide">
                   Note Cross-References
                 </p>
-                <button
-                  onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}
-                  className="flex items-center gap-1 text-micro text-accent hover:underline cursor-pointer"
-                >
-                  <ExternalLink size={9} />
+                <Button variant="ghost" size="sm" icon={ExternalLink} className="h-auto px-1 text-micro" onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}>
                   Open in panel
-                </button>
+                </Button>
               </div>
-              {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
-                <button
-                  key={i}
-                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }, { keepCrossRefHover: true }) }}
-                  onClick={() => {
-                    setCrossRefHover(null)
-                    navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
-                  }}
-                  className="w-full text-left px-3 py-1 hover:bg-surface-3 cursor-pointer transition-colors border-b border-separator last:border-0 group"
-                >
-                  <p className="text-micro" style={{ lineHeight: 1.1 }}>
-                    <span className="font-mono font-semibold text-accent group-hover:underline">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
-                    <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
-                  </p>
-                </button>
-              ))}
+              <div className="divide-y divide-separator">
+                {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
+                  <ListRow
+                    key={i}
+                    dense
+                    onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }, { keepCrossRefHover: true }) }}
+                    onClick={() => {
+                      setCrossRefHover(null)
+                      navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
+                    }}
+                    title={
+                      <span className="flex items-baseline gap-1">
+                        <span className="font-mono font-semibold text-accent flex-shrink-0">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
+                        <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
+                      </span>
+                    }
+                  />
+                ))}
+              </div>
               {crossRefHover.refs.length > MAX_HOVER_ITEMS && (
-                <button
+                <Button
+                  variant="ghost" size="sm"
+                  className="w-full justify-center rounded-none"
                   onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}
-                  className="w-full text-center px-3 py-1.5 text-micro text-accent hover:bg-surface-3 cursor-pointer transition-colors"
                 >
                   +{crossRefHover.refs.length - MAX_HOVER_ITEMS} more — open all in panel
-                </button>
+                </Button>
               )}
             </div>,
             document.body
@@ -1843,30 +1819,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           className="fixed z-popover min-w-[180px] overflow-hidden !p-0 py-1"
           style={{ left: selToolbar.x, top: selToolbar.y }}
         >
-          {/* Color dot rows (3 rows × 5 colors) */}
-          <div className="px-3 py-2 space-y-1.5">
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="flex items-center gap-1.5">
-                {HIGHLIGHT_COLORS.slice(row * 5, row * 5 + 5).map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => applySelectionHighlight(c.id)}
-                    title={c.label}
-                    style={{ backgroundColor: c.dot }}
-                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${activeHighlight === c.id ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-surface-1' : ''}`}
-                  />
-                ))}
-                {row === 2 && (
-                  <button
-                    onClick={clearSelectionHighlights}
-                    title="Clear highlights"
-                    className="ml-1 text-text-muted hover:text-destructive cursor-pointer"
-                  >
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-            ))}
+          {/* Color dot picker */}
+          <div className="px-3 py-2">
+            <ColorSwatchRow
+              swatches={HIGHLIGHT_SWATCHES}
+              value={activeHighlight}
+              onChange={(id) => { if (id) applySelectionHighlight(id as HighlightColor); else clearSelectionHighlights() }}
+              allowNone
+              size={16}
+            />
           </div>
           <MenuSeparator />
           <MenuItem icon={Copy} label="Copy verse" onClick={() => { copyVerse(); setSelToolbar(null) }} />
@@ -2025,7 +1986,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           {/* Idioms are glossary-style word definitions, same family as lexicon links —
               reuses that link color rather than a one-off hardcoded violet. */}
           <div className="text-caption2 font-semibold text-[rgb(var(--link-lexicon-ref))] mb-0.5">{idiomTooltip.term}</div>
-          {idiomTooltip.meaning && <div className="text-xs text-text-secondary">{idiomTooltip.meaning}</div>}
+          {idiomTooltip.meaning && <div className="text-footnote text-text-secondary">{idiomTooltip.meaning}</div>}
           <div className="text-micro text-text-muted mt-1 opacity-70">Click to open · Right-click for more</div>
         </div>,
         document.body

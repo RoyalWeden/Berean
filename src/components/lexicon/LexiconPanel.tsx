@@ -16,7 +16,8 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
-import { IconButton, SectionLabel, SectionHeader, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar } from '@/components/ui'
+import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar } from '@/components/ui'
+import { LexiconEntryHeader, OccurrenceRow as OccurrenceRowUI, DerivedTermRow } from './parts'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
 type RelatedWord = { strongsNum: string; lemma: string; transliteration: string; gloss: string }
@@ -155,17 +156,6 @@ function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; match
   )
 }
 
-function LangBadge({ num }: { num: string }) {
-  const isHebrew = num.startsWith('H')
-  return (
-    <span className={`text-caption2 font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-      isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'
-    }`}>
-      {isHebrew ? 'Hebrew' : 'Greek'}
-    </span>
-  )
-}
-
 /** Render BDB notes with grammatical abbreviations expanded + tagged (e.g. "vb." → "verb"),
  *  and bare numbers (occurrence counts / citations — not Strong's) shown muted. */
 function BdbNotesText({ text }: { text: string }) {
@@ -232,14 +222,17 @@ export function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: 
         }
         if (prefixed) {
           return (
-            <button
+            <span
               key={i}
+              role="link"
+              tabIndex={0}
               onClick={(e) => onNav(prefixed!, e.metaKey || e.ctrlKey)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNav(prefixed!, e.metaKey || e.ctrlKey) } }}
               onContextMenu={(e) => onContextMenu?.(e, prefixed!)}
-              className="font-mono text-accent hover:underline cursor-pointer"
+              className="font-mono text-accent hover:underline cursor-pointer focus-ring rounded-control"
             >
               {prefixed}
-            </button>
+            </span>
           )
         }
         return <span key={i}>{findQuery ? applyFindHighlight(part, findQuery) : part}</span>
@@ -313,7 +306,7 @@ function LexiconInfoPopover({ onClose }: { onClose: () => void }) {
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="px-4 py-3 border-b border-separator flex items-center justify-between">
-        <span className="text-xs font-semibold text-text-primary">How to read a lexicon entry</span>
+        <span className="text-footnote font-semibold text-text-primary">How to read a lexicon entry</span>
         <IconButton icon={X} label="Close" size={20} onClick={onClose} />
       </div>
       <div className="overflow-y-auto max-h-80">
@@ -509,17 +502,11 @@ function EntryView({
            reaches the search view (idx -1) directly via the global nav stack. */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
         {noteBack && onNoteBack && (
-          <button
-            onClick={onNoteBack}
-            title={`Back to "${noteBack.title}"`}
-            className="flex items-center gap-1 text-xs text-accent hover:underline cursor-pointer flex-shrink-0 max-w-[120px] truncate"
-          >
-            <ArrowLeft size={11} className="flex-shrink-0" />
+          <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onNoteBack} title={`Back to "${noteBack.title}"`} className="max-w-[120px] flex-shrink-0">
             <span className="truncate">{noteBack.title}</span>
-          </button>
+          </Button>
         )}
-        <span className="text-sm font-semibold text-text-primary font-mono">{entry.strongsNum}</span>
-        <LangBadge num={entry.strongsNum} />
+        <LexiconEntryHeader strongsNum={entry.strongsNum} />
         <div className="flex-1" />
         <IconButton
           icon={copied ? CheckIcon : Copy}
@@ -555,24 +542,24 @@ function EntryView({
         {/* Word + transliteration */}
         <div className="space-y-1">
           {entry.lemma && (
-            <div className="text-2xl font-medium text-text-primary font-lemma">
+            <div className="text-title1 font-medium text-text-primary font-lemma">
               <span dir="rtl">{findQuery ? applyFindHighlight(entry.lemma, findQuery) : entry.lemma}</span>
             </div>
           )}
           <div className="flex items-baseline gap-2 flex-wrap">
             {entry.transliteration && (
-              <span className="text-base text-text-secondary italic">
+              <span className="text-body text-text-secondary italic">
                 {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
               </span>
             )}
             {entry.pronunciation && (
-              <span className="text-xs text-text-muted">({entry.pronunciation})</span>
+              <span className="text-footnote text-text-muted">({entry.pronunciation})</span>
             )}
           </div>
         </div>
 
         {entry.gloss && (
-          <div className="text-sm text-text-primary font-medium bg-surface-elevated px-3 py-2 rounded-card">
+          <div className="text-body text-text-primary font-medium bg-surface-elevated px-3 py-2 rounded-card">
             {(() => {
               const isUnrepresented = entry.gloss.toLowerCase().includes('unrepresented in english')
               const rawGloss = isUnrepresented
@@ -599,18 +586,15 @@ function EntryView({
         )}
 
         {!expanded && (
-          <button
-            onClick={() => setExpanded(true)}
-            className="w-full text-center text-xs text-accent hover:underline cursor-pointer py-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(true)} className="w-full justify-center">
             Show full entry
-          </button>
+          </Button>
         )}
         {expanded && (<>
         {entry.definition && (
           <div>
             <SectionLabel className="mb-1.5">Definition</SectionLabel>
-            <p className="text-sm text-text-secondary leading-relaxed">
+            <p className="text-body text-text-secondary leading-relaxed">
               <DerivationText text={wr(entry.definition)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} findQuery={findQuery} />
             </p>
           </div>
@@ -619,7 +603,7 @@ function EntryView({
         {hasDerivation && (
           <div>
             <SectionLabel className="mb-1.5">Derivation</SectionLabel>
-            <p className="text-xs text-text-muted leading-relaxed italic">
+            <p className="text-footnote text-text-muted leading-relaxed italic">
               <DerivationText text={wr(entry.derivation)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} />
             </p>
           </div>
@@ -630,7 +614,7 @@ function EntryView({
             <SectionLabel className="mb-1.5">
               {entry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
             </SectionLabel>
-            <p className="text-xs text-text-muted leading-relaxed">
+            <p className="text-footnote text-text-muted leading-relaxed">
               <BdbNotesText text={wr(entry.extendedDef)} />
             </p>
           </div>
@@ -641,19 +625,15 @@ function EntryView({
             <SectionLabel className="mb-2">Derived terms</SectionLabel>
             <div className="space-y-1">
               {related.map((r) => (
-                <button
+                <DerivedTermRow
                   key={r.strongsNum}
+                  strongsNum={r.strongsNum}
+                  lemma={r.lemma}
+                  transliteration={r.transliteration}
+                  gloss={r.gloss}
                   onClick={(e) => onNav(r.strongsNum, e.metaKey || e.ctrlKey)}
                   onContextMenu={(e) => strongsCtx.open(e, r.strongsNum)}
-                  className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded-row hover:bg-surface-hover cursor-pointer text-left transition-colors"
-                >
-                  <span className="font-mono text-caption2 text-text-muted flex-shrink-0 w-10">{r.strongsNum}</span>
-                  {r.lemma && (
-                    <span className="text-sm font-medium text-text-primary font-lemma"><span dir="rtl">{r.lemma}</span></span>
-                  )}
-                  <span className="text-xs text-text-muted italic flex-shrink-0">{r.transliteration}</span>
-                  <span className="text-xs text-text-secondary truncate">{r.gloss}</span>
-                </button>
+                />
               ))}
             </div>
           </div>
@@ -665,26 +645,24 @@ function EntryView({
             <SectionLabel>
               Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </SectionLabel>
-            <div className="flex items-center gap-1.5">
+            <Toolbar size="sm" material="none" edge="none" className="!px-0 !h-auto w-auto">
               {occurrences.length > 0 && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={ScanSearch}
                   onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
                   title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
-                  className="flex items-center gap-1 text-caption2 font-medium px-2 py-0.5 rounded-control border border-border text-text-secondary hover:border-accent/45 hover:bg-accent-hover/12 hover:text-accent transition-colors cursor-pointer"
                 >
-                  <ScanSearch size={11} />
                   Open all in a tab
-                </button>
+                </Button>
               )}
               {occurrences.length > 10 && (
-                <button
-                  onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}
-                  className="text-caption2 font-medium px-2 py-0.5 rounded-control border border-border text-text-secondary hover:border-accent/45 hover:bg-accent-hover/12 hover:text-accent transition-colors cursor-pointer"
-                >
+                <Button variant="secondary" size="sm" onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}>
                   {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
-                </button>
+                </Button>
               )}
-            </div>
+            </Toolbar>
           </div>
 
           {/* Sort + book filter (dropdown) + word-form filter (chips). Occurrences previously
@@ -758,20 +736,13 @@ function EntryView({
                 {hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
                     <span className="text-micro text-text-muted uppercase tracking-wide mr-0.5">Shown as:</span>
-                    <button
-                      onClick={() => setOccWordFilter(new Set())}
-                      className={`text-caption2 px-2 py-0.5 rounded-control cursor-pointer transition-colors ${occWordFilter.size === 0 ? 'bg-accent-muted text-accent font-semibold' : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'}`}
-                    >
+                    <Chip size="sm" selected={occWordFilter.size === 0} onClick={() => setOccWordFilter(new Set())}>
                       All
-                    </button>
+                    </Chip>
                     {wordOptions.map((w) => (
-                      <button
-                        key={w.key}
-                        onClick={() => toggleWord(w.key)}
-                        className={`text-caption2 px-2 py-0.5 rounded-control cursor-pointer transition-colors ${occWordFilter.has(w.key) ? 'bg-accent-muted text-accent font-semibold' : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'}`}
-                      >
-                        {w.display} ({w.count})
-                      </button>
+                      <Chip key={w.key} size="sm" selected={occWordFilter.has(w.key)} count={w.count} onClick={() => toggleWord(w.key)}>
+                        {w.display}
+                      </Chip>
                     ))}
                   </div>
                 )}
@@ -780,10 +751,10 @@ function EntryView({
           })()}
 
           {occurrencesLoading && (
-            <p className="text-xs text-text-muted text-center py-2">Loading…</p>
+            <p className="text-footnote text-text-muted text-center py-2">Loading…</p>
           )}
           {!occurrencesLoading && occurrences.length === 0 && (
-            <p className="text-xs text-text-muted">No occurrence data available.</p>
+            <p className="text-footnote text-text-muted">No occurrence data available.</p>
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
             let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
@@ -794,7 +765,7 @@ function EntryView({
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
             }
             if (visible.length === 0) {
-              return <p className="text-xs text-text-muted py-2">No occurrences match the current filters.</p>
+              return <p className="text-footnote text-text-muted py-2">No occurrences match the current filters.</p>
             }
             return (
             <div className="space-y-1">
@@ -803,32 +774,25 @@ function EntryView({
                 const refLabel = `${bk} ${occ.chapter}:${occ.verse_num}`
                 const multipleMatches = (occ.matchWordIndices?.length ?? 0) > 1
                 return (
-                  <button
+                  <OccurrenceRowUI
                     key={i}
+                    dense={false}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
                     onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: wr(occ.text ?? '') })}
-                    className="w-full text-left px-2.5 py-2 rounded-card border border-transparent hover:border-border hover:bg-surface-hover cursor-pointer transition-colors group"
-                  >
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <RefChip size="sm" className="group-hover:bg-accent-hover/18">{refLabel}</RefChip>
-                      {occ.text_id === 'lxx' && (
-                        <span className="text-micro text-text-muted bg-surface-4/60 rounded-chip px-1">
-                          LXX
-                        </span>
-                      )}
-                      {multipleMatches && (
-                        <span className="text-micro text-text-muted bg-surface-4/60 rounded-chip px-1">
-                          ×{occ.matchWordIndices?.length}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-text-secondary leading-relaxed mt-1">
-                      {occ.text
-                        ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
-                        : <span className="italic text-text-muted">—</span>
-                      }
-                    </p>
-                  </button>
+                    refLabel={refLabel}
+                    badges={<>
+                      {occ.text_id === 'lxx' && <RefChip variant="neutral" size="xs">LXX</RefChip>}
+                      {multipleMatches && <RefChip variant="neutral" size="xs">×{occ.matchWordIndices?.length}</RefChip>}
+                    </>}
+                    text={
+                      <span className="text-footnote text-text-secondary leading-relaxed">
+                        {occ.text
+                          ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
+                          : <span className="italic text-text-muted">—</span>
+                        }
+                      </span>
+                    }
+                  />
                 )
               })}
             </div>
@@ -839,12 +803,9 @@ function EntryView({
             toggle above has been used) — redundant with that toggle at that point, since
             there's nothing left this button would be collapsing away from. */}
         {!(occurrences.length <= 10 || showAllOccurrences) && (
-          <button
-            onClick={() => setExpanded(false)}
-            className="w-full text-center text-xs text-text-muted hover:text-text-primary hover:underline cursor-pointer py-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(false)} className="w-full justify-center">
             Show less
-          </button>
+          </Button>
         )}
         </>)}
       </div>
@@ -852,23 +813,28 @@ function EntryView({
 
       {/* Prev / Next navigation */}
       <div className="flex items-center border-t border-separator flex-shrink-0">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={ChevronLeft}
           onClick={() => adjacent.prev && onNav(adjacent.prev, false)}
           disabled={!adjacent.prev}
-          className="flex-1 flex items-center gap-1 px-4 py-2.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+          className="flex-1 justify-start !rounded-none px-4 py-2.5 h-auto"
         >
-          <ChevronLeft size={14} />
           {adjacent.prev}
-        </button>
+        </Button>
         <Divider orientation="vertical" />
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={ChevronRight}
+          iconTrailing
           onClick={() => adjacent.next && onNav(adjacent.next, false)}
           disabled={!adjacent.next}
-          className="flex-1 flex items-center justify-end gap-1 px-4 py-2.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+          className="flex-1 justify-end !rounded-none px-4 py-2.5 h-auto"
         >
           {adjacent.next}
-          <ChevronRight size={14} />
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -1008,7 +974,7 @@ function SearchView({
       />
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="relative">
         <BookMarked size={14} className="text-text-muted flex-shrink-0" />
-        <span className="text-sm font-medium text-text-primary">Lexicon</span>
+        <span className="text-subhead font-medium text-text-primary">Lexicon</span>
         <div className="ml-auto flex items-center gap-1">
           <SegmentedControl
             size="sm"
@@ -1073,28 +1039,23 @@ function SearchView({
         {!loading && results.length > 0 && (
           <div className="divide-y divide-separator">
             {results.map((entry, i) => (
-              <button key={entry.strongsNum} onClick={() => onSelect(entry)}
+              <ListRow
+                key={entry.strongsNum}
+                selected={i === selectedIdx}
+                onClick={() => onSelect(entry)}
                 onContextMenu={(e) => { setCtxEntry(entry); searchCtx.open(e, entry.strongsNum) }}
-                className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
-                  i === selectedIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'
-                }`}>
-                <span className="font-mono text-xs text-text-muted flex-shrink-0 mt-0.5 w-12">{entry.strongsNum}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5 mb-0.5">
-                    {entry.lemma && (
-                      <span className="text-sm font-medium text-text-primary font-lemma"><span dir="rtl">{entry.lemma}</span></span>
-                    )}
-                    {entry.transliteration && (
-                      <span className="text-xs text-text-muted italic">
-                        {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-text-secondary truncate">
-                    {(() => { const t = wr(entry.gloss); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
-                  </p>
-                </div>
-              </button>
+                className="!rounded-none"
+                leading={<span className="font-mono text-footnote text-text-muted w-12">{entry.strongsNum}</span>}
+                title={<span className="flex items-baseline gap-1.5">
+                  {entry.lemma && <span className="font-lemma" dir="rtl">{entry.lemma}</span>}
+                  {entry.transliteration && (
+                    <span className="italic text-text-muted font-normal">
+                      {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
+                    </span>
+                  )}
+                </span>}
+                subtitle={(() => { const t = wr(entry.gloss); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
+              />
             ))}
           </div>
         )}

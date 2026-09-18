@@ -6,7 +6,7 @@ import { noteStatusMeta } from '@/lib/noteStatus'
 import NoteEditor from './pm/NoteEditorPM'
 import type { FindMode } from './pm/findHighlight'
 import { folderPathFor } from './NotesFolderView'
-import { Button, IconButton, SectionLabel, EmptyState } from '@/components/ui'
+import { Button, IconButton, SectionLabel, EmptyState, ListRow, Toolbar, Chip } from '@/components/ui'
 
 // ── Small local helpers ───────────────────────────────────────────────────────
 
@@ -45,23 +45,17 @@ const NOOP = () => {}
 function NoteRow({ note, onPreview, onOpen }: { note: Note; onPreview: (n: Note) => void; onOpen: (n: Note) => void }) {
   const meta = noteStatusMeta(note.status)
   return (
-    <button
+    <ListRow
+      leading={<FileText size={13} />}
+      title={note.title?.trim() || 'Untitled'}
+      meta={<span className="inline-flex items-center gap-1">
+        {meta && <meta.icon size={11} style={{ color: meta.color }} />}
+        {timeAgo(note.updatedAt)}
+      </span>}
       onClick={() => onPreview(note)}
       onDoubleClick={() => onOpen(note)}
-      className="group flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left hover:bg-surface-hover transition-colors cursor-pointer"
-    >
-      <FileText size={13} className="flex-shrink-0 text-text-muted" />
-      <span className="min-w-0 flex-1 truncate text-subhead text-text-primary">
-        {note.title?.trim() || 'Untitled'}
-      </span>
-      {meta && <meta.icon size={11} className="flex-shrink-0" style={{ color: meta.color }} />}
-      <span className="flex-shrink-0 text-caption2 text-text-muted tabular-nums">{timeAgo(note.updatedAt)}</span>
-      <ArrowUpRight
-        size={12}
-        onClick={(e) => { e.stopPropagation(); onOpen(note) }}
-        className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary transition-opacity"
-      />
-    </button>
+      trailing={<IconButton icon={ArrowUpRight} label="Open in editor" size={20} variant="ghost" onClick={() => onOpen(note)} />}
+    />
   )
 }
 
@@ -162,7 +156,7 @@ export default function NotesHomePanel({
             <span>Created {fullDate(note.createdAt)}</span>
             {backlinks.length > 0 && <span>{backlinks.length} backlink{backlinks.length === 1 ? '' : 's'}</span>}
             {tags.map((t) => (
-              <span key={t} className="rounded-chip bg-surface-4/60 px-1.5 py-0.5 text-caption2 text-text-secondary">#{t}</span>
+              <Chip key={t} static size="sm">#{t}</Chip>
             ))}
           </div>
           {q && (
@@ -227,7 +221,7 @@ export default function NotesHomePanel({
               <SectionLabel className="px-2 pt-3 pb-1">Tags in this folder</SectionLabel>
               <div className="flex flex-wrap gap-1 px-2 py-1">
                 {fTags.map((t) => (
-                  <span key={t} className="rounded-chip bg-surface-4/60 px-1.5 py-0.5 text-caption2 text-text-secondary">#{t}</span>
+                  <Chip key={t} static size="sm">#{t}</Chip>
                 ))}
               </div>
             </>

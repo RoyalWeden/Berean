@@ -265,16 +265,20 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                 side="top"
                 label={`${cellDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} Daily Note`}
               >
+                {/* Bespoke — no design-system primitive covers a 22×22 heat-mapped grid cell
+                    (IconButton requires an icon; ListRow is a full-width row). Kept as a raw
+                    <button>, brought up to the same state contract as the primitives: focus-ring,
+                    active:scale, and the shared lift tokens for hover/pressed. */}
                 <button
                   onClick={() => onSelectDate(cellDate)}
                   onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
-                  className="flex items-center justify-center w-full py-px cursor-pointer group"
+                  className="focus-ring flex items-center justify-center w-full py-px cursor-pointer group active:scale-[0.97] transition-transform duration-fast"
                 >
                   <span
                     className={`flex items-center justify-center ${squareSize} rounded-control leading-none transition-[filter,background-color] duration-150
                       ${isToday ? 'bg-accent text-white font-semibold group-hover:brightness-125'
-                        : isSelected ? 'text-text-primary ring-1 ring-inset ring-border group-hover:bg-surface-hover'
-                        : 'text-text-secondary font-medium group-hover:bg-surface-hover'}`}
+                        : isSelected ? 'text-text-primary ring-1 ring-inset ring-border group-hover:bg-lift-2 group-active:bg-lift-3'
+                        : 'text-text-secondary font-medium group-hover:bg-lift-2 group-active:bg-lift-3'}`}
                     style={{
                       fontSize: dayCellSize,
                       ...(hasNote && !isToday ? { background: `rgb(var(--color-accent) / ${heatAlpha})`, color: 'rgb(var(--color-text-primary))' } : {}),

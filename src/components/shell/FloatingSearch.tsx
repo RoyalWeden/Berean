@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
-import { createPortal } from 'react-dom'
-import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, Tag, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SPRING_GENTLE } from '@/lib/motion'
@@ -17,7 +16,7 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import { IconButton, MenuSurface, MenuItem, SectionLabel } from '@/components/ui'
+import { IconButton, SectionLabel, SearchField, Select, RefChip, Chip, ListRow, Toolbar, Button } from '@/components/ui'
 import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
 
 interface CrossRef {
@@ -62,13 +61,6 @@ const DENSITY_SUB_LEN: Record<'compact' | 'comfortable' | 'spacious', number> = 
   comfortable: 140,
   spacious:    240,
 }
-// Sub-text line-clamp css class per density
-const DENSITY_CLAMP: Record<'compact' | 'comfortable' | 'spacious', string> = {
-  compact:     'line-clamp-1',
-  comfortable: 'line-clamp-2',
-  spacious:    'line-clamp-3',
-}
-
 interface VerseResult {
   book_id: string
   chapter: number
@@ -238,7 +230,8 @@ export default function FloatingSearch() {
   const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All words', any: 'Any word', phrase: 'Exact phrase' }
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const selectedItemRef = useRef<HTMLButtonElement>(null)
+  // ListRow forwards its ref to the row's outer element (not the inner button).
+  const selectedItemRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [searchWordMode, setSearchWordMode] = useState<SearchWordMode>('all')
   const scopeFilter: ScopeFilter = 'all'
@@ -259,28 +252,8 @@ export default function FloatingSearch() {
   // (always fires that row's own action, unchanged from prior behavior). Reset to
   // -1 on every keystroke — new typing invalidates any prior selection.
   const [selectedIdx, setSelectedIdx] = useState(-1)
-  // Word-mode dropdown — was a 3-button segmented control ("all"/"any"/"phrase"
-  // always all visible at once); replaced with a single trigger + portaled popover,
-  // same pattern as ScriptureSearchView.tsx's sort/context-length dropdowns (portal
-  // to document.body with a fixed position computed from the trigger's own rect —
-  // an in-flow `absolute` dropdown here would sit inside this modal's own stacking
-  // context and risk the same "renders behind other content" bug that pattern was
-  // introduced to fix there).
-  const [wordModeMenuOpen, setWordModeMenuOpen] = useState(false)
-  const [wordModeMenuPos, setWordModeMenuPos] = useState<{ left: number; top: number } | null>(null)
-  const wordModeTriggerRef = useRef<HTMLButtonElement>(null)
-  const wordModeMenuRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!wordModeMenuOpen) return
-    function onDown(e: MouseEvent) {
-      const t = e.target as Node
-      if (wordModeTriggerRef.current?.contains(t)) return
-      if (wordModeMenuRef.current?.contains(t)) return
-      setWordModeMenuOpen(false)
-    }
-    window.addEventListener('mousedown', onDown, true)
-    return () => window.removeEventListener('mousedown', onDown, true)
-  }, [wordModeMenuOpen])
+  // Word-mode dropdown ("all"/"any"/"phrase") — a `Select` (variant="ghost") now owns its
+  // own open/close state and portal positioning, matching the app's other dropdowns.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const crossRefDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Bumped once per runSearch invocation; every async result-setter below checks its
@@ -1252,8 +1225,7 @@ export default function FloatingSearch() {
               used everywhere else in this codebase for outside-click, e.g. BookChapterPicker.tsx),
               clicking the overlay sometimes did nothing. */}
           <motion.div
-            className="fixed inset-0 bg-black/40 z-critical"
-            style={{ backdropFilter: 'blur(4px)' }}
+            className="fixed inset-0 bg-black/20 z-critical"
             onClick={closeSearch}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1270,7 +1242,7 @@ export default function FloatingSearch() {
             className="
               fixed left-1/2 top-[12%]
               z-critical w-full max-w-2xl
-              material-sheet rounded-sheet overflow-hidden
+              material-elevated rounded-sheet overflow-hidden
             "
             initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
@@ -1280,17 +1252,21 @@ export default function FloatingSearch() {
           <Dialog.Title className="sr-only">Search</Dialog.Title>
 
           {/* Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-separator">
-            <Search size={18} className="text-text-muted flex-shrink-0" />
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-separator">
             {/* Ghost-text destination hint (Safari/Spotlight-style) — an invisible spacer
                 spanning the already-typed text, so the actual suggestion label starts
-                exactly at the caret, sitting behind the real <input> (which has a
-                transparent background so its own typed text renders on top, and the
+                exactly at the caret, sitting behind the real SearchField (which is `bare`
+                — transparent background — so its own typed text renders on top, and the
                 ghost label shows through in the space after it). Both this div and the
-                input below must share identical font/size/padding for the alignment to
-                hold — both already use text-sm with no extra padding on either side. */}
+                field's input share the same left inset (icon + pl-8) and font size
+                (inline style — a plain className can't reliably out-rank the field's own
+                text-size utility) for the alignment to hold. */}
             <div className="relative flex-1 min-w-0">
-              <div aria-hidden className="absolute inset-0 flex items-center text-sm pointer-events-none whitespace-pre overflow-hidden">
+              <div
+                aria-hidden
+                className="absolute inset-0 flex items-center pl-8 pointer-events-none whitespace-pre overflow-hidden"
+                style={{ fontSize: 'var(--text-title3)', lineHeight: 1.35 }}
+              >
                 <span className="invisible">{query}</span>
                 {predictedSpace && selectedIdx < 0 && (
                   <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 opacity-35 text-text-muted text-caption">
@@ -1298,128 +1274,81 @@ export default function FloatingSearch() {
                   </span>
                 )}
               </div>
-              <input
+              <SearchField
                 ref={inputRef}
-                type="text"
                 value={query}
-                onChange={(e) => handleInput(e.target.value)}
+                onValueChange={handleInput}
                 onKeyDown={handleKeyDown}
+                onClear={() => { setSelectedTags([]); setTagFocusIdx(0); setSelectedIdx(-1); if (debounceRef.current) clearTimeout(debounceRef.current); setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([]) }}
                 placeholder="Gen 1:1 · Exodus 20 · in the beginning..."
-                className="
-                  relative w-full bg-transparent text-text-primary
-                  placeholder:text-text-muted text-sm outline-none
-                "
+                size="md"
+                bare
+                wrapperClassName="w-full"
+                style={{ fontSize: 'var(--text-title3)', lineHeight: 1.35 }}
               />
             </div>
             {crossRefLoading && (
               <span className="text-caption2 text-text-muted animate-pulse flex-shrink-0">…</span>
             )}
-            {isStrongs && (
-              <span className="text-caption2 font-semibold text-accent bg-accent-muted px-1.5 py-0.5 rounded-chip">
-                Strong's
-              </span>
-            )}
-            {/* Clear the query (and any selected tag filters). OT/NT scoping lives
-                in the advanced Scripture search, not here. */}
-            {(query.length > 0 || selectedTags.length > 0) && (
+            {isStrongs && <RefChip size="xs">Strong's</RefChip>}
+            {/* Clearing the query itself is handled by SearchField's own clear button; this
+                covers the one case it can't reach — tag filters left selected after the
+                query has already been emptied. */}
+            {selectedTags.length > 0 && query.length === 0 && (
               <IconButton
                 icon={X}
-                label="Clear search"
+                label="Clear tag filters"
                 size={20}
-                className="flex-shrink-0"
-                onClick={() => { setQuery(''); setSelectedTags([]); setTagFocusIdx(0); setSelectedIdx(-1); if (debounceRef.current) clearTimeout(debounceRef.current); setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([]); inputRef.current?.focus() }}
+                onClick={() => { setSelectedTags([]); setTagFocusIdx(0); inputRef.current?.focus() }}
               />
             )}
-            {/* Word mode dropdown — moved here (right-aligned in the input row, where the
-                user is actually typing) from the footer, so it's immediately next to the
-                query instead of below a whole results list's worth of scroll distance.
-                Was a 3-button segmented control always showing all three options at once;
-                now a single trigger + popover, matching the app's other refined dropdowns
-                (BookChapterPicker's trigger styling, ScriptureSearchView's sort/context
-                menus' portal pattern). */}
-            <button
-              ref={wordModeTriggerRef}
-              onClick={() => {
-                if (!wordModeMenuOpen) { const r = wordModeTriggerRef.current?.getBoundingClientRect(); if (r) setWordModeMenuPos({ left: r.right - 130, top: r.bottom + 4 }) }
-                setWordModeMenuOpen((v) => !v)
-              }}
-              title="Word matching"
-              className="flex items-center gap-1 rounded-control border border-border bg-surface-3 px-1.5 py-0.5 text-caption2 font-medium text-text-secondary hover:border-accent/50 hover:text-text-primary transition-colors cursor-pointer flex-shrink-0"
-            >
-              {WORD_MODE_LABELS[searchWordMode]}
-              <ChevronDown size={9} className={`transition-transform ${wordModeMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {wordModeMenuOpen && wordModeMenuPos && createPortal(
-              // pointerEvents: 'auto' is required here — Radix's Dialog (this whole search
-              // bar is a Dialog.Root) sets `pointer-events: none` on <body> while modal-open
-              // so only ITS OWN portaled content stays interactive; this dropdown is a
-              // SEPARATE portal appended directly to document.body (a sibling to Radix's
-              // own portal, not inside it), so without overriding it back to 'auto' here it
-              // inherited that body-level lock — clicks passed straight through it to
-              // whatever result row sat behind it (reported as "cursor going through it").
-              <MenuSurface
-                ref={wordModeMenuRef}
-                style={{ position: 'fixed', left: wordModeMenuPos.left, top: wordModeMenuPos.top, zIndex: 'var(--z-menu)' as unknown as number, pointerEvents: 'auto' }}
-                className="min-w-[130px]"
-              >
-                {(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => (
-                  <MenuItem
-                    key={m}
-                    label={WORD_MODE_LABELS[m]}
-                    active={searchWordMode === m}
-                    onClick={() => { handleWordModeChange(m); setWordModeMenuOpen(false) }}
-                  />
-                ))}
-              </MenuSurface>,
-              document.body
-            )}
+            {/* Word mode dropdown — right-aligned in the input row, where the user is
+                actually typing, rather than below a whole results list's worth of scroll
+                distance in the footer. */}
+            <Select
+              aria-label="Word matching"
+              variant="ghost"
+              size="sm"
+              value={searchWordMode}
+              onChange={handleWordModeChange}
+              align="right"
+              options={(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => ({ value: m, label: WORD_MODE_LABELS[m] }))}
+            />
           </div>
 
           {/* Verse-tag chips — selected (removable) + candidates (click to add).
               A floating pill group tucked just under the input, no hard divider. */}
           {(selectedTags.length > 0 || candidateTags.length > 0) && (
-            <div className="mx-2.5 mt-2 mb-1 rounded-card bg-surface-3/50 px-3 py-2 flex flex-col gap-2">
+            <div className="px-3.5 pt-2 pb-2.5 flex flex-col gap-2 border-b border-separator">
               {selectedTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-caption2 uppercase tracking-wide text-text-muted font-medium mr-0.5">Filter by tag</span>
+                  <SectionLabel>Filter by tag</SectionLabel>
                   {selectedTags.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => removeTag(t.id)}
-                      title={`Remove #${t.name}`}
-                      className="group inline-flex items-center gap-1 rounded-full bg-accent/16 border border-accent/40 px-2 py-0.5 text-caption font-medium text-accent hover:bg-accent/24 transition-colors cursor-pointer"
-                    >
-                      <Tag size={10} />
+                    <Chip key={t.id} size="sm" selected icon={Tag} onRemove={() => removeTag(t.id)} title={`Remove #${t.name}`}>
                       {t.name}
-                      <X size={10} className="opacity-60 group-hover:opacity-100" />
-                    </button>
+                    </Chip>
                   ))}
                 </div>
               )}
               {candidateTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {selectedTags.length === 0 && (
-                    <span className="text-caption2 uppercase tracking-wide text-text-muted font-semibold mr-1">Tags</span>
-                  )}
+                  {selectedTags.length === 0 && <SectionLabel>Tags</SectionLabel>}
                   {candidateTags.map((t, idx) => (
-                    <button
+                    <Chip
                       key={t.id}
+                      size="sm"
+                      icon={Tag}
+                      count={t.verseCount}
+                      // Keyboard-focused candidate (↑↓ in "#" mode) reuses the same
+                      // selected/accent state as the chosen tags above — one selection
+                      // language for both, rather than a third neutral-focus fill.
+                      selected={isTagMode && idx === tagFocusIdx}
                       onMouseEnter={() => setTagFocusIdx(idx)}
                       onClick={() => addTag(t)}
                       title={`${t.verseCount} verse${t.verseCount === 1 ? '' : 's'} · ${t.chapterCount} chapter${t.chapterCount === 1 ? '' : 's'}`}
-                      // Candidates stay neutral — no accent. The keyboard-focused one
-                      // (↑↓ in "#" mode) gets a plain surface fill, not the accent used
-                      // for the SELECTED chips above.
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-medium transition-colors cursor-pointer border-border ${
-                        isTagMode && idx === tagFocusIdx
-                          ? 'bg-surface-4 text-text-primary'
-                          : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
-                      }`}
                     >
-                      <Tag size={10} className="opacity-60" />
                       {t.name}
-                      <span className="opacity-45 tabular-nums">{t.verseCount}</span>
-                    </button>
+                    </Chip>
                   ))}
                 </div>
               )}
@@ -1441,40 +1370,31 @@ export default function FloatingSearch() {
                 const isSelected = i === selectedIdx
 
                 return (
-                  <button
+                  <ListRow
                     key={i}
-                    ref={i === selectedIdx ? selectedItemRef : undefined}
+                    ref={isSelected ? selectedItemRef : undefined}
+                    leading={r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-[rgb(var(--highlight-red))]" /> : r.type === 'crossref' ? <GitFork size={14} className="text-accent" /> : r.type === 'command' ? <Terminal size={14} className="text-accent" /> : r.type === 'tag' ? <Tag size={14} className="text-accent" /> : <Hash size={14} />}
+                    title={r.label}
+                    subtitle={r.type !== 'command' ? (
+                      highlightQ
+                        ? applyFindHighlight(r.sub, r.highlightTerms?.length ? r.highlightTerms : highlightQ, searchWordMode)
+                        : r.sub
+                    ) : undefined}
+                    trailing={r.type === 'command' && r.sub ? <ShortcutKeys keys={r.sub} /> : undefined}
+                    trailingAlways
+                    selected={isSelected}
+                    className="mx-2"
                     onClick={r.action}
                     // Moving the mouse over a row selects it too (not just arrow keys) — so
                     // Enter after a hover activates that specific row, consistent with arrow
                     // navigation, rather than only ever falling back to the smart-prediction
                     // jump once the cursor has clearly indicated an actual row.
                     onMouseEnter={() => setSelectedIdx(i)}
-                    className={`w-full flex items-start gap-3 px-4 py-2.5 rounded-row text-left transition-colors cursor-pointer border-l-2 ${
-                      isSelected ? 'bg-surface-selected border-accent' : 'border-transparent hover:bg-surface-hover'
-                    }`}
-                  >
-                    <span className="flex-shrink-0 mt-0.5 text-text-muted">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-[rgb(var(--highlight-red))]" /> : r.type === 'crossref' ? <GitFork size={14} className="text-accent" /> : r.type === 'command' ? <Terminal size={14} className="text-accent" /> : r.type === 'tag' ? <Tag size={14} className="text-accent" /> : <Hash size={14} />}
-                    </span>
-                    <span className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                      <span className="min-w-0">
-                        <span className="text-sm font-medium text-text-primary block">
-                          {r.label}
-                        </span>
-                        {r.type !== 'command' && (
-                          <span className={`text-xs text-text-muted block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
-                            {highlightQ
-                              ? applyFindHighlight(r.sub, r.highlightTerms?.length ? r.highlightTerms : highlightQ, searchWordMode)
-                              : r.sub}
-                          </span>
-                        )}
-                      </span>
-                      {r.type === 'command' && r.sub && (
-                        <ShortcutKeys keys={r.sub} className="flex-shrink-0" />
-                      )}
-                    </span>
-                  </button>
+                    // The input stays the focused element the whole time — arrow keys move
+                    // `selectedIdx`, not DOM focus — so these row buttons must be pulled out
+                    // of the Tab order rather than competing with it.
+                    buttonProps={{ tabIndex: -1 }}
+                  />
                 )
               })}
             </div>
@@ -1491,8 +1411,12 @@ export default function FloatingSearch() {
                   Recent
                 </SectionLabel>
                 {recentSearchQueries.map((q, i) => (
-                  <button
+                  <ListRow
                     key={i}
+                    leading={<Clock size={13} />}
+                    title={q}
+                    titleClassName="font-normal text-text-secondary"
+                    className="mx-2"
                     onClick={() => {
                       setQuery(q)
                       setSelectedIdx(-1)
@@ -1500,23 +1424,20 @@ export default function FloatingSearch() {
                       const tid = det ? det.textId : searchTextId
                       runSearch(det ? det.cleanQuery : q, tid, searchWordMode)
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-surface-hover transition-colors cursor-pointer"
-                  >
-                    <Clock size={13} className="text-text-muted flex-shrink-0" />
-                    <span className="text-sm text-text-secondary">{q}</span>
-                  </button>
+                    buttonProps={{ tabIndex: -1 }}
+                  />
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-4 text-center text-xs text-text-muted">
+              <div className="px-4 py-4 text-center text-footnote text-text-muted">
                 Try{' '}
-                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">Gen 1:1</span>
+                <RefChip variant="neutral" size="xs">Gen 1:1</RefChip>
                 {' · '}
-                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">Exodus 20</span>
+                <RefChip variant="neutral" size="xs">Exodus 20</RefChip>
                 {' · '}
-                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">in the beginning</span>
+                <RefChip variant="neutral" size="xs">in the beginning</RefChip>
                 {' · '}
-                <span className="font-mono bg-surface-4 px-1 py-0.5 rounded">&gt; toggle strongs</span>
+                <RefChip variant="neutral" size="xs">&gt; toggle strongs</RefChip>
               </div>
             )
           )}
@@ -1526,7 +1447,7 @@ export default function FloatingSearch() {
               search affordance + quick destination icons; the ↑↓ / ↵ hints and
               the new/current-tab badge were removed as noise. */}
           {!isCommandMode && (query.trim().length > 0 || isTagMode || selectedTags.length > 0) && (
-            <div className="px-4 py-2 border-t border-separator flex items-center gap-3 text-xs text-text-muted">
+            <Toolbar size="sm" material="none" edge="top" className="text-text-muted">
               {isTagMode && candidateTags.length > 0 && (
                 <span className="inline-flex items-center gap-1 text-caption2 font-medium whitespace-nowrap">
                   <ShortcutKeys keys="↵" /> add tag
@@ -1536,39 +1457,21 @@ export default function FloatingSearch() {
                 <span className="text-caption2 font-medium whitespace-nowrap">No verse tags yet</span>
               )}
               <div className="flex-1" />
-              <button
-                onClick={openAdvancedScriptureSearch}
-                className="flex items-center gap-1.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-              >
+              <Button variant="ghost" size="sm" onClick={openAdvancedScriptureSearch}>
                 <ShortcutKeys keys="⇧↵" />
-                <span className="text-caption2 font-medium whitespace-nowrap">
-                  {selectedTags.length > 0
-                    ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`
-                    : 'Advanced scripture search'}
-                </span>
-              </button>
-              {/* Quick "send this query to…" destinations — bare icons (no
-                  hover-expand label), sized to match the app's other toolbar
-                  icons. Hidden in tag / verses-only mode. */}
+                {selectedTags.length > 0
+                  ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`
+                  : 'Advanced scripture search'}
+              </Button>
+              {/* Quick "send this query to…" destinations. Hidden in tag / verses-only mode. */}
               {!versesOnly && !isTagMode && query.trim().length > 0 && (
-                <div className="flex items-center gap-0.5">
-                  {[
-                    { label: 'Search Notes',   icon: <NotepadText size={15} />, run: () => openNotesSearchTab(query.trim()) },
-                    { label: 'Search Lexicon', icon: <BookMarked size={15} />, run: () => openLexiconSearchTab(query.trim()) },
-                    { label: 'Search YouTube', icon: <Youtube size={15} className="text-[rgb(var(--highlight-red))]" />, run: () => openYouTubeSearchTab(query.trim()) },
-                  ].map((d) => (
-                    <button
-                      key={d.label}
-                      title={d.label}
-                      onClick={() => { closeSearch(); d.run() }}
-                      className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
-                    >
-                      {d.icon}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <IconButton icon={NotepadText} label="Search Notes" size={28} onClick={() => { closeSearch(); openNotesSearchTab(query.trim()) }} />
+                  <IconButton icon={BookMarked} label="Search Lexicon" size={28} onClick={() => { closeSearch(); openLexiconSearchTab(query.trim()) }} />
+                  <IconButton icon={Youtube} label="Search YouTube" size={28} iconClassName="text-[rgb(var(--highlight-red))]" onClick={() => { closeSearch(); openYouTubeSearchTab(query.trim()) }} />
+                </>
               )}
-            </div>
+            </Toolbar>
           )}
           </motion.div>
         </Dialog.Content>

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
 import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
-import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState } from '@/components/ui'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -557,13 +557,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   function renderIdiomsExport() {
     if (!notes.some((n) => n.type === 'idiom')) return null
     return (
-      <button
+      <IconButton
+        icon={BookText}
+        label="Export all idioms to a single PDF"
+        size={24}
+        variant="ghost"
         onClick={() => setIdiomsModalOpen(true)}
-        title="Export all idioms to a single PDF"
-        className="flex-shrink-0 p-1 rounded cursor-pointer transition-colors text-text-muted hover:bg-surface-hover"
-      >
-        <BookText size={15} />
-      </button>
+      />
     )
   }
 
@@ -1418,7 +1418,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={notesContentRef}
-      className="native-buttons flex flex-col h-full bg-surface-3 relative"
+      className="flex flex-col h-full bg-surface-3 relative"
       onMouseDown={() => setActivePanelId('notes')}
     >
       <FindBar
@@ -1440,17 +1440,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 emoji picker (NoteIconPicker) rather than relying on the user knowing to
                 paste one or invoke the OS-level picker — that was the previous approach
                 and read as "there's no picker, it just lets me type". */}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect()
                 iconPicker.openMenu({ x: r.left, y: r.bottom + 4 })
               }}
               title="Page icon — click to choose an emoji"
-              className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center text-center text-sm rounded-md bg-transparent hover:bg-surface-hover outline-none text-text-primary transition-colors"
+              className="no-drag !w-6 !h-6 !p-0 justify-center"
             >
               {activeNote.icon || <Plus size={14} className="text-text-muted/50" />}
-            </button>
+            </Button>
             {iconPicker.menu && (
               <NoteIconPicker
                 x={iconPicker.menu.x}
@@ -1478,17 +1479,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     <span
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                       title="Open scripture reference"
-                      className="no-drag text-sm font-medium truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
+                      className="no-drag text-subhead font-medium truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
                     >
                       {headerDisplayTitle(activeNote)}
                     </span>
-                    <button
+                    <IconButton
+                      icon={ExternalLink}
+                      label="Open scripture reference"
+                      size={20}
+                      variant="ghost"
+                      className="no-drag"
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
-                      title="Open scripture reference"
-                      className="no-drag flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-surface-hover text-text-muted hover:text-accent transition-colors"
-                    >
-                      <ExternalLink size={12} />
-                    </button>
+                    />
                     {/* draggable filler so the blank header space moves the window */}
                     <div className="flex-1 self-stretch" aria-hidden="true" />
                   </>
@@ -1517,15 +1519,17 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <div className="flex-1 self-stretch" aria-hidden="true" />
               </>
             ) : (
-              <input
+              <TextField
                 ref={titleInputRef}
+                bare
                 autoFocus
                 value={activeNote.title ?? ''}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 onKeyDown={handleTitleKeyDown}
                 onBlur={() => setTitleFocused(false)}
                 placeholder="Untitled"
-                className="no-drag flex-1 text-subhead font-medium bg-transparent outline-none text-text-primary placeholder:text-text-muted"
+                className="no-drag !text-subhead font-medium !px-0"
+                wrapperClassName="flex-1"
               />
             )}
             {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
@@ -1847,7 +1851,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           >
           <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
             {/* Search bar — with sort selector inline on the right */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-separator flex-shrink-0">
+            <Toolbar size="md">
               <SearchField
                 size="sm"
                 bare
@@ -1901,11 +1905,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   />
                 </>
               )}
-            </div>
+            </Toolbar>
 
             {/* Filter chips bar (list view only) */}
             {!folderView && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-separator flex-shrink-0 overflow-x-auto">
+            <Toolbar size="sm" className="h-auto py-1 flex-wrap overflow-x-auto">
               {([
                 ['all',          'All'],
                 ['scripture',    'Scripture'],
@@ -1916,66 +1920,36 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 ['esword',       'eSword'],
                 ['idiom',        'Idioms'],
               ] as [NoteFilter, string][]).map(([f, label]) => (
-                <button
-                  key={f}
-                  onClick={() => setNoteFilter(f)}
-                  className={`flex-shrink-0 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
-                    ${noteFilter === f
-                      ? 'bg-accent-muted text-accent'
-                      : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
-                    }`}
-                >
+                <Chip key={f} selected={noteFilter === f} onClick={() => setNoteFilter(f)}>
                   {label}
-                </button>
+                </Chip>
               ))}
-            </div>
+            </Toolbar>
             )}
 
             {/* Status filter chips — independent axis from the type chips above, combinable */}
             {!folderView && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-separator flex-shrink-0 overflow-x-auto">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`flex-shrink-0 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
-                  ${statusFilter === 'all'
-                    ? 'bg-accent-muted text-accent'
-                    : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
-                  }`}
-              >
+            <Toolbar size="sm" className="h-auto py-1 flex-wrap overflow-x-auto">
+              <Chip selected={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
                 All statuses
-              </button>
+              </Chip>
               {NOTE_STATUSES.map((s) => {
                 const Icon = s.icon
                 return (
-                  <button
-                    key={s.id}
-                    onClick={() => setStatusFilter(s.id)}
-                    className={`flex-shrink-0 flex items-center gap-1 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
-                      ${statusFilter === s.id
-                        ? 'bg-accent-muted text-accent'
-                        : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
-                      }`}
-                  >
+                  <Chip key={s.id} selected={statusFilter === s.id} onClick={() => setStatusFilter(s.id)}>
                     <Icon size={10} style={{ color: statusFilter === s.id ? undefined : s.color }} /> {s.label}
-                  </button>
+                  </Chip>
                 )
               })}
-              <button
-                onClick={() => setStatusFilter('no-status')}
-                className={`flex-shrink-0 px-2 h-[22px] rounded-control text-caption2 font-medium cursor-pointer transition-colors
-                  ${statusFilter === 'no-status'
-                    ? 'bg-accent-muted text-accent'
-                    : 'text-text-muted hover:bg-surface-hover hover:text-text-secondary'
-                  }`}
-              >
+              <Chip selected={statusFilter === 'no-status'} onClick={() => setStatusFilter('no-status')}>
                 No status
-              </button>
-            </div>
+              </Chip>
+            </Toolbar>
             )}
 
             {/* Multi-select action bar */}
             {selectMode && (
-              <div className="material-bar flex items-center gap-2 px-3 py-1.5 border-b border-separator flex-shrink-0">
+              <Toolbar size="sm" material="bar">
                 <span className="text-footnote text-text-muted flex-1">
                   {selectedIds.length + selectedFolderIds.length} selected
                 </span>
@@ -1992,7 +1966,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <Button variant="ghost" size="sm" onClick={exitSelectMode}>
                   Cancel
                 </Button>
-              </div>
+              </Toolbar>
             )}
 
             {/* Continuous daily scroll mode — replaces the list when toggled on the 'daily' filter */}
@@ -2135,7 +2109,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         <Sheet open onOpenChange={(o) => { if (!o) setIdiomModal(null) }} size="sm" title="New Idiom Note">
           <div className="p-5 flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-text-muted">Term</label>
+              <label className="text-footnote text-text-muted">Term</label>
               <TextField
                 autoFocus
                 value={idiomModal.term}
@@ -2145,7 +2119,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-text-muted">Meaning</label>
+              <label className="text-footnote text-text-muted">Meaning</label>
               <TextField
                 value={idiomModal.meaning}
                 onChange={e => setIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
@@ -2171,9 +2145,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       {convertIdiomModal && (
         <Sheet open onOpenChange={(o) => { if (!o) setConvertIdiomModal(null) }} size="sm" title="Convert to Idiom Note">
           <div className="p-5 flex flex-col gap-4">
-              <div className="text-xs text-text-muted">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
+              <div className="text-footnote text-text-muted">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-text-muted">Term</label>
+                <label className="text-footnote text-text-muted">Term</label>
                 <TextField
                   autoFocus
                   value={convertIdiomModal.term}
@@ -2182,7 +2156,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-text-muted">Meaning <span className="opacity-60">(optional)</span></label>
+                <label className="text-footnote text-text-muted">Meaning <span className="opacity-60">(optional)</span></label>
                 <TextField
                   value={convertIdiomModal.meaning}
                   onChange={e => setConvertIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
@@ -2191,26 +2165,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               </div>
               {convertIdiomModal.note.content.trim() && (
                 <div className="flex flex-col gap-2 pt-2 border-t border-separator">
-                  <div className="text-xs text-text-muted">This note has existing content. What should happen to it?</div>
+                  <div className="text-footnote text-text-muted">This note has existing content. What should happen to it?</div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-text-secondary">
-                      <input
-                        type="radio"
-                        checked={convertIdiomModal.keepContent}
-                        onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: true } : m)}
-                        className="accent-accent"
-                      />
-                      Keep as body content of the idiom note
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-text-secondary">
-                      <input
-                        type="radio"
-                        checked={!convertIdiomModal.keepContent}
-                        onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: false } : m)}
-                        className="accent-accent"
-                      />
-                      Clear body content (idiom term + meaning only)
-                    </label>
+                    <Radio
+                      label="Keep as body content of the idiom note"
+                      checked={convertIdiomModal.keepContent}
+                      onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: true } : m)}
+                    />
+                    <Radio
+                      label="Clear body content (idiom term + meaning only)"
+                      checked={!convertIdiomModal.keepContent}
+                      onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: false } : m)}
+                    />
                   </div>
                 </div>
               )}
@@ -2385,10 +2351,11 @@ function IdiomHeader({ note, onUpdate }: {
   return (
     <div className="flex flex-col gap-1.5 border-b border-separator flex-shrink-0 px-4 pt-3 pb-2">
       <div className="flex items-start gap-2">
-        {/* Term — the printed entry's own heading style (bold, uppercase, colored). */}
-        <input
+        {/* Term — the printed entry's own heading style (uppercase, colored). */}
+        <TextField
           key={note.id + '-term'}
-          className="flex-1 min-w-0 bg-transparent outline-none text-[rgb(var(--link-wikilink))] placeholder:text-text-muted font-bold text-base uppercase tracking-wide"
+          bare
+          className="flex-1 !text-subhead font-semibold text-[rgb(var(--link-wikilink))] uppercase tracking-wide !px-0"
           placeholder="Term…"
           defaultValue={note.idiomTerm ?? note.title}
           onBlur={async (e) => {
@@ -2400,19 +2367,20 @@ function IdiomHeader({ note, onUpdate }: {
         {/* Behavior-only settings (never printed) — plurals matching + example sentences,
             tucked away here instead of sitting in the main field flow. */}
         <div className="relative flex-shrink-0">
-          <button
+          <IconButton
+            icon={SlidersHorizontal}
+            label="Highlighting behavior"
+            size={24}
+            variant="ghost"
+            active={behaviorMenuOpen}
             onClick={() => setBehaviorMenuOpen((v) => !v)}
-            title="Highlighting behavior"
-            className={`p-1 rounded cursor-pointer transition-colors ${behaviorMenuOpen ? 'text-[rgb(var(--link-wikilink))] bg-[rgb(var(--link-wikilink)/0.1)]' : 'text-text-muted hover:text-[rgb(var(--link-wikilink))]'}`}
-          >
-            <SlidersHorizontal size={14} />
-          </button>
+          />
           {behaviorMenuOpen && (
             <>
               <div className="fixed inset-0 z-raised" onClick={() => setBehaviorMenuOpen(false)} />
               <div className="absolute right-0 top-full mt-1 z-overlay w-64 material-popover rounded-menu p-2.5 flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2 group">
-                  <span className="text-xs text-text-secondary group-hover:text-text-primary">Also match plurals/possessives</span>
+                  <span className="text-footnote text-text-secondary group-hover:text-text-primary">Also match plurals/possessives</span>
                   <Switch
                     checked={autoVariants}
                     onCheckedChange={() => onUpdate({ idiomAutoVariants: !autoVariants })}
@@ -2421,18 +2389,21 @@ function IdiomHeader({ note, onUpdate }: {
                   />
                 </div>
                 <div className="pt-2 border-t border-separator">
-                  <button onClick={() => setExamplesOpen((v) => !v)} className="w-full flex items-center justify-between text-xs text-text-secondary hover:text-text-primary cursor-pointer">
-                    <span>Example sentences{examples.length > 0 ? ` (${examples.length})` : ''}</span>
-                    <span>{examplesOpen ? '▾' : '▸'}</span>
-                  </button>
+                  <DisclosureRow
+                    open={examplesOpen}
+                    onClick={() => setExamplesOpen((v) => !v)}
+                    title={`Example sentences${examples.length > 0 ? ` (${examples.length})` : ''}`}
+                    className="!px-0"
+                  />
                   <p className="text-caption2 text-text-muted opacity-70 mt-1">Not printed — just text to mine for scripture references.</p>
                   {examplesOpen && (
                     <div className="flex flex-col gap-1 mt-1.5">
                       {examples.map((ex, i) => (
                         <div key={i} className="flex items-center gap-1.5">
-                          <input
+                          <TextField
                             defaultValue={ex}
-                            className="flex-1 text-xs bg-surface-4/40 rounded px-2 py-1 outline-none text-text-primary"
+                            size="sm"
+                            wrapperClassName="flex-1"
                             onBlur={(e) => {
                               const v = e.target.value.trim()
                               const next = [...examples]
@@ -2440,16 +2411,17 @@ function IdiomHeader({ note, onUpdate }: {
                               updateData({ examples: next })
                             }}
                           />
-                          <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-text-muted hover:text-destructive cursor-pointer text-xs">×</button>
+                          <IconButton icon={X} label="Remove example" size={20} variant="ghost" danger onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} />
                         </div>
                       ))}
-                      <input
+                      <TextField
+                        bare
                         value={exInput}
                         onChange={(e) => setExInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && exInput.trim()) { e.preventDefault(); updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
                         onBlur={() => { if (exInput.trim()) { updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
                         placeholder="+ add an example sentence…"
-                        className="text-xs bg-transparent outline-none text-text-secondary placeholder:text-text-muted"
+                        className="!px-0"
                       />
                     </div>
                   )}
@@ -2461,12 +2433,12 @@ function IdiomHeader({ note, onUpdate }: {
       </div>
 
       {/* Meaning — the export's definition paragraph. Only other field always visible. */}
-      <textarea
+      <TextArea
         key={note.id + '-meaning'}
         defaultValue={note.idiomMeaning ?? ''}
         rows={1}
         placeholder="Meaning…"
-        className="w-full text-sm text-text-primary placeholder:text-text-muted bg-transparent outline-none resize-none leading-snug"
+        className="!bg-transparent !border-0 !shadow-none text-body !px-0 !py-0 resize-none leading-snug"
         onBlur={async (e) => {
           const meaning = e.target.value.trim()
           if (meaning === (note.idiomMeaning ?? '')) return
@@ -2478,17 +2450,18 @@ function IdiomHeader({ note, onUpdate }: {
         <IdiomFieldWrap label="Aliases" onRemove={() => removeField('aliases')}>
           <div className="flex items-center gap-1.5 flex-wrap">
             {aliases.map((alias) => (
-              <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-chip bg-[rgb(var(--link-wikilink)/0.15)] text-[rgb(var(--link-wikilink))] text-caption2 font-medium">
+              <Chip
+                key={alias}
+                tint="var(--link-wikilink)"
+                onRemove={() => removeAlias(alias)}
+              >
                 {alias}
-                <button
-                  onClick={() => removeAlias(alias)}
-                  className="text-[rgb(var(--link-wikilink))] hover:text-[rgb(var(--link-wikilink))] leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
-                  title="Remove"
-                >×</button>
-              </span>
+              </Chip>
             ))}
-            <input
-              className="text-xs bg-transparent outline-none text-text-secondary placeholder:text-text-muted min-w-[120px] max-w-[180px]"
+            <TextField
+              bare
+              wrapperClassName="min-w-[120px] max-w-[180px]"
+              className="!px-0"
               placeholder="+ same idiom, different wording…"
               value={aliasInput}
               onChange={e => setAliasInput(e.target.value)}
@@ -2504,12 +2477,12 @@ function IdiomHeader({ note, onUpdate }: {
 
       {addedFields.has('explanation') && (
         <IdiomFieldWrap label="Explanation" onRemove={() => removeField('explanation')}>
-          <textarea
+          <TextArea
             key={note.id + '-expl'}
             defaultValue={data.explanation ?? ''}
             rows={2}
             placeholder="What it means, where it comes from…"
-            className="w-full text-xs text-text-secondary placeholder:text-text-muted bg-transparent outline-none resize-y leading-relaxed"
+            className="!bg-transparent !shadow-none !px-0 !py-0 leading-relaxed"
             onBlur={(e) => { const v = e.target.value.trim(); if (v !== (data.explanation ?? '')) updateData({ explanation: v || undefined }) }}
           />
         </IdiomFieldWrap>
@@ -2534,13 +2507,9 @@ function IdiomHeader({ note, onUpdate }: {
 
       {availableFieldDefs.length > 0 && (
         <div className="relative self-start">
-          <button
-            onClick={() => setAddFieldMenuOpen((v) => !v)}
-            className="text-caption text-text-muted hover:text-[rgb(var(--link-wikilink))] cursor-pointer flex items-center gap-1 py-0.5"
-          >
-            <span>+</span>
-            <span>Add field</span>
-          </button>
+          <Button variant="ghost" size="sm" icon={Plus} onClick={() => setAddFieldMenuOpen((v) => !v)}>
+            Add field
+          </Button>
           {addFieldMenuOpen && (
             <>
               <div className="fixed inset-0 z-raised" onClick={() => setAddFieldMenuOpen(false)} />
@@ -2567,12 +2536,14 @@ function IdiomFieldWrap({ label, onRemove, children }: { label: string; onRemove
     <div className="flex flex-col gap-1 group/field">
       <div className="flex items-center justify-between">
         <span className="text-caption2 font-medium uppercase tracking-wide text-text-muted">{label}</span>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onRemove}
-          className="text-caption2 text-text-muted hover:text-destructive cursor-pointer opacity-0 group-hover/field:opacity-100 transition-opacity"
+          className="!h-auto !px-1 text-caption2 text-text-muted hover:text-destructive opacity-0 group-hover/field:opacity-100"
         >
           Remove
-        </button>
+        </Button>
       </div>
       {children}
     </div>
@@ -2587,18 +2558,19 @@ function IdiomChipRow({ items, onChange, placeholder }: { items: string[]; onCha
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {items.map((it) => (
-        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-chip bg-[rgb(var(--link-wikilink)/0.15)] text-[rgb(var(--link-wikilink))] text-xs font-medium">
+        <Chip key={it} tint="var(--link-wikilink)" onRemove={() => onChange(items.filter((x) => x !== it))}>
           {it}
-          <button onClick={() => onChange(items.filter((x) => x !== it))} className="text-[rgb(var(--link-wikilink))] hover:text-[rgb(var(--link-wikilink))] leading-none cursor-pointer opacity-70 hover:opacity-100">×</button>
-        </span>
+        </Chip>
       ))}
-      <input
+      <TextField
+        bare
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ',') && input.trim()) { e.preventDefault(); add(input) } }}
         onBlur={() => { if (input.trim()) add(input) }}
         placeholder={placeholder}
-        className="text-xs bg-transparent outline-none text-text-secondary placeholder:text-text-muted min-w-[110px]"
+        wrapperClassName="min-w-[110px]"
+        className="!px-0"
       />
     </div>
   )

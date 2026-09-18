@@ -354,9 +354,8 @@
    the ref/definition sub-highlighting within either rendering path. */
 .pm-verse-block, .pm-lexicon-block {
   display: block;
-  border: 1px solid rgb(var(--color-accent) / 0.35);
   border-left: 3px solid rgb(var(--color-accent) / 0.6);
-  background-color: rgb(var(--color-accent) / 0.07);
+  background-color: rgb(var(--color-accent) / 0.06);
   padding: 0.55em 0.8em;
   /* Fluid-feel polish #2.2 — softens re-verification flicker on an ALREADY-boxed block
      (e.g. editing text inside it invalidates the verse-text cache and re-triggers a pending
@@ -367,9 +366,8 @@
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .pm-lexicon-block {
-  border-color: rgb(var(--link-lexicon-ref) / 0.35);
   border-left-color: rgb(var(--link-lexicon-ref) / 0.6);
-  background-color: rgb(var(--link-lexicon-ref) / 0.07);
+  background-color: rgb(var(--link-lexicon-ref) / 0.06);
 }
 /* Multi-paragraph blocks (the normal way of typing a multi-line verse
    passage — one Enter per line, each its own paragraph, see

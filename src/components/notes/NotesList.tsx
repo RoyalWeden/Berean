@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { NotepadText, Trash2, CheckSquare, Square, Pin, PinOff } from 'lucide-react'
+import { NotepadText, Trash2, Pin, PinOff } from 'lucide-react'
 import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
@@ -9,7 +9,7 @@ import type { Note, NoteStatus } from '@/types'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NoteBadgeRow } from './NoteBadgeRow'
 import NoteIcon from './NoteIcon'
-import { EmptyState } from '@/components/ui'
+import { EmptyState, Checkbox, IconButton, TextField } from '@/components/ui'
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
@@ -213,19 +213,18 @@ export default function NotesList({
 
               {/* Checkbox in select mode */}
               {selectMode && (
-                <button
-                  onClick={() => onToggleSelect?.(note.id)}
-                  className="flex items-center pl-3 pr-1 text-text-muted hover:text-accent cursor-pointer flex-shrink-0"
-                >
-                  {isSelected
-                    ? <CheckSquare size={15} className="text-accent" />
-                    : <Square size={15} />
-                  }
-                </button>
+                <Checkbox
+                  checked={isSelected}
+                  onChange={() => onToggleSelect?.(note.id)}
+                  className="pl-3 pr-1 flex-shrink-0"
+                />
               )}
 
-              {/* Note row */}
-              <button
+              {/* Note row — a div (not a real <button>) since it hosts multi-line rich content
+                  (title, snippet, badges, date); keyboard-reachable via role="button". */}
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   if (isRenaming) return
                   if (selectMode) {
@@ -235,14 +234,19 @@ export default function NotesList({
                   }
                 }}
                 onDoubleClick={() => { if (!isRenaming && !selectMode) onSelect(note) }}
-                className={`flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
+                onKeyDown={(e) => {
+                  if (isRenaming) return
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (selectMode ? onToggleSelect?.(note.id) : (onPreview ?? onSelect)(note)) }
+                }}
+                className={`focus-ring flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
                   ${selectMode ? 'px-2 pr-9' : 'px-4 pr-9'}
                 `}
               >
                 {/* Title: inline rename input or normal text */}
                 {isRenaming ? (
-                  <input
+                  <TextField
                     ref={renameInputRef}
+                    size="sm"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onKeyDown={(e) => {
@@ -251,7 +255,8 @@ export default function NotesList({
                     }}
                     onBlur={() => commitRename(note.id, renameValue)}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-subhead font-medium text-text-primary bg-surface-4 rounded-control px-1 w-full outline-none border border-accent/50"
+                    className="!text-subhead font-medium"
+                    wrapperClassName="w-full"
                   />
                 ) : (
                   <span className="flex items-center gap-1 w-full min-w-0">
@@ -282,43 +287,36 @@ export default function NotesList({
                     </div>
                   </>
                 )}
-              </button>
+              </div>
 
               {/* Pin toggle — a pinned note's icon stays visible always (so pinned status
                   reads at a glance without hovering); an unpinned note's only shows on hover,
                   matching the delete button's own reveal-on-hover convention below. Sits left
                   of delete (right-9 vs right-2) so the two never overlap. */}
               {onTogglePinned && !selectMode && (
-                <button
+                <IconButton
+                  icon={note.pinned ? Pin : PinOff}
+                  label={note.pinned ? 'Unpin note' : 'Pin note'}
+                  size={28}
+                  variant="ghost"
+                  active={note.pinned}
+                  iconClassName={note.pinned ? 'fill-current' : undefined}
                   onClick={(e) => { e.stopPropagation(); onTogglePinned(note) }}
-                  className={`
-                    absolute right-9 top-1/2 -translate-y-1/2
-                    p-1.5 rounded-control transition-opacity cursor-pointer
-                    ${note.pinned
-                      ? 'text-accent opacity-100'
-                      : 'text-text-muted hover:text-text-primary hover:bg-surface-hover opacity-0 group-hover:opacity-100'
-                    }
-                  `}
-                  title={note.pinned ? 'Unpin note' : 'Pin note'}
-                >
-                  {note.pinned ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
-                </button>
+                  className={`absolute right-9 top-1/2 -translate-y-1/2 transition-opacity ${note.pinned ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                />
               )}
 
               {/* Delete button — appears on row hover (not in select mode) */}
               {onDelete && !selectMode && (
-                <button
+                <IconButton
+                  icon={Trash2}
+                  label="Delete note"
+                  size={28}
+                  variant="ghost"
+                  danger
                   onClick={(e) => { e.stopPropagation(); onDelete(note) }}
-                  className="
-                    absolute right-2 top-1/2 -translate-y-1/2
-                    p-1.5 rounded-control opacity-0 group-hover:opacity-100
-                    text-text-muted hover:text-destructive hover:bg-destructive/15
-                    transition-opacity cursor-pointer
-                  "
-                  title="Delete note"
-                >
-                  <Trash2 size={13} />
-                </button>
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                />
               )}
             </div>
             {/* In-note search matches — truncated snippets with the match highlighted */}

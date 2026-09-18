@@ -246,27 +246,36 @@ export default function Toolbar({
               ANY one of the three dots reveals all three glyphs at once, matching
               real macOS traffic-light behavior. */}
           <div className="group flex items-center gap-2.5 mr-1 ml-0.5 flex-shrink-0">
-            <button
-              title="Close"
+            <IconButton
+              icon={X}
+              label="Close"
+              tooltip={false}
+              size={20}
+              strokeWidth={3.5}
               onMouseDown={() => window.windowControls?.close()}
-              className="w-3 h-3 rounded-full bg-[#FF5F57] hover:brightness-90 active:brightness-75 flex items-center justify-center cursor-pointer transition-[filter]"
-            >
-              <X size={7} strokeWidth={3.5} className="opacity-0 group-hover:opacity-100 text-[#4d0000]/70" />
-            </button>
-            <button
-              title="Minimize"
+              className="!w-3 !h-3 rounded-full bg-[#FF5F57] hover:brightness-90 active:brightness-75 transition-[filter]"
+              iconClassName="!w-[7px] !h-[7px] opacity-0 group-hover:opacity-100 text-[#4d0000]/70"
+            />
+            <IconButton
+              icon={Minus}
+              label="Minimize"
+              tooltip={false}
+              size={20}
+              strokeWidth={3.5}
               onMouseDown={() => window.windowControls?.minimize()}
-              className="w-3 h-3 rounded-full bg-[#FFBD2E] hover:brightness-90 active:brightness-75 flex items-center justify-center cursor-pointer transition-[filter]"
-            >
-              <Minus size={8} strokeWidth={3.5} className="opacity-0 group-hover:opacity-100 text-[#5a3d00]/70" />
-            </button>
-            <button
-              title={isMaximized ? 'Restore' : 'Maximize'}
+              className="!w-3 !h-3 rounded-full bg-[#FFBD2E] hover:brightness-90 active:brightness-75 transition-[filter]"
+              iconClassName="!w-2 !h-2 opacity-0 group-hover:opacity-100 text-[#5a3d00]/70"
+            />
+            <IconButton
+              icon={Maximize2}
+              label={isMaximized ? 'Restore' : 'Maximize'}
+              tooltip={false}
+              size={20}
+              strokeWidth={3.5}
               onMouseDown={() => window.windowControls?.maximize()}
-              className="w-3 h-3 rounded-full bg-[#28C840] hover:brightness-90 active:brightness-75 flex items-center justify-center cursor-pointer transition-[filter]"
-            >
-              <Maximize2 size={6} strokeWidth={3.5} className="opacity-0 group-hover:opacity-100 text-[#003d0a]/70" />
-            </button>
+              className="!w-3 !h-3 rounded-full bg-[#28C840] hover:brightness-90 active:brightness-75 transition-[filter]"
+              iconClassName="!w-1.5 !h-1.5 opacity-0 group-hover:opacity-100 text-[#003d0a]/70"
+            />
           </div>
           {sep}
         </>
@@ -424,7 +433,7 @@ export default function Toolbar({
           {openDropdown === 'list' && (
             <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex items-center gap-0.5">
               <IconButton icon={List} label="Bullet list" size={24} onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
-              <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
+              <Button variant="ghost" size="sm" title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className="!w-6 !h-6 !p-0 font-mono">–</Button>
               <IconButton icon={ListOrdered} label="Numbered list" size={24} onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
               <IconButton icon={CheckSquare} label="Task list" size={24} onMouseDown={toggleTaskList} />
             </div>
@@ -434,11 +443,13 @@ export default function Toolbar({
             <div className="pm-toolbar-solid material-popover rounded-menu p-2 w-[168px]">
               <div className="grid grid-cols-5 gap-1.5 mb-1.5">
                 {HIGHLIGHT_COLOR_IDS.map((id) => (
-                  <button
+                  <Button
                     key={id}
+                    variant="ghost"
                     title={HIGHLIGHT_LABELS[id]}
+                    aria-label={HIGHLIGHT_LABELS[id]}
                     onMouseDown={() => applyHighlight(id)}
-                    className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
+                    className="!w-6 !h-6 !p-0 rounded-full hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
                     style={{ backgroundColor: highlightDotColor(id) }}
                   />
                 ))}

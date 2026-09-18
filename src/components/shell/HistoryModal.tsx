@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 'react'
+import { useEffect, useRef, useState, useMemo, memo, useDeferredValue, Fragment, type MouseEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid, ArrowDownWideNarrow, ArrowUpWideNarrow } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
-import { IconButton, Tooltip } from '@/components/ui'
+import { IconButton, Toolbar, ListRow, Chip, RefChip, Button, SegmentedControl, SearchField, Select, TextField, SectionHeader, SectionLabel } from '@/components/ui'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
@@ -50,18 +50,20 @@ function toDateStr(ts: number): string {
 
 type EntryType = HistoryEntry['type']
 
+const ENTRY_ICON: Record<EntryType, typeof BookOpen> = {
+  bible: BookOpen,
+  note: NotepadText,
+  lexicon: BookMarked,
+  youtube: Youtube,
+  search: Search,
+  'strongs-click': Layers,
+  compare: Columns2,
+  import: BookMarked,
+}
+
 function EntryIcon({ type, size = 12 }: { type: EntryType; size?: number }) {
-  const cls = 'flex-shrink-0'
-  switch (type) {
-    case 'bible':         return <BookOpen    size={size} className={cls} />
-    case 'note':          return <NotepadText size={size} className={cls} />
-    case 'lexicon':       return <BookMarked  size={size} className={cls} />
-    case 'youtube':       return <Youtube     size={size} className={cls} />
-    case 'search':        return <Search      size={size} className={cls} />
-    case 'strongs-click': return <Layers      size={size} className={cls} />
-    case 'compare':       return <Columns2    size={size} className={cls} />
-    case 'import':        return <BookMarked  size={size} className={cls} />
-  }
+  const Icon = ENTRY_ICON[type]
+  return <Icon size={size} className="flex-shrink-0" />
 }
 
 // Reuses the highlight-pigment palette (global.css) for categorical distinction — these are
@@ -76,6 +78,18 @@ const TYPE_COLOR: Record<EntryType, string> = {
   'strongs-click':'text-[rgb(var(--highlight-indigo))]',
   compare:        'text-[rgb(var(--highlight-sky))]',
   import:         'text-[rgb(var(--highlight-teal))]',
+}
+
+// Same palette as TYPE_COLOR but as "r g b" triples for Chip's `tint` prop.
+const TYPE_TINT: Record<EntryType, string> = {
+  bible:          'var(--color-accent)',
+  note:           'var(--highlight-green)',
+  lexicon:        'var(--highlight-purple)',
+  youtube:        'var(--highlight-red)',
+  search:         'var(--highlight-amber)',
+  'strongs-click':'var(--highlight-indigo)',
+  compare:        'var(--highlight-sky)',
+  import:         'var(--highlight-teal)',
 }
 
 const TYPE_LABEL: Record<EntryType, string> = {
@@ -178,46 +192,16 @@ function useNavigate() {
   }
 }
 
-// ── Type filter chip ───────────────────────────────────────────────────────────
-
-function TypeChip({ type, active, onClick }: { type: EntryType; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-caption2 font-medium border transition-colors cursor-pointer ${
-        active
-          ? `${TYPE_COLOR[type]} border-current bg-current/10`
-          : 'text-text-muted border-border hover:border-text-muted'
-      }`}
-    >
-      <EntryIcon type={type} size={9} />
-      {TYPE_LABEL[type]}
-    </button>
-  )
-}
-
-// ── Session badge ──────────────────────────────────────────────────────────────
-
-function SessionBadge({ name }: { name: string }) {
-  return (
-    <span className="text-micro px-1 py-0.5 rounded bg-surface-4 text-text-muted font-medium leading-none flex-shrink-0 max-w-[72px] truncate">
-      {name}
-    </span>
-  )
-}
-
 // ── Single history item ────────────────────────────────────────────────────────
 
 const HistoryItem = memo(function HistoryItem({
   visits,
-  dayLabelText,
   onNavigate,
   onDelete,
   noteTitles,
   videoTitles,
 }: {
   visits: HistoryEntry[]   // 1+ visits to the same target; visits[0] is the most recent
-  dayLabelText?: string    // set only on the first row of a new day — lightweight divider, not a collapsible group
   onNavigate: (e: HistoryEntry) => void
   onDelete: (id: string) => void
   /** Current note id → title, so renamed notes don't show the stale title snapshotted at push time. */
@@ -235,104 +219,92 @@ const HistoryItem = memo(function HistoryItem({
     : entry.type === 'youtube' && entry.videoId ? (videoTitles.get(entry.videoId) ?? entry.title)
     : entry.type === 'lexicon' && entry.strongsNum ? (cachedLexiconTitle(entry.strongsNum) ?? entry.title)
     : entry.title
+
+  function jumpToVerse(e: MouseEvent) {
+    e.stopPropagation()
+    const parsed = parseRef(entry.verseRef!)
+    // A note's stored verseRef can carry a trailing " LXX" ("Isaiah 66:3 LXX"). parseRef now
+    // both accepts that (it used to return null, so the jump did nothing at all) and reports
+    // it, so the jump lands in the LXX.
+    if (parsed) onNavigate({
+      ...entry,
+      type: 'bible',
+      bookId: parsed.bookId,
+      chapter: parsed.chapter,
+      translation: parsed.forcedTranslation?.toLowerCase() ?? entry.translation,
+    })
+  }
+
   return (
-    <div className="group relative">
-      {dayLabelText && (
-        <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-micro font-semibold uppercase tracking-wider text-text-muted bg-surface-1">
-          {dayLabelText}
-        </div>
-      )}
-      <div className="flex items-center">
-        <button
-          onClick={() => onNavigate(entry)}
-          className="flex-1 flex items-center gap-2 px-3 py-1.5 text-left hover:bg-surface-hover transition-colors cursor-pointer min-w-0 rounded"
-        >
-          <span className={`${TYPE_COLOR[entry.type]} flex-shrink-0`}>
-            <EntryIcon type={entry.type} size={11} />
-          </span>
-          <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
-            <span className="text-xs text-text-primary truncate leading-tight">
-              {displayTitle}
-            </span>
-            {entry.translation && (
-              <span className="text-micro text-text-muted flex-shrink-0">
-                {entry.translation.toUpperCase()}
-              </span>
-            )}
-            {/* Verse notes carry their attached passage — surfacing it here
-                is what connects a note-opened entry back to the study
-                workflow, letting the user jump straight to that verse
-                instead of History only ever tracking navigation in
-                isolation from what was actually being studied. */}
+    <div>
+      <ListRow
+        leading={<span className={TYPE_COLOR[entry.type]}><EntryIcon type={entry.type} /></span>}
+        title={displayTitle}
+        meta={<>{entry.translation && `${entry.translation.toUpperCase()} · `}{formatTime(entry.timestamp)}</>}
+        onClick={() => onNavigate(entry)}
+        trailingAlways
+        trailing={(
+          <>
+            {/* Verse notes carry their attached passage — surfacing it here is what connects
+                a note-opened entry back to the study workflow, letting the user jump straight
+                to that verse instead of History only ever tracking navigation in isolation
+                from what was actually being studied. */}
             {entry.type === 'note' && entry.verseRef && (
-              <span
-                role="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const parsed = parseRef(entry.verseRef!)
-                  // A note's stored verseRef can carry a trailing " LXX" ("Isaiah 66:3 LXX").
-                  // parseRef now both accepts that (it used to return null, so the jump did
-                  // nothing at all) and reports it, so the jump lands in the LXX.
-                  if (parsed) onNavigate({
-                    ...entry,
-                    type: 'bible',
-                    bookId: parsed.bookId,
-                    chapter: parsed.chapter,
-                    translation: parsed.forcedTranslation?.toLowerCase() ?? entry.translation,
-                  })
-                }}
-                title={`Jump to ${entry.verseRef}`}
-                className="text-micro text-accent hover:underline flex-shrink-0 cursor-pointer"
-              >
+              <RefChip size="xs" onClick={jumpToVerse} title={`Jump to ${entry.verseRef}`}>
                 → {entry.verseRef}
-              </span>
+              </RefChip>
             )}
-          </span>
-          {/* Repeat-visit count badge → click toggles the timestamp list */}
-          {repeated && (
-            <span
-              role="button"
-              onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
-              title={`Visited ${visits.length} times — show all`}
-              className="flex items-center gap-0.5 text-micro text-text-muted bg-surface-4 rounded-full px-1.5 py-0.5 flex-shrink-0 cursor-pointer hover:text-text-primary"
-            >
-              ×{visits.length}
-              <ChevronDown size={8} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-            </span>
-          )}
-          {entry.sessionName && <SessionBadge name={entry.sessionName} />}
-          <span className="text-micro text-text-muted flex-shrink-0 tabular-nums">
-            {formatTime(entry.timestamp)}
-          </span>
-        </button>
-        {/* Per-item delete — shown on hover (removes the whole group) */}
-        <button
-          onClick={(e) => { e.stopPropagation(); visits.forEach(v => onDelete(v.id)) }}
-          title={repeated ? 'Remove all visits' : 'Remove from history'}
-          className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-destructive cursor-pointer mr-1"
-        >
-          <X size={10} />
-        </button>
-      </div>
+            {entry.sessionName && <RefChip variant="neutral" size="xs" className="max-w-[72px] truncate">{entry.sessionName}</RefChip>}
+            {/* Repeat-visit count — click toggles the timestamp list */}
+            {repeated && (
+              <Chip
+                size="sm"
+                icon={ChevronDown}
+                onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+                title={`Visited ${visits.length} times — show all`}
+                className={open ? '[&_svg]:rotate-180 [&_svg]:transition-transform' : '[&_svg]:transition-transform'}
+              >
+                ×{visits.length}
+              </Chip>
+            )}
+            <IconButton
+              icon={X}
+              label={repeated ? 'Remove all visits' : 'Remove from history'}
+              size={20}
+              variant="ghost"
+              danger
+              onClick={(e) => { e.stopPropagation(); visits.forEach(v => onDelete(v.id)) }}
+              className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100"
+              tooltip={false}
+            />
+          </>
+        )}
+      />
       {/* Expanded timestamp list for repeated visits */}
       {repeated && open && (
         <div className="ml-9 mr-2 mb-1 border-l border-separator">
           {visits.map((v) => (
-            <div key={v.id} className="flex items-center group/ts">
-              <button
-                onClick={() => onNavigate(v)}
-                className="flex-1 text-left pl-3 py-0.5 text-caption2 text-text-muted hover:text-text-primary hover:bg-surface-hover cursor-pointer rounded tabular-nums"
-              >
-                {formatTime(v.timestamp)}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(v.id) }}
-                title="Remove this visit"
-                className="flex-shrink-0 p-1 rounded opacity-0 group-hover/ts:opacity-100 text-text-muted hover:text-destructive cursor-pointer mr-1"
-              >
-                <X size={9} />
-              </button>
-            </div>
+            <ListRow
+              key={v.id}
+              dense
+              indent={12}
+              title={formatTime(v.timestamp)}
+              titleClassName="tabular-nums text-text-muted"
+              onClick={() => onNavigate(v)}
+              trailingAlways
+              trailing={(
+                <IconButton
+                  icon={X}
+                  label="Remove this visit"
+                  size={20}
+                  variant="ghost"
+                  danger
+                  onClick={(e) => { e.stopPropagation(); onDelete(v.id) }}
+                  className="opacity-0 group-hover/row:opacity-100"
+                  tooltip={false}
+                />
+              )}
+            />
           ))}
         </div>
       )}
@@ -589,16 +561,16 @@ export default function HistoryModal() {
   return (
     <Dialog.Root open={historyOpen} onOpenChange={(open) => !open && closeHistory()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-modal bg-black/40 animate-fade-in" style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
+        <Dialog.Overlay className="fixed inset-0 z-critical bg-black/20 animate-fade-in" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-[8vh] -translate-x-1/2 z-modal w-full max-w-[520px] material-sheet rounded-sheet flex flex-col overflow-hidden outline-none animate-radix-popup-in"
+          className="fixed left-1/2 top-[8vh] -translate-x-1/2 z-critical w-full max-w-[520px] material-elevated rounded-sheet flex flex-col overflow-hidden outline-none animate-radix-popup-in"
           style={{ maxHeight: '78vh' }}
         >
         {/* ── Header ── */}
         <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-shrink-0">
           <Clock size={13} className="text-text-muted flex-shrink-0" />
-          <Dialog.Title className="text-sm font-semibold text-text-primary">History</Dialog.Title>
+          <Dialog.Title className="text-title3 font-semibold text-text-primary">History</Dialog.Title>
           <span
             className="text-caption2 text-text-muted flex-1 text-right"
             title={`Showing ${filtered.length} of ${history.length} entries${history.length >= 500 ? ' (history keeps the most recent 500)' : ''}`}
@@ -608,130 +580,97 @@ export default function HistoryModal() {
           <IconButton icon={X} label="Close" size={24} onClick={closeHistory} tooltip={false} />
         </div>
 
-        {/* ── Content-type tabs ── */}
-        <div className="flex items-center gap-0.5 px-3 pb-2 flex-shrink-0">
-          {HISTORY_TABS.map((tab) => {
-            const active = activeHistoryTab === tab.key
-            const Icon = tab.icon
-            const count = tabCounts[tab.key]
-            return (
-              <Tooltip key={tab.key} label={`${tab.label} · ${count}`} side="bottom">
-                <button
-                  onClick={() => setActiveHistoryTab(tab.key)}
-                  className={`flex items-center justify-center px-2.5 py-1 rounded-control text-xs font-medium transition-colors cursor-pointer flex-shrink-0 ${
-                    active
-                      ? 'bg-accent-muted text-accent'
-                      : 'text-text-muted hover:bg-surface-hover hover:text-text-primary'
-                  }`}
-                >
-                  {Icon && <Icon size={13} className="flex-shrink-0" />}
-                </button>
-              </Tooltip>
-            )
-          })}
-        </div>
-
-        {/* ── Search bar — always visible ── */}
-        <div className="px-3 pb-2 flex-shrink-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-control bg-surface-3 border border-border focus-within:border-accent/50 transition-colors">
-            <Search size={12} className="text-text-muted flex-shrink-0" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search history…"
-              className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-muted"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-text-muted hover:text-text-primary cursor-pointer flex-shrink-0">
-                <X size={10} />
-              </button>
-            )}
-            {/* Sort + filter controls inline with search bar */}
-            <div className="flex items-center gap-1 border-l border-separator pl-2 ml-1 flex-shrink-0">
-              <button
-                onClick={() => setSortNewest(v => !v)}
-                title={sortNewest ? 'Newest first' : 'Oldest first'}
-                className="text-micro text-text-muted hover:text-text-primary transition-colors cursor-pointer px-1 tabular-nums"
-              >
-                {sortNewest ? '↓ New' : '↑ Old'}
-              </button>
-              <button
-                onClick={() => setShowFilters(v => !v)}
-                title="Filter by date or type"
-                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                  showFilters || dateFilter || typeFilters.size > 0
-                    ? 'text-accent'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                <SlidersHorizontal size={11} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-separator flex-shrink-0" />
+        {/* ── Tabs + search + sort + filter — one toolbar row ── */}
+        <Toolbar size="md" material="none" edge="bottom">
+          <SegmentedControl
+            aria-label="Filter by content type"
+            value={activeHistoryTab}
+            onChange={setActiveHistoryTab}
+            options={HISTORY_TABS.map((tab) => ({
+              value: tab.key,
+              icon: tab.icon ?? undefined,
+              title: `${tab.label} · ${tabCounts[tab.key]}`,
+            }))}
+          />
+          <SearchField
+            ref={searchRef}
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            placeholder="Search history…"
+            size="sm"
+            wrapperClassName="flex-1 min-w-0"
+          />
+          <Select
+            aria-label="Sort order"
+            variant="ghost"
+            size="sm"
+            value={sortNewest ? 'newest' : 'oldest'}
+            onChange={(v) => setSortNewest(v === 'newest')}
+            options={[
+              { value: 'newest', label: 'Newest', icon: ArrowDownWideNarrow },
+              { value: 'oldest', label: 'Oldest', icon: ArrowUpWideNarrow },
+            ]}
+          />
+          <IconButton
+            icon={SlidersHorizontal}
+            label="Filter by date or type"
+            size={24}
+            active={showFilters || !!dateFilter || typeFilters.size > 0}
+            onClick={() => setShowFilters((v) => !v)}
+          />
+        </Toolbar>
 
         {/* ── Filter panel ── */}
         {showFilters && (
-          <div className="px-4 py-2.5 border-b border-separator flex-shrink-0 space-y-2 bg-surface-2">
+          <div className="px-4 py-2.5 border-b border-separator flex-shrink-0 space-y-2">
             {/* Study vs. All — only ever refines the Scripture tab's own list; "All"
                 always shows every visit regardless of this toggle (see preTabFiltered). */}
             {activeHistoryTab === 'scripture' && (
               <div className="flex items-center gap-2">
-                <span className="text-caption2 text-text-muted w-9 flex-shrink-0">Reads</span>
-                <div className="flex items-center rounded-full border border-border overflow-hidden text-micro font-medium">
-                  <button
-                    onClick={() => setHideRoutineReading(true)}
-                    title="Hide routine chapter-to-chapter reading, keep deliberate actions"
-                    className={`px-2 py-0.5 cursor-pointer transition-colors ${hideRoutineReading ? 'bg-accent/20 text-accent' : 'text-text-muted hover:text-text-primary'}`}
-                  >
-                    Study only
-                  </button>
-                  <button
-                    onClick={() => setHideRoutineReading(false)}
-                    title="Show everything, including routine chapter-to-chapter reading"
-                    className={`px-2 py-0.5 cursor-pointer transition-colors ${!hideRoutineReading ? 'bg-accent/20 text-accent' : 'text-text-muted hover:text-text-primary'}`}
-                  >
-                    All reads
-                  </button>
-                </div>
+                <SectionLabel className="w-10 flex-shrink-0">Reads</SectionLabel>
+                <SegmentedControl
+                  aria-label="Reading history filter"
+                  size="sm"
+                  value={hideRoutineReading ? 'study' : 'all'}
+                  onChange={(v) => setHideRoutineReading(v === 'study')}
+                  options={[
+                    { value: 'study', label: 'Study only', title: 'Hide routine chapter-to-chapter reading, keep deliberate actions' },
+                    { value: 'all', label: 'All reads', title: 'Show everything, including routine chapter-to-chapter reading' },
+                  ]}
+                />
               </div>
             )}
             {/* Date picker */}
             <div className="flex items-center gap-2">
-              <span className="text-caption2 text-text-muted w-9 flex-shrink-0">Date</span>
-              <input
+              <SectionLabel className="w-10 flex-shrink-0">Date</SectionLabel>
+              <TextField
                 type="date"
+                size="sm"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="flex-1 text-xs px-2 py-1 rounded-control bg-surface-4 border border-border text-text-primary outline-none focus:border-accent/50 cursor-pointer"
+                wrapperClassName="flex-1"
+                trailing={dateFilter ? (
+                  <IconButton icon={X} label="Clear date" size={20} variant="ghost" onClick={() => setDateFilter('')} tooltip={false} />
+                ) : undefined}
               />
-              {dateFilter && (
-                <button
-                  onClick={() => setDateFilter('')}
-                  className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer px-1"
-                >
-                  <X size={10} />
-                </button>
-              )}
             </div>
             {/* Type chips */}
             <div className="flex items-center gap-1 flex-wrap">
-              <span className="text-caption2 text-text-muted w-9 flex-shrink-0">Type</span>
+              <SectionLabel className="w-10 flex-shrink-0">Type</SectionLabel>
               {ALL_TYPES.map(t => (
-                <TypeChip key={t} type={t} active={typeFilters.has(t)} onClick={() => toggleType(t)} />
+                <Chip
+                  key={t}
+                  size="sm"
+                  icon={ENTRY_ICON[t]}
+                  tint={TYPE_TINT[t]}
+                  selected={typeFilters.has(t)}
+                  onClick={() => toggleType(t)}
+                >
+                  {TYPE_LABEL[t]}
+                </Chip>
               ))}
               {typeFilters.size > 0 && (
-                <button
-                  onClick={() => setTypeFilters(new Set())}
-                  className="text-micro text-text-muted hover:text-text-primary cursor-pointer ml-1"
-                >
-                  Clear
-                </button>
+                <Button variant="ghost" size="sm" onClick={() => setTypeFilters(new Set())}>Clear</Button>
               )}
             </div>
           </div>
@@ -752,11 +691,11 @@ export default function HistoryModal() {
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2 text-text-muted">
               <Clock size={26} className="opacity-25" />
-              <span className="text-sm opacity-50">
+              <span className="text-subhead opacity-50">
                 {history.length === 0 ? 'No history yet' : searchQuery ? `No results for "${searchQuery}"` : 'No matches for current filters'}
               </span>
               {history.length === 0 && (
-                <span className="text-xs opacity-35 text-center max-w-[260px]">
+                <span className="text-footnote opacity-35 text-center max-w-[260px]">
                   Open scripture, notes, or lexicon entries to start tracking
                 </span>
               )}
@@ -764,23 +703,25 @@ export default function HistoryModal() {
           ) : (
             <div className="py-1">
               {visibleGroups.map((g) => (
-                <HistoryItem
-                  key={g.key}
-                  visits={g.visits}
-                  dayLabelText={g.dayLabelText}
-                  onNavigate={navigate}
-                  onDelete={deleteEntry}
-                  noteTitles={noteTitles}
-                  videoTitles={videoTitles}
-                />
+                <Fragment key={g.key}>
+                  {g.dayLabelText && (
+                    <Toolbar sticky size="sm" edge="none">
+                      <SectionHeader flush>{g.dayLabelText}</SectionHeader>
+                    </Toolbar>
+                  )}
+                  <HistoryItem
+                    visits={g.visits}
+                    onNavigate={navigate}
+                    onDelete={deleteEntry}
+                    noteTitles={noteTitles}
+                    videoTitles={videoTitles}
+                  />
+                </Fragment>
               ))}
               {hiddenCount > 0 && (
-                <button
-                  onClick={() => setShowAllFlat(true)}
-                  className="w-full text-center py-1.5 text-caption2 text-accent hover:bg-surface-hover cursor-pointer transition-colors"
-                >
+                <Button variant="ghost" size="sm" className="w-full mt-1" onClick={() => setShowAllFlat(true)}>
                   Show {hiddenCount} more
-                </button>
+                </Button>
               )}
             </div>
           )}

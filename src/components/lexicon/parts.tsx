@@ -39,11 +39,14 @@ export function LexiconEntryHeader({
 /** Section label for lexicon groups (Definition, Derivation, Occurrences…) — SectionHeader alias. */
 export const LexiconSectionLabel = SectionHeader
 
-/** One verse occurrence: ref chip leading, verse text as the row title. */
+/** One verse occurrence: ref chip leading (+ optional small badges beside it, e.g. "LXX", "×2"),
+ *  verse text as the row title. */
 export function OccurrenceRow({
-  refLabel, text, onClick, onContextMenu, dense = true, className,
+  refLabel, badges, text, onClick, onContextMenu, dense = true, className,
 }: {
   refLabel: ReactNode
+  /** Small neutral badges shown beside the ref chip (LXX source, match count…). */
+  badges?: ReactNode
   text: ReactNode
   onClick?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
@@ -52,7 +55,7 @@ export function OccurrenceRow({
 }) {
   return (
     <ListRow
-      leading={<RefChip size="xs">{refLabel}</RefChip>}
+      leading={<span className="flex items-center gap-1"><RefChip size="xs">{refLabel}</RefChip>{badges}</span>}
       title={text}
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -64,13 +67,14 @@ export function OccurrenceRow({
 
 /** One derived/related term: number chip leading, lemma + transliteration as title, gloss as subtitle. */
 export function DerivedTermRow({
-  strongsNum, lemma, transliteration, gloss, onClick, dense = true, selected, className,
+  strongsNum, lemma, transliteration, gloss, onClick, onContextMenu, dense = true, selected, className,
 }: {
   strongsNum: string
   lemma?: string | null
   transliteration?: string | null
   gloss?: string | null
   onClick?: (e: React.MouseEvent) => void
+  onContextMenu?: (e: React.MouseEvent) => void
   dense?: boolean
   selected?: boolean
   className?: string
@@ -86,6 +90,7 @@ export function DerivedTermRow({
       </>}
       subtitle={gloss}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       dense={dense}
       className={className}
     />

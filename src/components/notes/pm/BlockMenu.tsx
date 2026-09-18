@@ -262,7 +262,7 @@ export default function BlockMenu({
     <MenuPositioner
       x={target.rect.right + 6}
       y={target.rect.top}
-      className="native-buttons min-w-[190px]"
+      className="min-w-[190px]"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <MenuSurface>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ZoomIn, Minus, Plus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { zoomPercent, ZOOM_MIN, ZOOM_MAX } from '@/lib/zoom'
-import { IconButton, TextField } from '@/components/ui'
+import { IconButton, TextField, Button } from '@/components/ui'
 
 /**
  * Zoom row, shown from the rail's Zoom button. Replaces the old per-panel
@@ -50,13 +50,9 @@ export default function ZoomMenuRow() {
         className="w-14 text-center"
       />
       <IconButton icon={Plus} label="Zoom in" tooltip={{ shortcut: '⌘+' }} size={24} onClick={() => adjust(1)} />
-      <button
-        onClick={() => reset()}
-        title="Reset to 100% (⌘0)"
-        className="flex-shrink-0 text-caption2 text-text-muted hover:text-accent cursor-pointer transition-colors"
-      >
+      <Button variant="ghost" size="sm" className="flex-shrink-0" onClick={() => reset()} title="Reset to 100% (⌘0)">
         Reset
-      </button>
+      </Button>
     </div>
   )
 }

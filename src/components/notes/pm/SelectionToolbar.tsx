@@ -155,10 +155,6 @@ export default function SelectionToolbar({
     setOpenDropdown('none')
   }
 
-  // Kept for the one control below that isn't a plain icon button: the dash-list glyph
-  // (a text character, not a lucide icon).
-  const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-control flex-shrink-0'
-  const inactive = 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
   const sep = <Divider orientation="vertical" className="mx-0.5" />
 
   // Before the first layout measurement, render off-screen (never at a
@@ -257,7 +253,7 @@ export default function SelectionToolbar({
         {openDropdown === 'list' && (
           <div className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-1 flex items-center gap-0.5">
             <IconButton icon={List} label="Bullet list" size={24} onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
-            <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
+            <Button variant="ghost" size="sm" title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className="!w-6 !h-6 !p-0 font-mono">–</Button>
             <IconButton icon={ListOrdered} label="Numbered list" size={24} onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
             <IconButton icon={CheckSquare} label="Task list" size={24} onMouseDown={toggleTaskList} />
           </div>
@@ -267,11 +263,13 @@ export default function SelectionToolbar({
           <div className="pm-toolbar-solid absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu p-2 w-[168px]">
             <div className="grid grid-cols-5 gap-1.5 mb-1.5">
               {HIGHLIGHT_COLOR_IDS.map((id) => (
-                <button
+                <Button
                   key={id}
+                  variant="ghost"
                   title={HIGHLIGHT_LABELS[id]}
+                  aria-label={HIGHLIGHT_LABELS[id]}
                   onMouseDown={() => applyHighlight(id)}
-                  className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
+                  className="!w-6 !h-6 !p-0 rounded-full hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
                   style={{ backgroundColor: highlightDotColor(id) }}
                 />
               ))}

@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
 import ActionPillGroup from '@/components/shell/ActionPillGroup'
-import { IconButton } from '@/components/ui'
+import { IconButton, RefChip } from '@/components/ui'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch, isLxxTranslation } from '@/lib/translationChapterMap'
@@ -108,16 +108,14 @@ function ColInfoPopover({ textId, onClose }: { textId: string; onClose: () => vo
       onMouseDown={e => e.stopPropagation()}
     >
       <div className="px-3 py-2 border-b border-separator">
-        <span className="text-xs font-semibold text-text-secondary">
+        <span className="text-footnote font-semibold text-text-secondary">
           {label} — Annotations
         </span>
       </div>
       <div className="px-3 py-2 space-y-2.5">
         {annInfo.keys.map(k => (
           <div key={k.key} className="flex gap-2 items-start">
-            <code className="text-caption2 font-mono px-1.5 py-0.5 rounded bg-surface-4 text-text-primary flex-shrink-0 mt-0.5">
-              {k.symbol}
-            </code>
+            <RefChip variant="neutral" size="xs" className="flex-shrink-0 mt-0.5">{k.symbol}</RefChip>
             <span className="text-caption leading-relaxed text-text-secondary">{k.meaning}</span>
           </div>
         ))}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { TextField, IconButton, SegmentedControl } from '@/components/ui'
+import { TextField, IconButton, SegmentedControl, RefChip, SectionLabel, Button } from '@/components/ui'
 
 type WordMode = 'phrase' | 'all' | 'any'
 
@@ -158,11 +158,7 @@ export default function FindBar({
         )}
 
         {/* Auto-open badge */}
-        {autoOpen && (
-          <span className="text-micro text-text-muted px-1.5 py-0.5 rounded-chip bg-surface-4 flex-shrink-0 uppercase tracking-wide">
-            auto
-          </span>
-        )}
+        {autoOpen && <RefChip variant="neutral" size="xs" className="flex-shrink-0 uppercase tracking-wide">auto</RefChip>}
 
         {/* Close */}
         <IconButton icon={X} label="Close" tooltip={{ shortcut: 'Esc' }} size={24} onClick={onClose} className="flex-shrink-0" />
@@ -170,8 +166,8 @@ export default function FindBar({
 
       {/* Word mode toggle row */}
       {showWordMode && (
-        <div className="px-3 py-1.5 bg-surface-4/25 border-t border-separator flex items-center gap-1.5">
-          <span className="text-micro uppercase tracking-wider text-text-muted flex-shrink-0">Match</span>
+        <div className="px-3 py-1.5 border-t border-separator flex items-center gap-1.5">
+          <SectionLabel className="flex-shrink-0">Match</SectionLabel>
           <SegmentedControl
             size="sm"
             aria-label="Word match mode"
@@ -188,14 +184,11 @@ export default function FindBar({
 
       {/* Advanced search row (scripture context only) */}
       {showAdvancedSearch && (
-        <div className="px-3 py-1.5 bg-surface-4/25 border-t border-separator flex items-center justify-between">
+        <div className="px-3 py-1 border-t border-separator flex items-center justify-between">
           <span className="text-caption2 text-text-muted">Find in page</span>
-          <button
-            onClick={handleAdvancedSearch}
-            className="text-caption2 text-accent hover:underline cursor-pointer"
-          >
+          <Button variant="ghost" size="sm" className="!text-accent hover:!text-accent-raised" onClick={handleAdvancedSearch}>
             Advanced scripture search →
-          </button>
+          </Button>
         </div>
       )}
     </div>

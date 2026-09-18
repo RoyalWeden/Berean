@@ -8,7 +8,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
-import { SearchField, Select, EmptyState, RefChip } from '@/components/ui'
+import { SearchField, Select, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader } from '@/components/ui'
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
@@ -405,28 +405,17 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       </TabHeaderPortal>
 
       {/* Filter + sort bar */}
-      <div className="material-bar flex items-center gap-1.5 px-3 py-1.5 border-b border-separator flex-shrink-0 flex-wrap">
+      <Toolbar size="sm" className="flex-wrap h-auto py-1.5">
         {(['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as TestamentFilter[]).map((f) => (
-          <button
-            key={f}
-            onClick={() => setTestamentFilter(f)}
-            className={`text-caption2 px-2 py-0.5 rounded-control border transition-colors cursor-pointer flex-shrink-0 ${
-              testamentFilter === f
-                ? 'bg-accent-muted border-accent/45 text-accent font-semibold'
-                : 'border-separator text-text-muted hover:border-border hover:text-text-primary'
-            }`}
-          >
+          <Chip key={f} selected={testamentFilter === f} onClick={() => setTestamentFilter(f)}>
             {f === 'all' ? 'All sections' : f}
-          </button>
+          </Chip>
         ))}
         <div className="flex-1 min-w-0" />
-        <button
-          onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
-          className="text-caption2 px-2 py-0.5 rounded-control border border-separator text-text-muted hover:text-text-primary hover:border-border transition-colors cursor-pointer flex-shrink-0"
-        >
+        <Chip onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}>
           {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
-        </button>
-      </div>
+        </Chip>
+      </Toolbar>
 
       {/* Results */}
       <div
@@ -464,34 +453,40 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
             {filteredAndSorted.map((group) => (
               <div key={`${group.textId}::${group.bookId}`}>
                 {/* Book / text header */}
-                <div className="material-bar flex items-center gap-1.5 px-4 py-1.5 border-b border-separator sticky top-[29px] z-raised">
-                  <BookOpen size={11} className="text-text-muted" />
-                  <span className="text-xs font-semibold text-text-secondary">{group.bookName}</span>
-                  <span className="text-caption2 text-text-muted ml-1">{group.results.length}</span>
-                  <div className="flex-1" />
-                  {textId === 'all' && (
-                    <span className="text-micro text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
-                  )}
-                  {group.testament && textId !== 'all' && (
-                    <span className="text-micro text-text-muted uppercase tracking-wide">{group.testament}</span>
-                  )}
-                </div>
+                <SectionHeader
+                  count={group.results.length}
+                  className="material-bar !px-4 !py-1.5 border-b border-separator sticky top-[29px] z-raised"
+                  trailing={<>
+                    {textId === 'all' && (
+                      <span className="text-micro text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
+                    )}
+                    {group.testament && textId !== 'all' && (
+                      <span className="text-micro text-text-muted uppercase tracking-wide">{group.testament}</span>
+                    )}
+                  </>}
+                >
+                  <span className="inline-flex items-center gap-1.5 normal-case tracking-normal text-footnote font-semibold text-text-secondary">
+                    <BookOpen size={11} className="text-text-muted" />
+                    {group.bookName}
+                  </span>
+                </SectionHeader>
 
                 {/* Verse results */}
                 {group.results.map((r) => (
-                  <button
+                  <ListRow
                     key={`${r._textId ?? textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
                     onClick={() => navigateToVerse(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
-                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors cursor-pointer border-b border-separator group"
-                  >
-                    <RefChip size="sm" variant="neutral" className="w-14 justify-center flex-shrink-0">
-                      {r.chapter}:{r.verse_num}
-                    </RefChip>
-                    <span className="flex-1 text-xs text-text-primary leading-relaxed">
-                      {highlight(r.text, query)}
-                    </span>
-                    <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
+                    className="!rounded-none border-b border-separator"
+                    buttonClassName="items-start"
+                    leading={
+                      <RefChip size="sm" variant="neutral" className="w-14 justify-center">
+                        {r.chapter}:{r.verse_num}
+                      </RefChip>
+                    }
+                    title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(r.text, query)}</span>}
+                    titleClassName="!whitespace-normal !overflow-visible !text-clip"
+                    trailing={<ChevronRight size={11} className="text-text-muted" />}
+                  />
                 ))}
               </div>
             ))}

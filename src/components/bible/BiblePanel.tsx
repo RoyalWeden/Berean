@@ -3648,7 +3648,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             }}
           >
             <span
-              className="absolute top-0.5 right-1 px-1.5 text-micro font-bold uppercase tracking-wide rounded text-white"
+              className="absolute top-0.5 right-1 px-1.5 text-micro font-semibold uppercase tracking-wide rounded-chip text-white"
               style={{
                 background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
               }}
@@ -3901,16 +3901,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // duration:0 during an active drag is deliberate — see useSwipePanelGesture.ts's
                   // file-level comment for why any tween here causes a "stuck on reversal" feel.
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  // rounded-shell-lg on ALL corners (not just the right side, where the panel
+                  // rounded-menu on ALL corners (not just the right side, where the panel
                   // itself sits) — this wrapper's overflow-hidden clips to a perfectly SQUARE
                   // box by default, which cut the inner panel's shadow-2xl off in a hard
                   // right-angle wherever it should have curved around the panel's own
-                  // rounded-shell-lg corners (reported as "the shadow isn't rounded," bottom-left
+                  // rounded-menu corners (reported as "the shadow isn't rounded," bottom-left
                   // specifically — the shadow spreads left+down from that corner into the
-                  // hDivider strip on the wrapper's LEFT edge, which `rounded-r-shell-lg` alone
+                  // hDivider strip on the wrapper's LEFT edge, which `rounded-r-menu` alone
                   // left square). Rounding every corner of the clip region, not just the two on
                   // the panel's own side, is what actually closes that gap.
-                  className="absolute top-0 right-0 h-full flex overflow-hidden z-20 rounded-shell-lg"
+                  className="absolute top-0 right-0 h-full flex overflow-hidden z-20 rounded-menu"
                   // +14 for hDivider (widened from 4px to 14px for the two-finger-swipe hit
                   // area — see hDivider's own comment), +6 for the panel's own mr-1.5 (see the 'standard' case's
                   // OLD comment, same reasoning still applies), +6 more (gap-1.5) when slot B is
@@ -3938,11 +3938,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                         sits on the left of the original, per explicit direction. */}
                     {rightPanelSlotB && (
                       <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
-                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-menu">{panelEl('B')}</div>
                       </div>
                     )}
                     <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-menu">{panelEl('A')}</div>
                     </div>
                   </div>
                 </motion.div>
@@ -3966,10 +3966,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   animate={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
+                  // rounded-menu (all corners) — see the 'standard' case's shadow-clipping
                   // comment; the previous right-only-corners attempt still left the OTHER two
                   // corners' shadow spread square-clipped by this wrapper.
-                  className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
+                  className="flex-shrink-0 flex overflow-hidden rounded-menu"
                 >
                   {/* Each slot is its own separately-chromed box with a real gap-1.5 between
                       them — see the 'standard' case's comment. overflow-hidden on the inner div
@@ -3978,11 +3978,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                     {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
                     {rightPanelSlotB && (
                       <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
-                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-menu">{panelEl('B')}</div>
                       </div>
                     )}
                     <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-menu">{panelEl('A')}</div>
                     </div>
                   </div>
                   {hDivider}
@@ -4045,16 +4045,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   animate={{ width: panelSize + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
+                  // rounded-menu (all corners) — see the 'standard' case's shadow-clipping
                   // comment; the previous right-only-corners attempt still left the OTHER two
                   // corners' shadow spread square-clipped by this wrapper.
-                  className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
+                  className="flex-shrink-0 flex overflow-hidden rounded-menu"
                 >
                   {hDivider}
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
                   <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 material-panel rounded-menu">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A', 'notes')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-menu">{panelEl('A', 'notes')}</div>
                   </div>
                 </motion.div>
               )}

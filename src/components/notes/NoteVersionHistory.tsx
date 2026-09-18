@@ -4,7 +4,7 @@ import { diffWords } from 'diff'
 import { renderPreviewContent } from '@/lib/notePreviewRender'
 import { renderMarkdownToHTML } from './pm/staticRender'
 import type { NoteVersion } from '@/types'
-import { Sheet, SegmentedControl, Button } from '@/components/ui'
+import { Sheet, SegmentedControl, Button, ListRow, Chip } from '@/components/ui'
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts
@@ -197,21 +197,18 @@ export default function NoteVersionHistory({
             <p className="px-3 py-4 text-footnote text-text-muted text-center">No saved versions yet. Versions are captured as you edit.</p>
           )}
           {versions.map((v) => (
-            <button
+            <ListRow
               key={v.id}
+              bar
+              selected={selectedId === v.id}
               onClick={() => setSelectedId(v.id)}
-              className={`w-full text-left px-3 py-2 border-l-2 transition-colors cursor-pointer ${
-                selectedId === v.id
-                  ? 'bg-surface-3 border-accent'
-                  : 'border-transparent hover:bg-surface-hover'
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="text-footnote text-text-primary">{relativeTime(v.createdAt)}</span>
-                <span className={`text-micro px-1 py-0.5 rounded-chip uppercase tracking-wide ${v.kind === 'manual' ? 'bg-accent-muted text-accent' : 'bg-surface-4 text-text-muted'}`}>{KIND_LABEL[v.kind] ?? v.kind}</span>
-              </div>
-              <div className="text-caption2 text-text-muted mt-0.5">{fullTime(v.createdAt)}</div>
-            </button>
+              title={<span className="flex items-center gap-1.5">
+                {relativeTime(v.createdAt)}
+                <Chip static size="sm" selected={v.kind === 'manual'}>{KIND_LABEL[v.kind] ?? v.kind}</Chip>
+              </span>}
+              subtitle={fullTime(v.createdAt)}
+              className="mx-1"
+            />
           ))}
         </div>
 

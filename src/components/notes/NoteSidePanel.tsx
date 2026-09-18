@@ -5,7 +5,7 @@ import { useAppStore } from '@/store'
 import FloatingHoverPanel from '@/components/shell/FloatingHoverPanel'
 import DailyNoteEditsSection from './DailyNoteEditsSection'
 import { dailyNoteDateKey } from '@/lib/noteUtils'
-import { SectionLabel } from '@/components/ui'
+import { SectionLabel, IconButton, ListRow, Chip } from '@/components/ui'
 
 // ── Heading parsing ────────────────────────────────────────────────────────────
 
@@ -103,17 +103,15 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
         // outline, so pinned state reads clearly at a glance. Rendered in
         // FloatingHoverPanel's OUTER (unclipped) layer so it can float
         // partly outside the card's own rounded corner without being cropped.
-        <button
+        <IconButton
+          icon={Pin}
+          label={pinned ? 'Unpin — hide when not hovered' : 'Pin — keep this open'}
+          size={20}
+          active={pinned}
+          filled={pinned}
           onClick={() => setPinned(!pinned)}
-          title={pinned ? 'Unpin — hide when not hovered' : 'Pin — keep this open'}
-          className={`no-drag focus-ring absolute -top-2 -right-2 z-10 p-1 rounded-control shadow-1 transition-colors cursor-pointer ${
-            pinned
-              ? 'bg-accent text-white border border-transparent'
-              : 'bg-surface-2 border border-separator text-text-muted hover:text-text-primary'
-          }`}
-        >
-          <Pin size={11} />
-        </button>
+          className="absolute -top-2 -right-2 z-10 shadow-1"
+        />
       }
     >
       <div className="overflow-y-auto flex-1 px-2.5 py-3 flex flex-col gap-2.5 text-caption">
@@ -128,7 +126,7 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
           />
         )}
         {folderPath.length > 0 && (
-          <div className="rounded-menu border border-separator bg-surface-elevated overflow-hidden">
+          <div className="rounded-menu control-glass overflow-hidden">
             <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
               <Folder size={9} />
               Folder
@@ -147,7 +145,7 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
         )}
 
         {headings.length > 0 && (
-          <div className="rounded-menu border border-separator bg-surface-elevated overflow-hidden">
+          <div className="rounded-menu control-glass overflow-hidden">
             <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
               <List size={9} />
               Contents
@@ -155,27 +153,23 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
             </SectionLabel>
             <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
               {headings.map((h, i) => (
-                <button
+                <ListRow
                   key={i}
+                  dense
+                  indent={6 + (h.level - 1) * 10}
                   onClick={() => scrollToHeading(h.text)}
-                  className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-row text-caption2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer truncate leading-snug"
-                  style={{
-                    paddingLeft: `calc(6px + ${(h.level - 1) * 10}px)`,
-                    fontWeight: h.level === 1 ? 600 : 400,
-                    opacity: h.level >= 4 ? 0.65 : 1,
-                  }}
-                  title={h.text}
-                >
-                  <span className="w-[3px] h-[3px] rounded-[1px] bg-text-muted flex-shrink-0" />
-                  {h.text}
-                </button>
+                  leading={<span className="w-[3px] h-[3px] rounded-[1px] bg-text-muted" />}
+                  title={<span style={{ fontWeight: h.level === 1 ? 600 : 400, opacity: h.level >= 4 ? 0.65 : 1 }}>{h.text}</span>}
+                  titleClassName="!text-caption2"
+                  buttonProps={{ title: h.text }}
+                />
               ))}
             </div>
           </div>
         )}
 
         {backlinks.length > 0 && (
-          <div className="rounded-menu border border-separator bg-surface-elevated overflow-hidden">
+          <div className="rounded-menu control-glass overflow-hidden">
             <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
               <Link2 size={9} />
               Backlinks
@@ -183,15 +177,15 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
             </SectionLabel>
             <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
               {backlinks.map((note) => (
-                <button
+                <ListRow
                   key={note.id}
+                  dense
                   onClick={() => onNoteClick(note)}
-                  className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-row text-caption2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer truncate leading-snug"
+                  leading={<span className="w-[3px] h-[3px] rounded-full bg-text-muted" />}
                   title={note.title || 'Untitled'}
-                >
-                  <span className="w-[3px] h-[3px] rounded-full bg-text-muted flex-shrink-0" />
-                  {note.title || 'Untitled'}
-                </button>
+                  titleClassName="!text-caption2"
+                  buttonProps={{ title: note.title || 'Untitled' }}
+                />
               ))}
             </div>
           </div>

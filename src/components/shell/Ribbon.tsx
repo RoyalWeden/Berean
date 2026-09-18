@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
-import { IconButton, Popover, PopoverTrigger, PopoverSurface, SectionLabel } from '@/components/ui'
+import { IconButton, Popover, PopoverTrigger, PopoverSurface, SectionLabel, Button, ListRow } from '@/components/ui'
 
 /**
  * Workspace-level rail, split out from Sidebar.tsx. Originally this held
@@ -125,7 +125,7 @@ export default function Ribbon() {
 
   return (
     <div
-      className="native-buttons no-drag flex flex-col items-center flex-shrink-0 w-[46px] py-2 gap-1"
+      className="no-drag flex flex-col items-center flex-shrink-0 w-[46px] py-2 gap-1"
       // Was `app-drag-region` when this was a permanently-docked column — now mounted inside
       // FloatingRail.tsx's floating/portaled wrapper, which is deliberately `no-drag` all over
       // (see that file's comment on why: Electron's drag-region hit-testing doesn't reliably
@@ -184,51 +184,50 @@ export default function Ribbon() {
         <PopoverSurface side="right" align="start" sideOffset={6} innerClassName="w-72 max-h-96 overflow-y-auto py-1">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-separator">
             <SectionLabel>Archived tabs</SectionLabel>
-            <button
-              onClick={() => { archiveAllTabs(); setArchiveOpen(false) }}
-              className="text-caption2 text-text-muted hover:text-text-primary cursor-pointer transition-colors"
-            >
+            <Button variant="ghost" size="sm" onClick={() => { archiveAllTabs(); setArchiveOpen(false) }}>
               Archive current tabs
-            </button>
+            </Button>
           </div>
           {archivedGroups.length === 0 && (
             <p className="px-3 py-4 text-footnote text-text-muted text-center">No archived tabs yet</p>
           )}
           {archivedGroups.map(group => (
-            <div key={group.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-hover group">
-              <Archive size={11} className="flex-shrink-0 text-text-muted" />
-              <div className="flex-1 min-w-0">
-                <p className="text-footnote text-text-primary truncate">{group.label}</p>
-                <p className="text-micro text-text-muted">
-                  {group.tabs.length} tab{group.tabs.length !== 1 ? 's' : ''} · {new Date(group.archivedAt).toLocaleDateString()}
-                </p>
-              </div>
-              <IconButton
-                icon={ArchiveRestore}
-                label="Restore tabs"
-                size={20}
-                active
-                className="opacity-0 group-hover:opacity-100"
-                onClick={() => { restoreArchivedGroup(group.id); setArchiveOpen(false) }}
-              />
-              <IconButton
-                icon={X}
-                label="Delete permanently"
-                size={20}
-                danger
-                className="opacity-0 group-hover:opacity-100"
-                onClick={() => dismissArchivedGroup(group.id)}
-              />
-            </div>
+            <ListRow
+              key={group.id}
+              leading={<Archive size={11} />}
+              title={group.label}
+              subtitle={`${group.tabs.length} tab${group.tabs.length !== 1 ? 's' : ''} · ${new Date(group.archivedAt).toLocaleDateString()}`}
+              className="mx-1"
+              trailing={(
+                <>
+                  <IconButton
+                    icon={ArchiveRestore}
+                    label="Restore tabs"
+                    size={20}
+                    active
+                    onClick={() => { restoreArchivedGroup(group.id); setArchiveOpen(false) }}
+                  />
+                  <IconButton
+                    icon={X}
+                    label="Delete permanently"
+                    size={20}
+                    danger
+                    onClick={() => dismissArchivedGroup(group.id)}
+                  />
+                </>
+              )}
+            />
           ))}
           {archivedGroups.length > 0 && (
             <div className="px-3 pt-1.5 pb-0.5 border-t border-separator mt-1">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full !text-text-muted hover:!text-destructive"
                 onClick={() => { clearAllArchivedGroups(); setArchiveOpen(false) }}
-                className="w-full text-caption2 text-text-muted hover:text-destructive cursor-pointer transition-colors text-center py-1"
               >
                 Clear all archived tabs
-              </button>
+              </Button>
             </div>
           )}
         </PopoverSurface>
