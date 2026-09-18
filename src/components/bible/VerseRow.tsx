@@ -249,7 +249,7 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
   if (!text) return null
   const display = wordReplacerEnabled && wordReplacerRules.length > 0
     ? applyWordReplacer(text, wordReplacerRules) : text
-  return <span className="text-text-muted text-micro"> {display}</span>
+  return <span className="text-text-muted"> {display}</span>
 }
 
 /** Expand idiom cache into a flat list of {term, id, meaning} including aliases. */
@@ -1721,8 +1721,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       </span>
                     }
                     subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
-                    subtitleClassName="text-footnote"
-                    buttonClassName="py-2"
+                    titleClassName="!text-caption"
+                    subtitleClassName="!text-caption2"
+                    buttonClassName="py-1.5"
                   />
                 )
               })}
@@ -1744,8 +1745,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                       title={note.title || 'Untitled'}
                       subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
-                      subtitleClassName="text-footnote"
-                      buttonClassName="py-2"
+                      titleClassName="!text-caption"
+                      subtitleClassName="!text-caption2"
+                      buttonClassName="py-1.5"
                     />
                   ))}
                 </>
@@ -1804,8 +1806,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       </>
                     }
                     titleClamp={3}
-                    titleClassName="text-footnote"
-                    buttonClassName="py-2 items-start"
+                    titleClassName="!text-caption"
+                    buttonClassName="py-1.5 items-start"
                   />
                 ))}
               </div>
