@@ -21,15 +21,16 @@ const TAB_ICONS: Record<TabType, LucideIcon> = {
 
 // Per-type color for the tab icon in the unified (unfiltered, unsectioned)
 // tab list — a quick-scan cue for which space a tab belongs to without
-// reintroducing grouping/filtering, which was explicitly ruled out.
-const TAB_ICON_COLORS: Record<TabType, string> = {
-  bible:   '#5b6ee8',
-  note:    '#e8a03f',
-  lexicon: '#3fbf7f',
-  youtube: '#e85b5b',
-  search:  '#8b8f98',
-  pdf:     '#8b8f98',
-  tags:    '#b06fe8',
+// reintroducing grouping/filtering, which was explicitly ruled out. Backed by
+// the --tab-icon-* triples in global.css (was inline hex per call site).
+const TAB_ICON_CLASS: Record<TabType, string> = {
+  bible:   'text-tab-bible',
+  note:    'text-tab-note',
+  lexicon: 'text-tab-lexicon',
+  youtube: 'text-tab-youtube',
+  search:  'text-tab-search',
+  pdf:     'text-tab-pdf',
+  tags:    'text-tab-tags',
 }
 
 interface ContextMenuState {
@@ -551,7 +552,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   return (
     <>
       <div
-        className="flex flex-col gap-0.5 px-2 min-h-full"
+        className="flex flex-col min-h-full"
         onDragOver={handleContainerDragOver}
         onDrop={handleContainerDrop}
         onDragLeave={handleContainerDragLeave}
@@ -606,14 +607,15 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 {isActive && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
-                    className="absolute inset-0 rounded-row bg-surface-selected pointer-events-none"
+                    className="absolute inset-0 rounded-none bg-surface-selected pointer-events-none"
                     transition={SPRING_SNAPPY}
                   />
                 )}
                 <ListRow
                   ref={isActive ? activeRowRef : undefined}
                   dense
-                  bar
+                  flush
+                  titleSize="footnote"
                   selected={isActive && !isCrossSpaceTarget}
                   current={isCrossSpaceTarget}
                   data-tab-idx={idx}
@@ -623,7 +625,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   onDragOver={(e) => handleTabDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
                   onContextMenu={(e) => handleContextMenu(e, tab)}
-                  buttonProps={{ title: hoverTitle }}
+                  buttonProps={{ title: hoverTitle, 'data-roving': '' }}
                   className={cx(
                     'relative z-10',
                     isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer',
@@ -631,7 +633,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   )}
                   leading={
                     <span className="relative">
-                      <Icon size={13} style={{ color: TAB_ICON_COLORS[tab.type] }} className="opacity-80" />
+                      <Icon size={13} className={isActive ? 'text-accent' : cx(TAB_ICON_CLASS[tab.type], 'opacity-80')} />
                       {tab.type === 'youtube' && tab.id === activeYouTubeTabId && youtubeIsPlaying && (
                         <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                       )}

@@ -68,6 +68,14 @@ module.exports = {
         // Feature palettes
         'trail-warm': 'rgb(var(--trail-warm) / <alpha-value>)',
         'trail-cool': 'rgb(var(--trail-cool) / <alpha-value>)',
+        // Per-tab-type icon colors — see src/styles/global.css's --tab-icon-* triples
+        'tab-bible': 'rgb(var(--tab-icon-bible) / <alpha-value>)',
+        'tab-note': 'rgb(var(--tab-icon-note) / <alpha-value>)',
+        'tab-lexicon': 'rgb(var(--tab-icon-lexicon) / <alpha-value>)',
+        'tab-youtube': 'rgb(var(--tab-icon-youtube) / <alpha-value>)',
+        'tab-search': 'rgb(var(--tab-icon-search) / <alpha-value>)',
+        'tab-pdf': 'rgb(var(--tab-icon-pdf) / <alpha-value>)',
+        'tab-tags': 'rgb(var(--tab-icon-tags) / <alpha-value>)',
       },
       fontFamily: {
         // Native OS font stack by default — matches the 'system' UI font option in

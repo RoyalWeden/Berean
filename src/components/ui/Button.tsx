@@ -27,6 +27,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean
   /** Force the resting surface for a ghost button. */
   surface?: ControlSurface
+  /** Quiet text button whose hover turns destructive ("Clear all…", "Remove"). ghost/secondary only. */
+  danger?: boolean
   /** Tooltip text (+ optional shortcut) — replaces `title=` on interactive controls. */
   tooltip?: string | { label: string; shortcut?: string; side?: 'top' | 'bottom' | 'left' | 'right' }
   children?: ReactNode
@@ -49,7 +51,7 @@ const SIZE: Record<ButtonSize, { box: string; icon: number }> = {
  * material) and only paints its own hover/pressed/selected fill.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant, size = 'sm', icon: Icon, iconTrailing, loading, selected, surface, tooltip, className, type = 'button', children, disabled, ...rest },
+  { variant, size = 'sm', icon: Icon, iconTrailing, loading, selected, surface, tooltip, danger, className, type = 'button', children, disabled, ...rest },
   ref,
 ) {
   const s = SIZE[size]
@@ -74,6 +76,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         : 'text-text-secondary hover:text-text-primary hover:bg-control-hover active:bg-control-pressed'
   } else if (v === 'prominent') {
     look = 'control-glass bg-accent-muted text-accent border-accent/25 hover:bg-accent-hover active:bg-accent-active'
+  } else if (v === 'ghost' && danger) {
+    look = 'text-text-muted hover:text-destructive hover:bg-destructive/12 active:bg-destructive/20'
   } else if (v === 'ghost') {
     look = selected
       ? 'bg-accent-muted text-accent hover:bg-accent-hover active:bg-accent-active'

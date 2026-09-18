@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowLeft, ArrowRight, History, PanelLeft, Home, NotepadText, BookMarked, FileType, ScrollText, Youtube,
@@ -11,8 +11,8 @@ import { getAllNotes } from '@/lib/notesCache'
 import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
 import { cachedLexiconTitle } from '@/lib/lexiconTitle'
 import { TRAFFIC_LIGHT_INSET, HEADER_HEIGHT } from '@/lib/windowChrome'
-import { IconButton, Button, Toolbar, MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
-import ActionPillGroup from './ActionPillGroup'
+import { IconButton, Button, ControlGroup, Toolbar, MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
+import { publishActionsSlot } from './TopBarSlotContext'
 import WindowControls from './WindowControls'
 import type { TabNavEntry } from '@/types'
 
@@ -70,6 +70,14 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   const updateStatus = useAppStore((s) => s.updateStatus)
 
   const isWin = window.__berean_platform === 'win32'
+
+  // Publishes the ACTIONS-zone container to TopBarSlotContext's module-level store (see that
+  // file's comment) — the panel-side counterpart of `slotRef` below, which App.tsx still owns
+  // directly for the CONTEXT zone. `useCallback` with no deps keeps this ref callback's identity
+  // stable across renders, so React only invokes it on mount/unmount, not on every render.
+  const actionsSlotRef = useCallback((el: HTMLDivElement | null) => {
+    publishActionsSlot(el)
+  }, [])
 
   // Manual click-drag-to-move on blank header space — same pattern as Sidebar.tsx's tabListRef
   // (see that file's own comment for why: a real CSS `-webkit-app-region: drag` region can
@@ -244,7 +252,17 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
     <>
       <div
         ref={headerRef}
-        className="no-drag flex-shrink-0 material-bar border-b border-separator"
+        className="no-drag flex-shrink-0 material-bar"
+        // No permanent `border-b` — scroll-edge (macOS 26/27's seamless-at-rest toolbar) owns the
+        // hairline instead, appearing only once the content beneath has actually scrolled. Full
+        // wiring (a `scrolled` boolean driven by a `scrollEdge` store slice, passed to `Toolbar`
+        // below) is a later lane; for now this only sets up the CSS hook (`data-scroll-edge`)
+        // so nothing regresses to a permanent line, and the inner Toolbar stays `edge="none"`
+        // (no `data-scrolled` is ever set, so `[data-scroll-edge="bottom"][data-scrolled]` in
+        // global.css never matches — the bar is seamless until that store slice lands).
+        // TODO(scrollEdge store slice): pass `scrolled` through and switch the inner Toolbar to
+        // `edge="auto"`.
+        data-scroll-edge="bottom"
         // Unconditional on mac (not gated on sidebarCollapsed), and a FULL 76px inset, not the
         // 30px this briefly used — this bar is a single row spanning the entire window width,
         // sitting ABOVE the Ribbon+Sidebar row rather than beside it (App.tsx renders
@@ -262,7 +280,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
         //
         // No rounded bottom corners anymore — a real macOS toolbar is flush with the window
         // edge, and (per the design-system decision log) bars never carry their own shadow;
-        // `.material-bar` + the `border-b` hairline below is the whole visual treatment.
+        // `.material-bar` + the scroll-edge hairline above is the whole visual treatment.
         style={{ height: HEADER_HEIGHT * appZoom, paddingLeft: isWin ? 8 : TRAFFIC_LIGHT_INSET }}
       >
         <Toolbar size="md" edge="none" material="none" style={{ zoom: appZoom }}>
@@ -280,7 +298,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
             {/* ── Global nav back / forward — joined pill. Pinned here, flush-left, in every
                  sidebar state (see file header comment — this is the functional fix over the
                  old split where collapsing the sidebar hid these entirely). ── */}
-            <ActionPillGroup>
+            <ControlGroup>
               {/* ── Home — first in the nav pill, immediately right of the sidebar toggle ──
                    This used to be portaled in from each panel's own TabHeaderPortal, which lands
                    in the flex-1 tab-content slot on the RIGHT. Because it appeared and vanished
@@ -341,48 +359,51 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                   cancelNavDropdownOpen()
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                   setNavDropdown((d) => d?.mode === 'all' ? null : { x: rect.left, y: rect.bottom, mode: 'all' })
+                  // Trigger rect for the History overlay (lane S1) to animate/anchor from — optional
+                  // chaining since that setter is landing concurrently on another lane.
+                  useAppStore.getState().setHistoryTriggerRect?.({ x: rect.left, y: rect.top, w: rect.width, h: rect.height })
                 }}
                 onMouseEnter={hasHistory ? (e) => openNavDropdown('all', (e.currentTarget as HTMLElement).getBoundingClientRect()) : undefined}
                 onMouseLeave={hasHistory ? () => { cancelNavDropdownOpen(); scheduleNavDropdownClose() } : undefined}
               />
-            </ActionPillGroup>
+            </ControlGroup>
           </div>
 
-          {/* ── Tab-specific controls — portal target for the active panel. NOT marked
-               no-drag: individual buttons/inputs portaled in are already auto-excluded from
-               the drag region by the .app-drag-region CSS rule, so leaving this undecorated
-               keeps any empty gap in here draggable too, instead of blanket-blocking the
-               whole slot. No fixed-width spacer between this and the nav pill above — the
-               whole bar shares one background now, so there's nothing marking a boundary
-               that would need to line up with Sidebar's animating width; ordinary flex
-               spacing (this div is flex-1, justify-end) is enough. ── */}
-          {/* ── Divider: global navigation | everything else ──────────────────────────────
-               The left cluster (sidebar toggle, home, back/forward/history) acts on the WINDOW
-               and is identical no matter what is open. Everything to the right is the active
-               tab's own controls, portaled in and changing completely per tab. Without a
-               boundary the two read as one undifferentiated row of icons; this hairline makes
-               the split legible at a glance. `self-stretch` with vertical inset keeps it a
-               proportional hairline rather than a full-height rule cutting the bar in two. ── */}
-          <div className="self-stretch w-px my-2.5 bg-separator flex-shrink-0 ml-1 mr-2" aria-hidden="true" />
+          {/* ── CONTEXT zone — portal target for the active panel's title/nav control
+               (TabHeaderPortal's default `zone="context"`). NOT marked no-drag: individual
+               buttons/inputs portaled in are already auto-excluded from the drag region by the
+               .app-drag-region CSS rule, so leaving this undecorated keeps any empty gap in here
+               draggable too. No divider between this and the nav pill above — grouping (the
+               ControlGroup container itself) already makes the nav cluster legible as one unit;
+               a bar-spanning hairline on top of that read as double emphasis. ── */}
+          <div ref={slotRef} className="flex items-center gap-2 min-w-0 flex-shrink" />
 
-          <div ref={slotRef} className="flex-1 flex items-center justify-end gap-2 min-w-0 overflow-hidden" />
+          {/* ── Flexible space — pushes the ACTIONS zone to the right, CONTEXT zone to the
+               left, macOS toolbar-style. ── */}
+          <div className="flex-1" />
 
-          {/* ── Download in progress — same top-bar slot as the button below, shown instead of
+          {/* ── ACTIONS zone — portal target for the active panel's trailing action group(s)
+               (TabHeaderPortal's `zone="actions"`). ── */}
+          <div ref={actionsSlotRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+
+          {/* ── Download in progress — same top-bar spot as the button below, shown instead of
                it while a download is running. Fires from the SAME 'downloading' updateStatus
                regardless of whether the user just clicked "Download update" above or the
                download started on its own (Settings → Updates → auto-download), so this one
-               bar covers both triggers without needing to know which one caused it. Percent
+               bar covers both triggers without needing to know which one caused it. Plain text +
+               a thin progress bar, not a glass capsule — this is passive status, not a control,
+               so it shouldn't carry CONTROL-layer chrome (per the design-system's four-layer
+               rule: CHROME is the bar itself; a status readout inside it stays flat). Percent
                bar styling matches UpdatesSection.tsx's own downloading state (surface-4 track,
-               accent fill) — here as a thin strip along the bottom of the pill instead of a
-               separate block, to fit the compact top-bar footprint. ── */}
+               accent fill). ── */}
           {updateStatus.status === 'downloading' && (
             <div
+              className="relative flex items-center gap-1.5 px-1 flex-shrink-0"
               title={`Downloading update… ${updateStatus.percent ?? 0}%`}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-control text-caption font-medium control-glass text-text-secondary flex-shrink-0 overflow-hidden"
             >
-              <Download size={12} className="flex-shrink-0" />
-              <span>Downloading… {updateStatus.percent ?? 0}%</span>
-              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-separator">
+              <Download size={12} className="flex-shrink-0 text-text-tertiary" />
+              <span className="text-meta">Downloading… {updateStatus.percent ?? 0}%</span>
+              <div className="w-10 h-0.5 rounded-full bg-separator overflow-hidden flex-shrink-0">
                 <div
                   className="h-full bg-accent transition-all duration-300"
                   style={{ width: `${updateStatus.percent ?? 0}%` }}
@@ -396,17 +417,19 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                reads as an actual clickable next step wherever the user happens to be looking,
                not something they have to already know to go find. Same window.app calls
                Settings → Updates already uses; the status itself is the single shared
-               updateStatus store field (App.tsx owns the one onUpdateStatus subscription). ── */}
+               updateStatus store field (App.tsx owns the one onUpdateStatus subscription).
+               'available' is a lower-urgency nudge (tinted glass); 'ready' is the one actually
+               worth a filled accent button — restarting finishes something already downloaded. ── */}
           {(updateStatus.status === 'available' || updateStatus.status === 'ready') && (
             <Button
-              variant="primary"
+              variant={updateStatus.status === 'ready' ? 'primary' : 'prominent'}
               size="sm"
               icon={updateStatus.status === 'available' ? Download : RotateCcw}
               onClick={() => {
                 if (updateStatus.status === 'available') window.app.downloadUpdate()
                 else if (updateStatus.status === 'ready') window.app.installUpdate()
               }}
-              title={updateStatus.status === 'available' ? `Download update${updateStatus.version ? ` (v${updateStatus.version})` : ''}` : 'Restart to finish installing the update'}
+              tooltip={updateStatus.status === 'available' ? `Download update${updateStatus.version ? ` (v${updateStatus.version})` : ''}` : 'Restart to finish installing the update'}
               className="flex-shrink-0"
             >
               {updateStatus.status === 'available' ? 'Download update' : 'Restart to update'}

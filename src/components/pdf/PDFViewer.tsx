@@ -13,10 +13,11 @@ import {
 } from 'lucide-react'
 import { loadPdfFromBytes, type PDFDocumentProxy } from '@/lib/pdfjs'
 import { useAppStore } from '@/store'
-import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
 import PdfPage, { hlColor } from './PdfPage'
 import PdfPicker from './PdfPicker'
-import { IconButton, Button, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow } from '@/components/ui'
+import { IconButton, Button, ControlGroup, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow } from '@/components/ui'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import type { PdfTabState, PdfHighlight } from '@/types'
 
 const HL_COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'purple'] as const
@@ -46,7 +47,8 @@ interface Bookmark { page: number; label: string; createdAt: number }
 interface RawOutlineNode { title: string; dest: string | unknown[] | null; items?: RawOutlineNode[] }
 
 export default function PDFViewer({ floating = false }: { floating?: boolean }) {
-  const windowDragMouseDown = useWindowDrag(isInteractiveDragTarget)
+  const isActivePdfPanel = useIsActivePanel('pdf')
+  const isActivePanel = floating || isActivePdfPanel
   const activeTabId = useAppStore((s) => s.activeTabId.scripture)
   // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
   const tabs = useAppStore((s) => s.tabs.scripture)
@@ -447,38 +449,40 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
   return (
     <div className="flex flex-col h-full bg-surface-1">
-      {/* Toolbar — window-drag via useWindowDrag (manual JS-tracked drag), not a real
-          `-webkit-app-region: drag` region; see that hook's comment (same fix as
-          PanelHeader.tsx, for the same reported "drag doesn't work"/text-selection bug). */}
-      <div
-        onMouseDown={windowDragMouseDown}
-        className={`flex items-center gap-1 py-2 material-bar border-b border-separator flex-shrink-0 min-h-[40px] no-drag select-none ${floating ? 'pl-traffic-lights pr-3' : 'px-3'}`}
-      >
-        {/* Title doubles as the PDF switcher / library button */}
+      {/* CONTEXT zone — title doubles as the PDF switcher / library button, plus the page
+          indicator. Docked, this portals into ShellHeader's shared bar; floating, TabHeaderPortal
+          renders the actual PanelHeader bar (see that component). */}
+      <TabHeaderPortal floating={floating} active={isActivePanel} zone="context">
         <Button
           variant="ghost" size="sm"
           onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setPdfSwitcher({ x: r.left, y: r.bottom + 4 }) }}
-          title="Switch PDF / library"
-          className="flex-1 min-w-0 justify-start px-1 -mx-1"
+          tooltip="Switch PDF / library"
+          className="min-w-0 justify-start px-1 -mx-1"
         >
           <FileText size={14} className="text-text-muted flex-shrink-0" />
-          <span className="flex-1 min-w-0 text-subhead font-medium text-text-primary truncate transition-colors">{title}</span>
+          <span className="min-w-0 text-subhead font-medium text-text-primary truncate transition-colors">{title}</span>
           <ChevronDownIcon size={12} className="flex-shrink-0 text-text-muted" />
         </Button>
-        {!floating && (
-          <IconButton icon={BookOpen} label="New Scripture tab" size={28} onClick={() => useAppStore.getState().createTab('bible')} />
-        )}
         <span className="text-caption text-text-muted tabular-nums flex-shrink-0 px-1">
           {numPages ? `${currentPage} / ${numPages}` : '…'}
         </span>
-        <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={() => changeScale(scale - 0.15)} />
-        <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={() => changeScale(scale + 0.15)} />
+      </TabHeaderPortal>
+
+      {/* ACTIONS zone — tool buttons, grouped by what they act on. */}
+      <TabHeaderPortal floating={floating} active={isActivePanel} zone="actions">
+        {!floating && (
+          <IconButton icon={BookOpen} label="New Scripture tab" size={28} onClick={() => useAppStore.getState().createTab('bible')} />
+        )}
+        <ControlGroup>
+          <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={() => changeScale(scale - 0.15)} />
+          <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={() => changeScale(scale + 0.15)} />
+        </ControlGroup>
         <IconButton icon={BookmarkPlus} label="Add bookmark at current page" size={28} onClick={addBookmark} />
         <IconButton icon={Search} label="Find" tooltip={{ shortcut: '⌘F' }} size={28} selected={findOpen} onClick={() => setFindOpen((v) => !v)} />
         {!floating && (
           <IconButton icon={PanelRightIcon} label="Outline & highlights" size={28} active={panelOpen} onClick={() => setPanelOpen((v) => !v)} />
         )}
-      </div>
+      </TabHeaderPortal>
 
       {/* Find bar */}
       {findOpen && (

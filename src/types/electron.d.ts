@@ -337,6 +337,11 @@ interface AppAPI {
   onTrackpadSwipeBegin?: (cb: () => void) => void
   onTrackpadSwipeEnd?: (cb: () => void) => void
   onMenuAction: (cb: (action: string, payload?: unknown) => void) => void
+  // Native File/View/Go/Help menu items — see src/lib/commands.ts's command ids.
+  onAppCommand?: (cb: (id: string) => void) => void
+  onWindowActive?: (cb: (active: boolean) => void) => void
+  getReduceTransparency?: () => Promise<boolean>
+  onReduceTransparency?: (cb: (reduce: boolean) => void) => void
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   isDev?: () => Promise<boolean>

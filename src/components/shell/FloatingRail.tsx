@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
-import { SPRING_SNAPPY } from '@/lib/motion'
+import { SPRING_GENTLE } from '@/lib/motion'
 import Ribbon from './Ribbon'
 
 // ── Floating hover-expand wrapper around Ribbon.tsx ──────────────────────────
@@ -33,13 +33,16 @@ import Ribbon from './Ribbon'
 // direction, with more breathing room between the dots than a packed icon
 // glyph would give.
 //
-// Expanding still grows into a rounded card exactly like
-// FloatingHoverPanel.tsx's collapsed-circle-to-card widget (same spring
-// config, same hover-delay-close timing) — but the expanded HEIGHT is
-// measured live from Ribbon's own rendered content (via ResizeObserver)
-// rather than a hardcoded guess, so the card hugs however many buttons are
-// actually showing (Ribbon conditionally adds a floating-search button when
-// Sidebar is collapsed) instead of leaving dead space sized for the max case.
+// Expanding unfolds a real elevated-glass card (`.material-elevated`, same
+// family as every other menu/popover in the app, not a bespoke shadow/blur)
+// out of the collapsed pill's own edge — `transform-origin: left center` plus
+// a scaleX/x/opacity entrance (SPRING_GENTLE, the settle-in-place spring used
+// for popovers) makes it visibly originate FROM the trigger rather than just
+// cross-fading in place. It's a separate element from the collapsed pill
+// (not one div animating its own width/height), so its size is always however
+// many buttons Ribbon actually renders (Ribbon conditionally adds a
+// floating-search button when Sidebar is collapsed) — no height measuring
+// needed.
 //
 // Ribbon's own internals (buttons, tooltips, popovers, drag handling) are
 // completely unchanged.
@@ -53,11 +56,8 @@ import Ribbon from './Ribbon'
 
 const GAP = 2
 const HEADER_HEIGHT = 44
-const COLLAPSED_WIDTH = 16
-const COLLAPSED_HEIGHT = 44
-const RADIUS = COLLAPSED_WIDTH / 2
-const EXPANDED_WIDTH = 46
-const EXPANDED_RADIUS = 20
+const COLLAPSED_WIDTH = 14
+const COLLAPSED_HEIGHT = 40
 const CLOSE_DELAY_MS = 220
 
 export default function FloatingRail() {
@@ -65,19 +65,7 @@ export default function FloatingRail() {
   const sidebarWidth = useAppStore((s) => s.sidebarWidth)
   const appZoom = useAppStore((s) => s.appZoom)
   const [hovered, setHovered] = useState(false)
-  const [ribbonHeight, setRibbonHeight] = useState(COLLAPSED_HEIGHT)
-  const ribbonRef = useRef<HTMLDivElement | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useLayoutEffect(() => {
-    const el = ribbonRef.current
-    if (!el) return
-    const measure = () => setRibbonHeight(el.scrollHeight)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }, [])
 
@@ -108,52 +96,42 @@ export default function FloatingRail() {
   return createPortal(
     <div
       className="no-drag fixed z-raised transition-[left] duration-200 ease-in-out"
-      style={{ top: `calc(50% + ${headerHeight / 2}px)`, left, transform: 'translateY(-50%)' }}
+      style={{ top: `calc(50% + ${headerHeight / 2}px)`, left }}
       onMouseEnter={open}
       onMouseMove={onMove}
       onMouseLeave={scheduleClose}
     >
-      <motion.div
-        animate={{
-          width: hovered ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
-          height: hovered ? ribbonHeight : COLLAPSED_HEIGHT,
+      {/* Collapsed handle — a low-contrast grip pill, always mounted (it's the hover target
+          itself); fades out rather than unmounting while the card above is open so the hover
+          region under the cursor never changes shape mid-interaction. */}
+      <div
+        className="material-control rounded-control flex flex-col items-center justify-center gap-2 transition-opacity duration-150"
+        style={{
+          width: COLLAPSED_WIDTH, height: COLLAPSED_HEIGHT, transform: 'translateY(-50%)',
+          opacity: hovered ? 0 : 1, pointerEvents: hovered ? 'none' : 'auto', cursor: hovered ? 'default' : 'pointer',
         }}
-        transition={SPRING_SNAPPY}
-        style={{ borderRadius: hovered ? EXPANDED_RADIUS : RADIUS }}
-        // One shared translucent material for both states (idle pill and expanded card) —
-        // `.material-popover` already owns the blur/border/shadow recipe every other hover
-        // card in the app uses; the geometry (width/height/radius) is still what actually
-        // reads as "collapsed" vs "expanded", not a separate background treatment.
-        className={`relative material-popover ${hovered ? 'rounded-menu cursor-default' : 'rounded-control cursor-pointer'}`}
       >
-        <div className="absolute inset-0 overflow-hidden flex flex-col" style={{ borderRadius: hovered ? EXPANDED_RADIUS : RADIUS }}>
-          <div
-            // Own independent opacity (70% idle → 0 on hover) instead of inheriting the
-            // container's now-removed idle fade — see the comment above for why sharing one
-            // opacity value with the background broke this. Cross-fades with the Ribbon
-            // layer below on the SAME duration and no delay on either side — an earlier
-            // version snapped this to 0 instantly (inline style, no transition) while the
-            // Ribbon layer below waited on a `delay-100` before even starting its own
-            // fade-in, leaving a ~100ms+ window where hovering the rail made BOTH layers
-            // read as blank (reported as "the dots go away when I hover"). Same
-            // duration + no delay on both sides is what makes them swap in lockstep.
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 transition-opacity duration-150"
-            style={{ opacity: hovered ? 0 : 0.7, pointerEvents: hovered ? 'none' : 'auto' }}
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="w-1 h-1 rounded-full bg-text-quaternary" />
+        ))}
+      </div>
+
+      {/* Expanded card — a separate element (not the pill growing), so it can unfold FROM the
+          pill's edge on every open rather than only animating on first mount. */}
+      <AnimatePresence>
+        {hovered && (
+          <motion.div
+            initial={{ opacity: 0, scaleX: 0.92, x: -4, y: '-50%' }}
+            animate={{ opacity: 1, scaleX: 1, x: 0, y: '-50%' }}
+            exit={{ opacity: 0, scaleX: 0.92, x: -4, y: '-50%' }}
+            transition={SPRING_GENTLE}
+            style={{ position: 'absolute', top: '50%', left: 0, transformOrigin: 'left center' }}
+            className="material-elevated rounded-menu overflow-hidden w-fit cursor-default"
           >
-            {[0, 1, 2].map((i) => (
-              <span key={i} className="w-1 h-1 rounded-full bg-text-muted" />
-            ))}
-          </div>
-          <div
-            className="absolute inset-0 flex flex-col transition-opacity duration-150"
-            style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? 'auto' : 'none' }}
-          >
-            <div ref={ribbonRef} className="w-fit">
-              <Ribbon />
-            </div>
-          </div>
-        </div>
-      </motion.div>
+            <Ribbon />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>,
     document.body
   )

@@ -11,6 +11,7 @@ import StudyTrailSplitToast from '@/components/studyTrail/StudyTrailSplitToast'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { getCommands } from '@/lib/commands'
 import { SPRING_SNAPPY, TWEEN_FAST } from '@/lib/motion'
 import Sidebar from '@/components/shell/Sidebar'
 import FloatingRail from '@/components/shell/FloatingRail'
@@ -178,6 +179,7 @@ export default function App() {
   const findBarQuery = useAppStore((s) => s.findBarQuery)
   const activePanelId = useAppStore((s) => s.activePanelId)
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
+  const setWindowWidth = useAppStore((s) => s.setWindowWidth)
   const closeActiveTab = useAppStore((s) => s.closeActiveTab)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const tabMRUList = useAppStore((s) => s.tabMRUList)
@@ -338,6 +340,36 @@ export default function App() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openImportModal, openImportBibleGateway, openImportESword])
+
+  // Native File/View/Go/Help menu dispatcher — electron/main.ts's buildAppMenu sends a
+  // src/lib/commands.ts command id over app:command; run the matching command's run().
+  useEffect(() => {
+    window.app.onAppCommand?.((id) => getCommands().find((c) => c.id === id)?.run())
+  }, [])
+
+  // Live window width, published to the store — rAF-coalesced (resize fires on every pixel
+  // during a drag) and only committed once it's moved at least 8px, so components reading
+  // windowWidth for a breakpoint check don't re-render on every intermediate frame.
+  useEffect(() => {
+    let rafId: number | null = null
+    let lastWidth = window.innerWidth
+    const handleResize = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        const w = window.innerWidth
+        if (Math.abs(w - lastWidth) >= 8) {
+          lastWidth = w
+          setWindowWidth(w)
+        }
+      })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [setWindowWidth])
 
   // Cross-window tab sync ────────────────────────────────────────────────────
   // When tabs change in this window, broadcast to other windows.

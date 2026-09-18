@@ -336,6 +336,16 @@ export interface AppState {
   activePanelId: 'bible' | 'notes' | 'lexicon'
   setActivePanelId: (id: 'bible' | 'notes' | 'lexicon') => void
 
+  // Live window width — App.tsx's rAF-throttled resize listener keeps this current so
+  // layout code can react to it without each component owning its own resize listener.
+  windowWidth: number
+  setWindowWidth: (w: number) => void
+  // Screen-space rect of whatever triggered the History modal (e.g. the Go ▸ History menu
+  // item or its toolbar button) — read by HistoryModal so it can animate/originate from
+  // its trigger instead of always appearing centered.
+  historyTriggerRect: { x: number; y: number; w: number; h: number } | null
+  setHistoryTriggerRect: (rect: { x: number; y: number; w: number; h: number } | null) => void
+
   // YouTube video navigation (from note timestamp links — handles tab creation + space switch)
   pendingYouTubeVideo: { videoId: string; startTime: number } | null
   openYouTubeVideo: (videoId: string, startTime?: number, fromNote?: { noteId: string; title: string }) => void
@@ -1119,6 +1129,10 @@ export const useAppStore = create<AppState>()(
       setFindBarWordMode: (mode) => set({ findBarWordMode: mode }),
       activePanelId: 'bible' as 'bible' | 'notes' | 'lexicon',
       setActivePanelId: (id) => set({ activePanelId: id }),
+      windowWidth: window.innerWidth,
+      setWindowWidth: (w) => set({ windowWidth: w }),
+      historyTriggerRect: null,
+      setHistoryTriggerRect: (rect) => set({ historyTriggerRect: rect }),
       updateStatus: { status: 'idle' } as UpdateStatus,
       setUpdateStatus: (status) => set({
         updateStatus: status,
@@ -2429,9 +2443,9 @@ export const useAppStore = create<AppState>()(
       updatePanelLayout: (layout) => set({ panelLayout: layout }),
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      // Bounds (224-250px) mirrored in Sidebar.tsx's own drag-resize handler — kept here too
+      // Bounds (200–360px, §89) mirrored in Sidebar.tsx's own drag-resize handler — kept here too
       // since this setter is also reachable directly (not just via the drag handle).
-      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(224, Math.min(250, width)) }),
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(360, width)) }),
 
       recentSearchQueries: [] as string[],
       addRecentSearchQuery: (q) => {

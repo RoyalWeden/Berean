@@ -4,7 +4,11 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
-import { IconButton, Popover, PopoverTrigger, PopoverSurface, SectionLabel, Button, ListRow } from '@/components/ui'
+import { IconButton, Popover, PopoverTrigger, PopoverSurface, SectionLabel, Button, ListRow, Divider } from '@/components/ui'
+
+// Every rail button shares this recipe — a flat 28px square ghost icon button (§8 of the
+// pass-3 packet). Spread onto each IconButton instead of repeating the three props everywhere.
+const RAIL_BTN = { size: 28 as const, variant: 'ghost' as const, shape: 'square' as const }
 
 /**
  * Workspace-level rail, split out from Sidebar.tsx. Originally this held
@@ -145,36 +149,44 @@ export default function Ribbon() {
       {/* ── Floating search — only shown when the Explorer (Sidebar.tsx)
            is collapsed, since its own search/location bar normally covers
            this; collapsing the sidebar would otherwise leave no way to
-           search or open a new tab without expanding it again. ── */}
+           search or open a new tab without expanding it again. Sits above
+           the grouped sections below (not itself part of any group — it's
+           a conditional escape hatch, not a standing category). ── */}
       {sidebarCollapsed && (
-        <IconButton
-          icon={Search}
-          label="Search / new tab"
-          tooltip={{ shortcut: '⌘T', side: 'right' }}
-          size={32}
-          onClick={() => openSearch('new')}
-        />
+        <>
+          <IconButton
+            {...RAIL_BTN}
+            icon={Search}
+            label="Search / new tab"
+            tooltip={{ shortcut: '⌘T', side: 'right' }}
+            onClick={() => openSearch('new')}
+          />
+          <Divider className="my-0.5" />
+        </>
       )}
 
+      {/* ── History ── */}
       <IconButton
+        {...RAIL_BTN}
         icon={History}
         label="History"
         tooltip={{ shortcut: '⌘H', side: 'right' }}
-        size={32}
         className="relative"
         onClick={openHistory}
       >
         {hasUnseenHistory && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />}
       </IconButton>
 
-      {/* ── Archived tabs ── */}
+      <Divider className="my-0.5" />
+
+      {/* ── Layout / panels: archived tabs, presenter view, find ── */}
       <Popover open={archiveOpen} onOpenChange={setArchiveOpen}>
         <PopoverTrigger asChild>
           <IconButton
+            {...RAIL_BTN}
             icon={Archive}
             label={`Archived tabs${archivedGroups.length > 0 ? ` (${archivedGroups.length})` : ''}`}
             tooltip={{ side: 'right' }}
-            size={32}
             active={archiveOpen}
             className="relative"
           >
@@ -223,7 +235,8 @@ export default function Ribbon() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full !text-text-muted hover:!text-destructive"
+                danger
+                className="w-full"
                 onClick={() => { clearAllArchivedGroups(); setArchiveOpen(false) }}
               >
                 Clear all archived tabs
@@ -233,40 +246,32 @@ export default function Ribbon() {
         </PopoverSurface>
       </Popover>
 
-      {/* ── Presenter view ── */}
       <IconButton
+        {...RAIL_BTN}
         icon={Monitor}
         label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'}
         tooltip={{ shortcut: '⌘⇧B', side: 'right' }}
-        size={32}
         active={viewerWindowOpen}
         onClick={openPresenterView}
       />
 
-      {/* ── Study Trail ── */}
       <IconButton
-        icon={GitBranch}
-        label="Study Trail"
-        tooltip={{ side: 'right' }}
-        size={32}
-        onClick={() => window.app.openStudyTrailWindow?.()}
-      />
-
-      {/* ── Find ── */}
-      <IconButton
+        {...RAIL_BTN}
         icon={ScanSearch}
         label="Find in panel"
         tooltip={{ shortcut: '⌘F', side: 'right' }}
-        size={32}
         disabled={!findSupported}
         onClick={handleFind}
       />
+
+      <Divider className="my-0.5" />
 
       {/* ── Zoom — one shared value across all reading panes (Scripture,
            Lexicon, side panel); doesn't resize the sidebar/rail/shell. ── */}
       <Popover open={zoomPopoverOpen} onOpenChange={setZoomPopoverOpen}>
         <PopoverTrigger asChild>
           <IconButton
+            {...RAIL_BTN}
             icon={ZoomIn}
             label="Zoom"
             // The zoom row below is itself a hover-triggered popover showing "Zoom" as its own
@@ -275,7 +280,6 @@ export default function Ribbon() {
             // wider zoom row replacing it), which read as "the hover thing is too big" and
             // inconsistent with every other rail button's single, uniformly-sized tooltip.
             tooltip={false}
-            size={32}
             active={zoomPopoverOpen}
             onMouseEnter={openZoomOnHover}
             onMouseLeave={() => { cancelZoomHoverOpen(); scheduleZoomHoverClose() }}
@@ -286,32 +290,27 @@ export default function Ribbon() {
         </PopoverSurface>
       </Popover>
 
-      {/* ── Read Aloud (TTS) ── */}
+      <Divider className="my-0.5" />
+
+      {/* ── Audio (Read Aloud / TTS) ── */}
       <IconButton
+        {...RAIL_BTN}
         icon={Volume2}
         label={audioPlayback || canStartReadAloud ? 'Read Aloud' : 'Open a Scripture tab to Read Aloud'}
         tooltip={(audioPlayback || canStartReadAloud) ? { shortcut: '⌘⇧R', side: 'right' } : { side: 'right' }}
-        size={32}
         active={!!audioPlayback}
         disabled={!audioPlayback && !canStartReadAloud}
         onClick={handleReadAloudClick}
       />
 
-      {/* ── Berean Chat (AI Scripture Lookup) ── */}
-      <IconButton
-        icon={Sparkles}
-        label="Berean Chat"
-        tooltip={{ side: 'right' }}
-        size={32}
-        active={aiLookupPanelOpen}
-        onClick={() => setAiLookupPanelOpen(!aiLookupPanelOpen)}
-      />
+      <Divider className="my-0.5" />
 
+      {/* ── Settings ── */}
       <IconButton
+        {...RAIL_BTN}
         icon={Settings}
         label={`Settings${updateStatus.status === 'ready' ? ' — update ready to install' : updateStatus.status === 'available' ? ' — update available' : ''}`}
         tooltip={{ shortcut: '⌘,', side: 'right' }}
-        size={32}
         className="relative"
         onClick={(updateStatus.status === 'available' || updateStatus.status === 'ready') ? openSettingsToAbout : openSettings}
       >
@@ -319,6 +318,26 @@ export default function Ribbon() {
           <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
         )}
       </IconButton>
+
+      <Divider className="my-0.5" />
+
+      {/* ── Study: Study Trail, Berean Chat ── */}
+      <IconButton
+        {...RAIL_BTN}
+        icon={GitBranch}
+        label="Study Trail"
+        tooltip={{ side: 'right' }}
+        onClick={() => window.app.openStudyTrailWindow?.()}
+      />
+
+      <IconButton
+        {...RAIL_BTN}
+        icon={Sparkles}
+        label="Berean Chat"
+        tooltip={{ side: 'right' }}
+        active={aiLookupPanelOpen}
+        onClick={() => setAiLookupPanelOpen(!aiLookupPanelOpen)}
+      />
     </div>
   )
 }

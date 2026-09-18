@@ -120,7 +120,6 @@ export default function HeaderOverflowMenu({ items, className = '' }: { items: O
         onMouseEnter={keepHoverOpen}
         onMouseLeave={scheduleHoverClose}
         innerClassName="min-w-[180px] p-1"
-        style={{ zIndex: 'var(--z-menu)' } as React.CSSProperties}
       >
         {items.map((item) => (
           <div key={item.key}>

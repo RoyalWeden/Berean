@@ -208,6 +208,14 @@
   /* Feature palettes that were hardcoded hex at call sites */
   --trail-warm: 224 132 104;   /* Study Trail "warm" edge/accent (#e08468) */
   --trail-cool: 79 195 174;    /* Study Trail "cool" edge/accent (#4fc3ae) */
+  /* Per-tab-type icon colors (unified tab list quick-scan cue) — were hardcoded hex in TabBar.tsx */
+  --tab-icon-bible: 91 110 232;    /* #5b6ee8 */
+  --tab-icon-note: 232 160 63;     /* #e8a03f */
+  --tab-icon-lexicon: 63 191 127;  /* #3fbf7f */
+  --tab-icon-youtube: 232 91 91;   /* #e85b5b */
+  --tab-icon-search: 139 143 152;  /* #8b8f98 */
+  --tab-icon-pdf: 139 143 152;     /* #8b8f98 */
+  --tab-icon-tags: 176 111 232;    /* #b06fe8 */
   --font-lemma: Georgia, "Times New Roman", "Noto Serif Hebrew", "SBL Hebrew", serif; /* Hebrew/Greek lemma display */
 }
 

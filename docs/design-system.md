@@ -12,6 +12,19 @@
 - **Tokens, not literals.** No hex colors, Tailwind palette classes, arbitrary `text-[Npx]`, ad-hoc
   `backdrop-blur`, or raw z-indexes in components. The grep gate (below) enforces this.
 
+## Layers (pass 3 — "macOS 27 functional glass layer + clean content layer")
+| Layer | What | Material |
+|---|---|---|
+| **Content** | Scripture, references, note text, definitions, cross refs, graphs | `.material-content` — flat. Never glass, never cards per paragraph. |
+| **Chrome** | window toolbar, sidebar, attached inspector, tab lists, rails | `.material-bar` / `.material-sidebar` / `.material-inspector` (no blur — the transparent window's vibrancy is the blur) |
+| **Controls** | buttons, icon buttons, tabs, segmented, fields, pickers | `.control-glass` / `.control-field` / `ControlGroup` — tactile, never a plain HTML button on the ground |
+| **Transient** | menus, popovers, tooltips, ⌘K, History, expanded rail, sheets | `.material-popover` / `.material-elevated` / `.material-sheet` — strongest depth; originate from their trigger |
+
+Geometry rules (§17/§53): compact icon buttons are **rounded squares** (`rounded-compact`, 7px);
+grouped controls share **one container** (`ControlGroup`, `rounded-row`); capsules are for search
+fields, text buttons, chips, segmented tracks, badges and `Button variant="primary|prominent"`.
+Concentric rule: inner radius = outer − inset (compact inside row inside menu inside sheet/window).
+
 ## Tokens
 
 ### Palette (per theme — the ONLY vars a theme block defines)
@@ -64,13 +77,33 @@ scheme-specific values need one rule, not 73.
 | `.material-sheet` | dialogs / sheets | surface-1 @ 0.94 + 16px blur + border + shadow-3 |
 | `.material-control` | a lone floating capsule control | surface-2 @ 0.72 + 10px blur |
 
-All alphas scale with `--glass-alpha-mult` (Settings → Appearance → Glass appearance:
-clear 0.8 / regular 1 / tinted 1.18) — Berean's version of macOS 27's transparency slider.
+| `.material-inspector` | ATTACHED inspector pane (Scripture side panel, Notes side panel) | `--surface-inspector` (surface-2/3 mix), hairline-left, **no radius / blur / shadow**, width 260–420 |
+| `.material-elevated` | ⌘K, History, Tab Switcher, expanded rail | surface-1 @ 0.84 + 24px blur + hairline + shadow-3 |
+| `.material-popover-dense` | hover cards sitting over body text | surface-1 @ 0.96 |
+
+**Glass knobs** (§67/§108): every material's `blur()`/`saturate()`/`contrast()` is computed from
+`--glass-blur`, `--glass-saturate`, `--glass-contrast`, `--glass-tint` (frost mixed into bars),
+`--glass-highlight` (top-edge alpha), `--glass-shadow`, `--glass-alpha-mult`. Settings → Appearance →
+Glass appearance stamps `html[data-glass="clear|regular|tinted"]`, which swaps the whole knob set
+(more transparent / regular / more tinted) — no component changes, no user slider.
 `src/main.tsx` stamps `data-window` and `data-vibrant` (main window on mac only).
 
+**Window states**: `html[data-inactive]` (electron forwards blur/focus) drops accent to neutral,
+flattens controls, recedes bar text — content untouched. `html[data-reduce-transparency]`
+(`nativeTheme.prefersReducedTransparency`) + `@media (prefers-reduced-transparency)` swap every
+material for its `*-bg-opaque` twin and remove backdrop filters.
+
+**Scrims**: `.scrim-modal` (sheets) and `.scrim-light` (transient app windows) — the only two.
+
+**Scroll-edge** (§37/§61): bars are seamless at rest. `Toolbar edge="auto"` (default) observes the
+scroll root beneath (`scrollRef`, auto-detected next scrollable sibling, or a `scrolled` prop fed
+from a store slice) and sets `data-scrolled` → hairline + `0 4px 12px -4px` shadow. Permanent
+hairlines (`edge="bottom"`) only where nothing ever scrolls under the bar.
+
 ### Radii (macOS 27 scale; concentric rule inner = outer − inset; window = 20pt)
-`rounded-chip` 4 · `rounded-card` 8 · `rounded-row` 10 · `rounded-menu` 14 · `rounded-sheet` 20 ·
-`rounded-control` capsule (every control ≤ 32px tall). Legacy aliases: `rounded-shell` = menu,
+`rounded-chip` 4 · `rounded-compact` 7 (icon buttons / segments inside a group) · `rounded-card` 8 ·
+`rounded-row` 10 (ControlGroup container, list rows) · `rounded-window` 12 · `rounded-menu` 14 ·
+`rounded-sheet` 20 · `rounded-control` capsule (text buttons, fields, chips, segmented tracks). Legacy aliases: `rounded-shell` = menu,
 `rounded-shell-lg` = sheet, `rounded-panel` = card. Tailwind's default `rounded-sm/md/lg/xl`
 are being migrated OFF (grep gate).
 
@@ -79,40 +112,57 @@ are being migrated OFF (grep gate).
 shadow alpha via `--shadow-strength`.
 
 ### Layering
-`z-raised` 10 · `z-overlay` 100 · `z-menu` 200 · `z-popover` 300 · `z-modal` 400 · `z-critical` 500.
+`z-raised` 10 · `z-overlay` 100 · `z-modal` 200 · `z-critical` 300 · `z-menu` 400 · `z-popover` 450
+(menus/popovers spawn from inside modals and critical windows, so they sit above both).
 
 ### Motion
-CSS: `duration-fast/base/slow` (100/150/220ms), `ease-mac`, `ease-mac-out`. JS: `src/lib/motion.ts`
+CSS: `duration-fast/base/slow` (100/150/220ms) + `duration-popover/panel/workspace` (160/240/280),
+`ease-mac`, `ease-mac-out`. **Origin rule** (§57/§103): `MenuSurface` animates with `.animate-menu-in`
+from `--menu-origin` (set by `MenuPositioner` from the side it flipped to); `PopoverSurface`/`Tooltip`
+inherit Radix's `--radix-*-content-transform-origin`; `Sheet` animates an INNER wrapper (Radix
+Content keeps the centring translate — animating transform on the same element rendered every sheet
+off-centre for a frame). Press: buttons `active:scale-[0.98]` + pressed fill; rows/segments never
+scale; the interactive-glass spring is reserved for `prominent`/`primary` and rail controls.
+JS: `src/lib/motion.ts`
 (`SPRING_SNAPPY`, `SPRING_GENTLE`, `TWEEN_*`, `POP_IN`, `DROP_IN`). Reduced motion is honored
 globally (CSS media rule + `<MotionConfig reducedMotion="user">` in `main.tsx`).
 
 ### Typography (chrome only — Scripture/Notes bodies use the user's font settings)
 `text-micro` 9 · `text-caption2` 10 · `text-caption` 11 · `text-footnote` 12 · `text-subhead` 13 ·
 `text-body` 14 · `text-title3` 15 · `text-title2` 17 · `text-title1` 20. UI font = SF system stack
-(`--font-ui`). Hebrew/Greek lemmas use `font-lemma`.
+(`--font-ui`). Hebrew/Greek lemmas use `font-lemma`. Text roles: `text-text-primary/secondary/tertiary/
+quaternary/disabled`; **`text-meta`** (caption2 + tertiary + tabular) is the one recipe for counts,
+timestamps, word counts and status — never stack `opacity-*` on muted text. `SectionLabel` is the only
+uppercase recipe.
 
 ### Spacing
 4px grid (Tailwind default scale). Toolbar height 44 (`h-header`), traffic-light inset 76
 (`pl-traffic-lights`), controls 24/28/32, rows 28–32, panel padding 12–16.
 
 ### Icons
-`lucide-react` only. Sizes: 12 (inline/meta), 14 (controls), 16 (rail/nav). Stroke 1.75
-(2 when active/selected). `SFIcon` is keycap-only.
+`lucide-react` only. Scale 12 / 14 / 16 / 18 / 20 / 24; `IconButton` maps 20→12, 24→14, 28→16,
+32→18. Stroke 1.75 (2 when active/selected), 1.5 in content. `SFIcon` is keycap-only.
 
 ## Primitives (`@/components/ui`)
 | | |
 |---|---|
-| `Button` | `variant primary\|secondary\|ghost\|destructive`, `size sm\|md`, `icon`, `loading`, `selected` (ghost toggle) |
-| `IconButton` | `icon`, `label` (a11y + tooltip), `size 20\|24\|28\|32`, `active` (accent), `selected` (neutral), `danger` |
-| `SegmentedControl` | mutually-exclusive selector with sliding capsule thumb; `size sm\|md`, `fill` |
+| `Button` | `variant primary\|prominent\|secondary\|ghost\|menu\|destructive`, `size sm\|md`, `icon`, `loading`, `selected`, `tooltip` (replaces `title=`) |
+| `IconButton` | `icon`, `label` (a11y + tooltip), `size 20\|24\|28\|32`, `shape square\|round` (auto), `active`, `selected`, `danger`, `filled` |
+| `ControlGroup` | ONE container for a cluster of independent controls (back/forward, ‹ title ›, LXX \| Strong's); children read `useInControlGroup()` and render flat — replaces `ActionPillGroup` (alias) |
+| `TitleControl` | toolbar context-zone title: ‹ [title · detail ▾] › as one ControlGroup; the trigger anchors the picker popover |
+| `OverflowGroup` | folds trailing controls into a `…` popover when the row is narrow — nothing hides, nothing scrolls sideways |
+| `SegmentedControl` | mutually-exclusive selector with sliding thumb; `variant segmented\|inspector`; arrow keys / Home / End |
+| `AlertSheet` | the one confirm dialog: icon · title · message · Cancel/Confirm; Enter = default, Esc = cancel |
 | `MenuSurface` / `MenuItem` / `MenuSeparator` / `MenuLabel` | menus + context menus (position with `MenuPositioner`); arrow-key roving built in |
 | `PopoverSurface` + `Popover`/`PopoverTrigger` | Radix popover pre-styled |
 | `Sheet` | modal dialog shell (overlay + sheet material + header) |
 | `TextField` / `SearchField` | capsule inputs; `SearchField` has clear + Esc |
 | `Select` | custom listbox — never a native `<select>` |
 | `Tooltip` | label + optional shortcut keycaps |
-| `Toolbar` | M1 bar row; children default to glass controls (`ControlSurfaceContext`) |
-| `ListRow` | the one list/tree/sidebar row: leading · title/subtitle · meta · trailing (sibling actions, keyboard reachable); `selected`/`current`/`bar`/`dense` |
+| `Toolbar` | M1 bar row; `edge="auto"` scroll-edge; children default to glass controls; `gap-2` between groups |
+| `ListRow` | the one list/tree/sidebar row: leading · title/subtitle · meta · trailing; `selected`/`current`/`dense`/`flush`/`titleSize` |
+| `Sheet` | dialog shell: `size alert\|sm\|md\|lg\|xl`, `scrim modal\|light`, `onDefaultAction`, `layout split` |
+| `useScrollEdge` / `useRovingNav` / `useRovingGridNav` (`src/lib`) | scroll-edge observer; arrow-key roving for lists, tab strips, calendar grids |
 | `Chip` | capsule filter/tag/badge; `selected`, `count`, `tint`, `onRemove` — never changes weight |
 | `Checkbox` / `Radio` / `Slider` / `TextArea` / `OptionCard` / `DisclosureRow` / `SectionHeader` / `ColorSwatchRow` | form + list building blocks |
 | `EmptyState`, `SectionLabel`, `RefChip`, `Divider`, `Kbd`, `Switch`, `ActionPillGroup` | |
@@ -183,6 +233,14 @@ no inline Radix `Tooltip.Content`, no inline `fontFamily:'serif'`.
   theme-independent; menu hover is NSMenu accent+white; History/⌘K/Tab Switcher use
   `.material-elevated` with a light scrim (Spotlight-class); Study Trail keeps its mono-italic
   timeline titles as a feature identity while its chrome uses system controls.
+- 2026-09-18 — Pass 3 foundation: not everything is a capsule (square icon buttons in groups/bars;
+  `ControlGroup` owns the container, children render flat — no `!important`); `Toolbar` bars are
+  seamless at rest with a scroll-edge hairline; menus/popovers/sheets grow from their trigger;
+  glass is parameterised by the `--glass-*` knobs (`html[data-glass]`); inactive-window and
+  reduce-transparency states exist at the token level; the attached inspector is a pane
+  (`.material-inspector`), not a floating card; `AlertSheet` replaces hand-rolled confirms;
+  `text-meta` is the one status-text recipe. Toolbar zones: Leading (sidebar · nav group) ·
+  Context (title control) · Actions (one group) · Trailing (view pair · inspector · overflow).
 - 2026-09-18 — Pass 2 complete: `.native-buttons` retired (primitives own press/focus); every
   Toolbar child is glass at rest; History/⌘K/Tab Switcher are `material-elevated`; all list/tree
   rows are `ListRow` (keyboard reachable, single selection color); `Sheet layout="split"` hosts

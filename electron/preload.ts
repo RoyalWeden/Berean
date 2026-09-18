@@ -161,6 +161,24 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('berean:menuAction')
     ipcRenderer.on('berean:menuAction', (_, action, payload) => cb(action, payload))
   },
+  // Native File/View/Go/Help menu items (electron/main.ts's buildAppMenu) — sends a
+  // src/lib/commands.ts command id, looked up and run by the renderer.
+  onAppCommand: (cb: (id: string) => void) => {
+    ipcRenderer.removeAllListeners('app:command')
+    ipcRenderer.on('app:command', (_, id: string) => cb(id))
+  },
+  // Window focus/blur, relayed as a boolean — drives html[data-inactive] so chrome dims
+  // to match the rest of the system when the window isn't key.
+  onWindowActive: (cb: (active: boolean) => void) => {
+    ipcRenderer.removeAllListeners('app:windowActive')
+    ipcRenderer.on('app:windowActive', (_, active: boolean) => cb(active))
+  },
+  // System Settings → Accessibility → Display → Reduce transparency.
+  getReduceTransparency: () => ipcRenderer.invoke('app:getReduceTransparency') as Promise<boolean>,
+  onReduceTransparency: (cb: (reduce: boolean) => void) => {
+    ipcRenderer.removeAllListeners('app:reduceTransparency')
+    ipcRenderer.on('app:reduceTransparency', (_, reduce: boolean) => cb(reduce))
+  },
   openFolderDialog: () => ipcRenderer.invoke('app:openFolderDialog'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   isDev: () => ipcRenderer.invoke('app:isDev'),

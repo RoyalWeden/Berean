@@ -8,7 +8,7 @@ import {
   BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
-import { IconButton, Button, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
+import { IconButton, Button, ControlGroup, OverflowGroup, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
@@ -2089,9 +2089,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
            second header row (was previously a full bar with its own drag-region,
            stacked directly under the app-level top bar). The portal target
            (ShellHeader's slot) is a fixed 44px-tall, overflow-hidden row, so this
-           can't wrap to a second line without getting clipped — scroll horizontally
-           instead when everything doesn't fit, same as any single-row toolbar. */}
-      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="flex-nowrap overflow-x-auto">
+           can't wrap to a second line without getting clipped — OverflowGroup folds
+           trailing controls into a "…" popover once the row is too narrow instead
+           (nothing hidden, nothing scrolls sideways; see its own comment). Search
+           stays first in priority order, so it's the last thing to fold. */}
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'}>
+      <OverflowGroup label="More filters">
         <SearchField
           value={search}
           onValueChange={(v) => { setSearch(v); setPage(1) }}
@@ -2124,11 +2127,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           options={(['all', 'video', 'short', 'live'] as TypeFilter[]).map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
         />
 
+        {/* View controls — filters/channel/sort are all "narrow the video list" siblings, so
+             they share one grouped container instead of three independently-chromed buttons. */}
+        <ControlGroup>
         {/* More Filters toggle button — shows badge count when filters are active */}
         <Button
           variant="ghost" size="sm" icon={LayoutGrid} selected={moreFiltersActive}
           onClick={(e) => { e.stopPropagation(); setShowMoreFilters((v) => !v) }}
-          className="flex-shrink-0"
         >
           Filters
           {moreFiltersCount > 0 && (
@@ -2140,7 +2145,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         </Button>
 
         {/* Channel filter */}
-        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()}>
           <Button
             ref={channelBtnRef}
             variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showChannelMenu}
@@ -2193,7 +2198,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {/* Duration filter moved to More Filters panel */}
 
         {/* Sort */}
-        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()}>
           <Button
             ref={sortBtnRef}
             variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showSortMenu}
@@ -2224,6 +2229,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             document.body
           )}
         </div>
+        </ControlGroup>
 
         {/* Clear all filters */}
         {isFiltered && (
@@ -2348,6 +2354,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               document.body
             )}
           </div>
+      </OverflowGroup>
       </TabHeaderPortal>
 
       {/* ── More Filters panel — expands below the toolbar ─────────────────── */}

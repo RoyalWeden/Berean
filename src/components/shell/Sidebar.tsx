@@ -14,7 +14,8 @@ import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { IconButton, ListRow, ActionPillGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
+import { IconButton, ListRow, ControlGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
+import { useRovingNav } from '@/lib/useRovingNav'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -109,7 +110,7 @@ export default function Sidebar() {
         rafId = null
         if (!sidebarResizeRef.current) return
         const delta = latestX - sidebarResizeRef.current.startX
-        setSidebarWidth(Math.max(224, Math.min(250, sidebarResizeRef.current.startWidth + delta)))
+        setSidebarWidth(Math.max(200, Math.min(360, sidebarResizeRef.current.startWidth + delta)))
       })
     }
     function onUp() {
@@ -186,6 +187,9 @@ export default function Sidebar() {
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
 
   const tabListRef = useRef<HTMLDivElement>(null)
+  // Arrow-key navigation between tab rows (TabBar marks each row's inner button
+  // `data-roving`) — Enter activates the focused row via its own native button click.
+  const tabListRovingNav = useRovingNav({ orientation: 'vertical', selector: '[data-roving]' })
   // Manual click-drag-to-move tracking for empty tab-list space — see the mousedown handler
   // below and app:moveWindowBy's own comment in electron/main.ts for why this doesn't use a
   // real `-webkit-app-region: drag` CSS region (would break double-click-to-search on the
@@ -551,13 +555,13 @@ export default function Sidebar() {
                 dense
                 current={sessionPopoverOpen}
                 className="no-drag"
-                leading={<CurrentSessionIcon size={12} className="opacity-70" />}
+                leading={<CurrentSessionIcon size={12} className="text-text-tertiary" />}
                 title={
                   <span className="truncate" style={{ zoom: appZoom }}>
                     {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
                   </span>
                 }
-                trailing={<ChevronsUpDown size={11} className="text-text-muted opacity-50" />}
+                trailing={<ChevronsUpDown size={11} className="text-text-tertiary" />}
                 trailingAlways
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -633,7 +637,7 @@ export default function Sidebar() {
                       <span className="text-caption2 text-text-muted flex-shrink-0">{spaceLabel}</span>
                       {breadcrumbTail.map((seg, i) => (
                         <span key={i} className="flex items-center gap-0.5 min-w-0">
-                          <ChevronRight size={9} className="text-text-muted flex-shrink-0 opacity-50" />
+                          <ChevronRight size={9} className="text-text-tertiary flex-shrink-0" />
                           <span className={`text-footnote text-text-secondary truncate ${i < breadcrumbTail.length - 1 ? 'flex-shrink-0' : ''}`}>{seg}</span>
                         </span>
                       ))}
@@ -662,25 +666,29 @@ export default function Sidebar() {
              type X" affordance now. Precise switching to an EXISTING tab
              stays the flat list's job below. ── */}
         <div className="px-2 pt-1 pb-1.5 flex-shrink-0">
-          <ActionPillGroup align="stretch" className="w-full">
+          <ControlGroup
+            align="stretch"
+            className="w-full"
+            onKeyDown={useRovingNav({ orientation: 'horizontal', selector: 'button' })}
+          >
             {SPACES.map(({ id, type, icon: Icon, tip }) => (
               <IconButton
                 key={id}
                 icon={Icon}
                 label={tip}
                 size={32}
-                variant="glass"
                 active={activeSpace === id}
                 className="flex-1"
                 onClick={() => createTab(type)}
               />
             ))}
-          </ActionPillGroup>
+          </ControlGroup>
         </div>
 
             <div
               ref={tabListRef}
               className="no-drag flex-1 overflow-y-auto min-h-0"
+              onKeyDown={tabListRovingNav}
               onDoubleClick={(e) => {
                 const t = e.target as HTMLElement
                 if (t.closest('[data-tab-idx]')) return
@@ -864,7 +872,7 @@ export default function Sidebar() {
                     <MenuItem
                       key={entry.book.id}
                       label={entry.book.name}
-                      trailing={entry.textId !== 'kjva' ? <span className="text-micro text-text-muted opacity-70 font-mono uppercase">{entry.textId}</span> : undefined}
+                      trailing={entry.textId !== 'kjva' ? <span className="text-micro text-text-tertiary font-mono uppercase">{entry.textId}</span> : undefined}
                       onClick={() => openTabFromBook(entry)}
                     />
                   ))
@@ -880,7 +888,7 @@ export default function Sidebar() {
                         <MenuItem
                           key={entry.book.id}
                           label={entry.book.name}
-                          trailing={entry.textId !== 'kjva' ? <span className="text-micro text-text-muted opacity-70 font-mono uppercase">{entry.textId}</span> : undefined}
+                          trailing={entry.textId !== 'kjva' ? <span className="text-micro text-text-tertiary font-mono uppercase">{entry.textId}</span> : undefined}
                           onClick={() => openTabFromBook(entry)}
                         />
                       ))}

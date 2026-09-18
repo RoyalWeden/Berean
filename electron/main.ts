@@ -364,6 +364,57 @@ function buildAppMenu(): Electron.Menu {
       ],
     }] : []),
 
+    // ── File — tab/note creation; renderer's keydown layer owns most accelerators, so
+    // most items here set registerAccelerator: false and exist for discoverability/menu
+    // click only (see the per-item comments for which ones Electron itself still fires). ─
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Note',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧N
+          click: () => menuSend('app:command', 'new-note'),
+        },
+        {
+          label: 'New Verse Note',
+          accelerator: 'CmdOrCtrl+Shift+V',
+          // No renderer keydown handles ⌘⇧V — Electron fires this normally.
+          click: () => menuSend('app:command', 'new-verse-note'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'New Scripture Tab',
+          click: () => menuSend('app:command', 'new-scripture-tab'),
+        },
+        {
+          label: 'New Lexicon Tab',
+          click: () => menuSend('app:command', 'new-lexicon-tab'),
+        },
+        {
+          label: 'New YouTube Tab',
+          click: () => menuSend('app:command', 'new-youtube-tab'),
+        },
+        { type: 'separator' as const },
+        {
+          label: "Today's Daily Note",
+          accelerator: 'CmdOrCtrl+Shift+D',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧D
+          click: () => menuSend('app:command', 'todays-daily-note'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Close Tab',
+          accelerator: 'CmdOrCtrl+W',
+          // Renderer already intercepts ⌘W at the BrowserWindow input level (before-input-event
+          // above, 'app:closeTab') — leave the OS-level accelerator unregistered so it isn't
+          // handled twice.
+          registerAccelerator: false,
+          click: () => menuSend('app:command', 'close-tab'),
+        },
+      ],
+    },
+
     // ── Edit — keep standard roles for system clipboard + CodeMirror undo/redo ─
     {
       label: 'Edit',
@@ -378,17 +429,115 @@ function buildAppMenu(): Electron.Menu {
       ],
     },
 
-    // ── View — dev tools only (all navigation handled by React shortcut layer) ─
-    ...(is.dev ? [{
+    // ── View — app display toggles; dev tools appended under a trailing separator ──
+    {
       label: 'View',
       submenu: [
-        { role: 'reload' as const },
-        { role: 'forceReload' as const },
-        { role: 'toggleDevTools' as const },
+        {
+          label: 'Toggle Sidebar',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧S
+          click: () => menuSend('app:command', 'toggle-sidebar'),
+        },
+        {
+          label: 'Toggle Inspector',
+          click: () => menuSend('app:command', 'toggle-inspector'),
+        },
+        {
+          label: "Strong's Numbers",
+          accelerator: 'CmdOrCtrl+G',
+          registerAccelerator: false, // renderer keydown handles ⌘G
+          click: () => menuSend('app:command', 'toggle-strongs'),
+        },
+        {
+          label: 'Focus Mode',
+          accelerator: 'CmdOrCtrl+Shift+U',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧U
+          click: () => menuSend('app:command', 'toggle-focus-mode'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+=',
+          registerAccelerator: false, // renderer keydown handles ⌘=/⌘+
+          click: () => menuSend('app:command', 'zoom-in'),
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
+          registerAccelerator: false, // renderer keydown handles ⌘-
+          click: () => menuSend('app:command', 'zoom-out'),
+        },
+        {
+          label: 'Actual Size',
+          accelerator: 'CmdOrCtrl+0',
+          registerAccelerator: false, // renderer keydown handles ⌘0
+          click: () => menuSend('app:command', 'zoom-reset'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Find',
+          accelerator: 'CmdOrCtrl+F',
+          registerAccelerator: false, // renderer keydown handles ⌘F (routes per active panel)
+          click: () => menuSend('app:command', 'find'),
+        },
         { type: 'separator' as const },
         { role: 'togglefullscreen' as const },
+        ...(is.dev ? [
+          { type: 'separator' as const },
+          { role: 'reload' as const },
+          { role: 'forceReload' as const },
+          { role: 'toggleDevTools' as const },
+        ] : []),
       ],
-    }] : []),
+    },
+
+    // ── Go — chapter/tab-history navigation ─────────────────────────────────────
+    {
+      label: 'Go',
+      submenu: [
+        {
+          label: 'Back',
+          accelerator: 'CmdOrCtrl+[',
+          // No renderer keydown handles ⌘[ — Electron fires this normally.
+          click: () => menuSend('app:command', 'nav-back'),
+        },
+        {
+          label: 'Forward',
+          accelerator: 'CmdOrCtrl+]',
+          // No renderer keydown handles ⌘] — Electron fires this normally.
+          click: () => menuSend('app:command', 'nav-forward'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Previous Chapter',
+          click: () => menuSend('app:command', 'prev-chapter'),
+        },
+        {
+          label: 'Next Chapter',
+          click: () => menuSend('app:command', 'next-chapter'),
+        },
+        {
+          label: 'Go to Reference…',
+          accelerator: 'CmdOrCtrl+L',
+          registerAccelerator: false, // renderer keydown handles ⌘L
+          click: () => menuSend('app:command', 'focus-ref-bar'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'History',
+          accelerator: 'CmdOrCtrl+H',
+          registerAccelerator: false, // renderer keydown handles ⌘H (app 'hide' is remapped to ⌘⇧H)
+          click: () => menuSend('app:command', 'open-history'),
+        },
+        {
+          label: 'Search Everything',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧F
+          click: () => menuSend('app:command', 'full-text-search'),
+        },
+      ],
+    },
 
     // ── Window — OS-level actions; app navigation lives in the React layer ────
     {
@@ -419,6 +568,27 @@ function buildAppMenu(): Electron.Menu {
           { type: 'separator' as const },
           { role: 'front' as const },
         ] : []),
+      ],
+    },
+
+    // ── Help ────────────────────────────────────────────────────────────────
+    {
+      ...(isMac ? { role: 'help' as const } : { label: 'Help' }),
+      submenu: [
+        {
+          label: 'Berean Help',
+          click: () => { shell.openExternal('https://sitgmeat.com') },
+        },
+        {
+          // No dedicated "jump to Shortcuts section" command exists yet — opens
+          // Settings, where the read-only Shortcuts section lives (§15).
+          label: 'Keyboard Shortcuts',
+          click: () => menuSend('app:command', 'open-settings'),
+        },
+        {
+          label: 'Markdown Reference',
+          click: () => menuSend('app:command', 'open-markdown-reference'),
+        },
       ],
     },
   ]
@@ -540,6 +710,9 @@ function createViewerWindow(): void {
   viewerWindow.setAlwaysOnTop(true, 'floating')
   viewerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
+  viewerWindow.on('focus', () => { viewerWindow?.webContents.send('app:windowActive', true) })
+  viewerWindow.on('blur',  () => { viewerWindow?.webContents.send('app:windowActive', false) })
+
   const paramStr = 'viewer=1'
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     viewerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${paramStr}`)
@@ -618,6 +791,9 @@ function createStudyTrailWindow(trailSessionId?: string): void {
   studyTrailWindow.setAlwaysOnTop(true, 'floating')
   studyTrailWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
+  studyTrailWindow.on('focus', () => { studyTrailWindow?.webContents.send('app:windowActive', true) })
+  studyTrailWindow.on('blur',  () => { studyTrailWindow?.webContents.send('app:windowActive', false) })
+
   const query: Record<string, string> = { studyTrail: '1' }
   if (trailSessionId) query.trailSessionId = trailSessionId
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -688,6 +864,9 @@ function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): 
     versePickerWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
   }
 
+  versePickerWindow.on('focus', () => { versePickerWindow?.webContents.send('app:windowActive', true) })
+  versePickerWindow.on('blur',  () => { versePickerWindow?.webContents.send('app:windowActive', false) })
+
   versePickerWindow.on('closed', () => { versePickerWindow = null; versePickerOwnerId = null })
 }
 
@@ -732,6 +911,9 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   // Show on all macOS Spaces so it follows the user across desktops
   floatWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
+  floatWin.on('focus', () => { floatWin.webContents.send('app:windowActive', true) })
+  floatWin.on('blur',  () => { floatWin.webContents.send('app:windowActive', false) })
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     floatWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${paramStr}`)
   } else {
@@ -775,7 +957,9 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     // On Windows: frameless so we draw our own title bar in React
     frame: !isWinWin,
     titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
-    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 14 } } : {}),
+    // Centered on the HEADER_HEIGHT (44px, src/lib/windowChrome.ts) bar: traffic
+    // lights are 12px tall, so y = (44 - 12) / 2 = 16 puts their centre on the bar's centre.
+    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
     // macOS: transparent + native vibrancy so the sidebar column can show a true
     // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
     // this in an opaque window — it only blurs the app's own content, not what's
@@ -784,8 +968,11 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     // translucent here and fall back to an opaque paint everywhere else, since
     // the whole window surface is transparent now, not just the sidebar strip.
     // Windows keeps the original opaque background — vibrancy is mac-only.
+    // visualEffectState: 'followWindow' (not 'active') — the vibrancy dims when
+    // the window isn't key, matching every native macOS app; 'active' pinned it
+    // fully lit even while the window sat in the background.
     ...(isMacWin
-      ? { transparent: true, backgroundColor: '#00000000', vibrancy: 'sidebar' as const, visualEffectState: 'active' as const }
+      ? { transparent: true, backgroundColor: '#00000000', vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const }
       : { backgroundColor: '#111114' }),
     icon: appIcon,
     // Show [Dev] in the window title (visible in macOS app switcher / dock tooltip)
@@ -854,6 +1041,11 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
   // Notify renderer when window is maximized/unmaximized (for Windows title bar button state)
   win.on('maximize',   () => { win.webContents.send('window:maximizeChanged', true); scheduleBoundsSave() })
   win.on('unmaximize', () => { win.webContents.send('window:maximizeChanged', false); scheduleBoundsSave() })
+
+  // Relay OS-level key/active state so the renderer can dim chrome to match the rest of
+  // the system (html[data-inactive] — global.css already consumes it).
+  win.on('focus', () => { win.webContents.send('app:windowActive', true) })
+  win.on('blur',  () => { win.webContents.send('app:windowActive', false) })
 
   // Intercept Cmd+W so the renderer can close a tab instead of quitting. Captures
   // `win` (never the mutable `mainWindow`) so it always targets its own window.
@@ -1496,6 +1688,10 @@ app.whenReady().then(async () => {
   // Live macOS accent color, for the "System" theme preset — converts Electron's hex
   // ("rrggbb[aa]") into the "r g b" decimal-triple string the rest of the palette uses.
   ipcMain.handle('app:getAccentColor', () => hexToRgbTriple(safeGetAccentColor()))
+  // System Settings → Accessibility → Display → Reduce transparency. Read once at renderer
+  // boot (a fresh window's did-finish-load can race the app:reduceTransparency push below);
+  // nativeTheme.on('updated') pushes subsequent live toggles to every open window.
+  ipcMain.handle('app:getReduceTransparency', () => nativeTheme.prefersReducedTransparency)
   // 'normal' | 'throttled' — see powerAwareness.ts. app:resourceModeChanged (registered
   // above, alongside setupPowerAwareness()) pushes subsequent changes.
   ipcMain.handle('app:getResourceMode', () => getResourceMode())
@@ -1623,10 +1819,16 @@ app.whenReady().then(async () => {
 
   // Relay OS-level dark/light changes to all renderer windows.
   // matchMedia 'change' events are unreliable in Electron; nativeTheme is authoritative.
+  // Also fires for a Reduce Transparency toggle (System Settings → Accessibility →
+  // Display) — nativeTheme's single 'updated' event covers both — so re-push
+  // prefersReducedTransparency here too rather than a second listener.
   nativeTheme.on('updated', () => {
     const isDark = nativeTheme.shouldUseDarkColors
+    const reduceTransparency = nativeTheme.prefersReducedTransparency
     BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('app:nativeThemeChanged', isDark)
+      if (win.isDestroyed()) return
+      win.webContents.send('app:nativeThemeChanged', isDark)
+      win.webContents.send('app:reduceTransparency', reduceTransparency)
     })
   })
 

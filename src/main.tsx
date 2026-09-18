@@ -61,6 +61,37 @@ const isVersePickerMode = searchParams.get('versePicker') === '1'
   else delete html.dataset.vibrant
 }
 
+// Inactive-window stamp (§85) — electron/main.ts forwards this window's own focus/blur as
+// app:windowActive; global.css's html[data-inactive] dims chrome to match every other native
+// Mac app once it isn't key. Initialised from document.hasFocus() so a window that opens
+// already out of focus (e.g. a secondary window spawned behind the main one) starts dim too,
+// rather than waiting for its first blur event.
+{
+  const html = document.documentElement
+  if (!document.hasFocus()) html.dataset.inactive = ''
+  else delete html.dataset.inactive
+  window.app?.onWindowActive?.((active) => {
+    if (active) delete html.dataset.inactive
+    else html.dataset.inactive = ''
+  })
+}
+
+// Reduce Transparency (System Settings → Accessibility → Display) — global.css's
+// html[data-reduce-transparency] already swaps every material to its opaque twin.
+// getReduceTransparency() gives the true value at boot; onReduceTransparency covers a live
+// toggle while the app is running.
+{
+  const html = document.documentElement
+  window.app?.getReduceTransparency?.().then((reduce) => {
+    if (reduce) html.dataset.reduceTransparency = ''
+    else delete html.dataset.reduceTransparency
+  }).catch(() => { /* best-effort — falls back to no attribute (full transparency) */ })
+  window.app?.onReduceTransparency?.((reduce) => {
+    if (reduce) html.dataset.reduceTransparency = ''
+    else delete html.dataset.reduceTransparency
+  })
+}
+
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
 

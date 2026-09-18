@@ -4,7 +4,8 @@ import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { zoomedFontSize } from '@/lib/zoom'
 import { toDateKey, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { IconButton, Tooltip } from '@/components/ui'
+import { IconButton, Tooltip, ControlGroup } from '@/components/ui'
+import { useRovingGridNav } from '@/lib/useRovingNav'
 
 export { toDateKey }
 
@@ -71,6 +72,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   // month nav was left, not wherever the last week happened to be.
   const [weekOnly, setWeekOnly] = useState(false)
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => new Date())
+  const gridRovingNav = useRovingGridNav(7)
 
   // Days with daily notes, keyed to how much is actually written that day (content length) —
   // handles both new ISO format (Daily — 2024-01-01) and old localised format
@@ -169,33 +171,40 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           to sacrifice their own comfortable spacing to make room preemptively — only text
           should give, and only when it actually has to. */}
       <div className="flex items-center gap-1 mb-1">
-        {/* Month-navigation cluster (< label [jump-to-current] >) — all grouped together
-            and left-aligned, not spread across the row. Today is the one thing pushed to
-            the far right (via the flex-1 spacer after this cluster, not within it). */}
-        {/* Nav arrows/jump-to-current now warm to the ACCENT color on hover (was plain
-            muted→primary) — matches the warmer, accent-tinted hover treatment the recent Study
-            Trail styling pass gave its own icon buttons, rather than everything staying in flat
-            greyscale until clicked. */}
-        <IconButton
-          icon={ChevronLeft}
-          label={weekOnly ? 'Previous week' : 'Previous month'}
-          size={24}
-          onClick={weekOnly ? prevWeek : prevMonth}
-        />
-        {/* min-w-0 so this is actually allowed to shrink in a flex row — the extra collapse
-            button pushed this row tighter than month view ever had to fit in, so the label
-            could wrap onto a second line. Month name and year render as two separate spans so
-            truncation (ellipsis) only ever eats into the MONTH NAME; the year has its own
-            flex-shrink-0 and is never clipped. The week-spanning-months label ("Aug 30 – Sep 5")
-            has no year to protect the same way, so it stays one plain truncatable span. */}
-        {crossMonthLabel ? (
-          <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{crossMonthLabel}</span>
-        ) : (
-          <span className="flex items-baseline gap-1 min-w-0">
-            <span className="font-medium whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{monthName}</span>
-            <span className="font-medium whitespace-nowrap flex-shrink-0 text-subhead text-text-muted" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
-          </span>
-        )}
+        {/* Month-navigation cluster (‹ label › [jump-to-current] [week-toggle]) — all grouped
+            together and left-aligned, not spread across the row. Today is the one thing pushed
+            to the far right (via the flex-1 spacer after this cluster, not within it). The
+            chevron-label-chevron trio is ONE grouped toolbar control (macOS-style ‹ Title ›);
+            jump-to-current and the week-toggle are separate one-off actions, not part of that
+            grouped control, so they stay as their own icon buttons alongside it. */}
+        <ControlGroup className="min-w-0 flex-shrink">
+          <IconButton
+            icon={ChevronLeft}
+            label={weekOnly ? 'Previous week' : 'Previous month'}
+            size={24}
+            onClick={weekOnly ? prevWeek : prevMonth}
+          />
+          {/* min-w-0 so this is actually allowed to shrink in a flex row — the extra collapse
+              button pushed this row tighter than month view ever had to fit in, so the label
+              could wrap onto a second line. Month name and year render as two separate spans so
+              truncation (ellipsis) only ever eats into the MONTH NAME; the year has its own
+              flex-shrink-0 and is never clipped. The week-spanning-months label ("Aug 30 – Sep 5")
+              has no year to protect the same way, so it stays one plain truncatable span. */}
+          {crossMonthLabel ? (
+            <span className="px-1.5 font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{crossMonthLabel}</span>
+          ) : (
+            <span className="flex items-baseline gap-1 min-w-0 px-1.5">
+              <span className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{monthName}</span>
+              <span className="font-semibold whitespace-nowrap flex-shrink-0 text-subhead text-text-muted" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
+            </span>
+          )}
+          <IconButton
+            icon={ChevronRight}
+            label={weekOnly ? 'Next week' : 'Next month'}
+            size={24}
+            onClick={weekOnly ? nextWeek : nextMonth}
+          />
+        </ControlGroup>
         {!(weekOnly ? weekIsCurrent : isCurrentMonth) && (
           <IconButton
             icon={Undo2}
@@ -204,12 +213,6 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
             onClick={() => (weekOnly ? setWeekAnchor(new Date()) : onDateChange(new Date()))}
           />
         )}
-        <IconButton
-          icon={ChevronRight}
-          label={weekOnly ? 'Next week' : 'Next month'}
-          size={24}
-          onClick={weekOnly ? nextWeek : nextMonth}
-        />
         {/* Collapse to just the current week (or expand back to the full month) — per direct
             feedback. weekAnchor resets to today each time it's turned ON, so re-collapsing
             always starts from "this week," not wherever a previous week nav left off. */}
@@ -229,7 +232,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
       {/* Day headers */}
       <div className="grid grid-cols-7 mb-0.5">
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-          <div key={d} className={`text-center ${weekdayHeaderPad} text-caption2 text-text-muted font-medium`} style={{ fontSize: weekdayHeaderSize }}>{d}</div>
+          <div key={d} className={`text-center ${weekdayHeaderPad} text-meta font-medium`} style={{ fontSize: weekdayHeaderSize }}>{d}</div>
         ))}
       </div>
       {/* Day cells — week band + heatmap, combined (per direct feedback, continuing the picked
@@ -270,14 +273,16 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                     <button>, brought up to the same state contract as the primitives: focus-ring,
                     active:scale, and the shared lift tokens for hover/pressed. */}
                 <button
+                  role="gridcell"
+                  aria-selected={isSelected || undefined}
                   onClick={() => onSelectDate(cellDate)}
                   onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
                   className="focus-ring flex items-center justify-center w-full py-px cursor-pointer group active:scale-[0.97] transition-transform duration-fast"
                 >
                   <span
-                    className={`flex items-center justify-center ${squareSize} rounded-control leading-none transition-[filter,background-color] duration-150
+                    className={`flex items-center justify-center ${squareSize} rounded-compact leading-none transition-[filter,background-color] duration-150
                       ${isToday ? 'bg-accent text-white font-semibold group-hover:brightness-125'
-                        : isSelected ? 'text-text-primary ring-1 ring-inset ring-border group-hover:bg-lift-2 group-active:bg-lift-3'
+                        : isSelected ? 'text-text-primary ring-1 ring-inset ring-accent/60 group-hover:bg-lift-2 group-active:bg-lift-3'
                         : 'text-text-secondary font-medium group-hover:bg-lift-2 group-active:bg-lift-3'}`}
                     style={{
                       fontSize: dayCellSize,
@@ -292,7 +297,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           )
         }
         return (
-          <div className={`grid grid-cols-7 ${gridGap}`}>
+          <div role="grid" className={`grid grid-cols-7 ${gridGap}`} onKeyDown={gridRovingNav}>
             {weekOnly
               ? weekDates.map((d, i) => renderDayCell(d, i, false))
               : (
