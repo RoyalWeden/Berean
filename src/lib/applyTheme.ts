@@ -55,6 +55,9 @@ export function applyThemeToDocument(opts: ApplyThemeOptions): void {
   html.classList.toggle('scheme-dark', isDark)
   html.classList.toggle('scheme-light', !isDark)
   html.style.colorScheme = isDark ? 'dark' : 'light'
+  // html[data-glass] selects a whole knob set in global.css (alpha, blur, saturation, tint,
+  // highlight); the inline multiplier is kept for anything still reading it directly.
+  html.dataset.glass = glassAppearance ?? 'regular'
   html.style.setProperty('--glass-alpha-mult', String(GLASS_ALPHA_MULT[glassAppearance ?? 'regular']))
 
   const baseId = (themePreset && themePreset !== 'system-accent') ? themePreset.replace(/-(?:dark|light)$/, '') : ''

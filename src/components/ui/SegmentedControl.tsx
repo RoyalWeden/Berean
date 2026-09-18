@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
@@ -12,6 +12,8 @@ export interface SegmentOption<T extends string> {
   /** Tooltip / accessible name (required when `label` is omitted). */
   title?: string
   disabled?: boolean
+  /** Small trailing count / badge. */
+  badge?: string | number
 }
 
 export interface SegmentedControlProps<T extends string> {
@@ -21,6 +23,10 @@ export interface SegmentedControlProps<T extends string> {
   size?: 'sm' | 'md'
   /** Stretch segments to fill the container width. */
   fill?: boolean
+  /** 'segmented' (default) — capsule track with a sliding thumb (mode switches, filters).
+   *  'inspector' — flat tab strip for inspector/panel headers: no track, selected segment gets
+   *  a rounded-square fill; same selection logic, typography and keyboard behavior (§33/§48). */
+  variant?: 'segmented' | 'inspector'
   /** Accessible group label. */
   'aria-label'?: string
   className?: string
@@ -28,28 +34,48 @@ export interface SegmentedControlProps<T extends string> {
 }
 
 const SIZE = {
-  sm: { seg: 'h-[22px] px-2 text-caption2 gap-1', icon: 11 },
-  md: { seg: 'h-[26px] px-2.5 text-caption gap-1.5', icon: 13 },
+  sm: { seg: 'h-[22px] px-2 text-caption2 gap-1', icon: 12 },
+  md: { seg: 'h-[26px] px-2.5 text-caption gap-1.5', icon: 14 },
 }
 
 /**
- * Capsule segmented control with a sliding thumb — the one mutually-exclusive selector.
- * Replaces HeaderSegmentedToggle, the right-panel tab strip, the cross-ref source toggle,
- * Notes' view-mode/word-mode pills, Lexicon's sort toggle and ImportModal's underline tabs.
+ * The one tab/segment primitive: mutually-exclusive selector with an animated selection thumb.
+ * Arrow keys (←/→ or ↑/↓), Home/End move the selection (WAI radiogroup); Tab leaves the group.
  */
 export function SegmentedControl<T extends string>({
-  value, options, onChange, size = 'sm', fill, className, 'aria-label': ariaLabel, disabled,
+  value, options, onChange, size = 'sm', fill, variant = 'segmented', className, 'aria-label': ariaLabel, disabled,
 }: SegmentedControlProps<T>) {
   const layoutId = useId()
   const s = SIZE[size]
+  const inspector = variant === 'inspector'
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const fwd = e.key === 'ArrowRight' || e.key === 'ArrowDown'
+    const back = e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+    const edge = e.key === 'Home' || e.key === 'End'
+    if (!fwd && !back && !edge) return
+    const enabled = options.filter((o) => !o.disabled)
+    if (!enabled.length) return
+    const i = enabled.findIndex((o) => o.value === value)
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? enabled.length - 1 : fwd ? (i + 1) % enabled.length : (i - 1 + enabled.length) % enabled.length
+    e.preventDefault()
+    const v = enabled[next].value
+    if (v !== value) onChange(v)
+    const btn = e.currentTarget.querySelector<HTMLButtonElement>(`[data-value="${CSS.escape(v)}"]`)
+    btn?.focus()
+  }
   return (
     <div
       role="radiogroup"
       aria-label={ariaLabel}
       aria-disabled={disabled || undefined}
-      className={cx('no-drag inline-flex items-stretch p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)] flex-shrink-0', fill && 'flex w-full', disabled && 'opacity-40 pointer-events-none', className)}
+      onKeyDown={onKeyDown}
+      className={cx(
+        'no-drag inline-flex items-stretch flex-shrink-0',
+        inspector ? 'gap-0.5' : 'p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)]',
+        fill && 'flex w-full', disabled && 'opacity-40 pointer-events-none', className,
+      )}
     >
-      {options.map(({ value: v, label, icon: Icon, title, disabled: segDisabled }) => {
+      {options.map(({ value: v, label, icon: Icon, title, disabled: segDisabled, badge }) => {
         const on = v === value
         const btn = (
           <button
@@ -58,10 +84,13 @@ export function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={on}
             aria-label={label ? undefined : title}
+            data-value={v}
+            tabIndex={on ? 0 : -1}
             disabled={segDisabled}
             onClick={() => !on && onChange(v)}
             className={cx(
-              'focus-ring relative inline-flex items-center justify-center rounded-control font-medium select-none whitespace-nowrap cursor-pointer',
+              'focus-ring relative inline-flex items-center justify-center font-medium select-none whitespace-nowrap cursor-pointer',
+              inspector ? 'rounded-compact' : 'rounded-control',
               'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
               s.seg, fill && 'flex-1',
               on ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-lift-1 active:bg-lift-3',
@@ -71,13 +100,14 @@ export function SegmentedControl<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={SPRING_SNAPPY}
-                className="absolute inset-0 rounded-control bg-control-selected border border-hairline shadow-1"
+                className={cx('absolute inset-0', inspector ? 'rounded-compact bg-control-selected' : 'rounded-control bg-control-selected border border-hairline shadow-1')}
                 aria-hidden
               />
             )}
             <span className="relative inline-flex items-center gap-[inherit]">
               {Icon && <Icon size={s.icon} strokeWidth={on ? 2 : 1.75} />}
               {label && <span>{label}</span>}
+              {badge !== undefined && <span className="text-meta">{badge}</span>}
             </span>
           </button>
         )

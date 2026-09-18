@@ -1,17 +1,29 @@
-import { forwardRef, type HTMLAttributes } from 'react'
+import { forwardRef, useImperativeHandle, useRef, type HTMLAttributes, type RefObject } from 'react'
 import { cx } from './cx'
 import { ControlSurfaceContext, type ControlSurface } from './surface'
+import { useScrollEdge } from '@/lib/useScrollEdge'
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
   /** 'sm' 36px (list headers, sub-toolbars) · 'md' 44px (window toolbar, panel headers). */
   size?: 'sm' | 'md'
-  /** Hairline on the bottom (default) or top edge, or none. */
-  edge?: 'bottom' | 'top' | 'none'
+  /** Which edge touches scrolling content.
+   *  'auto' (default) — seamless at rest; hairline + soft shadow appear only once the content
+   *  beneath has scrolled (macOS scroll-edge effect). The scroll root is `scrollRef`, else the
+   *  bar's next scrollable sibling, else `scrolled` if the caller tracks it.
+   *  'bottom' / 'top' — permanent hairline (only where content never scrolls under the bar).
+   *  'none' — nothing. */
+  edge?: 'auto' | 'bottom' | 'top' | 'none'
+  /** Scroll container to observe for edge='auto'. */
+  scrollRef?: RefObject<HTMLElement>
+  /** Externally tracked scrolled state (store slice) for edge='auto'. */
+  scrolled?: boolean
+  /** Footer bar: the scroll edge is on its top. */
+  edgeSide?: 'bottom' | 'top'
   /** Stick to the top of a scroll container. */
   sticky?: boolean
   /** Use the sidebar (denser) material instead of the bar material. */
   material?: 'bar' | 'sidebar' | 'none'
-  /** Resting surface handed to child controls via context (default 'glass' — visible capsules,
+  /** Resting surface handed to child controls via context (default 'glass' — visible controls,
    *  matching macOS toolbars). Set 'ghost' for a bar that's already floating on its own glass
    *  surface (e.g. a popover/pill), where boxing every individual button too reads as doubled-up
    *  chrome — controls should stay minimal until actually hovered. */
@@ -19,19 +31,26 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * M1 integrated bar. Every control inside defaults to the 'glass' resting surface (visible
- * capsules), matching macOS 26/27 toolbars. Use for the window toolbar, panel headers, list
- * headers, filter rows and sub-toolbars — anywhere a row of controls sits above content.
+ * M1 integrated bar. Every control inside defaults to the 'glass' resting surface, matching
+ * macOS 26/27 toolbars. Layout rhythm (§18): `gap-2` BETWEEN groups, `gap-0` inside a
+ * ControlGroup, `px-3` insets — one scale, no per-bar spacing.
  */
 export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar(
-  { size = 'sm', edge = 'bottom', sticky, material = 'bar', itemVariant = 'glass', className, children, ...rest }, ref,
+  { size = 'sm', edge = 'auto', scrollRef, scrolled: scrolledProp, edgeSide = 'bottom', sticky, material = 'bar', itemVariant = 'glass', className, children, ...rest }, ref,
 ) {
+  const inner = useRef<HTMLDivElement>(null)
+  useImperativeHandle(ref, () => inner.current as HTMLDivElement)
+  const auto = edge === 'auto'
+  const observed = useScrollEdge(inner, auto && scrolledProp === undefined ? (scrollRef ?? 'auto') : null, edgeSide)
+  const scrolled = auto ? (scrolledProp ?? observed) : false
   return (
     <ControlSurfaceContext.Provider value={itemVariant}>
       <div
-        ref={ref}
+        ref={inner}
+        data-scroll-edge={auto ? edgeSide : undefined}
+        data-scrolled={scrolled || undefined}
         className={cx(
-          'flex items-center gap-1.5 flex-shrink-0 min-w-0 px-2',
+          'flex items-center gap-2 flex-shrink-0 min-w-0 px-3',
           size === 'md' ? 'h-11' : 'h-9',
           material === 'bar' && 'material-bar', material === 'sidebar' && 'material-sidebar',
           edge === 'bottom' && 'border-b border-separator', edge === 'top' && 'border-t border-separator',

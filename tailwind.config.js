@@ -22,6 +22,9 @@ module.exports = {
         'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
         'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
         'text-muted': 'rgb(var(--color-text-muted) / <alpha-value>)',
+        'text-tertiary': 'rgb(var(--color-text-tertiary) / <alpha-value>)',
+        'text-quaternary': 'var(--color-text-quaternary)',
+        'text-disabled': 'var(--color-text-disabled)',
         'red-letter': 'rgb(var(--color-red-letter) / <alpha-value>)',
         // ── Semantic status (scheme-aware triples) ──
         destructive: 'rgb(var(--color-destructive) / <alpha-value>)',
@@ -30,7 +33,16 @@ module.exports = {
         info: 'rgb(var(--color-info) / <alpha-value>)',
         // ── Derived (already full colors — no <alpha-value>) ──
         separator: 'var(--color-separator)',
+        'separator-subtle': 'var(--separator-subtle)',
         border: 'var(--color-border)',
+        'border-elevated': 'var(--border-elevated)',
+        'border-focus': 'var(--border-focus)',
+        'border-active': 'var(--border-active)',
+        'surface-interactive': 'var(--surface-interactive)',
+        'surface-disabled': 'var(--surface-disabled)',
+        'surface-inspector': 'var(--surface-inspector)',
+        'scrim-modal': 'var(--scrim-modal)',
+        'scrim-light': 'var(--scrim-light)',
         'surface-elevated': 'var(--color-surface-elevated)',
         'surface-hover': 'var(--color-surface-hover)',
         'surface-pressed': 'var(--color-surface-pressed)',
@@ -83,7 +95,9 @@ module.exports = {
       // `shell` / `shell-lg` / `panel` are legacy aliases kept for migration.
       borderRadius: {
         chip: 'var(--radius-chip)',
+        compact: 'var(--radius-compact)',
         card: 'var(--radius-card)',
+        window: 'var(--radius-window)',
         row: 'var(--radius-row)',
         menu: 'var(--radius-menu)',
         sheet: 'var(--radius-sheet)',
@@ -110,7 +124,10 @@ module.exports = {
       transitionDuration: {
         fast: 'var(--motion-fast)',
         base: 'var(--motion-base)',
-        slow: 'var(--motion-slow)'
+        slow: 'var(--motion-slow)',
+        popover: 'var(--motion-popover)',
+        panel: 'var(--motion-panel)',
+        workspace: 'var(--motion-workspace)'
       },
       transitionTimingFunction: {
         mac: 'var(--motion-ease)',

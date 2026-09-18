@@ -3,7 +3,11 @@
  * Import from '@/components/ui' rather than deep paths.
  */
 export { cx } from './cx'
-export { ControlSurfaceContext, useControlSurface, type ControlSurface } from './surface'
+export { ControlSurfaceContext, useControlSurface, ControlGroupContext, useInControlGroup, ControlShapeContext, type ControlSurface, type ControlShape } from './surface'
+export { ControlGroup, type ControlGroupProps } from './ControlGroup'
+export { OverflowGroup, type OverflowGroupProps } from './OverflowGroup'
+export { TitleControl, type TitleControlProps } from './TitleControl'
+export { AlertSheet, type AlertSheetProps } from './AlertSheet'
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button'
 export { IconButton, type IconButtonProps, type IconButtonSize } from './IconButton'
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from './SegmentedControl'

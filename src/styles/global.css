@@ -59,7 +59,7 @@
   --lift-3: rgb(var(--color-text-primary) / 0.11);
   --lift-4: rgb(var(--color-text-primary) / 0.16);
   --hairline: rgb(var(--color-text-primary) / 0.08);
-  --highlight: rgb(var(--color-text-primary) / 0.10);   /* inset top edge on glass */
+  --highlight: rgb(var(--color-text-primary) / var(--glass-highlight));   /* inset top edge on glass */
 
   /* M2 — interactive glass (controls). rest → hover → pressed; selected = raised thumb. */
   --control-bg: var(--lift-2);
@@ -69,6 +69,23 @@
   --control-highlight: inset 0 1px 0 var(--highlight);
   --control-selected-bg: color-mix(in srgb, rgb(var(--color-surface-3)) 90%, rgb(var(--color-text-primary)) 10%);
   --control-field-bg: rgb(var(--color-surface-1) / 0.55);
+
+  /* Role aliases (pass 3, §6): components consume ROLES, themes decide what they mean. */
+  --surface-interactive: var(--control-bg);
+  --surface-disabled: var(--lift-1);
+  /* Attached inspector pane (Scripture side panel, Notes side panel): a near-opaque, blur-free
+     surface between the sidebar ground and the content — a Mac inspector is a PANE, not a card. */
+  --surface-inspector: color-mix(in srgb, rgb(var(--color-surface-2)) 55%, rgb(var(--color-surface-3)) 45%);
+  --color-text-tertiary: var(--color-text-muted);                       /* triple — supports /alpha */
+  --color-text-quaternary: rgb(var(--color-text-muted) / 0.6);
+  --color-text-disabled: rgb(var(--color-text-muted) / 0.5);
+  --separator-subtle: var(--hairline);
+  --border-elevated: var(--highlight);
+  --border-focus: var(--color-focus-ring);
+  --border-active: rgb(var(--color-accent) / 0.55);
+  /* Scrims — the only two. modal = sheets/dialogs; light = transient app "windows" (⌘K, History). */
+  --scrim-modal: rgb(0 0 0 / calc(0.40 * var(--shadow-strength) + 0.08));
+  --scrim-light: rgb(0 0 0 / calc(0.18 * var(--shadow-strength) + 0.04));
 
   /* Interactive / elevated surfaces */
   --color-surface-elevated: color-mix(in srgb, rgb(var(--color-surface-2)) 96%, rgb(var(--color-text-primary)) 4%);
@@ -93,17 +110,25 @@
   --color-info: 96 165 250;
   --shadow-strength: 1;
 
-  /* Glass intensity multiplier — Settings → Appearance → Glass appearance
-     (clear 0.8 / regular 1 / tinted 1.18), mirroring macOS 27's transparency slider. */
-  --glass-alpha-mult: 1;
+  /* Glass knobs (§67/§108) — Settings → Appearance → Glass appearance stamps html[data-glass]
+     (clear / regular / tinted, mirroring macOS 27's transparency slider); each value re-tunes
+     THIS set and nothing else. Every .material-* below is built from these — never write a
+     literal blur()/saturate() in a material again. */
+  --glass-alpha-mult: 1;      /* opacity multiplier on every material alpha */
+  --glass-blur: 1;            /* multiplier on every material blur radius */
+  --glass-saturate: 1.4;      /* backdrop saturation */
+  --glass-contrast: 1;        /* backdrop contrast */
+  --glass-tint: 3%;           /* text-tinted "frost" mixed into bars/sidebar */
+  --glass-highlight: 0.10;    /* alpha of the inset top-edge highlight */
+  --glass-shadow: 1;          /* multiplier on floating-surface drop shadows */
 
   /* Materials: base surface + alpha + blur radius. Bars deliberately have NO blur —
      on mac the window itself is transparent with native vibrancy behind it, so the OS
      already blurs the desktop; a CSS backdrop-filter there would blur our own text. */
   --material-content: rgb(var(--color-surface-3));                       /* M0 */
-  --material-bar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.62) 97%, rgb(var(--color-text-primary)) 3%);   /* M1 */
-  --material-bar-bg-opaque: color-mix(in srgb, rgb(var(--color-surface-2)) 97%, rgb(var(--color-text-primary)) 3%);
-  --material-sidebar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.74) 97%, rgb(var(--color-text-primary)) 3%);
+  --material-bar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.62) calc(100% - var(--glass-tint)), rgb(var(--color-text-primary)) var(--glass-tint));   /* M1 */
+  --material-bar-bg-opaque: color-mix(in srgb, rgb(var(--color-surface-2)) calc(100% - var(--glass-tint)), rgb(var(--color-text-primary)) var(--glass-tint));
+  --material-sidebar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.74) calc(100% - var(--glass-tint)), rgb(var(--color-text-primary)) var(--glass-tint));
   --material-elevated-bg: rgb(var(--color-surface-1) / min(0.97, calc(0.84 * var(--glass-alpha-mult))));  /* M3+ */
   --material-elevated-blur: 24px;
   --material-panel-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.78 * var(--glass-alpha-mult))));
@@ -114,18 +139,27 @@
   --material-sheet-blur: 16px;
   --material-control-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.72 * var(--glass-alpha-mult))));
   --material-control-blur: 10px;
+  --material-inspector-bg: var(--surface-inspector);
+  /* Opaque twins — used by html[data-reduce-transparency] and non-vibrant windows */
+  --material-elevated-bg-opaque: rgb(var(--color-surface-1));
+  --material-panel-bg-opaque: rgb(var(--color-surface-2));
+  --material-popover-bg-opaque: rgb(var(--color-surface-1));
+  --material-sheet-bg-opaque: rgb(var(--color-surface-1));
+  --material-control-bg-opaque: rgb(var(--color-surface-2));
 
   /* Elevation — one recipe (inset top hairline + soft drop), three tiers */
   --shadow-1: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 0 1px 3px -1px rgb(0 0 0 / calc(0.35 * var(--shadow-strength)));
-  --shadow-2: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / calc(0.45 * var(--shadow-strength)));
-  --shadow-3: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 18px 50px -12px rgb(0 0 0 / calc(0.55 * var(--shadow-strength)));
+  --shadow-2: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / calc(0.45 * var(--shadow-strength) * var(--glass-shadow)));
+  --shadow-3: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 18px 50px -12px rgb(0 0 0 / calc(0.55 * var(--shadow-strength) * var(--glass-shadow)));
 
   /* Radii — macOS 27 scale. Concentric rule: inner = outer − inset. Window = 20pt. */
   --radius-chip: 4px;      /* marks, ref chips, tags, keycaps */
+  --radius-compact: 7px;   /* compact icon buttons / segments INSIDE a grouped control (rounded square) */
   --radius-card: 8px;      /* inline cards, code blocks, verse-embed blocks */
   --radius-row: 10px;      /* sidebar / list / tab rows, calendar cells */
   --radius-menu: 14px;     /* menus, popovers, inset side panels */
   --radius-sheet: 20px;    /* dialogs / sheets / large glass panels (= window radius) */
+  --radius-window: 12px;   /* surfaces that sit against the window's own corner */
   --radius-control: 9999px;/* capsule: every control ≤ 32px tall */
 
   /* Layering */
@@ -150,6 +184,9 @@
   --motion-fast: 100ms;
   --motion-base: 150ms;
   --motion-slow: 220ms;
+  --motion-popover: 160ms;   /* menus / popovers / tooltips scale-in from their origin */
+  --motion-panel: 240ms;     /* inspector / rail / side panels */
+  --motion-workspace: 280ms; /* tab / workspace cross-fades */
   --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -1741,18 +1778,30 @@ body {
   to   { opacity: 1; transform: scale(1); }
 }
 .animate-radix-popup-in {
-  animation: radix-popup-in 0.14s ease-out;
+  animation: radix-popup-in var(--motion-popover) var(--motion-ease-out) both;
+  /* Radix Popper exposes the side it resolved to as a transform-origin var on Content; the
+     inner element inherits it so the surface grows out of its trigger, not its own centre. */
+  transform-origin: var(--radix-popover-content-transform-origin, var(--radix-tooltip-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, center)));
 }
 
 /* ── Materials (design system) ──────────────────────────────────────────────
+   Four layers (docs/design-system.md → Layers):
+     content   — .material-content: flat, no glass, ever (Scripture, notes, definitions, graphs)
+     chrome    — .material-bar / .material-sidebar / .material-inspector: integrated panes
+     controls  — .control-glass / .control-field / .material-control: tactile M2
+     elevated  — .material-popover / .material-elevated / .material-sheet: transient surfaces
    .material-bar     — toolbars / sidebar ground. Translucent ONLY on a vibrant window
                        (html[data-vibrant], stamped by main.tsx for the main window on mac);
                        every other window (Windows, pop-out, viewer, trail, picker) is an
                        opaque BrowserWindow and gets the opaque fallback automatically.
-   .material-panel   — inset contextual panels (Scripture side panel). Blurred glass.
+   .material-inspector — ATTACHED inspector pane (Scripture side panel, Notes side panel):
+                       hairline left edge, no radius, no blur, no drop shadow.
+   .material-panel   — legacy inset floating panel (kept for CompareView/PDF; new code uses
+                       .material-inspector or .material-popover).
    .material-popover — menus, context menus, dropdowns, tooltips, hover cards, popovers.
    .material-sheet   — modal sheets / dialogs (denser so long-form content stays legible).
-   .material-control — a single floating capsule control (e.g. the notes editor toolbar).   */
+   .material-control — a single floating grouped control (e.g. the notes editor toolbar).
+   Every blur()/saturate() below is driven by the --glass-* knobs; html[data-glass] retunes them. */
 .material-bar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--highlight); }
 html[data-vibrant] .material-bar { background: var(--material-bar-bg); }
 /* Sidebar ground: same material, slightly more opaque than the toolbar (macOS 27 sidebars
@@ -1760,9 +1809,13 @@ html[data-vibrant] .material-bar { background: var(--material-bar-bg); }
 .material-sidebar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--highlight); }
 html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
 .material-content { background: var(--material-content); }
+.material-inspector {
+  background: var(--material-inspector-bg);
+  border-left: 1px solid var(--color-separator);
+}
 
 /* Interactive glass (M2) — the resting surface of every visible control (toolbar buttons,
-   secondary buttons, fields, segmented tracks, pill groups). Hover/pressed swap the fill only. */
+   secondary buttons, fields, segmented tracks, grouped controls). Hover/pressed swap the fill only. */
 .control-glass {
   background: var(--control-bg);
   border: 1px solid var(--control-border);
@@ -1774,40 +1827,42 @@ html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
 }
 
 /* Elevated glass (M3+) — Spotlight-class floating windows inside the app: History, ⌘K,
-   Tab Switcher. More blur than a popover, lighter scrim than a sheet. */
+   Tab Switcher, the expanded contextual rail. More blur than a popover, lighter scrim than a sheet. */
 .material-elevated {
   background: var(--material-elevated-bg);
-  backdrop-filter: blur(var(--material-elevated-blur)) saturate(1.5);
-  -webkit-backdrop-filter: blur(var(--material-elevated-blur)) saturate(1.5);
+  backdrop-filter: blur(calc(var(--material-elevated-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) + 0.1)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-elevated-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) + 0.1)) contrast(var(--glass-contrast));
   border: 1px solid var(--hairline);
   box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-3);
 }
 
 .material-panel {
   background: var(--material-panel-bg);
-  backdrop-filter: blur(var(--material-panel-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--material-panel-blur)) saturate(1.4);
+  backdrop-filter: blur(calc(var(--material-panel-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-panel-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
   border: 1px solid var(--color-separator);
-  box-shadow: var(--shadow-2);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2);
 }
 .material-popover {
   background: var(--material-popover-bg);
-  backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
+  backdrop-filter: blur(calc(var(--material-popover-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-popover-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
   border: 1px solid var(--color-separator);
-  box-shadow: var(--shadow-2);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2);
 }
+/* Denser popover for hover cards that sit directly over body text (verse / note previews). */
+.material-popover-dense { background: rgb(var(--color-surface-1) / min(0.99, calc(0.96 * var(--glass-alpha-mult)))); }
 .material-sheet {
   background: var(--material-sheet-bg);
-  backdrop-filter: blur(var(--material-sheet-blur)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--material-sheet-blur)) saturate(1.3);
+  backdrop-filter: blur(calc(var(--material-sheet-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-sheet-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-3);
 }
 .material-control {
   background: var(--material-control-bg);
-  backdrop-filter: blur(var(--material-control-blur)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--material-control-blur)) saturate(1.3);
+  backdrop-filter: blur(calc(var(--material-control-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-control-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
   border: 1px solid var(--color-separator);
   box-shadow: var(--shadow-1);
   border-radius: var(--radius-control);
@@ -1815,7 +1870,78 @@ html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
 /* Opaque windows have nothing behind them to blur — drop the filter (GPU cost) and rely on the
    alpha alone; the alpha still lets the app's own content beneath a popover show through. */
 html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(var(--color-surface-2) / 0.97); }
-.material-panel { box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2); }
+
+/* Glass appearance presets (Settings → Appearance → Glass appearance). */
+html[data-glass="clear"]  { --glass-alpha-mult: 0.8;  --glass-blur: 1.15; --glass-saturate: 1.55; --glass-tint: 2%; --glass-highlight: 0.13; }
+html[data-glass="tinted"] { --glass-alpha-mult: 1.18; --glass-blur: 0.85; --glass-saturate: 1.25; --glass-tint: 5%; --glass-highlight: 0.08; }
+
+/* Reduce Transparency (System Settings → Accessibility → Display, forwarded by electron/main.ts as
+   html[data-reduce-transparency]; the media query covers browsers that expose it directly).
+   Every material becomes its opaque twin and drops its backdrop filter — glass must never be a
+   precondition for a legible app. */
+html[data-reduce-transparency] .material-bar,
+html[data-reduce-transparency] .material-sidebar { background: var(--material-bar-bg-opaque); }
+html[data-reduce-transparency] .material-elevated { background: var(--material-elevated-bg-opaque); }
+html[data-reduce-transparency] .material-panel    { background: var(--material-panel-bg-opaque); }
+html[data-reduce-transparency] .material-popover  { background: var(--material-popover-bg-opaque); }
+html[data-reduce-transparency] .material-sheet    { background: var(--material-sheet-bg-opaque); }
+html[data-reduce-transparency] .material-control  { background: var(--material-control-bg-opaque); }
+html[data-reduce-transparency] .material-elevated,
+html[data-reduce-transparency] .material-panel,
+html[data-reduce-transparency] .material-popover,
+html[data-reduce-transparency] .material-sheet,
+html[data-reduce-transparency] .material-control,
+html[data-reduce-transparency] .scrim-modal,
+html[data-reduce-transparency] .scrim-light { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+@media (prefers-reduced-transparency: reduce) {
+  .material-bar, .material-sidebar { background: var(--material-bar-bg-opaque); }
+  .material-elevated { background: var(--material-elevated-bg-opaque); }
+  .material-panel    { background: var(--material-panel-bg-opaque); }
+  .material-popover  { background: var(--material-popover-bg-opaque); }
+  .material-sheet    { background: var(--material-sheet-bg-opaque); }
+  .material-control  { background: var(--material-control-bg-opaque); }
+  .material-elevated, .material-panel, .material-popover, .material-sheet, .material-control { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+}
+
+/* Inactive window (§85) — electron/main.ts forwards blur/focus as html[data-inactive]. A Mac window
+   that isn't key drops its accent: selection goes neutral, controls flatten, bar text recedes.
+   Only chrome reacts; content (Scripture, notes) is untouched so reading isn't disturbed. */
+html[data-inactive] {
+  --color-accent-muted: var(--lift-2);
+  --color-accent-hover: var(--lift-3);
+  --color-focus-ring: rgb(var(--color-text-muted) / 0.6);
+  --glass-highlight: 0.05;
+  --shadow-strength: 0.6;
+}
+html[data-inactive] .material-bar,
+html[data-inactive] .material-sidebar,
+html[data-inactive] .material-inspector { color: rgb(var(--color-text-secondary)); }
+html[data-inactive] .material-bar .control-glass,
+html[data-inactive] .material-sidebar .control-glass { box-shadow: none; background: var(--lift-1); }
+html[data-inactive] .text-accent { color: rgb(var(--color-text-secondary)); }
+
+/* Scrims — the only two (§58). */
+.scrim-modal { background: var(--scrim-modal); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.scrim-light { background: var(--scrim-light); }
+
+/* Scroll-edge (§37/§61) — a bar that content scrolls beneath shows its hairline + a soft shadow
+   ONLY while scrolled (useScrollEdge / Toolbar edge="auto"); at rest it is seamless with the page. */
+[data-scroll-edge] { transition: box-shadow var(--motion-base) var(--motion-ease); }
+[data-scroll-edge="bottom"][data-scrolled] { box-shadow: inset 0 1px 0 var(--highlight), 0 1px 0 var(--color-separator), 0 4px 12px -4px rgb(0 0 0 / calc(0.35 * var(--shadow-strength))); }
+[data-scroll-edge="top"][data-scrolled]    { box-shadow: 0 -1px 0 var(--color-separator), 0 -4px 12px -4px rgb(0 0 0 / calc(0.35 * var(--shadow-strength))); }
+
+/* Menu entrance from its trigger (§57/§103): MenuPositioner sets --menu-origin from the side it
+   actually opened toward; the surface scales in from there. PopoverSurface/Tooltip use Radix's
+   own --radix-*-content-transform-origin the same way. */
+@keyframes menu-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.animate-menu-in { animation: menu-in var(--motion-popover) var(--motion-ease-out) both; transform-origin: var(--menu-origin, top left); }
+
+/* Find / search-term marks — one pigment for every "matched text" highlight. */
+.find-mark { background-color: rgb(var(--highlight-amber) / 0.35); color: rgb(var(--color-text-primary)); border-radius: var(--radius-chip); font-weight: 600; }
+
+/* Meta text role (§78): the ONE way to render counts, timestamps, word counts, status —
+   caption2 + tertiary, tabular. Never stack opacity-* on top of a muted text color. */
+.text-meta { font-size: var(--text-caption2); line-height: 1.3; color: rgb(var(--color-text-muted)); font-variant-numeric: tabular-nums; }
 
 /* Global reduced-motion: every CSS transition/animation collapses to (near) zero. framer-motion
    is covered separately by <MotionConfig reducedMotion="user"> at each renderer root. */

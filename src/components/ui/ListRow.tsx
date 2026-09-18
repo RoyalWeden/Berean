@@ -39,6 +39,12 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
   titleClamp?: 2 | 3
   /** aria-current / role overrides for the inner control. */
   buttonProps?: Record<string, unknown>
+  /** Title type role. Defaults to footnote (dense) / subhead — set explicitly instead of
+   *  fighting the default with `!text-*` in titleClassName. */
+  titleSize?: 'caption' | 'footnote' | 'subhead' | 'body'
+  /** Edge-to-edge list rows (sidebar tab list, inspector lists): no radius, no inset — the
+   *  selection fill runs to the container edges like a Mac source list. */
+  flush?: boolean
 }
 
 /**
@@ -48,13 +54,15 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
  * handlers passed via ...rest.
  */
 export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow(
-  { leading, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, titleClamp, buttonProps, ...rest }, ref,
+  { leading, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, titleClamp, buttonProps, titleSize, flush, ...rest }, ref,
 ) {
+  const size = titleSize ?? (dense ? 'footnote' : 'subhead')
   return (
     <div
       ref={ref}
       className={cx(
-        'group/row relative flex items-stretch rounded-row min-w-0 select-none',
+        'group/row relative flex items-stretch min-w-0 select-none',
+        flush ? 'rounded-none' : 'rounded-row',
         'transition-colors duration-fast',
         current ? 'bg-accent-muted' : selected ? 'bg-surface-selected' : 'hover:bg-lift-2',
         'has-[button:active]:bg-lift-3',
@@ -74,8 +82,9 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
           'aria-selected': selected || undefined,
           'aria-current': current ? 'true' : undefined,
           className: cx(
-            'focus-ring flex-1 min-w-0 flex items-center gap-2 text-left rounded-row cursor-pointer outline-none',
-            dense ? 'h-7 px-2' : 'min-h-9 px-2.5 py-1.5',
+            'focus-ring flex-1 min-w-0 flex items-center gap-2 text-left cursor-pointer outline-none',
+            flush ? 'rounded-none' : 'rounded-row',
+            dense ? 'h-7' : 'min-h-9 py-1.5', flush ? 'px-3' : dense ? 'px-2' : 'px-2.5',
             current ? 'text-accent' : 'text-text-primary',
             buttonClassName,
           ),
@@ -87,11 +96,12 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
           <span className={cx(
             'block',
             titleClamp === 3 ? 'line-clamp-3 whitespace-normal' : titleClamp === 2 ? 'line-clamp-2 whitespace-normal' : 'truncate',
-            dense ? 'text-footnote' : 'text-subhead', (selected || current) ? 'font-medium' : 'font-normal', titleClassName,
+            size === 'caption' ? 'text-caption' : size === 'footnote' ? 'text-footnote' : size === 'body' ? 'text-body' : 'text-subhead',
+            (selected || current) ? 'font-medium' : 'font-normal', titleClassName,
           )}>{title}</span>
           {subtitle && <span className={cx('block truncate text-caption2 text-text-muted mt-px', subtitleClassName)}>{subtitle}</span>}
         </span>,
-        meta && <span key="m" className="flex-shrink-0 text-caption2 text-text-muted tabular-nums">{meta}</span>,
+        meta && <span key="m" className="flex-shrink-0 text-meta">{meta}</span>,
       )}
       {trailing && (
         <div className={cx('flex items-center gap-0.5 pr-1 flex-shrink-0', !trailingAlways && 'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity duration-fast')}>

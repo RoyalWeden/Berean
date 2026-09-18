@@ -35,7 +35,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
           ref={ref}
           role="menu"
           onKeyDown={handleKey}
-          className={cx('material-popover rounded-menu text-footnote text-text-primary select-none min-w-[160px]', dense ? 'p-0.5' : 'p-1', className)}
+          className={cx('material-popover rounded-menu text-footnote text-text-primary select-none min-w-[160px] animate-menu-in', dense ? 'p-0.5' : 'p-1', className)}
           {...rest}
         >
           {children}

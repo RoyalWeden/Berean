@@ -168,6 +168,10 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
     ay = Math.max(pad, Math.min(ay, vh - height - pad))
     el.style.left = `${ax}px`
     el.style.top  = `${ay}px`
+    // Origin-aware entrance (§57/§103): the menu grows out of the corner nearest its trigger.
+    const flippedX = align === 'right' || ax < x
+    const flippedY = ay < y
+    el.style.setProperty('--menu-origin', `${flippedY ? 'bottom' : 'top'} ${flippedX ? 'right' : 'left'}`)
   })
 
   // Explicit inline no-drag: this is portaled to document.body, so it can end up rendered
