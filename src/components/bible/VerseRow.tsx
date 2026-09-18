@@ -1682,8 +1682,12 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               return (
             <div
               ref={noteHoverRef}
-              className="fixed z-popover w-[260px] max-h-[420px] overflow-y-auto material-popover rounded-menu"
-              style={{ left: noteHover.x, top: noteHover.y }}
+              className="fixed z-popover w-[300px] max-h-[440px] overflow-y-auto material-popover rounded-menu"
+              // Denser than the default popover alpha (0.86) — this floats directly over live
+              // Scripture text, which read as too see-through to comfortably read the popup's
+              // own rows against. Still genuinely translucent (a hair of the text behind shows
+              // through at the edges), just not enough to compete with what's under it.
+              style={{ left: noteHover.x, top: noteHover.y, backgroundColor: 'rgb(var(--color-surface-1) / 0.96)' }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
               onMouseLeave={() => setNoteHover(null)}
             >
@@ -1707,7 +1711,6 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 return (
                   <ListRow
                     key={note.id}
-                    dense
                     onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
                     onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                     title={
@@ -1718,6 +1721,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       </span>
                     }
                     subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
+                    subtitleClassName="text-footnote"
+                    buttonClassName="py-2"
                   />
                 )
               })}
@@ -1735,11 +1740,12 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   {rnShown.map((note) => (
                     <ListRow
                       key={note.id}
-                      dense
                       onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
                       onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                       title={note.title || 'Untitled'}
                       subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
+                      subtitleClassName="text-footnote"
+                      buttonClassName="py-2"
                     />
                   ))}
                 </>
@@ -1764,8 +1770,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           {crossRefHover && createPortal(
             <div
               ref={crossRefHoverRef}
-              className="fixed z-popover w-[280px] max-h-[400px] overflow-y-auto material-popover rounded-menu"
-              style={{ left: crossRefHover.x, top: crossRefHover.y }}
+              className="fixed z-popover w-[320px] max-h-[420px] overflow-y-auto material-popover rounded-menu"
+              style={{ left: crossRefHover.x, top: crossRefHover.y, backgroundColor: 'rgb(var(--color-surface-1) / 0.96)' }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
               onMouseLeave={() => { if (!indicatorMenu) setCrossRefHover(null) }}
             >
@@ -1781,7 +1787,6 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
                   <ListRow
                     key={i}
-                    dense
                     onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }, { keepCrossRefHover: true }) }}
                     onClick={() => {
                       setCrossRefHover(null)
@@ -1789,10 +1794,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                     }}
                     title={
                       <span className="flex items-baseline gap-1">
-                        <span className="font-mono font-semibold text-accent flex-shrink-0">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
+                        <span className="font-semibold text-accent flex-shrink-0">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
                         <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
                       </span>
                     }
+                    buttonClassName="py-2"
                   />
                 ))}
               </div>

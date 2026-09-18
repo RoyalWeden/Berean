@@ -776,7 +776,6 @@ function EntryView({
                 return (
                   <OccurrenceRowUI
                     key={i}
-                    dense={false}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
                     onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: wr(occ.text ?? '') })}
                     refLabel={refLabel}
@@ -785,12 +784,9 @@ function EntryView({
                       {multipleMatches && <RefChip variant="neutral" size="xs">×{occ.matchWordIndices?.length}</RefChip>}
                     </>}
                     text={
-                      <span className="text-footnote text-text-secondary leading-relaxed">
-                        {occ.text
-                          ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
-                          : <span className="italic text-text-muted">—</span>
-                        }
-                      </span>
+                      occ.text
+                        ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
+                        : <span className="italic text-text-muted">—</span>
                     }
                   />
                 )

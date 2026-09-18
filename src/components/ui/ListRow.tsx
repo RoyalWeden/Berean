@@ -31,6 +31,8 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
   /** Extra classes for the inner button. */
   buttonClassName?: string
   titleClassName?: string
+  /** Extra classes for the subtitle line (default text-caption2 text-text-muted). */
+  subtitleClassName?: string
   /** aria-current / role overrides for the inner control. */
   buttonProps?: Record<string, unknown>
 }
@@ -42,7 +44,7 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
  * handlers passed via ...rest.
  */
 export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow(
-  { leading, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, buttonProps, ...rest }, ref,
+  { leading, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, buttonProps, ...rest }, ref,
 ) {
   return (
     <div
@@ -79,7 +81,7 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
         leading && <span key="l" className="flex-shrink-0 inline-flex items-center justify-center text-text-muted">{leading}</span>,
         <span key="t" className="flex-1 min-w-0">
           <span className={cx('block truncate', dense ? 'text-footnote' : 'text-subhead', (selected || current) ? 'font-medium' : 'font-normal', titleClassName)}>{title}</span>
-          {subtitle && <span className="block truncate text-caption2 text-text-muted mt-px">{subtitle}</span>}
+          {subtitle && <span className={cx('block truncate text-caption2 text-text-muted mt-px', subtitleClassName)}>{subtitle}</span>}
         </span>,
         meta && <span key="m" className="flex-shrink-0 text-caption2 text-text-muted tabular-nums">{meta}</span>,
       )}

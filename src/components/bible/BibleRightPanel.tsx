@@ -343,7 +343,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           {hasDerivation && (
             <div>
               <SectionLabel className="mb-1">Derivation</SectionLabel>
-              <p className="text-caption text-text-muted leading-relaxed italic">
+              <p className="text-footnote text-text-muted leading-relaxed italic">
                 {/* Was a separate inline copy of this same split/link logic — missing
                     DerivationText's guard against linkifying chapter:verse references (e.g.
                     "(Deuteronomy 32:38)" got read as bare Strong's numbers). Shared component
@@ -357,7 +357,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               <SectionLabel className="mb-1">
                 {activeEntry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
               </SectionLabel>
-              <p className="text-caption text-text-muted leading-relaxed">{extDefNorm}</p>
+              <p className="text-footnote text-text-muted leading-relaxed">{extDefNorm}</p>
             </div>
           )}
           {related.length > 0 && (
@@ -407,7 +407,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               <p className="text-caption text-text-muted">No occurrence data.</p>
             )}
             {!occurrencesLoading && occurrences.length > 0 && (
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {(showAllOccurrences ? occurrences : occurrences.slice(0, 8)).map((occ, i) => {
                   const bk = (() => { try { return bookName(occ.book_id) } catch { return occ.book_id } })()
                   const refLabel = `${bk} ${occ.chapter}:${occ.verse_num}`
@@ -609,10 +609,10 @@ function CrossRefCard({
       className="focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast cursor-pointer group"
     >
       <div className="flex items-center gap-1.5">
-        <RefChip size="xs" className="w-fit">{refLabel}</RefChip>
+        <RefChip size="xs" mono={false} className="w-fit">{refLabel}</RefChip>
         {meta}
       </div>
-      <p className="text-caption text-text-secondary leading-relaxed">
+      <p className="text-footnote text-text-secondary leading-relaxed">
         <VerseText bookId={bookId} chapter={chapter} verse={verse} endVerse={endVerse} />
       </p>
       {footer}
@@ -1613,7 +1613,7 @@ export default function BibleRightPanel({
               {note.title || 'Untitled'}
             </span>
           </div>
-          <div className={`text-caption2 text-text-muted mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
+          <div className={`text-caption text-text-muted mt-0.5 leading-relaxed ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
             {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
           </div>
           <div className="flex items-center gap-1.5 mt-1">
@@ -1718,7 +1718,18 @@ export default function BibleRightPanel({
                     else if (slotId === 'B') onMoveTab?.(tab, 'A')
                   }}
                   onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
-                  onClick={() => { onTabChange(tab); void closeSidebarNote() }}
+                  // Clicking the ALREADY-active tab closes that slot instead of re-selecting it —
+                  // the native "toggle an inspector pane by clicking its own toolbar icon again"
+                  // idiom (Xcode/Preview). Slot A closes the whole panel (or promotes slot B into
+                  // its place, via onCloseSlotA), slot B just drops. Falls back to a normal
+                  // tab-switch if the slot has no close handler wired (shouldn't happen in
+                  // practice — both slots always receive one — but never leaves the tab inert).
+                  onClick={() => {
+                    const closeThisSlot = slotId === 'B' ? onCloseSlotB : onCloseSlotA
+                    if (active && closeThisSlot) { closeThisSlot(); return }
+                    onTabChange(tab)
+                    void closeSidebarNote()
+                  }}
                   role="radio"
                   aria-checked={active}
                   className={`
@@ -1928,7 +1939,7 @@ export default function BibleRightPanel({
                                 className="focus-ring w-full text-left px-3 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
                               >
                                 <div className="text-footnote font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
-                                <div className="text-caption2 text-text-muted mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
+                                <div className="text-caption text-text-muted mt-0.5 leading-relaxed truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
                               </button>
                               <IconButton
                                 icon={ExternalLink}
@@ -2000,7 +2011,7 @@ export default function BibleRightPanel({
                               <div className="text-footnote font-medium text-text-primary truncate">
                                 {note.title || 'Untitled'}
                               </div>
-                              <div className={`text-caption2 text-text-muted mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
+                              <div className={`text-caption text-text-muted mt-0.5 leading-relaxed ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
                                 {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
                               </div>
                               <div className="text-caption2 text-text-muted mt-0.5 opacity-70 truncate whitespace-nowrap">

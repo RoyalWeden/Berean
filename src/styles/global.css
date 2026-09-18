@@ -129,11 +129,16 @@
   --radius-control: 9999px;/* capsule: every control ≤ 32px tall */
 
   /* Layering */
+  /* Menus/popovers/selects are routinely spawned FROM WITHIN a modal Sheet (e.g. a <Select>
+     in Settings) and portal straight to document.body, so their stacking is pure z-index, not
+     DOM nesting — menu/popover must sit ABOVE modal or every such control renders invisibly
+     behind the sheet that opened it. Critical stays highest: it's for top-level app "windows"
+     (History, ⌘K, Tab Switcher, Theme Picker) that must appear above an underlying modal too. */
   --z-raised: 10;
   --z-overlay: 100;
-  --z-menu: 200;
-  --z-popover: 300;
-  --z-modal: 400;
+  --z-modal: 200;
+  --z-menu: 300;
+  --z-popover: 350;
   --z-critical: 500;
 
   /* Motion */

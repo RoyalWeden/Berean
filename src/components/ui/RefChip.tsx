@@ -11,13 +11,24 @@ const VARIANT: Record<RefChipVariant, string> = {
 }
 const SIZE = { xs: 'text-micro px-1 py-px', sm: 'text-caption2 px-1.5 py-0.5' }
 
-type Base = { variant?: RefChipVariant; size?: 'xs' | 'sm'; className?: string }
+type Base = {
+  variant?: RefChipVariant
+  size?: 'xs' | 'sm'
+  className?: string
+  /** Set false where the chip sits beside its own verse text and both must read as one
+   *  paragraph (occurrence lists, cross-ref cards) — the system font, not monospace. Small
+   *  standalone tag chips (sidebar badges, note verse tags) keep the default monospace look. */
+  mono?: boolean
+}
 
-/** Monospace reference chip ("Gen 1:1", "H7225"). Renders a <button> when `onClick` is given. */
+/** Reference chip ("Gen 1:1", "H7225") — monospace by default (a scannable tag look); pass
+ *  `mono={false}` when it needs to read as ordinary text alongside adjacent prose. Renders a
+ *  <button> when `onClick` is given. */
 export const RefChip = forwardRef<HTMLElement, Base & (ButtonHTMLAttributes<HTMLButtonElement> | HTMLAttributes<HTMLSpanElement>)>(
-  function RefChip({ variant = 'default', size = 'sm', className, ...rest }, ref) {
+  function RefChip({ variant = 'default', size = 'sm', mono = true, className, ...rest }, ref) {
     const cls = cx(
-      'inline-flex items-center font-mono font-semibold rounded-chip leading-none whitespace-nowrap tabular-nums',
+      'inline-flex items-center font-semibold rounded-chip leading-none whitespace-nowrap tabular-nums',
+      mono ? 'font-mono' : 'font-sans',
       SIZE[size], VARIANT[variant], className,
     )
     if ('onClick' in rest && rest.onClick) {
