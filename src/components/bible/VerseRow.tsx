@@ -1502,7 +1502,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'rounded bg-accent/8 ring-1 ring-inset ring-accent/30' : ''}`}
+      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'rounded-card bg-accent/8 ring-1 ring-inset ring-accent/30' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
@@ -1793,12 +1793,19 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
                     }}
                     title={
-                      <span className="flex items-baseline gap-1">
-                        <span className="font-semibold text-accent flex-shrink-0">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
+                      // Plain inline flow (not a flex row) so `titleClamp` below can actually
+                      // count wrapped LINES across ref + verse text together — a flex child
+                      // doesn't participate in the parent's line box the way inline text does,
+                      // so line-clamp silently no-ops on a flex wrapper.
+                      <>
+                        <span className="font-semibold text-accent">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
+                        {' '}
                         <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
-                      </span>
+                      </>
                     }
-                    buttonClassName="py-2"
+                    titleClamp={3}
+                    titleClassName="text-footnote"
+                    buttonClassName="py-2 items-start"
                   />
                 ))}
               </div>

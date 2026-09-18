@@ -9,11 +9,21 @@ const VARIANT: Record<RefChipVariant, string> = {
   lexicon: 'text-[rgb(var(--link-lexicon-ref))] bg-[rgb(var(--link-lexicon-ref)/0.14)]',
   neutral: 'text-text-secondary bg-surface-4/60',
 }
-const SIZE = { xs: 'text-micro px-1 py-px', sm: 'text-caption2 px-1.5 py-0.5' }
+const SIZE = {
+  xs: 'text-micro px-1 py-px',
+  sm: 'text-caption2 px-1.5 py-0.5',
+  /** Matches the app's --text-footnote body size — use beside prose set in text-footnote
+   *  (occurrence rows, cross-ref cards, search result snippets) so the ref reads as the same
+   *  size as the text it's labeling, not a smaller decoration. */
+  md: 'text-footnote px-1.5 py-0.5',
+  /** Matches --text-subhead — use beside prose set in text-subhead (e.g. Advanced Search's
+   *  main result rows). */
+  lg: 'text-subhead px-2 py-0.5',
+}
 
 type Base = {
   variant?: RefChipVariant
-  size?: 'xs' | 'sm'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   className?: string
   /** Set false where the chip sits beside its own verse text and both must read as one
    *  paragraph (occurrence lists, cross-ref cards) — the system font, not monospace. Small

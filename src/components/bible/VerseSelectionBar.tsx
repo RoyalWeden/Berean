@@ -182,7 +182,7 @@ export default function VerseSelectionBar() {
         style={{ zIndex: modalOpen ? 49 : 95 }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <Toolbar material="none" edge="none" size="sm" className="px-0 gap-0.5 h-auto">
+        <Toolbar material="none" edge="none" size="sm" itemVariant="ghost" className="px-0 gap-0.5 h-auto">
           <span className="px-2 text-footnote font-medium text-text-secondary whitespace-nowrap">{sel.length} selected</span>
           <Divider orientation="vertical" className="mx-0.5" />
 

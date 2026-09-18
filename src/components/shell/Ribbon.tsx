@@ -269,7 +269,12 @@ export default function Ribbon() {
           <IconButton
             icon={ZoomIn}
             label="Zoom"
-            tooltip={{ side: 'right' }}
+            // The zoom row below is itself a hover-triggered popover showing "Zoom" as its own
+            // label — IconButton's OWN built-in tooltip must stay off, or hovering shows two
+            // separate hover surfaces in quick succession (a small text tooltip, then the much
+            // wider zoom row replacing it), which read as "the hover thing is too big" and
+            // inconsistent with every other rail button's single, uniformly-sized tooltip.
+            tooltip={false}
             size={32}
             active={zoomPopoverOpen}
             onMouseEnter={openZoomOnHover}

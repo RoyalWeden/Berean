@@ -129,17 +129,22 @@
   --radius-control: 9999px;/* capsule: every control ≤ 32px tall */
 
   /* Layering */
-  /* Menus/popovers/selects are routinely spawned FROM WITHIN a modal Sheet (e.g. a <Select>
-     in Settings) and portal straight to document.body, so their stacking is pure z-index, not
-     DOM nesting — menu/popover must sit ABOVE modal or every such control renders invisibly
-     behind the sheet that opened it. Critical stays highest: it's for top-level app "windows"
-     (History, ⌘K, Tab Switcher, Theme Picker) that must appear above an underlying modal too. */
+  /* Menus/popovers/selects are routinely spawned FROM WITHIN a higher-level surface (a
+     <Select> in a Settings Sheet, a "word matching" dropdown inside the ⌘K palette, a color
+     picker from a context menu…) and portal straight to document.body, so their stacking is
+     pure z-index, not DOM nesting — each tier below exists only so the NEXT thing spawned from
+     it can sit above it: modal (Settings, Import, Onboarding) sits above plain overlays;
+     critical (History, ⌘K, Tab Switcher, Theme Picker — standalone app "windows") sits above
+     modals since either can be opened while the other is around; and menu/popover sit above
+     BOTH, as the actual highest tier, because a menu can be spawned from inside ANY of them and
+     must always beat whatever spawned it. Getting this backwards is exactly how a dropdown
+     opened from inside the ⌘K palette or a Settings sheet used to render invisibly behind it. */
   --z-raised: 10;
   --z-overlay: 100;
   --z-modal: 200;
-  --z-menu: 300;
-  --z-popover: 350;
-  --z-critical: 500;
+  --z-critical: 300;
+  --z-menu: 400;
+  --z-popover: 450;
 
   /* Motion */
   --motion-fast: 100ms;

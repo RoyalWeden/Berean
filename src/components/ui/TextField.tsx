@@ -10,6 +10,12 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   trailing?: ReactNode
   /** Borderless, transparent variant for fields that live inside a bar/sheet header. */
   bare?: boolean
+  /** A `bare` field shows a focus underline by default (its only affordance otherwise, since it
+   *  has no box/ring of its own) — set false for a field that's ALREADY the obvious focal point
+   *  of its own floating surface (Spotlight-style search bars, find bars), where the underline
+   *  reads as a stray extra rule under text you're actively typing rather than as useful
+   *  feedback. Only takes effect when `bare` is set. */
+  bareUnderline?: boolean
   /** Extra classes for the wrapper (width, margins). */
   wrapperClassName?: string
   invalid?: boolean
@@ -19,7 +25,7 @@ const SIZE = { sm: { box: 'h-7 text-footnote', pad: 'px-2.5', icon: 12 }, md: { 
 
 /** Capsule text field with optional leading icon and trailing slot. */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { size = 'sm', icon: Icon, trailing, bare, invalid, className, wrapperClassName, ...rest }, ref,
+  { size = 'sm', icon: Icon, trailing, bare, bareUnderline = true, invalid, className, wrapperClassName, ...rest }, ref,
 ) {
   const s = SIZE[size]
   return (
@@ -36,7 +42,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           Icon && (size === 'sm' ? 'pl-7' : 'pl-8'),
           trailing && 'pr-7',
           bare
-            ? 'bg-transparent focus:shadow-[inset_0_-1.5px_0_var(--color-focus-ring)] rounded-none'
+            ? cx('bg-transparent rounded-none', bareUnderline && 'focus:shadow-[inset_0_-1.5px_0_var(--color-focus-ring)]')
             : cx('control-field bg-field hover:bg-surface-1/75 focus:bg-surface-1 focus:shadow-focus', invalid && 'shadow-[inset_0_0_0_1px_rgb(var(--color-destructive)/0.6)] focus:shadow-[0_0_0_1.5px_rgb(var(--color-surface-1)),0_0_0_3.5px_rgb(var(--color-destructive)/0.6)]'),
           className,
         )}

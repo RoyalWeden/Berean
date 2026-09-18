@@ -1,6 +1,6 @@
 import { forwardRef, type HTMLAttributes } from 'react'
 import { cx } from './cx'
-import { ControlSurfaceContext } from './surface'
+import { ControlSurfaceContext, type ControlSurface } from './surface'
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
   /** 'sm' 36px (list headers, sub-toolbars) · 'md' 44px (window toolbar, panel headers). */
@@ -11,6 +11,11 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
   sticky?: boolean
   /** Use the sidebar (denser) material instead of the bar material. */
   material?: 'bar' | 'sidebar' | 'none'
+  /** Resting surface handed to child controls via context (default 'glass' — visible capsules,
+   *  matching macOS toolbars). Set 'ghost' for a bar that's already floating on its own glass
+   *  surface (e.g. a popover/pill), where boxing every individual button too reads as doubled-up
+   *  chrome — controls should stay minimal until actually hovered. */
+  itemVariant?: ControlSurface
 }
 
 /**
@@ -19,10 +24,10 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
  * headers, filter rows and sub-toolbars — anywhere a row of controls sits above content.
  */
 export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar(
-  { size = 'sm', edge = 'bottom', sticky, material = 'bar', className, children, ...rest }, ref,
+  { size = 'sm', edge = 'bottom', sticky, material = 'bar', itemVariant = 'glass', className, children, ...rest }, ref,
 ) {
   return (
-    <ControlSurfaceContext.Provider value="glass">
+    <ControlSurfaceContext.Provider value={itemVariant}>
       <div
         ref={ref}
         className={cx(

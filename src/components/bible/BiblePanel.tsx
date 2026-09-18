@@ -3099,7 +3099,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 same grouped-button treatment with different radii/dividers
                 before being unified onto one primitive. */}
             <ActionPillGroup align="stretch">
-              <IconButton icon={ChevronLeft} label="Previous chapter" size={28} onClick={prevChapter} />
+              {/* self-center: the picker segment stretches to fill the pill's full height (its
+                  content — book/chapter/edition — is taller than a plain icon button), but these
+                  two chevrons have their own fixed 28px height, so `align-items: stretch` on the
+                  group leaves a flex item with a definite (non-auto) cross-axis size pinned to
+                  the start of the row instead of centered — self-center opts them back out. */}
+              <IconButton icon={ChevronLeft} label="Previous chapter" size={28} onClick={prevChapter} className="self-center" />
               {/* ── Unified book / chapter / edition / translation picker ──
                   The PDF library button now lives at the end of this picker's own
                   Edition row (as an icon) instead of a separate standalone toolbar
@@ -3115,7 +3120,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onOpenPdfLibrary={!floating && pdfFeatureEnabled ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
                 segmented
               />
-              <IconButton icon={ChevronRight} label="Next chapter" size={28} onClick={nextChapter} />
+              <IconButton icon={ChevronRight} label="Next chapter" size={28} onClick={nextChapter} className="self-center" />
             </ActionPillGroup>
             {/* Tag this whole chapter — the discoverable, always-visible entry point
                 (the per-verse popover's "Tag chapter…" item still works too). */}

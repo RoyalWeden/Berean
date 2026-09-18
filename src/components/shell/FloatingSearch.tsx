@@ -1283,6 +1283,7 @@ export default function FloatingSearch() {
                 placeholder="Gen 1:1 · Exodus 20 · in the beginning..."
                 size="md"
                 bare
+                bareUnderline={false}
                 wrapperClassName="w-full"
                 style={{ fontSize: 'var(--text-title3)', lineHeight: 1.35 }}
               />

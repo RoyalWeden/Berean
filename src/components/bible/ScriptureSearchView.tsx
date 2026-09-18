@@ -1759,7 +1759,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
                         className={`focus-ring mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-surface-2 border-l border-r border-separator ${isLastInGroup ? 'border-b rounded-b-card' : ''} ${row.indexInGroup > 0 ? 'border-t border-separator' : ''} ${isFocused ? 'bg-accent/10 ring-inset ring-1 ring-accent/30' : 'hover:bg-lift-2'}`}
                       >
-                        <RefChip size="sm" className="w-14 flex-shrink-0 justify-center py-1">
+                        <RefChip size="lg" mono={false} className="w-16 flex-shrink-0 justify-center py-1">
                           {r.chapter}:{r.verse_num}
                         </RefChip>
                         {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {

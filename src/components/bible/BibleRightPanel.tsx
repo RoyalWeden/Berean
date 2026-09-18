@@ -609,7 +609,7 @@ function CrossRefCard({
       className="focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast cursor-pointer group"
     >
       <div className="flex items-center gap-1.5">
-        <RefChip size="xs" mono={false} className="w-fit">{refLabel}</RefChip>
+        <RefChip size="md" mono={false} className="w-fit">{refLabel}</RefChip>
         {meta}
       </div>
       <p className="text-footnote text-text-secondary leading-relaxed">

@@ -479,7 +479,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                     className="!rounded-none border-b border-separator"
                     buttonClassName="items-start"
                     leading={
-                      <RefChip size="sm" variant="neutral" className="w-14 justify-center">
+                      <RefChip size="md" variant="neutral" mono={false} className="w-16 justify-center">
                         {r.chapter}:{r.verse_num}
                       </RefChip>
                     }

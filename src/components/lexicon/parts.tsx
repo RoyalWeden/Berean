@@ -69,7 +69,7 @@ export function OccurrenceRow({
       )}
     >
       <span className="flex items-center gap-1 flex-wrap">
-        <RefChip size="xs" mono={false}>{refLabel}</RefChip>
+        <RefChip size="md" mono={false}>{refLabel}</RefChip>
         {badges}
       </span>
       <span className="block text-footnote text-text-secondary leading-relaxed line-clamp-3">{text}</span>

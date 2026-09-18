@@ -52,7 +52,7 @@ export default function TaggedVerseList({
           >
             <ListRow
               onClick={() => first && onNavigate(first.bookId, first.chapter, first.verse)}
-              leading={<RefChip size="sm" className="text-caption px-2 py-1">{g.label}</RefChip>}
+              leading={<RefChip size="lg" mono={false} className="px-2 py-1">{g.label}</RefChip>}
               title={
                 <span className="flex items-center gap-2">
                   {g.tagName && (

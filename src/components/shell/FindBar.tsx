@@ -112,6 +112,7 @@ export default function FindBar({
           ref={inputRef}
           size="sm"
           bare
+          bareUnderline={false}
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={(e) => {

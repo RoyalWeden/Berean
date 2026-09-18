@@ -33,6 +33,10 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
   titleClassName?: string
   /** Extra classes for the subtitle line (default text-caption2 text-text-muted). */
   subtitleClassName?: string
+  /** Wrap the title to 2 or 3 lines (line-clamp) instead of the default single-line truncate —
+   *  for rows whose "title" is really a quoted passage that needs room to be read, not a name
+   *  to be scanned (verse/note preview hover cards). */
+  titleClamp?: 2 | 3
   /** aria-current / role overrides for the inner control. */
   buttonProps?: Record<string, unknown>
 }
@@ -44,7 +48,7 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
  * handlers passed via ...rest.
  */
 export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow(
-  { leading, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, buttonProps, ...rest }, ref,
+  { leading, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, titleClamp, buttonProps, ...rest }, ref,
 ) {
   return (
     <div
@@ -80,7 +84,11 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
         },
         leading && <span key="l" className="flex-shrink-0 inline-flex items-center justify-center text-text-muted">{leading}</span>,
         <span key="t" className="flex-1 min-w-0">
-          <span className={cx('block truncate', dense ? 'text-footnote' : 'text-subhead', (selected || current) ? 'font-medium' : 'font-normal', titleClassName)}>{title}</span>
+          <span className={cx(
+            'block',
+            titleClamp === 3 ? 'line-clamp-3 whitespace-normal' : titleClamp === 2 ? 'line-clamp-2 whitespace-normal' : 'truncate',
+            dense ? 'text-footnote' : 'text-subhead', (selected || current) ? 'font-medium' : 'font-normal', titleClassName,
+          )}>{title}</span>
           {subtitle && <span className={cx('block truncate text-caption2 text-text-muted mt-px', subtitleClassName)}>{subtitle}</span>}
         </span>,
         meta && <span key="m" className="flex-shrink-0 text-caption2 text-text-muted tabular-nums">{meta}</span>,
