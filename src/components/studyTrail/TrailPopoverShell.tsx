@@ -1,5 +1,5 @@
 import { GripHorizontal, X } from 'lucide-react'
-import { IconButton } from '@/components/ui'
+import { IconButton, cx } from '@/components/ui'
 
 // Shared visual shell for every note/reason-related popover in the Study Trail window
 // (ReasonPromptPopover, the arrival prompt's full-popup variant) — per direct feedback ("make
@@ -21,24 +21,19 @@ export default function TrailPopoverShell({
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }) {
   return (
-    <div className="no-drag material-popover rounded-menu" style={{ width, overflow: 'hidden' }}>
+    <div className="no-drag material-popover rounded-menu overflow-hidden" style={{ width }}>
       <div
         {...dragHandleProps}
-        className="no-drag border-b border-separator"
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-          padding: '8px 10px',
-          cursor: dragHandleProps ? 'grab' : 'default', userSelect: 'none',
-          ...dragHandleProps?.style,
-        }}
+        className={cx('no-drag border-b border-separator flex items-center justify-between gap-2 px-2.5 py-2 select-none', dragHandleProps ? 'cursor-grab' : 'cursor-default')}
+        style={dragHandleProps?.style}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
-          {dragHandleProps && <GripHorizontal size={12} color="rgb(var(--color-text-muted))" />}
+        <div className="flex items-center gap-1.5 text-footnote font-semibold text-text-primary">
+          {dragHandleProps && <GripHorizontal size={12} className="text-text-muted" />}
           {title}
         </div>
         <IconButton icon={X} label="Close" size={20} tooltip={false} onClick={onClose} />
       </div>
-      <div style={{ padding: 12 }}>{children}</div>
+      <div className="p-3">{children}</div>
     </div>
   )
 }

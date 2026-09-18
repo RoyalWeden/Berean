@@ -24,24 +24,24 @@ export default function SessionHoverContent({ session, tags }: { session: TrailS
   const fmtClock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
   return (
-    <div style={{ fontSize: 11, lineHeight: 1.5, minWidth: 170, maxWidth: 260 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 12, marginBottom: 2 }}>
-        <span style={{
-          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-          background: session.status === 'live' ? 'rgb(var(--trail-cool))' : session.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-muted))',
-        }} />
+    <div className="text-caption leading-relaxed" style={{ minWidth: 170, maxWidth: 260 }}>
+      <div className="flex items-center gap-1.5 font-semibold text-footnote mb-0.5">
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          style={{ background: session.status === 'live' ? 'rgb(var(--trail-cool))' : session.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-muted))' }}
+        />
         {session.name}
       </div>
-      <div style={{ color: 'rgb(var(--color-text-muted))' }}>
+      <div className="text-text-muted">
         {fmtClock(session.createdAt)} – {fmtClock(session.updatedAt)}
       </div>
       {tags.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
+        <div className="flex flex-wrap gap-1 mt-1.5">
           {tags.map((t) => (
             <span
               key={t.id}
+              className="text-micro rounded-control px-1.5 leading-[15px]"
               style={{
-                fontSize: 9.5, padding: '0 6px', borderRadius: 999, lineHeight: '15px',
                 background: t.color ? `${t.color}22` : 'rgb(var(--color-surface-3))',
                 color: t.color ?? 'rgb(var(--color-text-muted))',
               }}
@@ -49,13 +49,13 @@ export default function SessionHoverContent({ session, tags }: { session: TrailS
           ))}
         </div>
       )}
-      <div style={{ marginTop: 5, color: 'rgb(var(--color-text-secondary))' }}>
+      <div className="mt-1.5 text-text-secondary">
         {detail === 'loading' ? '…' : detail
           ? `${detail.nodes.length} chapter stop${detail.nodes.length === 1 ? '' : 's'} · ${detail.connections.length} connection${detail.connections.length === 1 ? '' : 's'}`
           : null}
       </div>
       {detail && detail !== 'loading' && detail.session.recapText && (
-        <div style={{ marginTop: 5, paddingTop: 5, borderTop: '1px solid rgb(var(--color-surface-4))', fontStyle: 'italic', color: 'rgb(var(--color-text-secondary))' }}>
+        <div className="mt-1.5 pt-1.5 border-t border-separator italic text-text-secondary">
           {detail.session.recapText}
         </div>
       )}

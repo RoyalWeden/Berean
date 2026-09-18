@@ -171,21 +171,13 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
               // Soft radial gradient + layered shadow (rather than a flat surface-2 fill) so the
               // bubble reads as "floating above" the bar instead of "pasted on" — plus a small
               // speech-bubble tail (below) pointing down at the exact bar position it reports.
-              className="fixed z-critical pointer-events-none flex items-center justify-center rounded-full border border-border"
-              style={{
-                left: bubblePos.x, top: bubblePos.y,
-                width: 44, height: 44,
-                background: 'radial-gradient(circle at 32% 28%, rgb(var(--color-surface-3)), rgb(var(--color-surface-1)) 75%)',
-                boxShadow: '0 10px 28px -6px rgba(0,0,0,0.4), 0 3px 10px -2px rgba(0,0,0,0.25)',
-              }}
+              className="material-popover fixed z-critical pointer-events-none flex items-center justify-center rounded-control"
+              style={{ left: bubblePos.x, top: bubblePos.y, width: 44, height: 44 }}
             >
               {/* Tail: a rotated square, half-hidden behind the circle's bottom edge, sharing the
                   circle's border on its visible (lower-right) edges so it reads as one continuous
                   callout shape rather than a separate floating diamond. */}
-              <span
-                className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 rotate-45 border-r border-b border-separator"
-                style={{ background: 'rgb(var(--color-surface-1))' }}
-              />
+              <span className="material-popover absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 rotate-45 border-r border-b border-separator" />
               <span className="relative text-title3 font-semibold text-text-primary tabular-nums">
                 {bubbleVerseNum}
               </span>
@@ -199,10 +191,10 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`relative w-full rounded-full bg-surface-4 cursor-pointer transition-[height] duration-150 ${expanded ? 'h-2' : 'h-[3px]'}`}
+        className={`relative w-full rounded-control bg-lift-3 cursor-pointer transition-[height] duration-150 ${expanded ? 'h-2' : 'h-[3px]'}`}
       >
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-150"
+          className="absolute inset-y-0 left-0 rounded-control bg-accent transition-[width] duration-150"
           style={{ width: `${fraction * 100}%` }}
         />
       </div>

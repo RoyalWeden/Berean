@@ -50,7 +50,8 @@ export default function TrailMapHeader({
         <GripVertical
           size={13}
           onMouseDown={onDragStart}
-          style={{ flexShrink: 0, cursor: 'grab', color: 'rgb(var(--color-text-muted))', opacity: 0.6 }}
+          className="flex-shrink-0 text-text-muted opacity-60"
+          style={{ cursor: 'grab' }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>{title}</div>
         <IconButton
@@ -68,7 +69,7 @@ export default function TrailMapHeader({
             placeholder="Filter timeline…"
             size="sm"
           />
-          <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))' }}>{statsLine}</div>
+          <div className="text-caption text-text-secondary">{statsLine}</div>
         </>
       )}
     </div>
