@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FileText, Upload, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { SearchField, MenuItem, IconButton } from '@/components/ui'
+import { SearchField, MenuItem, IconButton, ListRow } from '@/components/ui'
 import type { PdfDoc } from '@/types'
 
 interface Props {
@@ -89,18 +89,15 @@ export default function PdfPicker({ anchor, onClose }: Props) {
           </div>
         )}
         {filtered.map((p) => (
-          <button key={p.id} onClick={() => { openPdf(p.id, p.title); onClose() }}
-            className="group w-full flex items-center gap-2.5 px-2.5 py-2 rounded-row hover:bg-surface-hover cursor-pointer text-left">
-            <FileText size={14} className="text-text-muted flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-footnote font-medium text-text-primary truncate">{p.title}</p>
-              <p className="text-caption2 text-text-muted">
-                {p.pageCount ? `${p.pageCount} pages · ` : ''}{(p.fileSize / 1024 / 1024).toFixed(1)} MB
-              </p>
-            </div>
-            <IconButton icon={Trash2} label="Delete" size={20} danger tooltip={false}
-              className="opacity-0 group-hover:opacity-100" onClick={(e) => handleDelete(e, p.id)} />
-          </button>
+          <ListRow key={p.id}
+            leading={<FileText size={14} />}
+            title={p.title}
+            subtitle={`${p.pageCount ? `${p.pageCount} pages · ` : ''}${(p.fileSize / 1024 / 1024).toFixed(1)} MB`}
+            onClick={() => { openPdf(p.id, p.title); onClose() }}
+            trailing={
+              <IconButton icon={Trash2} label="Delete" size={20} danger tooltip={false} onClick={(e) => handleDelete(e, p.id)} />
+            }
+          />
         ))}
       </div>
     </div>,

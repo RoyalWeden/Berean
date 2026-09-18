@@ -1,4 +1,3 @@
-import { ToggleLeft, ToggleRight } from 'lucide-react'
 import { Switch, SectionLabel } from '@/components/ui'
 import type { WordReplacerRule } from '@/store'
 
@@ -15,8 +14,8 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
       {/* Master toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-primary">Word replacer</p>
-          <p className="s-desc text-xs text-text-muted mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Word replacer</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             Substitute archaic or Latinised names in scripture text with more recognisable forms.
             Only applies to the Scripture tab — never to notes, lexicon, or YouTube.
           </p>
@@ -31,10 +30,10 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
         const RuleRow = (rule: WordReplacerRule) => (
           <div
             key={rule.id}
-            className={`flex items-center justify-between px-3 py-2 rounded-row border transition-colors ${
+            className={`flex items-center justify-between px-3 py-2 rounded-row transition-colors ${
               rule.enabled && enabled
-                ? 'border-border bg-surface-3'
-                : 'border-border bg-surface-3/50 opacity-60'
+                ? 'bg-surface-elevated'
+                : 'bg-surface-elevated/50 opacity-60'
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -50,16 +49,9 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
                 <span className="text-micro px-1 py-0.5 rounded-chip bg-surface-4 text-text-muted flex-shrink-0">whole word</span>
               )}
             </div>
-            <button
-              onClick={() => onToggleRule(rule.id)}
-              title={rule.enabled ? 'Disable this rule' : 'Enable this rule'}
-              className="flex-shrink-0 ml-2 cursor-pointer"
-            >
-              {rule.enabled
-                ? <ToggleRight size={18} className="text-accent" />
-                : <ToggleLeft size={18} className="text-text-muted" />
-              }
-            </button>
+            <span className="ml-2">
+              <Switch checked={rule.enabled} onCheckedChange={() => onToggleRule(rule.id)} label={rule.enabled ? 'Disable this rule' : 'Enable this rule'} />
+            </span>
           </div>
         )
         return (

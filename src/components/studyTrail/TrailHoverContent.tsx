@@ -41,7 +41,7 @@ function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
   const color = TIER_COLOR[tier]
   return (
     <span
-      className="text-micro font-bold rounded-control px-1.5 py-px uppercase tracking-wide"
+      className="text-micro font-semibold rounded-control px-1.5 py-px uppercase tracking-wide"
       style={{
         color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
         border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
@@ -96,7 +96,7 @@ export function TrailNodeHoverContent({ node, originConn, onEditNote }: { node: 
             the hover thing if the user checked the lxx"). Suppressed for plain kjva since
             that's the silent default everyone assumes; anything else is worth calling out. */}
         {effectiveTranslation && effectiveTranslation !== 'kjva' && (
-          <span className="text-micro font-bold text-accent bg-accent-muted rounded-control px-1.5 py-px uppercase tracking-wide">
+          <span className="text-micro font-semibold text-accent bg-accent-muted rounded-control px-1.5 py-px uppercase tracking-wide">
             {effectiveTranslation}
           </span>
         )}

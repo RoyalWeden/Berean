@@ -30,6 +30,17 @@ export interface SheetProps {
   children: ReactNode
   /** Extra content on the header's trailing side (left of the close button). */
   headerActions?: ReactNode
+  /** 'stack' (default): header pinned above a single scrolling body. 'split': a left `sidebar`
+   *  column (own scroll, own material) beside the scrolling body — e.g. Settings' nav list. */
+  layout?: 'stack' | 'split'
+  /** Left column content when `layout="split"`. */
+  sidebar?: ReactNode
+  /** Passed through to Radix Dialog.Root — set `false` while a non-Portal overlay (e.g.
+   *  ThemePicker, which portals straight to document.body) needs to sit on top without Radix's
+   *  scroll-lock/inert sweep treating it as "outside". */
+  modal?: boolean
+  onPointerDownOutside?: (e: Event) => void
+  onInteractOutside?: (e: Event) => void
 }
 
 /**
@@ -37,13 +48,15 @@ export interface SheetProps {
  * card at the window's own 20px radius, native-ish header, Esc/click-outside to close
  * (Radix Dialog handles focus trapping and `aria-modal`).
  */
-export function Sheet({ open, onOpenChange, size = 'md', title, description, hideClose, critical, className, bodyClassName, children, headerActions }: SheetProps) {
+export function Sheet({ open, onOpenChange, size = 'md', title, description, hideClose, critical, className, bodyClassName, children, headerActions, layout = 'stack', sidebar, modal, onPointerDownOutside, onInteractOutside }: SheetProps) {
   const z = critical ? 'z-critical' : 'z-modal'
   return (
-    <RD.Root open={open} onOpenChange={onOpenChange}>
+    <RD.Root open={open} onOpenChange={onOpenChange} modal={modal}>
       <RD.Portal>
         <RD.Overlay className={cx('fixed inset-0 bg-black/40 animate-fade-in', z)} style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
         <RD.Content
+          onPointerDownOutside={onPointerDownOutside}
+          onInteractOutside={onInteractOutside}
           className={cx(
             'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col outline-none',
             'material-sheet rounded-sheet overflow-hidden text-text-primary animate-radix-popup-in',
@@ -64,7 +77,14 @@ export function Sheet({ open, onOpenChange, size = 'md', title, description, hid
               )}
             </div>
           )}
-          <div className={cx('flex-1 min-h-0 overflow-y-auto', bodyClassName)}>{children}</div>
+          {layout === 'split' ? (
+            <div className="flex-1 min-h-0 flex items-stretch">
+              <div className="material-sidebar border-r border-separator flex-shrink-0 overflow-y-auto">{sidebar}</div>
+              <div className={cx('flex-1 min-w-0 overflow-y-auto', bodyClassName)}>{children}</div>
+            </div>
+          ) : (
+            <div className={cx('flex-1 min-h-0 overflow-y-auto', bodyClassName)}>{children}</div>
+          )}
         </RD.Content>
       </RD.Portal>
     </RD.Root>

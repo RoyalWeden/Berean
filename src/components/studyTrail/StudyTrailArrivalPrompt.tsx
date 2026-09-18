@@ -246,9 +246,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
           toast's controls once it's actually open. Text wraps within the fixed PILL_WIDTH rather
           than the box resizing to fit it. */}
       {!expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
-          <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
-          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.35, color: 'rgb(var(--color-text-primary))' }}>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <MessageSquarePlus size={13} className="text-accent flex-shrink-0" />
+          <span className="flex-1 min-w-0 text-footnote font-semibold leading-snug text-text-primary">
             {question}
           </span>
         </div>
@@ -256,10 +256,10 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
       {/* Real form — always mounted (so expanding never pops in unmeasured), collapsed to
           max-height:0/opacity:0 until hover or touch. Compact per direct feedback ("less text/
           explanation, tighter layout"): smaller padding/font than the full popup. */}
-      <div style={{
+      <div className="text-footnote" style={{
         position: 'relative', maxHeight: expanded ? 2000 : 0, opacity: expanded ? 1 : 0, overflow: 'hidden',
         transition: 'max-height 160ms ease, opacity 130ms ease',
-        padding: expanded ? '10px 12px 12px' : '0 10px', fontSize: 11,
+        padding: expanded ? '10px 12px 12px' : '0 10px',
       }}>
         {/* Header when expanded — keeps the "Why'd you go to …?" question visible at the top of
             the hover form (per direct feedback), with the dismiss × on the same row. Inline
@@ -268,9 +268,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
             to input") — accent-tinted icon and a touch more weight/size on the question itself,
             instead of everything reading in the same flat muted grey. */}
         {expanded && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <MessageSquarePlus size={13} className="text-accent flex-shrink-0" />
+            <span className="flex-1 min-w-0 text-footnote font-semibold text-text-primary">
               {question}
             </span>
             <IconButton icon={X} label="Dismiss" size={20} tooltip={false} onClick={onClose} className="flex-shrink-0" />

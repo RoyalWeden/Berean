@@ -27,7 +27,7 @@ function ToggleRow({ icon, label, on, onClick }: { icon: React.ReactNode; label:
     >
       <span className={on ? 'text-accent' : 'text-text-muted'}>{icon}</span>
       <span className={`flex-1 text-left text-footnote font-medium ${on ? 'text-text-primary' : 'text-text-muted'}`}>{label}</span>
-      <span className={`text-micro font-bold uppercase tracking-wide ${on ? 'text-accent' : 'text-text-muted'}`}>{on ? 'On' : 'Off'}</span>
+      <span className={`text-micro font-semibold uppercase tracking-wide ${on ? 'text-accent' : 'text-text-muted'}`}>{on ? 'On' : 'Off'}</span>
       <span onClick={(e) => e.stopPropagation()}>
         <Switch checked={on} onCheckedChange={onClick} label={label} />
       </span>

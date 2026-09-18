@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react'
-import { Captions } from 'lucide-react'
+import { Captions, Play } from 'lucide-react'
 import { decodeEntities } from '@/lib/youtubeSearch'
-import { EmptyState, SearchField, SectionLabel } from '@/components/ui'
+import { EmptyState, SearchField, SectionLabel, ListRow, cx } from '@/components/ui'
 
 export interface TranscriptSegment {
   startMs: number
@@ -35,7 +35,7 @@ export default function TranscriptViewer({
   autoScroll?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const activeRef = useRef<HTMLButtonElement>(null)
+  const activeRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [userScrolling, setUserScrolling] = useState(false)
   const userScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -99,41 +99,22 @@ export default function TranscriptViewer({
           const isActive = i === activeIdx
           const dimmed = filtered ? !filtered.has(i) : false
           return (
-            <button
+            <ListRow
               key={i}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSeek(seg.startMs / 1000)}
-              title={`Jump to ${formatTs(seg.startMs)}`}
-              className={`group w-full text-left flex gap-2 items-start rounded-row px-2 py-1 cursor-pointer transition-colors ${
-                isActive
-                  ? 'bg-accent-muted ring-1 ring-inset ring-accent/40'
-                  : 'hover:bg-accent/10'
-              } ${dimmed ? 'opacity-30' : ''}`}
-            >
-              {/* Timestamp — turns accent-colored on hover */}
-              <span className={`flex-shrink-0 pt-0.5 text-caption2 font-mono tabular-nums transition-colors min-w-[36px] text-right ${
-                isActive
-                  ? 'text-accent'
-                  : 'text-text-muted group-hover:text-accent'
-              }`}>
-                {formatTs(seg.startMs)}
-              </span>
-              <span className={`flex-1 text-footnote leading-snug transition-colors ${
-                isActive
-                  ? 'text-text-primary font-medium'
-                  : 'text-text-secondary group-hover:text-text-primary'
-              }`}>
-                {decodeEntities(seg.text)}
-              </span>
-              {/* Play triangle — visible only on hover for non-active lines */}
-              {!isActive && (
-                <span className="ml-auto flex-shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg width="8" height="9" viewBox="0 0 8 9" fill="currentColor" className="text-accent">
-                    <path d="M0 0L8 4.5L0 9V0Z"/>
-                  </svg>
+              title={decodeEntities(seg.text)}
+              titleClassName={isActive ? 'font-medium' : undefined}
+              current={isActive}
+              className={cx(isActive && 'ring-1 ring-inset ring-accent/40', dimmed && 'opacity-30')}
+              buttonProps={{ title: `Jump to ${formatTs(seg.startMs)}` }}
+              leading={
+                <span className={cx('text-caption2 font-mono tabular-nums min-w-[36px] text-right', isActive ? 'text-accent' : 'text-text-muted')}>
+                  {formatTs(seg.startMs)}
                 </span>
-              )}
-            </button>
+              }
+              trailing={!isActive && <Play size={8} className="text-accent fill-accent" />}
+            />
           )
         })}
       </div>

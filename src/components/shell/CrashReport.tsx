@@ -48,7 +48,7 @@ export default function CrashReport() {
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-destructive/20 bg-destructive/8">
         <AlertTriangle size={14} className="text-destructive flex-shrink-0" />
-        <span className="text-xs font-semibold text-destructive flex-1">App recovered from a crash</span>
+        <span className="text-caption font-semibold text-destructive flex-1">App recovered from a crash</span>
         <IconButton icon={X} label="Dismiss" size={20} onClick={() => setCrash(null)} />
       </div>
 

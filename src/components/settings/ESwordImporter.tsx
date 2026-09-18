@@ -3,6 +3,7 @@ import { Download, Loader2, CheckCircle2, XCircle, FolderOpen, RefreshCw } from 
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ESwordReviewNote } from '@/types/electron'
+import { TextField, Button, IconButton, SegmentedControl, Checkbox } from '@/components/ui'
 
 type ReviewFilter = 'all' | 'new' | 'updated' | 'duplicate'
 type TypeFilter = 'all' | 'verse' | 'daily' | 'topic'
@@ -126,20 +127,14 @@ export default function ESwordImporter() {
         <div>
           <p className="text-caption font-medium text-text-secondary mb-1.5">e-Sword folder</p>
           <div className="flex gap-2 items-center">
-            <input
+            <TextField
               type="text"
               value={folder}
               onChange={e => setFolder(e.target.value)}
               placeholder="Path to folder containing study.notx…"
-              className="flex-1 px-2.5 py-1.5 rounded-control bg-surface-3 border border-border text-caption text-text-primary placeholder:text-text-muted outline-none focus:border-accent"
+              wrapperClassName="flex-1"
             />
-            <button
-              onClick={handleBrowse}
-              title="Browse"
-              className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer flex-shrink-0"
-            >
-              <FolderOpen size={14} />
-            </button>
+            <IconButton icon={FolderOpen} label="Browse" onClick={handleBrowse} className="flex-shrink-0" />
           </div>
         </div>
 
@@ -152,30 +147,20 @@ export default function ESwordImporter() {
               [importTopics, setImportTopics, 'topic.topx',  'Topic notes — general reference notes by topic title'],
               [importJournal,setImportJournal,'journal.jnlx','Daily notes — dated study journal entries'],
             ] as [boolean, (v: boolean) => void, string, string][]).map(([checked, set, file, desc]) => (
-              <label key={file} className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={e => set(e.target.checked)}
-                  className="mt-0.5 accent-accent flex-shrink-0"
-                />
-                <div>
-                  <span className="text-caption font-mono text-text-primary">{file}</span>
-                  <span className="text-caption2 text-text-muted ml-1.5">{desc}</span>
-                </div>
-              </label>
+              <Checkbox
+                key={file}
+                checked={checked}
+                onChange={e => set(e.target.checked)}
+                label={<span className="font-mono text-text-primary">{file}</span>}
+                description={desc}
+              />
             ))}
           </div>
         </div>
 
-        <button
-          onClick={handleRead}
-          disabled={!folder.trim() || (!importStudy && !importTopics && !importJournal)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-accent hover:bg-accent-hover text-white text-footnote font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Download size={13} />
+        <Button variant="primary" icon={Download} onClick={handleRead} disabled={!folder.trim() || (!importStudy && !importTopics && !importJournal)}>
           Read e-Sword Notes
-        </button>
+        </Button>
       </div>
     )
   }
@@ -189,16 +174,14 @@ export default function ESwordImporter() {
             <Loader2 size={14} className="animate-spin text-accent" />
             <span className="text-footnote font-medium text-text-secondary">Reading files…</span>
           </div>
-          <button onClick={resetESword} className="text-caption text-text-muted hover:text-text-primary cursor-pointer">
-            Cancel
-          </button>
+          <Button variant="ghost" size="sm" onClick={resetESword}>Cancel</Button>
         </div>
         {eSwordMessage && (
           <p className="text-caption text-text-muted">{eSwordMessage}</p>
         )}
         {pct !== null && (
-          <div className="h-1.5 rounded-full bg-surface-4 overflow-hidden">
-            <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+          <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
+            <div className="h-full rounded-control bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
           </div>
         )}
       </div>
@@ -216,51 +199,40 @@ export default function ESwordImporter() {
           <p className="text-footnote font-medium text-text-primary">
             {eSwordReviewNotes.length} notes found
           </p>
-          <button onClick={resetESword} className="flex items-center gap-1 text-caption text-text-muted hover:text-text-secondary cursor-pointer">
-            <RefreshCw size={10} /> Read again
-          </button>
+          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={resetESword}>Read again</Button>
         </div>
         <p className="text-caption text-text-muted">{eSwordMessage}</p>
 
         {/* Type filter */}
-        <div className="flex gap-1 flex-wrap">
-          {([
+        <SegmentedControl
+          aria-label="Filter by type"
+          value={typeFilter}
+          onChange={setTypeFilter}
+          options={([
             ['all',   `All (${eSwordReviewNotes.length})`],
             ['verse', `Verse (${typeCounts.verse})`],
             ['daily', `Daily (${typeCounts.daily})`],
             ['topic', `Topic (${typeCounts.topic})`],
-          ] as [TypeFilter, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => setTypeFilter(key)}
-              className={`px-2 py-0.5 rounded text-caption2 font-medium transition-colors cursor-pointer ${
-                typeFilter === key
-                  ? 'bg-accent text-white'
-                  : 'bg-surface-4 text-text-muted hover:text-text-secondary'
-              }`}
-            >{label}</button>
-          ))}
-        </div>
+          ] as [TypeFilter, string][]).map(([value, label]) => ({ value, label }))}
+        />
 
         {/* Status filter */}
-        <div className="flex gap-1">
-          {([
+        <SegmentedControl
+          aria-label="Filter by status"
+          value={filter}
+          onChange={setFilter}
+          options={([
             ['all',       `All`],
             ['new',       `New (${counts.new})`],
             ['updated',   `Updated (${counts.updated})`],
             ['duplicate', `Imported (${counts.duplicate})`],
-          ] as [ReviewFilter, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => setFilter(key)}
-              className={`px-2 py-0.5 rounded text-caption2 font-medium transition-colors cursor-pointer ${
-                filter === key ? 'bg-surface-4 text-accent ring-1 ring-accent/30' : 'bg-surface-4 text-text-muted hover:text-text-secondary'
-              }`}
-            >{label}</button>
-          ))}
-        </div>
+          ] as [ReviewFilter, string][]).map(([value, label]) => ({ value, label }))}
+        />
 
         <div className="flex items-center gap-2">
-          <button onClick={() => allFilteredSelected ? deselectAll(filteredNotes) : selectAll(filteredNotes)}
-            className="text-caption2 text-accent hover:underline cursor-pointer">
+          <Button variant="ghost" size="sm" onClick={() => allFilteredSelected ? deselectAll(filteredNotes) : selectAll(filteredNotes)}>
             {allFilteredSelected ? 'Deselect all' : 'Select all'}
-          </button>
+          </Button>
           <span className="text-caption2 text-text-muted">
             ({filteredNotes.length} in view, {selectedCount} total selected)
           </span>
@@ -270,10 +242,10 @@ export default function ESwordImporter() {
           {filteredNotes.length === 0 ? (
             <p className="text-caption text-text-muted italic py-2">None in this category.</p>
           ) : filteredNotes.map(note => (
-            <label key={note.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-surface-hover cursor-pointer">
-              <input type="checkbox" checked={selectedIds.has(note.id)} onChange={() => toggleNote(note.id)}
+            <div key={note.id} onClick={() => note.status !== 'duplicate' && toggleNote(note.id)} className="flex items-start gap-2 p-1.5 rounded-row hover:bg-surface-hover cursor-pointer">
+              <Checkbox checked={selectedIds.has(note.id)} onChange={() => {}}
                 disabled={note.status === 'duplicate'}
-                className="mt-0.5 flex-shrink-0 accent-accent" />
+                className="mt-0.5 flex-shrink-0 pointer-events-none" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-caption font-medium text-text-primary truncate">
@@ -296,19 +268,15 @@ export default function ESwordImporter() {
                   </p>
                 )}
               </div>
-            </label>
+            </div>
           ))}
         </div>
 
         <div className="flex items-center gap-2 pt-1 border-t border-border">
-          <button onClick={handleImport} disabled={selectedCount === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-accent hover:bg-accent-hover text-white text-footnote font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-            <Download size={13} />
+          <Button variant="primary" icon={Download} onClick={handleImport} disabled={selectedCount === 0}>
             Import {selectedCount > 0 ? `${selectedCount} Selected` : 'Selected'}
-          </button>
-          <button onClick={resetESword} className="text-caption text-text-muted hover:text-text-primary cursor-pointer">
-            Cancel
-          </button>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={resetESword}>Cancel</Button>
         </div>
       </div>
     )
@@ -323,8 +291,8 @@ export default function ESwordImporter() {
           <Loader2 size={14} className="animate-spin text-accent" />
           <span className="text-footnote font-medium text-text-secondary">Saving notes…</span>
         </div>
-        <div className="h-1.5 rounded-full bg-surface-4 overflow-hidden">
-          <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${p}%` }} />
+        <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
+          <div className="h-full rounded-control bg-accent transition-all duration-300" style={{ width: `${p}%` }} />
         </div>
         <p className="text-caption2 text-text-muted">{eSwordDone} / {eSwordTotal}</p>
       </div>
@@ -340,9 +308,7 @@ export default function ESwordImporter() {
           <span className="text-footnote font-medium text-text-primary">Import complete</span>
         </div>
         <p className="text-caption text-text-muted leading-relaxed">{eSwordMessage}</p>
-        <button onClick={resetESword} className="flex items-center gap-1.5 text-caption text-accent hover:underline cursor-pointer">
-          <RefreshCw size={11} /> Import again
-        </button>
+        <Button variant="ghost" size="sm" icon={RefreshCw} onClick={resetESword}>Import again</Button>
       </div>
     )
   }
@@ -357,9 +323,7 @@ export default function ESwordImporter() {
       <p className="text-caption text-text-muted leading-relaxed">
         {eSwordMessage || 'An unexpected error occurred.'}
       </p>
-      <button onClick={resetESword} className="text-caption text-accent hover:underline cursor-pointer">
-        Try again
-      </button>
+      <Button variant="ghost" size="sm" onClick={resetESword}>Try again</Button>
     </div>
   )
 }

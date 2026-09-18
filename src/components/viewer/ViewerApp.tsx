@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { IconButton } from '@/components/ui'
+import { IconButton, SectionLabel } from '@/components/ui'
 import { useAppStore } from '@/store'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -62,7 +62,7 @@ function NoteView({ noteId, fontScale, muteColor, textColor, scrollRef, scrollPe
   if (!data) return <div style={{ fontSize: fs, color: muteColor }} className="flex items-center justify-center h-full">Loading…</div>
   return (
     <div ref={ref} className="h-full overflow-y-auto px-8 pb-6 pt-12" style={{ fontSize: fs, color: textColor }}>
-      {data.title && <h2 style={{ fontSize: Math.round(20 * fontScale), marginBottom: '1rem' }} className="font-semibold">{data.title}</h2>}
+      {data.title && <h2 style={{ fontSize: Math.round(20 * fontScale), marginBottom: '1rem' }} className="text-title1 font-semibold">{data.title}</h2>}
       <div style={{ lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: data.html }} />
     </div>
   )
@@ -80,13 +80,13 @@ function LexiconView({ strongsId, fontScale, muteColor, textColor, accentColor, 
   // Bare cross-reference numbers in the derivation are Strong's numbers — restore the H/G prefix.
   const lang: 'H' | 'G' = isHebrew ? 'H' : 'G'
   const sectionLabel = (t: string) => (
-    <p style={{ fontSize: labelFs, color: muteColor, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>{t}</p>
+    <SectionLabel style={{ fontSize: labelFs, color: muteColor, marginBottom: 4 }}>{t}</SectionLabel>
   )
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto px-8 pb-6 pt-12 space-y-4">
       <div className="flex items-baseline gap-3 flex-wrap">
-        <span style={{ fontSize: Math.round(16 * fontScale), color: accentColor }} className="font-mono font-bold">{data.strongsNum}</span>
-        {data.lemma && <span style={{ fontSize: Math.round(26 * fontScale), fontFamily: 'var(--font-lemma)', color: textColor }} className="font-bold"><span dir="rtl">{data.lemma}</span></span>}
+        <span style={{ fontSize: Math.round(16 * fontScale), color: accentColor }} className="font-mono font-semibold">{data.strongsNum}</span>
+        {data.lemma && <span style={{ fontSize: Math.round(26 * fontScale), fontFamily: 'var(--font-lemma)', color: textColor }} className="font-medium"><span dir="rtl">{data.lemma}</span></span>}
         {data.transliteration && <span style={{ fontSize: Math.round(14 * fontScale), color: muteColor }} className="italic">({data.transliteration})</span>}
       </div>
       {data.gloss && <p style={{ fontSize: Math.round(14 * fontScale), color: textColor }} className="font-medium">{wr(data.gloss)}</p>}
@@ -346,6 +346,9 @@ export default function ViewerApp() {
         {/* Primary content */}
         <div className="flex-1 min-w-0 h-full overflow-hidden">
           {payload.kind === 'idle' && (
+            // Not the `EmptyState` primitive — this is a custom animated presenter-idle glyph
+            // (spinning/breathing ✦, font-scaled with the presenter zoom) that primitive's fixed
+            // icon+title+hint layout doesn't accommodate.
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <style>{`@keyframes berean-idle-spin{to{transform:rotate(360deg)}}@keyframes berean-idle-breathe{0%,100%{opacity:.15;transform:scale(.92)}50%{opacity:.4;transform:scale(1.08)}}`}</style>
               <div
@@ -397,7 +400,7 @@ export default function ViewerApp() {
         {/* Side panel (only for bible payloads with an active side panel) */}
         {payload.kind === 'bible' && bibleSidePanel && showSidePanel && (
           <div
-            className="flex-shrink-0 h-full overflow-hidden border-l border-separator bg-surface-2"
+            className="material-panel flex-shrink-0 h-full overflow-hidden border-l border-separator"
             style={{ width: '38%' }}
           >
             {bibleSidePanel.type === 'note' && (

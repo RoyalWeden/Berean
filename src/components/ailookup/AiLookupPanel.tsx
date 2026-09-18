@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
+import { useEffect, useRef, useState, Fragment } from 'react'
 import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, NotepadText, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { IconButton } from '@/components/ui'
+import { IconButton, Button, Toolbar, TextArea } from '@/components/ui'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -93,43 +93,11 @@ function HighlightedText({ text, keywords }: { text: string; keywords: string[] 
   )
 }
 
-// Auto-grows with content up to a max height (~4 lines) then scrolls internally — replaces the
-// old fixed-height single-line <input> for both the composer and the edit-message field, so a
-// long message wraps and stays fully visible/editable instead of scrolling horizontally inside
-// a box too short to show it.
+// Auto-grows with content up to a max height (~4 lines) then scrolls internally — used for both
+// the composer and the edit-message field, so a long message wraps and stays fully visible/
+// editable instead of scrolling horizontally inside a box too short to show it. Rendered via the
+// shared `TextArea autoGrow` primitive (see below); this constant just caps how tall it can grow.
 const TEXTAREA_MAX_HEIGHT = 88 // ~4 lines at this font size
-
-function AutoGrowTextarea({ value, onChange, onKeyDown, placeholder, disabled, autoFocus, className }: {
-  value: string
-  onChange: (v: string) => void
-  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  placeholder?: string
-  disabled?: boolean
-  autoFocus?: boolean
-  className?: string
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`
-  }, [value])
-  return (
-    <textarea
-      ref={ref}
-      rows={1}
-      autoFocus={autoFocus}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={onKeyDown}
-      placeholder={placeholder}
-      disabled={disabled}
-      style={{ maxHeight: TEXTAREA_MAX_HEIGHT, resize: 'none' }}
-      className={className}
-    />
-  )
-}
 
 /** A real, DB-verified Strong's word card — definition-only by default (occurrences render
  *  separately, as ordinary verse chips, only when the question actually asked for them — see
@@ -142,7 +110,7 @@ function StrongsCard({ card }: { card: AiLookupStrongsCard }) {
   return (
     <button
       onClick={() => { ensureTab('lexicon'); openLexiconEntry(card.strongsNum); setActiveSpace('lexicon') }}
-      className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-3 py-2.5 transition-colors cursor-pointer"
+      className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-3 py-2.5 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-1.5 mb-1">
         <BookOpenText size={12} className="flex-shrink-0 text-accent" />
@@ -176,7 +144,7 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
   return (
     <button
       onClick={() => { ensureTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
-      className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-2.5 py-2 transition-colors cursor-pointer"
+      className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-2.5 py-2 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-1.5 mb-0.5">
         <NotepadText size={11} className="flex-shrink-0 text-text-muted" />
@@ -205,7 +173,7 @@ function VideoCard({ video }: { video: AiLookupVideoResult }) {
   return (
     <button
       onClick={() => { openYouTubeVideoInNewTab(video.videoId, startSeconds); setActiveSpace('youtube') }}
-      className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
+      className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
     >
       {video.thumbnailUrl
         ? <img src={video.thumbnailUrl} alt="" className="w-14 h-9 rounded object-cover flex-shrink-0" />
@@ -239,7 +207,7 @@ function formatTimestamp(totalSeconds: number): string {
  *  as a label, not a sentence of AI prose). */
 function SourceBadge({ text }: { text: string }) {
   return (
-    <div className="inline-flex items-start gap-1.5 max-w-full text-caption2 text-text-muted bg-surface-2 rounded-full px-2.5 py-1 border border-border">
+    <div className="inline-flex items-start gap-1.5 max-w-full text-caption2 text-text-muted bg-surface-elevated rounded-control px-2.5 py-1">
       <Quote size={10} className="flex-shrink-0 mt-0.5 opacity-70" />
       <span>{text}</span>
     </div>
@@ -615,14 +583,15 @@ export default function AiLookupPanel() {
       style={{ left: pos.x, top: pos.y, width: size.width, height: size.height }}
     >
       {/* Header — drag handle */}
-      <div
+      <Toolbar
+        size="sm" material="none"
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
-        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-separator cursor-grab active:cursor-grabbing select-none"
+        className="no-drag cursor-grab active:cursor-grabbing select-none"
       >
         <Sparkles size={14} className="text-accent flex-shrink-0" />
-        <span className="text-xs font-semibold text-text-primary flex-1 truncate">Berean Chat</span>
+        <span className="text-footnote font-semibold text-text-primary flex-1 truncate">Berean Chat</span>
         <IconButton icon={Plus} label="New chat" size={24} onClick={newChat} />
         <IconButton icon={HistoryIcon} label="Chat history" size={24} active={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />
         <IconButton
@@ -637,7 +606,7 @@ export default function AiLookupPanel() {
           // closing the panel doesn't need its own, more aggressive unload path on top of that.
           onClick={() => setOpen(false)}
         />
-      </div>
+      </Toolbar>
 
       {/* Commentary / Deep search — floating pill toggles sharing one row instead of two
           full-width settings rows. No bg of their own, so the panel's own near-opaque
@@ -645,38 +614,23 @@ export default function AiLookupPanel() {
           to the NEXT question, which isn't relevant while just browsing past chats. */}
       {!historyOpen && (
         <div className="flex items-center gap-1.5 px-3 py-2 border-b border-separator">
-          <button
-            onClick={() => setCommentaryOn(!commentaryOn)}
-            className={`flex items-center gap-1 text-caption px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
-              commentaryOn
-                ? 'bg-accent border-accent text-white shadow-sm'
-                : 'border-border text-text-muted hover:border-accent'
-            }`}
-          >
-            <MessageSquareText size={11} /> Commentary
-          </button>
-          <button
-            onClick={() => setAgenticOn(!agenticOn)}
+          <Button variant="ghost" size="sm" icon={MessageSquareText} selected={commentaryOn} onClick={() => setCommentaryOn(!commentaryOn)}>
+            Commentary
+          </Button>
+          <Button
+            variant="ghost" size="sm" icon={SearchCheck} selected={agenticOn}
             title="Verifies the results actually answer your question and refines the search (up to twice more) if not — slower, off by default."
-            className={`flex items-center gap-1 text-caption px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
-              agenticOn
-                ? 'bg-accent border-accent text-white shadow-sm'
-                : 'border-border text-text-muted hover:border-accent'
-            }`}
+            onClick={() => setAgenticOn(!agenticOn)}
           >
-            <SearchCheck size={11} /> Deep search
-          </button>
-          <button
-            onClick={() => setUseTabContext(!useTabContext)}
+            Deep search
+          </Button>
+          <Button
+            variant="ghost" size="sm" icon={Eye} selected={useTabContext}
             title="Sends whatever's in your currently active tab (chapter, note, lexicon entry, video) as extra context — you can also just mention it inline, e.g. 'this chapter', without turning this on."
-            className={`flex items-center gap-1 text-caption px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
-              useTabContext
-                ? 'bg-accent border-accent text-white shadow-sm'
-                : 'border-border text-text-muted hover:border-accent'
-            }`}
+            onClick={() => setUseTabContext(!useTabContext)}
           >
-            <Eye size={11} /> This tab
-          </button>
+            This tab
+          </Button>
         </div>
       )}
 
@@ -686,14 +640,14 @@ export default function AiLookupPanel() {
         <>
           <div ref={bodyRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
             {!availability.available && availability.checked && (
-              <div className="text-xs text-text-muted bg-surface-2 rounded-shell p-3 leading-relaxed">
+              <div className="text-footnote text-text-muted bg-surface-elevated rounded-card p-3 leading-relaxed">
                 Ollama isn't running on this machine. Install it from{' '}
-                <button className="text-accent underline cursor-pointer" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</button>
+                <Button variant="ghost" size="sm" className="!inline-flex !h-auto !px-0 underline" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</Button>
                 {' '}and pull a model (e.g. <code>ollama pull gemma3:4b</code>), then reopen this panel.
               </div>
             )}
             {messages.length === 0 && availability.available && (
-              <p className="text-xs text-text-muted text-center pt-6">
+              <p className="text-footnote text-text-muted text-center pt-6">
                 Ask where something is in Scripture, or for verses about a topic — e.g. "{examplePrompt}"
               </p>
             )}
@@ -715,43 +669,45 @@ export default function AiLookupPanel() {
                   return (
                     <div key={mi} className="flex justify-end">
                       <div className="max-w-[85%] w-full flex items-end gap-1">
-                        <AutoGrowTextarea
+                        <TextArea
+                          autoGrow
+                          rows={1}
                           autoFocus
                           value={editValue}
-                          onChange={setEditValue}
+                          onChange={(e) => setEditValue(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(mi) }
                             if (e.key === 'Escape') setEditingIndex(null)
                           }}
-                          className="flex-1 min-w-0 text-xs bg-surface-2 rounded-shell px-2.5 py-1.5 outline-none border border-accent text-text-primary"
+                          style={{ maxHeight: TEXTAREA_MAX_HEIGHT }}
+                          className="flex-1 min-w-0 !rounded-card"
                         />
-                        <button onClick={() => submitEdit(mi)} title="Save & regenerate" className="p-1 rounded hover:bg-surface-hover text-accent cursor-pointer flex-shrink-0">
-                          <Send size={12} />
-                        </button>
-                        <button onClick={() => setEditingIndex(null)} title="Cancel" className="p-1 rounded hover:bg-surface-hover text-text-muted cursor-pointer flex-shrink-0">
-                          <X size={12} />
-                        </button>
+                        <IconButton icon={Send} label="Save & regenerate" size={20} onClick={() => submitEdit(mi)} className="text-accent flex-shrink-0" />
+                        <IconButton icon={X} label="Cancel" size={20} onClick={() => setEditingIndex(null)} className="flex-shrink-0" />
                       </div>
                     </div>
                   )
                 }
                 return (
                   <div key={mi} className="group flex justify-end items-center gap-1">
-                    <button
+                    <IconButton
+                      icon={copiedIndex === mi ? Check : Copy}
+                      label="Copy message"
+                      size={20}
+                      tooltip={false}
+                      iconClassName={copiedIndex === mi ? 'text-accent' : undefined}
                       onClick={() => copyMessage(mi, m.content)}
-                      title="Copy message"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-hover text-text-muted cursor-pointer flex-shrink-0"
-                    >
-                      {copiedIndex === mi ? <Check size={11} className="text-accent" /> : <Copy size={11} />}
-                    </button>
-                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    />
+                    <IconButton
+                      icon={Pencil}
+                      label="Edit & regenerate"
+                      size={20}
+                      tooltip={false}
                       onClick={() => { setEditingIndex(mi); setEditValue(m.content) }}
-                      title="Edit & regenerate"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-hover text-text-muted cursor-pointer flex-shrink-0"
-                    >
-                      <Pencil size={11} />
-                    </button>
-                    <div className="max-w-[85%] rounded-shell bg-accent/14 text-text-primary text-xs px-3 py-2">{m.content}</div>
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    />
+                    <div className="max-w-[85%] rounded-card bg-accent-muted text-text-primary text-footnote px-3 py-2">{m.content}</div>
                   </div>
                 )
               }
@@ -777,7 +733,7 @@ export default function AiLookupPanel() {
               return (
                 <div key={mi} className="flex justify-start">
                   <div className="max-w-full w-full space-y-2">
-                    {m.content && <p className="text-xs text-text-muted">{m.content}</p>}
+                    {m.content && <p className="text-footnote text-text-muted">{m.content}</p>}
                     {m.summary && (
                       // Deterministic branches (quote-lookup, notes-only) always return
                       // `keywords: []` — the normal guess/keyword pipeline never does, since it
@@ -788,7 +744,7 @@ export default function AiLookupPanel() {
                       // these shouldn't look like a chat reply.
                       keywords.length === 0
                         ? <SourceBadge text={m.summary} />
-                        : <p className="text-xs text-text-primary italic">{m.summary}</p>
+                        : <p className="text-footnote text-text-primary italic">{m.summary}</p>
                     )}
                     {m.strongsCard && <StrongsCard card={m.strongsCard} />}
                     {(m.notes ?? []).length > 0 && (
@@ -823,7 +779,7 @@ export default function AiLookupPanel() {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
                             })}
-                            className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2 px-2.5 py-2 transition-colors cursor-pointer"
+                            className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-2.5 py-2 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-1.5 mb-0.5">
                               <span className="text-caption font-semibold text-text-primary">
@@ -841,13 +797,13 @@ export default function AiLookupPanel() {
                           </button>
                           {nested.length > 0 && (
                             <>
-                              <button
+                              <Button
+                                variant="ghost" size="sm" icon={crOpen ? ChevronDown : ChevronRight}
                                 onClick={(e) => { e.stopPropagation(); setCrossRefsOpen((prev) => ({ ...prev, [crKey]: !crOpen })) }}
-                                className="mt-1 flex items-center gap-1 text-caption2 text-text-muted hover:text-accent cursor-pointer"
+                                className="mt-1 !h-auto !px-0"
                               >
-                                {crOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                                 <Link2 size={10} /> {nested.length} related
-                              </button>
+                              </Button>
                               {crOpen && (
                                 // Same rounded-bubble language as the primary result above, just
                                 // smaller/more muted (tighter padding, smaller text, no border
@@ -861,7 +817,7 @@ export default function AiLookupPanel() {
                                       key={ci}
                                       onClick={() => navigateToResult(cr, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                                       onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
-                                      className="text-left rounded-shell border border-border hover:border-accent bg-surface-2/70 px-2 py-1 transition-colors cursor-pointer max-w-full"
+                                      className="text-left rounded-card bg-surface-elevated/70 hover:bg-surface-hover px-2 py-1 transition-colors cursor-pointer max-w-full"
                                     >
                                       <span className="text-caption2 font-semibold text-text-secondary">{cr.bookName} {cr.chapter}:{cr.verse}</span>
                                       <p className="text-caption2 text-text-muted leading-tight mt-0.5 line-clamp-2">
@@ -878,12 +834,13 @@ export default function AiLookupPanel() {
                     })}
 
                     {hasMore && (
-                      <button
+                      <Button
+                        variant="ghost" size="sm" icon={ChevronDown}
                         onClick={() => setExpanded((prev) => ({ ...prev, [mi]: primary.length }))}
-                        className="w-full flex items-center justify-center gap-1 text-caption text-accent hover:underline py-1 cursor-pointer"
+                        className="w-full"
                       >
-                        <ChevronDown size={12} /> Show {primary.length - shown} more
-                      </button>
+                        Show {primary.length - shown} more
+                      </Button>
                     )}
 
                     {/* A canonical guess that surfaced alongside a focus-text (Jubilees/Enoch/
@@ -900,7 +857,7 @@ export default function AiLookupPanel() {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
                             })}
-                            className="w-full text-left rounded-shell border border-border hover:border-accent bg-surface-2/70 px-2.5 py-1.5 transition-colors cursor-pointer"
+                            className="w-full text-left rounded-card bg-surface-elevated/70 hover:bg-surface-hover px-2.5 py-1.5 transition-colors cursor-pointer"
                           >
                             <span className="text-caption2 font-semibold text-text-secondary">
                               {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
@@ -917,28 +874,33 @@ export default function AiLookupPanel() {
               )
             })}
             {loading && (
-              <div className="flex items-center gap-2 text-xs text-text-muted">
+              <div className="flex items-center gap-2 text-footnote text-text-muted">
                 <Loader2 size={13} className="animate-spin" /> {progressStatus}
               </div>
             )}
           </div>
 
           <div className="flex items-end gap-2 px-2.5 py-2 border-t border-separator">
-            <AutoGrowTextarea
+            <TextArea
+              autoGrow
+              rows={1}
               value={input}
-              onChange={setInput}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               placeholder={availability.available ? 'Ask where something is, or for verses about a topic…' : 'Ollama not running'}
               disabled={!availability.available || loading}
-              className="flex-1 min-w-0 text-xs bg-surface-2 rounded-shell px-2.5 py-1.5 outline-none border border-transparent focus:border-accent disabled:opacity-50 text-text-primary"
+              style={{ maxHeight: TEXTAREA_MAX_HEIGHT }}
+              className="flex-1 min-w-0 !rounded-card"
             />
-            <button
-              onClick={send}
+            <IconButton
+              icon={Send}
+              label="Send"
+              size={28}
+              filled
               disabled={!availability.available || loading || !input.trim()}
-              className="p-1.5 rounded-shell bg-accent text-white disabled:opacity-40 cursor-pointer disabled:cursor-default flex-shrink-0"
-            >
-              <Send size={13} />
-            </button>
+              onClick={send}
+              className="flex-shrink-0"
+            />
           </div>
         </>
       )}

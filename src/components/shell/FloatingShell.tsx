@@ -198,7 +198,7 @@ export default function FloatingShell() {
         {params.type === 'search'  && <SearchTab floating />}
         {params.type === 'pdf'     && <PDFViewer floating />}
         {!['bible', 'notes', 'lexicon', 'youtube', 'search', 'pdf'].includes(params.type) && (
-          <div className="flex items-center justify-center h-full text-text-muted text-sm">
+          <div className="flex items-center justify-center h-full text-text-muted text-subhead">
             Float view for <strong className="ml-1">{params.type}</strong> coming soon.
           </div>
         )}

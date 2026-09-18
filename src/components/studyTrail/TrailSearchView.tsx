@@ -3,7 +3,7 @@ import { BookOpen, Hash, NotepadText, GitBranch, Layers } from 'lucide-react'
 import type { TrailSearchHit } from '@/types/studyTrail'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { navigateTrailRef, type TrailRef } from './trailNav'
-import { SearchField, Select } from '@/components/ui'
+import { SearchField, Select, Chip, SectionLabel, Toolbar, cx } from '@/components/ui'
 
 // SEARCH — the Study Trail window's third tab. Per direct feedback, alongside the Threads tab
 // "there still should be a way to search all study trail notes and such by having an additional
@@ -110,8 +110,8 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid rgb(var(--color-surface-4))' }}>
+    <div className="flex flex-col h-full min-h-0">
+      <div className="pt-2.5 px-3.5 pb-2">
         <SearchField
           ref={inputRef}
           value={query}
@@ -119,44 +119,32 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
           placeholder="Search every stop, jump, note and session…"
           wrapperClassName="w-full"
         />
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {KINDS.map((k) => (
-            <button
-              key={k.id}
-              onClick={() => toggleKind(k.id)}
-              style={{
-                fontSize: 12.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                background: kinds.has(k.id) ? 'rgb(var(--color-accent) / 0.16)' : 'transparent',
-                border: '1px solid rgb(var(--color-surface-4))',
-                color: kinds.has(k.id) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
-              }}
-            >{k.label}</button>
-          ))}
-          <span style={{ flex: 1 }} />
-          <Select
-            value={range}
-            onChange={setRange}
-            options={RANGES.map((r) => ({ value: r.id, label: r.label }))}
-            aria-label="Date range"
-          />
-        </div>
       </div>
+      <Toolbar size="sm" material="none" className="px-3.5">
+        {KINDS.map((k) => (
+          <Chip key={k.id} selected={kinds.has(k.id)} onClick={() => toggleKind(k.id)}>{k.label}</Chip>
+        ))}
+        <div className="flex-1" />
+        <Select
+          value={range}
+          onChange={setRange}
+          options={RANGES.map((r) => ({ value: r.id, label: r.label }))}
+          aria-label="Date range"
+        />
+      </Toolbar>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 14px 24px' }}>
+      <div className="flex-1 min-h-0 overflow-auto px-3.5 pt-2.5 pb-6">
         {!query.trim() ? (
-          <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>
+          <div className="text-body text-text-muted">
             Type to search. Cmd-click a result to open it in the main window; click its session to show it on the map.
           </div>
         ) : hits == null ? (
-          <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>Searching…</div>
+          <div className="text-body text-text-muted">Searching…</div>
         ) : hits.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>No matches.</div>
+          <div className="text-body text-text-muted">No matches.</div>
         ) : KINDS.filter((k) => grouped.has(k.id)).map((k) => (
-          <div key={k.id} style={{ marginBottom: 16 }}>
-            <div style={{
-              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
-              color: 'rgb(var(--color-text-muted))', marginBottom: 6,
-            }}>{k.label} · {grouped.get(k.id)!.length}</div>
+          <div key={k.id} className="mb-4">
+            <SectionLabel className="mb-1.5">{k.label} · {grouped.get(k.id)!.length}</SectionLabel>
             {grouped.get(k.id)!.map((h) => {
               const ref = refFor(h)
               const title = h.kind === 'stop' && h.bookId && h.chapter != null
@@ -165,38 +153,23 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
               return (
                 <div
                   key={`${h.kind}:${h.id}`}
-                  className="trail-row-hover"
-                  style={{
-                    display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 9px',
-                    borderRadius: 7, marginBottom: 2,
-                  }}
+                  className="flex gap-2 items-start px-2 py-1.5 rounded-row mb-0.5 hover:bg-surface-hover"
                 >
                   {iconFor(h.kind)}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
                       {/* Cmd-click navigates, plain click does nothing — the same rule as the map,
                           so muscle memory carries between the two tabs. */}
                       <span
                         onClick={ref ? (e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef(ref, e.shiftKey) } : undefined}
                         title={ref ? 'Cmd-click to open in the main window' : undefined}
-                        style={{
-                          fontSize: 13.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))',
-                          cursor: ref ? 'pointer' : 'default', whiteSpace: 'nowrap',
-                        }}
+                        className={cx('text-subhead font-semibold text-text-primary whitespace-nowrap', ref ? 'cursor-pointer' : 'cursor-default')}
                       >{title}</span>
                       {h.strongsNum && <Hash size={10} style={{ opacity: 0.5 }} />}
-                      <button
-                        className="trail-chip"
-                        onClick={() => onOpenSession(h.sessionId)}
-                        style={{
-                          fontSize: 11, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
-                          background: 'rgb(var(--color-surface-3))', border: 'none',
-                          color: 'rgb(var(--color-text-muted))', whiteSpace: 'nowrap',
-                        }}
-                      >{h.sessionName}</button>
+                      <Chip onClick={() => onOpenSession(h.sessionId)} className="whitespace-nowrap">{h.sessionName}</Chip>
                     </div>
                     {h.snippet && (
-                      <div style={{ fontSize: 12.5, color: 'rgb(var(--color-text-muted))', marginTop: 2, lineHeight: 1.5 }}>
+                      <div className="text-footnote text-text-muted mt-0.5 leading-relaxed">
                         {highlight(h.snippet, query)}
                       </div>
                     )}

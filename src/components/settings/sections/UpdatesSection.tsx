@@ -83,26 +83,23 @@ export default function UpdatesSection() {
     return (
       <div className="space-y-5">
         <div>
-          <p className="text-sm font-semibold text-text-primary">Berean</p>
-          <p className="text-xs text-text-muted font-mono mt-0.5">{version ? `v${version}` : '—'}</p>
+          <p className="text-subhead font-semibold text-text-primary">Berean</p>
+          <p className="text-caption text-text-muted font-mono mt-0.5">{version ? `v${version}` : '—'}</p>
         </div>
-        <div className="px-4 py-4 rounded-card bg-surface-3 border border-border space-y-3">
-          <p className="text-sm text-text-primary font-medium">Updates via Mac App Store</p>
-          <p className="text-xs text-text-muted leading-relaxed">
+        <div className="px-4 py-4 rounded-card bg-surface-elevated space-y-3">
+          <p className="text-subhead font-medium text-text-primary">Updates via Mac App Store</p>
+          <p className="text-caption text-text-muted leading-relaxed">
             This copy of Berean was installed from the Mac App Store. Updates are delivered automatically by Apple — no manual action needed. To check now, open the App Store and go to Updates.
           </p>
           <Button variant="secondary" size="sm" onClick={() => window.app.openExternal('macappstore://apps.apple.com')}>
             Open App Store
           </Button>
         </div>
-        <div className="flex items-center gap-2 text-xs text-text-muted">
+        <div className="flex items-center gap-2 text-caption text-text-muted">
           <span>Download page & release notes:</span>
-          <button
-            onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
-            className="text-accent hover:underline cursor-pointer"
-          >
+          <Button variant="ghost" size="sm" onClick={() => window.app.openExternal(BEREAN_SITE_URL)}>
             royalweden.github.io/Berean
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -113,8 +110,8 @@ export default function UpdatesSection() {
     <div className="space-y-5">
       {/* Version badge */}
       <div>
-        <p className="text-sm font-semibold text-text-primary">Berean</p>
-        <p className="s-desc text-xs text-text-muted font-mono mt-0.5">
+        <p className="text-subhead font-semibold text-text-primary">Berean</p>
+        <p className="s-desc text-caption text-text-muted font-mono mt-0.5">
           {version ? `v${version}` : '—'}
         </p>
       </div>
@@ -122,8 +119,8 @@ export default function UpdatesSection() {
       {/* Auto-check toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-primary">Check for updates automatically</p>
-          <p className="s-desc text-xs text-text-muted mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Check for updates automatically</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             Checks on launch (6 seconds after startup), then again every 5 minutes while Berean stays open
           </p>
         </div>
@@ -136,8 +133,8 @@ export default function UpdatesSection() {
       {autoCheck && (
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-text-primary">Automatically download updates</p>
-            <p className="s-desc text-xs text-text-muted mt-0.5">
+            <p className="text-subhead font-medium text-text-primary">Automatically download updates</p>
+            <p className="s-desc text-caption text-text-muted mt-0.5">
               Download as soon as a new version is found — you'll still confirm before restarting to install
             </p>
           </div>
@@ -148,8 +145,8 @@ export default function UpdatesSection() {
       {/* Beta channel toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-primary">Beta updates</p>
-          <p className="s-desc text-xs text-text-muted mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Beta updates</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             Receive pre-release builds — may contain unfinished features or bugs
           </p>
         </div>
@@ -157,41 +154,41 @@ export default function UpdatesSection() {
       </div>
 
       {/* Status card */}
-      <div className="px-3 py-3 rounded-card bg-surface-3 border border-border min-h-[52px]">
+      <div className="px-3 py-3 rounded-card bg-surface-elevated min-h-[52px]">
         {st === 'idle' && (
-          <p className="s-desc text-xs text-text-muted">Click "Check for Updates" to check now.</p>
+          <p className="s-desc text-caption text-text-muted">Click "Check for Updates" to check now.</p>
         )}
         {st === 'checking' && (
-          <p className="s-desc text-xs text-text-muted animate-pulse">Checking for updates…</p>
+          <p className="s-desc text-caption text-text-muted animate-pulse">Checking for updates…</p>
         )}
         {st === 'current' && (
-          <p className="text-xs text-success">You're on the latest version.</p>
+          <p className="text-caption text-success">You're on the latest version.</p>
         )}
         {st === 'available' && (
-          <p className="text-xs text-accent">
+          <p className="text-caption text-accent">
             Version {updateStatus.version} is available.
           </p>
         )}
         {st === 'downloading' && (
           <div>
-            <p className="s-desc text-xs text-text-muted mb-2">
+            <p className="s-desc text-caption text-text-muted mb-2">
               Downloading update… {updateStatus.percent ?? 0}%
             </p>
-            <div className="h-1.5 bg-surface-4 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-lift-2 rounded-control overflow-hidden">
               <div
-                className="h-full bg-accent rounded-full transition-all duration-300"
+                className="h-full bg-accent rounded-control transition-all duration-300"
                 style={{ width: `${updateStatus.percent ?? 0}%` }}
               />
             </div>
           </div>
         )}
         {st === 'ready' && (
-          <p className="text-xs text-success">
+          <p className="text-caption text-success">
             Version {updateStatus.version} downloaded — ready to install.
           </p>
         )}
         {st === 'error' && (
-          <p className="text-xs text-destructive leading-relaxed">
+          <p className="text-caption text-destructive leading-relaxed">
             {updateStatus.message ?? 'Unknown error during update check.'}
           </p>
         )}
@@ -222,15 +219,12 @@ export default function UpdatesSection() {
       </div>
 
       {/* Footer: GitHub Pages link + distribution note */}
-      <div className="px-3 py-2 rounded-card bg-surface-3 border border-border space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-text-muted">
+      <div className="px-3 py-2 rounded-card bg-surface-elevated space-y-1.5">
+        <div className="flex items-center gap-2 text-caption text-text-muted">
           <span>Download page & release notes:</span>
-          <button
-            onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
-            className="text-accent hover:underline cursor-pointer"
-          >
+          <Button variant="ghost" size="sm" onClick={() => window.app.openExternal(BEREAN_SITE_URL)}>
             royalweden.github.io/Berean
-          </button>
+          </Button>
         </div>
         <p className="text-caption2 text-text-muted">
           Only the installed app (not dev build) can receive automatic updates.

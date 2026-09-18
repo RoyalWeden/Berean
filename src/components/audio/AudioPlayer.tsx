@@ -9,6 +9,7 @@ import VoicePicker from '@/components/audio/VoicePicker'
 import ChapterProgressBar from '@/components/audio/ChapterProgressBar'
 import CircularPlayButton from '@/components/audio/CircularPlayButton'
 import AudioQueuePopover from '@/components/audio/AudioQueuePopover'
+import { IconButton, RefChip, Slider } from '@/components/ui'
 import type { BibleTabState } from '@/types'
 
 // Debounced-collapse delay — mirrors Ribbon.tsx's hover-open/close popover convention (350ms
@@ -193,7 +194,7 @@ export default function AudioPlayer() {
           // this is what makes the circle-to-capsule morph one coherent shape animation instead
           // of two independently-configured pieces.
           style={{ borderRadius: expanded ? 26 : 20 }}
-          className="relative flex flex-col-reverse items-stretch material-sheet overflow-hidden"
+          className="relative flex flex-col-reverse items-stretch material-popover overflow-hidden"
         >
           {/* Collapsed section — first in DOM order + flex-col-reverse pins it to the card's
               visual bottom, so it never shifts as the card above it grows/shrinks. The idle
@@ -256,27 +257,22 @@ export default function AudioPlayer() {
                       <AudioLines size={12} className={`text-accent flex-shrink-0 ${audioPlayback.isPaused ? '' : 'animate-pulse'}`} />
                     )}
                     {showSyncRow ? (
-                      <button
-                        onClick={jumpToPlaying}
-                        className="flex items-center gap-1 px-1 py-0.5 -my-0.5 rounded-card text-caption font-medium text-accent hover:bg-accent/12 cursor-pointer transition-colors whitespace-nowrap"
-                        title="Jump to what's playing"
-                      >
+                      <RefChip onClick={jumpToPlaying} title="Jump to what's playing" className="gap-1">
                         {label}
                         <ArrowDownToLine size={11} />
-                      </button>
+                      </RefChip>
                     ) : (
                       <span className="text-caption font-medium text-text-primary whitespace-nowrap">
                         {audioPlayback.finished ? 'Finished' : label}
                       </span>
                     )}
                     {showSyncRow && (
-                      <button
+                      <IconButton
+                        icon={BookHeadphones}
+                        label="Read this chapter instead — retarget Read Aloud to what you're viewing"
+                        size={20}
                         onClick={playThisChapterInstead}
-                        className="flex items-center justify-center w-5 h-5 rounded-full text-text-secondary hover:bg-surface-hover hover:text-text-primary cursor-pointer transition-colors flex-shrink-0"
-                        title="Read this chapter instead — retarget Read Aloud to what you're viewing"
-                      >
-                        <BookHeadphones size={12} />
-                      </button>
+                      />
                     )}
                   </div>
 
@@ -294,46 +290,38 @@ export default function AudioPlayer() {
                       around it. */}
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center pl-1.5 pr-2 py-1.5">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => skipVerse('prev')}
-                        className="flex items-center justify-center w-7 h-7 rounded-full text-text-muted hover:text-text-primary hover:bg-surface-hover cursor-pointer transition-colors"
-                        title="Previous verse"
-                      >
-                        <SkipBack size={13} />
-                      </button>
+                      <IconButton icon={SkipBack} label="Previous verse" size={28} onClick={() => skipVerse('prev')} />
                     </div>
 
-                    <button
+                    <IconButton
+                      icon={audioPlayback.isPaused ? Play : Pause}
+                      label={audioPlayback.isPaused ? 'Resume' : 'Pause'}
+                      size={32}
+                      filled
+                      className="mx-1.5"
+                      iconClassName={audioPlayback.isPaused ? 'translate-x-[1px]' : undefined}
                       onClick={togglePlayPause}
-                      className="flex items-center justify-center w-8 h-8 mx-1.5 rounded-full bg-accent text-white cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm"
-                      title={audioPlayback.isPaused ? 'Resume' : 'Pause'}
-                    >
-                      {audioPlayback.isPaused ? <Play size={14} className="translate-x-[1px]" /> : <Pause size={14} />}
-                    </button>
+                    />
 
                     <div className="flex items-center justify-start gap-1">
-                      <button
-                        onClick={() => skipVerse('next')}
-                        className="flex items-center justify-center w-7 h-7 rounded-full text-text-muted hover:text-text-primary hover:bg-surface-hover cursor-pointer transition-colors"
-                        title="Next verse"
-                      >
-                        <SkipForward size={13} />
-                      </button>
+                      <IconButton icon={SkipForward} label="Next verse" size={28} onClick={() => skipVerse('next')} />
                       {/* Was the Stop (X) button — that moved to the card's top-right corner
                           (always in the same spot regardless of expand state) so it reads as
                           "close this player," freeing this spot for the queue button. */}
-                      <button
+                      <IconButton
+                        icon={ListMusic}
+                        label="Playlist queue"
+                        size={28}
+                        active={queuePopoverOpen}
+                        className="relative"
                         onClick={() => setQueuePopoverOpen(!queuePopoverOpen)}
-                        className={`relative flex items-center justify-center w-7 h-7 rounded-full cursor-pointer transition-colors ${queuePopoverOpen ? 'text-accent bg-accent/12 hover:bg-accent/20' : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'}`}
-                        title="Playlist queue"
                       >
-                        <ListMusic size={13} />
                         {playbackQueue.length > 0 && (
                           <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-accent text-white text-micro font-medium leading-3 text-center">
                             {playbackQueue.length}
                           </span>
                         )}
-                      </button>
+                      </IconButton>
                     </div>
                   </div>
                 </motion.div>
@@ -372,14 +360,14 @@ export default function AudioPlayer() {
                     dozen pixels total. */}
                 <div className="w-[300px] px-2.5 py-2 flex items-center gap-1.5 border-b border-separator">
                   <Gauge size={12} className="text-text-muted flex-shrink-0" />
-                  <input
-                    type="range" min={0.25} max={3} step={0.25}
+                  <Slider
+                    min={0.25} max={3} step={0.25}
                     value={ttsRate}
-                    onChange={(e) => setTTSRate(parseFloat(e.target.value))}
+                    onValueChange={setTTSRate}
                     title={`${ttsRate.toFixed(2)}x`}
-                    className="w-28 accent-accent flex-shrink-0"
+                    readout={`${ttsRate.toFixed(2)}x`}
+                    className="w-36 flex-shrink-0"
                   />
-                  <span className="text-caption2 font-medium text-text-secondary w-7 flex-shrink-0 tabular-nums">{ttsRate.toFixed(2)}x</span>
 
                   {voices.length > 0 && (
                     // No auto-preview here (unlike Settings → Audio) — this picker can be used
@@ -399,13 +387,14 @@ export default function AudioPlayer() {
               shown expanded: the collapsed circle has no room for it and IS itself the
               play/pause target. */}
           {expanded && (
-            <button
+            <IconButton
+              icon={X}
+              label="Stop"
+              size={24}
+              danger
+              className="absolute top-1.5 right-1.5 z-raised"
               onClick={stopPlayback}
-              className="absolute top-1.5 right-1.5 z-raised flex items-center justify-center w-6 h-6 rounded-full text-text-muted hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
-              title="Stop"
-            >
-              <X size={14} />
-            </button>
+            />
           )}
         </motion.div>
       </div>

@@ -12,7 +12,7 @@ import ChapterView from '@/components/bible/ChapterView'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { useAppStore } from '@/store'
 import { getTranslationForBook, normalizeBookName } from '@/lib/parseRef'
-import { Button, IconButton, SearchField } from '@/components/ui'
+import { Button, IconButton, SearchField, Toolbar, ListRow } from '@/components/ui'
 import type { YouTubePanelState, Note, LexiconEntry } from '@/types'
 
 // ── Notes panel ──────────────────────────────────────────────────────────────
@@ -57,12 +57,9 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
         </div>
         <div className="flex-1 overflow-y-auto p-1">
           {results.map((n) => (
-            <button key={n.id} onClick={() => { onUpdate({ ...panel, noteId: n.id }) }}
-              className="w-full text-left text-xs px-2.5 py-2 rounded-row hover:bg-surface-hover text-text-secondary hover:text-text-primary cursor-pointer truncate">
-              {n.title}
-            </button>
+            <ListRow key={n.id} dense title={n.title} onClick={() => { onUpdate({ ...panel, noteId: n.id }) }} />
           ))}
-          {results.length === 0 && <div className="text-xs text-text-muted px-2.5 py-3">No notes found</div>}
+          {results.length === 0 && <div className="text-footnote text-text-muted px-2.5 py-3">No notes found</div>}
         </div>
       </div>
     )
@@ -161,10 +158,7 @@ function ScripturePanel({ panel, onUpdate, onBack, onClose }: {
         </div>
         <div className="flex-1 overflow-y-auto p-1">
           {filtered.map((b) => (
-            <button key={b.id} onClick={() => onUpdate({ ...panel, bookId: b.id, chapter: 1, translation })}
-              className="w-full text-left text-xs px-2.5 py-2 rounded-row hover:bg-surface-hover text-text-secondary hover:text-text-primary cursor-pointer truncate">
-              {b.name}
-            </button>
+            <ListRow key={b.id} dense title={b.name} onClick={() => onUpdate({ ...panel, bookId: b.id, chapter: 1, translation })} />
           ))}
         </div>
       </div>
@@ -235,12 +229,12 @@ function LexiconPanel({ panel, onUpdate, onBack, onClose }: {
         </div>
         <div className="flex-1 overflow-y-auto p-1">
           {results.map((r) => (
-            <button key={r.strongsNum} onClick={() => onUpdate({ ...panel, strongsNum: r.strongsNum })}
-              className="w-full text-left text-xs px-2.5 py-2 rounded-row hover:bg-surface-hover text-text-secondary hover:text-text-primary cursor-pointer">
-              <span className="font-semibold text-accent">{r.strongsNum}</span> {r.lemma} — {r.gloss}
-            </button>
+            <ListRow key={r.strongsNum} dense
+              title={<><span className="font-semibold text-accent">{r.strongsNum}</span> {r.lemma} — {r.gloss}</>}
+              onClick={() => onUpdate({ ...panel, strongsNum: r.strongsNum })}
+            />
           ))}
-          {query && results.length === 0 && <div className="text-xs text-text-muted px-2.5 py-3">No results</div>}
+          {query && results.length === 0 && <div className="text-footnote text-text-muted px-2.5 py-3">No results</div>}
         </div>
       </div>
     )
@@ -258,11 +252,11 @@ function LexiconPanel({ panel, onUpdate, onBack, onClose }: {
       <div className="flex-1 overflow-y-auto min-h-0 p-3">
         {entry && (
           <div className="space-y-3">
-            <div><span className="text-lg font-bold text-text-primary">{entry.lemma}</span><span className="ml-2 text-xs text-text-muted">{entry.transliteration}</span></div>
-            <div className="text-xs font-semibold text-accent">{entry.strongsNum}</div>
-            <div className="text-sm text-text-secondary font-medium">{entry.gloss}</div>
-            {entry.definition && <div className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{entry.definition}</div>}
-            {entry.derivation && <div className="text-xs text-text-muted italic">{entry.derivation}</div>}
+            <div><span className="text-title2 font-medium text-text-primary font-lemma">{entry.lemma}</span><span className="ml-2 text-footnote text-text-muted">{entry.transliteration}</span></div>
+            <div className="text-footnote font-semibold text-accent">{entry.strongsNum}</div>
+            <div className="text-subhead text-text-secondary font-medium">{entry.gloss}</div>
+            {entry.definition && <div className="text-footnote text-text-secondary leading-relaxed whitespace-pre-wrap">{entry.definition}</div>}
+            {entry.derivation && <div className="text-footnote text-text-muted italic">{entry.derivation}</div>}
           </div>
         )}
       </div>
@@ -276,13 +270,13 @@ function PanelHeader({ title, onBack, onClose, extra, leftExtra }: {
   title: string; onBack: () => void; onClose?: () => void; extra?: React.ReactNode; leftExtra?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-1 px-2 py-2 material-bar border-b border-separator flex-shrink-0">
+    <Toolbar size="sm">
       <IconButton icon={ArrowLeft} label="Back to panel type" size={24} onClick={onBack} />
       {leftExtra}
-      <span className="flex-1 min-w-0 text-xs font-medium text-text-primary truncate text-center">{title}</span>
+      <span className="flex-1 min-w-0 text-footnote font-medium text-text-primary truncate text-center">{title}</span>
       {extra}
       {onClose && <IconButton icon={X} label="Close panel" size={24} danger onClick={onClose} />}
-    </div>
+    </Toolbar>
   )
 }
 

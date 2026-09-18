@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Printer, ChevronDown, FolderOpen, X, Eye } from 'lucide-react'
 import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/lib/notePreviewRender'
 import { ScaledPagePreview, CustomMarginInputs } from '@/components/notes/PrintPreviewModal'
-import { Switch, SectionLabel, SegmentedControl, TextField, IconButton } from '@/components/ui'
+import { Switch, SectionLabel, SegmentedControl, TextField, IconButton, OptionCard, Slider, ListRow } from '@/components/ui'
 import { useAppStore } from '@/store'
 
 const PRINT_PRESETS: { id: 'compact' | 'standard' | 'spacious' | 'manuscript'; label: string; desc: string;
@@ -78,9 +78,9 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <Printer size={14} className="text-text-muted" />
-        <p className="text-sm font-medium text-text-primary">Print &amp; Export</p>
+        <p className="text-subhead font-medium text-text-primary">Print &amp; Export</p>
       </div>
-      <p className="text-xs text-text-muted -mt-3">
+      <p className="text-caption text-text-muted -mt-3">
         Controls how notes look when printed or exported to PDF. Applies to the Print and Export-PDF buttons in the notes editor.
       </p>
 
@@ -89,64 +89,52 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
         <SectionLabel className="mb-1.5">Presets</SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           {PRINT_PRESETS.map((p) => (
-            <button
+            <OptionCard
               key={p.id}
+              selected={activePreset?.id === p.id}
               onClick={() => applyPreset(p)}
-              className={`text-left px-3 py-2 rounded-card border transition-colors cursor-pointer ${
-                activePreset?.id === p.id
-                  ? 'border-accent bg-accent-muted'
-                  : 'border-border bg-surface-3 hover:border-accent/50'
-              }`}
-            >
-              <div className="text-xs font-medium text-text-primary">{p.label}</div>
-              <div className="text-caption2 text-text-muted mt-0.5 leading-snug">{p.desc}</div>
-            </button>
+              title={p.label}
+              description={p.desc}
+            />
           ))}
         </div>
       </div>
 
-      {/* Theme & style — button + popover grid */}
+      {/* Theme & style — row + popover grid */}
       <div>
         <SectionLabel className="mb-1.5">Theme &amp; style</SectionLabel>
         <div className="relative" ref={themePickerRef}>
-          <button
+          <ListRow
+            className={themeOpen ? 'bg-accent-muted' : 'control-glass'}
+            buttonClassName="rounded-card"
             onClick={() => setThemeOpen(v => !v)}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-card border text-left cursor-pointer transition-colors ${
-              themeOpen
-                ? 'border-accent bg-accent-muted'
-                : 'border-border hover:border-accent/50 bg-surface-3'
-            }`}
-          >
-            <span className="w-6 h-6 rounded-chip flex-shrink-0 border overflow-hidden" style={{ background: currentTheme.bg, borderColor: currentTheme.h2Border }}>
-              <span className="block w-full h-1.5" style={{ background: currentTheme.verseBorder }} />
-              <span className="block mx-0.5 mt-1 h-1 rounded-chip" style={{ background: currentTheme.verseBg === 'transparent' ? currentTheme.h2Border : currentTheme.verseBg }} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-xs font-medium text-text-primary">{currentTheme.label}</span>
-              <span className="block text-micro text-text-muted truncate leading-tight">{currentTheme.desc}</span>
-            </span>
-            <ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
-          </button>
+            leading={
+              <span className="w-6 h-6 rounded-chip flex-shrink-0 border overflow-hidden" style={{ background: currentTheme.bg, borderColor: currentTheme.h2Border }}>
+                <span className="block w-full h-1.5" style={{ background: currentTheme.verseBorder }} />
+                <span className="block mx-0.5 mt-1 h-1 rounded-chip" style={{ background: currentTheme.verseBg === 'transparent' ? currentTheme.h2Border : currentTheme.verseBg }} />
+              </span>
+            }
+            title={currentTheme.label}
+            subtitle={currentTheme.desc}
+            trailing={<ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
+            trailingAlways
+          />
 
           {themeOpen && (
             <div className="absolute left-0 right-0 top-full mt-1.5 z-menu material-popover rounded-menu p-2 grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
               {Object.values(PRINT_THEMES).map((th) => (
-                <button
+                <OptionCard
                   key={th.id}
+                  selected={printTheme === th.id}
                   onClick={() => { setPrintTheme(th.id); setPrintFontFamily(th.suggestedFont); setThemeOpen(false) }}
-                  title={th.desc}
-                  className={`flex flex-col items-center gap-1 p-1.5 rounded-card border cursor-pointer transition-colors text-center ${
-                    printTheme === th.id
-                      ? 'border-accent bg-accent-muted'
-                      : 'border-transparent hover:border-border hover:bg-surface-hover'
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded-chip flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
-                    <span className="block w-full" style={{ height: 5, background: th.verseBorder }} />
-                    <span className="block mx-0.5 mt-0.5 rounded-chip" style={{ height: 3, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
-                  </span>
-                  <span className="text-micro font-medium text-text-secondary leading-none">{th.label}</span>
-                </button>
+                  title={th.label}
+                  preview={
+                    <span className="w-5 h-5 rounded-chip flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
+                      <span className="block w-full" style={{ height: 5, background: th.verseBorder }} />
+                      <span className="block mx-0.5 mt-0.5 rounded-chip" style={{ height: 3, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
+                    </span>
+                  }
+                />
               ))}
             </div>
           )}
@@ -181,11 +169,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
       {/* Font size */}
       <div>
         <SectionLabel className="mb-1.5">Font size — {printFontSizePt}pt</SectionLabel>
-        <input
-          type="range" min={8} max={18} step={1} value={printFontSizePt}
-          onChange={(e) => setPrintFontSizePt(parseInt(e.target.value))}
-          className="w-full accent-accent cursor-pointer"
-        />
+        <Slider min={8} max={18} step={1} value={printFontSizePt} onValueChange={setPrintFontSizePt} aria-label="Font size" />
       </div>
 
       {/* Font family */}
@@ -235,7 +219,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
       {/* Include title toggle */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-text-primary">Include note title</p>
+          <p className="text-subhead font-medium text-text-primary">Include note title</p>
           <p className="text-caption2 text-text-muted mt-0.5">Print the note title as a heading at the top</p>
         </div>
         <Switch checked={printIncludeTitle} onCheckedChange={() => setPrintIncludeTitle(!printIncludeTitle)} />

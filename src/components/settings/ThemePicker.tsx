@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { IconButton, SegmentedControl } from '@/components/ui'
+import { IconButton, SegmentedControl, OptionCard, Button } from '@/components/ui'
 import {
   THEME_PRESETS, resolvePresetClass, presetFamilies, type ThemePresetDef, type AnimationStyle,
 } from '@/lib/themePresets'
@@ -107,8 +107,8 @@ export default function ThemePicker({
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-separator flex-shrink-0">
           <div>
-            <p className="text-sm font-semibold text-text-primary">Themes</p>
-            <p className="text-xs text-text-muted">{THEME_PRESETS.length} presets — pick one to apply it instantly</p>
+            <p className="text-title3 font-semibold text-text-primary">Themes</p>
+            <p className="text-caption text-text-muted">{THEME_PRESETS.length} presets — pick one to apply it instantly</p>
           </div>
           <div className="flex items-center gap-2">
             {/* Always shown now, even when the app's own color mode is "system" — previewVariant
@@ -136,17 +136,16 @@ export default function ThemePicker({
         {/* Family filter chips */}
         <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-separator flex-shrink-0 overflow-x-auto">
           {families.map((f) => (
-            <button
+            <Button
               key={f}
+              variant="secondary"
+              size="sm"
+              selected={activeFamily === f}
               onClick={() => setActiveFamily(f)}
-              className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
-                activeFamily === f
-                  ? 'bg-accent text-white'
-                  : 'bg-surface-3 text-text-secondary hover:bg-surface-hover'
-              }`}
+              className="flex-shrink-0"
             >
               {f}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -208,15 +207,12 @@ function ThemeCard({
   const label = overrideLabel ?? preset.label
 
   return (
-    <button
+    <OptionCard
       onClick={onSelect}
-      title={label}
-      className={`group text-left rounded-card border p-1.5 transition-all cursor-pointer ${
-        active
-          ? 'border-accent ring-2 ring-accent'
-          : 'border-border hover:border-text-muted'
-      }`}
-    >
+      selected={active}
+      className="group"
+      preview={
+      <>
       {/* Mini APP mock-up — a small non-clickable replica of Berean's actual shell (sidebar
           rail, tab bar, panel header, reading content with a Strong's chip and a button), not
           just a couple of gray bars. Per feedback that the plain-text-lines version didn't show
@@ -284,7 +280,7 @@ function ThemeCard({
         </div>
         {preset.animationStyle && (
           <div
-            className="absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-black/35 backdrop-blur-sm"
+            className="absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full material-control"
             title={`${ANIMATION_STYLE_LABEL[preset.animationStyle]} animation when this theme is active — hover to preview`}
           >
             <Sparkles size={9} className="text-white" />
@@ -297,9 +293,9 @@ function ThemeCard({
           </div>
         )}
       </div>
-      <p className={`mt-1.5 px-0.5 text-caption font-medium truncate ${active ? 'text-accent' : 'text-text-secondary'}`}>
-        {label}
-      </p>
-    </button>
+      </>
+      }
+      title={label}
+    />
   )
 }

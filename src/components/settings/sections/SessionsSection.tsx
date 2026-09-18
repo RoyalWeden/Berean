@@ -48,47 +48,49 @@ export default function SessionsSection() {
     <div className="space-y-6">
       {/* ── Sessions ── */}
       <div>
-        <p className="text-sm font-medium text-text-primary mb-1">Sessions</p>
-        <p className="s-desc text-xs text-text-muted mb-3">
+        <p className="text-subhead font-medium text-text-primary mb-1">Sessions</p>
+        <p className="s-desc text-caption text-text-muted mb-3">
           A session is a full, independent set of open tabs. Switch between sessions to keep separate study threads apart — e.g. one for a weekly teaching prep, another for personal reading.
         </p>
         <div className="space-y-1.5">
           {sessions.map((session) => {
             const SessionIcon = (SESSION_ICONS.find((i) => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
             return (
-              <div key={session.id} className="relative flex items-center gap-2 px-3 py-2 rounded-row bg-surface-3 border border-border hover:bg-surface-hover transition-colors">
-                <button
+              <div key={session.id} className="relative flex items-center gap-2 px-3 py-2 rounded-row bg-surface-elevated">
+                <IconButton
+                  icon={SessionIcon}
+                  label="Change icon"
+                  size={24}
                   onClick={() => setIconPickerFor(iconPickerFor === session.id ? null : session.id)}
-                  title="Change icon"
-                  className="flex-shrink-0 text-text-secondary hover:text-text-primary cursor-pointer"
-                >
-                  <SessionIcon size={14} />
-                </button>
+                />
                 {iconPickerFor === session.id && (
                   <div className="absolute left-0 top-full mt-1 z-menu p-1.5 grid grid-cols-7 gap-0.5 material-popover rounded-menu">
                     {SESSION_ICONS.map(({ name, Icon }) => (
-                      <button
+                      <IconButton
                         key={name}
+                        icon={Icon}
+                        label={name}
+                        size={24}
+                        selected={session.icon === name}
                         onClick={() => { setSessionIcon(session.id, name); setIconPickerFor(null) }}
-                        className={`p-1.5 rounded-card cursor-pointer transition-colors hover:bg-surface-hover text-text-secondary hover:text-text-primary ${session.icon === name ? 'bg-accent-muted text-accent' : ''}`}
-                      >
-                        <Icon size={14} />
-                      </button>
+                      />
                     ))}
                   </div>
                 )}
                 {renamingId === session.id ? (
-                  <input
+                  <TextField
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null) }}
                     onBlur={commitRename}
                     autoFocus
-                    className="flex-1 bg-transparent text-xs text-text-primary outline-none border-b border-accent"
+                    bare
+                    wrapperClassName="flex-1"
+                    className="border-b border-accent rounded-none"
                   />
                 ) : (
-                  <span className={`flex-1 text-xs truncate ${session.id === currentSessionId ? 'text-accent font-medium' : 'text-text-primary'}`}>
+                  <span className={`flex-1 text-footnote truncate ${session.id === currentSessionId ? 'text-accent font-medium' : 'text-text-primary'}`}>
                     {session.name}{session.id === currentSessionId ? ' (current)' : ''}
                   </span>
                 )}
@@ -112,12 +114,12 @@ export default function SessionsSection() {
 
       {/* ── Archived tab groups ── */}
       <div className="pt-4 border-t border-separator">
-        <p className="text-sm font-medium text-text-primary mb-1">Archived tabs</p>
-        <p className="s-desc text-xs text-text-muted mb-3">
+        <p className="text-subhead font-medium text-text-primary mb-1">Archived tabs</p>
+        <p className="s-desc text-caption text-text-muted mb-3">
           Tabs you archived (individually, or all at once from the top bar) stay here until restored or cleared — they don't count toward your open-tab list.
         </p>
         {archivedGroups.length === 0 ? (
-          <p className="s-desc text-xs text-text-muted text-center py-4">No archived tabs</p>
+          <p className="s-desc text-caption text-text-muted text-center py-4">No archived tabs</p>
         ) : (
           <>
             {archivedGroups.length > 6 && (
@@ -130,9 +132,9 @@ export default function SessionsSection() {
             )}
             <div className="space-y-1.5 max-h-72 overflow-y-auto">
               {filteredArchives.map((group) => (
-                <div key={group.id} className="flex items-center gap-2 px-3 py-2 rounded-row bg-surface-3 border border-border hover:bg-surface-hover transition-colors">
+                <div key={group.id} className="flex items-center gap-2 px-3 py-2 rounded-row bg-surface-elevated">
                   <ArchiveIcon size={12} className="text-text-muted flex-shrink-0" />
-                  <span className="flex-1 text-xs text-text-primary truncate">{group.label}</span>
+                  <span className="flex-1 text-footnote text-text-primary truncate">{group.label}</span>
                   <span className="text-caption2 text-text-muted flex-shrink-0">{group.tabs.length} tab{group.tabs.length === 1 ? '' : 's'}</span>
                   <IconButton icon={RotateCcw} label="Restore" size={20} onClick={() => restoreArchivedGroup(group.id)} />
                   <IconButton icon={X} label="Delete permanently" size={20} danger onClick={() => dismissArchivedGroup(group.id)} />

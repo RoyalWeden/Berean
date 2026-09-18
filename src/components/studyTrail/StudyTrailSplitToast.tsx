@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Scissors, X } from 'lucide-react'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
+import { IconButton, Button } from '@/components/ui'
 
 // The main window's half of "automatic but confirmable" session detection. When the recorder
 // notices what looks like the start of a new study — a long break, or a jump to an unrelated book
@@ -70,42 +71,33 @@ export default function StudyTrailSplitToast() {
   const bottom = arrivalPillRect ? arrivalPillRect.bottom + arrivalPillRect.height + 10 : 16
 
   return (
-    <div style={{
-      position: 'fixed', right, bottom, zIndex: 9999, width: 244,
-      background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-      borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.2)', overflow: 'hidden',
-      opacity: shown ? 1 : 0, transform: shown ? 'translateY(0)' : 'translateY(10px)',
-      transition: `opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease, bottom 160ms ease`,
-    }}>
-      <div style={{ padding: '9px 11px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <Scissors size={12} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0, opacity: 0.85 }} />
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>New study?</span>
-          <span style={{ flex: 1 }} />
-          <button
-            onClick={clear}
-            title="Keep the current trail"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.6 }}
-          ><X size={11} /></button>
+    <div
+      className="fixed z-critical w-[244px] material-popover rounded-menu overflow-hidden"
+      style={{
+        right, bottom,
+        opacity: shown ? 1 : 0, transform: shown ? 'translateY(0)' : 'translateY(10px)',
+        transition: `opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease, bottom 160ms ease`,
+      }}
+    >
+      <div className="p-2.5">
+        <div className="flex items-center gap-1.5 mb-1">
+          <Scissors size={12} className="text-accent flex-shrink-0 opacity-85" />
+          <span className="text-footnote font-semibold text-text-primary">New study?</span>
+          <span className="flex-1" />
+          <IconButton icon={X} label="Keep the current trail" size={20} variant="ghost" tooltip={false} onClick={clear} />
         </div>
-        <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', lineHeight: 1.4, marginBottom: 8 }}>
+        <div className="text-footnote text-text-secondary leading-relaxed mb-2">
           Looks like a new study — {proposal?.reason ?? local.reason}.
         </div>
         {/* One clear primary action — the X above already covers "keep current", so a second,
             equally-weighted "Keep current" button here was a redundant control saying the same
             thing twice (per feedback, "less intrusive... simplified when opened"). */}
-        <button
-          onClick={() => { void accept() }}
-          style={{
-            width: '100%', fontSize: 11.5, fontWeight: 600, padding: '5px 8px', borderRadius: 7, cursor: 'pointer',
-            background: 'rgb(var(--color-accent) / 0.16)', border: 'none', color: 'rgb(var(--color-accent))',
-          }}
-        >Start a new trail</button>
+        <Button variant="ghost" selected size="sm" className="w-full" onClick={() => { void accept() }}>Start a new trail</Button>
       </div>
       {/* Countdown bar — an auto-dismissing prompt with no visible timer reads as one that
           vanished for no reason. Thinner and lower-contrast than before, to match the toast's
           overall quieter footprint. */}
-      <div style={{ height: 1.5, background: 'rgb(var(--color-accent) / 0.25)', width: `${pct * 100}%`, transition: 'width 250ms linear' }} />
+      <div className="h-[1.5px] bg-accent/25" style={{ width: `${pct * 100}%`, transition: 'width 250ms linear' }} />
     </div>
   )
 }

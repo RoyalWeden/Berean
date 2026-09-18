@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
-import { X, ArrowLeft, Search, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Copy, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { Select, TextField, Button, SectionLabel, IconButton } from '@/components/ui'
+import { Select, TextField, SearchField, Button, SectionLabel, IconButton, Sheet, OptionCard, ListRow } from '@/components/ui'
 
 // ── Book data for the "All supported books" sub-view ────────────────────────
 
@@ -608,7 +607,7 @@ function VerseBuilder() {
       </div>
       {/* Preview + copy */}
       <div className="flex items-center gap-2 pt-1">
-        <code className="flex-1 text-xs font-mono px-3 py-2 rounded-control bg-surface-1 text-accent border border-border">
+        <code className="flex-1 text-caption font-mono px-3 py-2 rounded-control bg-surface-1 text-accent border border-border">
           {ref}
         </code>
         <Button variant="ghost" size="sm" icon={copied ? Check : Copy} className="bg-accent-muted text-accent flex-shrink-0" onClick={copyRef}>
@@ -650,17 +649,12 @@ function AllBooksView() {
     <div className="flex flex-col flex-1 min-h-0">
       {/* Search + stats */}
       <div className="px-5 pt-4 pb-3 border-b border-separator space-y-3 flex-shrink-0">
-        <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input
-            autoFocus
-            type="text"
-            placeholder="Search books…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-surface-4 text-text-primary text-xs pl-7 pr-3 py-2 rounded-lg outline-none placeholder:text-text-muted"
-          />
-        </div>
+        <SearchField
+          autoFocus
+          placeholder="Search books…"
+          value={query}
+          onValueChange={setQuery}
+        />
         <p className="text-caption2 text-text-muted">
           {totalBooks} {totalBooks === 1 ? 'book' : 'books'} · type any name or abbreviation in your note to create a clickable link
         </p>
@@ -672,21 +666,21 @@ function AllBooksView() {
         {!query && <VerseBuilder />}
 
         {filtered.length === 0 ? (
-          <p className="text-xs text-text-muted text-center py-6">No books match "{query}"</p>
+          <p className="text-caption text-text-muted text-center py-6">No books match "{query}"</p>
         ) : (
           filtered.map((group) => (
             <div key={group.group}>
-              <p className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mb-1.5">{group.group}</p>
+              <SectionLabel className="mb-1.5">{group.group}</SectionLabel>
               <div className="grid grid-cols-1 gap-0.5">
                 {group.books.map((book) => {
                   const exRef = `${book.abbr} ${book.exampleChapter}:${book.exampleVerse}`
                   return (
                     <div
                       key={book.id}
-                      className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors group"
+                      className="flex items-center gap-3 px-2 py-1.5 rounded-row hover:bg-surface-hover transition-colors group"
                     >
-                      <span className="text-xs text-text-primary w-44 flex-shrink-0 truncate">{book.name}</span>
-                      <code className="text-caption2 font-mono text-text-muted bg-surface-4 px-1.5 py-0.5 rounded flex-shrink-0 group-hover:bg-surface-hover">
+                      <span className="text-footnote text-text-primary w-44 flex-shrink-0 truncate">{book.name}</span>
+                      <code className="text-caption2 font-mono text-text-muted bg-surface-4 px-1.5 py-0.5 rounded-chip flex-shrink-0 group-hover:bg-surface-hover">
                         {book.abbr}
                       </code>
                       <span className="text-caption2 text-text-muted flex-shrink-0">e.g.</span>
@@ -733,58 +727,30 @@ export default function MarkdownReferenceModal() {
     : 'Markdown reference'
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && handleClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-modal" style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
-        <Dialog.Content
-          aria-describedby={undefined}
-          className="
-            fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-            z-modal w-full max-w-2xl max-h-[84vh]
-            bg-surface-2 border border-separator
-            rounded-xl shadow-2xl overflow-hidden flex flex-col
-          "
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-separator flex-shrink-0">
-            <div className="flex items-center gap-2">
-              {showBack && (
-                <button
-                  onClick={goBack}
-                  className="p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
-                >
-                  <ArrowLeft size={15} />
-                </button>
-              )}
-              <Dialog.Title className="text-sm font-semibold text-text-primary">
-                {title}
-              </Dialog.Title>
-            </div>
-            <button
-              onClick={handleClose}
-              className="p-1 rounded text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-            {allBooksOpen ? (
-              <AllBooksView />
-            ) : selected ? (
-              <div className="flex-1 overflow-y-auto">
-                <DetailView item={selected} onOpenAllBooks={() => setAllBooksOpen(true)} />
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto">
-                <IndexView onSelect={setSelected} />
-              </div>
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => !v && handleClose()}
+      size="lg"
+      bodyClassName="flex flex-col"
+      title={
+        <div className="flex items-center gap-2">
+          {showBack && <IconButton icon={ArrowLeft} label="Back" size={24} onClick={goBack} />}
+          <span>{title}</span>
+        </div>
+      }
+    >
+      {allBooksOpen ? (
+        <AllBooksView />
+      ) : selected ? (
+        <div className="flex-1 overflow-y-auto">
+          <DetailView item={selected} onOpenAllBooks={() => setAllBooksOpen(true)} />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <IndexView onSelect={setSelected} />
+        </div>
+      )}
+    </Sheet>
   )
 }
 
@@ -794,19 +760,19 @@ function IndexView({ onSelect }: { onSelect: (item: RefItem) => void }) {
   return (
     <div className="p-4 grid grid-cols-2 gap-2">
       {REFERENCE_ITEMS.map((item) => (
-        <button
+        <ListRow
           key={item.id}
           onClick={() => onSelect(item)}
-          className="text-left flex items-start gap-3 p-3 rounded-lg bg-surface-3 hover:bg-surface-hover transition-colors cursor-pointer group"
-        >
-          <code className="text-caption font-mono px-1.5 py-0.5 rounded bg-surface-1 text-accent flex-shrink-0 mt-0.5 group-hover:bg-surface-hover">
-            {item.syntax.split('\n')[0]}
-          </code>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-text-primary truncate">{item.label}</p>
-            <p className="text-caption2 text-text-muted mt-0.5 line-clamp-2">{item.description}</p>
-          </div>
-        </button>
+          className="control-glass rounded-card"
+          buttonClassName="items-start px-3 py-3"
+          leading={
+            <code className="text-caption font-mono px-1.5 py-0.5 rounded-chip bg-surface-1 text-accent flex-shrink-0 mt-0.5">
+              {item.syntax.split('\n')[0]}
+            </code>
+          }
+          title={item.label}
+          subtitle={item.description}
+        />
       ))}
     </div>
   )
@@ -820,7 +786,7 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
       {/* Syntax */}
       <div>
         <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Syntax</p>
-        <code className="block px-3 py-2 rounded-lg bg-surface-4 text-accent text-sm font-mono whitespace-pre-wrap">
+        <code className="block px-3 py-2 rounded-card bg-surface-4 text-accent text-subhead font-mono whitespace-pre-wrap">
           {item.syntax}
         </code>
       </div>
@@ -828,13 +794,13 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
       {/* What it does */}
       <div>
         <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">What it does</p>
-        <p className="text-sm text-text-secondary leading-relaxed">{item.description}</p>
+        <p className="text-subhead text-text-secondary leading-relaxed">{item.description}</p>
       </div>
 
       {/* Why use it */}
       <div>
         <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Why use it</p>
-        <p className="text-sm text-text-secondary leading-relaxed">{item.why}</p>
+        <p className="text-subhead text-text-secondary leading-relaxed">{item.why}</p>
       </div>
 
       {/* Examples */}
@@ -842,14 +808,14 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
         <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Examples</p>
         <div className="space-y-2">
           {item.examples.map((ex, i) => (
-            <div key={i} className="rounded-lg bg-surface-3 overflow-hidden">
+            <div key={i} className="rounded-card bg-surface-3 overflow-hidden">
               <div className="px-3 py-2 border-b border-separator">
                 <p className="text-micro font-semibold text-text-muted uppercase tracking-wider mb-1">You type</p>
-                <code className="text-xs font-mono text-text-primary whitespace-pre-wrap">{ex.input}</code>
+                <code className="text-caption font-mono text-text-primary whitespace-pre-wrap">{ex.input}</code>
               </div>
               <div className="px-3 py-2">
                 <p className="text-micro font-semibold text-text-muted uppercase tracking-wider mb-1">Result</p>
-                <p className="text-xs text-text-secondary whitespace-pre-wrap">{ex.output}</p>
+                <p className="text-caption text-text-secondary whitespace-pre-wrap">{ex.output}</p>
               </div>
             </div>
           ))}
@@ -858,24 +824,21 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
 
       {/* "All supported books" call-to-action — only for bible-ref item */}
       {item.hasAllBooksPanel && (
-        <button
+        <ListRow
           onClick={onOpenAllBooks}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-surface-3 border border-separator hover:bg-surface-hover transition-colors cursor-pointer group"
-        >
-          <div className="text-left">
-            <p className="text-xs font-medium text-text-primary">All supported books</p>
-            <p className="text-caption2 text-text-muted mt-0.5">
-              Browse every book · search by name or abbreviation · build a verse reference
-            </p>
-          </div>
-          <ArrowLeft size={14} className="rotate-180 text-text-muted group-hover:text-accent transition-colors flex-shrink-0 ml-3" />
-        </button>
+          className="control-glass rounded-card"
+          buttonClassName="px-4 py-3"
+          title="All supported books"
+          subtitle="Browse every book · search by name or abbreviation · build a verse reference"
+          trailing={<ArrowLeft size={14} className="rotate-180 text-text-muted transition-colors flex-shrink-0" />}
+          trailingAlways
+        />
       )}
 
       {/* Notes */}
       {item.notes && (
-        <div className="px-3 py-2 rounded-lg bg-accent-muted border border-accent/20">
-          <p className="text-xs text-text-secondary leading-relaxed">{item.notes}</p>
+        <div className="px-3 py-2 rounded-card bg-accent-muted">
+          <p className="text-caption text-text-secondary leading-relaxed">{item.notes}</p>
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Search, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button, IconButton, SearchField } from '@/components/ui'
 import { useAppStore } from '@/store'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
@@ -129,50 +130,43 @@ function VersePickerColumn({
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: accentColor, margin: 0 }}>{label}</p>
-            <p style={{ fontSize: 13 * fontScale, fontWeight: 600, color: textColor, margin: '2px 0 0' }}>{title}</p>
+            <p className="text-caption2 font-semibold uppercase tracking-wide m-0" style={{ color: accentColor }}>{label}</p>
+            <p className="font-semibold mt-0.5 mb-0" style={{ fontSize: 13 * fontScale, color: textColor }}>{title}</p>
           </div>
           {lxxAvailable && (
-            <button
+            <Button
+              variant="ghost"
+              selected={textId === 'lxx'}
+              size="sm"
               onClick={() => setTextId((t) => (t === 'lxx' ? 'kjva' : 'lxx'))}
               title={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}
-              style={{
-                flexShrink: 0, fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 999,
-                cursor: 'pointer', border: `1px solid ${borderColor}`,
-                background: textId === 'lxx' ? 'rgb(var(--color-accent) / 0.16)' : 'transparent',
-                color: textId === 'lxx' ? accentColor : muteColor,
-              }}
-            >{textId === 'lxx' ? 'LXX' : 'KJV'}</button>
+            >{textId === 'lxx' ? 'LXX' : 'KJV'}</Button>
           )}
         </div>
         {findActive && (
           <div className="flex items-center gap-2 mt-2">
-            <Search size={12} style={{ color: muteColor, flexShrink: 0 }} />
-            <input
+            <SearchField
               autoFocus
               value={findQuery}
-              onChange={(e) => onFindQueryChange(e.target.value)}
+              onValueChange={onFindQueryChange}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') { onCloseFind(); return }
                 if (e.key === 'Enter') { e.preventDefault(); cycleMatch(e.shiftKey ? -1 : 1) }
               }}
               placeholder="Find in this chapter…"
-              style={{
-                flex: 1, minWidth: 0, fontSize: 12, background: 'rgb(var(--color-surface-1))',
-                border: `1px solid ${borderColor}`, borderRadius: 6, padding: '3px 7px', color: textColor, outline: 'none',
-              }}
+              wrapperClassName="flex-1 min-w-0"
             />
             {matchedList.length > 0 && (
               <>
-                <span style={{ fontSize: 10.5, color: muteColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{(matchIndex % matchedList.length) + 1}/{matchedList.length}</span>
-                <button onClick={() => cycleMatch(-1)} title="Previous match (Shift+Enter)" style={{ flexShrink: 0, background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex', padding: '0 2px' }}>‹</button>
-                <button onClick={() => cycleMatch(1)} title="Next match (Enter)" style={{ flexShrink: 0, background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex', padding: '0 2px' }}>›</button>
+                <span className="text-caption2 flex-shrink-0 whitespace-nowrap" style={{ color: muteColor }}>{(matchIndex % matchedList.length) + 1}/{matchedList.length}</span>
+                <IconButton icon={ChevronLeft} label="Previous match (Shift+Enter)" size={20} variant="ghost" tooltip={false} onClick={() => cycleMatch(-1)} />
+                <IconButton icon={ChevronRight} label="Next match (Enter)" size={20} variant="ghost" tooltip={false} onClick={() => cycleMatch(1)} />
               </>
             )}
             {q && matchedList.length === 0 && (
-              <span style={{ fontSize: 10.5, color: muteColor, flexShrink: 0 }}>0</span>
+              <span className="text-caption2 flex-shrink-0" style={{ color: muteColor }}>0</span>
             )}
-            <button onClick={onCloseFind} style={{ flexShrink: 0, background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex' }}><X size={13} /></button>
+            <IconButton icon={X} label="Close find" size={20} variant="ghost" tooltip={false} onClick={onCloseFind} />
           </div>
         )}
       </div>
@@ -193,7 +187,7 @@ function VersePickerColumn({
               key={v.verse_num}
               data-verse-num={v.verse_num}
               onClick={(e) => handleClick(v.verse_num, e.shiftKey)}
-              className="flex w-full items-start gap-2 rounded-md text-left transition-colors"
+              className="flex w-full items-start gap-2 rounded-row text-left transition-colors"
               style={{
                 padding: '4px 8px',
                 marginBottom: 1,
@@ -350,21 +344,21 @@ export default function VersePickerApp() {
         className="flex items-center justify-center flex-shrink-0"
         style={{ height: 36, WebkitAppRegion: 'drag', paddingLeft: 78, position: 'relative' } as React.CSSProperties}
       >
-        <span style={{ fontSize: 12, fontWeight: 600, color: muteColor }}>
+        <span className="text-footnote font-semibold" style={{ color: muteColor }}>
           Click a verse number to tie it — shift-click for a range
         </span>
         <div
           className="flex items-center gap-1"
           style={{ position: 'absolute', right: 12, top: 0, bottom: 0, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          <button onClick={() => zoom(-0.05)} title="Zoom out" style={{ background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex', padding: 4 }}><ZoomOut size={14} /></button>
-          <span style={{ fontSize: 10.5, color: muteColor, minWidth: 30, textAlign: 'center' }}>{Math.round(fontScale * 100)}%</span>
-          <button onClick={() => zoom(0.05)} title="Zoom in" style={{ background: 'transparent', border: 'none', color: muteColor, cursor: 'pointer', display: 'flex', padding: 4 }}><ZoomIn size={14} /></button>
+          <IconButton icon={ZoomOut} label="Zoom out" size={24} variant="ghost" onClick={() => zoom(-0.05)} />
+          <span className="text-caption2 text-center" style={{ color: muteColor, minWidth: 30 }}>{Math.round(fontScale * 100)}%</span>
+          <IconButton icon={ZoomIn} label="Zoom in" size={24} variant="ghost" onClick={() => zoom(0.05)} />
         </div>
       </div>
       {bothEmpty ? (
         <div className="flex-1 flex items-center justify-center">
-          <p style={{ fontSize: 13, color: muteColor }}>Loading…</p>
+          <p className="text-body" style={{ color: muteColor }}>Loading…</p>
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex" style={{ borderTop: `1px solid ${borderColor}` }}>

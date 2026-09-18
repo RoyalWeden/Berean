@@ -37,11 +37,11 @@ function DangerCard({ action }: { action: DangerAction }) {
     <div className="border border-destructive/25 rounded-card overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 bg-destructive/8 border-b border-destructive/20">
-        <p className="text-sm font-semibold text-destructive">{action.title}</p>
-        <p className="s-desc text-xs text-text-muted mt-0.5">{action.description}</p>
+        <p className="text-subhead font-semibold text-destructive">{action.title}</p>
+        <p className="s-desc text-caption text-text-muted mt-0.5">{action.description}</p>
       </div>
       {/* Confirmation input + button */}
-      <div className="px-4 py-3 bg-surface-3 flex items-center gap-3">
+      <div className="px-4 py-3 bg-surface-elevated flex items-center gap-3">
         <div className="flex-1">
           <p className="text-caption2 text-text-muted mb-1">
             Type <span className="font-mono font-semibold text-text-secondary">{action.confirmWord}</span> to confirm
@@ -120,8 +120,8 @@ export default function DangerSection() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-sm font-semibold text-destructive mb-0.5">Danger zone</p>
-        <p className="s-desc text-xs text-text-muted">
+        <p className="text-subhead font-semibold text-destructive mb-0.5">Danger zone</p>
+        <p className="s-desc text-caption text-text-muted">
           These actions are permanent and cannot be undone. Each action requires you to type a confirmation word before the button activates.
         </p>
       </div>

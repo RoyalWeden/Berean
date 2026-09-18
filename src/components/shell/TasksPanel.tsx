@@ -11,6 +11,7 @@ import { useAppStore } from '@/store'
 import type { AppState } from '@/store'
 import type { BibleTabState } from '@/types'
 import ShortcutKeys from './ShortcutKeys'
+import { Button, IconButton, ListRow, SectionLabel, Chip } from '@/components/ui'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -743,20 +744,15 @@ export default function TasksPanel() {
   // ── Minimized chip ─────────────────────────────────────────────────────────
   if (tasksMinimized) {
     return createPortal(
-      <div className="fixed right-5 z-overlay" style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}>
-        <button
-          onClick={unminimizeTasks}
-          className="flex items-center gap-2 px-3 py-2 rounded-full bg-surface-2 border border-border shadow-lg hover:bg-surface-hover transition-colors cursor-pointer"
-        >
+      <div className="fixed right-5 z-overlay material-control rounded-control" style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}>
+        <Button variant="secondary" size="md" onClick={unminimizeTasks} className="rounded-control">
           {allDone
             ? <Sparkles size={13} className="text-accent" />
             : <CheckCircle2 size={13} className="text-accent" />
           }
-          <span className="text-xs font-medium text-text-primary">
-            {allDone ? 'Getting Started — all done!' : `Getting Started · ${doneCount}/${TOTAL}`}
-          </span>
+          {allDone ? 'Getting Started — all done!' : `Getting Started · ${doneCount}/${TOTAL}`}
           <ChevronRight size={12} className="text-text-muted -rotate-90" />
-        </button>
+        </Button>
       </div>,
       document.body,
     )
@@ -775,23 +771,17 @@ export default function TasksPanel() {
             ? <Sparkles size={14} className="text-accent" />
             : <CheckCircle2 size={14} className="text-accent" />
           }
-          <span className="text-sm font-semibold text-text-primary">Getting Started</span>
-          <span className="text-xs text-text-muted">{doneCount}/{TOTAL}</span>
+          <span className="text-subhead font-semibold text-text-primary">Getting Started</span>
+          <span className="text-caption text-text-muted">{doneCount}/{TOTAL}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={minimizeTasks} title="Minimize"
-            className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer">
-            <ChevronDown size={13} />
-          </button>
-          <button onClick={closeTasks} title="Dismiss"
-            className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer">
-            <X size={13} />
-          </button>
+          <IconButton icon={ChevronDown} label="Minimize" size={24} onClick={minimizeTasks} />
+          <IconButton icon={X} label="Dismiss" size={24} onClick={closeTasks} />
         </div>
       </div>
 
       {/* Global progress bar */}
-      <div className="h-0.5 bg-surface-4 flex-shrink-0">
+      <div className="h-0.5 bg-lift-2 flex-shrink-0">
         <div className="h-full bg-accent transition-all duration-500"
           style={{ width: `${(doneCount / TOTAL) * 100}%` }} />
       </div>
@@ -799,7 +789,7 @@ export default function TasksPanel() {
       {/* All-done banner */}
       {allDone && (
         <div className="px-4 py-3 bg-accent/8 border-b border-separator flex-shrink-0">
-          <p className="text-xs text-accent font-medium">
+          <p className="text-caption text-accent font-medium">
             You've explored every feature — you know Berean well!
           </p>
           <p className="text-caption2 text-text-muted mt-0.5">
@@ -826,18 +816,16 @@ export default function TasksPanel() {
               <div className="px-4 pt-3 pb-2">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-micro font-bold uppercase tracking-widest text-text-muted">
-                      {section.label}
-                    </span>
+                    <SectionLabel className="tracking-widest">{section.label}</SectionLabel>
                     {allSectionDone && (
                       <CheckCircle2 size={10} className="text-accent opacity-80" />
                     )}
                   </div>
                   <span className="text-micro text-text-muted">{sectionDone}/{sectionTotal}</span>
                 </div>
-                <div className="h-0.5 rounded-full bg-surface-4 overflow-hidden">
+                <div className="h-0.5 rounded-control bg-lift-2 overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
+                    className="h-full rounded-control transition-all duration-500"
                     style={{
                       width: `${(sectionDone / sectionTotal) * 100}%`,
                       background: allSectionDone ? 'rgb(var(--color-accent))' : 'rgba(var(--color-accent), 0.6)',
@@ -855,57 +843,38 @@ export default function TasksPanel() {
                   const isExpanded = expandedId === task.id
 
                   return (
-                    <div key={task.id} className="rounded-lg overflow-hidden">
+                    <div key={task.id} className="rounded-card overflow-hidden">
                       {/* Task row */}
-                      <button
+                      <ListRow
                         onClick={() => setExpandedId(isExpanded ? null : task.id)}
-                        className={`w-full flex items-start gap-2.5 px-3 py-2 text-left rounded-lg transition-colors ${
-                          done
-                            ? 'opacity-40 cursor-pointer'
-                            : isExpanded
-                            ? 'bg-surface-3 cursor-pointer'
-                            : 'hover:bg-surface-hover cursor-pointer'
-                        }`}
-                      >
-                        <div className={`mt-px flex-shrink-0 ${done || isExpanded ? 'text-accent' : 'text-text-muted'}`}>
-                          {done ? <CheckCircle2 size={13} /> : <Icon size={13} />}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-xs font-medium leading-snug ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
-                              {task.title}
-                            </span>
+                        selected={isExpanded}
+                        className={done ? 'opacity-40' : ''}
+                        leading={
+                          <div className={`mt-px flex-shrink-0 ${done || isExpanded ? 'text-accent' : 'text-text-muted'}`}>
+                            {done ? <CheckCircle2 size={13} /> : <Icon size={13} />}
+                          </div>
+                        }
+                        title={
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            <span className={done ? 'line-through text-text-muted font-normal' : undefined}>{task.title}</span>
                             {task.shortcut && !done && (
                               <ShortcutKeys keys={task.shortcut} className="flex-shrink-0" />
                             )}
-                          </div>
-                          {!done && (
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-caption2 text-text-muted leading-relaxed flex-1">
-                                {task.subtitle}
-                              </p>
-                              {stepsTotal > 0 && (
-                                <span className={`flex-shrink-0 text-micro font-medium px-1.5 py-0.5 rounded-full ${
-                                  stepsDone === stepsTotal
-                                    ? 'bg-accent/15 text-accent'
-                                    : stepsDone > 0
-                                    ? 'bg-accent/10 text-accent'
-                                    : 'bg-surface-4 text-text-muted'
-                                }`}>
-                                  {stepsDone}/{stepsTotal}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <ChevronRight size={11} className={`flex-shrink-0 mt-0.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                      </button>
+                          </span>
+                        }
+                        subtitle={!done ? task.subtitle : undefined}
+                        meta={!done && stepsTotal > 0 ? (
+                          <Chip size="sm" static tint={stepsDone > 0 ? 'var(--color-accent)' : undefined}>
+                            {stepsDone}/{stepsTotal}
+                          </Chip>
+                        ) : undefined}
+                        trailing={<ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />}
+                        trailingAlways
+                      />
 
                       {/* Expanded checklist */}
                       {isExpanded && (
-                        <div className="mx-1 mb-1 px-3 py-3 rounded-lg bg-surface-1 border border-border">
+                        <div className="mx-1 mb-1 px-3 py-3 rounded-card bg-surface-elevated">
                           <ol className="space-y-3 mb-3">
                             {task.steps.map((step, i) => {
                               const key      = `${task.id}:${step.id}`
@@ -957,13 +926,15 @@ export default function TasksPanel() {
 
                           {task.action && task.actionLabel && !done && (
                             <div className="flex items-center gap-2 pt-2 border-t border-separator">
-                              <button
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                iconTrailing
+                                icon={ArrowRight}
                                 onClick={() => { task.action!(); setExpandedId(null) }}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-card text-caption2 font-semibold bg-accent text-white hover:opacity-90 transition-opacity cursor-pointer"
                               >
                                 {task.actionLabel}
-                                <ArrowRight size={10} />
-                              </button>
+                              </Button>
                               <p className="text-micro text-text-muted italic leading-snug flex-1">
                                 Steps complete automatically as you do them.
                               </p>
@@ -984,12 +955,7 @@ export default function TasksPanel() {
       {/* Footer */}
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-separator flex-shrink-0">
         <p className="text-caption2 text-text-muted">Replay via Settings → About</p>
-        <button
-          onClick={closeTasks}
-          className="text-caption2 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        >
-          Dismiss
-        </button>
+        <Button variant="ghost" size="sm" onClick={closeTasks}>Dismiss</Button>
       </div>
     </div>,
     document.body,

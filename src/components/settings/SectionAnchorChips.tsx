@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Chip } from '@/components/ui'
 
 /**
  * A sticky row of "jump to" chips at the top of a Settings section. Auto-discovers targets
@@ -72,17 +73,13 @@ export default function SectionAnchorChips({
       className="sticky top-0 z-raised -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 material-bar border-b border-separator [&+*]:!mt-2"
     >
       {anchors.map((a) => (
-        <button
+        <Chip
           key={a.id}
+          selected={activeId === a.id}
           onClick={() => document.getElementById(a.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className={`text-caption2 px-2 py-0.5 rounded-chip border transition-colors cursor-pointer ${
-            activeId === a.id
-              ? 'bg-accent-muted border-accent/40 text-accent font-semibold'
-              : 'border-border text-text-secondary hover:text-text-primary'
-          }`}
         >
           {a.label}
-        </button>
+        </Chip>
       ))}
     </div>
   )

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ListMusic, Plus, X, ChevronUp, ChevronDown, Play, Save, FolderOpen, Trash2, CornerDownLeft, GripHorizontal, GripVertical, Library } from 'lucide-react'
 import { useAppStore, type PlaybackQueueItem } from '@/store'
-import { IconButton, SegmentedControl } from '@/components/ui'
+import { IconButton, SegmentedControl, TextField, Button, ListRow } from '@/components/ui'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { parseQueueRefInput, labelForQueueItem } from '@/lib/audioQueueRef'
 import type { BibleTabState } from '@/types'
@@ -231,7 +231,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
         onPointerUp={onDragEnd}
         className="no-drag flex items-center justify-between px-2.5 py-2 border-b border-separator cursor-grab active:cursor-grabbing select-none flex-shrink-0"
       >
-        <div className="flex items-center gap-1.5 text-xs font-medium text-text-primary">
+        <div className="flex items-center gap-1.5 text-footnote font-medium text-text-primary">
           <GripHorizontal size={12} className="text-text-muted" />
           <ListMusic size={13} /> Playlist queue
         </div>
@@ -262,14 +262,16 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               single typed reference can add more than one queue entry (a chapter/cross-chapter
               range expands per-chapter — see audioQueueRef.ts). */}
           <div className="mb-1.5">
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-card bg-surface-3 border ${refError ? 'border-destructive/60' : 'border-border'}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-card bg-surface-elevated border ${refError ? 'border-destructive/60' : 'border-transparent'}`}>
               <Plus size={12} className="text-text-muted flex-shrink-0" />
-              <input
+              <TextField
+                bare
                 value={refInput}
                 onChange={(e) => { setRefInput(e.target.value); if (refError) setRefError(false) }}
                 onKeyDown={(e) => { if (e.key === 'Enter') addRefInputToQueue() }}
                 placeholder="Type a reference… e.g. Luke 15:10-16:3"
-                className="flex-1 min-w-0 bg-transparent text-caption text-text-primary placeholder:text-text-muted outline-none"
+                wrapperClassName="flex-1 min-w-0"
+                className="h-auto p-0 text-caption"
               />
               <CornerDownLeft size={11} className="text-text-muted flex-shrink-0" />
             </div>
@@ -285,109 +287,81 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
           ) : (
             <div className="space-y-0.5 mb-1.5">
               {playbackQueue.map((item, i) => (
-                <div
+                <ListRow
                   key={`${item.bookId}-${item.chapter}-${item.textId}-${i}`}
+                  dense
                   draggable
                   onDragStart={(e) => onItemDragStart(e, i)}
                   onDragOver={(e) => onItemDragOver(e, i)}
                   onDragEnd={onItemDragEnd}
-                  className={`group flex items-center gap-0.5 px-1 py-1 rounded-card text-xs transition-colors ${
-                    draggingIndex === i ? 'opacity-40' : ''
-                  } ${i === playbackQueueIndex ? 'bg-accent/12 text-accent hover:bg-accent/20' : 'text-text-secondary hover:bg-surface-hover'}`}
-                >
-                  {/* Drag handle + up/down/delete controls only show on hover (or while this row
-                      is the one being dragged) — the label is the only thing visible at rest,
-                      matching the "hover-only, just like tabs" ask. */}
-                  <span className="p-0.5 text-text-muted cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <GripVertical size={12} />
-                  </span>
-                  <button
-                    onClick={() => playQueueIndex(i)}
-                    className="flex-1 min-w-0 text-left truncate cursor-pointer"
-                    title={`Play ${item.label}`}
-                  >
-                    {i === playbackQueueIndex && audioPlayback ? '▶ ' : ''}{item.label}
-                  </button>
-                  <button
-                    onClick={() => reorderPlaybackQueue(i, Math.max(0, i - 1))}
-                    disabled={i === 0}
-                    className="p-0.5 text-text-muted hover:text-text-primary disabled:opacity-25 disabled:cursor-default cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Move up"
-                  >
-                    <ChevronUp size={12} />
-                  </button>
-                  <button
-                    onClick={() => reorderPlaybackQueue(i, Math.min(playbackQueue.length - 1, i + 1))}
-                    disabled={i === playbackQueue.length - 1}
-                    className="p-0.5 text-text-muted hover:text-text-primary disabled:opacity-25 disabled:cursor-default cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Move down"
-                  >
-                    <ChevronDown size={12} />
-                  </button>
-                  <button
-                    onClick={() => removeFromPlaybackQueue(i)}
-                    className="p-0.5 text-text-muted hover:text-destructive cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Remove from queue"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
+                  onClick={() => playQueueIndex(i)}
+                  current={i === playbackQueueIndex}
+                  className={draggingIndex === i ? 'opacity-40' : undefined}
+                  buttonProps={{ title: `Play ${item.label}` }}
+                  leading={
+                    <span className="p-0.5 cursor-grab active:cursor-grabbing opacity-0 group-hover/row:opacity-100 transition-opacity">
+                      <GripVertical size={12} />
+                    </span>
+                  }
+                  title={<>{i === playbackQueueIndex && audioPlayback ? '▶ ' : ''}{item.label}</>}
+                  trailing={
+                    <>
+                      <IconButton icon={ChevronUp} label="Move up" size={20} tooltip={false} disabled={i === 0} onClick={() => reorderPlaybackQueue(i, Math.max(0, i - 1))} />
+                      <IconButton icon={ChevronDown} label="Move down" size={20} tooltip={false} disabled={i === playbackQueue.length - 1} onClick={() => reorderPlaybackQueue(i, Math.min(playbackQueue.length - 1, i + 1))} />
+                      <IconButton icon={X} label="Remove from queue" size={20} tooltip={false} danger onClick={() => removeFromPlaybackQueue(i)} />
+                    </>
+                  }
+                />
               ))}
             </div>
           )}
 
           <div className="flex items-center gap-1 mb-1.5">
-            <button
+            <Button
+              variant="secondary" size="sm" icon={Plus}
               onClick={addCurrentChapterToQueue}
               disabled={!activeState?.bookId}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-card text-caption text-text-secondary bg-surface-3 hover:bg-surface-hover disabled:opacity-40 disabled:cursor-default cursor-pointer transition-colors"
               title="Add the chapter you're currently viewing"
+              className="flex-1"
             >
-              <Plus size={12} /> Add current
-            </button>
-            <button
+              Add current
+            </Button>
+            <Button
+              variant="primary" size="sm" icon={Play}
               onClick={playFromQueueStart}
               disabled={playbackQueue.length === 0}
-              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-card text-caption text-white bg-accent hover:opacity-90 disabled:opacity-40 disabled:cursor-default cursor-pointer transition-colors"
               title="Play queue from the start"
             >
-              <Play size={11} /> Play
-            </button>
+              Play
+            </Button>
           </div>
 
           <div className="flex items-center gap-1 mb-1">
             {showSaveInput ? (
               <>
-                <input
+                <TextField
                   autoFocus
+                  size="sm"
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') saveQueueAsPlaylist(); if (e.key === 'Escape') setShowSaveInput(false) }}
                   placeholder="Playlist name…"
-                  className="flex-1 min-w-0 px-2 py-1 text-caption rounded-card bg-surface-3 border border-border text-text-primary outline-none"
+                  wrapperClassName="flex-1 min-w-0"
                 />
-                <button onClick={saveQueueAsPlaylist} className="p-1.5 rounded-card text-accent hover:bg-accent/12 cursor-pointer">
-                  <Save size={12} />
-                </button>
+                <IconButton icon={Save} label="Save playlist" size={28} onClick={saveQueueAsPlaylist} className="text-accent" />
               </>
             ) : (
-              <button
+              <Button
+                variant="ghost" size="sm" icon={Save}
                 onClick={() => { setSaveName(playbackQueueSourcePlaylistName ?? ''); setShowSaveInput(true) }}
                 disabled={playbackQueue.length === 0}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-card text-caption text-text-secondary hover:bg-surface-hover disabled:opacity-40 disabled:cursor-default cursor-pointer transition-colors"
+                className="flex-1"
               >
-                <Save size={12} />
                 {playbackQueueSourcePlaylistId ? 'Linked — edits autosave' : 'Save as playlist'}
-              </button>
+              </Button>
             )}
             {playbackQueue.length > 0 && (
-              <button
-                onClick={clearPlaybackQueue}
-                className="p-1.5 rounded-card text-text-muted hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
-                title="Clear queue"
-              >
-                <Trash2 size={12} />
-              </button>
+              <IconButton icon={Trash2} label="Clear queue" size={28} danger onClick={clearPlaybackQueue} />
             )}
           </div>
         </>
@@ -398,33 +372,21 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               No saved playlists yet. Queue up some chapters and use "Save as playlist" to create one.
             </p>
           ) : savedPlaylists.map((pl) => (
-            <div
+            <ListRow
               key={pl.id}
-              className={`group flex items-center gap-1 px-1.5 py-1.5 rounded-card text-xs cursor-pointer transition-colors ${
-                pl.id === playbackQueueSourcePlaylistId ? 'bg-accent/12 text-accent hover:bg-accent/20' : 'text-text-secondary hover:bg-surface-hover'
-              }`}
+              dense
+              current={pl.id === playbackQueueSourcePlaylistId}
               onClick={() => loadPlaylist(pl, true)}
-              title={`Play "${pl.name}"`}
-            >
-              <Play size={11} className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="flex-1 min-w-0 truncate">
-                {pl.name} <span className="text-text-muted">({pl.items.length})</span>
-              </span>
-              <button
-                onClick={(e) => { e.stopPropagation(); loadPlaylist(pl, false) }}
-                className="p-0.5 text-text-muted hover:text-text-primary cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Load into queue without playing"
-              >
-                <FolderOpen size={11} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); deletePlaylist(pl.id) }}
-                className="p-0.5 text-text-muted hover:text-destructive cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Delete playlist"
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
+              buttonProps={{ title: `Play "${pl.name}"` }}
+              leading={<Play size={11} className="opacity-0 group-hover/row:opacity-100 transition-opacity" />}
+              title={<>{pl.name} <span className="text-text-muted">({pl.items.length})</span></>}
+              trailing={
+                <>
+                  <IconButton icon={FolderOpen} label="Load into queue without playing" size={20} tooltip={false} onClick={(e) => { e.stopPropagation(); loadPlaylist(pl, false) }} />
+                  <IconButton icon={Trash2} label="Delete playlist" size={20} tooltip={false} danger onClick={(e) => { e.stopPropagation(); deletePlaylist(pl.id) }} />
+                </>
+              }
+            />
           ))}
         </div>
       )}

@@ -4,6 +4,7 @@ import type { TrailThread } from '@/types/studyTrail'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { navigateTrailRef } from './trailNav'
 import { CARET_COLLAPSED_ROTATE } from './trailStyle'
+import { ListRow, Chip, SectionLabel, SearchField, SegmentedControl, cx } from '@/components/ui'
 
 // THREADS — the Study Trail window's second tab, replacing Review.
 //
@@ -66,89 +67,63 @@ function normalize(t: TrailThread): TrailThread {
 
 function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSession: (id: string) => void }) {
   const [open, setOpen] = useState(false)
-  // A card gave no feedback at all on hover, so it didn't read as clickable — "the threads doesnt
-  // highlight or whatever when hovered".
-  const [hovered, setHovered] = useState(false)
   const tagged = thread.kind === 'tag'
   const accent = thread.color ?? (tagged ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))')
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        border: `1px solid ${hovered || open ? 'rgb(var(--color-accent) / 0.45)' : 'rgb(var(--color-surface-4))'}`,
-        borderRadius: 10, marginBottom: 8, overflow: 'hidden',
-        background: hovered ? 'rgb(var(--color-surface-3))' : 'rgb(var(--color-surface-2))',
-        transition: 'background 120ms, border-color 120ms',
-      }}
-    >
-      <button
+    <div className={cx('rounded-card border mb-2 overflow-hidden transition-colors duration-fast', open ? 'border-accent/45' : 'border-separator')}>
+      <ListRow
         onClick={() => setOpen((v) => !v)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-          padding: '11px 13px', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit',
-        }}
-      >
-        {/* Same caret direction as everywhere else on the map — see CARET_COLLAPSED_ROTATE. */}
-        <ChevronDown size={16} style={{ flexShrink: 0, opacity: hovered ? 0.85 : 0.5, transform: open ? undefined : CARET_COLLAPSED_ROTATE, transition: 'transform 120ms, opacity 120ms' }} />
-        {tagged ? <Tag size={15} style={{ flexShrink: 0, color: accent }} /> : <Waypoints size={15} style={{ flexShrink: 0, opacity: 0.7 }} />}
-        <span style={{ minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {thread.label}
+        className="!rounded-none"
+        dense={false}
+        leading={
+          <span className="flex items-center gap-2">
+            {/* Same caret direction as everywhere else on the map — see CARET_COLLAPSED_ROTATE. */}
+            <ChevronDown size={16} className="flex-shrink-0 opacity-50" style={{ transform: open ? undefined : CARET_COLLAPSED_ROTATE, transition: 'transform 120ms' }} />
+            {tagged ? <Tag size={15} className="flex-shrink-0" style={{ color: accent }} /> : <Waypoints size={15} className="flex-shrink-0 opacity-70" />}
           </span>
-          {/* Says WHERE the topic came from, so a traced cluster is never mistaken for something
-              Berean decided on its own authority. */}
-          <span style={{ display: 'block', fontSize: 11, letterSpacing: '.03em', textTransform: 'uppercase', color: 'rgb(var(--color-text-muted))' }}>
-            {thread.source}
-          </span>
-        </span>
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))', whiteSpace: 'nowrap' }}>
+        }
+        title={thread.label}
+        // Says WHERE the topic came from, so a traced cluster is never mistaken for something
+        // Berean decided on its own authority.
+        subtitle={<span className="uppercase tracking-wide">{thread.source}</span>}
+        meta={<span className="whitespace-nowrap">
           {thread.chapters.length > 0 && `${thread.chapters.length} ch · `}
           {thread.sessions.length} {thread.sessions.length === 1 ? 'session' : 'sessions'}
-        </span>
-      </button>
+        </span>}
+      />
       {open && (
-        <div style={{ padding: '0 12px 10px 36px' }}>
-          <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))', marginBottom: 9 }}>
+        <div className="px-3 pb-2.5 pl-9">
+          <div className="text-footnote text-text-muted mb-2">
             {fmtDate(thread.firstAt)} – {fmtDate(thread.lastAt)}
             {fmtSpan(thread.firstAt, thread.lastAt) && ` · ${fmtSpan(thread.firstAt, thread.lastAt)}`}
           </div>
 
           {thread.terms.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'rgb(var(--color-text-muted))', marginBottom: 4 }}>Your words</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <div className="mb-2">
+              <SectionLabel className="mb-1">Your words</SectionLabel>
+              <div className="flex flex-wrap gap-1">
                 {thread.terms.map((t) => (
-                  <span key={t} style={{
-                    fontSize: 12, padding: '2px 9px', borderRadius: 999,
-                    background: 'rgb(var(--color-accent) / 0.12)', color: 'rgb(var(--color-accent))',
-                  }}>{t}</span>
+                  <Chip key={t} static className="bg-accent-muted text-accent">{t}</Chip>
                 ))}
               </div>
             </div>
           )}
 
           {thread.chapters.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'rgb(var(--color-text-muted))', marginBottom: 4 }}>Passages</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <div className="mb-2">
+              <SectionLabel className="mb-1">Passages</SectionLabel>
+              <div className="flex flex-wrap gap-1">
                 {thread.chapters.map((key) => {
                   const c = chapterLabel(key)
                   if (!c) return null
                   return (
-                    <button
+                    <Chip
                       key={key}
+                      icon={BookOpen}
                       // Same rule as the map: a plain click never moves the main window.
                       onClick={(e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef({ kind: 'chapter', bookId: c.bookId, chapter: c.chapter }, e.shiftKey) }}
                       title="Cmd-click to open in the main window"
-                      className="trail-chip"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        fontSize: 12, padding: '2px 9px', borderRadius: 999, cursor: 'pointer',
-                        background: 'rgb(var(--color-surface-3))', border: 'none', color: 'rgb(var(--color-text-secondary))',
-                      }}
-                    ><BookOpen size={11} style={{ opacity: 0.6 }} />{c.label}</button>
+                    >{c.label}</Chip>
                   )
                 })}
               </div>
@@ -156,49 +131,33 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
           )}
 
           {thread.strongs.length > 0 && (
-            <div style={{ marginBottom: 9 }}>
-              <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'rgb(var(--color-text-muted))', marginBottom: 4 }}>Words looked up</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            <div className="mb-2">
+              <SectionLabel className="mb-1">Words looked up</SectionLabel>
+              <div className="flex flex-wrap gap-1">
                 {thread.strongs.map((sn) => {
                   // Show the actual word where we have it — a row of bare "H7307"s is a list of
                   // database keys, not a description of what was being studied.
                   const w = thread.words.find((x) => x.strongsNum === sn)
                   return (
-                    <button
+                    <Chip
                       key={sn}
+                      icon={Hash}
                       onClick={(e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef({ kind: 'lexicon', strongsNum: sn }, e.shiftKey) }}
                       title={`${sn}${w?.gloss ? ` — ${w.gloss}` : ''} · Cmd-click to open in the main window`}
-                      className="trail-chip"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        fontSize: 12, padding: '2px 9px', borderRadius: 999, cursor: 'pointer',
-                        background: 'rgb(var(--color-surface-3))', border: 'none', color: 'rgb(var(--color-text-secondary))',
-                      }}
                     >
-                      <Hash size={11} style={{ opacity: 0.6 }} />
                       {w?.translit || sn}
-                      {w?.gloss && <span style={{ opacity: 0.6 }}>{w.gloss}</span>}
-                    </button>
+                      {w?.gloss && <span className="opacity-60"> {w.gloss}</span>}
+                    </Chip>
                   )
                 })}
               </div>
             </div>
           )}
 
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'rgb(var(--color-text-muted))', marginBottom: 4 }}>Sessions</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          <SectionLabel className="mb-1">Sessions</SectionLabel>
+          <div className="flex flex-wrap gap-1">
             {thread.sessions.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => onOpenSession(s.id)}
-                title="Show this session on the map"
-                className="trail-chip"
-                style={{
-                  fontSize: 12.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                  background: 'rgb(var(--color-surface-3))', border: '1px solid rgb(var(--color-surface-4))',
-                  color: 'rgb(var(--color-text-secondary))',
-                }}
-              >{s.name}</button>
+              <Chip key={s.id} size="md" onClick={() => onOpenSession(s.id)} title="Show this session on the map">{s.name}</Chip>
             ))}
           </div>
         </div>
@@ -234,34 +193,24 @@ export default function ThreadsView({ onOpenSession }: { onOpenSession: (id: str
   })
 
   return (
-    <div style={{ padding: '10px 14px 24px', height: '100%', overflow: 'auto' }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter topics…"
-          style={{
-            flex: 1, maxWidth: 260, fontSize: 12, padding: '5px 9px', background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-          }}
+    <div className="px-3.5 pt-2.5 pb-6 h-full overflow-auto">
+      <div className="flex gap-2 mb-3 items-center">
+        <SearchField value={filter} onValueChange={setFilter} placeholder="Filter topics…" wrapperClassName="flex-1 max-w-[260px]" />
+        <SegmentedControl
+          aria-label="Topic kind"
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'tag', label: 'Tagged' },
+            { value: 'traced', label: 'Traced' },
+          ]}
         />
-        {(['all', 'tag', 'traced'] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            style={{
-              fontSize: 11, padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
-              background: kind === k ? 'rgb(var(--color-accent) / 0.16)' : 'transparent',
-              border: '1px solid rgb(var(--color-surface-4))',
-              color: kind === k ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
-            }}
-          >{k === 'all' ? 'All' : k === 'tag' ? 'Tagged' : 'Traced'}</button>
-        ))}
       </div>
       {threads == null ? (
-        <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>Loading…</div>
+        <div className="text-body text-text-muted">Loading…</div>
       ) : shown.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))', lineHeight: 1.6 }}>
+        <div className="text-footnote text-text-muted leading-relaxed">
           {q || kind !== 'all'
             ? 'Nothing matches that.'
             : 'No topics yet. Topics come from your verse and session tags, and from chapters your own cross-references, verse ties and word lookups link together — plain reading through a book on its own doesn’t make one.'}

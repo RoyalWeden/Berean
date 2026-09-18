@@ -43,12 +43,8 @@ export default function TrailSelectedInfoCard({ anchorRef, content }: {
   return createPortal(
     <div
       ref={cardRef}
-      style={{
-        position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000,
-        maxWidth: 280, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-        borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', padding: '9px 11px',
-        pointerEvents: 'none',
-      }}
+      className="material-popover rounded-menu px-2.5 py-2"
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 'var(--z-popover)' as unknown as number, maxWidth: 280, pointerEvents: 'none' }}
     >
       {content}
     </div>,

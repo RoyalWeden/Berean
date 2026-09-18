@@ -17,10 +17,10 @@ export default function HistorySection() {
     <div className="space-y-5">
       {/* Tab navigation history */}
       <div>
-        <p className="text-sm font-semibold text-text-primary mb-1">Tab navigation (back / forward)</p>
-        <p className="s-desc text-xs text-text-muted mb-3">How many pages to remember per tab for the back / forward buttons.</p>
+        <p className="text-subhead font-medium text-text-primary mb-1">Tab navigation (back / forward)</p>
+        <p className="s-desc text-caption text-text-muted mb-3">How many pages to remember per tab for the back / forward buttons.</p>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-text-secondary">
+          <label className="flex items-center gap-2 text-caption text-text-secondary">
             Max entries per tab
             <TextField
               type="number" min={10} max={1000} step={10}
@@ -30,7 +30,7 @@ export default function HistorySection() {
               wrapperClassName="w-20"
             />
           </label>
-          <span className="text-xs text-text-muted">{stackCount} total entries stored</span>
+          <span className="text-caption text-text-muted">{stackCount} total entries stored</span>
         </div>
         <div className="mt-3">
           <Button
@@ -46,9 +46,9 @@ export default function HistorySection() {
 
       {/* App history */}
       <div>
-        <p className="text-sm font-semibold text-text-primary mb-1">App history log</p>
-        <p className="s-desc text-xs text-text-muted mb-3">Maximum number of entries kept in the history sidebar (older entries are pruned automatically).</p>
-        <label className="flex items-center gap-2 text-xs text-text-secondary">
+        <p className="text-subhead font-medium text-text-primary mb-1">App history log</p>
+        <p className="s-desc text-caption text-text-muted mb-3">Maximum number of entries kept in the history sidebar (older entries are pruned automatically).</p>
+        <label className="flex items-center gap-2 text-caption text-text-secondary">
           Max entries
           <TextField
             type="number" min={50} max={10000} step={50}

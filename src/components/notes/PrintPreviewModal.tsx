@@ -8,7 +8,7 @@ import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomExportEntry, t
 import type { PrintThemeId } from '@/lib/notePreviewRender'
 import type { Note } from '@/types'
 import { loadPdfFromBytes, type PDFDocumentProxy, type PDFPageProxy } from '@/lib/pdfjs'
-import { IconButton, Button, SegmentedControl, TextField, SectionLabel, Switch } from '@/components/ui'
+import { IconButton, Button, SegmentedControl, TextField, SectionLabel, Switch, ListRow, OptionCard, Slider } from '@/components/ui'
 
 interface Props {
   title: string
@@ -363,14 +363,6 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   function doPrint() { persist(); window.app.printNote(html, electronPageSize).catch(() => {}); onClose() }
   function doDownload() { persist(); window.app.exportNotePDF(html, title || 'note', pdfDownloadLocation, electronPageSize).catch(() => {}); onClose() }
 
-  // Kept for the one group below that can't be a SegmentedControl: the margin presets wrap
-  // across two rows in a 3-column grid, which SegmentedControl (a single non-wrapping row)
-  // doesn't support.
-  const segBtn = (active: boolean) =>
-    `px-2.5 py-1 text-xs rounded-control cursor-pointer transition-colors ${active
-      ? 'bg-accent text-white font-medium'
-      : 'bg-surface-3 text-text-secondary hover:bg-surface-hover'}`
-
   const themeList = Object.values(PRINT_THEMES)
 
   return (
@@ -392,8 +384,8 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-separator flex-shrink-0">
             <Eye size={15} className="text-accent" />
-            <Dialog.Title className="text-sm font-semibold text-text-primary">Print preview</Dialog.Title>
-            <span className="text-xs text-text-muted truncate">— {title || 'Untitled'}</span>
+            <Dialog.Title className="text-subhead font-semibold text-text-primary">Print preview</Dialog.Title>
+            <span className="text-caption text-text-muted truncate">— {title || 'Untitled'}</span>
             <div className="flex-1" />
             <Dialog.Close asChild>
               <IconButton icon={X} label="Close" size={24} />
@@ -409,21 +401,16 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
               <div>
                 <SectionLabel className="mb-1.5">Theme &amp; style</SectionLabel>
                 <div className="relative" ref={themePickerRef}>
-                  <button
+                  <ListRow
+                    className={themeOpen ? 'bg-accent-muted' : 'control-glass'}
+                    buttonClassName="rounded-control"
                     onClick={() => setThemeOpen(v => !v)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-control border text-left cursor-pointer transition-colors ${
-                      themeOpen
-                        ? 'border-accent bg-accent-muted'
-                        : 'border-separator hover:border-accent/50 bg-surface-3'
-                    }`}
-                  >
-                    <ThemeSwatch th={currentTheme} />
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-xs font-medium text-text-primary">{currentTheme.label}</span>
-                      <span className="block text-micro text-text-muted truncate leading-tight">{currentTheme.desc}</span>
-                    </span>
-                    <ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
-                  </button>
+                    leading={<ThemeSwatch th={currentTheme} />}
+                    title={currentTheme.label}
+                    subtitle={currentTheme.desc}
+                    trailing={<ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
+                    trailingAlways
+                  />
 
                   {/* Popover — 3-column grid of all themes */}
                   {themeOpen && (
@@ -432,19 +419,13 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                         rounded-menu p-2 grid grid-cols-3 gap-1"
                     >
                       {themeList.map((th) => (
-                        <button
+                        <OptionCard
                           key={th.id}
+                          selected={theme === th.id}
                           onClick={() => { setTheme(th.id); setFontFamily(th.suggestedFont); setThemeOpen(false) }}
-                          title={th.desc}
-                          className={`flex flex-col items-center gap-1 p-1.5 rounded-control border cursor-pointer transition-colors text-center ${
-                            theme === th.id
-                              ? 'border-accent bg-accent-muted'
-                              : 'border-transparent hover:border-border hover:bg-surface-hover'
-                          }`}
-                        >
-                          <ThemeSwatch th={th} size="sm" />
-                          <span className="text-micro font-medium text-text-secondary leading-none">{th.label}</span>
-                        </button>
+                          title={th.label}
+                          preview={<ThemeSwatch th={th} size="sm" />}
+                        />
                       ))}
                     </div>
                   )}
@@ -457,12 +438,18 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                 <SectionLabel className="mb-1.5">Margins</SectionLabel>
                 <div className="grid grid-cols-3 gap-1">
                   {(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => (
-                    <button key={m} onClick={() => {
-                      if (m === 'custom' && margin !== 'custom') setCustomMargins(presetToSides(margin))
-                      setMargin(m)
-                    }} className={segBtn(margin === m)}>
+                    <Button
+                      key={m}
+                      variant="secondary"
+                      size="sm"
+                      selected={margin === m}
+                      onClick={() => {
+                        if (m === 'custom' && margin !== 'custom') setCustomMargins(presetToSides(margin))
+                        setMargin(m)
+                      }}
+                    >
                       {m.charAt(0).toUpperCase() + m.slice(1)}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {margin === 'custom' && (
@@ -473,9 +460,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
               {/* Font size */}
               <div>
                 <SectionLabel className="mb-1.5">Font size — {fontSize}pt</SectionLabel>
-                <input type="range" min={8} max={18} step={1} value={fontSize}
-                  onChange={(e) => setFontSize(parseInt(e.target.value))}
-                  className="w-full accent-accent cursor-pointer" />
+                <Slider min={8} max={18} step={1} value={fontSize} onValueChange={setFontSize} aria-label="Font size" />
               </div>
 
               {/* Font family */}
@@ -511,14 +496,14 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
 
               {/* Include title toggle */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-text-secondary">Include title</span>
+                <span className="text-footnote text-text-secondary">Include title</span>
                 <Switch checked={includeTitle} onCheckedChange={() => setIncludeTitle(v => !v)} label="Include title" />
               </div>
 
               {/* Include linked notes toggle — only shown when notes are available */}
               {!idiomEntries && notes && notes.length > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-secondary">Include linked notes</span>
+                  <span className="text-footnote text-text-secondary">Include linked notes</span>
                   <Switch checked={includeLinkedNotes} onCheckedChange={() => setIncludeLinkedNotes(v => !v)} label="Include linked notes" />
                 </div>
               )}
@@ -536,7 +521,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                       ['includeReferences',  'Scripture references'],
                     ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
-                        <span className="text-xs text-text-primary">{label}</span>
+                        <span className="text-footnote text-text-primary">{label}</span>
                         <Switch
                           checked={!!idiomOpts[key]}
                           onCheckedChange={() => setIdiomOpts((o) => ({ ...o, [key]: !o[key] }))}

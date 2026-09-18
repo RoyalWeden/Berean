@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Volume2, Download, AudioLines, Sparkles, Trash2, X } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { Switch, Button, IconButton, TextField, SectionLabel } from '@/components/ui'
+import { Switch, Button, IconButton, TextField, SectionLabel, Slider } from '@/components/ui'
 import VoicePicker from '@/components/audio/VoicePicker'
 import { getVoices, subscribeVoices, isTTSSupported, ttsEngine, type TTSVoiceOption } from '@/lib/tts/ttsEngine'
 import { KOKORO_VOICE_OPTIONS, DEFAULT_KOKORO_VOICE_ID } from '@/lib/tts/kokoro/kokoroVoices'
@@ -75,7 +75,7 @@ export default function AudioSection() {
 
   if (!isTTSSupported()) {
     return (
-      <div className="text-sm text-text-muted">
+      <div className="text-caption text-text-muted">
         Text-to-speech is not available in this environment.
       </div>
     )
@@ -86,9 +86,9 @@ export default function AudioSection() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <Volume2 size={14} className="text-text-muted" />
-          <p className="text-sm font-medium text-text-primary">Read Aloud</p>
+          <p className="text-subhead font-medium text-text-primary">Read Aloud</p>
         </div>
-        <p className="s-desc text-xs text-text-muted">
+        <p className="s-desc text-caption text-text-muted">
           Listen to scripture read aloud with a local neural voice, the verse and word being
           spoken highlighted as it plays. Runs fully offline once the voice pack is downloaded.
         </p>
@@ -100,34 +100,34 @@ export default function AudioSection() {
           explicit click (see useKokoroModelDownload.ts). */}
       <div>
         <SectionLabel className="mb-2">Voice Pack</SectionLabel>
-        <p className="s-desc text-xs text-text-muted">
+        <p className="s-desc text-caption text-text-muted">
           Read Aloud uses a local neural voice model (~360MB, one-time download). It runs entirely
           on your machine — no account, no network once installed, no per-use cost.
         </p>
 
         {!kokoroModelReady && (
-          <div className="mt-3 px-3 py-2.5 rounded-card border border-border bg-surface-2">
+          <div className="mt-3 px-3 py-2.5 rounded-card bg-surface-elevated">
             {kokoroDownload.state.status === 'idle' || kokoroDownload.state.status === 'error' ? (
               <>
                 {kokoroDownload.state.status === 'error' && (
-                  <p className="text-xs text-destructive mb-2">Download failed: {kokoroDownload.state.error}</p>
+                  <p className="text-caption text-destructive mb-2">Download failed: {kokoroDownload.state.error}</p>
                 )}
                 <Button variant="primary" size="sm" icon={Download} onClick={() => void kokoroDownload.startDownload()}>
                   Download neural voice model
                 </Button>
               </>
             ) : kokoroDownload.state.status === 'verifying' ? (
-              <p className="text-xs text-text-secondary">Verifying download…</p>
+              <p className="text-caption text-text-secondary">Verifying download…</p>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-xs text-text-secondary">
+                  <p className="text-caption text-text-secondary">
                     Downloading… {(kokoroDownload.state.receivedBytes / 1024 / 1024).toFixed(1)}MB
                     {kokoroDownload.state.totalBytes > 0 && ` / ~${(kokoroDownload.state.totalBytes / 1024 / 1024).toFixed(0)}MB`}
                   </p>
                   <IconButton icon={X} label="Cancel" size={20} onClick={kokoroDownload.cancelDownload} />
                 </div>
-                <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
                   <div
                     className="h-full bg-accent transition-[width]"
                     style={{
@@ -143,7 +143,7 @@ export default function AudioSection() {
         )}
 
         {kokoroModelReady && (
-          <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
+          <div className="mt-3 flex items-center justify-between text-caption text-text-muted">
             <span>
               Neural model ready.
               {audioCacheStats && audioCacheStats.entryCount > 0 && ` Audio cache: ${(audioCacheStats.totalBytes / 1024 / 1024).toFixed(0)}MB (${audioCacheStats.entryCount} clips).`}
@@ -179,17 +179,15 @@ export default function AudioSection() {
       {/* Speed */}
       <div>
         <SectionLabel className="mb-2">Speed</SectionLabel>
-        <div className="flex items-center gap-3">
-          <input
-            type="range" min={0.25} max={3} step={0.25}
-            value={ttsRate}
-            onChange={(e) => setTTSRate(parseFloat(e.target.value))}
-            className="flex-1 accent-accent"
-          />
-          <span className="text-xs text-text-secondary w-10 text-right">{ttsRate.toFixed(2)}x</span>
-        </div>
+        <Slider
+          min={0.25} max={3} step={0.25}
+          value={ttsRate}
+          onValueChange={setTTSRate}
+          readout={`${ttsRate.toFixed(2)}x`}
+          aria-label="Speed"
+        />
         {ttsRate > 2 && (
-          <p className="s-desc text-xs text-text-muted mt-1">
+          <p className="s-desc text-caption text-text-muted mt-1">
             Speeds above ~2x may sound distorted, depending on the voice.
           </p>
         )}
@@ -198,8 +196,8 @@ export default function AudioSection() {
       {/* Autoplay when player opens */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-primary">Autoplay when player opens</p>
-          <p className="s-desc text-xs text-text-muted mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Autoplay when player opens</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             When off, opening the Read Aloud player (from a "play" action while it's closed)
             loads it at the right spot but waits, paused, for you to press play — it doesn't
             start speaking right away. Doesn't affect resuming or advancing while it's already
@@ -212,8 +210,8 @@ export default function AudioSection() {
       {/* Highlight words while speaking */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-primary">Highlight words while speaking</p>
-          <p className="s-desc text-xs text-text-muted mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Highlight words while speaking</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             Highlight the exact word being read, in addition to the current verse.
           </p>
         </div>
@@ -223,15 +221,15 @@ export default function AudioSection() {
       {/* Auto-advance */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-text-primary">Auto-advance</p>
-          <p className="s-desc text-xs text-text-muted mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Auto-advance</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             Automatically continue to the next chapter (and next book) when a chapter finishes.
           </p>
         </div>
         <Switch checked={ttsAutoAdvanceEnabled} onCheckedChange={() => setTTSAutoAdvanceEnabled(!ttsAutoAdvanceEnabled)} />
       </div>
       {ttsAutoAdvanceEnabled && (
-        <label className="flex items-center gap-2 text-xs text-text-secondary">
+        <label className="flex items-center gap-2 text-caption text-text-secondary">
           Pause between chapters
           <TextField
             type="number" min={0} max={30} step={0.5}

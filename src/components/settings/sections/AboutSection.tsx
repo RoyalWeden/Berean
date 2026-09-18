@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { RotateCcw, BookOpen, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { RotateCcw, BookOpen, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { Button } from '@/components/ui'
+import { Button, DisclosureRow, SectionLabel, cx } from '@/components/ui'
 import { clearChapterCache } from '@/lib/chapterCache'
 import { clearChapterAnnotationCaches } from '@/components/bible/ChapterView'
 import { clearNoteCache } from '@/lib/noteCache'
@@ -68,29 +68,24 @@ function SimulateFirstLaunchButton() {
     <div className="flex items-center gap-2 px-3 py-2 rounded-card border border-dashed border-warning/40 bg-orange-500/5">
       <span className="text-caption2 font-mono text-warning flex-shrink-0">DEV</span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-warning">Simulate first launch</p>
+        <p className="text-footnote font-medium text-warning">Simulate first launch</p>
         <p className="text-caption2 text-warning/70 leading-snug">
           Clears all onboarding state &amp; reloads. Tests the full first-run experience.
         </p>
       </div>
-      <button
+      <Button
+        variant={confirming ? 'warning' : 'ghost'}
+        size="sm"
         onClick={handleReset}
         disabled={busy}
-        className={`flex-shrink-0 px-2.5 py-1 rounded-chip text-caption font-medium transition-colors cursor-pointer disabled:opacity-50 ${
-          confirming
-            ? 'bg-warning text-white hover:brightness-110'
-            : 'bg-surface-4 text-warning hover:bg-warning/20'
-        }`}
+        className={cx('flex-shrink-0', !confirming && 'text-warning hover:bg-warning/20')}
       >
         {busy ? 'Resetting…' : confirming ? 'Confirm reset' : 'Reset'}
-      </button>
+      </Button>
       {confirming && !busy && (
-        <button
-          onClick={() => setConfirming(false)}
-          className="flex-shrink-0 text-caption2 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        >
+        <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} className="flex-shrink-0">
           Cancel
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -121,13 +116,9 @@ function RebuildSeedButton() {
 
   return (
     <div className="flex items-start gap-2">
-      <button
-        onClick={handleRebuild}
-        disabled={status === 'busy'}
-        className="flex-shrink-0 px-2.5 py-1 rounded-chip text-caption font-medium bg-surface-4 text-text-secondary hover:bg-accent-muted hover:text-accent transition-colors cursor-pointer disabled:opacity-50"
-      >
+      <Button variant="secondary" size="sm" loading={status === 'busy'} onClick={handleRebuild} disabled={status === 'busy'} className="flex-shrink-0">
         {status === 'busy' ? 'Building…' : 'Rebuild youtube_seed.db'}
-      </button>
+      </Button>
       {status !== 'idle' && status !== 'busy' && (
         <span className={`text-caption mt-0.5 ${status === 'done' ? 'text-success' : 'text-destructive'}`}>
           {status === 'done' ? `Done — ${result}` : `Error: ${result}`}
@@ -184,9 +175,9 @@ export default function AboutSection() {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-semibold text-text-primary">Berean</p>
-        <p className="s-desc text-xs text-text-muted mt-0.5">Desktop Bible study for Yehovah's servants</p>
-        <span className="s-desc text-xs text-text-muted font-mono mt-2 block">
+        <p className="text-subhead font-semibold text-text-primary">Berean</p>
+        <p className="s-desc text-caption text-text-muted mt-0.5">Desktop Bible study for Yehovah's servants</p>
+        <span className="s-desc text-caption text-text-muted font-mono mt-2 block">
           {version ? `v${version}` : '—'}{isDev ? ' (dev)' : ''}
         </span>
       </div>
@@ -206,8 +197,8 @@ export default function AboutSection() {
       <Button variant="secondary" size="md" icon={Trash2} onClick={handleClearCache} className="w-full justify-start">
         {cacheCleared ? 'Cached content cleared' : 'Clear cached content'}
       </Button>
-      <div className="p-3 rounded-card bg-surface-3 border border-border">
-        <p className="s-desc text-xs text-text-muted leading-relaxed">
+      <div className="p-3 rounded-card bg-surface-elevated">
+        <p className="s-desc text-caption text-text-muted leading-relaxed">
           Texts included: KJV, KJVA (with Apocrypha), Brenton LXX, 1 Enoch, Jubilees, Apocalypse of Elijah,
           Ascension of Isaiah, Epistle of Barnabas (Sharpe 1880), Testaments of the Twelve Patriarchs,
           Recognitions of Clement, and Shepherd of Hermas — all public domain.
@@ -219,17 +210,11 @@ export default function AboutSection() {
           {/* ── Simulate first launch ─────────────────────────────── */}
           <SimulateFirstLaunchButton />
 
-          <button
-            onClick={() => setShowDevGuide((v) => !v)}
-            className="flex items-center gap-2 text-xs text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-          >
-            {showDevGuide ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            Developer release workflow
-          </button>
+          <DisclosureRow open={showDevGuide} title="Developer release workflow" onClick={() => setShowDevGuide((v) => !v)} />
           {showDevGuide && (
-            <div className="mt-2 p-3 rounded-card bg-surface-3 border border-border space-y-2.5">
-              <p className="text-caption2 font-semibold uppercase tracking-wider text-text-muted">How to release a new version</p>
-              <ol className="space-y-1.5 text-xs text-text-secondary leading-relaxed list-none">
+            <div className="mt-2 p-3 rounded-card bg-surface-elevated space-y-2.5">
+              <SectionLabel>How to release a new version</SectionLabel>
+              <ol className="space-y-1.5 text-caption text-text-secondary leading-relaxed list-none">
                 {[
                   ['1', 'Bump the version in package.json (e.g. "0.1.0" → "0.2.0")'],
                   ['2', 'Run: export GH_TOKEN=your_token (needs "repo" scope on RoyalWeden/Berean)'],
@@ -244,16 +229,16 @@ export default function AboutSection() {
                 ))}
               </ol>
               <div className="border-t border-separator pt-2">
-                <p className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mb-1">Local test build (no GitHub)</p>
-                <p className="text-xs text-text-secondary">Run <kbd className="font-mono bg-surface-4 px-1 rounded">npm run build:local</kbd> — outputs the DMG to <span className="font-mono">release/</span> without publishing</p>
+                <SectionLabel className="mb-1">Local test build (no GitHub)</SectionLabel>
+                <p className="text-caption text-text-secondary">Run <kbd className="font-mono bg-surface-4 px-1 rounded">npm run build:local</kbd> — outputs the DMG to <span className="font-mono">release/</span> without publishing</p>
               </div>
               <div className="border-t border-separator pt-2">
-                <p className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mb-1">Data separation</p>
-                <p className="text-xs text-text-secondary">Dev userData: <span className="font-mono">~/Library/Application Support/Berean-dev</span> · Prod: <span className="font-mono">~/Library/Application Support/Berean</span></p>
+                <SectionLabel className="mb-1">Data separation</SectionLabel>
+                <p className="text-caption text-text-secondary">Dev userData: <span className="font-mono">~/Library/Application Support/Berean-dev</span> · Prod: <span className="font-mono">~/Library/Application Support/Berean</span></p>
               </div>
               <div className="border-t border-separator pt-2">
-                <p className="text-caption2 font-semibold uppercase tracking-wider text-text-muted mb-1">Transcript seed workflow</p>
-                <p className="text-xs text-text-secondary mb-2">
+                <SectionLabel className="mb-1">Transcript seed workflow</SectionLabel>
+                <p className="text-caption text-text-secondary mb-2">
                   After running <span className="font-mono">fetchTranscripts</span> in the YouTube tab, rebuild the seed DB so the next release ships updated data to users.
                   Then bump <span className="font-mono">SEED_VERSION</span> in <span className="font-mono">electron/db/berean.ts</span> before building.
                 </p>

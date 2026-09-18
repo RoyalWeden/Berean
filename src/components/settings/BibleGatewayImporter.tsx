@@ -6,6 +6,7 @@ import {
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import type { BgImportReviewNote } from '@/types/electron'
+import { TextField, Button, IconButton, SegmentedControl, Checkbox, DisclosureRow } from '@/components/ui'
 
 type ReviewFilter = 'all' | 'new' | 'updated' | 'duplicate'
 
@@ -134,56 +135,48 @@ export default function BibleGatewayImporter() {
         </p>
 
         <div className="space-y-2">
-          <input
+          <TextField
             type="email"
             placeholder="Email"
             value={username}
             onChange={e => setUsername(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded-control bg-surface-3 border border-border text-footnote text-text-primary placeholder:text-text-muted outline-none focus:border-accent"
+            wrapperClassName="w-full"
           />
-          <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleFetch()}
-              className="w-full px-2.5 py-1.5 pr-8 rounded-control bg-surface-3 border border-border text-footnote text-text-primary placeholder:text-text-muted outline-none focus:border-accent"
-            />
-            <button
-              onClick={() => setShowPassword(p => !p)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary cursor-pointer"
-            >
-              {showPassword ? <EyeOff size={12} /> : <Eye size={12} />}
-            </button>
-          </div>
+          <TextField
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleFetch()}
+            wrapperClassName="w-full"
+            trailing={
+              <IconButton
+                icon={showPassword ? EyeOff : Eye}
+                label={showPassword ? 'Hide password' : 'Show password'}
+                size={20}
+                onClick={() => setShowPassword(p => !p)}
+              />
+            }
+          />
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleFetch}
-            disabled={!username.trim() || !password.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-accent hover:bg-accent-hover text-white text-footnote font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Download size={13} />
+          <Button variant="primary" icon={Download} onClick={handleFetch} disabled={!username.trim() || !password.trim()}>
             Fetch Notes from BibleGateway
-          </button>
-          <button
-            onClick={handleClearSession}
-            title="Clear saved BibleGateway session (sign out)"
-            className="flex items-center gap-1 text-caption text-text-muted hover:text-text-secondary cursor-pointer"
-          >
-            <LogOut size={11} />
+          </Button>
+          <Button variant="ghost" size="sm" icon={LogOut} onClick={handleClearSession} title="Clear saved BibleGateway session (sign out)">
             Sign out
-          </button>
+          </Button>
           {import.meta.env.DEV && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => window.bgImport.debugOpen()}
               title="Open a visible BibleGateway window and run intense DOM logging — check the Electron console for output"
-              className="flex items-center gap-1 text-caption text-text-muted hover:text-text-secondary cursor-pointer ml-auto"
+              className="ml-auto"
             >
               Debug
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -202,12 +195,9 @@ export default function BibleGatewayImporter() {
             <Loader2 size={14} className="animate-spin text-accent" />
             <span className="text-footnote font-medium text-text-secondary">{label}</span>
           </div>
-          <button
-            onClick={() => { window.bgImport.cancel(); resetBgImport() }}
-            className="text-caption text-text-muted hover:text-text-primary cursor-pointer"
-          >
+          <Button variant="ghost" size="sm" onClick={() => { window.bgImport.cancel(); resetBgImport() }}>
             Cancel
-          </button>
+          </Button>
         </div>
 
         {bgImportMessage && (
@@ -216,9 +206,9 @@ export default function BibleGatewayImporter() {
 
         {pct !== null && (
           <div className="space-y-1">
-            <div className="h-1.5 rounded-full bg-surface-4 overflow-hidden">
+            <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
               <div
-                className="h-full rounded-full bg-accent transition-all duration-300"
+                className="h-full rounded-control bg-accent transition-all duration-300"
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -228,15 +218,9 @@ export default function BibleGatewayImporter() {
 
         {/* Expandable detail log */}
         <div>
-          <button
-            onClick={() => setShowDetails(p => !p)}
-            className="flex items-center gap-1 text-caption2 text-text-muted hover:text-text-secondary cursor-pointer"
-          >
-            {showDetails ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            {showDetails ? 'Hide details' : 'Show details'}
-          </button>
+          <DisclosureRow open={showDetails} title={showDetails ? 'Hide details' : 'Show details'} onClick={() => setShowDetails(p => !p)} />
           {showDetails && (
-            <div className="mt-1.5 max-h-28 overflow-y-auto bg-surface-3 rounded p-2 space-y-0.5">
+            <div className="mt-1.5 max-h-28 overflow-y-auto bg-surface-elevated rounded-card p-2 space-y-0.5">
               {detailLines.map((line, i) => (
                 <p key={i} className="text-caption2 text-text-muted font-mono leading-relaxed">{line}</p>
               ))}
@@ -259,46 +243,29 @@ export default function BibleGatewayImporter() {
           <p className="text-footnote font-medium text-text-primary">
             {bgImportReviewNotes.length} notes found
           </p>
-          <button
-            onClick={resetBgImport}
-            className="flex items-center gap-1 text-caption text-text-muted hover:text-text-secondary cursor-pointer"
-          >
-            <RefreshCw size={10} /> Fetch again
-          </button>
+          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={resetBgImport}>Fetch again</Button>
         </div>
 
         <p className="text-caption text-text-muted">{bgImportMessage}</p>
 
         {/* Filter tabs */}
-        <div className="flex gap-1">
-          {([
+        <SegmentedControl
+          aria-label="Filter notes"
+          value={filter}
+          onChange={setFilter}
+          options={([
             ['all',       `All (${bgImportReviewNotes.length})`],
             ['new',       `New (${counts.new})`],
             ['updated',   `Updated (${counts.updated})`],
             ['duplicate', `Imported (${counts.duplicate})`],
-          ] as [ReviewFilter, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`px-2 py-0.5 rounded text-caption2 font-medium transition-colors cursor-pointer ${
-                filter === key
-                  ? 'bg-accent text-white'
-                  : 'bg-surface-4 text-text-muted hover:text-text-secondary'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          ] as [ReviewFilter, string][]).map(([value, label]) => ({ value, label }))}
+        />
 
         {/* Select all for current filter */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => allFilteredSelected ? deselectAll(filteredNotes) : selectAll(filteredNotes)}
-            className="text-caption2 text-accent hover:underline cursor-pointer"
-          >
+          <Button variant="ghost" size="sm" onClick={() => allFilteredSelected ? deselectAll(filteredNotes) : selectAll(filteredNotes)}>
             {allFilteredSelected ? 'Deselect all' : 'Select all'}
-          </button>
+          </Button>
           <span className="text-caption2 text-text-muted">
             ({filteredNotes.length} in view, {selectedCount} total selected)
           </span>
@@ -309,16 +276,16 @@ export default function BibleGatewayImporter() {
           {filteredNotes.length === 0 ? (
             <p className="text-caption text-text-muted italic py-2">None in this category.</p>
           ) : filteredNotes.map(note => (
-            <label
+            <div
               key={note.id}
-              className="flex items-start gap-2 p-1.5 rounded hover:bg-surface-hover cursor-pointer group"
+              onClick={() => note.status !== 'duplicate' && toggleNote(note.id)}
+              className="flex items-start gap-2 p-1.5 rounded-row hover:bg-surface-hover cursor-pointer group"
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={selectedIds.has(note.id)}
-                onChange={() => toggleNote(note.id)}
+                onChange={() => {}}
                 disabled={note.status === 'duplicate'}
-                className="mt-0.5 flex-shrink-0 accent-accent"
+                className="mt-0.5 flex-shrink-0 pointer-events-none"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -339,26 +306,16 @@ export default function BibleGatewayImporter() {
                   </p>
                 )}
               </div>
-            </label>
+            </div>
           ))}
         </div>
 
         {/* Import button */}
         <div className="flex items-center gap-2 pt-1 border-t border-border">
-          <button
-            onClick={handleImport}
-            disabled={selectedCount === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control bg-accent hover:bg-accent-hover text-white text-footnote font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Download size={13} />
+          <Button variant="primary" icon={Download} onClick={handleImport} disabled={selectedCount === 0}>
             Import {selectedCount > 0 ? `${selectedCount} Selected` : 'Selected'}
-          </button>
-          <button
-            onClick={resetBgImport}
-            className="text-caption text-text-muted hover:text-text-primary cursor-pointer"
-          >
-            Cancel
-          </button>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={resetBgImport}>Cancel</Button>
         </div>
       </div>
     )
@@ -373,8 +330,8 @@ export default function BibleGatewayImporter() {
           <Loader2 size={14} className="animate-spin text-accent" />
           <span className="text-footnote font-medium text-text-secondary">Saving notes…</span>
         </div>
-        <div className="h-1.5 rounded-full bg-surface-4 overflow-hidden">
-          <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
+          <div className="h-full rounded-control bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-caption2 text-text-muted">{bgImportDone} / {bgImportTotal}</p>
       </div>
@@ -390,12 +347,7 @@ export default function BibleGatewayImporter() {
           <span className="text-footnote font-medium text-text-primary">Import complete</span>
         </div>
         <p className="text-caption text-text-muted leading-relaxed">{bgImportMessage}</p>
-        <button
-          onClick={resetBgImport}
-          className="flex items-center gap-1.5 text-caption text-accent hover:underline cursor-pointer"
-        >
-          <RefreshCw size={11} /> Import again
-        </button>
+        <Button variant="ghost" size="sm" icon={RefreshCw} onClick={resetBgImport}>Import again</Button>
       </div>
     )
   }
@@ -410,12 +362,7 @@ export default function BibleGatewayImporter() {
       <p className="text-caption text-text-muted leading-relaxed">
         {bgImportMessage || 'An unexpected error occurred.'}
       </p>
-      <button
-        onClick={resetBgImport}
-        className="text-caption text-accent hover:underline cursor-pointer"
-      >
-        Try again
-      </button>
+      <Button variant="ghost" size="sm" onClick={resetBgImport}>Try again</Button>
     </div>
   )
 }

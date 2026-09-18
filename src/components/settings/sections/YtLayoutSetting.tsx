@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store'
 import { YOUTUBE_LAYOUTS } from '@/lib/youtubeLayouts'
+import { OptionCard } from '@/components/ui'
 
 export default function YtLayoutSetting() {
   const layout = useAppStore((s) => s.defaultYoutubeLayout)
@@ -7,18 +8,13 @@ export default function YtLayoutSetting() {
   return (
     <div className="grid grid-cols-2 gap-1.5">
       {YOUTUBE_LAYOUTS.map((def) => (
-        <button
+        <OptionCard
           key={def.id}
+          selected={layout === def.id}
           onClick={() => set(def.id)}
-          className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-card text-left border transition-all cursor-pointer text-xs
-            ${layout === def.id
-              ? 'border-accent bg-accent-muted text-accent hover:bg-accent-hover'
-              : 'border-border text-text-secondary hover:bg-surface-hover'
-            }`}
-        >
-          <span className="font-semibold">{def.label}</span>
-          <span className="text-micro text-text-muted leading-snug">{def.description}</span>
-        </button>
+          title={def.label}
+          description={def.description}
+        />
       ))}
     </div>
   )

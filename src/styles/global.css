@@ -2081,29 +2081,6 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
   }
 }
 
-/* Study Trail's right-click context menu (TrailRefContextMenu.tsx) — every option renders a
-   `trail-ctx-btn` button but never had a hover/focus rule defined anywhere, so hovering an
-   option gave no visual feedback at all about which one you were about to click. Uses the same
-   theme-aware surface token every other hover affordance in the app already uses. */
-.trail-ctx-btn:hover,
-.trail-ctx-btn:focus-visible {
-  background: rgb(var(--color-surface-3)) !important;
-}
-
-/* The small chips in Study Trail's Threads and Search tabs (a passage, a Strong's word, a
-   session). Same problem the context-menu buttons had: they're clickable but gave no feedback,
-   so nothing about them said so. Per direct feedback, "the threads doesnt highlight or whatever
-   when hovered." */
-.trail-row-hover:hover {
-  background: rgb(var(--color-surface-2));
-}
-
-.trail-chip:hover,
-.trail-chip:focus-visible {
-  background: rgb(var(--color-accent) / 0.16) !important;
-  color: rgb(var(--color-accent)) !important;
-}
-
 /* Same idea, for the ACCENT-filled buttons in Study Trail's note/reason forms (Save, in
    TrailReasonFormBody — ReasonPromptPopover.tsx, shared by the full popup and the arrival-prompt
    toast) — those buttons already have a solid accent background, so overlaying the plain

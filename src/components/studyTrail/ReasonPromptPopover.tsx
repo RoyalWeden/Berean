@@ -5,7 +5,7 @@ import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
 import { formatVerseTieReference, parseVerseTieReferenceToNumbers } from '@/lib/verseRangeFormat'
 import TrailPopoverShell from './TrailPopoverShell'
-import { Button, IconButton } from '@/components/ui'
+import { Button, IconButton, TextArea } from '@/components/ui'
 import type { TrailConnection } from '@/types/studyTrail'
 
 // The unified reason/note popover — ONE place a note lives for ANY connection, any clarity
@@ -197,11 +197,11 @@ export function TrailReasonFormBody({
   return (
     <>
       {!autoSave && connection.reasonText && (
-        <div style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
+        <div className="text-caption2 italic text-text-muted mb-2">
           auto-detected: {connection.reasonText}
         </div>
       )}
-      <textarea
+      <TextArea
         value={note}
         autoFocus={autoFocusNote}
         onChange={(e) => { setNote(e.target.value); onFieldTouched?.() }}
@@ -209,14 +209,10 @@ export function TrailReasonFormBody({
         onBlur={() => setNoteFocused(false)}
         placeholder="Add a note (optional)"
         rows={autoSave ? 3 : 2}
-        className={`w-full rounded-card bg-surface-4/40 border border-transparent hover:bg-surface-4/55 focus:bg-surface-1 focus:border-border text-text-primary placeholder:text-text-muted outline-none transition-[background-color,border-color,box-shadow] duration-base ease-mac ${noteFocused ? 'shadow-focus' : ''}`}
-        style={{
-          padding: '8px 10px', fontSize: 12,
-          resize: 'none', fontFamily: 'inherit', marginBottom: 14, lineHeight: 1.5,
-        }}
+        className="mb-3.5"
       />
 
-      <div style={{ marginBottom: 4 }}>
+      <div className="mb-1">
         <Button
           variant="ghost" size="sm" icon={MapPin} selected disabled={!pickerAvailable}
           onClick={openPicker}
@@ -225,21 +221,21 @@ export function TrailReasonFormBody({
           {tieFrom || tieTo ? 'Edit verse ties' : 'Pick verses'}
         </Button>
         {(tieFrom || tieTo) && (
-          <div style={{ fontSize: 10.5, marginTop: 6, color: 'rgb(var(--color-text-muted))', lineHeight: 1.6 }}>
-            {tieFrom && <div><span style={{ fontWeight: 700 }}>From:</span> {tieFrom}</div>}
-            {tieTo && <div><span style={{ fontWeight: 700 }}>To:</span> {tieTo}</div>}
+          <div className="text-caption2 mt-1.5 text-text-muted leading-relaxed">
+            {tieFrom && <div><span className="font-semibold">From:</span> {tieFrom}</div>}
+            {tieTo && <div><span className="font-semibold">To:</span> {tieTo}</div>}
           </div>
         )}
       </div>
 
       {!autoSave && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
+        <div className="flex justify-between gap-2 mt-2.5">
           <IconButton
             icon={Trash2} label="Delete your note" size={24} tooltip={false}
             className="text-trail-warm hover:bg-trail-warm/10 border border-border"
             onClick={deleteNote}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={notNow}>Not now</Button>
             <Button variant="primary" size="sm" loading={saving} onClick={save}>Save</Button>
           </div>

@@ -6,8 +6,8 @@ import { stripAnnotations } from '@/lib/annotationFilters'
 import { laserToPoint } from '@/lib/presenterOverlay'
 import { measureContentHeight } from '@/lib/presenterBand'
 import { planPsalmSuperscription, resolveTitleLine, trimVerseOneText, trimVerseOneTagged, extractVerseOneTaggedTitle } from '@/lib/psalmSuperscription'
-import { RED_LETTER_COLOR, HIGHLIGHT_COLOR_IDS, highlightWordBg, highlightDotColor } from '@/styles/highlightPalette'
-import { IconButton } from '@/components/ui'
+import { RED_LETTER_COLOR, HIGHLIGHT_COLOR_IDS, highlightWordBg } from '@/styles/highlightPalette'
+import { IconButton, ColorSwatchRow } from '@/components/ui'
 import { Eraser, X } from 'lucide-react'
 import type { OverlayLaser } from '@/lib/presenterOverlay'
 import type { DisplayToken } from '@/lib/verseUtils'
@@ -662,14 +662,12 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
           style={{ left: selTb.x, top: selTb.y, transform: 'translate(-50%, -100%)' }}
           onMouseDown={(e) => e.preventDefault()}
         >
-          {COLOR_IDS.map((id) => (
-            <button
-              key={id}
-              onClick={() => applyHighlight(id)}
-              className="w-4 h-4 rounded-full hover:scale-125 transition-transform flex-shrink-0 border border-border"
-              style={{ background: highlightDotColor(id) }}
-            />
-          ))}
+          <ColorSwatchRow
+            value={null}
+            onChange={(id) => id && applyHighlight(id as HighlightColor)}
+            swatches={COLOR_IDS.map((id) => ({ id, rgb: `var(--highlight-${id})` }))}
+            size={16}
+          />
           {/* Eraser — removes any highlight under the selection */}
           <IconButton icon={Eraser} label="Remove highlight" size={20} tooltip={false} onClick={removeHighlight} />
           <IconButton icon={X} label="Close" size={20} tooltip={false} onClick={removeHighlight} className="opacity-50 hover:opacity-100" />

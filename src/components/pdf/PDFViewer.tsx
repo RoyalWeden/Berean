@@ -16,10 +16,20 @@ import { useAppStore } from '@/store'
 import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
 import PdfPage, { hlColor } from './PdfPage'
 import PdfPicker from './PdfPicker'
-import { IconButton, SearchField, SegmentedControl, SectionLabel, Divider } from '@/components/ui'
+import { IconButton, Button, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow } from '@/components/ui'
 import type { PdfTabState, PdfHighlight } from '@/types'
 
 const HL_COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'purple'] as const
+// "r g b" triples matching hlColor()'s rgba() map (PdfPage.tsx) — ColorSwatchRow wants a plain
+// triple it can compose its own opacity around, not the pre-alpha'd rgba() string.
+const HL_SWATCH_RGB: Record<(typeof HL_COLORS)[number], string> = {
+  yellow: '250 204 21',
+  green: '74 222 128',
+  blue: '96 165 250',
+  pink: '244 114 182',
+  orange: '251 146 60',
+  purple: '192 132 252',
+}
 
 interface SelToolbar {
   page: number
@@ -432,11 +442,11 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
   // ── Render ───────────────────────────────────────────────────────────────────
   if (!pdfId) {
-    return <div className="flex items-center justify-center h-full text-sm text-text-muted">No PDF selected</div>
+    return <div className="flex items-center justify-center h-full text-subhead text-text-muted">No PDF selected</div>
   }
 
   return (
-    <div className="flex flex-col h-full bg-surface-3">
+    <div className="flex flex-col h-full bg-surface-1">
       {/* Toolbar — window-drag via useWindowDrag (manual JS-tracked drag), not a real
           `-webkit-app-region: drag` region; see that hook's comment (same fix as
           PanelHeader.tsx, for the same reported "drag doesn't work"/text-selection bug). */}
@@ -445,15 +455,16 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
         className={`flex items-center gap-1 py-2 material-bar border-b border-separator flex-shrink-0 min-h-[40px] no-drag select-none ${floating ? 'pl-traffic-lights pr-3' : 'px-3'}`}
       >
         {/* Title doubles as the PDF switcher / library button */}
-        <button
+        <Button
+          variant="ghost" size="sm"
           onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setPdfSwitcher({ x: r.left, y: r.bottom + 4 }) }}
           title="Switch PDF / library"
-          className="no-drag focus-ring flex items-center gap-1.5 flex-1 min-w-0 text-left group cursor-pointer rounded-control px-1 -mx-1"
+          className="flex-1 min-w-0 justify-start px-1 -mx-1"
         >
           <FileText size={14} className="text-text-muted flex-shrink-0" />
-          <span className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate group-hover:text-accent transition-colors">{title}</span>
+          <span className="flex-1 min-w-0 text-subhead font-medium text-text-primary truncate transition-colors">{title}</span>
           <ChevronDownIcon size={12} className="flex-shrink-0 text-text-muted" />
-        </button>
+        </Button>
         {!floating && (
           <IconButton icon={BookOpen} label="New Scripture tab" size={28} onClick={() => useAppStore.getState().createTab('bible')} />
         )}
@@ -497,8 +508,8 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
       <div className="flex-1 flex flex-row overflow-hidden">
         {/* Pages scroll area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto min-w-0" onMouseUp={onMouseUp} style={{ contain: 'paint' }}>
-          {loadError && <div className="p-6 text-center text-sm text-destructive">Failed to load PDF: {loadError}</div>}
-          {!doc && !loadError && <div className="p-6 text-center text-sm text-text-muted">Loading PDF…</div>}
+          {loadError && <div className="p-6 text-center text-subhead text-destructive">Failed to load PDF: {loadError}</div>}
+          {!doc && !loadError && <div className="p-6 text-center text-subhead text-text-muted">Loading PDF…</div>}
           {doc && Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div key={page} className="relative">
               <PdfPage
@@ -518,7 +529,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
         {/* Side panel: outline (TOC + bookmarks) and highlights */}
         {panelOpen && !floating && (
-          <div className="w-64 flex-shrink-0 flex flex-col border-l border-separator bg-surface-2 overflow-hidden">
+          <div className="material-panel w-64 flex-shrink-0 flex flex-col border-l border-separator overflow-hidden">
             <div className="p-1.5 border-b border-separator flex-shrink-0">
               <SegmentedControl
                 value={panelTab}
@@ -538,24 +549,27 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
                   </div>
                   {bookmarks.length === 0 && <div className="px-2 py-1 text-caption text-text-muted italic">No bookmarks</div>}
                   {bookmarks.map((b, i) => (
-                    <div key={i} className="group flex items-center gap-1.5 px-2 py-1 rounded-row hover:bg-surface-hover cursor-pointer" onClick={() => scrollToPage(b.page)}>
-                      <BookmarkIcon size={11} className="text-accent flex-shrink-0" />
-                      <span className="flex-1 min-w-0 truncate text-xs text-text-secondary">{b.label}</span>
-                      <span className="text-caption2 text-text-muted">p.{b.page}</span>
-                      <IconButton icon={X} label="Remove bookmark" size={20} tooltip={false} className="opacity-0 group-hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); removeBookmark(i) }} />
-                    </div>
+                    <ListRow key={i} dense
+                      leading={<BookmarkIcon size={11} className="text-accent" />}
+                      title={b.label}
+                      meta={`p.${b.page}`}
+                      onClick={() => scrollToPage(b.page)}
+                      trailing={
+                        <IconButton icon={X} label="Remove bookmark" size={20} tooltip={false}
+                          onClick={(e) => { e.stopPropagation(); removeBookmark(i) }} />
+                      }
+                    />
                   ))}
                   {/* TOC */}
                   <SectionLabel className="px-2 pt-3">Contents</SectionLabel>
                   {toc.length === 0 && <div className="px-2 py-1 text-caption text-text-muted italic">No table of contents</div>}
                   {toc.map((item, i) => (
-                    <button key={i} onClick={() => item.page && scrollToPage(item.page)}
+                    <ListRow key={i} dense
+                      title={item.title}
                       disabled={!item.page}
-                      style={{ paddingLeft: 8 + item.depth * 12 }}
-                      className="w-full text-left pr-2 py-1 rounded-row text-xs text-text-secondary hover:bg-surface-hover hover:text-text-primary cursor-pointer truncate disabled:opacity-40 disabled:cursor-default">
-                      {item.title}
-                    </button>
+                      indent={8 + item.depth * 12}
+                      onClick={() => item.page && scrollToPage(item.page)}
+                    />
                   ))}
                 </div>
               )}
@@ -563,13 +577,16 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
                 <div className="py-1">
                   {highlights.length === 0 && <div className="px-2 py-3 text-caption text-text-muted italic">No highlights yet — select text to add one</div>}
                   {highlights.map((h) => (
-                    <div key={h.id} className="group flex items-start gap-1.5 px-2 py-1.5 rounded-row hover:bg-surface-hover cursor-pointer" onClick={() => scrollToPage(h.page)}>
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: hlColor(h.color).replace('0.45', '0.9') }} />
-                      <span className="flex-1 min-w-0 text-caption text-text-secondary line-clamp-2">{h.text || '(no text)'}</span>
-                      <span className="text-micro text-text-muted flex-shrink-0">p.{h.page}</span>
-                      <IconButton icon={Trash2} label="Remove highlight" size={20} tooltip={false} danger className="opacity-0 group-hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); removeHighlight(h.id) }} />
-                    </div>
+                    <ListRow key={h.id}
+                      leading={<span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hlColor(h.color).replace('0.45', '0.9') }} />}
+                      title={<span className="line-clamp-2 whitespace-normal">{h.text || '(no text)'}</span>}
+                      meta={`p.${h.page}`}
+                      onClick={() => scrollToPage(h.page)}
+                      trailing={
+                        <IconButton icon={Trash2} label="Remove highlight" size={20} tooltip={false} danger
+                          onClick={(e) => { e.stopPropagation(); removeHighlight(h.id) }} />
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -588,11 +605,12 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
           style={{ left: Math.min(selToolbar.x, window.innerWidth - 240), top: selToolbar.y + 6 }}
           onMouseDown={(e) => e.preventDefault()}
         >
-          {HL_COLORS.map((c) => (
-            <button key={c} onClick={() => addHighlight(c)} title={`Highlight ${c}`}
-              className="w-5 h-5 rounded-full border border-border cursor-pointer hover:scale-110 transition-transform"
-              style={{ backgroundColor: hlColor(c).replace('0.45', '0.9') }} />
-          ))}
+          <ColorSwatchRow
+            value={null}
+            onChange={(c) => c && addHighlight(c)}
+            swatches={HL_COLORS.map((c) => ({ id: c, rgb: HL_SWATCH_RGB[c], label: `Highlight ${c}` }))}
+            size={20}
+          />
           <Divider orientation="vertical" className="h-4 mx-0.5" />
           <IconButton icon={NotepadText} label="Highlight + new note" size={24} tooltip={false} onClick={highlightAndNote} />
           <IconButton icon={Link2} label="Copy link to selection" size={24} tooltip={false} onClick={copyLinkToSelection} />

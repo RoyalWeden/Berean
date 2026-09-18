@@ -8,7 +8,7 @@ import {
   BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
-import { IconButton, Button, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem } from '@/components/ui'
+import { IconButton, Button, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
@@ -209,25 +209,20 @@ function PanelSlot({
     ]
     return (
       <div className="flex flex-col h-full overflow-hidden bg-surface-3">
-        <div className="flex items-center px-3 py-2 material-bar border-b border-separator flex-shrink-0">
-          <span className="flex-1 text-xs font-medium text-text-muted">{label}</span>
+        <Toolbar size="sm">
+          <span className="flex-1 text-footnote font-medium text-text-muted">{label}</span>
           <IconButton icon={X} label="Remove panel" size={20} danger onClick={onClear} />
-        </div>
+        </Toolbar>
         <div className="flex-1 flex flex-col justify-center gap-2 p-3">
           <p className="text-caption text-text-muted text-center mb-1">Choose what this panel shows</p>
           {TYPES.map(({ type, label: tl, icon: Icon, desc }) => (
-            <button key={type}
+            <OptionCard key={type}
+              icon={Icon}
+              title={tl}
+              description={desc}
               onClick={() => { onSet({ type } as YouTubePanelState) }}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-card border border-border hover:border-accent hover:bg-accent/8 transition-all cursor-pointer text-left group"
-            >
-              <div className="w-9 h-9 rounded-card bg-surface-4 group-hover:bg-accent-muted flex items-center justify-center flex-shrink-0 transition-colors">
-                <Icon size={16} className="text-text-secondary group-hover:text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-text-primary">{tl}</p>
-                <p className="text-caption2 text-text-muted">{desc}</p>
-              </div>
-            </button>
+              className="w-full flex-row items-center"
+            />
           ))}
         </div>
       </div>
@@ -1619,20 +1614,20 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               see store's youtubeHomeToken) covers "back to browse", and the shared TopBar
               back/forward buttons cover video-to-video history, matching Notes/Lexicon. */}
           {youtubeNoteBack && (
-            <button
+            <Button
+              variant="ghost" size="sm" icon={ArrowLeft}
               onClick={() => {
                 useAppStore.getState().requestOpenNote(youtubeNoteBack.noteId)
                 setYoutubeNoteBack(null)
                 useAppStore.getState().ensureTab('note')
               }}
-              className="flex items-center gap-1 text-xs text-accent hover:underline cursor-pointer flex-shrink-0 max-w-[140px] truncate"
+              className="flex-shrink-0 max-w-[140px]"
               title={`Back to "${youtubeNoteBack.title}"`}
             >
-              <ArrowLeft size={11} className="flex-shrink-0" />
               <span className="truncate">{youtubeNoteBack.title}</span>
-            </button>
+            </Button>
           )}
-          <span className="flex-1 min-w-0 text-xs font-medium text-text-primary truncate">
+          <span className="flex-1 min-w-0 text-footnote font-medium text-text-primary truncate">
             {activeVideo?.title ?? ''}
           </span>
           <IconButton
@@ -1663,25 +1658,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                   <SectionLabel className="mb-2">Layout</SectionLabel>
                   <div className="grid grid-cols-2 gap-1.5">
                     {YOUTUBE_LAYOUTS.map((def) => (
-                      <button
+                      <OptionCard
                         key={def.id}
-                        onClick={() => {
-                          setYtLayout(def.id)
-                          setShowLayoutPicker(false)
-                          // If layout requires both panels but we only have A, add a placeholder B
-                          if (def.requiresBoth && panelA && !panelB) {
-                          }
-                        }}
-                        className={`flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-card text-left border transition-all cursor-pointer text-caption
-                          ${ytLayout === def.id
-                            ? 'border-accent bg-accent-muted text-accent'
-                            : 'border-border text-text-secondary hover:bg-surface-hover'
-                          }`}
-                      >
-                        <span className="font-semibold">{def.label}</span>
-                        <span className="text-micro text-text-muted leading-snug">{def.description}</span>
-                        {def.requiresBoth && <span className="text-micro text-warning mt-0.5">Needs 2 panels</span>}
-                      </button>
+                        title={def.label}
+                        description={<>{def.description}{def.requiresBoth && <span className="block text-micro text-warning mt-0.5">Needs 2 panels</span>}</>}
+                        selected={ytLayout === def.id}
+                        onClick={() => { setYtLayout(def.id); setShowLayoutPicker(false) }}
+                      />
                     ))}
                   </div>
                   {/* Active panels summary */}
@@ -1692,13 +1675,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         {panelA && (
                           <div className="flex items-center justify-between gap-2 text-caption">
                             <span className="text-text-secondary">Panel A: <span className="font-medium capitalize">{panelA.type}</span></span>
-                            <button onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }} className="text-destructive hover:brightness-110 cursor-pointer text-caption2">Remove</button>
+                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }}>Remove</Button>
                           </div>
                         )}
                         {panelB && (
                           <div className="flex items-center justify-between gap-2 text-caption">
                             <span className="text-text-secondary">Panel B: <span className="font-medium capitalize">{panelB.type}</span></span>
-                            <button onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }} className="text-destructive hover:brightness-110 cursor-pointer text-caption2">Remove</button>
+                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }}>Remove</Button>
                           </div>
                         )}
                       </div>
@@ -1790,7 +1773,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
           {/* Floating copy toast */}
           {copyToast && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-overlay px-4 py-2 material-control text-xs font-medium text-text-primary pointer-events-none animate-fade-in-up">
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-overlay px-4 py-2 material-control text-footnote font-medium text-text-primary pointer-events-none animate-fade-in-up">
               Copied to clipboard
             </div>
           )}
@@ -1799,7 +1782,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           {showEndOverlay && (
             <div className="absolute inset-0 bg-surface-1/97 flex flex-col p-4 overflow-y-auto z-raised">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                <p className="text-sm font-semibold text-text-primary">Up next</p>
+                <p className="text-subhead font-semibold text-text-primary">Up next</p>
                 <div className="flex gap-2">
                   <Button
                     variant="ghost" size="sm" icon={RotateCcw}
@@ -1823,7 +1806,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 ? (
                   <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
                     {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="rounded-card overflow-hidden bg-surface-2 border border-border animate-pulse">
+                      <div key={i} className="rounded-card overflow-hidden bg-surface-elevated border border-border animate-pulse">
                         <div className="w-full aspect-video bg-surface-3" />
                         <div className="p-1.5 space-y-1">
                           <div className="h-2 bg-surface-3 rounded-chip w-full" />
@@ -1839,7 +1822,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       <button
                         key={rec.videoId}
                         onClick={() => { setVideoEnded(false); setActiveVideoId(rec.videoId) }}
-                        className="text-left group rounded-card overflow-hidden bg-surface-2 border border-border hover:border-accent/50 transition-all cursor-pointer"
+                        className="text-left group rounded-card overflow-hidden bg-surface-elevated border border-border hover:border-accent/50 transition-all cursor-pointer"
                       >
                         <div className="relative w-full aspect-video bg-surface-4">
                           {(() => {
@@ -1861,7 +1844,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                             )
                           })()}
                           {rec.channelHandle === activeVideo?.channelHandle && (
-                            <div className="absolute top-1 right-1 text-micro font-bold px-1 py-0.5 rounded-chip bg-accent text-white">SAME CH</div>
+                            <div className="absolute top-1 right-1 text-micro font-semibold px-1 py-0.5 rounded-chip bg-accent text-white">SAME CH</div>
                           )}
                         </div>
                         <div className="p-1.5">
@@ -1881,20 +1864,21 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {!videoMaximized && (
           // When a note is open: flex column so the note editor fills all remaining space to the
           // bottom. When no note: scrollable so long descriptions are accessible.
-          <div className={`flex-1 min-h-0 ${inlinePanelNoteId ? 'flex flex-col' : 'overflow-y-auto'}`}>
+          <div className={`material-panel flex-1 min-h-0 ${inlinePanelNoteId ? 'flex flex-col' : 'overflow-y-auto'}`}>
             {/* Channel / date row — always compact */}
-            <div className="px-4 pt-3 pb-2 border-t border-separator bg-surface-2 flex-shrink-0">
+            <div className="px-4 pt-3 pb-2 border-t border-separator flex-shrink-0">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <button
+                <Button
+                  variant="ghost" size="sm"
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey) window.app.openExternal(`https://www.youtube.com/${activeVideo?.channelHandle}`)
                     else if (activeVideo) handleBackAndFilter(activeVideo.channelHandle)
                   }}
                   title="Filter by channel (⌘+click to open in browser)"
-                  className="text-xs font-medium text-accent hover:underline cursor-pointer truncate max-w-[60%]"
+                  className="max-w-[60%]"
                 >
-                  {activeVideo?.channelName ?? ''}
-                </button>
+                  <span className="truncate">{activeVideo?.channelName ?? ''}</span>
+                </Button>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {activeVideo?.published && (
                     <span className="text-caption2 text-text-muted">{formatDateFull(activeVideo.published)}</span>
@@ -1910,18 +1894,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             </div>
             {/* ── Synced transcript — highlights the line at the current playback time ─ */}
             {!inlinePanelNoteId && activeTranscript.length > 0 && (
-              <div className="border-t border-separator bg-surface-2">
-                <button
+              <div className="border-t border-separator">
+                <DisclosureRow
+                  open={showTranscript}
                   onClick={() => setShowTranscript((v) => !v)}
-                  className="w-full px-4 pt-2.5 pb-1.5 flex items-center gap-2 cursor-pointer hover:bg-surface-3 transition-colors"
-                >
-                  <ChevronDown size={12} className={`text-text-muted transition-transform ${showTranscript ? '' : '-rotate-90'}`} />
-                  <Captions size={12} className="text-text-muted" />
-                  <span className="text-caption2 font-semibold text-text-muted uppercase tracking-wider">
-                    Transcript
-                  </span>
-                  <span className="text-micro text-text-muted opacity-60">{activeTranscript.length} lines · click to jump</span>
-                </button>
+                  icon={Captions}
+                  className="!h-auto px-4 pt-2.5 pb-1.5"
+                  title={<span className="text-caption2 font-semibold text-text-muted uppercase tracking-wider">Transcript</span>}
+                  trailing={<span className="text-micro text-text-muted opacity-60">{activeTranscript.length} lines · click to jump</span>}
+                />
                 {showTranscript && (
                   <div style={{ height: '320px' }}>
                     <TranscriptViewer segments={activeTranscript} currentTimeMs={currentTimeMs} onSeek={seekTo} />
@@ -1934,23 +1915,23 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             {!inlinePanelNoteId && (
               videoDescription
                 ? (
-                  <div className="px-4 py-3 bg-surface-2">
-                    <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Description</p>
-                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{videoDescription}</p>
+                  <div className="px-4 py-3">
+                    <SectionLabel className="mb-2">Description</SectionLabel>
+                    <p className="text-footnote text-text-secondary whitespace-pre-wrap leading-relaxed">{videoDescription}</p>
                   </div>
                 )
-                : <div className="h-4 bg-surface-2" />
+                : <div className="h-4" />
             )}
 
             {/* ── Linked notes ─────────────────────────────────────────────── */}
             {/* Always show the notes section (with a "New note" button) */}
-            <div className={`border-t border-separator bg-surface-2 flex min-h-0 ${inlinePanelNoteId ? 'flex-1' : ''}`}>
+            <div className={`border-t border-separator flex min-h-0 ${inlinePanelNoteId ? 'flex-1' : ''}`}>
               {/* Left: note list */}
               <div className={`flex flex-col ${inlinePanelNoteId ? 'w-48 flex-shrink-0 border-r border-separator' : 'flex-1'} overflow-y-auto`}>
                   <div className="px-4 pt-3 pb-1 flex items-center gap-2 flex-shrink-0">
-                    <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider flex-1">
+                    <SectionLabel className="flex-1">
                       Video notes {videoNotes.length > 0 && `(${videoNotes.length})`}
-                    </p>
+                    </SectionLabel>
                     <IconButton icon={Plus} label="New note for this video" size={20} onClick={createVideoNote} />
                   </div>
                   {videoNotes.length === 0 && (
@@ -1960,41 +1941,47 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     </div>
                   )}
                 {videoNotes.length > 0 && (
-                  <div className="px-3 pb-3 space-y-1 flex-1">
+                  <div className="px-1.5 pb-3 space-y-0.5 flex-1">
                     {/* Whole-video links */}
                     {videoNotes.filter(n => n.timestamp === 0).map((n) => (
-                      <div key={`${n.noteId}-0`} className={`group flex items-center gap-1.5 rounded-row px-1 py-0.5 cursor-pointer transition-colors ${inlinePanelNoteId === n.noteId ? 'bg-surface-4' : 'hover:bg-surface-3'}`}
-                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}>
-                        <NotepadText size={9} className="text-text-muted flex-shrink-0" />
-                        <span className="flex-1 text-caption text-text-secondary truncate">{n.noteTitle}</span>
-                        <IconButton icon={ExternalLink} label="Open in Notes tab" size={20} tooltip={false}
-                          className="opacity-0 group-hover:opacity-100"
-                          onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }} />
-                      </div>
+                      <ListRow key={`${n.noteId}-0`} dense
+                        leading={<NotepadText size={12} />}
+                        title={n.noteTitle}
+                        selected={inlinePanelNoteId === n.noteId}
+                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}
+                        trailing={
+                          <IconButton icon={ExternalLink} label="Open in Notes tab" size={20} tooltip={false}
+                            onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }} />
+                        }
+                      />
                     ))}
                     {/* Timestamped links */}
                     {videoNotes.filter(n => n.timestamp > 0).map((n, i) => (
-                      <div key={`${n.noteId}-${i}`} className={`flex items-center gap-1.5 rounded-row px-1 py-0.5 cursor-pointer transition-colors group ${inlinePanelNoteId === n.noteId ? 'bg-surface-4' : 'hover:bg-surface-3'}`}
-                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}>
-                        <button
-                          onMouseDown={(e) => {
-                            e.stopPropagation()
-                            if (webviewRef.current) {
-                              const js = watchFallback
-                                ? `(()=>{var v=document.querySelector("video");if(v){v.currentTime=${n.timestamp};v.play().catch(function(){});}null;})()`
-                                : `(()=>{var f=document.querySelector("iframe");if(f&&f.contentWindow){f.contentWindow.postMessage(JSON.stringify({event:"command",func:"seekTo",args:[${n.timestamp},true]}),"*");f.contentWindow.postMessage(JSON.stringify({event:"command",func:"playVideo",args:""}),"*");}null;})()`
-                              ;(webviewRef.current as any).executeJavaScript(js).catch(() => {}) // eslint-disable-line @typescript-eslint/no-explicit-any
-                            }
-                          }}
-                          className="flex items-center gap-0.5 px-1 py-0.5 rounded-chip bg-surface-4 text-micro font-mono text-accent hover:bg-accent/15 flex-shrink-0"
-                        >
-                          <Clock size={7} />{fmtSecs(n.timestamp)}
-                        </button>
-                        <span className="flex-1 text-caption text-text-secondary truncate">{n.noteTitle}</span>
-                        <IconButton icon={ExternalLink} label="Open in Notes tab" size={20} tooltip={false}
-                          className="opacity-0 group-hover:opacity-100"
-                          onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }} />
-                      </div>
+                      <ListRow key={`${n.noteId}-${i}`} dense
+                        leading={
+                          <RefChip
+                            size="xs"
+                            onMouseDown={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              if (webviewRef.current) {
+                                const js = watchFallback
+                                  ? `(()=>{var v=document.querySelector("video");if(v){v.currentTime=${n.timestamp};v.play().catch(function(){});}null;})()`
+                                  : `(()=>{var f=document.querySelector("iframe");if(f&&f.contentWindow){f.contentWindow.postMessage(JSON.stringify({event:"command",func:"seekTo",args:[${n.timestamp},true]}),"*");f.contentWindow.postMessage(JSON.stringify({event:"command",func:"playVideo",args:""}),"*");}null;})()`
+                                ;(webviewRef.current as any).executeJavaScript(js).catch(() => {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+                              }
+                            }}
+                          >
+                            <Clock size={7} />{fmtSecs(n.timestamp)}
+                          </RefChip>
+                        }
+                        title={n.noteTitle}
+                        selected={inlinePanelNoteId === n.noteId}
+                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}
+                        trailing={
+                          <IconButton icon={ExternalLink} label="Open in Notes tab" size={20} tooltip={false}
+                            onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }} />
+                        }
+                      />
                     ))}
                   </div>
                 )}
@@ -2105,46 +2092,37 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
            can't wrap to a second line without getting clipped — scroll horizontally
            instead when everything doesn't fit, same as any single-row toolbar. */}
       <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="flex-nowrap overflow-x-auto">
-        <Search size={13} className="text-text-muted flex-shrink-0" />
-        <input
-          type="text"
+        <SearchField
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+          onValueChange={(v) => { setSearch(v); setPage(1) }}
           placeholder="Search title, channel, or transcript…"
-          className="flex-1 min-w-[100px] bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
+          bare
+          wrapperClassName="flex-1 min-w-[100px]"
         />
-        {search && (
-          <button onClick={() => { setSearch(''); setPage(1) }} className="text-text-muted hover:text-text-primary cursor-pointer flex-shrink-0">
-            <X size={13} />
-          </button>
-        )}
 
         {/* Search scope — only shown while searching: Title / Transcript / Both */}
         {search && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {(['title', 'transcript', 'both'] as SearchScope[]).map((s) => (
-              <button key={s}
-                onClick={(e) => { e.stopPropagation(); setSearchScope(s); setPage(1) }}
-                title={s === 'title' ? 'Search titles & channels' : s === 'transcript' ? 'Search transcript text' : 'Search titles & transcripts'}
-                className={`text-caption2 px-2 py-0.5 rounded-full border cursor-pointer transition-colors capitalize ${searchScope === s ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            aria-label="Search scope"
+            className="flex-shrink-0"
+            value={searchScope}
+            onChange={(s) => { setSearchScope(s); setPage(1) }}
+            options={(['title', 'transcript', 'both'] as SearchScope[]).map((s) => ({
+              value: s,
+              label: s[0].toUpperCase() + s.slice(1),
+              title: s === 'title' ? 'Search titles & channels' : s === 'transcript' ? 'Search transcript text' : 'Search titles & transcripts',
+            }))}
+          />
         )}
 
         {/* Type filter */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {(['all', 'video', 'short', 'live'] as TypeFilter[]).map((t) => (
-            <button key={t}
-              onClick={(e) => { e.stopPropagation(); setTypeFilter(t); setPage(1) }}
-              className={`text-caption2 px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${typeFilter === t ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
-            >
-              {TYPE_LABEL[t]}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Video type"
+          className="flex-shrink-0"
+          value={typeFilter}
+          onChange={(t) => { setTypeFilter(t); setPage(1) }}
+          options={(['all', 'video', 'short', 'live'] as TypeFilter[]).map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+        />
 
         {/* More Filters toggle button — shows badge count when filters are active */}
         <Button
@@ -2154,7 +2132,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         >
           Filters
           {moreFiltersCount > 0 && (
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-white text-micro font-bold">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-white text-micro font-semibold">
               {moreFiltersCount}
             </span>
           )}
@@ -2163,14 +2141,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
         {/* Channel filter */}
         <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
+          <Button
             ref={channelBtnRef}
+            variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showChannelMenu}
             onClick={() => { setShowChannelMenu((v) => !v); setShowSortMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
-            className="flex items-center gap-1 text-caption2 px-2 py-1 rounded-full border border-border text-text-muted hover:border-border hover:text-text-primary cursor-pointer transition-colors max-w-[120px]"
+            className="max-w-[120px]"
           >
             <span className="truncate">{channelFilter === 'all' ? 'All channels' : channelFilter.replace('@', '')}</span>
-            <ChevronDown size={10} className="flex-shrink-0" />
-          </button>
+          </Button>
           {showChannelMenu && channelBtnRef.current && createPortal(
             <MenuPositioner
               x={channelBtnRef.current.getBoundingClientRect().right}
@@ -2216,13 +2194,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
         {/* Sort */}
         <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
+          <Button
             ref={sortBtnRef}
+            variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showSortMenu}
             onClick={() => { setShowSortMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
-            className="flex items-center gap-1 text-caption2 px-2 py-1 rounded-full border border-border text-text-muted hover:border-border hover:text-text-primary cursor-pointer transition-colors"
           >
-            {SORT_LABEL[sort]} <ChevronDown size={10} />
-          </button>
+            {SORT_LABEL[sort]}
+          </Button>
           {showSortMenu && sortBtnRef.current && createPortal(
             <MenuPositioner
               x={sortBtnRef.current.getBoundingClientRect().right}
@@ -2274,38 +2252,29 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
         {/* Transcript filter toggle — dev only (a debugging aid for transcript coverage) */}
         {isDev && (
-          <button
+          <Button
+            variant="ghost" size="sm" icon={Captions} selected={transcriptOnly}
             onClick={(e) => { e.stopPropagation(); setTranscriptOnly((v) => !v); setPage(1) }}
             title={transcriptOnly ? 'Showing only videos with transcripts' : 'Show only videos with transcripts'}
-            className={`flex items-center gap-1 text-caption2 px-2 py-1 rounded cursor-pointer flex-shrink-0 transition-colors ${
-              transcriptOnly
-                ? 'bg-success/25 text-success'
-                : 'bg-surface-4 text-text-muted hover:text-success'
-            }`}
+            className="flex-shrink-0"
           >
-            <Captions size={11} />
             {transcriptIds.size > 0 ? transcriptIds.size : ''}
-          </button>
+          </Button>
         )}
 
         {/* Transcript tools — collapsed into a single popover */}
         <div className="flex-shrink-0" ref={transcriptMenuRef}>
-            <button
+            <Button
               ref={transcriptBtnRef}
+              variant="ghost" size="sm" icon={Captions} iconTrailing={false} selected={showTranscriptMenu || fetchingTranscripts}
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
               title="Transcript tools (dev only)"
-              className={`flex items-center gap-1 text-caption2 px-2 py-1 rounded-full border cursor-pointer transition-colors ${
-                fetchingTranscripts
-                  ? 'bg-success/16 border-success/45 text-success font-semibold'
-                  : 'bg-accent/16 border-accent/45 text-accent font-semibold hover:bg-accent/25'
-              }`}
             >
-              <Captions size={11} />
               {fetchingTranscripts && progress
                 ? `${progress.done}/${progress.total}`
                 : 'Transcripts'}
               <ChevronDown size={10} className={`transition-transform ${showTranscriptMenu ? 'rotate-180' : ''}`} />
-            </button>
+            </Button>
 
             {showTranscriptMenu && transcriptBtnRef.current && createPortal(
               <MenuPositioner
@@ -2356,14 +2325,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 pt-1">
-                    <button
+                    <Button
+                      variant="success" size="sm" icon={Captions}
                       onClick={doFetchTranscripts}
                       disabled={loading || syncing || fetchingTranscripts}
-                      className="flex-1 flex items-center justify-center gap-1 text-caption px-2 py-1.5 rounded-control bg-success/15 text-success hover:bg-success/25 cursor-pointer disabled:opacity-40 transition-colors"
+                      className="flex-1"
                     >
-                      <Captions size={11} />
                       {fetchingTranscripts ? 'Fetching…' : 'Get transcripts'}
-                    </button>
+                    </Button>
                     <IconButton icon={Trash2} label="Clear all stored transcripts" size={24} danger disabled={fetchingTranscripts} onClick={doClearTranscripts} />
                   </div>
 
@@ -2383,65 +2352,57 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
       {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
       {showMoreFilters && (
-        <div className="px-3 py-2.5 border-b border-separator bg-surface-2 flex flex-wrap gap-x-5 gap-y-2 flex-shrink-0">
+        <Toolbar size="sm" className="h-auto py-2.5 flex-wrap gap-x-5 gap-y-2">
 
           {/* Search scope — where the search box looks (title, transcript text, or both) */}
           <div className="flex items-center gap-2">
             <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Search in</span>
-            <div className="flex items-center gap-1">
-              {([['title', 'Title'], ['transcript', 'Transcript'], ['both', 'Both']] as [SearchScope, string][]).map(([s, lbl]) => (
-                <button key={s}
-                  onClick={() => { setSearchScope(s); setPage(1) }}
-                  className={`text-caption2 px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${searchScope === s ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
-                >
-                  {lbl}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              aria-label="Search in"
+              value={searchScope}
+              onChange={(s) => { setSearchScope(s); setPage(1) }}
+              options={[
+                { value: 'title', label: 'Title' },
+                { value: 'transcript', label: 'Transcript' },
+                { value: 'both', label: 'Both' },
+              ]}
+            />
           </div>
 
           {/* Starred */}
           <div className="flex items-center gap-2">
             <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Starred</span>
-            <button
+            <Button
+              variant="ghost" size="sm" icon={Star} selected={starredOnly}
+              className={starredOnly ? 'text-warning [&_svg]:fill-warning' : undefined}
               onClick={() => { setStarredOnly((v) => !v); setPage(1) }}
-              className={`flex items-center gap-1 text-caption2 px-2 py-0.5 rounded-control transition-colors cursor-pointer ${starredOnly ? 'bg-warning/15 text-warning' : 'bg-surface-4 text-text-muted hover:text-text-primary'}`}
             >
-              <Star size={9} className={starredOnly ? 'fill-warning' : ''} />
               {starredOnly ? 'Only starred' : 'All'}
-            </button>
+            </Button>
           </div>
 
           {/* Progress / watch filter */}
           <div className="flex items-center gap-2">
             <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Progress</span>
-            <div className="flex items-center gap-1">
-              {(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => (
-                <button key={opt}
-                  onClick={() => { setWatchFilter(opt); setPage(1) }}
-                  className={`text-caption2 px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${watchFilter === opt ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
-                >
-                  {WATCH_LABEL[opt]}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              aria-label="Watch progress"
+              value={watchFilter}
+              onChange={(opt) => { setWatchFilter(opt); setPage(1) }}
+              options={(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => ({ value: opt, label: WATCH_LABEL[opt] }))}
+            />
           </div>
 
           {/* Length / duration filter */}
           <div className="flex items-center gap-2">
             <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Length</span>
-            <div className="flex items-center gap-1 flex-wrap">
-              {(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => (
-                <button key={opt}
-                  onClick={() => { setDurationFilter(opt); setPage(1) }}
-                  className={`text-caption2 px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${durationFilter === opt ? 'bg-accent/16 border-accent/45 text-accent font-semibold' : 'border-border text-text-muted hover:text-text-primary'}`}
-                >
-                  {DURATION_LABEL[opt]}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              aria-label="Video length"
+              value={durationFilter}
+              onChange={(opt) => { setDurationFilter(opt); setPage(1) }}
+              options={(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => ({ value: opt, label: DURATION_LABEL[opt] }))}
+            />
           </div>
-        </div>
+        </Toolbar>
       )}
 
       {/* Progress bar — only shown while a sync is actively running (total > 0) */}
@@ -2473,7 +2434,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {loading && videos.length === 0 && (
           <div className="px-6 py-8 flex flex-col items-center gap-3">
             <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-            {progress && <p className="text-xs text-text-muted">{progress.phase}</p>}
+            {progress && <p className="text-footnote text-text-muted">{progress.phase}</p>}
           </div>
         )}
 
@@ -2514,7 +2475,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       {(() => {
                         const level = thumbFallback.get(video.videoId) ?? 0
                         const src = thumbnailUrlAtLevel(video.thumbnailUrl, level)
-                        if (!src) return <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">No preview</div>
+                        if (!src) return <div className="w-full h-full flex items-center justify-center text-text-muted text-footnote">No preview</div>
                         return (
                           <img
                             src={src}
@@ -2545,7 +2506,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       {video.type !== 'video' && (
                         <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
                           {video.isLiveNow && <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />}
-                          <span className="text-micro font-bold px-1.5 py-0.5 rounded-chip text-white" style={{ backgroundColor: video.type === 'short' ? 'rgb(var(--color-accent))' : 'rgb(var(--color-destructive))' }}>
+                          <span className={cx('text-micro font-semibold px-1.5 py-0.5 rounded-chip text-white', video.type === 'short' ? 'bg-accent' : 'bg-destructive')}>
                             {video.type === 'short' ? 'SHORT' : video.isLiveNow ? 'LIVE NOW' : 'LIVE'}
                           </span>
                         </div>
@@ -2568,7 +2529,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
                     {/* Card info */}
                     <div className="p-2.5">
-                      <p className="text-xs font-medium text-text-primary leading-tight line-clamp-2 mb-1">
+                      <p className="text-footnote font-medium text-text-primary leading-tight line-clamp-2 mb-1">
                         {video.title}
                       </p>
                       <div className="flex items-center justify-between gap-1">
@@ -2629,13 +2590,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     </div>
 
                     {/* Star button (hover) */}
-                    <button
+                    <IconButton
+                      icon={Star}
+                      label={video.isStarred ? 'Unstar' : 'Star'}
+                      size={24}
+                      tooltip={false}
+                      iconClassName={video.isStarred ? 'text-warning fill-warning' : 'text-white'}
                       onClick={(e) => handleToggleStar(video.videoId, e)}
-                      title={video.isStarred ? 'Unstar' : 'Star'}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-black/70"
-                    >
-                      <Star size={11} className={video.isStarred ? 'text-warning fill-warning' : 'text-white'} />
-                    </button>
+                      className="absolute top-1.5 right-1.5 !rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    />
                     {video.isStarred && (
                       <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center group-hover:hidden">
                         <Star size={11} className="text-warning fill-warning" />
@@ -2648,12 +2611,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
             <div className="px-4 pb-6 flex flex-col items-center gap-2">
               {hasMore && !loading && (
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  className="text-xs text-text-muted hover:text-text-primary hover:underline cursor-pointer"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setPage((p) => p + 1)}>
                   Show more ({sorted.length - paged.length} remaining)
-                </button>
+                </Button>
               )}
             </div>
           </>

@@ -68,7 +68,7 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
         onBlur={onChanged}
         placeholder="Name this section…"
         wrapperClassName="flex-1 min-w-[60px]"
-        className="text-subhead font-bold tracking-wide text-accent placeholder:text-accent/50"
+        className="text-subhead font-semibold tracking-wide text-accent placeholder:text-accent/50"
       />
       <IconButton
         icon={Trash2} label="Remove this section" size={20} variant="ghost" danger tooltip={false}
