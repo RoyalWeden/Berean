@@ -6,7 +6,8 @@ import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronD
 import { buildLexiconCopyText, normalizeStrongsNums, DerivationText } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
-import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, EmptyState, Button, SearchField } from '@/components/ui'
+import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, SectionHeader, EmptyState, Button, SearchField, TextField, Toolbar, DisclosureRow, ListRow, Divider } from '@/components/ui'
+import { LexiconEntryHeader, LangBadge, OccurrenceRow, DerivedTermRow } from '@/components/lexicon/parts'
 import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -106,17 +107,6 @@ function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; match
  */
 
 // ─── Standalone Lexicon (no store interaction beyond createTab) ─────────────
-
-function LangBadge({ num }: { num: string }) {
-  const isHebrew = num.startsWith('H')
-  return (
-    <span className={`text-caption2 font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-      isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'
-    }`}>
-      {isHebrew ? 'Hebrew' : 'Greek'}
-    </span>
-  )
-}
 
 interface SidebarLexiconProps {
   initialEntry?: string | null
@@ -295,18 +285,17 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
 
     return (
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-separator flex-shrink-0">
-          <button
-            onClick={goBack}
-            className="flex items-center gap-1 text-caption2 text-text-muted hover:text-text-primary cursor-pointer rounded px-1 py-0.5 hover:bg-surface-4 transition-colors"
-          >
-            <ArrowLeft size={12} />
-            <span>{backLabel}</span>
-          </button>
-          <span className="text-xs font-semibold font-mono text-text-primary">{activeEntry.strongsNum}</span>
-          <LangBadge num={activeEntry.strongsNum} />
+        <Toolbar size="sm">
+          <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={goBack} className="flex-shrink-0 max-w-[100px]">
+            <span className="truncate">{backLabel}</span>
+          </Button>
+          <LexiconEntryHeader strongsNum={activeEntry.strongsNum} />
           <div className="ml-auto flex items-center gap-0.5">
-            <button
+            <IconButton
+              icon={copiedLexicon ? CheckIcon : Copy}
+              label="Copy Strong's number and definition"
+              size={24}
+              iconClassName={copiedLexicon ? 'text-success' : undefined}
               onClick={() => {
                 const text = buildLexiconCopyText(activeEntry)
                 navigator.clipboard.writeText(text).then(() => {
@@ -314,20 +303,10 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                   setTimeout(() => setCopiedLexicon(false), 1800)
                 }).catch(() => {})
               }}
-              title="Copy Strong's number and definition"
-              className="p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer"
-            >
-              {copiedLexicon ? <CheckIcon size={11} className="text-success" /> : <Copy size={11} />}
-            </button>
-            <button
-              onClick={() => navToEntry(activeEntry.strongsNum, true)}
-              title="Open in lexicon tab"
-              className="p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-4 transition-colors cursor-pointer"
-            >
-              <ExternalLink size={11} />
-            </button>
+            />
+            <IconButton icon={ExternalLink} label="Open in lexicon tab" size={24} onClick={() => navToEntry(activeEntry.strongsNum, true)} />
           </div>
-        </div>
+        </Toolbar>
         <div data-panel-scroll-root className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {activeEntry.lemma && (
             <div className="text-xl font-medium text-text-primary font-lemma">
@@ -339,7 +318,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
             {activeEntry.pronunciation && <span className="text-xs text-text-muted">({activeEntry.pronunciation})</span>}
           </div>
           {activeEntry.gloss && (
-            <div className="text-xs text-text-primary font-medium bg-surface-4 px-2 py-1.5 rounded">
+            <div className="text-footnote text-text-primary font-medium bg-surface-elevated px-2 py-1.5 rounded-card">
               {/* Was plain text — the "Compare 3050, 3069." cross-refs Strong's glosses commonly
                   end with were never clickable in this side-panel view (reported: "still shows
                   as it did before" after the main LexiconPanel.tsx got this same fix). Shared
@@ -348,25 +327,22 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
             </div>
           )}
           {!expanded && (
-            <button
-              onClick={() => setExpanded(true)}
-              className="w-full text-center text-caption2 text-accent hover:underline cursor-pointer py-1"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setExpanded(true)} className="w-full">
               Show full entry
-            </button>
+            </Button>
           )}
           {expanded && (<>
           {activeEntry.definition && (
             <div>
-              <p className="text-micro font-semibold uppercase tracking-wider text-text-muted mb-1">Definition</p>
-              <p className="text-xs text-text-secondary leading-relaxed">
+              <SectionLabel className="mb-1">Definition</SectionLabel>
+              <p className="text-footnote text-text-secondary leading-relaxed">
                 <DerivationText text={activeEntry.definition} lang={langPrefix} onNav={navToEntry} />
               </p>
             </div>
           )}
           {hasDerivation && (
             <div>
-              <p className="text-micro font-semibold uppercase tracking-wider text-text-muted mb-1">Derivation</p>
+              <SectionLabel className="mb-1">Derivation</SectionLabel>
               <p className="text-caption text-text-muted leading-relaxed italic">
                 {/* Was a separate inline copy of this same split/link logic — missing
                     DerivationText's guard against linkifying chapter:verse references (e.g.
@@ -378,26 +354,24 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           )}
           {hasExtended && (
             <div>
-              <p className="text-micro font-semibold uppercase tracking-wider text-text-muted mb-1">
+              <SectionLabel className="mb-1">
                 {activeEntry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
-              </p>
+              </SectionLabel>
               <p className="text-caption text-text-muted leading-relaxed">{extDefNorm}</p>
             </div>
           )}
           {related.length > 0 && (
             <div>
-              <p className="text-micro font-semibold uppercase tracking-wider text-text-muted mb-1.5">Derived terms</p>
+              <SectionLabel className="mb-1.5">Derived terms</SectionLabel>
               <div className="space-y-0.5">
                 {related.map((r) => (
-                  <button
+                  <DerivedTermRow
                     key={r.strongsNum}
+                    strongsNum={r.strongsNum}
+                    lemma={r.lemma}
+                    gloss={r.gloss}
                     onClick={(e) => navToEntry(r.strongsNum, e.metaKey || e.ctrlKey)}
-                    className="w-full flex items-baseline gap-1.5 px-1.5 py-1 rounded hover:bg-surface-4 cursor-pointer text-left transition-colors"
-                  >
-                    <span className="font-mono text-micro text-text-muted w-9 flex-shrink-0">{r.strongsNum}</span>
-                    {r.lemma && <span className="text-xs font-medium text-text-primary font-lemma" dir="rtl">{r.lemma}</span>}
-                    <span className="text-caption text-text-secondary truncate">{r.gloss}</span>
-                  </button>
+                  />
                 ))}
               </div>
             </div>
@@ -405,30 +379,27 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
 
           {/* Verse Occurrences */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-micro font-semibold uppercase tracking-wider text-text-muted">
-                Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 200 ? '+' : ''})` : ''}
-              </p>
-              <div className="flex items-center gap-2.5">
+            <SectionHeader
+              flush
+              className="mb-1.5"
+              count={occurrences.length > 0 ? `${occurrences.length}${occurrences.length >= 200 ? '+' : ''}` : undefined}
+              trailing={<>
                 {occurrences.length > 0 && (
-                  <button
+                  <Button variant="ghost" size="sm" icon={ScanSearch} className="h-5 px-1.5 text-micro"
                     onClick={() => useAppStore.getState().openScriptureSearchTab(activeEntry.strongsNum)}
-                    title={`Open all ${activeEntry.strongsNum} occurrences in a tab, with the words highlighted`}
-                    className="flex items-center gap-1 text-micro text-accent hover:underline cursor-pointer"
-                  >
-                    <ScanSearch size={10} /> open in tab
-                  </button>
+                    title={`Open all ${activeEntry.strongsNum} occurrences in a tab, with the words highlighted`}>
+                    open in tab
+                  </Button>
                 )}
                 {occurrences.length > 8 && (
-                  <button
-                    onClick={() => setShowAllOccurrences((v) => !v)}
-                    className="text-micro text-accent hover:underline cursor-pointer"
-                  >
+                  <Button variant="ghost" size="sm" className="h-5 px-1.5 text-micro" onClick={() => setShowAllOccurrences((v) => !v)}>
                     {showAllOccurrences ? 'fewer' : `all ${occurrences.length}`}
-                  </button>
+                  </Button>
                 )}
-              </div>
-            </div>
+              </>}
+            >
+              Occurrences
+            </SectionHeader>
             {occurrencesLoading && (
               <p className="text-caption text-text-muted text-center py-2">Loading…</p>
             )}
@@ -440,74 +411,53 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                 {(showAllOccurrences ? occurrences : occurrences.slice(0, 8)).map((occ, i) => {
                   const bk = (() => { try { return bookName(occ.book_id) } catch { return occ.book_id } })()
                   const refLabel = `${bk} ${occ.chapter}:${occ.verse_num}`
+                  const rawText = occ.text && wordReplacerEnabled && wordReplacerRules.length > 0
+                    ? applyWordReplacer(occ.text, wordReplacerRules)
+                    : occ.text
+                  const win = occ.text ? getWordWindow(rawText, occ.matchWordIndices) : null
+                  const displayText = win?.windowText ?? rawText
+                  const displayIndices = win?.windowMatchIndices ?? occ.matchWordIndices
                   return (
-                    <button
+                    <OccurrenceRow
                       key={i}
+                      refLabel={refLabel}
+                      text={occ.text ? <VerseWithMatchedWords text={displayText} matchWordIndices={displayIndices} /> : undefined}
                       onClick={() => navToVerse(occ.book_id, occ.chapter, occ.verse_num)}
                       onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(occ.book_id, occ.chapter, occ.verse_num, e.clientX, e.clientY) }}
-                      className="w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover cursor-pointer transition-colors group"
-                    >
-                      <RefChip size="xs" className="w-fit">{refLabel}</RefChip>
-                      {occ.text && (() => {
-                        const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
-                          ? applyWordReplacer(occ.text, wordReplacerRules)
-                          : occ.text
-                        const win = getWordWindow(rawText, occ.matchWordIndices)
-                        const displayText = win?.windowText ?? rawText
-                        const displayIndices = win?.windowMatchIndices ?? occ.matchWordIndices
-                        return (
-                          <p className="text-caption2 text-text-secondary leading-relaxed line-clamp-2">
-                            <VerseWithMatchedWords text={displayText} matchWordIndices={displayIndices} />
-                          </p>
-                        )
-                      })()}
-                    </button>
+                    />
                   )
                 })}
               </div>
             )}
           </div>
-          <button
-            onClick={() => setExpanded(false)}
-            className="w-full text-center text-caption2 text-text-muted hover:text-text-primary hover:underline cursor-pointer py-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(false)} className="w-full text-text-muted hover:text-text-primary">
             Show less
-          </button>
+          </Button>
           </>)}
         </div>
         {/* Prev / Next navigation */}
-        <div className="flex items-center border-t border-separator flex-shrink-0">
-          <button
-            onClick={() => adjacent.prev && navToEntry(adjacent.prev)}
-            disabled={!adjacent.prev}
-            className="flex-1 flex items-center gap-1 px-3 py-2 text-caption2 text-text-muted hover:text-text-primary hover:bg-surface-4 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          >
-            <ChevronLeft size={12} />
+        <Toolbar size="sm" edge="top" material="none" className="px-0">
+          <Button variant="ghost" size="sm" icon={ChevronLeft} disabled={!adjacent.prev} onClick={() => adjacent.prev && navToEntry(adjacent.prev)} className="flex-1">
             {adjacent.prev}
-          </button>
-          <div className="w-px h-5 bg-surface-4" />
-          <button
-            onClick={() => adjacent.next && navToEntry(adjacent.next)}
-            disabled={!adjacent.next}
-            className="flex-1 flex items-center justify-end gap-1 px-3 py-2 text-caption2 text-text-muted hover:text-text-primary hover:bg-surface-4 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          >
+          </Button>
+          <Divider orientation="vertical" />
+          <Button variant="ghost" size="sm" icon={ChevronRight} iconTrailing disabled={!adjacent.next} onClick={() => adjacent.next && navToEntry(adjacent.next)} className="flex-1">
             {adjacent.next}
-            <ChevronRight size={12} />
-          </button>
-        </div>
+          </Button>
+        </Toolbar>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-separator flex-shrink-0">
-        <Search size={12} className="text-text-muted flex-shrink-0" />
-        <input
+      <Toolbar size="sm">
+        <SearchField
           ref={inputRef}
-          type="text"
+          bare
           value={query}
-          onChange={(e) => handleInput(e.target.value)}
+          onValueChange={handleInput}
+          onClear={() => setResults([])}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedResultIdx((i) => Math.min(i + 1, results.length - 1)) }
             else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedResultIdx((i) => Math.max(i - 1, -1)) }
@@ -518,16 +468,11 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
             } else if (e.key === 'Escape') { (e.target as HTMLInputElement).blur() }
           }}
           placeholder="H7225 · G3056 · beginning..."
-          className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-muted outline-none"
+          wrapperClassName="flex-1"
         />
-        {query && (
-          <button onClick={() => { setQuery(''); setResults([]) }} className="text-text-muted hover:text-text-primary cursor-pointer">
-            <X size={12} />
-          </button>
-        )}
-      </div>
+      </Toolbar>
       <div data-panel-scroll-root className="flex-1 overflow-y-auto">
-        {loading && <div className="px-3 py-6 text-center text-xs text-text-muted animate-pulse">Searching…</div>}
+        {loading && <div className="px-3 py-6 text-center text-footnote text-text-muted animate-pulse">Searching…</div>}
         {!loading && results.length === 0 && query.trim().length >= 2 && (
           <EmptyState compact title={`No results for "${query}"`} />
         )}
@@ -537,24 +482,18 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         {!loading && (
           <div className="flex flex-col gap-0.5 p-1.5">
             {results.map((entry, i) => (
-              <button
+              <DerivedTermRow
                 key={entry.strongsNum}
+                strongsNum={entry.strongsNum}
+                lemma={entry.lemma}
+                transliteration={entry.transliteration}
+                gloss={entry.gloss}
+                selected={i === selectedResultIdx}
                 onClick={(e) => {
-                  if (e.metaKey || e.ctrlKey) {
-                    navToEntry(entry.strongsNum, true)
-                  } else {
-                    setActiveEntry(entry)
-                  }
+                  if (e.metaKey || e.ctrlKey) navToEntry(entry.strongsNum, true)
+                  else setActiveEntry(entry)
                 }}
-                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-row text-left cursor-pointer transition-colors ${i === selectedResultIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'}`}
-              >
-                <RefChip size="xs" className="w-fit flex-shrink-0 mt-0.5">{entry.strongsNum}</RefChip>
-                <div className="flex-1 min-w-0">
-                  {entry.lemma && <span className="text-sm font-medium text-text-primary font-lemma" dir="rtl">{entry.lemma} </span>}
-                  {entry.transliteration && <span className="text-caption2 text-text-muted italic">{entry.transliteration}</span>}
-                  <p className="text-caption text-text-secondary truncate mt-0.5">{entry.gloss}</p>
-                </div>
-              </button>
+              />
             ))}
           </div>
         )}

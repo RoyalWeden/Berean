@@ -14,7 +14,7 @@ import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { IconButton, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
+import { IconButton, ListRow, ActionPillGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -510,7 +510,7 @@ export default function Sidebar() {
         // Ribbon.tsx — both still real app-drag-region) is unaffected; only "drag the window by
         // clicking blank sidebar chrome outside the tab list" is given up here, same tradeoff
         // already made for the tab-list area itself via the manual moveWindowBy() drag below.
-        className="native-buttons no-drag select-none flex flex-col flex-shrink-0 h-full material-bar border-r border-separator"
+        className="no-drag select-none flex flex-col flex-shrink-0 h-full material-sidebar border-r border-separator"
         // Clicking anywhere in the sidebar (switching tabs/spaces, etc.) should close any
         // open overlay elsewhere (Ribbon's archive-tabs list, zoom popover, session menu) —
         // those already listen for this broadcast (see HeaderOverflowMenu.tsx, Ribbon.tsx,
@@ -547,19 +547,23 @@ export default function Sidebar() {
         <div className="px-2 pt-1 flex-shrink-0">
           <Popover open={sessionPopoverOpen} onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}>
             <PopoverTrigger asChild>
-              <button
-                className="no-drag w-full flex items-center gap-1.5 px-2 py-1 rounded-control text-left cursor-pointer min-w-0 hover:bg-surface-hover transition-colors"
+              <ListRow
+                dense
+                current={sessionPopoverOpen}
+                className="no-drag"
+                leading={<CurrentSessionIcon size={12} className="opacity-70" />}
+                title={
+                  <span className="truncate" style={{ zoom: appZoom }}>
+                    {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
+                  </span>
+                }
+                trailing={<ChevronsUpDown size={11} className="text-text-muted opacity-50" />}
+                trailingAlways
                 onContextMenu={(e) => {
                   e.preventDefault()
                   if (currentSession) openSessionMenu(e.clientX, e.clientY, currentSession.id, currentSession.name)
                 }}
-              >
-                <CurrentSessionIcon size={12} className="text-text-muted flex-shrink-0 opacity-70" />
-                <span className="flex-1 text-caption text-text-muted truncate" style={{ zoom: appZoom }}>
-                  {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
-                </span>
-                <ChevronsUpDown size={11} className="text-text-muted flex-shrink-0 opacity-50" />
-              </button>
+              />
             </PopoverTrigger>
             <PopoverSurface
               side="bottom" align="start" sideOffset={4}
@@ -591,11 +595,13 @@ export default function Sidebar() {
                 icon={Plus}
                 label="New session"
                 shortcut="⌘⇧0"
+                active={false}
                 onClick={() => { createSession(); setSessionPopoverOpen(false) }}
               />
               <MenuItem
                 icon={Settings}
                 label="Manage sessions…"
+                active={false}
                 onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
               />
             </PopoverSurface>
@@ -608,38 +614,42 @@ export default function Sidebar() {
         <div className="px-2 pt-1 pb-1 flex-shrink-0">
           <div className="no-drag flex items-center gap-1">
             {/* Location bar — shows breadcrumb, click to search in current tab */}
-            <button
+            <ListRow
+              dense
+              className="flex-1 rounded-control"
+              buttonClassName="control-field bg-field hover:bg-control-hover rounded-control h-7 px-2.5 text-footnote"
+              leading={<Search size={14} className="text-text-muted" />}
               onClick={() => openSearch('current')}
-              className="flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-control bg-surface-4/40 hover:bg-surface-4/55 text-footnote text-left cursor-pointer min-w-0 transition-colors"
-            >
-              <Search size={14} className="text-text-muted flex-shrink-0" />
-              {tabTitle ? (
-                // Only show "Space > Tab" breadcrumb when the tab has a meaningful
-                // title different from the space name (e.g. "YouTube > Video Title").
-                // When the tab title equals the space name (default empty tab), show
-                // just the space label to avoid "YouTube > YouTube".
-                tabTitle.toLowerCase() === spaceLabel.toLowerCase() ? (
-                  <span className="text-caption text-text-secondary truncate flex-1" style={{ zoom: appZoom }}>{spaceLabel}</span>
+              title={
+                tabTitle ? (
+                  // Only show "Space > Tab" breadcrumb when the tab has a meaningful
+                  // title different from the space name (e.g. "YouTube > Video Title").
+                  // When the tab title equals the space name (default empty tab), show
+                  // just the space label to avoid "YouTube > YouTube".
+                  tabTitle.toLowerCase() === spaceLabel.toLowerCase() ? (
+                    <span className="text-footnote text-text-secondary truncate" style={{ zoom: appZoom }}>{spaceLabel}</span>
+                  ) : (
+                    <span className="flex items-center gap-0.5 min-w-0" style={{ zoom: appZoom }}>
+                      <span className="text-caption2 text-text-muted flex-shrink-0">{spaceLabel}</span>
+                      {breadcrumbTail.map((seg, i) => (
+                        <span key={i} className="flex items-center gap-0.5 min-w-0">
+                          <ChevronRight size={9} className="text-text-muted flex-shrink-0 opacity-50" />
+                          <span className={`text-footnote text-text-secondary truncate ${i < breadcrumbTail.length - 1 ? 'flex-shrink-0' : ''}`}>{seg}</span>
+                        </span>
+                      ))}
+                    </span>
+                  )
                 ) : (
-                  <span className="flex items-center gap-0.5 min-w-0 flex-1" style={{ zoom: appZoom }}>
-                    <span className="text-caption2 text-text-muted flex-shrink-0">{spaceLabel}</span>
-                    {breadcrumbTail.map((seg, i) => (
-                      <span key={i} className="flex items-center gap-0.5 min-w-0">
-                        <ChevronRight size={9} className="text-text-muted flex-shrink-0 opacity-50" />
-                        <span className={`text-caption text-text-secondary truncate ${i < breadcrumbTail.length - 1 ? 'flex-shrink-0' : ''}`}>{seg}</span>
-                      </span>
-                    ))}
-                  </span>
+                  <span className="text-footnote text-text-muted truncate" style={{ zoom: appZoom }}>Search…</span>
                 )
-              ) : (
-                <span className="text-footnote text-text-muted truncate" style={{ zoom: appZoom }}>Search…</span>
-              )}
-            </button>
+              }
+            />
             {/* New tab search button */}
             <IconButton
               icon={Plus}
               label="Search in new tab"
-              size={28}
+              size={24}
+              variant="glass"
               onClick={() => openSearch('new')}
             />
           </div>
@@ -651,16 +661,21 @@ export default function Sidebar() {
              tab" menu are gone — this is the single "start a fresh tab of
              type X" affordance now. Precise switching to an EXISTING tab
              stays the flat list's job below. ── */}
-        <div className="flex gap-1 px-2 pt-1 pb-1.5 flex-shrink-0">
-          {SPACES.map(({ id, type, icon: Icon, tip }) => (
-            <IconButton
-              key={id}
-              icon={Icon}
-              label={tip}
-              size={32}
-              onClick={() => createTab(type)}
-            />
-          ))}
+        <div className="px-2 pt-1 pb-1.5 flex-shrink-0">
+          <ActionPillGroup align="stretch" className="w-full">
+            {SPACES.map(({ id, type, icon: Icon, tip }) => (
+              <IconButton
+                key={id}
+                icon={Icon}
+                label={tip}
+                size={32}
+                variant="glass"
+                active={activeSpace === id}
+                className="flex-1"
+                onClick={() => createTab(type)}
+              />
+            ))}
+          </ActionPillGroup>
         </div>
 
             <div

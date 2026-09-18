@@ -7,7 +7,7 @@ import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
-import { IconButton, MenuSurface, MenuItem, MenuSeparator, MenuLabel, RefChip } from '@/components/ui'
+import { IconButton, ListRow, MenuSurface, MenuItem, MenuSeparator, MenuLabel, RefChip, cx } from '@/components/ui'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -599,63 +599,64 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               )}
 
               {/* data-tab-idx is read by handleContainerDrop to identify the target tab */}
-              <div
-                ref={isActive ? activeRowRef : undefined}
-                data-tab-idx={idx}
-                draggable
-                title={hoverTitle}
-                onClick={() => onTabClick(tab)}
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragOver={(e)  => handleTabDragOver(e, idx)}
-                onDragEnd={handleDragEnd}
-                onContextMenu={(e) => handleContextMenu(e, tab)}
-                className={`
-                  no-drag group relative flex items-stretch gap-2 rounded-row px-2 h-7
-                  select-none transition-colors duration-100 text-footnote
-                  ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
-                  ${isCrossSpaceTarget
-                    ? 'ring-2 ring-accent bg-accent-muted text-accent'
-                    : isActive
-                      ? 'text-text-primary font-medium'
-                      : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
-                  }
-                `}
-              >
+              <div className="relative">
+                {/* Shared-layout pill: animates a smooth slide when the active tab changes.
+                    `selected` below also fills the destination row instantly (same color),
+                    so this mainly carries the in-between slide, not the steady-state fill. */}
                 {isActive && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
-                    className="absolute inset-0 rounded-row bg-surface-selected"
+                    className="absolute inset-0 rounded-row bg-surface-selected pointer-events-none"
                     transition={SPRING_SNAPPY}
                   />
                 )}
-                {/* This inner element only needs to lay out the label content now — the
-                    click handler moved to the outer row div above, since this button's own
-                    `flex-1` box (sized/centered by the row's old `items-center`) left a
-                    non-clickable padding margin around it that swallowed clicks anywhere but
-                    dead center of the row. `items-stretch` on the row + no onClick here means
-                    the entire row (including that padding) is now one clickable hit area. */}
-                <div
-                  className="relative z-10 flex items-center gap-2 flex-1 min-w-0 text-left"
-                >
-                  <span className="relative flex-shrink-0">
-                    <Icon size={13} style={{ color: TAB_ICON_COLORS[tab.type] }} className="opacity-80" />
-                    {tab.type === 'youtube' && tab.id === activeYouTubeTabId && youtubeIsPlaying && (
-                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                    )}
-                  </span>
-                  <span className="truncate" style={{ zoom: appZoom }}>{displayTitle}</span>
-                  {isCompare && (
-                    <GitCompare size={10} className="flex-shrink-0 text-accent opacity-80" aria-label="Compare mode" />
+                <ListRow
+                  ref={isActive ? activeRowRef : undefined}
+                  dense
+                  bar
+                  selected={isActive && !isCrossSpaceTarget}
+                  current={isCrossSpaceTarget}
+                  data-tab-idx={idx}
+                  draggable
+                  onClick={() => onTabClick(tab)}
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleTabDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onContextMenu={(e) => handleContextMenu(e, tab)}
+                  buttonProps={{ title: hoverTitle }}
+                  className={cx(
+                    'relative z-10',
+                    isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer',
+                    isCrossSpaceTarget && 'ring-2 ring-accent',
                   )}
-                  {isLXX && <RefChip variant="lxx" size="xs" className="flex-shrink-0">LXX</RefChip>}
-                </div>
-                <IconButton
-                  icon={X}
-                  label="Close tab"
-                  size={20}
-                  tooltip={false}
-                  onClick={(e) => { e.stopPropagation(); onTabClose(tab) }}
-                  className={`relative z-10 self-center transition-opacity ${isActive ? 'opacity-40 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  leading={
+                    <span className="relative">
+                      <Icon size={13} style={{ color: TAB_ICON_COLORS[tab.type] }} className="opacity-80" />
+                      {tab.type === 'youtube' && tab.id === activeYouTubeTabId && youtubeIsPlaying && (
+                        <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                      )}
+                    </span>
+                  }
+                  title={<span className="truncate" style={{ zoom: appZoom }}>{displayTitle}</span>}
+                  meta={(isCompare || isLXX) ? (
+                    <span className="flex items-center gap-1">
+                      {isCompare && <GitCompare size={10} className="text-accent opacity-80" aria-label="Compare mode" />}
+                      {isLXX && <RefChip variant="lxx" size="xs">LXX</RefChip>}
+                    </span>
+                  ) : undefined}
+                  trailing={
+                    <IconButton
+                      icon={X}
+                      label="Close tab"
+                      size={20}
+                      variant="ghost"
+                      danger
+                      tooltip={false}
+                      onClick={(e) => { e.stopPropagation(); onTabClose(tab) }}
+                      className={isActive ? 'opacity-40 hover:opacity-100' : undefined}
+                    />
+                  }
+                  trailingAlways={isActive}
                 />
               </div>
 

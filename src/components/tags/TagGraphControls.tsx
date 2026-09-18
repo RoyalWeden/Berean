@@ -19,7 +19,7 @@ export default function TagGraphControls({
   showCoOccurrence, showLabels, onToggleCoOccurrence, onToggleLabels,
 }: Props) {
   return (
-    <div className="absolute bottom-4 right-4 z-raised pointer-events-auto flex items-center gap-0.5 material-popover rounded-menu px-1.5 py-1">
+    <div className="absolute bottom-4 right-4 z-raised pointer-events-auto flex items-center gap-0.5 material-control rounded-control px-1.5 py-1">
       <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={onZoomOut} />
       <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={onZoomIn} />
       <IconButton icon={Maximize2} label="Fit graph" size={28} onClick={onFit} />

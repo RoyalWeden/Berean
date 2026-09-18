@@ -6,6 +6,7 @@ import * as RTip from '@radix-ui/react-tooltip'
 import type { LexiconEntry } from '@/types'
 import { useAppStore } from '@/store'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { RefChip } from '@/components/ui'
 
 interface StrongsTooltipProps {
   children: React.ReactNode
@@ -135,22 +136,22 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
                 </p>
               )}
               {!loaded ? (
-                <span className="text-xs text-text-muted">Loading…</span>
+                <span className="text-footnote text-text-muted">Loading…</span>
               ) : entry ? (
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-mono font-semibold text-accent">{entry.strongsNum}</span>
-                    <span className="text-sm font-medium text-text-primary">{entry.lemma}</span>
+                    <RefChip variant="lexicon">{entry.strongsNum}</RefChip>
+                    <span className="text-body font-medium text-text-primary font-lemma">{entry.lemma}</span>
                     {entry.transliteration && (
-                      <span className="text-xs text-text-muted italic">({entry.transliteration})</span>
+                      <span className="text-footnote text-text-muted italic">({entry.transliteration})</span>
                     )}
                   </div>
                   {entry.gloss && (
-                    <p className="text-xs text-text-secondary leading-snug">{restoreStrongsPrefixes(wr(entry.gloss))}</p>
+                    <p className="text-footnote text-text-secondary leading-snug">{restoreStrongsPrefixes(wr(entry.gloss))}</p>
                   )}
                 </div>
               ) : (
-                <span className="text-xs text-text-muted">No entry for {strongsNum}</span>
+                <span className="text-footnote text-text-muted">No entry for {strongsNum}</span>
               )}
             </div>
             <RTip.Arrow className="fill-surface-4" />

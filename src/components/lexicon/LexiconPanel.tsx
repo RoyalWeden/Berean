@@ -16,7 +16,7 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
-import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState } from '@/components/ui'
+import { IconButton, SectionLabel, SectionHeader, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar } from '@/components/ui'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
 type RelatedWord = { strongsNum: string; lemma: string; transliteration: string; gloss: string }

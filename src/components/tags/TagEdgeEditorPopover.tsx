@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRight, ArrowLeft, ArrowLeftRight, Minus, Ban, Trash2 } from 'lucide-react'
-import { TAG_SLOT_COUNT, tagSlotVar } from '@/lib/tagPalette'
-import { Button } from '@/components/ui'
+import { ArrowRight, ArrowLeft, ArrowLeftRight, Minus, Trash2 } from 'lucide-react'
+import { TAG_SLOT_COUNT } from '@/lib/tagPalette'
+import { Button, SegmentedControl, ColorSwatchRow, Switch, TextArea, type Swatch } from '@/components/ui'
 import type { TagEdge, TagEdgeArrows } from '@/types'
 
-const ARROW_OPTS: Array<{ id: TagEdgeArrows; icon: typeof Minus; tip: string }> = [
-  { id: 'none', icon: Minus, tip: 'Plain line' },
-  { id: 'forward', icon: ArrowRight, tip: 'Arrow at target' },
-  { id: 'backward', icon: ArrowLeft, tip: 'Arrow at source' },
-  { id: 'both', icon: ArrowLeftRight, tip: 'Arrows both ends' },
+const ARROW_OPTS: Array<{ value: TagEdgeArrows; icon: typeof Minus; title: string }> = [
+  { value: 'none', icon: Minus, title: 'Plain line' },
+  { value: 'forward', icon: ArrowRight, title: 'Arrow at target' },
+  { value: 'backward', icon: ArrowLeft, title: 'Arrow at source' },
+  { value: 'both', icon: ArrowLeftRight, title: 'Arrows both ends' },
 ]
+
+const COLOR_SWATCHES: Swatch[] = Array.from({ length: TAG_SLOT_COUNT }, (_, i) => ({
+  id: String(i), rgb: `var(--tag-slot-${i})`, label: `Colour ${i + 1}`,
+}))
 
 export interface EdgeDraft {
   id?: string           // present when editing a real edge
@@ -21,11 +25,6 @@ export interface EdgeDraft {
   dashed: boolean
   note: string
 }
-
-const SEG =
-  'flex-1 flex items-center justify-center py-1 rounded-card cursor-pointer border transition-colors'
-const SEG_ON = 'border-accent bg-accent/15'
-const SEG_OFF = 'border-border hover:bg-surface-hover'
 
 export default function TagEdgeEditorPopover({
   draft, at, sourceName, targetName, onChange, onCommitDraft, onDelete, onClose,
@@ -65,61 +64,43 @@ export default function TagEdgeEditorPopover({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-popover w-[272px] material-popover rounded-menu p-3 flex flex-col gap-2.5 native-buttons"
+      className="fixed z-popover w-[272px] material-popover rounded-menu p-3 flex flex-col gap-2.5"
       style={{ left: Math.max(8, at.x - 136), top: Math.max(8, at.y + 8) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="text-xs text-text-secondary truncate">
+      <div className="text-footnote text-text-secondary truncate">
         <span className="font-semibold text-text-primary">{sourceName}</span>
         <span className="mx-1">→</span>
         <span className="font-semibold text-text-primary">{targetName}</span>
       </div>
 
-      <div className="flex items-center gap-1">
-        {ARROW_OPTS.map(({ id, icon: Icon, tip }) => (
-          <button key={id} title={tip} onClick={() => apply({ arrows: id })}
-            className={`${SEG} ${local.arrows === id ? SEG_ON : SEG_OFF}`}>
-            <Icon size={14} className="text-text-primary" />
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        aria-label="Arrow style"
+        fill
+        value={local.arrows}
+        onChange={(v) => apply({ arrows: v })}
+        options={ARROW_OPTS.map(({ value, icon, title }) => ({ value, icon, title }))}
+      />
 
-      <div className="flex items-center flex-wrap gap-1.5">
-        {Array.from({ length: TAG_SLOT_COUNT }, (_, i) => (
-          <button key={i} title={`Colour ${i + 1}`} onClick={() => apply({ color: String(i) })}
-            className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${
-              local.color === String(i) ? 'ring-2 ring-text-primary ring-offset-1 ring-offset-transparent' : ''
-            }`}
-            style={{ backgroundColor: tagSlotVar(i) }} />
-        ))}
-        <button title="Neutral line" onClick={() => apply({ color: null })}
-          className={`w-4 h-4 rounded-full flex items-center justify-center cursor-pointer transition-colors text-text-muted hover:text-text-primary ${
-            local.color == null ? 'ring-2 ring-text-primary ring-offset-1 ring-offset-transparent' : ''
-          }`}>
-          <Ban size={11} />
-        </button>
-      </div>
+      <ColorSwatchRow swatches={COLOR_SWATCHES} value={local.color} onChange={(id) => apply({ color: id })} allowNone size={16} />
 
-      <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-        <input type="checkbox" checked={local.dashed} onChange={(e) => apply({ dashed: e.target.checked })} />
+      <div className="flex items-center gap-2 text-footnote text-text-secondary">
+        <Switch checked={local.dashed} onCheckedChange={() => apply({ dashed: !local.dashed })} label="Dashed line" />
         Dashed line
-      </label>
+      </div>
 
-      <textarea
+      <TextArea
         value={local.note}
         onChange={(e) => setLocal((l) => ({ ...l, note: e.target.value }))}
         onBlur={() => { onChange({ note: local.note }); if (!draft.id) onCommitDraft() }}
         placeholder="Relationship note (shown on hover)…"
         rows={2}
-        className="text-subhead rounded-card bg-surface-1/60 border border-border px-2 py-1.5 outline-none focus:border-accent text-text-primary resize-none placeholder:text-text-muted"
+        className="resize-none"
       />
 
       <div className="flex items-center justify-between">
         {draft.id ? (
-          <button onClick={onDelete}
-            className="flex items-center gap-1 px-1.5 py-1 rounded-card text-caption text-destructive hover:bg-destructive/15 transition-colors cursor-pointer">
-            <Trash2 size={12} /> Delete
-          </button>
+          <Button variant="ghost" size="sm" icon={Trash2} className="text-destructive hover:bg-destructive/12" onClick={onDelete}>Delete</Button>
         ) : <span className="text-caption text-text-muted">Set anything or press Enter to keep</span>}
         <Button variant="ghost" size="sm" onClick={onClose}>Done</Button>
       </div>

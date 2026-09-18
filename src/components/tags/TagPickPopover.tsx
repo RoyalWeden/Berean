@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Plus, Tag as TagIcon, Settings2 } from 'lucide-react'
+import { Plus, Tag as TagIcon, Settings2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { resolveTagColor } from '@/lib/tagPalette'
-import { TextField, Button, MenuItem } from '@/components/ui'
+import { TextField, Button, MenuItem, SectionLabel } from '@/components/ui'
 import type { VerseTagRange } from '@/types'
 
 /**
@@ -110,10 +110,10 @@ export function TagPickPopover({
       style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="px-3 pt-2.5 pb-1.5 flex items-center gap-1.5 text-caption font-semibold text-text-secondary">
+      <SectionLabel className="px-3 pt-2.5 pb-1.5 flex items-center gap-1.5 normal-case tracking-normal">
         <TagIcon size={12} className="text-text-muted" />
         <span className="truncate">Tag {label}</span>
-      </div>
+      </SectionLabel>
       <TextField
         autoFocus
         value={query}
@@ -124,12 +124,13 @@ export function TagPickPopover({
       />
       <div className="max-h-[220px] overflow-y-auto px-1.5 pb-1">
         {created.map((name) => (
-          <div key={`new-${name}`} className="flex items-center gap-2 px-2.5 h-7 text-xs text-text-primary">
-            <Check size={13} className="text-accent" />
-            {dot(null /* new, unsaved */)}
-            <span className="truncate">{name}</span>
-            <span className="ml-auto text-caption2 text-text-muted">new</span>
-          </div>
+          <MenuItem
+            key={`new-${name}`}
+            active
+            disabled
+            label={<span className="flex items-center gap-2">{dot(null /* new, unsaved */)}<span className="truncate">{name}</span></span>}
+            trailing={<span className="text-caption2 text-text-muted">new</span>}
+          />
         ))}
         {filtered.map((t) => {
           const on = checked.has(t.id)

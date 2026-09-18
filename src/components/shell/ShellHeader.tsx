@@ -11,7 +11,7 @@ import { getAllNotes } from '@/lib/notesCache'
 import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
 import { cachedLexiconTitle } from '@/lib/lexiconTitle'
 import { TRAFFIC_LIGHT_INSET, HEADER_HEIGHT } from '@/lib/windowChrome'
-import { IconButton, Button, MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
+import { IconButton, Button, Toolbar, MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
 import ActionPillGroup from './ActionPillGroup'
 import WindowControls from './WindowControls'
 import type { TabNavEntry } from '@/types'
@@ -244,7 +244,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
     <>
       <div
         ref={headerRef}
-        className="native-buttons no-drag flex-shrink-0 material-bar border-b border-separator pr-3"
+        className="no-drag flex-shrink-0 material-bar border-b border-separator"
         // Unconditional on mac (not gated on sidebarCollapsed), and a FULL 76px inset, not the
         // 30px this briefly used — this bar is a single row spanning the entire window width,
         // sitting ABOVE the Ribbon+Sidebar row rather than beside it (App.tsx renders
@@ -265,7 +265,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
         // `.material-bar` + the `border-b` hairline below is the whole visual treatment.
         style={{ height: HEADER_HEIGHT * appZoom, paddingLeft: isWin ? 8 : TRAFFIC_LIGHT_INSET }}
       >
-        <div className="flex items-center gap-1 h-full" style={{ zoom: appZoom }}>
+        <Toolbar size="md" edge="none" material="none" style={{ zoom: appZoom }}>
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* ── Collapse / expand sidebar ── */}
             <IconButton
@@ -378,11 +378,11 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
           {updateStatus.status === 'downloading' && (
             <div
               title={`Downloading update… ${updateStatus.percent ?? 0}%`}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-control text-caption font-semibold bg-surface-3 text-text-secondary flex-shrink-0 overflow-hidden"
+              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-control text-caption font-medium control-glass text-text-secondary flex-shrink-0 overflow-hidden"
             >
               <Download size={12} className="flex-shrink-0" />
               <span>Downloading… {updateStatus.percent ?? 0}%</span>
-              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-surface-4">
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-separator">
                 <div
                   className="h-full bg-accent transition-all duration-300"
                   style={{ width: `${updateStatus.percent ?? 0}%` }}
@@ -415,7 +415,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
 
           {/* ── Windows min/max/close — same row, far right ── */}
           {isWin && <WindowControls />}
-        </div>
+        </Toolbar>
       </div>
 
       {/* ── Per-tab nav history preview — hover-triggered (see openNavDropdown). ── */}

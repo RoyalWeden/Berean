@@ -22,7 +22,7 @@ import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
-import { Button, IconButton } from '@/components/ui'
+import { Button, IconButton, MenuItem, RefChip } from '@/components/ui'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
@@ -3198,21 +3198,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       return (
                         <>
                           <div className="px-3 py-2 border-b border-separator flex items-center justify-between">
-                            <span className="text-xs font-semibold text-text-secondary">
+                            <span className="text-footnote font-semibold text-text-secondary">
                               {editionForTextId(textId)?.label ?? TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
                             </span>
                             {annInfo?.canHide && hasKeys && (
-                              <button
-                                onClick={toggleAll}
-                                className={`flex items-center gap-1 text-caption2 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                                  allHidden
-                                    ? 'bg-accent-muted text-accent'
-                                    : 'text-text-muted hover:bg-surface-hover'
-                                }`}
-                              >
-                                {allHidden ? <Eye size={10} /> : <EyeOff size={10} />}
+                              <Button variant="ghost" size="sm" selected={allHidden} icon={allHidden ? Eye : EyeOff} onClick={toggleAll} className="h-6 px-1.5 text-caption2">
                                 {allHidden ? 'Show all' : 'Hide all'}
-                              </button>
+                              </Button>
                             )}
                           </div>
                           {/* Source / edition description — shown above annotation keys */}
@@ -3229,15 +3221,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                                   <div key={k.key} className="flex gap-2 items-start">
                                     <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
                                       {annInfo.canHide && (
-                                        <button
+                                        <IconButton
+                                          icon={isHidden ? EyeOff : Eye}
+                                          label={isHidden ? 'Show this annotation' : 'Hide this annotation'}
+                                          size={20}
+                                          active={isHidden}
                                           onClick={() => toggleKey(k.key)}
-                                          title={isHidden ? 'Show this annotation' : 'Hide this annotation'}
-                                          className={`cursor-pointer transition-colors ${isHidden ? 'text-accent' : 'text-text-muted hover:text-text-primary'}`}
-                                        >
-                                          {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
-                                        </button>
+                                        />
                                       )}
-                                      <code className={`text-caption2 font-mono px-1.5 py-0.5 rounded text-text-primary ${isHidden ? 'bg-surface-4 line-through opacity-50' : 'bg-surface-4'}`}>{k.symbol}</code>
+                                      <RefChip variant="neutral" size="xs" className={isHidden ? 'line-through opacity-50' : undefined}>{k.symbol}</RefChip>
                                     </div>
                                     <span className={`text-caption leading-relaxed ${isHidden ? 'text-text-muted line-through' : 'text-text-secondary'}`}>{k.meaning}</span>
                                   </div>
@@ -3307,23 +3299,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               label: 'Change layout',
               icon: <LayoutDashboard />,
               active: layoutPickerOpen,
-              render: () => (
-                <button
-                  onClick={(e) => {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
-                    setLayoutPickerOpen((v) => !v)
-                  }}
-                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
-                    layoutPickerOpen
-                      ? 'text-accent bg-accent/8'
-                      : 'text-text-primary hover:bg-surface-4'
-                  }`}
-                >
-                  <span className="flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5"><LayoutDashboard /></span>
-                  <span className="flex-1 truncate">Change layout</span>
-                </button>
-              ),
+              onClick: (e?: unknown) => {
+                const target = (e as React.MouseEvent)?.currentTarget as HTMLElement | undefined
+                const rect = target?.getBoundingClientRect()
+                if (rect) setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
+                setLayoutPickerOpen((v) => !v)
+              },
             }] : []),
           ]}
         />
@@ -3437,8 +3418,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               : 64,
           }}
         >
-          <span className="text-xs text-text-muted">Go to verse</span>
-          <span className="text-lg font-bold text-text-primary font-mono">{verseDigitAccum}</span>
+          <span className="text-footnote text-text-muted">Go to verse</span>
+          <span className="text-title2 font-semibold text-text-primary font-mono">{verseDigitAccum}</span>
         </div>
       )}
 
@@ -3827,7 +3808,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       <div className="group relative w-3.5 flex-shrink-0 flex justify-center cursor-col-resize">
         <div
           onMouseDown={handleResizeMouseDown}
-          className="w-1 h-full hover:bg-accent-hover transition-colors bg-transparent"
+          className="w-1 h-full hover:bg-accent-muted transition-colors bg-transparent"
         >
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
@@ -3840,7 +3821,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const vDivider = (
       <div
         onMouseDown={handleVResizeMouseDown}
-        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-hover transition-colors bg-transparent"
+        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-muted transition-colors bg-transparent"
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
@@ -4175,7 +4156,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const lcVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-hover transition-colors bg-transparent"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-muted transition-colors bg-transparent"
           />
         )
         return (
@@ -4237,7 +4218,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const sbVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-hover transition-colors bg-transparent"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-muted transition-colors bg-transparent"
           />
         )
         return (

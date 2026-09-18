@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
+import { Toolbar } from '@/components/ui'
 
 /**
  * Shared header chrome for every tab-panel type (Bible, Notes, Lexicon,
@@ -38,11 +39,13 @@ export default function PanelHeader({
   return (
     <div
       onMouseDown={onMouseDown}
-      className={`flex items-center gap-2 h-11 flex-shrink-0 no-drag select-none material-bar border-b border-separator ${
+      className={`h-11 flex-shrink-0 no-drag select-none material-bar border-b border-separator ${
         floating ? 'pl-traffic-lights pr-3' : 'px-3'
       } ${className}`}
     >
-      {children}
+      <Toolbar size="md" edge="none" material="none">
+        {children}
+      </Toolbar>
     </div>
   )
 }

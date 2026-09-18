@@ -257,9 +257,9 @@ export default function TagsGraphPanel() {
   }, [tags, reload, kick])
 
   return (
-    <div className="absolute inset-0 flex bg-surface-1 native-buttons">
+    <div className="absolute inset-0 flex bg-surface-1">
       <TabHeaderPortal active={isActive}>
-        <span className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
+        <span className="flex items-center gap-1.5 text-subhead font-medium text-text-primary">
           <Waypoints size={14} className="text-[rgb(var(--link-wikilink))]" /> Tags
         </span>
       </TabHeaderPortal>
@@ -329,7 +329,7 @@ export default function TagsGraphPanel() {
         />
 
         {data?.coOccurrenceOmitted && (
-          <div className="absolute bottom-4 left-4 z-raised text-caption text-text-secondary material-popover rounded-menu px-2.5 py-1.5">
+          <div className="absolute bottom-4 left-4 z-raised text-caption2 text-text-secondary material-control rounded-control px-2.5 py-1.5">
             Shared-verse links omitted (large dataset)
           </div>
         )}
