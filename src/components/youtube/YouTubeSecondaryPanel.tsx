@@ -182,7 +182,7 @@ function ScripturePanel({ panel, onUpdate, onBack, onClose }: {
             <IconButton icon={ExternalLink} label="Open in scripture tab" size={24} onClick={openInTab} />
           </>
         } />
-      <div className="flex-1 overflow-y-auto min-h-0 text-sm">
+      <div className="flex-1 overflow-y-auto min-h-0 text-body">
         <ChapterView bookId={panel.bookId!} chapter={chapter} showStrongs={false} textId={translation.toLowerCase()} />
       </div>
     </div>

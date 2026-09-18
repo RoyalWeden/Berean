@@ -972,11 +972,11 @@ export default function StudyTrailApp() {
                           boxShadow: selected ? '0 0 0 1px rgb(var(--color-accent))' : undefined,
                         }}
                       >
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div className="text-caption" style={{ fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {s.name}
                         </div>
                         {height >= 30 && (
-                          <div style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))' }}>
+                          <div className="text-caption2" style={{ color: 'rgb(var(--color-text-muted))' }}>
                             {new Date(s.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                           </div>
                         )}

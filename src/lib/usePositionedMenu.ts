@@ -183,6 +183,6 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
     className,
     onMouseDown,
     onClick,
-    style: { position: 'fixed', left: x, top: y, zIndex: 9999, WebkitAppRegion: 'no-drag', ...style } as React.CSSProperties,
+    style: { position: 'fixed', left: x, top: y, zIndex: 'var(--z-menu)' as unknown as number, WebkitAppRegion: 'no-drag', ...style } as React.CSSProperties,
   }, children)
 })

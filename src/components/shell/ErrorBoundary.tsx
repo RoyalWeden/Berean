@@ -29,7 +29,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex flex-col items-start gap-2 p-4 text-xs">
+        <div className="flex flex-col items-start gap-2 p-4 text-footnote">
           <p className="font-semibold text-destructive">{this.props.label ?? 'Component error'}</p>
           <pre className="text-text-muted whitespace-pre-wrap break-all leading-relaxed max-h-48 overflow-y-auto">
             {this.state.error.message}

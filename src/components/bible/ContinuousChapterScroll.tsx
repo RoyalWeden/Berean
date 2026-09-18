@@ -278,7 +278,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
             }}
           >
             <span
-              className="absolute top-0.5 right-1 px-1.5 text-micro font-bold uppercase tracking-wide rounded text-white"
+              className="absolute top-0.5 right-1 px-1.5 text-micro font-semibold uppercase tracking-wide rounded text-white"
               style={{
                 background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
               }}

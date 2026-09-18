@@ -162,7 +162,7 @@ export default function ContinuousDailyScroll({ targetDate, notes, onDateChange,
               data-date-key={key}
               className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-surface-2 border-b border-separator"
             >
-              <span className={`text-xs font-semibold uppercase tracking-wider select-none ${isToday ? 'text-accent' : 'text-text-muted'}`}>
+              <span className={`text-caption2 font-semibold uppercase tracking-wide select-none ${isToday ? 'text-accent' : 'text-text-muted'}`}>
                 {isToday ? 'Today — ' : ''}{formatDateHeader(date)}
               </span>
               <IconButton
@@ -181,16 +181,16 @@ export default function ContinuousDailyScroll({ targetDate, notes, onDateChange,
             >
               {note ? (
                 <div
-                  className="prose-note text-sm text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors"
+                  className="prose-note text-body text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors"
                   // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(note.content || '') }}
                 />
               ) : isFuture ? (
-                <p className="text-xs text-text-muted italic select-none">
+                <p className="text-footnote text-text-muted italic select-none">
                   No entry yet
                 </p>
               ) : (
-                <p className="text-xs text-text-muted italic select-none group-hover:text-text-secondary transition-colors">
+                <p className="text-footnote text-text-muted italic select-none group-hover:text-text-secondary transition-colors">
                   No entry for this day — click to start writing
                 </p>
               )}

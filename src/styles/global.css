@@ -1868,31 +1868,8 @@ html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdr
   background-color: rgb(var(--color-accent) / 0.22);
 }
 
-/* ── Native-feel interactive state (press + focus-visible) ───────────────────
-   There's no shared Button component in this codebase (698+ hand-rolled
-   <button> elements), so a single "fix it everywhere" change isn't possible
-   without a much larger migration — that's its own dedicated round. This is
-   the honest partial version: applied via one scoping class on the root of
-   the highest-traffic shell chrome (Ribbon, Sidebar, ShellHeader) rather than
-   hand-editing every individual button's className, so every plain <button>
-   in those three component trees gets press feedback (scale down slightly,
-   matching AppKit's button press) and a real keyboard focus ring — applied
-   via :focus-visible so it never shows on mouse clicks, only keyboard/switch-
-   control navigation. Doesn't reach content that Radix portals to
-   document.body (e.g. popover/menu bodies) since that's outside this DOM
-   subtree — acceptable partial coverage per the same tradeoff as everywhere
-   else in this pass. */
-.native-buttons button:not(:disabled) {
-  transition: transform 0.1s ease, filter 0.1s ease;
-}
-.native-buttons button:not(:disabled):active {
-  transform: scale(0.94);
-  filter: brightness(0.92);
-}
-.native-buttons button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px var(--color-focus-ring);
-}
+/* (The former `.native-buttons` scoping rules were retired in design-system pass 2: every
+   control is now a ui/ primitive that owns its own press/focus states.) */
 
 /* ── Strong's/KJV-LXX crossfade (BiblePanel.tsx toggleStrongsForTab, ChapterView.tsx's
    translation-switch commit) ──────────────────────────────────────────────
@@ -2084,7 +2061,7 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
 /* Same idea, for the ACCENT-filled buttons in Study Trail's note/reason forms (Save, in
    TrailReasonFormBody — ReasonPromptPopover.tsx, shared by the full popup and the arrival-prompt
    toast) — those buttons already have a solid accent background, so overlaying the plain
-   surface-3 tint `.trail-ctx-btn` uses would barely read against it. A slight brightness dip
+   surface-3 tint the old trail buttons used would barely read against it. A slight brightness dip
    gives the same "something is about to happen" feedback without fighting the button's own
    color. Per direct feedback: "toast buttons have no hover highlight." */
 .trail-btn-accent:hover,

@@ -293,7 +293,7 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-surface-3 px-1.5 py-0.5 text-caption text-text-secondary hover:border-accent/50 hover:bg-surface-4 hover:text-accent transition-colors cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 rounded-control control-glass px-1.5 py-0.5 text-caption text-text-secondary hover:border-accent/50 hover:bg-surface-4 hover:text-accent transition-colors cursor-pointer whitespace-nowrap"
       >
         <span className="font-medium">{verseStr}</span>
         {!titleIsRef && <span className="opacity-60">· {cleanedTitle}</span>}

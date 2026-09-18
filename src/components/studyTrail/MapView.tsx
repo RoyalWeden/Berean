@@ -213,12 +213,12 @@ export function TrailNoteBubbleContent({ conn, onEdit }: { conn: TrailConnection
           <IconButton icon={Trash2} label="Delete this note" size={20} variant="ghost" danger onClick={deleteNote} />
         </span>
       </div>
-      {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (showTies && (conn.tiesFrom.length || conn.tiesTo.length)) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
+      {conn.userNote && <div className="text-footnote" style={{ color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (showTies && (conn.tiesFrom.length || conn.tiesTo.length)) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
       {showTies && conn.tiesFrom.length > 0 && (
-        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))', marginBottom: 2 }}>From: {conn.tiesFrom.join(', ')}</div>
+        <div className="text-caption" style={{ color: 'rgb(var(--color-text-secondary))', marginBottom: 2 }}>From: {conn.tiesFrom.join(', ')}</div>
       )}
       {showTies && conn.tiesTo.length > 0 && (
-        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))' }}>To: {conn.tiesTo.join(', ')}</div>
+        <div className="text-caption" style={{ color: 'rgb(var(--color-text-secondary))' }}>To: {conn.tiesTo.join(', ')}</div>
       )}
     </div>
   )
@@ -451,7 +451,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         {overBudget && (
           <span
             title={`${conn.chainDepth + 1} levels deep`}
-            style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))', opacity: 0.8, flexShrink: 0 }}
+            style={{ color: 'rgb(var(--color-text-muted))', opacity: 0.8, flexShrink: 0 }}
           >↳{conn.chainDepth + 1}</span>
         )}
         {/* The collapse affordance. The previous version was a bare ▾ caret to the left of the
@@ -2293,7 +2293,7 @@ export default function MapView({
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
             <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (
-          <div style={{ fontSize: 11, color: 'rgb(var(--trail-warm))', marginBottom: 10 }}>
+          <div className="text-caption" style={{ color: 'rgb(var(--trail-warm))', marginBottom: 10 }}>
             {needsInputCount} connection{needsInputCount === 1 ? '' : 's'} could use a reason — click a <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13,
               borderRadius: 999, background: 'rgb(var(--trail-warm) / 0.14)', border: '1px solid rgb(var(--trail-warm) / 0.4)', fontSize: 9, fontWeight: 700,

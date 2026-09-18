@@ -1244,7 +1244,7 @@ export default function NoteEditorPM({
               key={t.id}
               onMouseEnter={() => setTagIdx(i)}
               onClick={() => void chooseTag(i)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-xs text-left cursor-pointer ${i === tagIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-text-primary`}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-footnote text-left cursor-pointer ${i === tagIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-text-primary`}
             >
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
               <span className="truncate">{t.name}</span>
@@ -1255,7 +1255,7 @@ export default function NoteEditorPM({
             <button
               onMouseEnter={() => setTagIdx(filteredTags.length)}
               onClick={() => void chooseTag(filteredTags.length)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-xs text-left cursor-pointer ${tagIdx === filteredTags.length ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-accent`}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-footnote text-left cursor-pointer ${tagIdx === filteredTags.length ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-accent`}
             >
               + Create “{tagTrigger.query.trim()}”
             </button>

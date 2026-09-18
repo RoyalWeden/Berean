@@ -606,7 +606,7 @@ function CrossRefCard({
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className="focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-surface-hover transition-colors cursor-pointer group"
+      className="focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast cursor-pointer group"
     >
       <div className="flex items-center gap-1.5">
         <RefChip size="xs" className="w-fit">{refLabel}</RefChip>
@@ -1599,7 +1599,7 @@ export default function BibleRightPanel({
         <button
           onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
           onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-          className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0"
+          className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
         >
           <div className="flex items-center gap-1.5 min-w-0">
             {/* Note color dot — the same color-coding shown as a verse indicator
@@ -1646,7 +1646,7 @@ export default function BibleRightPanel({
   return (
     <div
       ref={panelRootRef}
-      className="native-buttons flex flex-col h-full"
+      className="flex flex-col h-full"
       // Scroll events don't bubble — use the capture phase so a scroll in ANY inner scroller
       // (note editor, cross-ref list, lexicon) is caught and mirrored to the presenter.
       onScrollCapture={(e) => {
@@ -1925,7 +1925,7 @@ export default function BibleRightPanel({
                             <div key={note.id} className="relative group transition-colors hover:bg-surface-hover rounded-row">
                               <button
                                 onClick={() => openSidebarNote(note)}
-                                className="focus-ring w-full text-left px-3 py-2.5 rounded-row cursor-pointer min-w-0"
+                                className="focus-ring w-full text-left px-3 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
                               >
                                 <div className="text-footnote font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
                                 <div className="text-caption2 text-text-muted mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
@@ -1995,7 +1995,7 @@ export default function BibleRightPanel({
                             <button
                               onClick={() => openSidebarNote(note)}
                               onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                              className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0"
+                              className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
                             >
                               <div className="text-footnote font-medium text-text-primary truncate">
                                 {note.title || 'Untitled'}

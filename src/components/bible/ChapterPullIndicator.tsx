@@ -60,7 +60,7 @@ export default function ChapterPullIndicator({
 
   const banner = (
     <div
-      className="flex items-center gap-2 px-3 py-1.5 text-xs"
+      className="flex items-center gap-2 px-3 py-1.5 text-footnote"
       style={{
         background: ready ? 'rgb(var(--color-accent) / 0.16)' : 'rgb(var(--color-surface-2) / 0.92)',
         borderBottom: isPrev ? undefined : '1px solid rgb(var(--color-surface-4))',
