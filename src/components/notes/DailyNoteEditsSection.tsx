@@ -98,7 +98,6 @@ export default function DailyNoteEditsSection({ dateKey, dailyNoteId, allNotes, 
             selected={sortMode === mode}
             onClick={() => cycleSort(mode)}
             tooltip={sortMode === mode ? (sortDir === 'desc' ? `${label}: newest/most first` : `${label}: oldest/least first`) : `Sort by ${label.toLowerCase()}`}
-            className="text-micro"
           >
             {label}
             {sortMode === mode && <span className="leading-none">{sortDir === 'desc' ? '↓' : '↑'}</span>}

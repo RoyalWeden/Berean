@@ -19,6 +19,11 @@ export interface CardButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   /** Persistent "this is the current item" state. */
   selected?: boolean
   density?: 'comfortable' | 'compact'
+  /** 'none' drops the card's own inset so the caller can match a surrounding rhythm (a result row
+   *  inside a view whose headers are all `px-4`). Same vocabulary as TextField/TextArea, because
+   *  `cx()` is not tailwind-merge — a `className` padding would collide with `density`'s rather
+   *  than win. When 'none', supply the padding yourself via `className`. */
+  padding?: 'default' | 'none'
   children?: ReactNode
 }
 
@@ -40,7 +45,7 @@ const PAD: Record<'comfortable' | 'compact', string> = {
  * web animation rather than a Mac control. Press is a tonal shift only.
  */
 export const CardButton = forwardRef<HTMLButtonElement, CardButtonProps>(function CardButton(
-  { surface = 'elevated', icon: Icon, chevron, focused, selected, density = 'comfortable', className, type = 'button', children, ...rest },
+  { surface = 'elevated', icon: Icon, chevron, focused, selected, density = 'comfortable', padding = 'default', className, type = 'button', children, ...rest },
   ref,
 ) {
   const rest_ = surface === 'elevated' ? 'bg-surface-elevated' : surface === 'glass' ? 'control-glass' : ''
@@ -53,7 +58,7 @@ export const CardButton = forwardRef<HTMLButtonElement, CardButtonProps>(functio
       className={cx(
         'focus-ring group/card relative w-full flex items-start text-left rounded-card min-w-0 cursor-pointer select-none',
         'transition-[background-color,box-shadow] duration-base ease-mac',
-        PAD[density],
+        padding === 'none' ? 'gap-2.5' : PAD[density],
         selected ? 'bg-surface-selected' : focused ? 'bg-surface-selected' : cx(rest_, 'hover:bg-surface-hover active:bg-surface-pressed'),
         'disabled:opacity-40 disabled:pointer-events-none',
         className,
