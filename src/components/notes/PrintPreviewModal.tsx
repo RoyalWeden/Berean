@@ -117,7 +117,8 @@ export function ScaledPagePreview({ html, maxHeight = 360 }: { html: string; max
 
   function syncHeight() {
     const doc = iframeRef.current?.contentWindow?.document
-    if (doc) setContentH(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
+    // srcDoc can still be mid-parse when the 60ms timer fires (documentElement/body null).
+    if (doc?.documentElement && doc.body) setContentH(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
   }
   useEffect(() => { const id = setTimeout(syncHeight, 60); return () => clearTimeout(id) }, [html])
 

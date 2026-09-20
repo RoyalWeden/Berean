@@ -44,7 +44,7 @@ export default function CrashReport() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-critical w-80 material-popover rounded-menu border border-destructive/30 overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-[1000] pointer-events-auto w-80 material-popover rounded-menu border border-destructive/30 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-destructive/20 bg-destructive/8">
         <AlertTriangle size={14} className="text-destructive flex-shrink-0" />

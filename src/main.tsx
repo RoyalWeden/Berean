@@ -116,7 +116,9 @@ function showCrashOverlay(message: string, stack: string, source: string) {
   const overlay = document.createElement('div')
   overlay.id = 'crash-overlay'
   overlay.style.cssText = [
-    'position:fixed', 'inset:0', 'z-index:99999',
+    // pointer-events:auto — a Radix modal (Settings, Import…) sets `pointer-events:none` on
+    // <body> while open, which this overlay would otherwise inherit and become unclickable.
+    'position:fixed', 'inset:0', 'z-index:99999', 'pointer-events:auto',
     'background:rgba(10,10,12,0.92)',
     'display:flex', 'align-items:center', 'justify-content:center',
     'font-family:system-ui,sans-serif',
