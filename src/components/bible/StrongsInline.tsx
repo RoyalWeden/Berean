@@ -73,7 +73,7 @@ function StrongsInline({
   // handler adding classes (.strongs-echo on every matching chip chapter-wide, .strongs-phrase-hl
   // on every word of the hovered number's contiguous phrase) — no CSS group hover, so it works
   // for multi-word phrases and cross-verse matches, not just one word.
-  const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-full border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color,box-shadow] duration-150 cursor-pointer'
+  const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-chip border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color,box-shadow] duration-150 cursor-pointer'
   const CHIP_ACCENT = 'text-accent bg-accent/15 border-accent/25'
   const chipPrimary = `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-40`
   const chipSecondary = `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-25`

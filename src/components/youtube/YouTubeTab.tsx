@@ -2391,16 +2391,20 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             />
           </div>
 
-          {/* Starred */}
+          {/* Starred — a segment of the same SegmentedControl primitive as its "Search in" /
+              "Progress" / "Length" siblings in this row (pill taxonomy: filter → Chip OR a
+              segment matching its row's own idiom; this row's idiom is SegmentedControl). */}
           <div className="flex items-center gap-2">
             <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Starred</span>
-            <Button
-              variant="ghost" size="sm" icon={Star} selected={starredOnly}
-              className={starredOnly ? 'text-warning [&_svg]:fill-warning' : undefined}
-              onClick={() => { setStarredOnly((v) => !v); setPage(1) }}
-            >
-              {starredOnly ? 'Only starred' : 'All'}
-            </Button>
+            <SegmentedControl
+              aria-label="Starred"
+              value={starredOnly ? 'starred' : 'all'}
+              onChange={(v) => { setStarredOnly(v === 'starred'); setPage(1) }}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'starred', label: 'Starred', icon: Star },
+              ]}
+            />
           </div>
 
           {/* Progress / watch filter */}

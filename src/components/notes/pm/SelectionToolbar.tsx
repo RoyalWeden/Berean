@@ -169,11 +169,11 @@ export default function SelectionToolbar({
       // before its dropdown could even open.
       className="pm-toolbar-solid material-popover rounded-menu relative flex items-center gap-2 px-1.5 py-1"
     >
-      {/* Style — current block type + the Thread insert action. */}
+      {/* Group 1 — Text: current block type + the Thread insert action. */}
       <ControlGroup>
         <Button
           variant="menu"
-          size="sm"
+          size="xs"
           icon={currentBlockTypeMeta(view).icon}
           selected={openDropdown === 'type'}
           onMouseDown={() => setOpenDropdown((v) => (v === 'type' ? 'none' : 'type'))}
@@ -182,17 +182,14 @@ export default function SelectionToolbar({
         <IconButton icon={ThreadIcon} label="Thread" size={24} tooltip={{ side: 'top' }} onMouseDown={() => cmds.wrapInThread()} />
       </ControlGroup>
 
-      {/* Inline marks */}
+      {/* Group 2 — Emphasis: inline marks, Highlight included (grouped by editing task, not
+          widget type — packet §39; moved out of the old "Annotate & reference" group). */}
       <ControlGroup>
         <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B', side: 'top' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
         <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I', side: 'top' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
         <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U', side: 'top' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
         {/* Label-only — strikethrough has no keymap.ts binding, unlike the marks around it. */}
         <IconButton icon={Strikethrough} label="Strikethrough" tooltip={{ side: 'top' }} size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
-      </ControlGroup>
-
-      {/* Annotate & reference */}
-      <ControlGroup>
         <IconButton
           icon={Highlighter}
           label="Highlight"
@@ -201,6 +198,10 @@ export default function SelectionToolbar({
           active={openDropdown === 'highlight' || isMarkActive('highlight')}
           onMouseDown={() => setOpenDropdown((v) => (v === 'highlight' ? 'none' : 'highlight'))}
         />
+      </ControlGroup>
+
+      {/* Group 3 — Links & code. */}
+      <ControlGroup>
         <IconButton
           icon={Link2}
           label="Link"
@@ -209,14 +210,14 @@ export default function SelectionToolbar({
           active={openDropdown === 'link' || isMarkActive('link')}
           onMouseDown={() => { if (openDropdown === 'link') setOpenDropdown('none'); else openLinkPopover() }}
         />
-        <IconButton icon={Code} label="Code" tooltip={{ shortcut: '⌘`', side: 'top' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
+        <IconButton icon={Code} label="Inline code" tooltip={{ shortcut: '⌘`', side: 'top' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
       </ControlGroup>
 
-      {/* Lists & quote */}
+      {/* Group 4 — Paragraph: lists, blockquote, indent/outdent. */}
       <ControlGroup>
         <Button
           variant="menu"
-          size="sm"
+          size="xs"
           icon={List}
           selected={openDropdown === 'list'}
           onMouseDown={() => setOpenDropdown((v) => (v === 'list' ? 'none' : 'list'))}
@@ -227,6 +228,8 @@ export default function SelectionToolbar({
         <IconButton icon={IndentIncrease} label="Indent" size={24} tooltip={{ shortcut: 'Tab', side: 'top' }} onMouseDown={cmds.indent} />
       </ControlGroup>
 
+      {/* Group 5 — Suppress: kept as its own group, unchanged — no new shortcut (packet §41:
+          "Tab from the editor is reserved by ProseMirror → skip"). */}
       <ControlGroup>
         <IconButton icon={Link2Off} label="Suppress auto-detected refs" size={24} tooltip={{ shortcut: '⌘⇧R', side: 'top' }} onMouseDown={() => run(toggleSuppressCommand)} />
       </ControlGroup>

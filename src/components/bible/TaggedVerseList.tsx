@@ -1,6 +1,6 @@
 import { ChevronRight, Tag as TagIcon } from 'lucide-react'
 import { resolveTagColor } from '@/lib/tagPalette'
-import { ListRow, RefChip } from '@/components/ui'
+import { Badge, ListRow, RefChip } from '@/components/ui'
 import { VerseCopyMenu, useVerseCopyMenu } from './VerseCopyMenu'
 
 export interface TaggedVerseRow {
@@ -57,7 +57,10 @@ export default function TaggedVerseList({
                 <span className="flex items-center gap-2">
                   {g.tagName && (
                     <span className="inline-flex items-center gap-1 text-caption2 px-1.5 py-0.5 rounded-chip bg-surface-4 text-text-secondary">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: resolveTagColor(g.tagColor ?? undefined) }} />
+                      {/* Status dot (pill taxonomy: rounded-full → Badge dot) — the tag's own
+                          arbitrary slot colour overrides Badge's fixed tone palette via style,
+                          same technique as the edition dots above. */}
+                      <Badge variant="dot" tone="neutral" label={g.tagName} style={{ backgroundColor: resolveTagColor(g.tagColor ?? undefined) }} />
                       {g.tagName}
                     </span>
                   )}

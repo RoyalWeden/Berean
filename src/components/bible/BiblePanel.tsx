@@ -19,7 +19,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
-import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection } from '@/components/ui'
+import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection, ScrollContainer } from '@/components/ui'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
@@ -3610,9 +3610,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     ) : (
       <div className="relative flex flex-1 flex-col min-h-0">
       <ChapterPullIndicator state={pullState} prevRef={pullPrevRef} nextRef={pullNextRef} textId={textId} />
-      <div
+      <ScrollContainer
         ref={chapterViewRef}
-        className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`}
+        className={`flex-1 relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`}
         // Hidden (but laid out, so scroll restore can still run) until the first post-load
         // scroll-restore lands — kills the "top of chapter, then jump" flash on tab switch.
         style={{ visibility: chapterRevealed ? 'visible' : 'hidden' }}
@@ -3800,7 +3800,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             )
         }
         </div>
-      </div>
+      </ScrollContainer>
       </div>
     )
 

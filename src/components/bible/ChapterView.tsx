@@ -1142,7 +1142,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
     // unrelated compare columns.
     <RadixTooltip.Provider delayDuration={200} skipDelayDuration={500}>
-    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
+    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'berean-reading-column'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
           columns) — sticky so it stays visible regardless of scroll position. */}

@@ -1497,7 +1497,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'rounded-card bg-accent-muted' : ''}`}
+      className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
@@ -1517,7 +1517,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               ? 'text-white bg-accent font-semibold hover:brightness-110'
               : isHighlighted
                 ? 'text-accent font-semibold'
-                : 'text-text-muted hover:text-accent hover:bg-accent-muted'
+                : 'text-text-quaternary tabular-nums hover:text-accent hover:bg-accent-muted'
             }
           `}
           style={{ width: '1.9em', minWidth: '1.9em' }}
@@ -1992,7 +1992,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       {/* Idiom hover tooltip */}
       {idiomTooltip && idiomHoverPreviewEnabled && createPortal(
         <div
-          className="fixed z-popover max-w-[220px] material-popover rounded-menu px-3 py-2 pointer-events-none"
+          className="fixed z-popover max-w-[220px] material-popover material-popover-dense rounded-menu px-3 py-2 pointer-events-none"
           style={{ left: idiomTooltip.x, top: idiomTooltip.y }}
         >
           {/* Idioms are glossary-style word definitions, same family as lexicon links —

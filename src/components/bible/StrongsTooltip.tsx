@@ -125,7 +125,7 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
                 the CSS animation plays on insertion regardless. */}
             <div
               className="
-                material-popover rounded-menu px-3 py-2.5
+                material-popover material-popover-dense rounded-menu px-3 py-2.5
                 origin-[var(--radix-tooltip-content-transform-origin)]
                 animate-radix-popup-in
               "

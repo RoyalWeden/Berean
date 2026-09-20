@@ -5,7 +5,7 @@ import type { SlashCommand } from './slashCommands'
 import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
-import { Select, Button, IconButton, SectionLabel, MenuSurface, ListRow } from '@/components/ui'
+import { Select, Button, IconButton, SectionLabel, MenuSurface, ListRow, CompactMetrics } from '@/components/ui'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 
 // Slash-command icons come straight from the shared block-type config, which is keyed
@@ -159,42 +159,52 @@ export function VersePickerPopup({
 
   if (books.length === 0) return null
 
+  // CompactMetrics — same "popover contents step one size down" contract PopoverSurface/
+  // MenuSurface give every other floating panel in the app (packet §41: "Verse picker → keeps
+  // VersePickerPopup but on PopoverSurface + compact metrics"). The positioning/viewport-
+  // clamping stays on MenuPositioner, matching every other dropdown anchored from Toolbar.tsx's
+  // and SelectionToolbar's single shared dropdown mechanism — switching only this one picker to
+  // Radix's separate Popover/collision system would fork that mechanism in two (COMMON.md
+  // implementation-safety rule 9), so this adopts PopoverSurface's material/metrics contract
+  // without its positioning engine.
   return (
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
       className="pm-toolbar-solid material-popover rounded-menu p-2 flex flex-col gap-1.5 w-[220px] animate-menu-in">
-      <Select
-        size="sm"
-        value={bookId}
-        onChange={(v) => { setBookId(v); setChapter(1) }}
-        options={books.map((b) => ({ value: b.id, label: b.name }))}
-        aria-label="Book"
-      />
-      <div className="flex items-center gap-1.5">
+      <CompactMetrics>
         <Select
           size="sm"
-          className="flex-1 min-w-0"
-          value={String(chapter)}
-          onChange={(v) => setChapter(Number(v))}
-          options={Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => ({ value: String(c), label: `Ch ${c}` }))}
-          aria-label="Chapter"
+          value={bookId}
+          onChange={(v) => { setBookId(v); setChapter(1) }}
+          options={books.map((b) => ({ value: b.id, label: b.name }))}
+          aria-label="Book"
         />
-        <Select
-          size="sm"
-          className="flex-1 min-w-0"
-          value={String(verse)}
-          onChange={(v) => setVerse(Number(v))}
-          options={Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => ({ value: String(v), label: `Vs ${v}` }))}
-          aria-label="Verse"
-        />
-      </div>
-      <div className="flex items-center gap-1.5 justify-end pt-0.5">
-        <Button variant="ghost" size="sm" onMouseDown={onDismiss}>
-          Cancel
-        </Button>
-        <Button variant="primary" size="sm" onMouseDown={() => onInsert(bookId, chapter, verse)}>
-          Insert
-        </Button>
-      </div>
+        <div className="flex items-center gap-1.5">
+          <Select
+            size="sm"
+            className="flex-1 min-w-0"
+            value={String(chapter)}
+            onChange={(v) => setChapter(Number(v))}
+            options={Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => ({ value: String(c), label: `Ch ${c}` }))}
+            aria-label="Chapter"
+          />
+          <Select
+            size="sm"
+            className="flex-1 min-w-0"
+            value={String(verse)}
+            onChange={(v) => setVerse(Number(v))}
+            options={Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => ({ value: String(v), label: `Vs ${v}` }))}
+            aria-label="Verse"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 justify-end pt-0.5">
+          <Button variant="ghost" size="sm" onMouseDown={onDismiss}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" onMouseDown={() => onInsert(bookId, chapter, verse)}>
+            Insert
+          </Button>
+        </div>
+      </CompactMetrics>
     </MenuPositioner>
   )
 }

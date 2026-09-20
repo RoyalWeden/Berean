@@ -4,9 +4,9 @@ import type { EditorView } from 'prosemirror-view'
 import { Fragment } from 'prosemirror-model'
 import { deleteTable } from 'prosemirror-tables'
 import {
-  Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
+  Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2, Link2Off,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease,
-  Table2, Minus, BookOpen, Image as ImageIcon, Rows3, Columns3, Trash2,
+  Table2, Minus, BookOpen, Image as ImageIcon, Rows3, Columns3, Trash2, Plus,
   Square, X, Maximize2, Focus as FocusIcon,
 } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
@@ -15,6 +15,7 @@ import { createEditorCommands } from './editorCommands'
 import { insertBlockNode, buildEmptyTable } from './slashCommands'
 import { pickAndInsertImage } from './imageInsert'
 import { VersePickerPopup } from './AutocompletePopups'
+import { toggleSuppressCommand } from './suppressRanges'
 import { getTranslationForBook, bookChapterVerseLabel } from '@/lib/parseRef'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
@@ -23,7 +24,7 @@ import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
 import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import { Toolbar as Bar, ControlGroup, OverflowGroup, IconButton, Button, MenuSurface, MenuItem, MenuSeparator, ColorSwatchRow, TextField, cx } from '@/components/ui'
+import { Toolbar as Bar, ControlGroup, OverflowGroup, OverflowSection, IconButton, Button, MenuSurface, MenuItem, MenuGroup, MenuSeparator, ColorSwatchRow, TextField, cx } from '@/components/ui'
 
 // The code-block button takes its glyph from the shared block-type config rather than picking
 // one locally (see blockTypeIcons.ts). The "Text type" dropdown TRIGGER used to do the same
@@ -60,7 +61,7 @@ function currentBlockTypeMeta(view: EditorView): BlockTypeMeta {
 // — idiom notes hide the toolbar but still want the count. SAVE_FLASH_HOLD_MS et al. moved
 // there too.
 
-type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link' | 'verse'
+type DropdownKind = 'type' | 'list' | 'highlight' | 'insert' | 'link' | 'verse'
 
 // Persistent, always-visible formatting toolbar docked above the note editor —
 // complements (doesn't replace) SelectionToolbar.tsx's selection-triggered bubble menu.
@@ -117,11 +118,24 @@ export default function Toolbar({
   }, [])
   const isMac = window.__berean_platform === 'darwin'
 
-  function openDropdownAt(kind: DropdownKind, e: React.MouseEvent<HTMLButtonElement>) {
+  // Anchors a dropdown to an explicit rect (rather than a click event) — needed when a group
+  // has folded into the OverflowGroup "More" menu (§40): there's no per-item button rect in
+  // that popover, so folded triggers for an anchored dropdown (the verse picker) fall back to
+  // the toolbar's own rect via openDropdownAtRect below instead of calling this directly.
+  function openDropdownAtRect(kind: DropdownKind, rect: { left: number; bottom: number }) {
     if (openDropdown === kind) { setOpenDropdown('none'); return }
-    const rect = e.currentTarget.getBoundingClientRect()
     setDropdownPos({ left: rect.left, top: rect.bottom + 4 })
     setOpenDropdown(kind)
+  }
+  function openDropdownAt(kind: DropdownKind, e: React.MouseEvent<HTMLButtonElement>) {
+    openDropdownAtRect(kind, e.currentTarget.getBoundingClientRect())
+  }
+  // Fallback anchor for a folded overflow-menu item that needs to open its own anchored
+  // dropdown (the verse picker) — there's no button rect to read from inside the "More" popover,
+  // so it anchors to the toolbar bar itself instead.
+  function openDropdownFromToolbar(kind: DropdownKind) {
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (rect) openDropdownAtRect(kind, rect)
   }
 
   useEffect(() => {
@@ -135,10 +149,6 @@ export default function Toolbar({
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [openDropdown])
-
-  useEffect(() => {
-    if (!inTable && openDropdown === 'table') setOpenDropdown('none')
-  }, [inTable, openDropdown])
 
   // Autofocus the URL field the moment the link popover opens — mirrors what
   // window.prompt() used to give for free (see editorCommands.ts's applyLink
@@ -158,14 +168,21 @@ export default function Toolbar({
   function removeHighlight() { cmds.removeHighlight(); setOpenDropdown('none') }
   function toggleTaskList() { cmds.toggleTaskList(); setOpenDropdown('none') }
 
-  function openLinkDropdownAt(e: React.MouseEvent<HTMLButtonElement>) {
+  function openLinkDropdownAtRect(rect: { left: number; bottom: number }) {
     if (openDropdown === 'link') { setOpenDropdown('none'); return }
     const { from, to } = editorView.state.selection
     linkRangeRef.current = { from, to }
     setLinkUrl(cmds.currentLinkHref())
-    const rect = e.currentTarget.getBoundingClientRect()
     setDropdownPos({ left: rect.left, top: rect.bottom + 4 })
     setOpenDropdown('link')
+  }
+  function openLinkDropdownAt(e: React.MouseEvent<HTMLButtonElement>) {
+    openLinkDropdownAtRect(e.currentTarget.getBoundingClientRect())
+  }
+  // Fallback for the folded "Links & code" overflow-menu item — no button rect available there.
+  function openLinkDropdownFromToolbar() {
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (rect) openLinkDropdownAtRect(rect)
   }
 
   function submitLink() {
@@ -219,7 +236,7 @@ export default function Toolbar({
       )}
     >
       <Bar size="sm" edge="none" material="none" itemVariant="ghost" className="material-popover rounded-menu">
-        <OverflowGroup gap={6} label="More formatting" fit="offsetParent" inset={48}>
+        <OverflowGroup label="More formatting" fit="offsetParent" inset={48}>
           {/* Focus mode hides the native traffic lights (see the `setButtonsVisible` effect
               above — they're window-frame chrome, not DOM, and can't just be relocated) and
               replaces them with real close/minimize/maximize buttons on the LEFT of this bar,
@@ -262,114 +279,137 @@ export default function Toolbar({
             </div>
           )}
 
-          {/* Style — current block type + the Thread insert action. */}
-          <ControlGroup>
-            <Button
-              variant="menu"
-              size="sm"
-              icon={currentBlockTypeMeta(editorView).icon}
-              selected={openDropdown === 'type'}
-              onMouseDown={(e) => openDropdownAt('type', e)}
-              tooltip="Text type"
-            />
-            <IconButton icon={ThreadIcon} label="Thread" size={24} onMouseDown={() => cmds.wrapInThread()} />
-          </ControlGroup>
+          {/* Group 1 — Text: current block type + the Thread insert action. Grouped by editing
+              task, not widget type (packet §39); never folds — always available regardless of
+              pane width. */}
+          <OverflowSection priority="never">
+            <ControlGroup>
+              <Button
+                variant="menu"
+                size="xs"
+                icon={currentBlockTypeMeta(editorView).icon}
+                selected={openDropdown === 'type'}
+                onMouseDown={(e) => openDropdownAt('type', e)}
+                tooltip="Text type"
+              />
+              <IconButton icon={ThreadIcon} label="Thread" size={24} onMouseDown={() => cmds.wrapInThread()} />
+            </ControlGroup>
+          </OverflowSection>
 
-          {/* Inline marks */}
-          <ControlGroup>
-            <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
-            <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
-            <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
-            {/* No shortcut — strikethrough has no binding in keymap.ts, unlike the three marks
-                around it, so it gets a label-only hint rather than an invented combo. */}
-            <IconButton icon={Strikethrough} label="Strikethrough" size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
-          </ControlGroup>
+          {/* Group 2 — Emphasis: inline marks, Highlight included (a colour-swatch emphasis,
+              not a reference action — moved out of the old "Annotate & reference" group).
+              Never folds. */}
+          <OverflowSection priority="never">
+            <ControlGroup>
+              <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
+              <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
+              <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
+              {/* No shortcut — strikethrough has no binding in keymap.ts, unlike the three marks
+                  around it, so it gets a label-only hint rather than an invented combo. */}
+              <IconButton icon={Strikethrough} label="Strikethrough" size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
+              <IconButton
+                icon={Highlighter}
+                label="Highlight"
+                tooltip={{ shortcut: '⌘⇧H' }}
+                size={24}
+                active={openDropdown === 'highlight' || isMarkActive('highlight')}
+                onMouseDown={(e) => openDropdownAt('highlight', e)}
+              />
+            </ControlGroup>
+          </OverflowSection>
 
-          {/* Annotate & reference */}
-          <ControlGroup>
-            <IconButton
-              icon={Highlighter}
-              label="Highlight"
-              tooltip={{ shortcut: '⌘⇧H' }}
-              size={24}
-              active={openDropdown === 'highlight' || isMarkActive('highlight')}
-              onMouseDown={(e) => openDropdownAt('highlight', e)}
-            />
-            <IconButton
-              icon={Link2}
-              label="Link"
-              size={24}
-              active={openDropdown === 'link' || isMarkActive('link')}
-              onMouseDown={openLinkDropdownAt}
-            />
-            <IconButton icon={Code} label="Code" tooltip={{ shortcut: '⌘`' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
-          </ControlGroup>
+          {/* Group 3 — Links & code: last of the foldable groups to actually fold (stays
+              visible longest among the foldables — see the fold-order comment at Group 6). */}
+          <OverflowSection
+            label="Links & code"
+            items={[
+              { key: 'link', label: 'Link', icon: Link2, checked: isMarkActive('link'), onSelect: openLinkDropdownFromToolbar },
+              { key: 'code', label: 'Inline code', icon: Code, shortcut: '⌘`', checked: isMarkActive('code'), onSelect: () => run(toggleMark(schema.marks.code)) },
+              { key: 'suppress-refs', label: 'Suppress auto-detected refs', icon: Link2Off, shortcut: '⌘⇧R', onSelect: () => run(toggleSuppressCommand) },
+            ]}
+          >
+            <ControlGroup>
+              <IconButton
+                icon={Link2}
+                label="Link"
+                size={24}
+                active={openDropdown === 'link' || isMarkActive('link')}
+                onMouseDown={openLinkDropdownAt}
+              />
+              <IconButton icon={Code} label="Inline code" tooltip={{ shortcut: '⌘`' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
+              <IconButton icon={Link2Off} label="Suppress auto-detected refs" tooltip={{ shortcut: '⌘⇧R' }} size={24} onMouseDown={() => run(toggleSuppressCommand)} />
+            </ControlGroup>
+          </OverflowSection>
 
-          {/* Lists & quote */}
-          <ControlGroup>
-            <Button
-              variant="menu"
-              size="sm"
-              icon={List}
-              selected={openDropdown === 'list'}
-              onMouseDown={(e) => openDropdownAt('list', e)}
-              tooltip="List type"
-            />
-            <IconButton icon={Quote} label="Blockquote" size={24} onMouseDown={cmds.toggleBlockquote} />
-            <IconButton icon={IndentDecrease} label="Outdent" tooltip={{ shortcut: '⇧Tab' }} size={24} onMouseDown={cmds.outdent} />
-            <IconButton icon={IndentIncrease} label="Indent" tooltip={{ shortcut: 'Tab' }} size={24} onMouseDown={cmds.indent} />
-          </ControlGroup>
+          {/* Group 4 — Paragraph: lists, blockquote, indent/outdent. */}
+          <OverflowSection
+            label="Paragraph"
+            items={[
+              { key: 'blockquote', label: 'Blockquote', icon: Quote, onSelect: cmds.toggleBlockquote },
+              { key: 'outdent', label: 'Outdent', icon: IndentDecrease, shortcut: '⇧Tab', onSelect: cmds.outdent },
+              { key: 'indent', label: 'Indent', icon: IndentIncrease, shortcut: 'Tab', onSelect: cmds.indent },
+            ]}
+          >
+            <ControlGroup>
+              <Button
+                variant="menu"
+                size="xs"
+                icon={List}
+                selected={openDropdown === 'list'}
+                onMouseDown={(e) => openDropdownAt('list', e)}
+                tooltip="List type"
+              />
+              <IconButton icon={Quote} label="Blockquote" size={24} onMouseDown={cmds.toggleBlockquote} />
+              <IconButton icon={IndentDecrease} label="Outdent" tooltip={{ shortcut: '⇧Tab' }} size={24} onMouseDown={cmds.outdent} />
+              <IconButton icon={IndentIncrease} label="Indent" tooltip={{ shortcut: 'Tab' }} size={24} onMouseDown={cmds.indent} />
+            </ControlGroup>
+          </OverflowSection>
 
-          {/* Insert */}
-          <ControlGroup>
-            {/* Reuses insertBlockNode (slashCommands.ts) rather than the raw
-                `replaceSelectionWith` this used before — replaceSelectionWith doesn't split the
-                enclosing paragraph the way a block-level table needs, so inserting mid-paragraph
-                silently produced a malformed/uneditable result. insertBlockNode already handles
-                this correctly (same helper the working /table slash command uses). */}
-            <IconButton
-              icon={Table2}
-              label="Table"
-              size={24}
-              onMouseDown={() => {
-                const { from, to } = editorView.state.selection
-                insertBlockNode(editorView, from, to, buildEmptyTable())
-              }}
-            />
-            {/* Table row/column management — only shown with the cursor inside an existing
-                table; addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops
-                outside one, but a button doing nothing reads as broken, so it's hidden rather
-                than left enabled. */}
-            {inTable && (
-              <IconButton icon={Rows3} label="Table row/column" size={24} active={openDropdown === 'table'} onMouseDown={(e) => openDropdownAt('table', e)} />
-            )}
-            <IconButton icon={CodeBlockIcon} label="Code block" size={24} onMouseDown={cmds.toggleCodeBlock} />
-            <IconButton
-              icon={Minus}
-              label="Divider"
-              size={24}
-              onMouseDown={() => {
-                const { from, to } = editorView.state.selection
-                insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
-              }}
-            />
-            {/* Verse blocks are plain paragraph text auto-detected by blockDecorations.ts, not a
-                node this toolbar inserts directly (see slashCommands.ts's startVerseBlock — same
-                reasoning) — this button opens the book/chapter/verse picker below. */}
-            <IconButton icon={BookOpen} label="Insert a scripture verse" size={24} active={openDropdown === 'verse'} onMouseDown={(e) => openDropdownAt('verse', e)} />
-            <IconButton icon={ImageIcon} label="Insert image" size={24} onMouseDown={() => pickAndInsertImage(editorView)} />
-          </ControlGroup>
+          {/* Group 5 — Focus: folds early alongside Insert (packet §39 hierarchy note) —
+              secondary actions recede into the "More" menu, still one click away. */}
+          <OverflowSection
+            label="Focus"
+            items={[
+              { key: 'focus', label: focusMode ? 'Exit Focus mode' : 'Focus mode', icon: FocusIcon, checked: focusMode, onSelect: () => toggleFocusMode() },
+            ]}
+          >
+            <ControlGroup>
+              <IconButton
+                icon={FocusIcon}
+                label={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}
+                size={24}
+                active={focusMode}
+                onMouseDown={() => toggleFocusMode()}
+              />
+            </ControlGroup>
+          </OverflowSection>
 
-          {/* Focus mode + (Windows only) window controls */}
-          <ControlGroup>
-            <IconButton
-              icon={FocusIcon}
-              label={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}
-              size={24}
-              active={focusMode}
-              onMouseDown={() => toggleFocusMode()}
-            />
-          </ControlGroup>
+          {/* Group 6 — Insert: one menu button folding every secondary insert action, per
+              packet §39 ("secondary actions recede into a menu; still one click away"). Placed
+              last among the foldable groups so it's the first to fold (§40: "Insert first to
+              fold → Paragraph → Links & code → never Emphasis/Text") — OverflowGroup folds
+              trailing children first. */}
+          <OverflowSection
+            label="Insert"
+            items={[
+              { key: 'insert-table', label: 'Table', icon: Table2, onSelect: () => { const { from, to } = editorView.state.selection; insertBlockNode(editorView, from, to, buildEmptyTable()) } },
+              { key: 'insert-code-block', label: 'Code block', icon: CodeBlockIcon, onSelect: cmds.toggleCodeBlock },
+              { key: 'insert-divider', label: 'Divider', icon: Minus, onSelect: () => { const { from, to } = editorView.state.selection; insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create()) } },
+              { key: 'insert-verse', label: 'Verse…', icon: BookOpen, onSelect: () => openDropdownFromToolbar('verse') },
+              { key: 'insert-image', label: 'Image…', icon: ImageIcon, onSelect: () => pickAndInsertImage(editorView) },
+            ]}
+          >
+            <ControlGroup>
+              <Button
+                variant="menu"
+                size="xs"
+                icon={Plus}
+                selected={openDropdown === 'insert'}
+                onMouseDown={(e) => openDropdownAt('insert', e)}
+                tooltip="Insert"
+              />
+            </ControlGroup>
+          </OverflowSection>
 
           {/* Windows: standard convention is minimize/maximize/close on the RIGHT, matching
               the frameless title bar's own WindowControls.tsx (Fluent-ish hover, red close)
@@ -427,14 +467,54 @@ export default function Toolbar({
             </MenuPositioner>
           )}
 
-          {openDropdown === 'table' && (
+          {openDropdown === 'insert' && (
             <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}>
-              <MenuSurface className="min-w-[170px]">
-                <MenuItem icon={Rows3} label="Add row below" onMouseDown={() => { run(addRowAfter); setOpenDropdown('none') }} />
-                <MenuItem icon={Rows3} label="Delete row" onMouseDown={() => { run(deleteRow); setOpenDropdown('none') }} />
-                <MenuItem icon={Columns3} label="Delete column" onMouseDown={() => { run(deleteColumn); setOpenDropdown('none') }} />
-                <MenuSeparator />
-                <MenuItem icon={Trash2} label="Delete table" danger onMouseDown={() => { run(deleteTable); setOpenDropdown('none') }} />
+              <MenuSurface className="min-w-[190px]">
+                {/* Table row/column management — only shown with the cursor inside an existing
+                    table; addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops
+                    outside one, but showing them there reads as broken, so they're folded in
+                    only when relevant rather than always present-but-disabled. */}
+                {inTable && (
+                  <>
+                    <MenuGroup label="Table">
+                      <MenuItem icon={Rows3} label="Add row below" onMouseDown={() => { run(addRowAfter); setOpenDropdown('none') }} />
+                      <MenuItem icon={Rows3} label="Delete row" onMouseDown={() => { run(deleteRow); setOpenDropdown('none') }} />
+                      <MenuItem icon={Columns3} label="Delete column" onMouseDown={() => { run(deleteColumn); setOpenDropdown('none') }} />
+                      <MenuItem icon={Trash2} label="Delete table" danger onMouseDown={() => { run(deleteTable); setOpenDropdown('none') }} />
+                    </MenuGroup>
+                    <MenuSeparator />
+                  </>
+                )}
+                {/* Reuses insertBlockNode (slashCommands.ts) rather than the raw
+                    `replaceSelectionWith` this used before — replaceSelectionWith doesn't split
+                    the enclosing paragraph the way a block-level table needs, so inserting
+                    mid-paragraph silently produced a malformed/uneditable result.
+                    insertBlockNode already handles this correctly (same helper the working
+                    /table slash command uses). */}
+                <MenuItem
+                  icon={Table2}
+                  label="Table"
+                  onMouseDown={() => {
+                    const { from, to } = editorView.state.selection
+                    insertBlockNode(editorView, from, to, buildEmptyTable())
+                    setOpenDropdown('none')
+                  }}
+                />
+                <MenuItem icon={CodeBlockIcon} label="Code block" onMouseDown={() => { cmds.toggleCodeBlock(); setOpenDropdown('none') }} />
+                <MenuItem
+                  icon={Minus}
+                  label="Divider"
+                  onMouseDown={() => {
+                    const { from, to } = editorView.state.selection
+                    insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
+                    setOpenDropdown('none')
+                  }}
+                />
+                {/* Verse blocks are plain paragraph text auto-detected by blockDecorations.ts, not
+                    a node this menu inserts directly (see slashCommands.ts's startVerseBlock —
+                    same reasoning) — this reopens the picker below, anchored to the same spot. */}
+                <MenuItem icon={BookOpen} label="Verse…" onMouseDown={() => setOpenDropdown('verse')} />
+                <MenuItem icon={ImageIcon} label="Image…" onMouseDown={() => { setOpenDropdown('none'); pickAndInsertImage(editorView) }} />
               </MenuSurface>
             </MenuPositioner>
           )}

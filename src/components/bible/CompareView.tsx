@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
-import { IconButton, RefChip, ControlGroup } from '@/components/ui'
+import { IconButton, RefChip, ControlGroup, ScrollContainer } from '@/components/ui'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch, isLxxTranslation } from '@/lib/translationChapterMap'
@@ -189,6 +189,10 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   const [colFlex, setColFlex] = useState<Record<string, number>>({})
   const rowRef = useRef<HTMLDivElement>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
+  // Sticky column-header scroll-edge (§31 "soft under in-content sticky headers") — imperative
+  // rather than a `useScrollEdge()` call per column, since these headers are rendered inside a
+  // `.map()` over a dynamically-sized `columns` array and hooks can't live inside a loop body.
+  const colHeaderRefs = useRef<(HTMLDivElement | null)[]>([])
   const fetchingRef = useRef<Set<string>>(new Set())
   const requestedBooksRef = useRef<Set<string>>(new Set())
   const colIdCounter = useRef(initialColumns && initialColumns.length > 0 ? initialColumns.length : 2)
@@ -621,7 +625,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
 
         return (
          <Fragment key={col.id}>
-          <div
+          <ScrollContainer
             ref={el => {
               colRefs.current[colIdx] = el
               onColumnRef?.(colIdx, el)
@@ -631,6 +635,11 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               const el = e.currentTarget
               const max = el.scrollHeight - el.clientHeight
               colScrollRef.current[colIdx] = max > 0 ? el.scrollTop / max : 0
+              // Scroll-edge (§31): the sticky column header grows a hairline + soft shadow once
+              // this column's own body has scrolled under it — mirrors Toolbar's `edge="auto"`
+              // recipe (same [data-scroll-edge][data-scrolled] CSS) without a `useScrollEdge()`
+              // hook call, which can't live inside this `.map()`.
+              colHeaderRefs.current[colIdx]?.toggleAttribute('data-scrolled', el.scrollTop > 1)
               // Only this column's scroll is pushed (others keep their own positions).
               if (comparePushRaf.current) cancelAnimationFrame(comparePushRaf.current)
               comparePushRaf.current = requestAnimationFrame(() => pushCompareToViewer())
@@ -652,7 +661,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 persistColumns()
               }, 150)
             }}
-            className={`overflow-y-auto min-w-0 flex flex-col relative ${verseSelectionBarOpen ? 'pb-16' : ''}`}
+            className={`min-w-0 flex flex-col relative ${verseSelectionBarOpen ? 'pb-16' : ''}`}
             style={{ flexGrow: colFlex[col.id] ?? 1, flexBasis: 0 }}
             onDragOver={(e) => handleColDragOver(e, colIdx)}
             onDrop={handleColDrop}
@@ -681,7 +690,10 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 "grab the whole tab" reorder feel) — NOT the column body below, which holds
                 selectable/scrollable verse text. */}
             <div
+              ref={el => { colHeaderRefs.current[colIdx] = el }}
               draggable
+              data-scroll-edge="bottom"
+              data-edge-style="soft"
               onDragStart={(e) => handleColDragStart(e, colIdx)}
               onDragEnd={handleColDragEnd}
               className={`sticky top-0 z-raised flex items-center gap-2 px-2 py-1 cursor-grab active:cursor-grabbing material-bar ${isFocused ? 'bg-surface-selected' : ''} ${draggingColIdx === colIdx ? 'opacity-40' : ''}`}
@@ -773,7 +785,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 if (top !== null) el.scrollTop = top
               }}
             />
-          </div>
+          </ScrollContainer>
           {colIdx < columns.length - 1 && (
             <div
               onMouseDown={(e) => startColumnResize(colIdx, e)}

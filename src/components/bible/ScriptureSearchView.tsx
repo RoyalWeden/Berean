@@ -21,7 +21,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
-  ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
+  Badge, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
   RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar,
 } from '@/components/ui'
 
@@ -1475,7 +1475,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           textId === t.id,
                           () => selectTranslation(t.id),
                           <>
-                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.id === 'kjva' ? 'bg-warning' : 'bg-info'}`} />
+                            <Badge variant="dot" tone={t.id === 'kjva' ? 'warning' : 'info'} label={fullEditionLabel(t.id, t.label)} />
                             {fullEditionLabel(t.id, t.label)}
                           </>,
                           true,
@@ -1709,7 +1709,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     const key = row.key
                     const group = row.group
                     const collapsed = collapsedGroups.has(key)
-                    const editionDot = group.textId === 'kjva' ? 'bg-warning' : group.textId === 'lxx' ? 'bg-info' : 'bg-text-muted'
+                    const editionDotTone = group.textId === 'kjva' ? 'warning' : group.textId === 'lxx' ? 'info' : 'neutral'
                     return (
                       <div
                         key={virtualRow.key}
@@ -1730,7 +1730,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           <div className="flex-1" />
                           {textId === 'all' && (
                             <span className="flex items-center gap-1 text-meta">
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${editionDot}`} />
+                              <Badge variant="dot" tone={editionDotTone} label={group.textLabel} />
                               {group.textLabel}
                             </span>
                           )}
@@ -1927,7 +1927,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               )}
               {railGroups.map((g) => {
                 const key = `${g.textId}::${g.bookId}`
-                const editionDot = g.textId === 'kjva' ? 'bg-warning' : g.textId === 'lxx' ? 'bg-info' : 'bg-text-muted'
+                const editionDotTone = g.textId === 'kjva' ? 'warning' : g.textId === 'lxx' ? 'info' : 'neutral'
                 return (
                   <ListRow
                     key={key}
@@ -1941,7 +1941,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
                       railPanelRef.current?.close()
                     }}
-                    leading={textId === 'all' ? <span className={`w-2 h-2 rounded-full flex-shrink-0 ${editionDot}`} /> : undefined}
+                    leading={textId === 'all' ? <Badge variant="dot" tone={editionDotTone} label={g.textLabel} /> : undefined}
                     // Wraps to 2 lines instead of truncating — a fixed-width panel plus
                     // single-line truncation was cutting off names like "Recognitions,
                     // Book 10" to the point of being unreadable.

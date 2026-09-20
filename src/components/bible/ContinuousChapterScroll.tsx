@@ -6,7 +6,7 @@ import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_ST
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useAppStore } from '@/store'
-import { SectionLabel } from '@/components/ui'
+import { SectionLabel, ScrollContainer } from '@/components/ui'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -264,7 +264,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
 
     return (
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
+      <ScrollContainer ref={scrollRef} className={`flex-1 relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
         {/* Presenter visible-region band */}
         {presenterBand && (
           <div
@@ -359,7 +359,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
             />
           )
         })()}
-      </div>
+      </ScrollContainer>
     )
   }
 )

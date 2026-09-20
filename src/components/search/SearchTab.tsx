@@ -8,7 +8,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
-import { SearchField, Select, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader, OverflowGroup, OverflowSection } from '@/components/ui'
+import { SearchField, Select, SegmentedControl, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader, OverflowGroup, OverflowSection } from '@/components/ui'
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
@@ -373,8 +373,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
         <SearchField
           ref={inputRef}
-          size="sm"
-          bare
+          size="md"
           value={query}
           onValueChange={handleInput}
           onKeyDown={handleKeyDown}

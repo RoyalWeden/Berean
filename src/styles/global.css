@@ -1396,6 +1396,26 @@
   --font-ui: inherit;
 }
 
+/* ── Reading column (pass 4 §26–27) ──────────────────────────────────────────
+   Left-anchored, wider cap — Michael's decision. `--reading-max-ch` is a starting
+   point [inference]; `ch` under/over-counts depending on the selected Scripture
+   font, so a font whose measured chars-per-line lands outside ~60–80 gets its own
+   override below rather than a per-workspace hack. `--reading-margin` resolves
+   as a genuine percentage of the reading column's own containing block (no
+   container-query plumbing needed — percentage padding already keys off the
+   nearest block container's width), clamped so it never gets cramped on a narrow
+   inspector-open pane or absurd on an ultra-wide window. */
+:root {
+  --reading-max-ch: 72;
+  --reading-margin: clamp(24px, 6%, 72px);
+}
+.berean-reading-column {
+  padding-inline: var(--reading-margin);
+  padding-block: 24px;
+  max-width: min(calc(var(--reading-max-ch) * 1ch), calc(100% - (2 * var(--reading-margin))));
+  margin-inline-start: 0;
+}
+
 /* Apply font families to the relevant sections */
 .berean-scripture-text {
   font-family: var(--font-scripture);

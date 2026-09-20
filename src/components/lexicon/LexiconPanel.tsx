@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { BookMarked, X, ArrowLeft, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
+import { BookMarked, X, ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
@@ -659,61 +659,51 @@ function EntryView({
 
         {/* Verse Occurrences */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <SectionLabel>
-              Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
-            </SectionLabel>
-            <Toolbar size="sm" edge="auto" material="none" className="w-auto flex-shrink-0">
-              {occurrences.length > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={ScanSearch}
-                  onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
-                  tooltip={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
-                >
-                  Open all in a tab
-                </Button>
-              )}
-              {occurrences.length > 10 && (
-                <Button variant="secondary" size="sm" onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}>
-                  {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
-                </Button>
-              )}
-            </Toolbar>
-          </div>
+          <SectionLabel className="mb-2">
+            Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
+          </SectionLabel>
 
-          {/* Sort + book filter (dropdown) + word-form filter (chips). Occurrences previously
+          {/* Sort + book filter (dropdown) + word-form filter (chips) + the two occurrence
+              actions, all in one control cluster above the list (§52). Occurrences previously
               had no way to narrow a long list down to one book, bring the most-repeated
               verses to the top, or isolate which actual English rendering of this word to
               look at (the same Strong's number often renders as several different English
               words — e.g. H2617 chesed as "mercy" in one verse and "kindness" in another).
               Book stays single-select via a custom dropdown (not a native <select> — the app
               never uses OS-chrome controls); word-form is the multi-select chip row, since
-              several renderings can be shown together. */}
-          {!occurrencesLoading && occurrences.length > 5 && (() => {
-            const bookCounts = new Map<string, number>()
-            for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
-            const bookOptions = Array.from(bookCounts.entries())
-              .sort((a, b) => b[1] - a[1])
-              .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
-            const hasMultipleBooks = bookOptions.length > 1
+              several renderings can be shown together. The sort/book picker and word-form row
+              only need occurrences.length > 5 (a handful of occurrences needs no narrowing) —
+              but "Open all in a tab" / "Show all N" have their own, looser gates, so the
+              whole cluster still renders whenever there's at least one occurrence to act on. */}
+          {!occurrencesLoading && occurrences.length > 0 && (() => {
+            let bookOptions: { id: string; count: number; name: string }[] = []
+            let hasMultipleBooks = false
+            let wordOptions: { key: string; display: string; count: number }[] = []
+            let hasMultipleWordForms = false
+            if (occurrences.length > 5) {
+              const bookCounts = new Map<string, number>()
+              for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
+              bookOptions = Array.from(bookCounts.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
+              hasMultipleBooks = bookOptions.length > 1
 
-            // Word-form chips: which actual word(s) this Strong's number was rendered as,
-            // in the (word-replacer-applied) occurrence text, at the matched word index(es).
-            const wordCounts = new Map<string, { display: string; count: number }>()
-            for (const o of occurrences) {
-              for (const w of extractMatchedWords(o)) {
-                const key = w.toLowerCase()
-                const existing = wordCounts.get(key)
-                if (existing) existing.count++
-                else wordCounts.set(key, { display: w, count: 1 })
+              // Word-form chips: which actual word(s) this Strong's number was rendered as,
+              // in the (word-replacer-applied) occurrence text, at the matched word index(es).
+              const wordCounts = new Map<string, { display: string; count: number }>()
+              for (const o of occurrences) {
+                for (const w of extractMatchedWords(o)) {
+                  const key = w.toLowerCase()
+                  const existing = wordCounts.get(key)
+                  if (existing) existing.count++
+                  else wordCounts.set(key, { display: w, count: 1 })
+                }
               }
+              wordOptions = Array.from(wordCounts.entries())
+                .sort((a, b) => b[1].count - a[1].count)
+                .map(([key, v]) => ({ key, ...v }))
+              hasMultipleWordForms = wordOptions.length > 1
             }
-            const wordOptions = Array.from(wordCounts.entries())
-              .sort((a, b) => b[1].count - a[1].count)
-              .map(([key, v]) => ({ key, ...v }))
-            const hasMultipleWordForms = wordOptions.length > 1
             function toggleWord(key: string) {
               setOccWordFilter((prev) => {
                 const next = new Set(prev)
@@ -725,18 +715,20 @@ function EntryView({
 
             return (
               <div className="mb-2 space-y-1.5">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <SegmentedControl
-                    size="sm"
-                    value={occSort}
-                    onChange={setOccSort}
-                    aria-label="Sort occurrences"
-                    options={[
-                      { value: 'canon', label: 'Canon order' },
-                      { value: 'matches', label: 'Most matches' },
-                    ]}
-                  />
-                  {hasMultipleBooks && (
+                <Toolbar size="sm" edge="none" material="none" className="px-0 h-auto flex-wrap gap-1.5">
+                  {occurrences.length > 5 && (
+                    <SegmentedControl
+                      size="sm"
+                      value={occSort}
+                      onChange={setOccSort}
+                      aria-label="Sort occurrences"
+                      options={[
+                        { value: 'canon', label: 'Canon order' },
+                        { value: 'matches', label: 'Most matches' },
+                      ]}
+                    />
+                  )}
+                  {occurrences.length > 5 && hasMultipleBooks && (
                     <Select
                       variant="ghost"
                       size="sm"
@@ -750,8 +742,23 @@ function EntryView({
                       ]}
                     />
                   )}
-                </div>
-                {hasMultipleWordForms && (
+                  <div className="flex-1" />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={ExternalLink}
+                    onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
+                    tooltip={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
+                  >
+                    Open all in a tab
+                  </Button>
+                  {occurrences.length > 10 && (
+                    <Button variant="ghost" size="sm" onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}>
+                      {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
+                    </Button>
+                  )}
+                </Toolbar>
+                {occurrences.length > 5 && hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
                     <SectionLabel className="mr-0.5">Shown as:</SectionLabel>
                     <Chip size="sm" selected={occWordFilter.size === 0} onClick={() => setOccWordFilter(new Set())}>

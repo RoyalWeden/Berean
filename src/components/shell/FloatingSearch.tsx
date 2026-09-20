@@ -16,7 +16,7 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import { IconButton, SectionLabel, SectionHeader, SearchField, Select, RefChip, Chip, ListRow, Toolbar, Button } from '@/components/ui'
+import { IconButton, SectionLabel, SectionHeader, SearchField, SegmentedControl, RefChip, Chip, ListRow, Toolbar, Button } from '@/components/ui'
 
 /** Spotlight-style group heading for each result kind — the order matches how `results` is
  *  actually built/ranked below; groups are inserted around already-ordered runs (never
@@ -1328,16 +1328,16 @@ export default function FloatingSearch() {
                 onClick={() => { setSelectedTags([]); setTagFocusIdx(0); inputRef.current?.focus() }}
               />
             )}
-            {/* Word mode dropdown — right-aligned in the input row, where the user is
-                actually typing, rather than below a whole results list's worth of scroll
-                distance in the footer. */}
-            <Select
+            {/* Word mode — segmented choice (pill taxonomy §44), right-aligned in the input
+                row, where the user is actually typing, rather than below a whole results
+                list's worth of scroll distance in the footer. Same control shape as the
+                identical picker in Advanced Search (ScriptureSearchView) — a segmented
+                choice among 3 mutually-exclusive options is never a menu. */}
+            <SegmentedControl
               aria-label="Word matching"
-              variant="ghost"
               size="sm"
               value={searchWordMode}
               onChange={handleWordModeChange}
-              align="right"
               options={(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => ({ value: m, label: WORD_MODE_LABELS[m] }))}
             />
           </div>
