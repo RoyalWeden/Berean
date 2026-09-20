@@ -1509,7 +1509,17 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
           }}
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
-          title={isSelected ? 'Deselect verse' : 'Select verse'}
+          // Keyboard verse model (§8.4): only while a badge is focused. Enter toggles selection,
+          // ⇧↑/↓ extends (handled by the chapter root via data attributes), Shift+F10 opens the
+          // verse menu. Space / Page keys / Home / End are NOT bound — they stay native scroll keys.
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId }) }
+            else if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); e.stopPropagation(); openPopover() }
+          }}
+          tabIndex={-1}
+          data-verse-badge={verse.verse_num}
+          aria-label={`Verse ${verse.verse_num}${isSelected ? ', selected' : ''}`}
+          aria-pressed={isSelected}
           className={`
             focus-ring inline-flex items-center justify-center text-[0.72em] font-medium leading-none
             h-[1.5em] rounded-compact cursor-pointer select-none transition-colors

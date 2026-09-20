@@ -57,6 +57,7 @@ export default function TagGraphCanvas(props: Props) {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const tagById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
   const [hoverEdge, setHoverEdge] = useState<{ id: string; note: string; x: number; y: number } | null>(null)
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   // Live rubber-band while dragging one node toward another to connect them.
@@ -205,10 +206,36 @@ export default function TagGraphCanvas(props: Props) {
   return (
     <div
       ref={scrollRef}
-      className="absolute inset-0 overflow-hidden bg-surface-1 cursor-grab active:cursor-grabbing"
+      className="absolute inset-0 overflow-hidden bg-surface-1 cursor-grab active:cursor-grabbing focus-ring"
       onPointerDown={onBgPointerDown}
       onPointerMove={onBgPointerMove}
       onPointerUp={onBgPointerUp}
+      // Keyboard (§14 / plan §13): only while the canvas itself is focused. Arrows pan (⇧ ×5);
+      // ⌘+/−/0 are the app-zoom shortcuts in this window, so the graph uses plain +/−/0 without a
+      // modifier; Tab cycles node focus in tag order; Enter opens the focused node; Escape clears.
+      tabIndex={0}
+      role="application"
+      aria-label="Tag graph"
+      onKeyDown={(e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return
+        const step = e.shiftKey ? 200 : 40
+        if (e.key === 'ArrowLeft') { e.preventDefault(); onViewChange({ ...view, x: view.x + step }) }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); onViewChange({ ...view, x: view.x - step }) }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); onViewChange({ ...view, y: view.y + step }) }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); onViewChange({ ...view, y: view.y - step }) }
+        else if (e.key === '+' || e.key === '=') { e.preventDefault(); onViewChange({ ...view, zoom: Math.min(ZOOM_MAX, view.zoom * 1.15) }) }
+        else if (e.key === '-' || e.key === '_') { e.preventDefault(); onViewChange({ ...view, zoom: Math.max(ZOOM_MIN, view.zoom / 1.15) }) }
+        else if (e.key === '0') { e.preventDefault(); onViewChange({ x: 0, y: 0, zoom: 1 }) }
+        else if (e.key === 'Tab' && nodes.size) {
+          e.preventDefault()
+          const ids = tags.map((t) => t.id).filter((id) => nodes.has(id))
+          const i = focusedNodeId ? ids.indexOf(focusedNodeId) : -1
+          const next = ids[(e.shiftKey ? i - 1 + ids.length : i + 1) % ids.length]
+          setFocusedNodeId(next ?? null)
+        }
+        else if (e.key === 'Enter' && focusedNodeId) { e.preventDefault(); onNodeClick(focusedNodeId) }
+        else if (e.key === 'Escape') { e.preventDefault(); setFocusedNodeId(null); (e.currentTarget as HTMLElement).blur() }
+      }}
     >
       <div
         className="absolute top-0 left-0 origin-top-left"
@@ -303,6 +330,7 @@ export default function TagGraphCanvas(props: Props) {
           const tag = tagById.get(n.id)
           if (!tag) return null
           const sel = n.id === selectedTagId
+          const kbFocus = n.id === focusedNodeId
           const isConnectTarget = connectDrag?.target === n.id
           const hovered = hoverNodeId === n.id && !nodeDragRef.current
           return (
@@ -313,7 +341,9 @@ export default function TagGraphCanvas(props: Props) {
                 left: n.x - n.r, top: n.y - n.r, width: n.r * 2, height: n.r * 2,
                 backgroundColor: resolveTagColor(tag, 0.92),
                 boxShadow: NODE_GLOSS,
-                outline: sel
+                outline: kbFocus
+                  ? '2px solid var(--color-focus-ring)'
+                  : sel
                   ? '2px solid rgb(var(--color-text-primary))'
                   : isConnectTarget || n.id === pendingSourceId
                     ? '2px solid rgb(var(--color-accent))'

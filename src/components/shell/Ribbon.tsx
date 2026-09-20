@@ -47,6 +47,8 @@ export default function Ribbon() {
   const [archiveOpen, setArchiveOpen] = useState(false)
 
   const viewerWindowOpen       = useAppStore((s) => s.viewerWindowOpen)
+  const viewerPaused           = useAppStore((s) => s.viewerPaused)
+  const presenterRange         = useAppStore((s) => s.presenterRange)
   const setViewerWindowOpen    = useAppStore((s) => s.setViewerWindowOpen)
   const bumpPresenterPushToken = useAppStore((s) => s.bumpPresenterPushToken)
 
@@ -249,9 +251,13 @@ export default function Ribbon() {
       <IconButton
         {...RAIL_BTN}
         icon={Monitor}
-        label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'}
+        label={viewerWindowOpen
+          ? (viewerPaused ? 'Presenter paused' : presenterRange ? `On presenter · v.${presenterRange.first}${presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}` : 'Send to presenter view')
+          : 'Open presenter view'}
         tooltip={{ shortcut: '⌘⇧B', side: 'right' }}
         active={viewerWindowOpen}
+        // NSItemBadge-style live dot: accent while syncing, warning while paused (§63).
+        badge={viewerWindowOpen ? { variant: 'live', tone: viewerPaused ? 'warning' : 'accent', label: viewerPaused ? 'Presenter paused' : 'Presenter live' } : undefined}
         onClick={openPresenterView}
       />
 

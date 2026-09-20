@@ -1,12 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
-import { SPRING_SNAPPY } from '@/lib/motion'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, NotepadText, Copy, Hash, ScanSearch, Check as CheckIcon, PanelRightOpen, Columns2 } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums, DerivationText } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
-import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, SectionHeader, EmptyState, Button, SearchField, TextField, Toolbar, DisclosureRow, ListRow, Divider } from '@/components/ui'
+import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, SectionHeader, EmptyState, Button, SearchField, TextField, Toolbar, DisclosureRow, ListRow, Divider, TabStrip, CompactMetrics } from '@/components/ui'
 import { LexiconEntryHeader, LangBadge, OccurrenceRow, DerivedTermRow } from '@/components/lexicon/parts'
 import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
@@ -1653,6 +1651,7 @@ export default function BibleRightPanel({
   }
 
   return (
+    <CompactMetrics>
     <div
       ref={panelRootRef}
       className="flex flex-col h-full"
@@ -1681,7 +1680,7 @@ export default function BibleRightPanel({
           same switcher slot A has, not a fixed single-tab label. Both get a close button once
           a second panel exists. */}
       {!forcedTab && (
-        <Toolbar size="md" material="none" role="radiogroup" aria-label="Side panel">
+        <Toolbar size="md" material="none" edge="none">
           <div
             className={`flex items-stretch gap-0.5 flex-1 min-w-0 transition-[box-shadow] ${dragOverStrip ? 'ring-1 ring-inset ring-accent/50 rounded-compact' : ''}`}
             // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
@@ -1704,63 +1703,32 @@ export default function BibleRightPanel({
               onMoveTab?.(tab, slotId)
             }}
           >
-            {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).filter((tab) => !otherSlotTabs.includes(tab)).map((tab) => {
-              const Icon = PANEL_TAB_ICON[tab]
-              const active = visibleTab === tab
-              return (
-                <button
-                  key={tab}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab, slotId }))}
-                  // Dragging a tab OUT of the strip entirely (dropped somewhere with no
-                  // registered drop target — e.g. onto the scripture reading area) previously
-                  // did nothing, since HTML5 DnD only has a drop target to catch when the other
-                  // slot already exists. dragend fires regardless of whether the drop was
-                  // accepted anywhere; dropEffect stays 'none' specifically when nothing caught
-                  // it, which is exactly "dragged this tab away" — treat that the same as the
-                  // right-click pop-out/merge-back action. Slot A's gate (canPopOut) only allows
-                  // this when popping the tab out wouldn't leave slot A with nothing left to
-                  // show; slot B has no equivalent restriction — merging its last tab back
-                  // always closes slot B, which is a valid end state.
-                  onDragEnd={(e) => {
-                    if (e.dataTransfer.dropEffect !== 'none') return
-                    if (slotId === 'A' && canPopOut) onMoveTab?.(tab, 'B')
-                    else if (slotId === 'B') onMoveTab?.(tab, 'A')
-                  }}
-                  onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
-                  // Clicking the ALREADY-active tab closes that slot instead of re-selecting it —
-                  // the native "toggle an inspector pane by clicking its own toolbar icon again"
-                  // idiom (Xcode/Preview). Slot A closes the whole panel (or promotes slot B into
-                  // its place, via onCloseSlotA), slot B just drops. Falls back to a normal
-                  // tab-switch if the slot has no close handler wired (shouldn't happen in
-                  // practice — both slots always receive one — but never leaves the tab inert).
-                  onClick={() => {
-                    const closeThisSlot = slotId === 'B' ? onCloseSlotB : onCloseSlotA
-                    if (active && closeThisSlot) { closeThisSlot(); return }
-                    onTabChange(tab)
-                    void closeSidebarNote()
-                  }}
-                  role="radio"
-                  aria-checked={active}
-                  className={`
-                    focus-ring relative flex-1 min-w-0 flex items-center justify-center gap-1.5 h-[26px] px-1.5 text-caption font-medium
-                    rounded-compact transition-colors duration-base ease-mac cursor-pointer select-none whitespace-nowrap
-                    ${active ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}
-                  `}
-                >
-                  {active && (
-                    <motion.div
-                      layoutId={`right-panel-tab-pill-${slotId}`}
-                      className="absolute inset-0 rounded-compact bg-control-selected pointer-events-none"
-                      transition={SPRING_SNAPPY}
-                    />
-                  )}
-                  <Icon size={13} strokeWidth={active ? 2 : 1.75} className="relative z-10 flex-shrink-0" />
-                  {/* Label yields first when the pane is narrow: icons stay, text truncates to nothing. */}
-                  <span className="relative z-10 min-w-0 truncate">{PANEL_TAB_LABEL[tab]}</span>
-                </button>
-              )
-            })}
+            {/* Shared tab primitive (ui/TabStrip, inspector variant): selection pill, ←/→ roving,
+                per-item drag handlers (pop-out / merge between slots), context menu, and the
+                "click the active tab closes its slot" inspector idiom (Xcode/Preview) via
+                onReselect. Dragging a tab OUT of the strip (dropEffect 'none') = pop-out/merge-back. */}
+            <TabStrip
+              variant="inspector"
+              aria-label="Side panel"
+              layoutKey={`right-panel-tab-pill-${slotId}`}
+              value={visibleTab}
+              onChange={(tab) => { onTabChange(tab); void closeSidebarNote() }}
+              onReselect={() => { const closeThisSlot = slotId === 'B' ? onCloseSlotB : onCloseSlotA; if (closeThisSlot) closeThisSlot() }}
+              className="flex-1 min-w-0"
+              items={(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).filter((tab) => !otherSlotTabs.includes(tab)).map((tab) => ({
+                id: tab,
+                label: PANEL_TAB_LABEL[tab],
+                icon: PANEL_TAB_ICON[tab],
+                draggable: true,
+                onDragStart: (e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab, slotId })),
+                onDragEnd: (e) => {
+                  if (e.dataTransfer.dropEffect !== 'none') return
+                  if (slotId === 'A' && canPopOut) onMoveTab?.(tab, 'B')
+                  else if (slotId === 'B') onMoveTab?.(tab, 'A')
+                },
+                onContextMenu: (e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) },
+              }))}
+            />
           </div>
           {/* Close button shown on EITHER slot once a second panel exists (otherSlotTabs
               non-empty) — a single open panel relies on the shell's own toggle-side-panel
@@ -1807,7 +1775,7 @@ export default function BibleRightPanel({
       {/* Notes tab — note open */}
       {mountedTabs.has('notes') && sidebarNote && (
         <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
-          <Toolbar size="sm" material="none">
+          <Toolbar size="sm" material="none" edgeStyle="hard">
             <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={closeSidebarNote}>
               Notes
             </Button>
@@ -1855,7 +1823,7 @@ export default function BibleRightPanel({
               single-row merge packed search + scope + sort + expand-all + new-note into
               one line, which went cramped/near-overflow well before the panel's resize
               minimum — splitting keeps every control a comfortable tap target. */}
-          <Toolbar size="sm" material="none">
+          <Toolbar size="sm" material="none" edgeStyle="hard">
             <SearchField
               size="sm"
               bare
@@ -1874,7 +1842,7 @@ export default function BibleRightPanel({
             />
             <IconButton icon={Plus} label="New note" size={24} onClick={createChapterNote} />
           </Toolbar>
-          <Toolbar size="sm" material="none">
+          <Toolbar size="sm" material="none" edgeStyle="hard">
             <SegmentedControl
               size="sm"
               value={scope}
@@ -2183,5 +2151,6 @@ export default function BibleRightPanel({
         document.body
       )}
     </div>
+    </CompactMetrics>
   )
 }

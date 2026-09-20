@@ -941,7 +941,32 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     return () => document.removeEventListener('keydown', onKey)
   }, [multiToolbar, wordReplacerEnabled, wordReplacerRules, textId])
 
-  const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
+    // Keyboard verse navigation (§8.4) — opt-in: only acts while a verse badge has focus (the
+  // user Tabbed in or clicked a number), so arrow keys scroll natively everywhere else.
+  // ↑/↓ move the focused verse, ⇧↑/↓ extend the selection to it, Escape clears and returns focus
+  // to the chapter root. Enter / Shift+F10 are handled on the badge itself (VerseRow).
+  function handleVerseKeyNav(e: React.KeyboardEvent<HTMLDivElement>) {
+    const active = document.activeElement as HTMLElement | null
+    if (!active?.hasAttribute('data-verse-badge')) return
+    if (e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation()
+      useAppStore.getState().clearVerseSelection(tabId ?? undefined)
+      active.blur()
+      return
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const badges = Array.from(containerRef.current?.querySelectorAll<HTMLElement>('[data-verse-badge]') ?? [])
+    const i = badges.indexOf(active)
+    if (i < 0) return
+    const next = badges[e.key === 'ArrowDown' ? i + 1 : i - 1]
+    if (!next) return
+    e.preventDefault(); e.stopPropagation()
+    next.focus({ preventScroll: true })
+    next.scrollIntoView({ block: 'nearest' })
+    if (e.shiftKey) next.click()
+  }
+
+const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
     const clientX = e.clientX
     const clientY = e.clientY
     const sel = window.getSelection()
@@ -1142,7 +1167,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
     // unrelated compare columns.
     <RadixTooltip.Provider delayDuration={200} skipDelayDuration={500}>
-    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'berean-reading-column'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
+    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'berean-reading-column'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp} onKeyDown={handleVerseKeyNav}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
           columns) — sticky so it stays visible regardless of scroll position. */}

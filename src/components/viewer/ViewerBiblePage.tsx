@@ -244,7 +244,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
             if (onScreenLast === null || n > onScreenLast) onScreenLast = n
           }
         }
-        console.log('[PresenterDebug viewer]', {
+        if (window.__bereanPresenterDebug) console.log('[PresenterDebug viewer]', {
           bookId, chapter, scrollTop: c.scrollTop, clientHeight: c.clientHeight, contentHeight: H,
           visibleFraction, onScreenVerses: [onScreenFirst, onScreenLast],
         })

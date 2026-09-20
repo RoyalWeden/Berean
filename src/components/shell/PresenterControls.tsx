@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Cast, MousePointer2, Highlighter, PanelRight, RefreshCw, X, GripVertical, MonitorPlay, Minus, Eye } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { pushCurrentToViewer } from '@/hooks/useViewerSync'
-import { IconButton, Switch, Button } from '@/components/ui'
+import { IconButton, Switch, Button, Badge } from '@/components/ui'
 import type { BibleTabState } from '@/types'
 
 /** Current active scripture chapter (the chapter the presenter mirrors), for overlay clears. */
@@ -20,18 +20,20 @@ function activeScriptureChapter(): { bookId: string; chapter: number } | null {
 // target to the whole row, stopping propagation from the switch itself so a click there doesn't
 // also bubble up and fire the row's handler a second time.
 function ToggleRow({ icon, label, on, onClick }: { icon: React.ReactNode; label: string; on: boolean; onClick: () => void }) {
+  // The whole row is one keyboard unit (role=switch): Tab reaches it, Space/Enter toggles.
   return (
-    <div
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-row cursor-pointer transition-colors hover:bg-surface-hover"
+      className="focus-ring w-full flex items-center gap-2 px-2.5 py-1.5 rounded-row cursor-pointer transition-colors hover:bg-surface-hover"
     >
       <span className={on ? 'text-accent' : 'text-text-muted'}>{icon}</span>
       <span className={`flex-1 text-left text-footnote font-medium ${on ? 'text-text-primary' : 'text-text-muted'}`}>{label}</span>
       <span className={`text-micro font-semibold uppercase tracking-wide ${on ? 'text-accent' : 'text-text-muted'}`}>{on ? 'On' : 'Off'}</span>
-      <span onClick={(e) => e.stopPropagation()}>
-        <Switch checked={on} onCheckedChange={onClick} label={label} />
-      </span>
-    </div>
+      <Switch checked={on} onCheckedChange={onClick} label={label} decorative />
+    </button>
   )
 }
 
@@ -42,6 +44,7 @@ export default function PresenterControls() {
   const zClass = modalOpen ? 'z-raised' : 'z-overlay'
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const viewerPaused = useAppStore((s) => s.viewerPaused)
+  const presenterRange = useAppStore((s) => s.presenterRange)
   const setViewerPaused = useAppStore((s) => s.setViewerPaused)
   const setViewerWindowOpen = useAppStore((s) => s.setViewerWindowOpen)
   const laserEnabled = useAppStore((s) => s.viewerLaserEnabled)
@@ -131,7 +134,8 @@ export default function PresenterControls() {
       >
         <MonitorPlay size={14} className="text-accent" />
         <span className="text-caption font-semibold text-text-primary">Presenter</span>
-        {viewerPaused && <span className="w-1.5 h-1.5 rounded-full bg-warning" />}
+        {presenterRange && !viewerPaused && <span className="text-meta">v.{presenterRange.first}{presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}</span>}
+        {viewerPaused ? <Badge variant="text" tone="warning">Paused</Badge> : <Badge variant="live" tone="accent" label="Live" />}
       </div>,
       document.body
     )
@@ -149,6 +153,8 @@ export default function PresenterControls() {
           <GripVertical size={12} className="text-text-muted" />
           <MonitorPlay size={13} className="text-accent" />
           <span className="text-caption font-semibold text-text-primary">Presenter</span>
+          {presenterRange && !viewerPaused && <span className="text-meta">v.{presenterRange.first}{presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}</span>}
+          {viewerPaused ? <Badge variant="text" tone="warning">Paused</Badge> : <Badge variant="live" tone="accent" label="Live" />}
         </div>
         <IconButton icon={Minus} label="Collapse" size={20} onClick={() => setCollapsed(true)} />
         <IconButton icon={X} label="Close presenter window" size={20} danger onClick={closePresenter} />

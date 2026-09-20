@@ -33,12 +33,12 @@ export default function ViewerCrossRefs({
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    console.log('[ViewerCrossRefs] fetch', { bookId, chapter, source, activeVerse, hasApi: typeof window.crossrefs?.getTSKeForChapter })
+    if (window.__bereanPresenterDebug) console.log('[ViewerCrossRefs] fetch', { bookId, chapter, source, activeVerse, hasApi: typeof window.crossrefs?.getTSKeForChapter })
     setLoading(true); setError(false)
     if (source === 'tske' && typeof window.crossrefs?.getTSKeForChapter === 'function') {
       window.crossrefs.getTSKeForChapter(bookId, chapter)
         .then((res: { verseRefs: ChapterTSKeEntry[]; error: boolean }) => {
-          console.log('[ViewerCrossRefs] tske result', { error: res.error, verses: res.verseRefs?.length })
+          if (window.__bereanPresenterDebug) console.log('[ViewerCrossRefs] tske result', { error: res.error, verses: res.verseRefs?.length })
           if (res.error) { setError(true); setVerses([]); return }
           setVerses(res.verseRefs.map(v => ({
             verseNum: v.verseNum,

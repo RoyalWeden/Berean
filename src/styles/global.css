@@ -1444,17 +1444,6 @@
   font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
 }
 
-/* ── Find-bar text highlights ────────────────────────────────────────────────── */
-/* Legacy: applied imperatively to parent elements (used in CodeMirror editor view) */
-.berean-find-match {
-  background-color: rgba(234, 179, 8, 0.18) !important;
-  border-radius: 3px;
-  outline: none;
-}
-.berean-find-active {
-  background-color: rgba(234, 179, 8, 0.48) !important;
-  border-radius: 3px;
-}
 /* Note highlight colors (used in preview HTML and CodeMirror via .cm-live-hl-*).
    Values sourced from the --highlight-* vars above (src/styles/highlightPalette.ts
    is the canonical JS-side accessor) — kept as literal rgba() here since these

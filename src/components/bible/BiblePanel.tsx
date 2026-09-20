@@ -19,7 +19,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
-import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection, ScrollContainer } from '@/components/ui'
+import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection, ScrollContainer, ResizeHandle } from '@/components/ui'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
@@ -126,6 +126,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Last region actually applied — lets onViewerVisibleRegion below skip redundant reports.
   const lastViewerRegionRef = useRef<ViewerVisibleRegion | null>(null)
   const [presenterBand, setPresenterBand] = useState<{ top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null>(null)
+  // Publish the presented verse range for the toolbar/rail badge tooltip and the controls pill (§63).
+  useEffect(() => {
+    const st = useAppStore.getState()
+    if (presenterBand?.firstVerse != null) st.setPresenterRange({ first: presenterBand.firstVerse, last: presenterBand.lastVerse ?? presenterBand.firstVerse })
+    else st.setPresenterRange(null)
+  }, [presenterBand?.firstVerse, presenterBand?.lastVerse])
   // Bounded retry when a recompute lands in the transient window right after a tab switch where
   // the new chapter's verses aren't in the DOM yet — measuring then gives an empty result, and
   // nulling the band on that would hide the outline until the next real scroll event ("shows for
@@ -3703,43 +3709,25 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       >
         {/* Presenter visible-region band — outlines the region of scripture currently shown on
             the presenter window. Scrolls with content (absolute inside the scroll container). */}
+        {/* Presenter visible-region outline (§62): derives from the shared verse-fraction geometry
+            (computePresenterBand / presenterBand.ts — unchanged); this is the style layer only.
+            Dashed, extremely subtle tint, accent (warning while paused); `height` eases, `top`
+            never (see the geometry comment in computePresenterBand). No text lives in the
+            Scripture column — presenter state is shown by the toolbar/rail badge and the
+            presenter-controls pill (§63). */}
         {presenterBand && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-raised"
+            className="absolute pointer-events-none z-raised rounded-card animate-fade-in"
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
-              border: `2px solid ${viewerPaused ? 'rgba(251,191,36,0.85)' : 'rgb(var(--color-accent))'}`,
-              background: viewerPaused ? 'rgba(251,191,36,0.07)' : 'rgb(var(--color-accent) / 0.06)',
-              borderRadius: 6,
-              // NO transition on `top`: the band is absolutely positioned INSIDE the scroll
-              // container, so its on-screen position is effectively `top − scrollTop`. The ease
-              // loop already moves the percent — and thus both `top` and the slaved `scrollTop`
-              // — smoothly frame-by-frame; a CSS transition on `top` would let it lag the
-              // instant `scrollTop`, making the band visibly drift off-centre while scrolling
-              // and snap back on stop. `height` changes only on zoom/resize, so easing it is
-              // harmless polish.
-              transition: 'height 60ms ease-out',
+              left: '-0.75rem',
+              right: 0,
+              border: `1.5px dashed ${viewerPaused ? 'rgb(var(--color-warning) / 0.6)' : 'rgb(var(--color-accent) / 0.55)'}`,
+              background: viewerPaused ? 'rgb(var(--color-warning) / 0.035)' : 'rgb(var(--color-accent) / 0.035)',
+              transition: 'height var(--motion-fast) var(--motion-ease-out), border-color var(--motion-base), background-color var(--motion-base)',
             }}
-          >
-            <span
-              className="absolute top-0.5 right-1 px-1.5 text-micro font-semibold uppercase tracking-wide rounded-chip text-white"
-              style={{
-                background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
-              }}
-            >
-              {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
-              {/* Verse range read directly off the same verseFracs data the band's
-                  geometry is built from — answers "what does the audience see"
-                  in plain text, which stays legible/correct even in the rare
-                  case the band's own pixel placement is a touch approximate
-                  (e.g. interpolated mid-verse), since this isn't a second
-                  independent measurement. */}
-              {presenterBand.firstVerse != null && (
-                <> · v.{presenterBand.firstVerse}{presenterBand.lastVerse != null && presenterBand.lastVerse !== presenterBand.firstVerse ? `–${presenterBand.lastVerse}` : ''}</>
-              )}
-            </span>
-          </div>
+          />
         )}
         <div ref={pullContentRef}>
         {tabState.endChapter && tabState.endChapter > tabState.chapter
@@ -3877,29 +3865,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     )
 
     const hDivider = (
-      // 14px invisible hit-area (the two-finger-swipe gesture itself listens on the much
-      // larger panelAreaRef below, not here, but the wider strip is still a nicer mouse-drag
-      // target) around a plain 4px hairline that only tints accent on hover/drag — the
-      // inspector attaches flush with a hairline border, not a grip handle, so the old dot
-      // affordance is gone.
-      <div className="group relative w-3.5 flex-shrink-0 flex justify-center cursor-col-resize">
-        <div
-          onMouseDown={handleResizeMouseDown}
-          className={`w-1 h-full transition-colors ${isResizingPanel ? 'bg-accent/40' : 'bg-transparent hover:bg-accent/40'}`}
-        />
-      </div>
+      // Shared split-view handle (ui/ResizeHandle): 4px hairline in a 14px hit area, accent on
+      // hover/drag, double-click resets to the preferred 300px, ←/→ nudge by 16px.
+      <ResizeHandle
+        orientation="vertical"
+        active={isResizingPanel}
+        onMouseDown={handleResizeMouseDown}
+        onReset={() => { setRightPanelWidth(300); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: 300 }) }}
+        onNudge={(d) => { const w = Math.max(260, Math.min(420, rightPanelWidth - d)); setRightPanelWidth(w); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: w }) }}
+        label="Resize inspector"
+      />
     )
     const vDivider = (
-      <div
-        onMouseDown={handleVResizeMouseDown}
-        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-muted transition-colors bg-transparent"
-      >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
-          <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
-          <span className="w-0.5 h-0.5 rounded-full bg-text-muted" />
-        </div>
-      </div>
+      <ResizeHandle orientation="horizontal" onMouseDown={handleVResizeMouseDown} label="Resize bottom panel" />
     )
     // Purely rightPanelWidth — the two-finger swipe (see the wheel listener above)
     // never touches this. The panel's WIDTH stays constant through an entire swipe

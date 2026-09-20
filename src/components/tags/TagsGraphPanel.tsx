@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertSheet } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { useAppStore } from '@/store'
@@ -30,6 +31,7 @@ export default function TagsGraphPanel() {
   const [showCoOccurrence, setShowCoOccurrence] = useState(true)
   const [showLabels, setShowLabels] = useState(true)
   const [search, setSearch] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; refs: number } | null>(null)
   const [, setFrame] = useState(0)
 
   const nodesRef = useRef<Map<string, SimNode>>(new Map())
@@ -277,10 +279,27 @@ export default function TagsGraphPanel() {
         onMergeTag={async (fromId, intoId) => { refreshTags(await window.verseTags.merge(fromId, intoId)); setSelectedTagId(intoId); void reload() }}
         onDeleteTag={async (id) => {
           const res = await window.verseTags.delete(id)
-          if (res.blocked && !window.confirm(`Delete “${res.name}”? It is referenced in ${res.noteRefCount} note(s).`)) return
-          const done = res.deleted ? res : await window.verseTags.delete(id, true)
+          if (res.blocked) { setDeleteConfirm({ id, name: res.name ?? "this tag", refs: res.noteRefCount ?? 0 }); return }
+          if (res.list) refreshTags(res.list)
+          setSelectedTagId(null)
+          void reload()
+        }}
+      />
+
+      <AlertSheet
+        open={!!deleteConfirm}
+        onOpenChange={(o) => { if (!o) setDeleteConfirm(null) }}
+        title={deleteConfirm ? `Delete “${deleteConfirm.name}”?` : ''}
+        message={deleteConfirm ? `This tag is referenced in ${deleteConfirm.refs} note${deleteConfirm.refs === 1 ? '' : 's'}. Those references will stop resolving.` : undefined}
+        confirmLabel="Delete"
+        destructive
+        defaultIsCancel
+        onConfirm={async () => {
+          if (!deleteConfirm) return
+          const done = await window.verseTags.delete(deleteConfirm.id, true)
           if (done.list) refreshTags(done.list)
           setSelectedTagId(null)
+          setDeleteConfirm(null)
           void reload()
         }}
       />

@@ -21,7 +21,7 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 //
 // Every popup in this file carries `.animate-radix-popup-in` (global.css: 140ms
 // opacity+scale ease-out). Each one used to appear as a hard pop while every other
-// floating surface in the app — tooltips, Radix dropdowns, HintTooltip — fades in;
+// floating surface in the app — tooltips, Radix dropdowns, Tooltip — fades in;
 // reusing the existing keyframes rather than inventing a second timing keeps them
 // identical. Deliberately NOT applied to SelectionToolbar's bubble: that one measures
 // its own rendered size with getBoundingClientRect to clamp itself inside the viewport,

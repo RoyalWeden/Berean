@@ -227,15 +227,15 @@ export default function ViewerApp() {
   }, [])
 
   useEffect(() => {
-    console.log('[ViewerApp] registering onContent listener')
+    if (window.__bereanPresenterDebug) console.log('[ViewerApp] registering onContent listener')
     window.viewer?.onContent(handleContent)
     // Apply display/format settings pushed from the main window so the viewer renders
     // scripture/notes/lexicon identically (word replacer, note blocks, theme, idioms…).
     window.viewer?.onSettings?.((settings) => {
-      console.log('[ViewerApp] viewer:settings received')
+      if (window.__bereanPresenterDebug) console.log('[ViewerApp] viewer:settings received')
       useAppStore.setState(settings as Partial<ReturnType<typeof useAppStore.getState>>)
     })
-    console.log('[ViewerApp] calling signalReady')
+    if (window.__bereanPresenterDebug) console.log('[ViewerApp] calling signalReady')
     window.viewer?.signalReady?.()
   }, [handleContent])
 
@@ -260,6 +260,20 @@ export default function ViewerApp() {
       return next
     })
   }
+
+  const [overlayFocused, setOverlayFocused] = useState(false)
+  // Keyboard reveal: the first Tab press focuses the (initially hidden) overlay's zoom-out button.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey
+      if (meta && (e.key === '=' || e.key === '+')) { e.preventDefault(); changeScale(0.125) }
+      else if (meta && (e.key === '-' || e.key === '_')) { e.preventDefault(); changeScale(-0.125) }
+      else if (meta && e.key === '0') { e.preventDefault(); changeScale(1 - localScale) }
+      else if (e.key === 'Tab' && !overlayFocused && !hovered) { setOverlayFocused(true) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [localScale, overlayFocused, hovered]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Linger overlay 1s after mouse leaves
   const handleMouseEnter = () => {
@@ -455,12 +469,15 @@ export default function ViewerApp() {
         </div>
       )}
 
-      {/* Hover overlay — zoom + side panel toggle */}
-      {hovered && (
+      {/* Floating zoom controls — revealed on hover (1s linger) AND on keyboard focus-within, so
+          keyboard users can Tab to them; ⌘+/−/0 also work anywhere in the viewer (§60). */}
+      {(hovered || overlayFocused) && (
         <div
-          className="no-drag absolute bottom-5 right-5 z-popover flex items-center gap-2 material-control rounded-row px-3 py-2"
+          className="no-drag absolute bottom-5 right-5 z-popover flex items-center gap-2 material-control rounded-row px-3 py-2 animate-fade-in"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
+          onFocus={() => setOverlayFocused(true)}
+          onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverlayFocused(false) }}
         >
           {/* Zoom controls (side-panel visibility is controlled from the main window) */}
           <IconButton icon={Minus} label="Zoom out" size={24} tooltip={false} onClick={() => changeScale(-0.125)} />

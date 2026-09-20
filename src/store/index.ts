@@ -343,6 +343,10 @@ export interface AppState {
   // Screen-space rect of whatever triggered the History modal (e.g. the Go ▸ History menu
   // item or its toolbar button) — read by HistoryModal so it can animate/originate from
   // its trigger instead of always appearing centered.
+  /** Verse range currently shown on the presenter (from the band geometry) — read by the
+   *  presenter toolbar badge tooltip and the controls pill; null when no band. */
+  presenterRange: { first: number; last: number } | null
+  setPresenterRange: (r: { first: number; last: number } | null) => void
   historyTriggerRect: { x: number; y: number; w: number; h: number } | null
   setHistoryTriggerRect: (rect: { x: number; y: number; w: number; h: number } | null) => void
 
@@ -1131,6 +1135,8 @@ export const useAppStore = create<AppState>()(
       setActivePanelId: (id) => set({ activePanelId: id }),
       windowWidth: window.innerWidth,
       setWindowWidth: (w) => set({ windowWidth: w }),
+      presenterRange: null,
+      setPresenterRange: (r) => set((st) => (st.presenterRange?.first === r?.first && st.presenterRange?.last === r?.last ? st : { presenterRange: r })),
       historyTriggerRect: null,
       setHistoryTriggerRect: (rect) => set({ historyTriggerRect: rect }),
       updateStatus: { status: 'idle' } as UpdateStatus,
