@@ -544,7 +544,7 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
         {items.map((c) => <ConnRow key={c.id} conn={c} refFor={refFor} onOpenPrompt={() => {}} openMenu={openMenu} registerPoint={registerPoint} />)}
         {/* Inline text link, not a Button — Button's fixed-height capsule box doesn't fit this
             dense inline row; the accepted plain-<button> shape for that (see AiLookupPanel.tsx). */}
-        <button type="button" className="inline-flex items-center gap-1 text-footnote text-text-muted hover:text-text-primary focus-ring rounded-control" onClick={() => setExpanded(false)}>
+        <button type="button" className="inline-flex items-center gap-1 text-footnote text-text-muted hover:text-text-primary focus-ring rounded-chip" onClick={() => setExpanded(false)}>
           <ChevronUp size={ICON.sm} /> collapse
         </button>
       </div>
@@ -611,7 +611,7 @@ function NodeClusterGroup({
             gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
           />
         ))}
-        <button type="button" className="inline-flex items-center gap-1 pl-[21px] text-footnote text-text-muted hover:text-text-primary focus-ring rounded-control" onClick={() => setExpanded(false)}>
+        <button type="button" className="inline-flex items-center gap-1 pl-[21px] text-footnote text-text-muted hover:text-text-primary focus-ring rounded-chiptrol" onClick={() => setExpanded(false)}>
           <ChevronUp size={ICON.sm} /> collapse
         </button>
       </div>
@@ -2602,7 +2602,7 @@ export default function MapView({
         {detail.nodes.length > 0 && !nearCenter && (
           <IconButton
             icon={Crosshair} label="Recenter the timeline" size={32}
-            className="material-control shadow-2 rounded-control"
+            className="material-control shadow-2 rounded-row"
             onClick={() => recenterHorizontal()}
           />
         )}

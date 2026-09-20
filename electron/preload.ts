@@ -179,6 +179,12 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:reduceTransparency')
     ipcRenderer.on('app:reduceTransparency', (_, reduce: boolean) => cb(reduce))
   },
+  // System Settings → Accessibility → Display → Increase contrast.
+  getIncreaseContrast: () => ipcRenderer.invoke('app:getIncreaseContrast') as Promise<boolean>,
+  onIncreaseContrast: (cb: (on: boolean) => void) => {
+    ipcRenderer.removeAllListeners('app:increaseContrast')
+    ipcRenderer.on('app:increaseContrast', (_, on: boolean) => cb(on))
+  },
   openFolderDialog: () => ipcRenderer.invoke('app:openFolderDialog'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   isDev: () => ipcRenderer.invoke('app:isDev'),

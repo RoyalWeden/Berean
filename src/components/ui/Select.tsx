@@ -35,7 +35,7 @@ export interface SelectProps<T extends string> {
 const SIZE = { sm: 'h-7 px-2.5 text-footnote gap-1.5', md: 'h-8 px-3 text-subhead gap-2' }
 
 /**
- * Custom select — a capsule trigger opening a `MenuSurface` listbox, so no OS-chrome
+ * Custom select — a rounded-rectangle trigger (Apple's pop-up button shape) opening a `MenuSurface` listbox, so no OS-chrome
  * `<select>` popups anywhere in the app. Keyboard: Enter/Space/↓ open, ↑↓ move, Enter picks,
  * Esc closes; closes on outside click and on the global close-menus events.
  */
@@ -95,7 +95,7 @@ export function Select<T extends string>({
         onClick={() => (pos ? close() : open())}
         onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); open() } }}
         className={cx(
-          'no-drag focus-ring inline-flex items-center rounded-control select-none whitespace-nowrap cursor-pointer max-w-full',
+          'no-drag focus-ring inline-flex items-center rounded-control-md select-none whitespace-nowrap cursor-pointer max-w-full',
           'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
           SIZE[size],
           variant === 'field'
@@ -107,7 +107,7 @@ export function Select<T extends string>({
         {current?.icon && <current.icon size={size === 'sm' ? 12 : 14} strokeWidth={1.75} className="text-text-muted flex-shrink-0" />}
         <span className={cx('truncate', !current && 'text-text-muted')}>{current?.label ?? placeholder ?? '—'}</span>
         {variant === 'field'
-          ? <span className={cx('inline-flex items-center justify-center rounded-control bg-control text-text-secondary flex-shrink-0 transition-transform duration-base ease-mac', size === 'sm' ? 'w-[18px] h-[18px]' : 'w-5 h-5', pos && 'rotate-180')}><ChevronDown size={size === 'sm' ? 10 : 11} strokeWidth={2.25} /></span>
+          ? <span className={cx('inline-flex items-center justify-center rounded-control-sm bg-control text-text-secondary flex-shrink-0 transition-transform duration-base ease-mac', size === 'sm' ? 'w-[18px] h-[18px]' : 'w-5 h-5', pos && 'rotate-180')}><ChevronDown size={size === 'sm' ? 10 : 11} strokeWidth={2.25} /></span>
           : <ChevronDown size={size === 'sm' ? 11 : 12} strokeWidth={2} className={cx('text-text-muted flex-shrink-0 -mr-0.5 transition-transform duration-base ease-mac', pos && 'rotate-180')} />}
       </button>
       {pos && createPortal(

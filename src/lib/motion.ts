@@ -39,3 +39,14 @@ export const DROP_IN = {
   exit: { opacity: 0, y: 4 },
   transition: TWEEN_BASE,
 } as const
+
+/** Workspace / tab content switch: the incoming layer fades in; nothing slides (Safari-like continuity). */
+export const CROSSFADE = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.12, ease: 'easeOut' },
+} as const
+
+/** Sidebar / inspector / rail panels: width or x slide that lets the content reflow with it. */
+export const PANEL_SLIDE: Transition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] }

@@ -94,7 +94,8 @@ export function Sheet({ open, onOpenChange, size = 'md', title, description, hid
             )}
             {layout === 'split' ? (
               <div className="flex-1 min-h-0 flex items-stretch">
-                <div className="material-sidebar border-r border-separator flex-shrink-0 overflow-y-auto">{sidebar}</div>
+                {/* Opaque column: a translucent material inside the blurred sheet would stack two alpha layers. */}
+                <div className="bg-surface-2 border-r border-separator flex-shrink-0 overflow-y-auto overscroll-contain">{sidebar}</div>
                 <div className={cx('flex-1 min-w-0 overflow-y-auto', bodyClassName)}>{children}</div>
               </div>
             ) : (

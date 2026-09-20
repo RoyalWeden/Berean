@@ -19,13 +19,15 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   /** Extra classes for the wrapper (width, margins). */
   wrapperClassName?: string
   invalid?: boolean
+  /** Capsule geometry — search fields only (SearchField sets it); text fields are rounded rectangles. */
+  capsule?: boolean
 }
 
 const SIZE = { sm: { box: 'h-7 text-footnote', pad: 'px-2.5', icon: 12 }, md: { box: 'h-8 text-subhead', pad: 'px-3', icon: 14 } }
 
-/** Capsule text field with optional leading icon and trailing slot. */
+/** Text field (rounded rectangle) with optional leading icon and trailing slot; SearchField is the capsule variant. */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { size = 'sm', icon: Icon, trailing, bare, bareUnderline = true, invalid, className, wrapperClassName, ...rest }, ref,
+  { size = 'sm', icon: Icon, trailing, bare, bareUnderline = true, invalid, capsule = false, className, wrapperClassName, ...rest }, ref,
 ) {
   const s = SIZE[size]
   return (
@@ -35,7 +37,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         ref={ref}
         aria-invalid={invalid || undefined}
         className={cx(
-          'no-drag w-full min-w-0 rounded-control outline-none text-text-primary placeholder:text-text-muted',
+          'no-drag w-full min-w-0 outline-none text-text-primary placeholder:text-text-muted',
+          capsule ? 'rounded-control' : 'rounded-control-md',
           'transition-[background-color,box-shadow] duration-base ease-mac',
           'disabled:opacity-50 disabled:cursor-default read-only:text-text-secondary',
           s.box, s.pad,
@@ -69,6 +72,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
       ref={ref}
       type="text"
       role="searchbox"
+      capsule
       icon={Search}
       value={value}
       placeholder={placeholder}

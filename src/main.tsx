@@ -86,6 +86,14 @@ const isVersePickerMode = searchParams.get('versePicker') === '1'
     if (reduce) html.dataset.reduceTransparency = ''
     else delete html.dataset.reduceTransparency
   }).catch(() => { /* best-effort — falls back to no attribute (full transparency) */ })
+  window.app?.getIncreaseContrast?.().then((on) => {
+    if (on) html.dataset.increaseContrast = ''
+    else delete html.dataset.increaseContrast
+  }).catch(() => {})
+  window.app?.onIncreaseContrast?.((on) => {
+    if (on) html.dataset.increaseContrast = ''
+    else delete html.dataset.increaseContrast
+  })
   window.app?.onReduceTransparency?.((reduce) => {
     if (reduce) html.dataset.reduceTransparency = ''
     else delete html.dataset.reduceTransparency

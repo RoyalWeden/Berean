@@ -1,9 +1,10 @@
-import { createContext, forwardRef, useCallback, useContext, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
-import { Check } from 'lucide-react'
+import { Children, createContext, forwardRef, isValidElement, useCallback, useContext, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
+import { Check, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import { SectionLabel } from './SectionLabel'
+import { CompactMetrics } from './metrics'
 
 /**
  * Menu surface — the one recipe for context menus, dropdowns and command lists.
@@ -19,10 +20,18 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
     const handleKey = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
       onKeyDown?.(e)
       if (e.defaultPrevented) return
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return
       const root = e.currentTarget
-      const items = Array.from(root.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled]),[role="option"]:not([aria-disabled="true"])'))
+      const items = Array.from(root.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled]),[role="menuitemcheckbox"]:not([disabled]),[role="option"]:not([aria-disabled="true"])'))
       if (!items.length) return
+      // Typeahead: a single printable character jumps to the next item starting with it.
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey && /\S/.test(e.key)) {
+        const i = items.indexOf(document.activeElement as HTMLElement)
+        const order = [...items.slice(i + 1), ...items.slice(0, i + 1)]
+        const hit = order.find((el) => (el.textContent ?? '').trim().toLowerCase().startsWith(e.key.toLowerCase()))
+        if (hit) { e.preventDefault(); hit.focus() }
+        return
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return
       e.preventDefault()
       const i = items.indexOf(document.activeElement as HTMLElement)
       const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
@@ -31,6 +40,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
     }, [onKeyDown])
     return (
       <MenuInsetContext.Provider value={inset}>
+        <CompactMetrics>
         <div
           ref={ref}
           role="menu"
@@ -40,6 +50,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
         >
           {children}
         </div>
+        </CompactMetrics>
       </MenuInsetContext.Provider>
     )
   },
@@ -98,6 +109,59 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
     </button>
   )
 })
+
+/**
+ * A section of a menu. Apple 26/27 menus align icons in one column per section: when any item
+ * in the group carries an icon (or a check state), every item in the group reserves the column.
+ */
+export function MenuGroup({ children, label, className }: { children: ReactNode; label?: ReactNode; className?: string }) {
+  const hasIcon = Children.toArray(children).some((c) => isValidElement(c) && (((c.props as MenuItemProps).icon) || (c.props as MenuItemProps).active !== undefined))
+  return (
+    <MenuInsetContext.Provider value={hasIcon}>
+      <div role="group" className={className}>
+        {label && <MenuLabel>{label}</MenuLabel>}
+        {children}
+      </div>
+    </MenuInsetContext.Provider>
+  )
+}
+
+/** Submenu row: opens its panel to the right on hover / → / Enter, closes on ← / Escape / leave. */
+export function MenuSub({ label, icon: Icon, children, disabled }: { label: ReactNode; icon?: LucideIcon; children: ReactNode; disabled?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const inset = useContext(MenuInsetContext)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const show = () => { if (timer.current) clearTimeout(timer.current); setOpen(true) }
+  const hide = () => { timer.current = setTimeout(() => setOpen(false), 180) }
+  return (
+    <div className="relative" onMouseEnter={disabled ? undefined : show} onMouseLeave={hide}>
+      <button
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onKeyDown={(e) => { if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); show(); requestAnimationFrame(() => (e.currentTarget.nextElementSibling as HTMLElement | null)?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()) } }}
+        className={cx('group/mi flex w-full items-center gap-2.5 px-2.5 h-7 rounded-card text-left outline-none cursor-pointer transition-colors duration-fast text-text-primary hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white aria-expanded:bg-accent aria-expanded:text-white disabled:opacity-40 disabled:pointer-events-none')}
+      >
+        {inset && <span className="w-3 -ml-0.5 flex-shrink-0" />}
+        {Icon && <Icon size={14} strokeWidth={1.75} className="flex-shrink-0 text-text-muted group-hover/mi:text-white/85" />}
+        <span className="flex-1 min-w-0 truncate">{label}</span>
+        <ChevronRight size={12} strokeWidth={2} className="ml-auto opacity-70" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); (e.currentTarget.previousElementSibling as HTMLElement | null)?.focus() } }}
+          className="absolute top-0 left-full ml-1 z-menu material-popover rounded-menu p-1 min-w-[160px] text-footnote text-text-primary animate-menu-in"
+          style={{ '--menu-origin': 'top left' } as React.CSSProperties}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function MenuSeparator({ className }: { className?: string }) {
   return <div role="separator" className={cx('my-1 h-px bg-separator', className)} />

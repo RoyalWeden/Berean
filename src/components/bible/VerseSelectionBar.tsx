@@ -175,7 +175,7 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-popover rounded-control px-1.5 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
+        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-popover rounded-row px-1.5 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
         // While a full-screen overlay (floating search / settings / history) is up, drop to
         // z-raised: still above every bit of app chrome so it stays visible in the dimmed/
         // blurred background, but behind the overlay itself — same token PresenterControls

@@ -4,16 +4,19 @@ import { Loader2 } from 'lucide-react'
 import { cx } from './cx'
 import { Tooltip } from './Tooltip'
 import { ControlShapeContext, useControlSurface, useInControlGroup, type ControlShape, type ControlSurface } from './surface'
+import { Badge, type BadgeProps } from './Badge'
+import { useCompactMetrics } from './metrics'
 
 export type IconButtonSize = 20 | 24 | 28 | 32
 
 /** Icon scale (§82): 20→12, 24→14, 28→16, 32→18. */
-const SIZE: Record<IconButtonSize, { box: string; icon: number }> = {
-  20: { box: 'w-5 h-5', icon: 12 },
-  24: { box: 'w-6 h-6', icon: 14 },
-  28: { box: 'w-7 h-7', icon: 16 },
-  32: { box: 'w-8 h-8', icon: 18 },
+const SIZE: Record<IconButtonSize, { box: string; icon: number; radius: string }> = {
+  20: { box: 'w-5 h-5', icon: 12, radius: 'rounded-control-sm' },
+  24: { box: 'w-6 h-6', icon: 14, radius: 'rounded-control-sm' },
+  28: { box: 'w-7 h-7', icon: 16, radius: 'rounded-control-md' },
+  32: { box: 'w-8 h-8', icon: 18, radius: 'rounded-control-md' },
 }
+const DOWN: Record<IconButtonSize, IconButtonSize> = { 20: 20, 24: 20, 28: 24, 32: 28 }
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: LucideIcon
@@ -39,6 +42,8 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   tooltip?: boolean | { shortcut?: string; side?: 'top' | 'bottom' | 'left' | 'right' }
   strokeWidth?: number
   iconClassName?: string
+  /** Status marker at the top-right corner (live presenter, pending count). */
+  badge?: { variant?: BadgeProps['variant']; tone?: BadgeProps['tone']; label?: string; children?: ReactNode }
   children?: ReactNode
 }
 
@@ -50,10 +55,11 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
  * material/radius) and only paints its own hover/pressed/selected fill.
  */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon: Icon, label, size = 28, variant, shape, active, selected, danger, filled, loading, tooltip = true, strokeWidth, iconClassName, className, type = 'button', disabled, onClick, children, ...rest },
+  { icon: Icon, label, size = 28, variant, shape, active, selected, danger, filled, loading, tooltip = true, strokeWidth, iconClassName, badge, className, type = 'button', disabled, onClick, children, ...rest },
   ref,
 ) {
-  const s = SIZE[size]
+  const compact = useCompactMetrics()
+  const s = SIZE[compact ? DOWN[size] : size]
   const surface = useControlSurface(variant)
   const inGroup = useInControlGroup()
   const ctxShape = useContext(ControlShapeContext)
@@ -94,9 +100,9 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-busy={loading || undefined}
       onClick={isOff ? (e: MouseEvent<HTMLButtonElement>) => e.preventDefault() : onClick}
       className={cx(
-        'no-drag focus-ring inline-flex items-center justify-center flex-shrink-0 select-none',
+        'no-drag focus-ring relative inline-flex items-center justify-center flex-shrink-0 select-none',
         'transition-[background-color,color,transform,filter,box-shadow] duration-base ease-mac cursor-pointer',
-        inGroup ? 'rounded-none' : resolvedShape === 'square' ? 'rounded-compact' : 'rounded-control',
+        inGroup ? 'rounded-none' : resolvedShape === 'square' ? s.radius : 'rounded-control',
         !inGroup && 'active:scale-[0.98]',
         s.box, state,
         isOff && 'opacity-40 cursor-default active:scale-100',
@@ -108,6 +114,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         ? <Loader2 size={s.icon} className="animate-spin" />
         : <Icon size={s.icon} strokeWidth={strokeWidth ?? (active || selected || filled ? 2 : 1.75)} className={iconClassName} />}
       {children}
+      {badge && <Badge {...badge} className="absolute -top-0.5 -right-0.5" />}
     </button>
   )
   if (!tooltip) return btn

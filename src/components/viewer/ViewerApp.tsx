@@ -458,7 +458,7 @@ export default function ViewerApp() {
       {/* Hover overlay — zoom + side panel toggle */}
       {hovered && (
         <div
-          className="no-drag absolute bottom-5 right-5 z-popover flex items-center gap-2 material-control rounded-control px-3 py-2"
+          className="no-drag absolute bottom-5 right-5 z-popover flex items-center gap-2 material-control rounded-row px-3 py-2"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >

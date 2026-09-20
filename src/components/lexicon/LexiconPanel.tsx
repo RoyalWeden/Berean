@@ -229,7 +229,7 @@ export function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: 
               onClick={(e) => onNav(prefixed!, e.metaKey || e.ctrlKey)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNav(prefixed!, e.metaKey || e.ctrlKey) } }}
               onContextMenu={(e) => onContextMenu?.(e, prefixed!)}
-              className="font-mono text-accent hover:underline cursor-pointer focus-ring rounded-control"
+              className="font-mono text-accent hover:underline cursor-pointer focus-ring rounded-chip"
             >
               {prefixed}
             </span>

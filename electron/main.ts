@@ -1695,6 +1695,8 @@ app.whenReady().then(async () => {
   // boot (a fresh window's did-finish-load can race the app:reduceTransparency push below);
   // nativeTheme.on('updated') pushes subsequent live toggles to every open window.
   ipcMain.handle('app:getReduceTransparency', () => nativeTheme.prefersReducedTransparency)
+  // System Settings → Accessibility → Display → Increase contrast.
+  ipcMain.handle('app:getIncreaseContrast', () => nativeTheme.shouldUseHighContrastColors)
   // 'normal' | 'throttled' — see powerAwareness.ts. app:resourceModeChanged (registered
   // above, alongside setupPowerAwareness()) pushes subsequent changes.
   ipcMain.handle('app:getResourceMode', () => getResourceMode())
@@ -1832,6 +1834,7 @@ app.whenReady().then(async () => {
       if (win.isDestroyed()) return
       win.webContents.send('app:nativeThemeChanged', isDark)
       win.webContents.send('app:reduceTransparency', reduceTransparency)
+      win.webContents.send('app:increaseContrast', nativeTheme.shouldUseHighContrastColors)
     })
   })
 

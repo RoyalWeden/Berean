@@ -644,7 +644,7 @@ export default function AiLookupPanel() {
                 Ollama isn't running on this machine. Install it from{' '}
                 {/* Inline text link, not a Button — Button's fixed-height capsule box doesn't fit
                     inline text flow; this is the one accepted plain-<button> shape for that. */}
-                <button type="button" className="text-accent underline hover:opacity-80 focus-ring rounded-control" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</button>
+                <button type="button" className="text-accent underline hover:opacity-80 focus-ring rounded-chip" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</button>
                 {' '}and pull a model (e.g. <code>ollama pull gemma3:4b</code>), then reopen this panel.
               </div>
             )}

@@ -17,6 +17,7 @@ import Sidebar from '@/components/shell/Sidebar'
 import FloatingRail from '@/components/shell/FloatingRail'
 import ActivePanel from '@/components/shell/ActivePanel'
 import ShellHeader from '@/components/shell/ShellHeader'
+import { PopoverBoundaryContext } from '@/components/ui/PopoverSurface'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
 import VerseSelectionBar from '@/components/bible/VerseSelectionBar'
@@ -64,6 +65,8 @@ export default function App() {
   // DOM node for the top bar's portal slot — set once ShellHeader mounts, consumed
   // by the active tab panel via useTopBarSlot() to portal its own controls in.
   const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
+  // Popovers flip/shift to stay inside the content row (never under the toolbar).
+  const [shellBoundary, setShellBoundary] = useState<HTMLDivElement | null>(null)
   useTTSPlayback()
   useQueueAutosave()
   // Installed once, app-wide — every navigateToVerse() call anywhere feeds this without its
@@ -1097,6 +1100,7 @@ export default function App() {
   // haven't yet painted — surface-3 is the correct base tone for that either way.
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-surface-3">
+      <PopoverBoundaryContext.Provider value={shellBoundary}>
       <TopBarSlotContext.Provider value={topBarSlot}>
         {/* ShellHeader spans the FULL window width — it folds what used to be two separate
             bars (SidebarTopBar.tsx docked above just the sidebar, TopBar.tsx docked beside it)
@@ -1112,7 +1116,7 @@ export default function App() {
         >
           <ShellHeader slotRef={setTopBarSlot} />
         </div>
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden" ref={setShellBoundary}>
           {/* Sidebar collapse (width → 0) and fade instead of an instant mount/unmount,
               and the content column's own width change (full ↔ max-w-3xl) is handled via
               `layout` on the motion.main/motion.div below — framer-motion animates both
@@ -1168,6 +1172,7 @@ export default function App() {
           </main>
         </div>
       </TopBarSlotContext.Provider>
+      </PopoverBoundaryContext.Provider>
       <FloatingSearch />
       <PresenterControls />
       <AudioPlayer />

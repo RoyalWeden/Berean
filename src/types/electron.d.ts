@@ -342,6 +342,8 @@ interface AppAPI {
   onWindowActive?: (cb: (active: boolean) => void) => void
   getReduceTransparency?: () => Promise<boolean>
   onReduceTransparency?: (cb: (reduce: boolean) => void) => void
+  getIncreaseContrast?: () => Promise<boolean>
+  onIncreaseContrast?: (cb: (on: boolean) => void) => void
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   isDev?: () => Promise<boolean>

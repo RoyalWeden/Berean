@@ -42,6 +42,8 @@ module.exports = {
         'surface-disabled': 'var(--surface-disabled)',
         'surface-inspector': 'var(--surface-inspector)',
         'scrim-modal': 'var(--scrim-modal)',
+        'badge': 'var(--badge-bg)',
+        'badge-fg': 'var(--badge-fg)',
         'scrim-light': 'var(--scrim-light)',
         'surface-elevated': 'var(--color-surface-elevated)',
         'surface-hover': 'var(--color-surface-hover)',
@@ -104,6 +106,8 @@ module.exports = {
       borderRadius: {
         chip: 'var(--radius-chip)',
         compact: 'var(--radius-compact)',
+        'control-sm': 'var(--radius-control-sm)',
+        'control-md': 'var(--radius-control-md)',
         card: 'var(--radius-card)',
         window: 'var(--radius-window)',
         row: 'var(--radius-row)',

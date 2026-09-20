@@ -39,7 +39,9 @@ const SIZE = {
 }
 
 /**
- * The one tab/segment primitive: mutually-exclusive selector with an animated selection thumb.
+ * The one segment primitive: mutually-exclusive selector with an animated selection thumb
+ * (rounded-rectangle track 8px / thumb 7px — Apple's small-control shape; capsules are reserved
+ * for search fields and prominent actions). For document tabs use TabStrip.
  * Arrow keys (←/→ or ↑/↓), Home/End move the selection (WAI radiogroup); Tab leaves the group.
  */
 export function SegmentedControl<T extends string>({
@@ -71,7 +73,7 @@ export function SegmentedControl<T extends string>({
       onKeyDown={onKeyDown}
       className={cx(
         'no-drag inline-flex items-stretch flex-shrink-0',
-        inspector ? 'gap-0.5' : 'p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)]',
+        inspector ? 'gap-0.5' : 'p-0.5 rounded-card bg-control shadow-[inset_0_0_0_1px_var(--control-border)]',
         fill && 'flex w-full', disabled && 'opacity-40 pointer-events-none', className,
       )}
     >
@@ -90,7 +92,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => !on && onChange(v)}
             className={cx(
               'focus-ring relative inline-flex items-center justify-center font-medium select-none whitespace-nowrap cursor-pointer',
-              inspector ? 'rounded-compact' : 'rounded-control',
+              'rounded-control-md',
               'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
               s.seg, fill && 'flex-1',
               on ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-lift-1 active:bg-lift-3',
@@ -100,7 +102,7 @@ export function SegmentedControl<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={SPRING_SNAPPY}
-                className={cx('absolute inset-0', inspector ? 'rounded-compact bg-control-selected' : 'rounded-control bg-control-selected border border-hairline shadow-1')}
+                className={cx('absolute inset-0 rounded-control-md bg-control-selected', !inspector && 'border border-hairline shadow-1')}
                 aria-hidden
               />
             )}

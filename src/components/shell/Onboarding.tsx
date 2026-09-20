@@ -1013,7 +1013,7 @@ function StepVault() {
         <div className="space-y-2">
           <p className="text-caption text-text-muted">Vault folder</p>
           <div className="flex gap-2">
-            <div className="flex-1 px-3 py-2 rounded-control bg-surface-elevated text-caption text-text-secondary truncate">
+            <div className="flex-1 px-3 py-2 rounded-control-md bg-surface-elevated text-caption text-text-secondary truncate">
               {vaultPath || <span className="text-text-muted">No folder selected</span>}
             </div>
             <Button variant="secondary" size="sm" icon={FolderOpen} onClick={pickFolder} disabled={picking}>

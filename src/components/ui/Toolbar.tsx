@@ -19,6 +19,10 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
   scrolled?: boolean
   /** Footer bar: the scroll edge is on its top. */
   edgeSide?: 'bottom' | 'top'
+  /** 'soft' (default) — hairline + soft shadow while scrolled (in-content sticky headers).
+   *  'hard' — additionally a near-opaque backing (macOS 27's top edge under floating bars):
+   *  the window toolbar and inspector sub-toolbars. */
+  edgeStyle?: 'soft' | 'hard'
   /** Stick to the top of a scroll container. */
   sticky?: boolean
   /** Use the sidebar (denser) material instead of the bar material. */
@@ -36,7 +40,7 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
  * ControlGroup, `px-3` insets — one scale, no per-bar spacing.
  */
 export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar(
-  { size = 'sm', edge = 'auto', scrollRef, scrolled: scrolledProp, edgeSide = 'bottom', sticky, material = 'bar', itemVariant = 'glass', className, children, ...rest }, ref,
+  { size = 'sm', edge = 'auto', scrollRef, scrolled: scrolledProp, edgeSide = 'bottom', edgeStyle = 'soft', sticky, material = 'bar', itemVariant = 'glass', className, children, ...rest }, ref,
 ) {
   const inner = useRef<HTMLDivElement>(null)
   useImperativeHandle(ref, () => inner.current as HTMLDivElement)
@@ -48,6 +52,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
       <div
         ref={inner}
         data-scroll-edge={auto ? edgeSide : undefined}
+        data-edge-style={auto ? edgeStyle : undefined}
         data-scrolled={scrolled || undefined}
         className={cx(
           'flex items-center gap-2 flex-shrink-0 min-w-0 px-3',

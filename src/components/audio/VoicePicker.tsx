@@ -79,7 +79,7 @@ export default function VoicePicker({ voices, value, onChange, compact, iconOnly
         ) : (
           <button
             type="button"
-            className={`no-drag focus-ring flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-control control-field bg-field text-text-primary outline-none cursor-pointer hover:bg-surface-1/75 active:bg-surface-1 aria-expanded:bg-surface-1 aria-expanded:shadow-focus transition-colors duration-base ease-mac ${compact ? 'text-caption px-2.5 h-7' : 'text-subhead px-3 h-8'}`}
+            className={`no-drag focus-ring flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-control-md control-field bg-field text-text-primary outline-none cursor-pointer hover:bg-surface-1/75 active:bg-surface-1 aria-expanded:bg-surface-1 aria-expanded:shadow-focus transition-colors duration-base ease-mac ${compact ? 'text-caption px-2.5 h-7' : 'text-subhead px-3 h-8'}`}
           >
             <span className="truncate flex items-center gap-1.5 min-w-0">
               {/* The tier badge (Premium/Enhanced) is dropped here in compact mode — it was

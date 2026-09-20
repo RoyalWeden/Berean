@@ -607,7 +607,7 @@ function VerseBuilder() {
       </div>
       {/* Preview + copy */}
       <div className="flex items-center gap-2 pt-1">
-        <code className="flex-1 text-caption font-mono px-3 py-2 rounded-control bg-surface-1 text-accent border border-border">
+        <code className="flex-1 text-caption font-mono px-3 py-2 rounded-card bg-surface-1 text-accent border border-border">
           {ref}
         </code>
         <Button variant="ghost" size="sm" icon={copied ? Check : Copy} className="bg-accent-muted text-accent flex-shrink-0" onClick={copyRef}>

@@ -293,7 +293,7 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className="inline-flex items-center gap-1 rounded-control control-glass px-1.5 py-0.5 text-caption text-text-secondary hover:border-accent/50 hover:bg-surface-4 hover:text-accent transition-colors cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 rounded-control-sm control-glass px-1.5 py-0.5 text-caption text-text-secondary hover:border-accent/50 hover:bg-surface-4 hover:text-accent transition-colors cursor-pointer whitespace-nowrap"
       >
         <span className="font-medium">{verseStr}</span>
         {!titleIsRef && <span className="opacity-60">· {cleanedTitle}</span>}
@@ -321,7 +321,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
     <div className="mb-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-control material-control px-2 py-0.5 text-caption text-text-secondary hover:text-text-primary transition-colors cursor-pointer select-none"
+        className="inline-flex items-center gap-1.5 rounded-control-md material-control px-2 py-0.5 text-caption text-text-secondary hover:text-text-primary transition-colors cursor-pointer select-none"
       >
         <Link2 size={11} strokeWidth={2} className="text-text-muted" />
         <span>{label}</span>

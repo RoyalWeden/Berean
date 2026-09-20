@@ -86,6 +86,12 @@
   /* Scrims — the only two. modal = sheets/dialogs; light = transient app "windows" (⌘K, History). */
   --scrim-modal: rgb(0 0 0 / calc(0.40 * var(--shadow-strength) + 0.08));
   --scrim-light: rgb(0 0 0 / calc(0.18 * var(--shadow-strength) + 0.04));
+  /* Toolbar strokes (macOS 27 toolbars carry a lighter top and darker bottom hairline; observed) */
+  --stroke-top: rgb(var(--color-text-primary) / calc(var(--glass-highlight) * 0.9));
+  --stroke-bottom: rgb(0 0 0 / calc(0.10 * var(--shadow-strength)));
+  /* Badge (toolbar/tab item badges: count, dot, live) */
+  --badge-bg: rgb(var(--color-accent));
+  --badge-fg: white;
 
   /* Interactive / elevated surfaces */
   --color-surface-elevated: color-mix(in srgb, rgb(var(--color-surface-2)) 96%, rgb(var(--color-text-primary)) 4%);
@@ -154,13 +160,16 @@
 
   /* Radii — macOS 27 scale. Concentric rule: inner = outer − inset. Window = 20pt. */
   --radius-chip: 4px;      /* marks, ref chips, tags, keycaps */
-  --radius-compact: 7px;   /* compact icon buttons / segments INSIDE a grouped control (rounded square) */
-  --radius-card: 8px;      /* inline cards, code blocks, verse-embed blocks */
+  --radius-control-sm: 6px;/* 24px controls (compact contexts) — rounded rectangle */
+  --radius-compact: 7px;   /* = --radius-control-md: 28–32px controls, segments, sidebar rows, icon buttons */
+  --radius-control-md: 7px;
+  --radius-card: 8px;      /* inline cards, code blocks, verse-embed blocks, segmented tracks, menu rows */
   --radius-row: 10px;      /* sidebar / list / tab rows, calendar cells */
   --radius-menu: 14px;     /* menus, popovers, inset side panels */
   --radius-sheet: 20px;    /* dialogs / sheets / large glass panels (= window radius) */
   --radius-window: 12px;   /* surfaces that sit against the window's own corner */
-  --radius-control: 9999px;/* capsule: every control ≤ 32px tall */
+  --radius-control: 9999px;/* capsule — ONLY search fields, lg/primary/prominent buttons, tokens, badges, switches
+                              (Apple: mini/small/medium controls are rounded rectangles; large/XL are capsules) */
 
   /* Layering */
   /* Menus/popovers/selects are routinely spawned FROM WITHIN a higher-level surface (a
@@ -1521,6 +1530,9 @@ body {
   background: rgb(var(--color-text-muted));
 }
 
+/* Scroll containers (ui/ScrollContainer): overlay scrollbar (global recipe), contained overscroll. */
+.scroll-container { overflow-y: auto; overscroll-behavior: contain; }
+
 /* Overlay-style scroller: no reserved gutter, so edge-to-edge rows (sidebar tab list) reach the
    pane's edge; trackpad scrolling is unaffected. */
 .scrollbar-none { scrollbar-width: none; }
@@ -1815,7 +1827,7 @@ body {
    .material-sheet   — modal sheets / dialogs (denser so long-form content stays legible).
    .material-control — a single floating grouped control (e.g. the notes editor toolbar).
    Every blur()/saturate() below is driven by the --glass-* knobs; html[data-glass] retunes them. */
-.material-bar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--highlight); }
+.material-bar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--stroke-top); }
 html[data-vibrant] .material-bar { background: var(--material-bar-bg); }
 /* Sidebar ground: same material, slightly more opaque than the toolbar (macOS 27 sidebars
    are darker/denser than the toolbar strip above them). */
@@ -1863,6 +1875,8 @@ html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
   border: 1px solid var(--color-separator);
   box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2);
 }
+/* Opaque popover — opened over a blurred sheet, where blur-over-blur would stack two filters. */
+.material-popover.popover-opaque { background: var(--material-popover-bg-opaque); backdrop-filter: none; -webkit-backdrop-filter: none; }
 /* Denser popover for hover cards that sit directly over body text (verse / note previews). */
 .material-popover-dense { background: rgb(var(--color-surface-1) / min(0.99, calc(0.96 * var(--glass-alpha-mult)))); }
 .material-sheet {
@@ -1933,6 +1947,24 @@ html[data-inactive] .material-bar .control-glass,
 html[data-inactive] .material-sidebar .control-glass { box-shadow: none; background: var(--lift-1); }
 html[data-inactive] .text-accent { color: rgb(var(--color-text-secondary)); }
 
+/* Increase Contrast (System Settings → Accessibility → Display; electron forwards
+   nativeTheme.shouldUseHighContrastColors as html[data-increase-contrast]): stronger hairlines,
+   visible control borders, a heavier focus ring, tertiary text promoted to secondary. */
+html[data-increase-contrast] {
+  --hairline: rgb(var(--color-text-primary) / 0.22);
+  --color-separator: rgb(var(--color-surface-4) / 0.95);
+  --color-border: rgb(var(--color-text-primary) / 0.35);
+  --control-border: rgb(var(--color-text-primary) / 0.28);
+  --color-text-tertiary: var(--color-text-secondary);
+  --color-focus-ring: rgb(var(--color-accent));
+}
+html[data-increase-contrast] .focus-ring:focus-visible { box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 5px var(--color-focus-ring); }
+
+/* Live badge: one soft pulse on activation, then static (§63 — presence, not animation). */
+@keyframes badge-live { 0% { box-shadow: 0 0 0 0 rgb(var(--color-accent) / 0.55); } 100% { box-shadow: 0 0 0 6px rgb(var(--color-accent) / 0); } }
+.badge-live { animation: badge-live 900ms var(--motion-ease-out) 1; }
+html[data-inactive] .bg-badge { background: rgb(var(--color-text-muted)); }
+
 /* Scrims — the only two (§58). */
 .scrim-modal { background: var(--scrim-modal); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .scrim-light { background: var(--scrim-light); }
@@ -1941,6 +1973,10 @@ html[data-inactive] .text-accent { color: rgb(var(--color-text-secondary)); }
    ONLY while scrolled (useScrollEdge / Toolbar edge="auto"); at rest it is seamless with the page. */
 [data-scroll-edge] { transition: box-shadow var(--motion-base) var(--motion-ease); }
 [data-scroll-edge="bottom"][data-scrolled] { box-shadow: inset 0 1px 0 var(--highlight), 0 1px 0 var(--color-separator), 0 4px 12px -4px rgb(0 0 0 / calc(0.35 * var(--shadow-strength))); }
+/* Hard style (macOS 27's near-opaque top edge under floating bars): a denser backing appears
+   only while scrolled, so the bar reads as chrome the content passes beneath. */
+[data-scroll-edge][data-edge-style="hard"][data-scrolled] { background: color-mix(in srgb, var(--material-bar-bg-opaque) 92%, transparent); }
+html[data-vibrant] [data-scroll-edge][data-edge-style="hard"][data-scrolled].material-bar { background: color-mix(in srgb, var(--material-bar-bg-opaque) 86%, transparent); }
 [data-scroll-edge="top"][data-scrolled]    { box-shadow: 0 -1px 0 var(--color-separator), 0 -4px 12px -4px rgb(0 0 0 / calc(0.35 * var(--shadow-strength))); }
 
 /* Menu entrance from its trigger (§57/§103): MenuPositioner sets --menu-origin from the side it
