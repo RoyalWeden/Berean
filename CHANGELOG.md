@@ -122,6 +122,95 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.18] - 2026-09-20
+
+### Look & feel — macOS 27 design system
+
+- Berean's whole interface now follows one native macOS 27 (Liquid Glass)
+  design language: a unified toolbar composition (navigation · current
+  document · actions), a translucent sidebar with inset rounded rows, an
+  inspector attached to the window's right edge, glass controls that respond
+  to hover and press, and menus, popovers and sheets that open from the
+  control that invoked them.
+- Controls follow Apple's shapes: small and medium buttons, filters, segmented
+  controls and pop-ups are rounded rectangles; capsules are reserved for search
+  fields, prominent actions, tags and badges. Related toolbar controls sit
+  together on one shared glass container.
+- Every toolbar folds its secondary controls into a single "…" menu when the
+  window narrows — nothing is hidden, folded items keep their icon, label,
+  shortcut and on/off state.
+- New Settings → Appearance → Glass appearance (Clear / Regular / Tinted),
+  mirroring the system transparency preference.
+- Inactive windows quiet their accent and controls the way native Mac windows
+  do; the system's Reduce Transparency and Increase Contrast settings are
+  honoured (opaque materials, stronger borders and focus rings), and Reduce
+  Motion removes every non-essential animation.
+- Native File, View, Go and Help menus were added (New Note, New Verse Note,
+  Today's Daily Note, Toggle Sidebar/Inspector, Strong's, Focus Mode, Zoom,
+  Find, Back/Forward, Previous/Next Chapter, Go to Reference, History, Search
+  Everything, Berean Help, Markdown Reference). Window positions and sizes are
+  now remembered for the Study Trail, verse picker and pop-out windows too.
+
+### Scripture reading
+
+- The reading column keeps a comfortable line length that scales with your
+  Scripture font, with margins that follow the pane; nothing is boxed or
+  carded.
+- Verses can be worked with from the keyboard: Tab into the chapter (or click a
+  verse number), then ↑/↓ move, Enter selects, ⇧↑/↓ extends the selection,
+  Escape clears and Shift+F10 opens the verse menu. Space and Page keys still
+  scroll.
+- The side panel is a real attached inspector (260–420 px, drag the hairline
+  divider or double-click it to reset). Its tabs are keyboard-navigable; note
+  rows show the reference, a preview and created/modified dates; cross-ref
+  rows put the reference above the passage.
+- Note cross-reference previews always show the note's own translation (KJV
+  unless the note marked the verse LXX) instead of following the reader's
+  current translation.
+- Presenter: the "On presenter" label no longer sits inside the Scripture
+  text — the presented region is a subtle dashed outline, and the live state
+  (with the verse range) shows on the presenter button and the presenter
+  controls, whose rows are now keyboard toggles.
+
+### Notes
+
+- The formatting toolbar is grouped by editing task (text, emphasis, links &
+  code, paragraph, an Insert menu, focus) and folds gracefully in narrow
+  panes; the link editor is a proper popover with Apply / Remove / Cancel.
+- Verse, wikilink, Strong's and tag popups — and the hover previews — now
+  render above the note instead of behind it, and chapter-only references
+  ("Revelation 6") preview the chapter's opening verses.
+- Clicking a verse or Strong's reference in a note records the note in that
+  tab's history, so Back returns to the note; the separate "← back to note"
+  pill is gone.
+- Each Notes tab keeps its own home view (search, filters, sort, view mode and
+  preview selection); Lexicon and Search tabs likewise start fresh instead of
+  inheriting another tab's query.
+
+### Search, History and Tags
+
+- Advanced Search keeps scope, mode and word-match visible and gathers result
+  length and verse-tag filters into one Filters popover; the tag list stays
+  open while you pick several tags and the button names the chosen tags.
+- History shows visit counts as badges with an expandable visit list, and
+  opens from the control that invoked it.
+- The tag graph is keyboard-accessible (arrows pan, +/−/0 zoom, Tab cycles
+  nodes, Enter opens, Escape clears); deleting a referenced tag asks through a
+  native-style confirmation sheet.
+
+### YouTube
+
+- The channel @michaelfollowsyah is now @michael4yeshua; previously stored
+  videos follow the rename.
+
+### Fixes
+
+- The crash overlay and the "app recovered" card stay clickable while a
+  settings sheet is open; the print preview no longer errors while its page is
+  still loading.
+
+---
+
 ## [0.6.17] - 2026-09-11
 
 ### Scripture reading

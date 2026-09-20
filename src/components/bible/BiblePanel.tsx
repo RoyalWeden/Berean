@@ -16,12 +16,10 @@ import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
-import ActionPillGroup from '@/components/shell/ActionPillGroup'
 import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
-import { HintTooltip } from '@/components/shell/HintTooltip'
+import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection, ScrollContainer, ResizeHandle } from '@/components/ui'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
@@ -81,6 +79,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const tabs = useAppStore((s) => s.tabs.scripture)
   const activeTabId = useAppStore((s) => s.activeTabId.scripture)
   const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
+  // Inspector yield rule: below 1100px the attached inspector reverts to an absolute overlay
+  // (no reflow) so Scripture keeps the full width — narrow windows can't afford to give up
+  // reading width to a 260-420px attached pane.
+  const windowWidth = useAppStore((s) => s.windowWidth)
+  const inspectorReflow = windowWidth >= 1100
   // Whether the floating Read Aloud player is currently showing (it's global — shown for ANY
   // playing chapter, not just this tab's) — used to reserve extra bottom scroll room so the
   // player's card doesn't sit on top of the last verse with no way to scroll past it.
@@ -123,6 +126,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Last region actually applied — lets onViewerVisibleRegion below skip redundant reports.
   const lastViewerRegionRef = useRef<ViewerVisibleRegion | null>(null)
   const [presenterBand, setPresenterBand] = useState<{ top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null>(null)
+  // Publish the presented verse range for the toolbar/rail badge tooltip and the controls pill (§63).
+  useEffect(() => {
+    const st = useAppStore.getState()
+    if (presenterBand?.firstVerse != null) st.setPresenterRange({ first: presenterBand.firstVerse, last: presenterBand.lastVerse ?? presenterBand.firstVerse })
+    else st.setPresenterRange(null)
+  }, [presenterBand?.firstVerse, presenterBand?.lastVerse])
   // Bounded retry when a recompute lands in the transient window right after a tab switch where
   // the new chapter's verses aren't in the DOM yet — measuring then gives an empty result, and
   // nulling the band on that would hide the outline until the next real scroll event ("shows for
@@ -285,6 +294,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [flashAnchor, setFlashAnchor] = useState<{ verse: number; nonce: number } | null>(null)
   // "Tag this whole chapter" — anchor rect for the toolbar tag button's popover.
   const [chapterTagRect, setChapterTagRect] = useState<DOMRect | null>(null)
+  // The popover closes itself on any outside mousedown — including one on its own toolbar
+  // button — so by the time that button's click fires the state is already null and it would
+  // simply reopen. Remember whether it was open at mousedown so the click can act as a toggle.
+  const chapterTagWasOpenRef = useRef(false)
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   // Whether 2+ visible compare columns currently share the same bookId+chapter —
@@ -1779,6 +1792,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:toggleStrongs', onToggleStrongs)
   }, [updateTabState]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // View menu / command palette → toggle the inspector (right panel). Guarded the same way as
+  // Cmd+G above: only fires when this instance actually has an active tab, since floating
+  // windows and docked panels can both have a BiblePanel mounted at once.
+  useEffect(() => {
+    function onToggleInspector() {
+      if (!activeTabRef.current) return
+      toggleRightPanel()
+    }
+    window.addEventListener('berean:toggleInspector', onToggleInspector)
+    return () => window.removeEventListener('berean:toggleInspector', onToggleInspector)
+  }, [rightPanelOpen, activeTab, updateTabState])
+
   // Restore scroll anchor after the Strong's layout reflow settles. useLayoutEffect (not
   // useEffect) so this runs synchronously right after the DOM update, before the browser
   // paints — a plain useEffect runs post-paint, which meant the reflowed (un-anchored) layout
@@ -2499,14 +2524,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         rafId = null
         if (!resizeRef.current) return
         const delta = resizeRef.current.startX - latestX
-        setRightPanelWidth(Math.max(200, Math.min(520, resizeRef.current.startWidth + delta)))
+        setRightPanelWidth(Math.max(260, Math.min(420, resizeRef.current.startWidth + delta)))
       })
     }
     function onUp(e: MouseEvent) {
       if (!resizeRef.current) return
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
       const delta = resizeRef.current.startX - e.clientX
-      const finalWidth = Math.max(200, Math.min(520, resizeRef.current.startWidth + delta))
+      const finalWidth = Math.max(260, Math.min(420, resizeRef.current.startWidth + delta))
       setRightPanelWidth(finalWidth)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalWidth })
       resizeRef.current = null
@@ -2863,7 +2888,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   if (tabState.searchMode) {
     const isDedicatedSearchTab = activeTab?.id === 'scripture-search-dedicated'
     return (
-      <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
+      <div className="flex flex-col h-full bg-surface-3">
         <ScriptureSearchView
           // BiblePanel itself is a single persistent instance shared across every 'bible' tab
           // (no key on <BiblePanel/> in ActivePanel.tsx — it resets its OWN state manually on
@@ -3016,10 +3041,44 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   const isCompareMode = tabState.compareMode || currentLayout === 'compare-notes'
 
+  // Shared by the inline Display-group button and its folded-menu equivalent (OverflowSection
+  // `items`) so the condition/handler exist in exactly one place.
+  const canSwitchTranslation = (textId === 'kjva' || textId === 'lxx') && !!currentBook && counterpartBookIds.has(currentBook.id)
+  function switchTranslation() {
+    if (!activeTab) return
+    const target = textId === 'lxx' ? 'KJVA' : 'LXX'
+    // Anchor by VERSE NUMBER (not raw pixel offset) before switching — KJV and LXX have
+    // different word counts and line-wrapping, so "scroll to this many pixels down" in the
+    // old text can land on an unrelated passage in the new one, which is what made this switch
+    // hard to follow. Anchoring by verse tracks the same passage across both texts
+    // (onVersesLoaded below restores it once the new verses are in the DOM, and flashes the
+    // anchor verse as a landing cue).
+    captureStrongsAnchor()
+    // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter divisions between
+    // KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps 114-115) — map the chapter, don't just
+    // carry the number over unchanged.
+    const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, target.toLowerCase())
+    updateTabState('scripture', activeTab.id, {
+      translation: target,
+      chapter: mappedChapter,
+      targetVerse: undefined,
+      endVerse: undefined,
+    })
+    // Re-point any selected verses onto the new edition so the SAME passage stays selected
+    // across the flip — the translation menu (selectPickerTranslation) already does this; this
+    // quick toggle was missing it, so a verse selected in KJV showed nothing selected after
+    // switching to LXX.
+    useAppStore.getState().remapVerseSelection(activeTab.id, (v) => ({
+      ...v,
+      textId: target.toLowerCase(),
+      chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, target.toLowerCase()),
+    }))
+  }
+
   return (
     <div
       ref={panelRootRef}
-      className="relative flex flex-col h-full bg-[rgb(var(--color-surface-3))]"
+      className="relative flex flex-col h-full bg-surface-3"
       onMouseDown={() => setActivePanelId('bible')}
     >
       {/* Reference bar. Floating only: pulled OUT of normal flex flow (`absolute`, layered via
@@ -3033,272 +3092,89 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           `relative` to the root is a no-op there since TabHeaderPortal doesn't render PanelHeader
           at all when not floating, portaling into ShellHeader's slot elsewhere instead — see
           TabHeaderPortal.tsx). */}
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className={floating ? 'absolute top-0 left-0 right-0 z-20' : ''}>
-        {/* The "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
-            tabState.searchBack) that used to render here were removed —
-            redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the
-            per-tab home button, which now correctly track "where did I come
-            from" for the Scripture tab too (including search results —
-            see the pushTabNav call in onNavigate below), without needing a
-            second, panel-local affordance.
-            "← back to note" (tabState.noteBack) is different: Cmd+[/pushTabNav's stack is
-            single-typed per tab (a Bible tab's own stack can only ever hold scripture-position
-            entries), so it structurally can't carry "this tab came from note X" the way it
-            carries ordinary chapter history. Restored as an explicit pill instead, matching
-            how LexiconPanel already solves the exact same problem for its own tab. */}
-        {tabState.noteBack && (
-          <button
-            onClick={() => {
-              if (!tabState.noteBack) return
-              requestOpenNote(tabState.noteBack.noteId)
-              ensureTab('note')
-              if (activeTab) updateTabState('scripture', activeTab.id, { noteBack: null })
-            }}
-            title={`Back to "${tabState.noteBack.title}"`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[120px]"
-          >
-            <ArrowLeft size={11} className="flex-shrink-0" />
-            <span className="truncate">{tabState.noteBack.title}</span>
-          </button>
-        )}
-        {isCompareMode ? (
-          <>
-            <BookChapterPicker
-              books={books}
-              currentBookId={tabState.bookId}
-              currentChapter={tabState.chapter}
-              onNavigate={addComparePanel}
-              editions={EDITIONS}
-              currentTextId={addPanelTextId ?? textId}
-              onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<PanelRightDashed size={16} />}
-              triggerTitle="Add comparison panel"
-              triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
-              popoverHeader={describeComparePanels()}
-            />
-            {/* Sync scroll — only meaningful once 2+ columns share the same chapter (a
-                different translation of the same passage); grays out otherwise rather
-                than disappearing, so it's discoverable before the precondition is met. */}
-            <HintTooltip label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}>
-              <button
-                onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
-                disabled={!compareSyncEligible}
-                className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default ${
-                  tabState.compareSyncScroll
-                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-                }`}
-              >
-                <Link2 size={15} />
-              </button>
-            </HintTooltip>
-          </>
-        ) : (
-          <>
-            {/* Prev chapter / book+chapter+edition picker / next chapter — one
-                segmented pill (shared border, divider lines between segments,
-                hover highlights only the segment under the cursor) instead of
-                three separate floating buttons. Shared ActionPillGroup — this
-                pill and SidebarTopBar's nav pill independently invented the
-                same grouped-button treatment with different radii/dividers
-                before being unified onto one primitive. */}
-            <ActionPillGroup align="stretch">
-              <button onClick={prevChapter} title="Previous chapter" className="flex items-center justify-center w-7 h-7 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-                <ChevronLeft size={17} />
-              </button>
-              {/* ── Unified book / chapter / edition / translation picker ──
-                  The PDF library button now lives at the end of this picker's own
-                  Edition row (as an icon) instead of a separate standalone toolbar
-                  button next to it. */}
-              <BookChapterPicker
-                books={books}
-                currentBookId={tabState.bookId}
-                currentChapter={tabState.chapter}
-                onNavigate={navigate}
-                editions={EDITIONS}
-                currentTextId={textId}
-                onSelectTranslation={selectPickerTranslation}
-                onOpenPdfLibrary={!floating && pdfFeatureEnabled ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
-                segmented
-              />
-              <button onClick={nextChapter} title="Next chapter" className="flex items-center justify-center w-7 h-7 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-                <ChevronRight size={17} />
-              </button>
-            </ActionPillGroup>
-            {/* Tag this whole chapter — the discoverable, always-visible entry point
-                (the per-verse popover's "Tag chapter…" item still works too). */}
-            <button
-              onClick={(e) => setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())}
-              title={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
-              className="flex items-center justify-center w-8 h-8 rounded-md border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
-            >
-              <TagIcon size={15} />
-            </button>
-            {chapterTagRect && (() => {
-              const ranges = chapterRanges(tabState.bookId, tabState.chapter)
-              return (
-                <TagPickPopover
-                  anchorRect={chapterTagRect}
-                  ranges={ranges}
-                  label={rangesLabel(ranges)}
-                  kind="chapter"
-                  onClose={() => setChapterTagRect(null)}
-                />
-              )
-            })()}
-            {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
-                column will open here", distinct from the solid picker pill. */}
-            <BookChapterPicker
-              books={books}
-              currentBookId={tabState.bookId}
-              currentChapter={tabState.chapter}
-              onNavigate={addComparePanel}
-              editions={EDITIONS}
-              currentTextId={addPanelTextId ?? textId}
-              onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<PanelRightDashed size={16} />}
-              triggerTitle="Add comparison panel (pick a book/chapter)"
-              triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
-              popoverHeader={describeComparePanels()}
-            />
-            {/* Annotation info button — the panel below is portaled to document.body with
-                fixed positioning (computed from the trigger's rect on open) rather than
-                absolutely positioned inline: this toolbar row is portaled into TopBar.tsx's
-                slot div, which has overflow-hidden, so an inline `absolute` panel here was
-                being silently clipped — appearing to do nothing when clicked. */}
-            {ANNOTATION_KEYS[textId] && (
-              <div>
-                <button
-                  ref={infoRef}
-                  onClick={(e) => {
-                    if (!infoOpen) {
-                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      setInfoPos({ x: r.left, y: r.bottom + 4 })
-                    }
-                    setInfoOpen((v) => !v)
-                  }}
-                  title="Text annotations key"
-                  className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                >
-                  <Info size={13} />
-                </button>
-                {infoOpen && infoPos && createPortal(
-                  <div
-                    ref={infoPanelRef}
-                    style={{ position: 'fixed', left: infoPos.x, top: infoPos.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    className="w-72 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
-                    onMouseDown={(e) => e.stopPropagation()}>
-                    {(() => {
-                      const annInfo = ANNOTATION_KEYS[textId]
-                      const hidden = tabState.hiddenAnnotations ?? []
-                      const allKeys = annInfo?.keys.map(k => k.key) ?? []
-                      const allHidden = allKeys.length > 0 && allKeys.every(k => hidden.includes(k))
+      {/* CONTEXT zone — one grouped title control: ‹ Isaiah 44 · LXX ▾ ›. The "← Proverbs 25" /
+          "← Search: ..." pills (tabState.scriptureBack / tabState.searchBack) that used to
+          render here were removed — redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and
+          the per-tab home button, which now correctly track "where did I come from" for the
+          Scripture tab too (including search results — see the pushTabNav call in onNavigate
+          below), without needing a second, panel-local affordance.
+          "← back to note" (tabState.noteBack) is different: Cmd+[/pushTabNav's stack is
+          single-typed per tab (a Bible tab's own stack can only ever hold scripture-position
+          entries), so it structurally can't carry "this tab came from note X" the way it carries
+          ordinary chapter history. Restored as an explicit pill instead, matching how
+          LexiconPanel already solves the exact same problem for its own tab. */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
+        {/* Prev chapter / book+chapter+edition picker / next chapter — ONE grouped control
+            (shared border, hairline dividers between segments) rather than three separate
+            floating buttons. Kept in the context zone in both reading and compare mode — the
+            tab's book/chapter is still the meaningful "you are here" anchor while comparing. */}
+        <ControlGroup align="stretch">
+          {/* self-center: the picker segment stretches to fill the group's full height (its
+              content — book/chapter/edition — is taller than a plain icon button), but these
+              two chevrons have their own fixed 28px height, so `align-items: stretch` on the
+              group leaves a flex item with a definite (non-auto) cross-axis size pinned to
+              the start of the row instead of centered — self-center opts them back out. */}
+          <IconButton icon={ChevronLeft} label="Previous chapter" size={28} onClick={prevChapter} className="self-center" />
+          {/* ── Unified book / chapter / edition / translation picker ──
+              The PDF library button now lives at the end of this picker's own
+              Edition row (as an icon) instead of a separate standalone toolbar
+              button next to it. */}
+          <BookChapterPicker
+            books={books}
+            currentBookId={tabState.bookId}
+            currentChapter={tabState.chapter}
+            onNavigate={navigate}
+            editions={EDITIONS}
+            currentTextId={textId}
+            onSelectTranslation={selectPickerTranslation}
+            onOpenPdfLibrary={!floating && pdfFeatureEnabled ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
+            segmented
+            focusEvent="berean:focusRefBar"
+          />
+          <IconButton icon={ChevronRight} label="Next chapter" size={28} onClick={nextChapter} className="self-center" />
+        </ControlGroup>
+      </TabHeaderPortal>
 
-                      function toggleKey(key: string) {
-                        const curr = tabState.hiddenAnnotations ?? []
-                        const next = curr.includes(key) ? curr.filter(x => x !== key) : [...curr, key]
-                        activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
-                      }
-
-                      function toggleAll() {
-                        const next = allHidden ? [] : allKeys
-                        activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
-                      }
-
-                      const hasKeys = (annInfo?.keys.length ?? 0) > 0
-                      return (
-                        <>
-                          <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
-                            <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">
-                              {editionForTextId(textId)?.label ?? TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
-                            </span>
-                            {annInfo?.canHide && hasKeys && (
-                              <button
-                                onClick={toggleAll}
-                                className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                                  allHidden
-                                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-                                }`}
-                              >
-                                {allHidden ? <Eye size={10} /> : <EyeOff size={10} />}
-                                {allHidden ? 'Show all' : 'Hide all'}
-                              </button>
-                            )}
-                          </div>
-                          {/* Source / edition description — shown above annotation keys */}
-                          {annInfo?.description && (
-                            <p className="px-3 pt-2 pb-1 text-[11px] leading-relaxed text-[rgb(var(--color-text-muted))] italic">
-                              {annInfo.description}
-                            </p>
-                          )}
-                          {hasKeys && (
-                            <div className={`px-3 space-y-2.5 ${annInfo?.description ? 'pt-1 pb-2 border-t border-[rgb(var(--color-surface-4))]' : 'py-2'}`}>
-                              {annInfo?.keys.map((k) => {
-                                const isHidden = hidden.includes(k.key)
-                                return (
-                                  <div key={k.key} className="flex gap-2 items-start">
-                                    <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
-                                      {annInfo.canHide && (
-                                        <button
-                                          onClick={() => toggleKey(k.key)}
-                                          title={isHidden ? 'Show this annotation' : 'Hide this annotation'}
-                                          className={`cursor-pointer transition-colors ${isHidden ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                                        >
-                                          {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
-                                        </button>
-                                      )}
-                                      <code className={`text-[10px] font-mono px-1.5 py-0.5 rounded text-[rgb(var(--color-text-primary))] ${isHidden ? 'bg-[rgb(var(--color-surface-4))] line-through opacity-50' : 'bg-[rgb(var(--color-surface-4))]'}`}>{k.symbol}</code>
-                                    </div>
-                                    <span className={`text-[11px] leading-relaxed ${isHidden ? 'text-[rgb(var(--color-text-muted))] line-through' : 'text-[rgb(var(--color-text-secondary))]'}`}>{k.meaning}</span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                          {!hasKeys && !annInfo?.description && (
-                            <p className="px-3 py-2 text-[11px] text-[rgb(var(--color-text-muted))]">No annotation markers in this text.</p>
-                          )}
-                        </>
-                      )
-                    })()}
-                  </div>,
-                  document.body
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="flex-1" />
-        {/* Lower-frequency actions — each already has a keyboard shortcut, so
-            moving the icon into the overflow menu doesn't remove the capability,
-            just the always-visible button. Picker/popover-driven controls (PDF
-            library, annotation info, add-compare-panel) stay inline above
-            since they open their own follow-up UI rather than firing a
-            single action — the layout picker uses this menu's `render`
-            escape hatch instead (see the 'layout' item), computing its own
-            fixed-position anchor from the row's rect on open. */}
-        {/* This trio (overflow menu, Strong's toggle, side-panel toggle) shares a tighter gap
-            than the row's default gap-2 — that default (from TabHeaderPortal.tsx's wrapper,
-            shared by every earlier item in this row too) read as an oversized, uneven-feeling
-            gap specifically between these three small icon buttons. */}
-        <div className="flex items-center gap-1">
-        <HeaderOverflowMenu
-          items={[
+      {/* ACTIONS zone. Reading mode: {Tag chapter, Add compare panel, Annotations key} then a
+          trailing {LXX/KJV toggle, Strong's} — each its own ControlGroup, wrapped in an
+          OverflowSection so it folds as a unit into the shared More menu when the bar is too
+          narrow (§17) — followed by the standalone inspector toggle and ONE overflow menu
+          (folded groups + the curated low-frequency items below, via `extraItems`; this
+          replaces the separate HeaderOverflowMenu that used to sit beside the width-based
+          fold, which would have produced two "…" buttons). Compare mode swaps the leading
+          group for the compare-specific controls but keeps the same zone structure.
+          Display group (LXX/KJV · Strong's) is authored first among the foldable sections —
+          OverflowGroup fits/fold items in authored order, so "authored first" is how a group
+          is protected (folds last); it's marked `priority="last"` too for documentation and
+          for a future width-aware algorithm. The chapter-actions group is default priority
+          and folds first. The picker-driven controls in it (tag chapter, add compare, the
+          annotation key) have no `items` metadata, so when folded they render as their own
+          stacked control (still fully interactive, own popover) rather than a flattened
+          MenuItem — matching how they already worked (open their own follow-up UI, not a
+          single action). Inspector toggle stays OUTSIDE the OverflowGroup entirely (see below
+          it, not inside): it's chrome-level like the leading zone's sidebar toggle, not a
+          per-tab action, so it's never subject to folding at all rather than being pinned
+          inside the fold system (OverflowGroup hoists `priority="never"` children to the
+          FRONT of the row to guarantee they fit, which would visually move it ahead of the
+          chapter-actions/Display groups — wrong here since it belongs at the trailing edge,
+          after "…", matching where an inspector/sidebar toggle sits in Mail/Notes toolbars). */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        <OverflowGroup
+          label="More"
+          extraItems={[
             {
               key: 'search',
               label: 'Search scripture',
-              icon: <SearchIcon />,
+              icon: SearchIcon,
               shortcut: '⌘/',
-              onClick: () => { openSearch('current', 'verses'); closeFindBar() },
+              onSelect: () => { openSearch('current', 'verses'); closeFindBar() },
             },
             {
               key: 'compare',
               label: 'Compare translations',
-              icon: <Columns2 />,
-              active: tabState.compareMode,
-              onClick: () => {
+              icon: Columns2,
+              checked: tabState.compareMode,
+              onSelect: () => {
                 if (!activeTab) return
                 const turning = !tabState.compareMode
                 updateTabState('scripture', activeTab.id, { compareMode: turning, ...(turning ? { compareColumns: undefined } : {}) })
@@ -3316,82 +3192,250 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             ...(!floating ? [{
               key: 'layout',
               label: 'Change layout',
-              icon: <LayoutDashboard />,
-              active: layoutPickerOpen,
-              render: () => (
-                <button
-                  onClick={(e) => {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
-                    setLayoutPickerOpen((v) => !v)
-                  }}
-                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
-                    layoutPickerOpen
-                      ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                  }`}
-                >
-                  <span className="flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5"><LayoutDashboard /></span>
-                  <span className="flex-1 truncate">Change layout</span>
-                </button>
-              ),
+              icon: LayoutDashboard,
+              checked: layoutPickerOpen,
+              onSelect: (e?: React.MouseEvent) => {
+                const target = e?.currentTarget as HTMLElement | undefined
+                const rect = target?.getBoundingClientRect()
+                if (rect) setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
+                setLayoutPickerOpen((v) => !v)
+              },
             }] : []),
           ]}
-        />
-        {(textId === 'kjva' || textId === 'lxx') && currentBook && counterpartBookIds.has(currentBook.id) && (
-          <HintTooltip label={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}>
-          <button
-            onClick={() => {
-              if (!activeTab) return
-              const target = textId === 'lxx' ? 'KJVA' : 'LXX'
-              // Anchor by VERSE NUMBER (not raw pixel offset) before switching — KJV and LXX
-              // have different word counts and line-wrapping, so "scroll to this many pixels
-              // down" in the old text can land on an unrelated passage in the new one, which
-              // is what made this switch hard to follow. Anchoring by verse tracks the same
-              // passage across both texts (onVersesLoaded below restores it once the new
-              // verses are in the DOM, and flashes the anchor verse as a landing cue).
-              captureStrongsAnchor()
-              // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter
-              // divisions between KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps
-              // 114-115) — map the chapter, don't just carry the number over unchanged.
-              const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, target.toLowerCase())
-              updateTabState('scripture', activeTab.id, {
-                translation: target,
-                chapter: mappedChapter,
-                targetVerse: undefined,
-                endVerse: undefined,
-              })
-              // Re-point any selected verses onto the new edition so the SAME passage stays
-              // selected across the flip — the translation menu (selectPickerTranslation)
-              // already does this; this quick toggle was missing it, so a verse selected in
-              // KJV showed nothing selected after switching to LXX.
-              useAppStore.getState().remapVerseSelection(activeTab.id, (v) => ({
-                ...v,
-                textId: target.toLowerCase(),
-                chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, target.toLowerCase()),
-              }))
-            }}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-          >
-            <ArrowLeftRight size={14} />
-            <span>{textId === 'lxx' ? 'KJV' : 'LXX'}</span>
-          </button>
-          </HintTooltip>
-        )}
-        <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
-        <button
-          onClick={() => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) }}
-          className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
-            tabState.showStrongs
-              ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-          }`}
         >
-          <Layers size={14} />
-          <span>Strong's</span>
-        </button>
-        </HintTooltip>
-        {/* Layout picker now lives in the overflow menu below (see 'layout'
+          {isCompareMode ? (
+            <OverflowSection priority="last">
+              <ControlGroup align="stretch">
+                <BookChapterPicker
+                  books={books}
+                  currentBookId={tabState.bookId}
+                  currentChapter={tabState.chapter}
+                  onNavigate={addComparePanel}
+                  editions={EDITIONS}
+                  currentTextId={addPanelTextId ?? textId}
+                  onSelectTranslation={setAddPanelTextId}
+                  triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel" size={28} className="self-center" />}
+                  popoverHeader={describeComparePanels()}
+                />
+                {/* Sync scroll — only meaningful once 2+ columns share the same chapter (a
+                    different translation of the same passage); grays out otherwise rather
+                    than disappearing, so it's discoverable before the precondition is met. */}
+                <IconButton
+                  icon={Link2}
+                  label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}
+                  size={28}
+                  active={tabState.compareSyncScroll}
+                  disabled={!compareSyncEligible}
+                  onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
+                  className="self-center"
+                />
+              </ControlGroup>
+            </OverflowSection>
+          ) : (
+            <>
+              {!isCompareMode && (
+                <OverflowSection priority="last" items={[
+                  ...(canSwitchTranslation ? [{
+                    key: 'switch-translation',
+                    label: textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX',
+                    icon: ArrowLeftRight,
+                    onSelect: switchTranslation,
+                  }] : []),
+                  {
+                    key: 'strongs',
+                    label: "Strong's numbers",
+                    icon: Layers,
+                    shortcut: '⌘G',
+                    checked: tabState.showStrongs,
+                    onSelect: () => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) },
+                  },
+                ]}>
+                  <ControlGroup align="stretch">
+                    {canSwitchTranslation && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={ArrowLeftRight}
+                        tooltip={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}
+                        onClick={switchTranslation}
+                      >
+                        {textId === 'lxx' ? 'KJV' : 'LXX'}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={Layers}
+                      selected={tabState.showStrongs}
+                      tooltip={{ label: "Toggle Strong's numbers", shortcut: '⌘G' }}
+                      onClick={() => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) }}
+                    >
+                      Strong's
+                    </Button>
+                  </ControlGroup>
+                </OverflowSection>
+              )}
+              <OverflowSection>
+                <ControlGroup align="stretch">
+                  {/* Tag this whole chapter — the discoverable, always-visible entry point
+                      (the per-verse popover's "Tag chapter…" item still works too). */}
+                  <IconButton
+                    icon={TagIcon}
+                    label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
+                    size={28}
+                    active={!!chapterTagRect}
+                    onMouseDown={() => { chapterTagWasOpenRef.current = !!chapterTagRect }}
+                    onClick={(e) => {
+                      if (chapterTagWasOpenRef.current) { chapterTagWasOpenRef.current = false; setChapterTagRect(null); return }
+                      setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    }}
+                    className="self-center"
+                  />
+                  {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
+                      column will open here", distinct from the solid picker pill. */}
+                  <BookChapterPicker
+                    books={books}
+                    currentBookId={tabState.bookId}
+                    currentChapter={tabState.chapter}
+                    onNavigate={addComparePanel}
+                    editions={EDITIONS}
+                    currentTextId={addPanelTextId ?? textId}
+                    onSelectTranslation={setAddPanelTextId}
+                    triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel (pick a book/chapter)" size={28} className="self-center" />}
+                    popoverHeader={describeComparePanels()}
+                  />
+                  {/* Annotation info button — the panel below is portaled to document.body with
+                      fixed positioning (computed from the trigger's rect on open) rather than
+                      absolutely positioned inline: this toolbar row is portaled into ShellHeader's
+                      slot div, which has overflow-hidden, so an inline `absolute` panel here was
+                      being silently clipped — appearing to do nothing when clicked. */}
+                  {ANNOTATION_KEYS[textId] && (
+                    <IconButton
+                      ref={infoRef}
+                      icon={Info}
+                      label="Text annotations key"
+                      size={28}
+                      selected={infoOpen}
+                      className="self-center"
+                      onClick={(e) => {
+                        if (!infoOpen) {
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          // The key is a 288px (w-72) panel: keep it on-screen by right-aligning it
+                          // to the button whenever opening rightward would run past the window edge.
+                          const w = 288
+                          const x = r.left + w + 8 > window.innerWidth ? Math.max(8, r.right - w) : r.left
+                          setInfoPos({ x, y: r.bottom + 4 })
+                        }
+                        setInfoOpen((v) => !v)
+                      }}
+                    />
+                  )}
+                </ControlGroup>
+              </OverflowSection>
+            </>
+          )}
+        </OverflowGroup>
+        {/* Toggle right panel — hidden in floating windows (no side panel there). Standalone
+            square glass icon button, chrome-level (like the leading zone's sidebar toggle) —
+            deliberately outside the OverflowGroup above; see the zone comment. */}
+        {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
+          <IconButton
+            icon={PanelRight}
+            label={rightPanelOpen ? 'Close inspector' : 'Open inspector'}
+            tooltip={{ shortcut: '⌥⌘I' }}
+            size={28}
+            selected={rightPanelOpen}
+            onClick={toggleRightPanel}
+          />
+        )}
+        {chapterTagRect && (() => {
+          const ranges = chapterRanges(tabState.bookId, tabState.chapter)
+          return (
+            <TagPickPopover
+              anchorRect={chapterTagRect}
+              ranges={ranges}
+              label={rangesLabel(ranges)}
+              kind="chapter"
+              onClose={() => setChapterTagRect(null)}
+            />
+          )
+        })()}
+        {infoOpen && infoPos && createPortal(
+          <div
+            ref={infoPanelRef}
+            style={{ position: 'fixed', left: infoPos.x, top: infoPos.y, zIndex: 'var(--z-popover)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            className="w-72 material-popover rounded-menu overflow-hidden"
+            onMouseDown={(e) => e.stopPropagation()}>
+            {(() => {
+              const annInfo = ANNOTATION_KEYS[textId]
+              const hidden = tabState.hiddenAnnotations ?? []
+              const allKeys = annInfo?.keys.map(k => k.key) ?? []
+              const allHidden = allKeys.length > 0 && allKeys.every(k => hidden.includes(k))
+
+              function toggleKey(key: string) {
+                const curr = tabState.hiddenAnnotations ?? []
+                const next = curr.includes(key) ? curr.filter(x => x !== key) : [...curr, key]
+                activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
+              }
+
+              function toggleAll() {
+                const next = allHidden ? [] : allKeys
+                activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
+              }
+
+              const hasKeys = (annInfo?.keys.length ?? 0) > 0
+              return (
+                <>
+                  <div className="px-3 py-2 border-b border-separator flex items-center justify-between">
+                    <span className="text-footnote font-semibold text-text-secondary">
+                      {editionForTextId(textId)?.label ?? TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
+                    </span>
+                    {annInfo?.canHide && hasKeys && (
+                      <Button variant="ghost" size="sm" selected={allHidden} icon={allHidden ? Eye : EyeOff} onClick={toggleAll} className="h-6 px-1.5 text-caption2">
+                        {allHidden ? 'Show all' : 'Hide all'}
+                      </Button>
+                    )}
+                  </div>
+                  {/* Source / edition description — shown above annotation keys */}
+                  {annInfo?.description && (
+                    <p className="px-3 pt-2 pb-1 text-caption leading-relaxed text-text-muted italic">
+                      {annInfo.description}
+                    </p>
+                  )}
+                  {hasKeys && (
+                    <div className={`px-3 space-y-2.5 ${annInfo?.description ? 'pt-1 pb-2 border-t border-separator' : 'py-2'}`}>
+                      {annInfo?.keys.map((k) => {
+                        const isHidden = hidden.includes(k.key)
+                        return (
+                          <div key={k.key} className="flex gap-2 items-start">
+                            <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                              {annInfo.canHide && (
+                                <IconButton
+                                  icon={isHidden ? EyeOff : Eye}
+                                  label={isHidden ? 'Show this annotation' : 'Hide this annotation'}
+                                  size={20}
+                                  active={isHidden}
+                                  onClick={() => toggleKey(k.key)}
+                                />
+                              )}
+                              <RefChip variant="neutral" size="xs" className={isHidden ? 'line-through opacity-50' : undefined}>{k.symbol}</RefChip>
+                            </div>
+                            <span className={`text-caption leading-relaxed ${isHidden ? 'text-text-muted line-through' : 'text-text-secondary'}`}>{k.meaning}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {!hasKeys && !annInfo?.description && (
+                    <p className="px-3 py-2 text-caption text-text-muted">No annotation markers in this text.</p>
+                  )}
+                </>
+              )
+            })()}
+          </div>,
+          document.body
+        )}
+        {/* Layout picker now lives in the overflow menu above (see 'layout'
             item) — hidden entirely in floating windows (layout is locked to
             'reading' there), same as before. */}
         {!floating && layoutPickerOpen && layoutPickerAnchor && createPortal(
@@ -3412,22 +3456,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </div>,
           document.body
         )}
-        {/* Toggle right panel — hidden in floating windows (no side panel there) */}
-        {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
-          <HintTooltip label={rightPanelOpen ? 'Close side panel' : 'Open side panel'}>
-          <button
-            onClick={toggleRightPanel}
-            className={`p-1 rounded transition-colors cursor-pointer ${
-              rightPanelOpen
-                ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
-            <PanelRight size={15} />
-          </button>
-          </HintTooltip>
-        )}
-        </div>
         {/* Pause + laser + selection + close now live in the floating PresenterControls panel.
             Zoom now lives in the overflow menu above (see 'zoom' item). */}
       </TabHeaderPortal>
@@ -3445,17 +3473,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           actually docked at the bottom of the screen. */}
       {verseDigitAccum && (
         <div
-          className="fixed left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl flex items-center gap-2 pointer-events-none select-none"
+          className="fixed left-1/2 -translate-x-1/2 z-overlay px-4 py-2 material-popover rounded-menu flex items-center gap-2 pointer-events-none select-none"
           style={{
             bottom: BOTTOM_PANEL_HEIGHT_LAYOUTS.has(currentLayout)
               ? (currentLayout === 'split-bottom'
                   ? Math.max(120, Math.min(520, bottomPanelHeight))
-                  : Math.max(160, Math.min(600, rightPanelWidth))) + 24
+                  : Math.max(260, Math.min(420, rightPanelWidth))) + 24
               : 64,
           }}
         >
-          <span className="text-xs text-[rgb(var(--color-text-muted))]">Go to verse</span>
-          <span className="text-lg font-bold text-[rgb(var(--color-text-primary))] font-mono">{verseDigitAccum}</span>
+          <span className="text-footnote text-text-muted">Go to verse</span>
+          <span className="text-title2 font-semibold text-text-primary font-mono">{verseDigitAccum}</span>
         </div>
       )}
 
@@ -3571,9 +3599,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     ) : (
       <div className="relative flex flex-1 flex-col min-h-0">
       <ChapterPullIndicator state={pullState} prevRef={pullPrevRef} nextRef={pullNextRef} textId={textId} />
-      <div
+      <ScrollContainer
         ref={chapterViewRef}
-        className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`}
+        className={`flex-1 relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`}
         // Hidden (but laid out, so scroll restore can still run) until the first post-load
         // scroll-restore lands — kills the "top of chapter, then jump" flash on tab switch.
         style={{ visibility: chapterRevealed ? 'visible' : 'hidden' }}
@@ -3664,44 +3692,29 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       >
         {/* Presenter visible-region band — outlines the region of scripture currently shown on
             the presenter window. Scrolls with content (absolute inside the scroll container). */}
+        {/* Presenter visible-region outline (§62): derives from the shared verse-fraction geometry
+            (computePresenterBand / presenterBand.ts — unchanged); this is the style layer only.
+            Dashed, extremely subtle tint, accent (warning while paused); `height` eases, `top`
+            never (see the geometry comment in computePresenterBand). No text lives in the
+            Scripture column — presenter state is shown by the toolbar/rail badge and the
+            presenter-controls pill (§63). */}
         {presenterBand && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-[5]"
+            // Sized like the reading column (same font → same `ch`) so the outline hugs the
+            // text, not the whole pane; compact/compare views have no column cap (100%).
+            className="absolute pointer-events-none z-raised rounded-card animate-fade-in berean-scripture-text"
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
-              border: `2px solid ${viewerPaused ? 'rgba(251,191,36,0.85)' : 'rgb(var(--color-accent))'}`,
-              background: viewerPaused ? 'rgba(251,191,36,0.07)' : 'rgb(var(--color-accent) / 0.06)',
-              borderRadius: 6,
-              // NO transition on `top`: the band is absolutely positioned INSIDE the scroll
-              // container, so its on-screen position is effectively `top − scrollTop`. The ease
-              // loop already moves the percent — and thus both `top` and the slaved `scrollTop`
-              // — smoothly frame-by-frame; a CSS transition on `top` would let it lag the
-              // instant `scrollTop`, making the band visibly drift off-centre while scrolling
-              // and snap back on stop. `height` changes only on zoom/resize, so easing it is
-              // harmless polish.
-              transition: 'height 60ms ease-out',
+              left: 0,
+              right: 0,
+              maxWidth: 'min(calc(var(--reading-max-ch) * 1ch), 100%)',
+              fontSize: bibleFontSize,
+              border: `1.5px dashed ${viewerPaused ? 'rgb(var(--color-warning) / 0.6)' : 'rgb(var(--color-accent) / 0.55)'}`,
+              background: viewerPaused ? 'rgb(var(--color-warning) / 0.035)' : 'rgb(var(--color-accent) / 0.035)',
+              transition: 'height var(--motion-fast) var(--motion-ease-out), border-color var(--motion-base), background-color var(--motion-base)',
             }}
-          >
-            <span
-              className="absolute top-0.5 right-1 px-1.5 text-[9px] font-bold uppercase tracking-wide rounded"
-              style={{
-                color: '#fff',
-                background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
-              }}
-            >
-              {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
-              {/* Verse range read directly off the same verseFracs data the band's
-                  geometry is built from — answers "what does the audience see"
-                  in plain text, which stays legible/correct even in the rare
-                  case the band's own pixel placement is a touch approximate
-                  (e.g. interpolated mid-verse), since this isn't a second
-                  independent measurement. */}
-              {presenterBand.firstVerse != null && (
-                <> · v.{presenterBand.firstVerse}{presenterBand.lastVerse != null && presenterBand.lastVerse !== presenterBand.firstVerse ? `–${presenterBand.lastVerse}` : ''}</>
-              )}
-            </span>
-          </div>
+          />
         )}
         <div ref={pullContentRef}>
         {tabState.endChapter && tabState.endChapter > tabState.chapter
@@ -3762,7 +3775,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             )
         }
         </div>
-      </div>
+      </ScrollContainer>
       </div>
     )
 
@@ -3839,40 +3852,31 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     )
 
     const hDivider = (
-      // Widened from the original 4px (`w-1` below) to a 14px hit-area — the two-
-      // finger-swipe gesture itself listens on the much larger panelAreaRef below,
-      // not here, but the wider strip is still a nicer mouse-drag-resize target.
-      <div className="group relative w-3.5 flex-shrink-0 flex justify-center cursor-col-resize">
-        <div
-          onMouseDown={handleResizeMouseDown}
-          className="w-1 h-full hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
-        >
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          </div>
-        </div>
-      </div>
+      // Shared split-view handle (ui/ResizeHandle): 4px hairline in a 14px hit area, accent on
+      // hover/drag, double-click resets to the preferred 300px, ←/→ nudge by 16px.
+      <ResizeHandle
+        orientation="vertical"
+        active={isResizingPanel}
+        onMouseDown={handleResizeMouseDown}
+        onReset={() => { setRightPanelWidth(300); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: 300 }) }}
+        onNudge={(d) => { const w = Math.max(260, Math.min(420, rightPanelWidth - d)); setRightPanelWidth(w); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: w }) }}
+        label="Resize inspector"
+      />
     )
     const vDivider = (
-      <div
-        onMouseDown={handleVResizeMouseDown}
-        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
-      >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-        </div>
-      </div>
+      <ResizeHandle orientation="horizontal" onMouseDown={handleVResizeMouseDown} label="Resize bottom panel" />
     )
     // Purely rightPanelWidth — the two-finger swipe (see the wheel listener above)
     // never touches this. The panel's WIDTH stays constant through an entire swipe
     // gesture; only its `x` translate (see restFrac, wired into the 'standard'
     // case's motion.div below) tracks the gesture. Shared by every layout case
-    // below since panelSize is computed once here, not per-case.
-    const panelSize = Math.max(160, Math.min(600, rightPanelWidth))
+    // below since panelSize is computed once here, not per-case. Clamp matches the
+    // attached-inspector width band (260-420) — see COMMON.md's design-pass rules.
+    const panelSize = Math.max(260, Math.min(420, rightPanelWidth))
+    // Total width the attached inspector (hairline + slot(s), no outer margin — see
+    // material-inspector below) actually occupies, for both the panel wrapper's own size and
+    // the scripture view's reflowed right inset.
+    const panelWrapperWidth = (rightPanelSlotB ? panelSize * 2 : panelSize) + 14
     // For the bottom-docked panel layouts below (panel-bottom/notes-bottom/notes-top/
     // compare-notes) — was using `panelSize` (derived from rightPanelWidth) as a HEIGHT purely
     // because it happened to produce a visually reasonable number, while the divider that
@@ -3895,21 +3899,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
       case 'scripture-focus':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0 justify-center bg-[rgb(var(--color-surface-3))]">
-            <div className="w-full max-w-3xl overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-1))]">
+          <div className="flex-1 flex overflow-hidden min-h-0 justify-center bg-surface-3">
+            <div className="w-full max-w-3xl overflow-hidden flex flex-col min-h-0 bg-surface-1 rounded-sheet">
               {scriptureView}
             </div>
           </div>
         )
 
       // ── Standard (panel right) ───────────────────────────────────────────────
-      // The panel FLOATS over the scripture pane (position: absolute) rather than sharing
-      // the row as a flex sibling — a flex sibling shrinks scriptureView's available width
-      // the instant the panel opens, which reads as the whole reading pane visibly shifting/
-      // shrinking left. Overlaying keeps the scripture pane's own width (and therefore its
-      // text layout/scroll position) completely undisturbed by the panel opening or resizing;
-      // the panel's own shadow-lg is what now actually does its job, floating on top instead
-      // of just decorating a box that was already sharing the row.
+      // Attached edge-to-edge inspector (material-inspector: hairline-left, no radius/blur/
+      // shadow) at ≥1100px — the scripture pane's own right inset animates to make room, so the
+      // inspector reads as a real dock, not a floating card. Below 1100px it reverts to the
+      // original overlay behaviour (position: absolute, scripture keeps its full width) so
+      // Scripture keeps reading priority on narrow windows — see inspectorReflow above.
       case 'standard':
       default:
         return (
@@ -3920,7 +3922,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // whose container is a simple position:absolute area a listener can cover
           // without disturbing the flex-based layouts every other case relies on.
           <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
-            <div className="absolute inset-0 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
+            <div
+              className="absolute inset-y-0 left-0 overflow-hidden flex flex-col min-h-0"
+              style={{
+                right: inspectorReflow && rightPanelOpen ? panelWrapperWidth : 0,
+                transition: 'right 0.18s ease-out',
+              }}
+            >{scriptureView}</div>
             <AnimatePresence initial={false}>
               {(rightPanelOpen || restFrac !== null) && (
                 <motion.div
@@ -3938,49 +3946,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // duration:0 during an active drag is deliberate — see useSwipePanelGesture.ts's
                   // file-level comment for why any tween here causes a "stuck on reversal" feel.
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  // rounded-shell-lg on ALL corners (not just the right side, where the panel
-                  // itself sits) — this wrapper's overflow-hidden clips to a perfectly SQUARE
-                  // box by default, which cut the inner panel's shadow-2xl off in a hard
-                  // right-angle wherever it should have curved around the panel's own
-                  // rounded-shell-lg corners (reported as "the shadow isn't rounded," bottom-left
-                  // specifically — the shadow spreads left+down from that corner into the
-                  // hDivider strip on the wrapper's LEFT edge, which `rounded-r-shell-lg` alone
-                  // left square). Rounding every corner of the clip region, not just the two on
-                  // the panel's own side, is what actually closes that gap.
-                  className="absolute top-0 right-0 h-full flex overflow-hidden z-20 rounded-shell-lg"
-                  // +14 for hDivider (widened from 4px to 14px for the two-finger-swipe hit
-                  // area — see hDivider's own comment), +6 for the panel's own mr-1.5 (see the 'standard' case's
-                  // OLD comment, same reasoning still applies), +6 more (gap-1.5) when slot B is
-                  // open — each slot is now its own separately-chromed box (see below) with a
-                  // real gap between them, rather than one shared box with an internal divider
-                  // line, so the real visual gap needs to be counted into this wrapper's width
-                  // too or it gets silently clipped.
-                  style={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
+                  // Narrow windows (no reflow): the pane floats OVER the reader as a temporary
+                  // sheet, so it carries a shadow there; attached (reflow) it is flush and flat.
+                  className={`absolute top-0 right-0 h-full flex overflow-hidden z-20 ${inspectorReflow ? '' : 'shadow-3'}`}
+                  style={{ width: panelWrapperWidth }}
                 >
                   {hDivider}
-                  {/* Each slot is its own separately-chromed box (border/shadow/rounded), with a
-                      real gap-1.5 between them when both are open — a shared box with only a
-                      1px internal divider line read as "not visually separate at all" against
-                      the shared background. overflow-hidden still lives on an INNER div per box,
-                      off the same element as the border/shadow — combining overflow:hidden +
-                      rounded corners + box-shadow on ONE element is a WebKit/Chromium compositing
-                      gotcha where the shadow renders clipped to the element's square bounding box
-                      instead of its own rounded corners. shadow-lg (not shadow-2xl) — this panel
-                      floats via `position: absolute` directly over live scripture text rather
-                      than beside a neutral page background like the other layout cases, so
-                      shadow-2xl's much heavier/darker spread read as an unnatural dark bleed
-                      across the text underneath. */}
-                  <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 mr-1.5">
+                  {/* Attached, edge-to-edge — material-inspector (hairline-left, no radius/
+                      blur/shadow, full height). Each pane carries its own hairline-left, so two
+                      open slots read as two panes separated by a hairline, no gap (replaces the
+                      old floating material-panel boxes). */}
+                  <div className="flex-1 min-w-0 flex h-full">
                     {/* Slot B (popped out) renders BEFORE slot A — the popped-out panel always
                         sits on the left of the original, per explicit direction. */}
                     {rightPanelSlotB && (
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
-                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                     )}
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
-                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                   </div>
                 </motion.div>
               )}
@@ -3989,7 +3971,43 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )
 
       // ── Panel left ───────────────────────────────────────────────────────────
-      case 'panel-left':
+      // At ≥1100px this is a genuine flex sibling — the browser reflows Scripture for free,
+      // no absolute positioning needed. Below 1100px it switches to the same kind of absolute
+      // overlay the 'standard' case uses below that width, so Scripture keeps its full reading
+      // width instead of losing 260-420px to the inspector on a narrow window.
+      case 'panel-left': {
+        const leftSlots = (
+          <div className="flex-1 min-w-0 flex h-full">
+            {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
+            {rightPanelSlotB && (
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
+            )}
+            <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
+          </div>
+        )
+        if (!inspectorReflow) {
+          return (
+            <div className="flex-1 relative overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
+              <div className="absolute inset-0 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
+              <AnimatePresence initial={false}>
+                {rightPanelOpen && (
+                  <motion.div
+                    key="left-panel-overlay"
+                    initial={{ x: '-100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '-100%' }}
+                    transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
+                    className="absolute top-0 left-0 h-full flex overflow-hidden z-20"
+                    style={{ width: panelWrapperWidth }}
+                  >
+                    {leftSlots}
+                    {hDivider}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )
+        }
         return (
           <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <AnimatePresence initial={false}>
@@ -3997,31 +4015,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 <motion.div
                   key="left-panel"
                   initial={{ width: 0 }}
-                  // See the 'standard' case's comment — same fix, margin now on the left,
-                  // +6 more (gap-1.5) when slot B is open — see the 'standard' case's comment
-                  // on why each slot is now its own separately-chromed box.
-                  animate={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
+                  animate={{ width: panelWrapperWidth }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
-                  // comment; the previous right-only-corners attempt still left the OTHER two
-                  // corners' shadow spread square-clipped by this wrapper.
-                  className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
+                  className="flex-shrink-0 flex overflow-hidden"
                 >
-                  {/* Each slot is its own separately-chromed box with a real gap-1.5 between
-                      them — see the 'standard' case's comment. overflow-hidden on the inner div
-                      of each box (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 ml-1.5">
-                    {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
-                    {rightPanelSlotB && (
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
-                      </div>
-                    )}
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
-                    </div>
-                  </div>
+                  {leftSlots}
                   {hDivider}
                 </motion.div>
               )}
@@ -4029,6 +4028,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
           </div>
         )
+      }
 
       // ── Notes wide (60/40) ───────────────────────────────────────────────────
       case 'notes-wide':
@@ -4038,11 +4038,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                <div className="flex-[3] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
+                  <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4057,11 +4057,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                <div className="flex-[1.5] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
+                  <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4079,19 +4079,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   key="notes-right-panel"
                   initial={{ width: 0 }}
                   // See the 'standard' case's comment — same clipped-margin fix.
-                  animate={{ width: panelSize + 14 + 6 }}
+                  animate={{ width: panelSize + 14 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
+                  // rounded-menu (all corners) — see the 'standard' case's shadow-clipping
                   // comment; the previous right-only-corners attempt still left the OTHER two
                   // corners' shadow spread square-clipped by this wrapper.
-                  className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
+                  className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A', 'notes')}</div>
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col material-inspector">
+                    <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A', 'notes')}</div>
                   </div>
                 </motion.div>
               )}
@@ -4105,11 +4105,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex [&>*+*]:border-l [&>*+*]:border-separator">
               {rightPanelSlotB && (
-                <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
               )}
-              <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
             </div>
           </div>
         )
@@ -4120,7 +4120,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-t border-separator">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -4130,7 +4130,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'notes-top':
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-t border-separator">
               {panelEl('A', 'notes')}
             </div>
             {vDivider}
@@ -4164,7 +4164,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             </div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-t border-separator">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -4176,8 +4176,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-[rgb(var(--color-surface-4))]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-separator">
                 {panelEl('A', 'lexicon')}
               </div>
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">
@@ -4193,7 +4193,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const lcVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-muted transition-colors bg-transparent"
           />
         )
         return (
@@ -4202,18 +4202,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 flex overflow-hidden min-h-0">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
                 {panelEl('A', 'lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 material-inspector border-l-0 border-t border-separator">
                 {panelEl('A', 'notes')}
               </div>
-              <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="w-px bg-separator flex-shrink-0" />
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
                 {panelEl('A', 'crossrefs')}
               </div>
             </div>
@@ -4225,7 +4225,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'commentary':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-r border-separator">
               {panelEl('A', 'notes')}
             </div>
             {hDivider}
@@ -4237,13 +4237,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'triple-col':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-r border-separator">
               {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
               {panelEl('A', 'lexicon')}
             </div>
           </div>
@@ -4255,7 +4255,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const sbVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-accent-muted transition-colors bg-transparent"
           />
         )
         return (
@@ -4263,11 +4263,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 material-inspector border-l-0 border-t border-separator">
                 {panelEl('A', 'notes')}
               </div>
-              <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="w-px bg-separator flex-shrink-0" />
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
                 {panelEl('A', 'lexicon')}
               </div>
             </div>

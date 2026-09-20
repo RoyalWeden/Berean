@@ -121,6 +121,20 @@ export interface NoteTabState {
   listScrollTop?: number
   /** Epoch ms of the day currently in view in continuous-daily-scroll mode. */
   continuousDailyDate?: number
+  /** Per-tab snapshot of the home (list/folder/board) view's UI state. NotesPanel is ONE shared
+   *  instance across every Notes tab; without this, filters/search/preview selection leaked
+   *  between tabs. Saved when leaving a tab, restored when entering it; absent = defaults. */
+  homeView?: {
+    noteSearch: string
+    noteSearchWordMode: 'all' | 'any' | 'phrase'
+    noteFilter: string
+    statusFilter: string
+    noteSort: string
+    viewMode: 'list' | 'folder' | 'board'
+    expandAll: boolean
+    previewNoteId: string | null
+    previewFolderId: string | null
+  }
 }
 
 export interface LexiconTabState {

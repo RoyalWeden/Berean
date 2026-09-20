@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen, Clock } from 'lucide-react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen, Clock, HelpCircle, ChevronUp } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -22,6 +22,7 @@ import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_
 import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
 import { useTrailCollapse } from './useTrailCollapse'
 import { TrailSectionHeader, TrailAnnotation } from './TrailStickyNote'
+import { IconButton, Button, SectionLabel, MenuSurface, MenuItem, MenuSeparator, SearchField, cx } from '@/components/ui'
 
 // Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
 // in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
@@ -204,31 +205,20 @@ export function TrailNoteBubbleContent({ conn, onEdit }: { conn: TrailConnection
   }
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.04em' }}>Your note</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {onEdit && (
-            <button
-              onClick={onEdit} title="Edit this note"
-              style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
-            ><Pencil size={11} /></button>
-          )}
-          <button
-            onClick={copy} title="Copy this note"
-            style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
-          ><Copy size={11} /></button>
-          <button
-            onClick={deleteNote} title="Delete this note"
-            style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
-          ><Trash2 size={11} /></button>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <SectionLabel>Your note</SectionLabel>
+        <span className="flex items-center gap-1">
+          {onEdit && <IconButton icon={Pencil} label="Edit this note" size={20} variant="ghost" onClick={onEdit} />}
+          <IconButton icon={Copy} label="Copy this note" size={20} variant="ghost" onClick={copy} />
+          <IconButton icon={Trash2} label="Delete this note" size={20} variant="ghost" danger onClick={deleteNote} />
         </span>
       </div>
-      {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (showTies && (conn.tiesFrom.length || conn.tiesTo.length)) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
+      {conn.userNote && <div className="text-footnote" style={{ color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (showTies && (conn.tiesFrom.length || conn.tiesTo.length)) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
       {showTies && conn.tiesFrom.length > 0 && (
-        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))', marginBottom: 2 }}>From: {conn.tiesFrom.join(', ')}</div>
+        <div className="text-caption" style={{ color: 'rgb(var(--color-text-secondary))', marginBottom: 2 }}>From: {conn.tiesFrom.join(', ')}</div>
       )}
       {showTies && conn.tiesTo.length > 0 && (
-        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))' }}>To: {conn.tiesTo.join(', ')}</div>
+        <div className="text-caption" style={{ color: 'rgb(var(--color-text-secondary))' }}>To: {conn.tiesTo.join(', ')}</div>
       )}
     </div>
   )
@@ -461,7 +451,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         {overBudget && (
           <span
             title={`${conn.chainDepth + 1} levels deep`}
-            style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))', opacity: 0.8, flexShrink: 0 }}
+            style={{ color: 'rgb(var(--color-text-muted))', opacity: 0.8, flexShrink: 0 }}
           >↳{conn.chainDepth + 1}</span>
         )}
         {/* The collapse affordance. The previous version was a bare ▾ caret to the left of the
@@ -470,20 +460,18 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             collapsable". A labelled pill saying what it holds is both prettier and
             self-explanatory, and it reads the same whether folded or not. */}
         {hasNested && (
-          <button
+          <Button
+            variant="ghost"
+            selected={collapsed}
+            size="sm"
+            className="!h-[18px] !px-2 flex-shrink-0"
             onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', conn.id) }}
-            title={collapsed ? 'Show what came off this' : 'Fold this branch away'}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer',
-              fontSize: FONT.badge, lineHeight: '18px', padding: '0 8px', borderRadius: 999,
-              background: collapsed ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3))',
-              border: 'none', color: collapsed ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
-            }}
+            tooltip={collapsed ? 'Show what came off this' : 'Fold this branch away'}
           >
             <GitBranch size={ICON.sm} />
             {branchCount}
             <span style={{ transform: collapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
-          </button>
+          </Button>
         )}
         {isPromotedChain && (
           <span
@@ -511,15 +499,11 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             feedback — it's exactly the kind of "via ..." reasoning that should now only ever
             show in the hover card, not always-visible next to the row. */}
         {needsInput ? (
-          <button
+          <IconButton
+            icon={HelpCircle} label="Why did you jump here?" size={20} variant="ghost"
+            className="!w-[15px] !h-[15px] text-trail-warm hover:text-trail-warm"
             onClick={() => onOpenPrompt(conn)}
-            title="Why did you jump here?"
-            style={{
-              fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)',
-              border: '1px solid rgba(224,132,104,0.4)', borderRadius: 999, width: 15, height: 15,
-              lineHeight: '13px', cursor: 'pointer', flexShrink: 0,
-            }}
-          >?</button>
+          />
         ) : conn.dismissedPromptAt ? (
           <span style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))' }}>reason unclear</span>
         ) : null}
@@ -558,7 +542,11 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
     return (
       <div>
         {items.map((c) => <ConnRow key={c.id} conn={c} refFor={refFor} onOpenPrompt={() => {}} openMenu={openMenu} registerPoint={registerPoint} />)}
-        <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0' }}>▾ collapse</button>
+        {/* Inline text link, not a Button — Button's fixed-height capsule box doesn't fit this
+            dense inline row; the accepted plain-<button> shape for that (see AiLookupPanel.tsx). */}
+        <button type="button" className="inline-flex items-center gap-1 text-footnote text-text-muted hover:text-text-primary focus-ring rounded-chip" onClick={() => setExpanded(false)}>
+          <ChevronUp size={ICON.sm} /> collapse
+        </button>
       </div>
     )
   }
@@ -569,9 +557,9 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
       <span style={{ fontSize: FONT.row, color: 'rgb(var(--color-text-secondary))' }}>
         {labelFor(first)} → {labelFor(last)}
       </span>
-      <button onClick={() => setExpanded(true)} style={{ fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}>
+      <Button variant="ghost" size="sm" onClick={() => setExpanded(true)}>
         ▸ {items.length} glances
-      </button>
+      </Button>
     </div>
   )
 }
@@ -623,7 +611,9 @@ function NodeClusterGroup({
             gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
           />
         ))}
-        <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0 8px 21px' }}>▾ collapse</button>
+        <button type="button" className="inline-flex items-center gap-1 pl-[21px] text-footnote text-text-muted hover:text-text-primary focus-ring rounded-chiptrol" onClick={() => setExpanded(false)}>
+          <ChevronUp size={ICON.sm} /> collapse
+        </button>
       </div>
     )
   }
@@ -1012,20 +1002,18 @@ function NodeBlock({
             {/* Same labelled fold pill as a branch row's, so one affordance means one thing
                 everywhere on the map. Replaces the caret that used to sit before the title. */}
             {hasRows && (
-              <button
+              <Button
+                variant="ghost"
+                selected={rowsCollapsed}
+                size="sm"
+                className="!h-[18px] !px-2 flex-shrink-0"
                 onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', nodeKey) }}
-                title={rowsCollapsed ? 'Show what came off this stop' : 'Fold this stop\u2019s branches away'}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer',
-                  fontSize: FONT.badge, fontWeight: 600, fontStyle: 'normal', lineHeight: '18px', padding: '0 8px', borderRadius: 999,
-                  background: rowsCollapsed ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3))',
-                  border: 'none', color: rowsCollapsed ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
-                }}
+                tooltip={rowsCollapsed ? 'Show what came off this stop' : 'Fold this stop\u2019s branches away'}
               >
                 <GitBranch size={ICON.sm} />
                 {branchTotal}
                 <span style={{ transform: rowsCollapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
-              </button>
+              </Button>
             )}
             {hasNote(originConn) && (
               <NotepadText size={ICON.sm} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
@@ -1055,21 +1043,19 @@ function NodeBlock({
                 instead of its own row. Full detail (span, count, both chapters) lives in the
                 title tooltip; clicking expands the individual bounce visits, same as before. */}
             {bounceBadge && (
-              <button
+              <Button
+                variant="ghost"
+                selected
+                size="sm"
                 onClick={(e) => { e.stopPropagation(); bounceBadge.onExpand() }}
-                title={bounceBadge.variant === 'run'
+                tooltip={bounceBadge.variant === 'run'
                   ? `Read straight through ${bounceBadge.count} chapters over ${formatGap(bounceBadge.spanMs)} — click to show every one`
                   : `Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                  fontSize: FONT.badge, fontWeight: 700, fontStyle: 'normal', color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
-                  border: 'none', borderRadius: 999, padding: '2px 9px', cursor: 'pointer', letterSpacing: '.01em',
-                }}
               >
                 {bounceBadge.variant === 'run'
                   ? <><BookOpen size={ICON.sm} /> read through {bounceBadge.count}</>
                   : <><ArrowLeftRight size={ICON.sm} /> {bounceBadge.count}x</>}
-              </button>
+              </Button>
             )}
           </div>
         </TrailHoverCard>
@@ -1101,11 +1087,6 @@ function NodeBlock({
   )
 }
 
-const blankMenuBtnStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px',
-  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-  color: 'rgb(var(--color-text-primary))', textAlign: 'left', fontSize: 12,
-}
 
 export const ZOOM_MIN = 0.5
 // Raised from 2 — with the map's own text now larger at 100%, the useful range shifted upward,
@@ -2243,17 +2224,14 @@ export default function MapView({
       {/* When the parent hosts the filter (next to the session title), MapView renders no
           input of its own — it just consumes filterValue + listens for the submit event. */}
       {!controlledFilter && (
-        <div style={{ marginBottom: 8, flexShrink: 0 }}>
-          <input
+        <div className="mb-2 flex-shrink-0">
+          <SearchField
             ref={searchInputRef}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onValueChange={setSearchQuery}
             onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
             placeholder="Filter timeline…"
-            style={{
-              width: '100%', maxWidth: 260, fontSize: 12, padding: '5px 9px', background: 'rgb(var(--color-surface-2))',
-              border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-            }}
+            wrapperClassName="max-w-[260px]"
           />
         </div>
       )}
@@ -2321,10 +2299,10 @@ export default function MapView({
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
             <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (
-          <div style={{ fontSize: 11, color: '#e08468', marginBottom: 10 }}>
+          <div className="text-caption" style={{ color: 'rgb(var(--trail-warm))', marginBottom: 10 }}>
             {needsInputCount} connection{needsInputCount === 1 ? '' : 's'} could use a reason — click a <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13,
-              borderRadius: 999, background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', fontSize: 9, fontWeight: 700,
+              borderRadius: 999, background: 'rgb(var(--trail-warm) / 0.14)', border: '1px solid rgb(var(--trail-warm) / 0.4)', fontSize: 9, fontWeight: 700,
             }}>?</span> below (never required — dismiss any of them any time).
           </div>
         )}
@@ -2490,7 +2468,7 @@ export default function MapView({
           )
         })}
         {detail.nodes.length === 0 && (
-          <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>Nothing recorded yet — navigate around the app while this session is live.</div>
+          <div className="text-body text-text-muted">Nothing recorded yet — navigate around the app while this session is live.</div>
         )}
 
         {promptConn && (
@@ -2532,13 +2510,10 @@ export default function MapView({
           return (
             <>
               {railState && (
-                <div style={{
+                <div className="material-control rounded-control text-footnote font-semibold tracking-wide text-text-muted px-1.5 py-1" style={{
                   position: 'fixed', left: scrollRect.left + 10,
                   top: scrollRect.top + RAIL_TOP + railState.progress * RAIL_SLIDE_RANGE,
-                  zIndex: 30, pointerEvents: 'none',
-                  fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))',
-                  background: 'rgb(var(--color-surface-1) / 0.85)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-                  border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 6, padding: '3px 7px',
+                  zIndex: 'var(--z-raised)' as unknown as number, pointerEvents: 'none',
                   opacity: timeRailOpacity,
                   transition: 'top 220ms ease, opacity 120ms ease',
                 }}>
@@ -2553,12 +2528,9 @@ export default function MapView({
                     borderTop: '1px dashed rgb(var(--color-accent) / 0.45)',
                     opacity: timeRailOpacity, transition: 'opacity 120ms ease',
                   }} />
-                  <div style={{
+                  <div className="material-popover rounded-control text-footnote font-semibold text-accent px-1.5 py-1" style={{
                     position: 'fixed', left: scrollRect.left + 10, top: hoverInfo.y, transform: 'translateY(-50%)',
                     zIndex: 30, pointerEvents: 'none',
-                    fontSize: 11, fontWeight: 700, color: 'rgb(var(--color-accent))',
-                    background: 'rgb(var(--color-surface-1) / 0.92)', border: '1px solid rgb(var(--color-accent) / 0.4)',
-                    borderRadius: 6, padding: '3px 7px',
                     opacity: timeRailOpacity, transition: 'opacity 120ms ease',
                   }}>
                     {hoverInfo.label}
@@ -2581,61 +2553,39 @@ export default function MapView({
 
         {/* Selection action bar */}
         {selectedNodeIds.size > 0 && (
-          <div style={{
-            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
-            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
-            background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-            borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.35)', fontSize: 12,
-          }}>
-            <span style={{ color: 'rgb(var(--color-text-secondary))', fontWeight: 600 }}>
+          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 px-2.5 py-1.5 material-control rounded-menu shadow-2 z-raised">
+            <span className="text-footnote text-text-secondary font-semibold">
               {selectedNodeIds.size} selected
             </span>
-            <div style={{ position: 'relative' }}>
-              <button
-                className="trail-ctx-btn"
+            <div className="relative">
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={busySelection}
                 onClick={() => (moveMenuOpen ? setMoveMenuOpen(false) : openMoveMenu())}
-                style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}
-              >Move to session ▾</button>
+              >Move to session ▾</Button>
               {moveMenuOpen && (
-                <div style={{
-                  position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, minWidth: 180, maxHeight: 260, overflowY: 'auto',
-                  background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-                  borderRadius: 9, boxShadow: '0 10px 30px rgba(0,0,0,0.4)', padding: 5,
-                }}>
-                  {moveTargets.length === 0 && (
-                    <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', padding: '6px 8px' }}>No other sessions</div>
-                  )}
-                  {moveTargets.map((s) => (
-                    <button
-                      key={s.id}
-                      className="trail-ctx-btn"
-                      disabled={busySelection}
-                      onClick={() => moveSelectionTo(s.id)}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '5px 8px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer', fontSize: 12 }}
-                    >{s.id === LOOSE_SESSION_ID ? 'Loose stops' : s.name}</button>
-                  ))}
-                  <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />
-                  <button
-                    className="trail-ctx-btn"
-                    disabled={busySelection}
-                    onClick={moveSelectionToNewSession}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '5px 8px', color: 'rgb(var(--color-accent))', cursor: 'pointer', fontSize: 12 }}
-                  >+ New session…</button>
+                <div className="absolute bottom-[calc(100%+6px)] left-0 min-w-[180px] max-h-[260px] overflow-y-auto">
+                  <MenuSurface>
+                    {moveTargets.length === 0 && (
+                      <div className="text-footnote text-text-muted px-2 py-1.5">No other sessions</div>
+                    )}
+                    {moveTargets.map((s) => (
+                      <MenuItem
+                        key={s.id}
+                        disabled={busySelection}
+                        onClick={() => moveSelectionTo(s.id)}
+                        label={s.id === LOOSE_SESSION_ID ? 'Loose stops' : s.name}
+                      />
+                    ))}
+                    <MenuSeparator />
+                    <MenuItem disabled={busySelection} onClick={moveSelectionToNewSession} label="+ New session…" className="text-accent" />
+                  </MenuSurface>
                 </div>
               )}
             </div>
-            <button
-              className="trail-ctx-btn"
-              disabled={busySelection}
-              onClick={deleteSelection}
-              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: '#e08468', cursor: 'pointer' }}
-            >Delete</button>
-            <button
-              className="trail-ctx-btn"
-              onClick={() => { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }}
-              style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '4px 6px', color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}
-            >Clear</button>
+            <Button variant="secondary" size="sm" disabled={busySelection} onClick={deleteSelection} className="text-trail-warm">Delete</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }}>Clear</Button>
           </div>
         )}
       </div>
@@ -2645,49 +2595,28 @@ export default function MapView({
           sit under it (latestSide, from the measured layoutRoom — decided with the zoom pill's
           own width so the two always land on the same side). On the left, `left: 240` clears the
           220px session rail; the zoom pill uses the matching offset. */}
-      <div style={{
-        position: 'fixed', bottom: 56, zIndex: 50, display: 'flex', flexDirection: 'column', gap: 8,
-        ...(latestSide === 'left' ? { left: 240, alignItems: 'flex-start' } : { right: 24, alignItems: 'flex-end' }),
-      }}>
+      <div
+        className={cx('fixed bottom-14 z-raised flex flex-col gap-2', latestSide === 'left' ? 'items-start' : 'items-end')}
+        style={{ left: latestSide === 'left' ? 240 : undefined, right: latestSide === 'left' ? undefined : 24 }}
+      >
         {detail.nodes.length > 0 && !nearCenter && (
-          <button
+          <IconButton
+            icon={Crosshair} label="Recenter the timeline" size={32}
+            className="material-control shadow-2 rounded-row"
             onClick={() => recenterHorizontal()}
-            title="Recenter the timeline"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30,
-              color: 'rgb(var(--color-text-secondary))', background: 'rgb(var(--color-surface-2))',
-              border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-            }}
-          ><Crosshair size={14} /></button>
+          />
         )}
         {showScrollToLatest && (
-          <button
-            onClick={scrollToLatest}
-            title="Scroll to latest"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
-              border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            }}
-          ><ArrowDown size={13} /> Latest</button>
+          <Button variant="primary" size="sm" icon={ArrowDown} className="rounded-control shadow-2" onClick={scrollToLatest}>Latest</Button>
         )}
       </div>
     </div>
     {blankMenu && (
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'fixed', top: blankMenu.y, left: blankMenu.x, zIndex: 10001, minWidth: 168,
-          background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-          borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
-        }}
-      >
-        <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.nodeId, 'annotation')} style={blankMenuBtnStyle}>
-          <StickyNote size={14} style={{ opacity: 0.85 }} /> Add a note here
-        </button>
-        <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.sectionNodeId, 'section')} style={blankMenuBtnStyle}>
-          <Heading size={14} style={{ opacity: 0.85 }} /> Add a section here
-        </button>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: 'fixed', top: blankMenu.y, left: blankMenu.x, zIndex: 'var(--z-menu)' as unknown as number, minWidth: 168 }}>
+        <MenuSurface>
+          <MenuItem icon={StickyNote} label="Add a note here" onClick={() => addStickyAt(blankMenu.nodeId, 'annotation')} />
+          <MenuItem icon={Heading} label="Add a section here" onClick={() => addStickyAt(blankMenu.sectionNodeId, 'section')} />
+        </MenuSurface>
       </div>
     )}
     </TrailInteractionContext.Provider>

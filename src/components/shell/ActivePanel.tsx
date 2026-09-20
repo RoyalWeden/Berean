@@ -1,4 +1,7 @@
+import { EmptyState as UiEmptyState } from '@/components/ui'
 import { lazy, Suspense, type ReactNode } from 'react'
+import { motion } from 'framer-motion'
+import { CROSSFADE } from '@/lib/motion'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import BiblePanel from '@/components/bible/BiblePanel'
@@ -34,15 +37,7 @@ if (typeof window !== 'undefined') {
 }
 
 function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-8">
-      <BookOpen size={32} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
-      <p className="text-sm text-[rgb(var(--color-text-muted))]">No tab open</p>
-      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1 opacity-60">
-        Click a space button to open a new tab
-      </p>
-    </div>
-  )
+  return <UiEmptyState icon={BookOpen} title="No tab open" hint="Click a space button to open a new tab" className="h-full" />
 }
 
 // One always-mounted layer. `visible` toggles `display` (not visibility/opacity):
@@ -51,10 +46,24 @@ function EmptyState() {
 // an ancestor goes visibility:hidden (the original reason YouTube used display:none
 // here). Kept mounted so switching back is a display flip — no unmount, no refetch,
 // no editor rebuild, scroll position still in the DOM.
+//
+// §7.3/§70/§78: workspace/tab switching is Safari-like — the incoming layer crossfades in
+// (120ms opacity, no slide/scale); the outgoing one just disappears (display:none happens on
+// the same render, so it has nothing to animate anyway). The inner motion.div is unconditionally
+// present (never conditionally wrapped) so toggling `visible` never unmounts/remounts `children`
+// — the YouTube webview and every other panel's own mount-scoped state stay exactly as
+// continuous as before this was added.
 function Layer({ visible, children }: { visible: boolean; children: ReactNode }) {
   return (
     <div className={`absolute inset-0 ${visible ? '' : 'hidden pointer-events-none'}`}>
-      {children}
+      <motion.div
+        initial={false}
+        animate={{ opacity: visible ? 1 : 0 }}
+        transition={CROSSFADE.transition}
+        className="absolute inset-0"
+      >
+        {children}
+      </motion.div>
     </div>
   )
 }
@@ -65,7 +74,7 @@ export default function ActivePanel() {
   // scroll-position tick in ANY space, a Strong's toggle, a panel resize) does
   // NOT re-render ActivePanel, and therefore doesn't re-render every mounted
   // panel underneath it. Each panel subscribes to what it actually needs itself.
-  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab } = useAppStore(
+  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab, lexiconTabId, searchTabId } = useAppStore(
     useShallow((s) => {
       const scriptureTab = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture) ?? null
       const notesTab = s.tabs.notes.find((t) => t.id === s.activeTabId.notes) ?? null
@@ -77,6 +86,8 @@ export default function ActivePanel() {
         hasNotesTab:   s.tabs.notes.some((t) => t.id === s.activeTabId.notes),
         hasLexiconTab: s.tabs.lexicon.some((t) => t.id === s.activeTabId.lexicon),
         hasSearchTab:  s.tabs.search.some((t) => t.id === s.activeTabId.search),
+        lexiconTabId:  s.activeTabId.lexicon,
+        searchTabId:   s.activeTabId.search,
         hasYouTubeTab: s.tabs.youtube.some((t) => t.id === s.activeTabId.youtube),
       }
     })
@@ -129,15 +140,20 @@ export default function ActivePanel() {
           </Layer>
         )}
 
+        {/* Lexicon and Search panels are keyed by TAB id: both read their tab's persisted state
+            in lazy `useState` initialisers (query, language, scroll) on the assumption that a
+            tab switch is a fresh mount. Without the key, one shared instance carried the previous
+            tab's search/query/results into a brand-new tab ("stuff I never entered"). Notes keeps
+            its single in-place instance (its own tab-switch resync + per-tab home snapshot). */}
         {hasLexiconTab && (
           <Layer visible={activeSpace === 'lexicon'}>
-            <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>
+            <ErrorBoundary label="Lexicon panel error"><LexiconPanel key={lexiconTabId ?? 'lexicon'} /></ErrorBoundary>
           </Layer>
         )}
 
         {hasSearchTab && (
           <Layer visible={activeSpace === 'search'}>
-            <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>
+            <ErrorBoundary label="Search error"><SearchTab key={searchTabId ?? 'search'} /></ErrorBoundary>
           </Layer>
         )}
 

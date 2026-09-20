@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { motion } from 'framer-motion'
 import type { EditorView } from 'prosemirror-view'
 import { toggleMark } from 'prosemirror-commands'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2, Link2Off,
-  List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
+  List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease,
 } from 'lucide-react'
 import { bereanSchema as schema } from './schema'
 import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
-// Styled-keycap hover hints, same as the persistent Toolbar and the rest of the app —
-// replacing native `title="Bold (⌘B)"` attributes (see Toolbar.tsx's import comment).
-import { HintTooltip } from '@/components/shell/HintTooltip'
+import { IconButton, Button, ControlGroup, MenuSurface, MenuItem, ColorSwatchRow, TextField } from '@/components/ui'
+import { POP_IN } from '@/lib/motion'
 
 const ThreadIcon = BLOCK_TYPE_META.thread.icon
 
@@ -34,24 +34,21 @@ function currentBlockTypeMeta(view: EditorView): BlockTypeMeta {
   return BLOCK_TYPE_META.text
 }
 import { toggleSuppressCommand } from './suppressRanges'
-import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
+import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS } from '@/styles/highlightPalette'
 import type { SelectionToolbarState } from './selectionToolbarPlugin'
 import { createEditorCommands } from './editorCommands'
 
-// The floating "select text to format" toolbar — a from-scratch ProseMirror
+// The floating "select text to format" bubble — a from-scratch ProseMirror
 // equivalent of NoteEditor.tsx's selToolbar (NoteEditor.tsx:4081-4300+).
-// Redesigned around small anchored dropdown popovers (text type, highlight,
-// list type) that layer OVER the toolbar without replacing its row — the
-// original CM6 version's submenus swapped out the entire button row, which
-// feels jarring/modal rather than fluid. Uses `.pm-toolbar-solid`
-// (pmEditor.css) rather than the app's `.glass-panel` frosted-chrome
-// treatment — an earlier version used `.glass-panel` (72% opacity + blur)
-// with a Tailwind arbitrary-value `!bg-[...]/95` override attempting to
-// make it more opaque, but that combination (important-modifier +
-// arbitrary color + opacity fraction) didn't reliably generate/win against
-// glass-panel's own background, leaving the toolbar and its dropdowns
-// nearly transparent — the opposite of the intended fix.
-// `.pm-toolbar-solid` is a plain, guaranteed-to-apply CSS rule instead.
+// Built around small anchored MenuSurface/ColorSwatchRow dropdowns (text type, highlight,
+// list type) that layer OVER the bubble without replacing its row — the original CM6
+// version's submenus swapped out the entire button row, which feels jarring/modal rather
+// than fluid. Same `material-popover rounded-menu` recipe as every other transient surface
+// in the app (Menu.tsx, PopoverSurface.tsx) — an earlier version used `.glass-panel`
+// (72% opacity + blur) with a Tailwind arbitrary-value `!bg-[...]/95` override attempting to
+// make it more opaque, but that combination (important-modifier + arbitrary color + opacity
+// fraction) didn't reliably generate/win against glass-panel's own background, leaving the
+// toolbar and its dropdowns nearly transparent — the opposite of the intended fix.
 export default function SelectionToolbar({
   view, toolbarState,
 }: { view: EditorView; toolbarState: SelectionToolbarState }) {
@@ -154,208 +151,160 @@ export default function SelectionToolbar({
     setOpenDropdown('none')
   }
 
-  const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-md flex-shrink-0'
-  // Bumped well past the original 18% — too transparent to read clearly
-  // against the toolbar's own already-translucent glass-panel background.
-  const active = 'bg-[rgb(var(--color-accent))/35] text-[rgb(var(--color-accent))]'
-  const inactive = 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
-  const cls = (isActive: boolean) => `${iconBtn} ${isActive ? active : inactive}`
-  const sep = <div className="w-px h-5 bg-[rgb(var(--color-surface-4))] mx-0.5 flex-shrink-0" />
-
   // Before the first layout measurement, render off-screen (never at a
   // guessed on-screen spot) so there's no visible flash-then-jump — the
   // useLayoutEffect above corrects this synchronously before paint.
   const style = pos
-    ? { position: 'fixed' as const, left: pos.left, top: pos.top, zIndex: 60 }
-    : { position: 'fixed' as const, left: -9999, top: -9999, zIndex: 60 }
+    ? { position: 'fixed' as const, left: pos.left, top: pos.top, zIndex: 'var(--z-popover)' as const }
+    : { position: 'fixed' as const, left: -9999, top: -9999, zIndex: 'var(--z-popover)' as const }
 
   return (
-    <div ref={rootRef} style={style} onMouseDown={(e) => e.preventDefault()}>
-      <div className="pm-toolbar-solid relative flex items-center gap-0.5 rounded-xl px-1 py-1 shadow-2xl">
-        {/* Text type */}
-        <HintTooltip label="Text type" side="top">
-          <button
-            onMouseDown={() => setOpenDropdown((v) => (v === 'type' ? 'none' : 'type'))}
-            className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 px-2`}
-          >
-            {(() => { const Icon = currentBlockTypeMeta(view).icon; return <Icon size={14} /> })()}
-            <ChevronDown size={10} />
-          </button>
-        </HintTooltip>
+    <motion.div
+      ref={rootRef}
+      style={style}
+      onMouseDown={(e) => e.preventDefault()}
+      {...POP_IN}
+      // `pm-toolbar-solid` is the marker NoteEditorPM's outside-mousedown dismiss checks for —
+      // without it a click on any button here counted as "outside" and closed the bubble
+      // before its dropdown could even open.
+      className="pm-toolbar-solid material-popover rounded-menu relative flex items-center gap-2 px-1.5 py-1"
+    >
+      {/* Group 1 — Text: current block type + the Thread insert action. */}
+      <ControlGroup>
+        <Button
+          variant="menu"
+          size="xs"
+          icon={currentBlockTypeMeta(view).icon}
+          selected={openDropdown === 'type'}
+          onMouseDown={() => setOpenDropdown((v) => (v === 'type' ? 'none' : 'type'))}
+          tooltip={{ label: 'Text type', side: 'top' }}
+        />
+        <IconButton icon={ThreadIcon} label="Thread" size={24} tooltip={{ side: 'top' }} onMouseDown={() => cmds.wrapInThread()} />
+      </ControlGroup>
 
-        {/* Thread — its own standalone button, not a "Text type" dropdown entry (same
-            reasoning as the persistent Toolbar.tsx's identical button). */}
-        <HintTooltip label="Thread" side="top">
-          <button onMouseDown={() => cmds.wrapInThread()} className={cls(false)}><ThreadIcon size={14} /></button>
-        </HintTooltip>
-        {sep}
-
-        {/* Inline marks */}
-        <HintTooltip label="Bold" shortcut="⌘B" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.strong))} className={cls(isMarkActive('strong'))}><Bold size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Italic" shortcut="⌘I" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.em))} className={cls(isMarkActive('em'))}><Italic size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Underline" shortcut="⌘U" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.underline))} className={cls(isMarkActive('underline'))}><Underline size={14} /></button>
-        </HintTooltip>
+      {/* Group 2 — Emphasis: inline marks, Highlight included (grouped by editing task, not
+          widget type — packet §39; moved out of the old "Annotate & reference" group). */}
+      <ControlGroup>
+        <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B', side: 'top' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
+        <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I', side: 'top' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
+        <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U', side: 'top' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
         {/* Label-only — strikethrough has no keymap.ts binding, unlike the marks around it. */}
-        <HintTooltip label="Strikethrough" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.strike))} className={cls(isMarkActive('strike'))}><Strikethrough size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Code" shortcut="⌘`" side="top">
-          <button onMouseDown={() => run(toggleMark(schema.marks.code))} className={cls(isMarkActive('code'))}><Code size={14} /></button>
-        </HintTooltip>
+        <IconButton icon={Strikethrough} label="Strikethrough" tooltip={{ side: 'top' }} size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
+        <IconButton
+          icon={Highlighter}
+          label="Highlight"
+          size={24}
+          tooltip={{ shortcut: '⌘⇧H', side: 'top' }}
+          active={openDropdown === 'highlight' || isMarkActive('highlight')}
+          onMouseDown={() => setOpenDropdown((v) => (v === 'highlight' ? 'none' : 'highlight'))}
+        />
+      </ControlGroup>
 
-        {/* Highlight */}
-        <HintTooltip label="Highlight" shortcut="⌘⇧H" side="top">
-          <button
-            onMouseDown={() => setOpenDropdown((v) => (v === 'highlight' ? 'none' : 'highlight'))}
-            className={cls(openDropdown === 'highlight' || isMarkActive('highlight'))}
-          >
-            <Highlighter size={14} />
-          </button>
-        </HintTooltip>
+      {/* Group 3 — Links & code. */}
+      <ControlGroup>
+        <IconButton
+          icon={Link2}
+          label="Link"
+          size={24}
+          tooltip={{ side: 'top' }}
+          active={openDropdown === 'link' || isMarkActive('link')}
+          onMouseDown={() => { if (openDropdown === 'link') setOpenDropdown('none'); else openLinkPopover() }}
+        />
+        <IconButton icon={Code} label="Inline code" tooltip={{ shortcut: '⌘`', side: 'top' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
+      </ControlGroup>
 
-        {sep}
-        <HintTooltip label="Link" side="top">
-          <button
-            onMouseDown={() => { if (openDropdown === 'link') setOpenDropdown('none'); else openLinkPopover() }}
-            className={cls(openDropdown === 'link' || isMarkActive('link'))}
-          >
-            <Link2 size={14} />
-          </button>
-        </HintTooltip>
-        {sep}
+      {/* Group 4 — Paragraph: lists, blockquote, indent/outdent. */}
+      <ControlGroup>
+        <Button
+          variant="menu"
+          size="xs"
+          icon={List}
+          selected={openDropdown === 'list'}
+          onMouseDown={() => setOpenDropdown((v) => (v === 'list' ? 'none' : 'list'))}
+          tooltip={{ label: 'List type', side: 'top' }}
+        />
+        <IconButton icon={Quote} label="Blockquote" size={24} tooltip={{ side: 'top' }} onMouseDown={cmds.toggleBlockquote} />
+        <IconButton icon={IndentDecrease} label="Outdent" size={24} tooltip={{ shortcut: '⇧Tab', side: 'top' }} onMouseDown={cmds.outdent} />
+        <IconButton icon={IndentIncrease} label="Indent" size={24} tooltip={{ shortcut: 'Tab', side: 'top' }} onMouseDown={cmds.indent} />
+      </ControlGroup>
 
-        {/* Lists */}
-        <HintTooltip label="List type" side="top">
-          <button
-            onMouseDown={() => setOpenDropdown((v) => (v === 'list' ? 'none' : 'list'))}
-            className={`${iconBtn} ${openDropdown === 'list' ? active : inactive}`}
-          >
-            <List size={14} />
-          </button>
-        </HintTooltip>
-        <HintTooltip label="Blockquote" side="top">
-          <button
-            onMouseDown={cmds.toggleBlockquote}
-            className={cls(false)}
-          >
-            <Quote size={14} />
-          </button>
-        </HintTooltip>
-        <HintTooltip label="Outdent" shortcut="⇧Tab" side="top">
-          <button onMouseDown={cmds.outdent} className={cls(false)}><IndentDecrease size={14} /></button>
-        </HintTooltip>
-        <HintTooltip label="Indent" shortcut="Tab" side="top">
-          <button
-            onMouseDown={cmds.indent}
-            className={cls(false)}
-          >
-            <IndentIncrease size={14} />
-          </button>
-        </HintTooltip>
+      {/* Group 5 — Suppress: kept as its own group, unchanged — no new shortcut (packet §41:
+          "Tab from the editor is reserved by ProseMirror → skip"). */}
+      <ControlGroup>
+        <IconButton icon={Link2Off} label="Suppress auto-detected refs" size={24} tooltip={{ shortcut: '⌘⇧R', side: 'top' }} onMouseDown={() => run(toggleSuppressCommand)} />
+      </ControlGroup>
 
-        {sep}
-        <HintTooltip label="Suppress auto-detected refs" shortcut="⌘⇧R" side="top">
-          <button onMouseDown={() => run(toggleSuppressCommand)} className={cls(false)}><Link2Off size={14} /></button>
-        </HintTooltip>
-
-        {/* ── Dropdowns: anchored popovers, layered over the toolbar rather
-             than replacing its row — this is the "fluid" part: the main
-             toolbar stays intact and visible while a focused set of options
-             appears just below whichever button was clicked. ── */}
-        {openDropdown === 'type' && (
-          <div className="absolute top-full left-0 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+      {/* ── Dropdowns: anchored MenuSurface/ColorSwatchRow popovers, layered over the
+           bubble rather than replacing its row — this is the "fluid" part: the main
+           bubble stays intact and visible while a focused set of options appears just
+           below whichever button was clicked. ── */}
+      {openDropdown === 'type' && (
+        <div className="absolute top-full left-0 mt-1.5" style={{ zIndex: 'var(--z-menu)' }}>
+          <MenuSurface className="min-w-[180px]">
             {/* Icons + labels come from the shared block-type config rather than the
                 plain-text "H1".."H6" labels this used to duplicate independently of
                 Toolbar.tsx's own identical array. */}
-            {TEXT_TYPE_LEVELS.map(({ level, meta }) => {
-              const Icon = meta.icon
-              return (
-                <button
-                  key={level}
-                  title={meta.label}
-                  onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
-                  className={`${iconBtn} ${inactive} px-2 py-1`}
-                >
-                  <Icon size={14} />
-                </button>
-              )
-            })}
-            <div className="w-px h-4 mx-0.5 bg-[rgb(var(--color-surface-4))]" />
+            {TEXT_TYPE_LEVELS.map(({ level, meta }) => (
+              <MenuItem
+                key={level}
+                icon={meta.icon}
+                label={meta.label}
+                onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
+              />
+            ))}
             {/* Wraps the selected text's containing block(s) in a new thread — same
-                editorCommands.ts wrapInThread() the persistent Toolbar's own "Thread" option
-                uses. */}
-            <button
-              title="Thread"
-              onMouseDown={() => { cmds.wrapInThread(); setOpenDropdown('none') }}
-              className={`${iconBtn} ${inactive} px-2 py-1`}
-            >
-              <ThreadIcon size={14} />
-            </button>
-          </div>
-        )}
+                editorCommands.ts wrapInThread() the standalone "Thread" button uses. */}
+            <MenuItem icon={ThreadIcon} label="Thread" onMouseDown={() => { cmds.wrapInThread(); setOpenDropdown('none') }} />
+          </MenuSurface>
+        </div>
+      )}
 
-        {openDropdown === 'list' && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
-            <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
-            <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
-            <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
-            <button title="Task list" onMouseDown={toggleTaskList} className={`${iconBtn} ${inactive}`}><CheckSquare size={14} /></button>
-          </div>
-        )}
+      {openDropdown === 'list' && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5" style={{ zIndex: 'var(--z-menu)' }}>
+          <MenuSurface className="min-w-[160px]">
+            <MenuItem icon={List} label="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
+            <MenuItem label="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} />
+            <MenuItem icon={ListOrdered} label="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
+            <MenuItem icon={CheckSquare} label="Task list" onMouseDown={toggleTaskList} />
+          </MenuSurface>
+        </div>
+      )}
 
-        {openDropdown === 'highlight' && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-2 w-[168px]">
-            <div className="grid grid-cols-5 gap-1.5 mb-1.5">
-              {HIGHLIGHT_COLOR_IDS.map((id) => (
-                <button
-                  key={id}
-                  title={HIGHLIGHT_LABELS[id]}
-                  onMouseDown={() => applyHighlight(id)}
-                  className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
-                  style={{ backgroundColor: highlightDotColor(id) }}
-                />
-              ))}
-            </div>
-            <button
-              onMouseDown={removeHighlight}
-              className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-            >
-              <Ban size={11} /> Remove highlight
-            </button>
-          </div>
-        )}
-
-        {openDropdown === 'link' && (
-          <div
-            className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1.5 flex items-center gap-1 w-[240px]"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <input
-              ref={linkInputRef}
-              type="text"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submitLink()
-                else if (e.key === 'Escape') setOpenDropdown('none')
-              }}
-              placeholder="https://…"
-              className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] focus:outline-none focus:border-[rgb(var(--color-accent))]"
+      {openDropdown === 'highlight' && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5" style={{ zIndex: 'var(--z-menu)' }}>
+          <MenuSurface className="p-2 w-[184px]">
+            <ColorSwatchRow
+              size={16}
+              allowNone
+              value={null}
+              swatches={HIGHLIGHT_COLOR_IDS.map((id) => ({ id, rgb: `var(--highlight-${id})`, label: HIGHLIGHT_LABELS[id] }))}
+              onChange={(id) => (id ? applyHighlight(id) : removeHighlight())}
             />
-            <button
-              onMouseDown={submitLink}
-              className={`${iconBtn} ${inactive} text-xs px-2 py-1`}
-            >
-              Apply
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+          </MenuSurface>
+        </div>
+      )}
+
+      {openDropdown === 'link' && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 material-popover rounded-menu animate-menu-in p-1.5 flex items-center gap-1 w-[240px]"
+          style={{ zIndex: 'var(--z-menu)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <TextField
+            ref={linkInputRef}
+            size="sm"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitLink()
+              else if (e.key === 'Escape') setOpenDropdown('none')
+            }}
+            placeholder="https://…"
+            wrapperClassName="flex-1 min-w-0"
+          />
+          <Button variant="ghost" size="sm" onMouseDown={submitLink}>Apply</Button>
+        </div>
+      )}
+    </motion.div>
   )
 }

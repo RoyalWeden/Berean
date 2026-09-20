@@ -81,10 +81,10 @@ function CompareColumn({ col, colIndex, fontScale, scrollPercent, muteColor, tex
 
   const base = Math.round(15 * fontScale)
   return (
-    <div className="flex-1 min-w-0 h-full flex flex-col" style={{ borderRight: '1px solid rgb(var(--color-surface-3, 50 50 70))' }}>
+    <div className="flex-1 min-w-0 h-full flex flex-col border-r border-separator">
       <div
-        className="flex-shrink-0 text-center select-none py-2 border-b"
-        style={{ borderColor: 'rgb(var(--color-surface-3, 50 50 70))', background: 'rgb(var(--color-surface-2, 24 24 32))', fontSize: Math.round(13 * fontScale), fontWeight: 700, color: accentColor, letterSpacing: '0.04em' }}
+        className="flex-shrink-0 text-center select-none py-2 border-b border-separator bg-surface-2"
+        style={{ fontSize: Math.round(13 * fontScale), fontWeight: 700, color: accentColor, letterSpacing: '0.04em' }}
       >
         {translationLabel(col.textId)}
         <span style={{ color: muteColor, fontWeight: 500, marginLeft: 6 }}>{hermasAwareChapterLabel(col.bookId, col.chapter, col.textId)}{col.textId === 'lxx' ? ' LXX' : ''}</span>

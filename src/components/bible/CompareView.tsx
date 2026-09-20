@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
-import ActionPillGroup from '@/components/shell/ActionPillGroup'
+import { IconButton, RefChip, ControlGroup, ScrollContainer } from '@/components/ui'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch, isLxxTranslation } from '@/lib/translationChapterMap'
@@ -103,21 +103,19 @@ function ColInfoPopover({ textId, onClose }: { textId: string; onClose: () => vo
   return (
     <div
       ref={ref}
-      className="absolute top-full right-0 mt-1 z-50 w-64 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
+      className="absolute top-full right-0 mt-1 z-popover w-64 material-popover rounded-menu overflow-hidden"
       onMouseDown={e => e.stopPropagation()}
     >
-      <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
-        <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">
+      <div className="px-3 py-2 border-b border-separator">
+        <span className="text-footnote font-semibold text-text-secondary">
           {label} — Annotations
         </span>
       </div>
       <div className="px-3 py-2 space-y-2.5">
         {annInfo.keys.map(k => (
           <div key={k.key} className="flex gap-2 items-start">
-            <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] flex-shrink-0 mt-0.5">
-              {k.symbol}
-            </code>
-            <span className="text-[11px] leading-relaxed text-[rgb(var(--color-text-secondary))]">{k.meaning}</span>
+            <RefChip variant="neutral" size="xs" className="flex-shrink-0 mt-0.5">{k.symbol}</RefChip>
+            <span className="text-caption leading-relaxed text-text-secondary">{k.meaning}</span>
           </div>
         ))}
       </div>
@@ -191,6 +189,10 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   const [colFlex, setColFlex] = useState<Record<string, number>>({})
   const rowRef = useRef<HTMLDivElement>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
+  // Sticky column-header scroll-edge (§31 "soft under in-content sticky headers") — imperative
+  // rather than a `useScrollEdge()` call per column, since these headers are rendered inside a
+  // `.map()` over a dynamically-sized `columns` array and hooks can't live inside a loop body.
+  const colHeaderRefs = useRef<(HTMLDivElement | null)[]>([])
   const fetchingRef = useRef<Set<string>>(new Set())
   const requestedBooksRef = useRef<Set<string>>(new Set())
   const colIdCounter = useRef(initialColumns && initialColumns.length > 0 ? initialColumns.length : 2)
@@ -623,7 +625,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
 
         return (
          <Fragment key={col.id}>
-          <div
+          <ScrollContainer
             ref={el => {
               colRefs.current[colIdx] = el
               onColumnRef?.(colIdx, el)
@@ -633,6 +635,11 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               const el = e.currentTarget
               const max = el.scrollHeight - el.clientHeight
               colScrollRef.current[colIdx] = max > 0 ? el.scrollTop / max : 0
+              // Scroll-edge (§31): the sticky column header grows a hairline + soft shadow once
+              // this column's own body has scrolled under it — mirrors Toolbar's `edge="auto"`
+              // recipe (same [data-scroll-edge][data-scrolled] CSS) without a `useScrollEdge()`
+              // hook call, which can't live inside this `.map()`.
+              colHeaderRefs.current[colIdx]?.toggleAttribute('data-scrolled', el.scrollTop > 1)
               // Only this column's scroll is pushed (others keep their own positions).
               if (comparePushRaf.current) cancelAnimationFrame(comparePushRaf.current)
               comparePushRaf.current = requestAnimationFrame(() => pushCompareToViewer())
@@ -654,7 +661,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 persistColumns()
               }, 150)
             }}
-            className={`overflow-y-auto min-w-0 flex flex-col relative ${verseSelectionBarOpen ? 'pb-16' : ''}`}
+            className={`min-w-0 flex flex-col relative ${verseSelectionBarOpen ? 'pb-16' : ''}`}
             style={{ flexGrow: colFlex[col.id] ?? 1, flexBasis: 0 }}
             onDragOver={(e) => handleColDragOver(e, colIdx)}
             onDrop={handleColDrop}
@@ -664,13 +671,13 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 since columns sit side-by-side rather than stacked). */}
             {dragOverColIdx === colIdx && draggingColIdx !== colIdx && (
               <div
-                className={`absolute top-0 bottom-0 w-0.5 bg-[rgb(var(--color-accent))] z-20 pointer-events-none ${dragInsertBefore ? 'left-0' : 'right-0'}`}
+                className={`absolute top-0 bottom-0 w-0.5 bg-accent z-20 pointer-events-none ${dragInsertBefore ? 'left-0' : 'right-0'}`}
               />
             )}
             {/* Presenter visible-region outline for this column */}
             {colBands[colIdx] && (
               <div
-                className="absolute left-0 right-0 pointer-events-none z-[5]"
+                className="absolute left-0 right-0 pointer-events-none z-raised"
                 style={{
                   top: colBands[colIdx]!.top, height: colBands[colIdx]!.height,
                   border: '2px solid rgb(var(--color-accent))',
@@ -683,24 +690,27 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 "grab the whole tab" reorder feel) — NOT the column body below, which holds
                 selectable/scrollable verse text. */}
             <div
+              ref={el => { colHeaderRefs.current[colIdx] = el }}
               draggable
+              data-scroll-edge="bottom"
+              data-edge-style="soft"
               onDragStart={(e) => handleColDragStart(e, colIdx)}
               onDragEnd={handleColDragEnd}
-              className={`sticky top-0 z-10 border-b border-[rgb(var(--color-surface-4))] flex items-center gap-1 px-1.5 py-1 cursor-grab active:cursor-grabbing ${isFocused ? 'bg-[rgb(var(--color-surface-3))]' : 'bg-[rgb(var(--color-surface-2))]'} ${draggingColIdx === colIdx ? 'opacity-40' : ''}`}
+              className={`sticky top-0 z-raised flex items-center gap-2 px-2 py-1 cursor-grab active:cursor-grabbing material-bar ${isFocused ? 'bg-surface-selected' : ''} ${draggingColIdx === colIdx ? 'opacity-40' : ''}`}
               onClick={e => e.stopPropagation()}
             >
               {/* min-w-0 so the pill can still shrink/truncate in a genuinely narrow column,
                   but no longer `w-full` — it was stretching to fill the ENTIRE column width
                   (leaving a wide stretch of empty pill after the book/chapter/edition text)
                   instead of hugging its own content like the single-panel toolbar's pill does. */}
-              <ActionPillGroup className="min-w-0 flex-shrink" align="stretch">
-                <button
-                  onClick={() => navigateColumn(col.id, col.bookId, Math.max(1, col.chapter - 1))}
+              <ControlGroup className="min-w-0 flex-shrink" align="stretch">
+                <IconButton
+                  icon={ChevronLeft}
+                  label="Previous chapter"
+                  size={24}
                   disabled={col.chapter <= 1}
-                  className="flex items-center justify-center w-6 h-6 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer flex-shrink-0"
-                >
-                  <ChevronLeft size={12} />
-                </button>
+                  onClick={() => navigateColumn(col.id, col.bookId, Math.max(1, col.chapter - 1))}
+                />
                 <BookChapterPicker
                   books={booksForCol}
                   currentBookId={col.bookId}
@@ -713,43 +723,39 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                   compact
                   wrapperClassName="relative min-w-0"
                 />
-                <button
-                  onClick={() => navigateColumn(col.id, col.bookId, Math.min(maxChapter, col.chapter + 1))}
+                <IconButton
+                  icon={ChevronRight}
+                  label="Next chapter"
+                  size={24}
                   disabled={col.chapter >= maxChapter}
-                  className="flex items-center justify-center w-6 h-6 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer flex-shrink-0"
-                >
-                  <ChevronRight size={12} />
-                </button>
-              </ActionPillGroup>
+                  onClick={() => navigateColumn(col.id, col.bookId, Math.min(maxChapter, col.chapter + 1))}
+                />
+              </ControlGroup>
               {/* Spacer pins info/close to the row's right edge now that the pill itself no
                   longer stretches to fill the row on its own. */}
               <div className="flex-1" />
               {hasInfo && (
                 <div className="relative flex-shrink-0">
-                  <button
+                  <IconButton
+                    icon={Info}
+                    label="Annotation key"
+                    size={20}
+                    selected={infoOpenFor === col.id}
                     onClick={() => setInfoOpenFor(infoOpenFor === col.id ? null : col.id)}
-                    title="Annotation key"
-                    // Same background-box hover treatment as its chevron/close peers in this
-                    // row (was text-color-only, the one button in the toolbar that didn't
-                    // highlight a background on hover — inconsistent as the cursor moved
-                    // across the row).
-                    className={`p-0.5 rounded transition-colors cursor-pointer ${infoOpenFor === col.id ? 'text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-                  >
-                    <Info size={11} />
-                  </button>
+                  />
                   {infoOpenFor === col.id && (
                     <ColInfoPopover textId={col.textId} onClose={() => setInfoOpenFor(null)} />
                   )}
                 </div>
               )}
-              <button
-                onClick={() => removeColumn(col.id)}
+              <IconButton
+                icon={X}
+                label="Close panel"
+                size={20}
+                danger
                 disabled={columns.length <= 1}
-                title="Close panel"
-                className="flex-shrink-0 p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default"
-              >
-                <X size={11} />
-              </button>
+                onClick={() => removeColumn(col.id)}
+              />
             </div>
 
             {/* Verse content — full ChapterView so highlights, notes, and Strong's all work */}
@@ -779,12 +785,12 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 if (top !== null) el.scrollTop = top
               }}
             />
-          </div>
+          </ScrollContainer>
           {colIdx < columns.length - 1 && (
             <div
               onMouseDown={(e) => startColumnResize(colIdx, e)}
               title="Drag to resize columns"
-              className="flex-shrink-0 w-1 cursor-col-resize bg-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-accent))/60] transition-colors"
+              className="flex-shrink-0 w-1 cursor-col-resize bg-surface-4 hover:bg-accent/60 transition-colors"
             />
           )}
          </Fragment>

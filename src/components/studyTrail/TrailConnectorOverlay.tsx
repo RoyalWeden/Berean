@@ -519,17 +519,15 @@ export default function TrailConnectorOverlay({
       // rescaled) zoomed subtree — see TrailHoverCard.tsx's own comment on this exact issue.
       return createPortal(
         <div
+          className="material-popover rounded-card px-2 py-1.5 text-footnote leading-relaxed text-text-primary"
           style={{
-            position: 'fixed', top: revisitTooltip.y + 14, left: revisitTooltip.x + 14, zIndex: 10000,
-            background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-            borderRadius: 8, padding: '6px 9px', fontSize: 11, lineHeight: 1.4,
-            color: 'rgb(var(--color-text-primary))', boxShadow: '0 6px 18px rgba(0,0,0,0.24)',
+            position: 'fixed', top: revisitTooltip.y + 14, left: revisitTooltip.x + 14, zIndex: 'var(--z-popover)' as unknown as number,
             width: 'fit-content', whiteSpace: 'nowrap', pointerEvents: 'none',
           }}
         >
-          <div style={{ fontWeight: 600 }}>Revisited {e.revisitCount}×</div>
+          <div className="font-semibold">Revisited {e.revisitCount}×</div>
           {e.firstVisitAt != null && e.lastVisitAt != null && (
-            <div style={{ color: 'rgb(var(--color-text-muted))' }}>
+            <div className="text-text-muted">
               {fmt(e.firstVisitAt)} → {fmt(e.lastVisitAt)}
             </div>
           )}

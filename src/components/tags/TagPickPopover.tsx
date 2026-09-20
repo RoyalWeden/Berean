@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Plus, Tag as TagIcon, Settings2 } from 'lucide-react'
+import { Plus, Tag as TagIcon, Settings2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { resolveTagColor } from '@/lib/tagPalette'
+import { TextField, Button, MenuItem, SectionLabel } from '@/components/ui'
 import type { VerseTagRange } from '@/types'
 
 /**
@@ -105,74 +106,58 @@ export function TagPickPopover({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[140] w-[260px] rounded-shell context-menu overflow-hidden flex flex-col"
-      style={{ left: pos.x, top: pos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.97)' }}
+      className="fixed z-menu w-[260px] material-popover rounded-menu overflow-hidden flex flex-col"
+      style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="px-3 pt-2.5 pb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-[rgb(var(--color-text-secondary))]">
-        <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
+      <SectionLabel className="px-3 pt-2.5 pb-1.5 flex items-center gap-1.5 normal-case tracking-normal">
+        <TagIcon size={12} className="text-text-muted" />
         <span className="truncate">Tag {label}</span>
-      </div>
-      <input
+      </SectionLabel>
+      <TextField
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); exactExists ? apply() : addCreated() } }}
         placeholder="Filter or create…"
-        className="mx-3 mb-1.5 px-2 py-1 text-xs rounded bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
+        wrapperClassName="mx-3 mb-1.5"
       />
       <div className="max-h-[220px] overflow-y-auto px-1.5 pb-1">
         {created.map((name) => (
-          <div key={`new-${name}`} className="flex items-center gap-2 px-2 py-1.5 text-xs text-[rgb(var(--color-text-primary))]">
-            <Check size={13} className="text-[rgb(var(--color-accent))]" />
-            {dot(null /* new, unsaved */)}
-            <span className="truncate">{name}</span>
-            <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">new</span>
-          </div>
+          <MenuItem
+            key={`new-${name}`}
+            active
+            disabled
+            label={<span className="flex items-center gap-2">{dot(null /* new, unsaved */)}<span className="truncate">{name}</span></span>}
+            trailing={<span className="text-caption2 text-text-muted">new</span>}
+          />
         ))}
         {filtered.map((t) => {
           const on = checked.has(t.id)
           return (
-            <button
+            <MenuItem
               key={t.id}
+              active={on}
               onClick={() => toggle(t.id)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[rgb(var(--color-text-primary))]"
-            >
-              <span className={`w-[13px] h-[13px] rounded border flex items-center justify-center flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
-                {on && <Check size={10} className="text-white" />}
-              </span>
-              {dot(t)}
-              <span className="truncate">{t.name}</span>
-              <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
-            </button>
+              label={<span className="flex items-center gap-2">{dot(t)}<span className="truncate">{t.name}</span></span>}
+              trailing={<span className="text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>}
+            />
           )
         })}
         {q && !exactExists && (
-          <button
-            onClick={addCreated}
-            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[rgb(var(--color-accent))]"
-          >
-            <Plus size={12} /> Create “{query.trim()}”
-          </button>
+          <MenuItem icon={Plus} label={`Create “${query.trim()}”`} onClick={addCreated} className="text-accent" />
         )}
         {filtered.length === 0 && !q && (
-          <div className="px-2 py-3 text-[11px] text-[rgb(var(--color-text-muted))] text-center">No tags yet — type a name to create one.</div>
+          <div className="px-2 py-3 text-caption text-text-muted text-center">No tags yet — type a name to create one.</div>
         )}
       </div>
-      <div className="flex items-center gap-2 px-2 py-2 border-t border-[rgb(var(--color-surface-4))]">
-        <button
-          onClick={() => { openTagsGraph(); onClose() }}
-          className="flex items-center gap-1 px-1.5 py-1 text-[11px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
-        >
-          <Settings2 size={11} /> Manage
-        </button>
-        <button
-          onClick={apply}
-          disabled={!canApply || busy}
-          className="ml-auto px-3 py-1 text-xs rounded bg-[rgb(var(--color-accent))] text-white font-medium disabled:opacity-40 cursor-pointer hover:brightness-110"
-        >
+      <div className="flex items-center gap-2 px-2 py-2 border-t border-separator">
+        <Button variant="ghost" size="sm" icon={Settings2} onClick={() => { openTagsGraph(); onClose() }}>
+          Manage
+        </Button>
+        <Button variant="primary" size="sm" className="ml-auto" onClick={apply} disabled={!canApply || busy}>
           Apply
-        </button>
+        </Button>
       </div>
     </div>,
     document.body,

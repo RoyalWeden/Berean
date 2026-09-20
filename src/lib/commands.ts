@@ -56,6 +56,23 @@ export function getCommands(): Command[] {
         store().setViewerWindowOpen(true)
       }
     } },
+    { id: 'close-tab', label: 'Close tab', keywords: ['close'], shortcut: '⌘W', run: () => store().closeActiveTab() },
+    { id: 'nav-back', label: 'Back', keywords: ['history', 'navigate'], shortcut: '⌘[', run: () => store().navTabBack() },
+    { id: 'nav-forward', label: 'Forward', keywords: ['history', 'navigate'], shortcut: '⌘]', run: () => store().navTabForward() },
+    // rightPanelOpen is tab-local state owned by BiblePanel.tsx, not the global store —
+    // dispatch and let BiblePanel listen (no listener wired up yet; see Lane S1 report).
+    { id: 'toggle-inspector', label: 'Toggle Inspector', keywords: ['right panel', 'notes', 'lexicon'], run: () => dispatch('berean:toggleInspector') },
+    { id: 'zoom-in', label: 'Zoom In', keywords: ['zoom', 'bigger'], shortcut: '⌘=', run: () => store().adjustAppZoom(1) },
+    { id: 'zoom-out', label: 'Zoom Out', keywords: ['zoom', 'smaller'], shortcut: '⌘-', run: () => store().adjustAppZoom(-1) },
+    { id: 'zoom-reset', label: 'Actual Size', keywords: ['zoom', 'reset'], shortcut: '⌘0', run: () => store().resetAppZoom() },
+    // Mirrors Ribbon.tsx's handleFind() exactly — the same per-space find routing used by
+    // the toolbar's own Find button.
+    { id: 'find', label: 'Find', keywords: ['search'], shortcut: '⌘F', run: () => {
+      const s = store()
+      if (s.activeSpace === 'scripture') { s.setActivePanelId('bible'); s.openFindBar(true) }
+      else if (s.activeSpace === 'notes') dispatch('berean:openNotesFindBar')
+      else if (s.activeSpace === 'lexicon') dispatch('berean:openLexiconFindBar')
+    } },
   ]
 }
 

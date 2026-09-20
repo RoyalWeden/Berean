@@ -17,23 +17,27 @@ import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/verseClipboard'
 import type { Verse, HighlightColor, Note } from '@/types'
-import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { RED_LETTER_CLASS, HIGHLIGHT_COLOR_IDS, highlightDotColor } from '@/styles/highlightPalette'
 import { resolveTagColor } from '@/lib/tagPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
+import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
-// Full-opacity colors for note indicator dots — mirrors HIGHLIGHT_COLORS palette
-export const NOTE_DOT_COLOR: Record<string, string> = {
-  yellow: '#facc15', orange: '#fb923c', amber:  '#fbbf24',
-  red:    '#f87171', rose:   '#fb7185', pink:   '#f472b6',
-  violet: '#a78bfa', purple: '#c084fc', indigo: '#818cf8',
-  blue:   '#60a5fa', sky:    '#38bdf8', cyan:   '#22d3ee',
-  teal:   '#2dd4bf', green:  '#4ade80', lime:   '#a3e635',
-}
+// Full-opacity colors for note indicator dots — derived from the single highlight-palette
+// source of truth (src/styles/highlightPalette.ts) instead of a duplicated hex map.
+export const NOTE_DOT_COLOR: Record<string, string> = Object.fromEntries(
+  HIGHLIGHT_COLOR_IDS.map((c) => [c, highlightDotColor(c)]),
+) as Record<string, string>
+
+// Shared swatch list for the highlight-color pickers (verse-number popover + selection
+// toolbar) — `rgb` is the bare CSS var name so `ColorSwatchRow` can wrap it as `rgb(var(--x))`;
+// see highlightPalette.ts's `cssVar` helper for why the var names follow this exact pattern.
+const HIGHLIGHT_SWATCHES: Swatch[] = HIGHLIGHT_COLORS.map((c) => ({ id: c.id, rgb: `var(--highlight-${c.id})`, label: c.label }))
 
 interface SelToolbarPos { x: number; y: number; startChar: number; endChar: number }
 
@@ -218,34 +222,29 @@ function computeHoverPlacement(rect: DOMRect, itemCount: number, estItemPx: numb
 }
 
 /** Fetches verse text — renders inline so ref label and text sit on the same line. */
-function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: number; verse: number }) {
+function HoverVerseText({ bookId, chapter, verse, lxx }: { bookId: string; chapter: number; verse: number; lxx?: boolean }) {
   const [text, setText] = useState<string | null>(null)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
-  // Use active scripture tab's translation for canonical books (so LXX refs show LXX text)
-  const activeTranslation = useAppStore((s) => {
-    const tabId = s.activeTabId['scripture']
-    const tab = tabId ? s.tabs['scripture'].find((t) => t.id === tabId) : null
-    return (tab?.state as import('@/types').BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva'
-  })
   useEffect(() => {
     // Resolve the text DB for the REFERENCED book, not the active tab:
     //  - dedicated non-canonical book (Enoch, Jubilees…) → its own DB
-    //  - canonical ref while a dedicated text is active (e.g. Luke ref from 1 Enoch) →
-    //    fall back to KJVA, not the active 'enoch' DB (which has no Luke)
-    //  - canonical ref while a canonical text (KJVA/LXX) is active → keep active (LXX refs show LXX)
+    //  - everything else → KJVA, unless the note itself marked the ref " LXX". A note's
+    //    cross-references are the note's, not the reader's: reading Isaiah in the LXX must
+    //    not silently swap a note's "John 1:1" for a Septuagint lookup (which has no John,
+    //    so the row used to render with no text at all).
     const dedicated = getTranslationForBook(bookId)
-    const textId = dedicated ?? (isDedicatedTranslation(activeTranslation) ? 'kjva' : activeTranslation)
+    const textId = dedicated ?? (lxx ? 'lxx' : 'kjva')
     // When verse=0 (chapter-level ref), fetch verse 1 and append ellipsis
     const queryVerse = verse === 0 ? 1 : verse
     window.bible.queryVerse(bookId, chapter, queryVerse, textId)
       .then(v => setText(v?.text ? (verse === 0 ? v.text + '…' : v.text) : null))
       .catch(() => {})
-  }, [bookId, chapter, verse, activeTranslation]) // re-fetch when translation changes
+  }, [bookId, chapter, verse, lxx])
   if (!text) return null
   const display = wordReplacerEnabled && wordReplacerRules.length > 0
     ? applyWordReplacer(text, wordReplacerRules) : text
-  return <span className="text-[rgb(var(--color-text-muted))] text-[9px]"> {display}</span>
+  return <span className="text-text-muted"> {display}</span>
 }
 
 /** Expand idiom cache into a flat list of {term, id, meaning} including aliases. */
@@ -356,7 +355,7 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
             // left/top place the badge's BOTTOM-LEFT corner at the container point (the
             // number's top-right corner); transform-origin matches so rotation pivots there.
             className={`pointer-events-auto absolute transition-transform duration-200 ease-out ${fan.base} ${fan.hover}`}
-            style={{ left: 0, bottom: '-2px', transformOrigin: 'left bottom', zIndex: 12 - i }}
+            style={{ left: 0, bottom: '-2px', transformOrigin: 'left bottom', zIndex: 'calc(var(--z-raised) + 2 - ' + i + ')' as unknown as number }}
           >
             <svg width="15" height="10" viewBox="0 0 36 24" className="block drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.3)]">
               <path
@@ -371,7 +370,7 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
         )
       })}
       {extra > 0 && (
-        <span className="pointer-events-none absolute left-[3px] top-[-8px] text-[7px] font-bold text-[rgb(var(--color-text-muted))]">+{extra}</span>
+        <span className="pointer-events-none absolute left-[3px] top-[-8px] text-micro font-semibold text-text-muted">+{extra}</span>
       )}
     </div>
   )
@@ -1052,7 +1051,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           {splitStrongsHighlight(verse.text, highlightStrongsWords ?? [], highlightStrongsExtraWords).map((seg, i, arr) => (
             <span key={i}>
               {seg.match
-                ? <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm font-semibold">{seg.text}</mark>
+                ? <mark className="find-mark">{seg.text}</mark>
                 : seg.text}
               {i < arr.length - 1 ? ' ' : ''}
             </span>
@@ -1498,7 +1497,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-[rgb(var(--color-text-muted))] border-l-2 border-[rgb(var(--color-surface-4))] pl-3' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
@@ -1510,15 +1509,25 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
           }}
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
-          title={isSelected ? 'Deselect verse' : 'Select verse'}
+          // Keyboard verse model (§8.4): only while a badge is focused. Enter toggles selection,
+          // ⇧↑/↓ extends (handled by the chapter root via data attributes), Shift+F10 opens the
+          // verse menu. Space / Page keys / Home / End are NOT bound — they stay native scroll keys.
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId }) }
+            else if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); e.stopPropagation(); openPopover() }
+          }}
+          tabIndex={-1}
+          data-verse-badge={verse.verse_num}
+          aria-label={`Verse ${verse.verse_num}${isSelected ? ', selected' : ''}`}
+          aria-pressed={isSelected}
           className={`
-            inline-flex items-center justify-center text-[0.72em] font-medium leading-none
-            h-[1.5em] rounded-[0.4em] cursor-pointer select-none transition-colors
+            focus-ring inline-flex items-center justify-center text-[0.72em] font-medium leading-none
+            h-[1.5em] rounded-compact cursor-pointer select-none transition-colors
             ${isSelected
-              ? 'text-white bg-[rgb(var(--color-accent))] font-semibold hover:brightness-110 shadow-sm'
+              ? 'text-white bg-accent font-semibold hover:brightness-110'
               : isHighlighted
-                ? 'text-[rgb(var(--color-accent))] font-semibold'
-                : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10]'
+                ? 'text-accent font-semibold'
+                : 'text-text-quaternary tabular-nums hover:text-accent hover:bg-accent-muted'
             }
           `}
           style={{ width: '1.9em', minWidth: '1.9em' }}
@@ -1528,94 +1537,33 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         {verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
 
         {popoverOpen && (
-          <div
-            // .context-menu for the border/shadow (flat, not .glass-panel's blur) — but with
-            // the background opacity overridden via inline style to ~94% instead of fully
-            // opaque: 100% opaque read as too flat/heavy for this single-verse popover
-            // specifically, while the multi-verse selection toolbar below (same family of
-            // menu) needed the opposite nudge (was too transparent, not enough contrast
-            // against selected/highlighted text) — so each gets its own explicit background
-            // opacity rather than sharing one value that can't satisfy both at once.
+          <MenuSurface
             ref={popoverPanelRef}
-            className="fixed z-[100] min-w-[160px] rounded-shell context-menu overflow-hidden py-1"
-            style={{ left: popoverPos.x, top: popoverPos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.94)' }}
+            className="fixed z-popover min-w-[160px] overflow-hidden !p-0 py-1"
+            style={{ left: popoverPos.x, top: popoverPos.y }}
           >
-            <button
-              onClick={copyVerse}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <Copy size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Copy verse
-            </button>
-            <button
-              onClick={copyReference}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <Hash size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Copy reference
-            </button>
-            <button
-              onClick={addVerseNote}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <NotepadText size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Add note
-            </button>
-            <button
-              onClick={() => { openVerseNotes(); setPopoverOpen(false) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <NotepadText size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Show all notes
-            </button>
-            <button
-              onClick={openVerseCrossRefs}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <GitFork size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Show cross references
-            </button>
-            <button
-              onClick={playAudioFromHere}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <Volume2 size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Play audio from here
-            </button>
-            <button
+            <MenuItem icon={Copy} label="Copy verse" onClick={copyVerse} />
+            <MenuItem icon={Hash} label="Copy reference" onClick={copyReference} />
+            <MenuItem icon={NotepadText} label="Add note" onClick={addVerseNote} />
+            <MenuItem icon={NotepadText} label="Show all notes" onClick={() => { openVerseNotes(); setPopoverOpen(false) }} />
+            <MenuItem icon={GitFork} label="Show cross references" onClick={openVerseCrossRefs} />
+            <MenuItem icon={Volume2} label="Play audio from here" onClick={playAudioFromHere} />
+            <MenuItem
+              icon={TagIcon}
+              label="Tag verse…"
               onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'verse' }); setPopoverOpen(false) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Tag verse…
-            </button>
-            <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
-            <div className="px-3 py-2 space-y-1.5">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="flex items-center gap-1.5">
-                  {HIGHLIGHT_COLORS.slice(row * 5, row * 5 + 5).map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => applyHighlight(c.id)}
-                      title={c.label}
-                      style={{ backgroundColor: c.dot }}
-                      className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${activeHighlight === c.id ? 'ring-2 ring-white/70 ring-offset-1' : ''}`}
-                    />
-                  ))}
-                  {row === 2 && activeHighlight && (
-                    <button
-                      onClick={removeHighlight}
-                      title="Remove highlight"
-                      className="ml-1 text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"
-                    >
-                      <X size={11} />
-                    </button>
-                  )}
-                </div>
-              ))}
+            />
+            <MenuSeparator />
+            <div className="px-3 py-2">
+              <ColorSwatchRow
+                swatches={HIGHLIGHT_SWATCHES}
+                value={activeHighlight}
+                onChange={(id) => { if (id) applyHighlight(id as HighlightColor); else removeHighlight() }}
+                allowNone
+                size={16}
+              />
             </div>
-
-          </div>
+          </MenuSurface>
         )}
       </div>
 
@@ -1625,7 +1573,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         data-verse-text="true"
         onMouseUp={handleVerseMouseUp}
         onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
-        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))] transition-[line-height] duration-200"
+        className="flex-1 min-w-0 text-text-primary transition-[line-height] duration-200"
         // Verse-text line spacing follows the user's own compact/comfortable/spacious setting
         // (--line-height-comfortable). The Strong's numbers are absolute overlays in the leading
         // gap and normally need no extra room — the ONE exception is "compact" (1.3), where the
@@ -1687,8 +1635,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             onClick={both ? undefined : (noteCount > 0 ? openVerseNotes : openNoteCrossRefs)}
             className={
               both
-                ? 'flex items-stretch rounded-full border border-[rgb(var(--color-surface-3))] bg-[rgb(var(--color-surface-2))] overflow-hidden'
-                : 'flex items-center rounded-full px-1 py-0.5 cursor-pointer transition-colors bg-[var(--tint)] hover:bg-[var(--tint-hover)]'
+                ? 'flex items-stretch rounded-control border border-border bg-surface-2 overflow-hidden'
+                : 'flex items-center rounded-control px-1 py-0.5 cursor-pointer transition-colors bg-[var(--tint)] hover:bg-[var(--tint-hover)]'
             }
             style={both ? undefined : tintVars(noteCount > 0 ? noteHex : 'rgb(var(--color-text-muted))', noteCount > 0 ? noteW : xrefLevel)}
           >
@@ -1699,7 +1647,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleNoteIconMouseEnter : undefined}
                 onMouseLeave={both ? handleNoteIconMouseLeave : undefined}
                 onClick={both ? openVerseNotes : undefined}
-                className={`flex items-center leading-none select-none transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-full bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
+                className={`focus-ring flex items-center leading-none select-none transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-l-control bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
                 style={{ color: noteHex, ...(both ? tintVars(noteHex, noteW) : {}) }}
               >
                 <span className="rounded-full bg-current" style={{ width: noteDotPx, height: noteDotPx, opacity: noteDotOpacity }} />
@@ -1708,7 +1656,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
 
             {/* Divider — the "middle" the pill is split on */}
             {both && (
-              <div className="w-px self-stretch bg-[rgb(var(--color-surface-4))]" />
+              <div className="w-px self-stretch bg-separator" />
             )}
 
             {/* Cross-ref half — verse/range specific only (chapter refs shown at chapter level) */}
@@ -1717,7 +1665,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 onMouseEnter={both ? handleCrossRefIconMouseEnter : undefined}
                 onMouseLeave={both ? handleCrossRefIconMouseLeave : undefined}
                 onClick={both ? openNoteCrossRefs : undefined}
-                className={`flex items-center text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-full bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
+                className={`focus-ring flex items-center text-text-muted hover:text-text-primary transition-colors cursor-pointer ${both ? 'px-1 py-0.5 rounded-r-control bg-[var(--tint)] hover:bg-[var(--tint-hover)]' : ''}`}
                 style={both ? tintVars('rgb(var(--color-text-muted))', xrefLevel) : undefined}
               >
                 <GitFork size={xrefIconPx} strokeWidth={2.5} style={{ opacity: xrefIconOpacity }} />
@@ -1739,96 +1687,86 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               return (
             <div
               ref={noteHoverRef}
-              className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-shell glass-panel"
+              className="fixed z-popover w-[300px] max-h-[440px] overflow-y-auto material-popover material-popover-dense rounded-menu"
+              // material-popover-dense — denser than the default popover alpha: this floats
+              // directly over live Scripture text, which read as too see-through to comfortably
+              // read the popup's own rows against. Still genuinely translucent (a hair of the
+              // text behind shows through at the edges), just not enough to compete with what's
+              // under it.
               style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
               onMouseLeave={() => setNoteHover(null)}
             >
               {/* Note hover header */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-3))] sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
-                <p className="text-[9px] text-[rgb(var(--color-text-muted))] font-semibold uppercase tracking-wide">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-separator sticky top-0 bg-surface-1 z-raised">
+                <SectionLabel className="text-micro">
                   {total === 1 ? '1 Note' : `${total} Notes`}
-                </p>
-                <button
-                  onClick={() => { setNoteHover(null); openVerseNotes() }}
-                  className="flex items-center gap-1 text-[9px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-                >
-                  <ExternalLink size={9} />
+                </SectionLabel>
+                <Button variant="ghost" size="sm" icon={ExternalLink} className="h-auto px-1 text-micro" onClick={() => { setNoteHover(null); openVerseNotes() }}>
                   All in panel
-                </button>
+                </Button>
               </div>
 
               {/* Direct verse notes — cross-translation badges show which version a note belongs to */}
+              <div className="divide-y divide-separator">
               {vnShown.map((note) => {
                 // Show a translation badge when the note is from a different translation than the current view.
                 // LXX badge: KJV view showing an LXX note.  KJV badge: LXX view showing a KJV note.
                 const isCrossLxx  = note.textId === 'lxx'  && textId !== 'lxx'
                 const isCrossKjva = (note.textId === 'kjva' || note.textId == null) && textId === 'lxx'
                 return (
-                  <button
+                  <ListRow
                     key={note.id}
                     onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
                     onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
-                  >
-                    <p className="flex items-center gap-1 text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
-                      {isCrossLxx && (
-                        <span className="shrink-0 inline-block px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                          LXX
-                        </span>
-                      )}
-                      {isCrossKjva && (
-                        <span className="shrink-0 inline-block px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                          KJV
-                        </span>
-                      )}
-                      {note.title || 'Untitled'}
-                    </p>
-                    {note.content && (
-                      <p className="text-[9px] text-[rgb(var(--color-text-muted))] line-clamp-1 mt-px">
-                        {note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80)}
-                      </p>
-                    )}
-                  </button>
+                    title={
+                      <span className="flex items-center gap-1">
+                        {isCrossLxx && <RefChip size="xs" variant="lxx" className="shrink-0">LXX</RefChip>}
+                        {isCrossKjva && <RefChip size="xs" variant="neutral" className="shrink-0">KJV</RefChip>}
+                        {note.title || 'Untitled'}
+                      </span>
+                    }
+                    subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
+                    titleClassName="!text-caption"
+                    subtitleClassName="!text-caption2"
+                    buttonClassName="py-1.5"
+                  />
                 )
               })}
 
               {/* Referencing general notes — separated by a labelled divider */}
               {rnShown.length > 0 && (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-1 bg-[rgb(var(--color-surface-2))]">
-                    <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
-                    <span className="text-[8px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] opacity-70 whitespace-nowrap">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-surface-2">
+                    <div className="h-px flex-1 bg-separator" />
+                    <span className="text-micro font-semibold uppercase tracking-wider text-text-quaternary whitespace-nowrap">
                       also references
                     </span>
-                    <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
+                    <div className="h-px flex-1 bg-separator" />
                   </div>
                   {rnShown.map((note) => (
-                    <button
+                    <ListRow
                       key={note.id}
                       onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
                       onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
-                    >
-                      <p className="text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
-                        {note.title || 'Untitled'}
-                      </p>
-                      {note.content && (
-                        <p className="text-[9px] text-[rgb(var(--color-text-muted))] line-clamp-1 mt-px">
-                          {note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80)}
-                        </p>
-                      )}
-                    </button>
+                      title={note.title || 'Untitled'}
+                      subtitle={note.content ? note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80) : undefined}
+                      titleClassName="!text-caption"
+                      subtitleClassName="!text-caption2"
+                      buttonClassName="py-1.5"
+                    />
                   ))}
                 </>
               )}
+              </div>
               {hiddenCount > 0 && (
-                <button
+                <Button
+                  variant="ghost" size="sm"
+                  className="w-full justify-center sticky bottom-0 bg-surface-1 rounded-none"
                   onClick={() => { setNoteHover(null); openVerseNotes() }}
-                  className="w-full text-center px-3 py-1.5 text-[9px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors sticky bottom-0 bg-[rgb(var(--color-surface-1))]"
                 >
                   +{hiddenCount} more — open all in panel
-                </button>
+                </Button>
               )}
             </div>
               )
@@ -1840,46 +1778,53 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           {crossRefHover && createPortal(
             <div
               ref={crossRefHoverRef}
-              className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-shell glass-panel"
+              className="fixed z-popover w-[320px] max-h-[420px] overflow-y-auto material-popover material-popover-dense rounded-menu"
               style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
               onMouseLeave={() => { if (!indicatorMenu) setCrossRefHover(null) }}
             >
-              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-3))] sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
-                <p className="text-[9px] text-[rgb(var(--color-text-muted))] font-semibold uppercase tracking-wide">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-separator sticky top-0 bg-surface-1 z-raised">
+                <SectionLabel className="text-micro">
                   Note Cross-References
-                </p>
-                <button
-                  onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}
-                  className="flex items-center gap-1 text-[9px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-                >
-                  <ExternalLink size={9} />
+                </SectionLabel>
+                <Button variant="ghost" size="sm" icon={ExternalLink} className="h-auto px-1 text-micro" onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}>
                   Open in panel
-                </button>
+                </Button>
               </div>
-              {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
-                <button
-                  key={i}
-                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }, { keepCrossRefHover: true }) }}
-                  onClick={() => {
-                    setCrossRefHover(null)
-                    navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
-                  }}
-                  className="w-full text-left px-3 py-1 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
-                >
-                  <p className="text-[9px]" style={{ lineHeight: 1.1 }}>
-                    <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
-                    <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
-                  </p>
-                </button>
-              ))}
+              <div className="divide-y divide-separator">
+                {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
+                  <ListRow
+                    key={i}
+                    onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }, { keepCrossRefHover: true }) }}
+                    onClick={() => {
+                      setCrossRefHover(null)
+                      navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
+                    }}
+                    title={
+                      // Plain inline flow (not a flex row) so `titleClamp` below can actually
+                      // count wrapped LINES across ref + verse text together — a flex child
+                      // doesn't participate in the parent's line box the way inline text does,
+                      // so line-clamp silently no-ops on a flex wrapper.
+                      <>
+                        <span className="font-semibold text-accent">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
+                        {' '}
+                        <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} lxx={r.lxx} />
+                      </>
+                    }
+                    titleClamp={3}
+                    titleClassName="!text-caption"
+                    buttonClassName="py-1.5 items-start"
+                  />
+                ))}
+              </div>
               {crossRefHover.refs.length > MAX_HOVER_ITEMS && (
-                <button
+                <Button
+                  variant="ghost" size="sm"
+                  className="w-full justify-center rounded-none"
                   onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}
-                  className="w-full text-center px-3 py-1.5 text-[9px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
                 >
                   +{crossRefHover.refs.length - MAX_HOVER_ITEMS} more — open all in panel
-                </button>
+                </Button>
               )}
             </div>,
             document.body
@@ -1887,146 +1832,100 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         </div>
       )}
 
-      {/* Selection toolbar — context menu. Explicit fully-opaque backgroundColor (not just
-          the .context-menu class, which should already be 100% opaque on its own) — this
-          menu was reported as reading too see-through, particularly since it floats directly
-          over selected/highlighted verse text, so making the override explicit here removes
-          any doubt about cascade/specificity rather than relying on the shared class alone. */}
+      {/* Selection toolbar — shared menu material (opaque enough on its own; no inline
+          background override needed now that every menu in the app shares one recipe). */}
       {selToolbar && createPortal(
-        <div
+        <MenuSurface
           ref={selToolbarRef}
-          className="fixed z-[9999] min-w-[180px] rounded-shell context-menu overflow-hidden py-1"
-          style={{ left: selToolbar.x, top: selToolbar.y, backgroundColor: 'rgb(var(--color-surface-2))' }}
+          className="fixed z-popover min-w-[180px] overflow-hidden !p-0 py-1"
+          style={{ left: selToolbar.x, top: selToolbar.y }}
         >
-          {/* Color dot rows (3 rows × 5 colors) */}
-          <div className="px-3 py-2 space-y-1.5">
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="flex items-center gap-1.5">
-                {HIGHLIGHT_COLORS.slice(row * 5, row * 5 + 5).map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => applySelectionHighlight(c.id)}
-                    title={c.label}
-                    style={{ backgroundColor: c.dot }}
-                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${activeHighlight === c.id ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-[rgb(var(--color-surface-1))]' : ''}`}
-                  />
-                ))}
-                {row === 2 && (
-                  <button
-                    onClick={clearSelectionHighlights}
-                    title="Clear highlights"
-                    className="ml-1 text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"
-                  >
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-            ))}
+          {/* Color dot picker */}
+          <div className="px-3 py-2">
+            <ColorSwatchRow
+              swatches={HIGHLIGHT_SWATCHES}
+              value={activeHighlight}
+              onChange={(id) => { if (id) applySelectionHighlight(id as HighlightColor); else clearSelectionHighlights() }}
+              allowNone
+              size={16}
+            />
           </div>
-          <div className="h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
-            onClick={() => { copyVerse(); setSelToolbar(null) }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <Copy size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Copy verse
-          </button>
-          <button
-            onClick={() => { copyReference(); setSelToolbar(null) }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <Hash size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Copy reference
-          </button>
-          <button
+          <MenuSeparator />
+          <MenuItem icon={Copy} label="Copy verse" onClick={() => { copyVerse(); setSelToolbar(null) }} />
+          <MenuItem icon={Hash} label="Copy reference" onClick={() => { copyReference(); setSelToolbar(null) }} />
+          <MenuItem
+            icon={Copy}
+            label="Copy selection"
             onClick={() => {
               const text = window.getSelection()?.toString() ?? ''
               navigator.clipboard.writeText(text).catch(() => {})
               window.getSelection()?.removeAllRanges()
               setSelToolbar(null)
             }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <Copy size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Copy selection
-          </button>
-          <div className="h-px bg-[rgb(var(--color-surface-4))]" />
-          <button
-            onClick={() => { addVerseNote(); setSelToolbar(null) }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Add note to verse
-          </button>
-          <button
+          />
+          <MenuSeparator />
+          <MenuItem icon={NotepadText} label="Add note to verse" onClick={() => { addVerseNote(); setSelToolbar(null) }} />
+          <MenuItem
+            icon={Search}
+            label="Open in new Advanced Search tab"
             onClick={() => {
               const text = window.getSelection()?.toString() ?? ''
               useAppStore.getState().openScriptureSearchTab(text)
               setSelToolbar(null)
             }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
-          >
-            <Search size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-            Open in new Advanced Search tab
-          </button>
-        </div>,
+          />
+        </MenuSurface>,
         document.body
       )}
 
       {/* ── Indicator right-click context menu ── */}
       {indicatorMenu && createPortal(
-        <div
+        <MenuSurface
           ref={indicatorMenuRef}
-          style={{ position: 'fixed', left: indicatorMenu.x, top: indicatorMenu.y, zIndex: 9999 }}
-          className="min-w-44 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl p-1 text-xs"
+          // Spawned from INSIDE the indicator hover card (z-popover), so it must sit above it.
+          style={{ position: 'fixed', left: indicatorMenu.x, top: indicatorMenu.y, zIndex: 'calc(var(--z-popover) + 1)' }}
+          className="min-w-44"
         >
           {indicatorMenu.type === 'note' ? (
             <>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              <MenuItem
+                icon={NotepadText}
+                label="Open in panel"
                 onClick={() => { closeIndicatorMenu(); openNoteInBiblePanel(indicatorMenu.note.id) }}
-              >
-                <NotepadText size={12} />
-                Open in panel
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              />
+              <MenuItem
+                icon={ExternalLink}
+                label="Open in new tab"
                 onClick={() => {
                   closeIndicatorMenu()
                   useAppStore.getState().requestOpenNote(indicatorMenu.note.id)
                   useAppStore.getState().setActiveSpace('notes')
                 }}
-              >
-                <ExternalLink size={12} />
-                Open in new tab
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              />
+              <MenuItem
+                icon={ExternalLink}
+                label="Open in floating tab"
                 onClick={() => {
                   closeIndicatorMenu()
                   window.app.openFloatingTab('notes', { noteId: indicatorMenu.note.id })
                   useAppStore.getState().bumpFloatingTabToken()
                 }}
-              >
-                <ExternalLink size={12} />
-                Open in floating tab
-              </button>
+              />
             </>
           ) : (
             <>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              <MenuItem
+                icon={BookOpen}
+                label="Open verse"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
                 }}
-              >
-                <BookOpen size={12} />
-                Open verse
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              />
+              <MenuItem
+                icon={BookOpen}
+                label="Open in new tab"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -2052,12 +1951,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                     { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num },
                   )
                 }}
-              >
-                <BookOpen size={12} />
-                Open in new tab
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              />
+              <MenuItem
+                icon={ExternalLink}
+                label="Open in floating tab"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -2075,49 +1972,44 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                     { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num },
                   )
                 }}
-              >
-                <ExternalLink size={12} />
-                Open in floating tab
-              </button>
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              />
+              <MenuSeparator />
+              <MenuItem
+                icon={Copy}
+                label="Copy verse"
                 onClick={async () => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse).catch(() => null)
                   copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '')
                 }}
-              >
-                <Copy size={12} />
-                Copy verse
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              />
+              <MenuItem
+                icon={Hash}
+                label="Copy reference"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   copyRefOnly(r.bookId, r.chapter, r.verse)
                 }}
-              >
-                <Hash size={12} />
-                Copy reference
-              </button>
+              />
             </>
           )}
-        </div>,
+        </MenuSurface>,
         document.body
       )}
 
       {/* Idiom hover tooltip */}
       {idiomTooltip && idiomHoverPreviewEnabled && createPortal(
         <div
-          className="fixed z-[9999] max-w-[220px] rounded-shell glass-panel px-3 py-2 pointer-events-none"
+          className="fixed z-popover max-w-[220px] material-popover material-popover-dense rounded-menu px-3 py-2 pointer-events-none"
           style={{ left: idiomTooltip.x, top: idiomTooltip.y }}
         >
-          <div className="text-[10px] font-semibold text-violet-400 mb-0.5">{idiomTooltip.term}</div>
-          {idiomTooltip.meaning && <div className="text-xs text-[rgb(var(--color-text-secondary))]">{idiomTooltip.meaning}</div>}
-          <div className="text-[9px] text-[rgb(var(--color-text-muted))] mt-1 opacity-70">Click to open · Right-click for more</div>
+          {/* Idioms are glossary-style word definitions, same family as lexicon links —
+              reuses that link color rather than a one-off hardcoded violet. */}
+          <div className="text-caption2 font-semibold text-[rgb(var(--link-lexicon-ref))] mb-0.5">{idiomTooltip.term}</div>
+          {idiomTooltip.meaning && <div className="text-footnote text-text-secondary">{idiomTooltip.meaning}</div>}
+          <div className="text-micro text-text-quaternary mt-1">Click to open · Right-click for more</div>
         </div>,
         document.body
       )}
@@ -2125,19 +2017,17 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       {/* Idiom word right-click context menu */}
       {idiomContextMenu && createPortal(
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setIdiomContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setIdiomContextMenu(null) }} />
-          <div
-            className="fixed z-[9999] min-w-[170px] rounded-shell glass-panel py-1"
+          <div className="fixed inset-0 z-menu" onClick={() => setIdiomContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setIdiomContextMenu(null) }} />
+          <MenuSurface
+            className="fixed z-popover min-w-[170px]"
             style={{ left: Math.min(idiomContextMenu.x, window.innerWidth - 200), top: Math.min(idiomContextMenu.y, window.innerHeight - 160) }}
           >
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            <MenuItem
+              label="Open idiom note"
               onClick={() => { setIdiomContextMenu(null); useAppStore.getState().requestOpenNote(idiomContextMenu.id) }}
-            >
-              Open idiom note
-            </button>
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            />
+            <MenuItem
+              label="Open in new tab"
               onClick={() => {
                 const cid = idiomContextMenu.id; setIdiomContextMenu(null)
                 const s = useAppStore.getState()
@@ -2147,20 +2037,16 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
                 })
               }}
-            >
-              Open in new tab
-            </button>
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            />
+            <MenuItem
+              label="Open in floating tab"
               onClick={() => {
                 const cid = idiomContextMenu.id; setIdiomContextMenu(null)
                 window.app?.openFloatingTab?.('note', { noteId: cid })
                 useAppStore.getState().bumpFloatingTabToken()
               }}
-            >
-              Open in floating tab
-            </button>
-          </div>
+            />
+          </MenuSurface>
         </>,
         document.body
       )}

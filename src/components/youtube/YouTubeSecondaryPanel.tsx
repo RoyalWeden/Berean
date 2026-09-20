@@ -12,6 +12,7 @@ import ChapterView from '@/components/bible/ChapterView'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { useAppStore } from '@/store'
 import { getTranslationForBook, normalizeBookName } from '@/lib/parseRef'
+import { Button, IconButton, SearchField, Toolbar, ListRow } from '@/components/ui'
 import type { YouTubePanelState, Note, LexiconEntry } from '@/types'
 
 // ── Notes panel ──────────────────────────────────────────────────────────────
@@ -49,30 +50,25 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
   // Empty / search state
   if (!noteId) {
     return (
-      <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+      <div className="flex flex-col h-full overflow-hidden bg-surface-3">
         <PanelHeader title="Notes" onBack={onBack} onClose={onClose} />
-        <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2">
-          <Search size={12} className="text-[rgb(var(--color-text-muted))]" />
-          <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search notes…"
-            className="flex-1 bg-transparent text-xs outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]" />
+        <div className="px-2 py-2 border-b border-separator">
+          <SearchField autoFocus value={search} onValueChange={setSearch} placeholder="Search notes…" />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-1">
           {results.map((n) => (
-            <button key={n.id} onClick={() => { onUpdate({ ...panel, noteId: n.id }) }}
-              className="w-full text-left text-xs px-3 py-2 border-b border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer truncate">
-              {n.title}
-            </button>
+            <ListRow key={n.id} dense title={n.title} onClick={() => { onUpdate({ ...panel, noteId: n.id }) }} />
           ))}
-          {results.length === 0 && <div className="text-xs text-[rgb(var(--color-text-muted))] px-3 py-3">No notes found</div>}
+          {results.length === 0 && <div className="text-footnote text-text-muted px-2.5 py-3">No notes found</div>}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-full overflow-hidden bg-surface-3">
       <PanelHeader title={note?.title || 'Untitled'} onBack={onBack} onClose={onClose}
-        extra={<button onClick={openInTab} title="Open in notes tab" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ExternalLink size={12} /></button>} />
+        extra={<IconButton icon={ExternalLink} label="Open in notes tab" size={24} onClick={openInTab} />} />
       <div className="flex-1 overflow-hidden min-h-0">
         {note && (
           <NoteEditor
@@ -155,19 +151,14 @@ function ScripturePanel({ panel, onUpdate, onBack, onClose }: {
   if (!hasBook) {
     const filtered = bookSearch ? books.filter((b) => b.name.toLowerCase().includes(bookSearch.toLowerCase())) : books
     return (
-      <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+      <div className="flex flex-col h-full overflow-hidden bg-surface-3">
         <PanelHeader title="Scripture" onBack={onBack} onClose={onClose} />
-        <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2">
-          <Search size={12} className="text-[rgb(var(--color-text-muted))]" />
-          <input autoFocus value={bookSearch} onChange={(e) => setBookSearch(e.target.value)} placeholder="Search books…"
-            className="flex-1 bg-transparent text-xs outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]" />
+        <div className="px-2 py-2 border-b border-separator">
+          <SearchField autoFocus value={bookSearch} onValueChange={setBookSearch} placeholder="Search books…" />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-1">
           {filtered.map((b) => (
-            <button key={b.id} onClick={() => onUpdate({ ...panel, bookId: b.id, chapter: 1, translation })}
-              className="w-full text-left text-xs px-3 py-2 border-b border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer truncate">
-              {b.name}
-            </button>
+            <ListRow key={b.id} dense title={b.name} onClick={() => onUpdate({ ...panel, bookId: b.id, chapter: 1, translation })} />
           ))}
         </div>
       </div>
@@ -175,23 +166,23 @@ function ScripturePanel({ panel, onUpdate, onBack, onClose }: {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-full overflow-hidden bg-surface-3">
       <PanelHeader
         title={`${currentBook?.name ?? panel.bookId} ${chapter}`}
         onBack={onBack} onClose={onClose}
         leftExtra={
           <>
-            <button onClick={prevChapter} className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ChevronLeft size={13} /></button>
-            <button onClick={nextChapter} className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ChevronRight size={13} /></button>
+            <IconButton icon={ChevronLeft} label="Previous chapter" size={24} onClick={prevChapter} />
+            <IconButton icon={ChevronRight} label="Next chapter" size={24} onClick={nextChapter} />
           </>
         }
         extra={
           <>
-            <button onClick={() => onUpdate({ ...panel, bookId: null })} title="Change book" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[10px]">Book</button>
-            <button onClick={openInTab} title="Open in scripture tab" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ExternalLink size={12} /></button>
+            <Button variant="ghost" size="sm" onClick={() => onUpdate({ ...panel, bookId: null })}>Book</Button>
+            <IconButton icon={ExternalLink} label="Open in scripture tab" size={24} onClick={openInTab} />
           </>
         } />
-      <div className="flex-1 overflow-y-auto min-h-0 text-sm">
+      <div className="flex-1 overflow-y-auto min-h-0 text-body">
         <ChapterView bookId={panel.bookId!} chapter={chapter} showStrongs={false} textId={translation.toLowerCase()} />
       </div>
     </div>
@@ -231,43 +222,41 @@ function LexiconPanel({ panel, onUpdate, onBack, onClose }: {
 
   if (!strongsNum) {
     return (
-      <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+      <div className="flex flex-col h-full overflow-hidden bg-surface-3">
         <PanelHeader title="Lexicon" onBack={onBack} onClose={onClose} />
-        <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2">
-          <Search size={12} className="text-[rgb(var(--color-text-muted))]" />
-          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="H7225, G3056, or keyword…"
-            className="flex-1 bg-transparent text-xs outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]" />
+        <div className="px-2 py-2 border-b border-separator">
+          <SearchField autoFocus value={query} onValueChange={setQuery} placeholder="H7225, G3056, or keyword…" />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-1">
           {results.map((r) => (
-            <button key={r.strongsNum} onClick={() => onUpdate({ ...panel, strongsNum: r.strongsNum })}
-              className="w-full text-left text-xs px-3 py-2 border-b border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-              <span className="font-semibold text-[rgb(var(--color-accent))]">{r.strongsNum}</span> {r.lemma} — {r.gloss}
-            </button>
+            <ListRow key={r.strongsNum} dense
+              title={<><span className="font-semibold text-accent">{r.strongsNum}</span> {r.lemma} — {r.gloss}</>}
+              onClick={() => onUpdate({ ...panel, strongsNum: r.strongsNum })}
+            />
           ))}
-          {query && results.length === 0 && <div className="text-xs text-[rgb(var(--color-text-muted))] px-3 py-3">No results</div>}
+          {query && results.length === 0 && <div className="text-footnote text-text-muted px-2.5 py-3">No results</div>}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-full overflow-hidden bg-surface-3">
       <PanelHeader title={entry ? `${entry.strongsNum} ${entry.lemma}` : 'Lexicon'} onBack={onBack} onClose={onClose}
         extra={
           <>
-            <button onClick={() => onUpdate({ ...panel, strongsNum: null })} title="Search again" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><Search size={12} /></button>
-            <button onClick={openInTab} title="Open in lexicon tab" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ExternalLink size={12} /></button>
+            <IconButton icon={Search} label="Search again" size={24} onClick={() => onUpdate({ ...panel, strongsNum: null })} />
+            <IconButton icon={ExternalLink} label="Open in lexicon tab" size={24} onClick={openInTab} />
           </>
         } />
       <div className="flex-1 overflow-y-auto min-h-0 p-3">
         {entry && (
           <div className="space-y-3">
-            <div><span className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{entry.lemma}</span><span className="ml-2 text-xs text-[rgb(var(--color-text-muted))]">{entry.transliteration}</span></div>
-            <div className="text-xs font-semibold text-[rgb(var(--color-accent))]">{entry.strongsNum}</div>
-            <div className="text-sm text-[rgb(var(--color-text-secondary))] font-medium">{entry.gloss}</div>
-            {entry.definition && <div className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap">{entry.definition}</div>}
-            {entry.derivation && <div className="text-xs text-[rgb(var(--color-text-muted))] italic">{entry.derivation}</div>}
+            <div><span className="text-title2 font-medium text-text-primary font-lemma">{entry.lemma}</span><span className="ml-2 text-footnote text-text-muted">{entry.transliteration}</span></div>
+            <div className="text-footnote font-semibold text-accent">{entry.strongsNum}</div>
+            <div className="text-subhead text-text-secondary font-medium">{entry.gloss}</div>
+            {entry.definition && <div className="text-footnote text-text-secondary leading-relaxed whitespace-pre-wrap">{entry.definition}</div>}
+            {entry.derivation && <div className="text-footnote text-text-muted italic">{entry.derivation}</div>}
           </div>
         )}
       </div>
@@ -281,13 +270,13 @@ function PanelHeader({ title, onBack, onClose, extra, leftExtra }: {
   title: string; onBack: () => void; onClose?: () => void; extra?: React.ReactNode; leftExtra?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-1 px-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
-      <button onClick={onBack} title="Back to panel type" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0"><ArrowLeft size={13} /></button>
+    <Toolbar size="sm">
+      <IconButton icon={ArrowLeft} label="Back to panel type" size={24} onClick={onBack} />
       {leftExtra}
-      <span className="flex-1 min-w-0 text-xs font-medium text-[rgb(var(--color-text-primary))] truncate text-center">{title}</span>
+      <span className="flex-1 min-w-0 text-footnote font-medium text-text-primary truncate text-center">{title}</span>
       {extra}
-      {onClose && <button onClick={onClose} title="Close panel" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"><X size={12} /></button>}
-    </div>
+      {onClose && <IconButton icon={X} label="Close panel" size={24} danger onClick={onClose} />}
+    </Toolbar>
   )
 }
 

@@ -173,7 +173,8 @@ describe('TabBar context menu — reported broken actions', () => {
 // — unmounting the button out from under its own click. Confirmed via real console tracing in
 // the app (a stack trace at the dispatch call site pointed straight at Sidebar.tsx's handler).
 // The fix is a one-line guard: skip the broadcast when the click originated inside any
-// currently-open context menu (the shared `.context-menu` class every menu in the app uses).
+// currently-open context menu (every menu in the app now renders through MenuSurface, which
+// carries the semantic `role="menu"` marker — see Menu.tsx).
 describe('TabBar context menu — nested inside a Sidebar-like ancestor (the actual bug)', () => {
   // Mirrors Sidebar.tsx's own onClickCapture handler exactly (guard included) — not a
   // simplified stand-in, so this test would have failed against the pre-fix version and
@@ -183,7 +184,7 @@ describe('TabBar context menu — nested inside a Sidebar-like ancestor (the act
       <div
         data-testid="sidebar-like"
         onClickCapture={(e) => {
-          if ((e.target as HTMLElement).closest('.context-menu')) return
+          if ((e.target as HTMLElement).closest('[role="menu"]')) return
           window.dispatchEvent(new Event('berean:closeMenus'))
         }}
       >

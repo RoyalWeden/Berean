@@ -987,8 +987,20 @@ export default function NoteEditorPM({
   // different ref, or off any ref) can't land after the fact and show stale content under the
   // wrong ref, or resurrect the popup after handleRefHoverEnd already dismissed it.
   async function handleVerseRefHoverStart(ref: ParsedRef & { forcedTranslation?: string }, rect: DOMRect) {
-    if (!ref.verse) return
     const seq = ++refHoverSeqRef.current
+    // Chapter-only ref ("Revelation 6", "2 Peter 1"): preview the chapter's opening verses.
+    if (!ref.verse) {
+      const refLabel = `${bookChapterVerseLabel(ref.bookId, ref.chapter)}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
+      setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: '', loading: true })
+      const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
+      const verses = await window.bible.queryChapter(ref.bookId, ref.chapter, tid).catch(() => null)
+      if (seq !== refHoverSeqRef.current) return
+      const text = Array.isArray(verses) && verses.length
+        ? verses.slice(0, 3).map((v) => `${v.verse_num} ${wrVerseText(v, tid)}`).join('  ') + (verses.length > 3 ? ' …' : '')
+        : ''
+      setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text, loading: false })
+      return
+    }
     // A range ref ("Deuteronomy 18:15-19") carries endVerse — fold it into both the label
     // ("18:15-19", not just "18:15") and the fetched text (every verse in the range, not
     // only the start verse), same-chapter ranges only (endChapter ranges aren't produced by
@@ -1177,18 +1189,18 @@ export default function NoteEditorPM({
         className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
       />
       {importSource && (
-        <div className="flex-shrink-0 border-t border-[rgb(var(--color-surface-4))] select-none">
+        <div className="flex-shrink-0 border-t border-separator select-none">
           <button
             onClick={() => setImportFooterOpen((v) => !v)}
             className="flex items-center gap-1.5 w-full px-3 py-1.5 text-left cursor-pointer group"
           >
-            <span className={`text-[9px] transition-transform ${importFooterOpen ? 'rotate-90' : ''} text-[rgb(var(--color-text-muted))]`}>▶</span>
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-text-secondary))] transition-colors">
+            <span className={`text-micro transition-transform ${importFooterOpen ? 'rotate-90' : ''} text-text-muted`}>▶</span>
+            <span className="text-caption2 text-text-muted group-hover:text-text-secondary transition-colors">
               {importSource === 'biblegateway' ? 'BibleGateway import' : 'e-Sword import'}
             </span>
           </button>
           {importFooterOpen && (
-            <div className="px-5 pb-2 text-[10px] text-[rgb(var(--color-text-muted))] italic">
+            <div className="px-5 pb-2 text-caption2 text-text-muted italic">
               Imported from {importSource === 'biblegateway' ? 'BibleGateway' : 'e-Sword'}
               {importedAt ? ` on ${new Date(importedAt).toLocaleString()}` : ''}
             </div>
@@ -1235,8 +1247,8 @@ export default function NoteEditorPM({
       )}
       {tagMenuOpen && createPortal(
         <div
-          className="fixed z-[60] min-w-[180px] max-h-[240px] overflow-y-auto rounded-shell context-menu py-1 animate-radix-popup-in"
-          style={{ left: tagTrigger.coords.left, top: tagTrigger.coords.bottom + 4, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
+          className="material-popover fixed z-menu min-w-[180px] max-h-[240px] overflow-y-auto rounded-menu py-1 animate-radix-popup-in"
+          style={{ left: tagTrigger.coords.left, top: tagTrigger.coords.bottom + 4 }}
           onMouseDown={(e) => e.preventDefault()}
         >
           {filteredTags.map((t, i) => (
@@ -1244,18 +1256,18 @@ export default function NoteEditorPM({
               key={t.id}
               onMouseEnter={() => setTagIdx(i)}
               onClick={() => void chooseTag(i)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer ${i === tagIdx ? 'bg-[rgb(var(--color-surface-4))]' : ''} text-[rgb(var(--color-text-primary))]`}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-footnote text-left cursor-pointer ${i === tagIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-text-primary`}
             >
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
               <span className="truncate">{t.name}</span>
-              <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
+              <span className="ml-auto text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>
             </button>
           ))}
           {tagQ && !tagExactExists && (
             <button
               onMouseEnter={() => setTagIdx(filteredTags.length)}
               onClick={() => void chooseTag(filteredTags.length)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer ${tagIdx === filteredTags.length ? 'bg-[rgb(var(--color-surface-4))]' : ''} text-[rgb(var(--color-accent))]`}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-footnote text-left cursor-pointer ${tagIdx === filteredTags.length ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-accent`}
             >
               + Create “{tagTrigger.query.trim()}”
             </button>

@@ -61,6 +61,16 @@ export function createEditorCommands(view: EditorView) {
     view.focus()
   }
 
+  /** Remove the link mark from the selection (or the range the popover was opened for). */
+  function removeLink(range?: { from: number; to: number }) {
+    const live = view.state.selection
+    const from = range && range.from !== range.to ? range.from : live.from
+    const to = range && range.from !== range.to ? range.to : live.to
+    if (from === to) return
+    view.dispatch(view.state.tr.removeMark(from, to, schema.marks.link))
+    view.focus()
+  }
+
   // Reads the href of an existing link mark at the current selection/cursor, so a
   // link-URL popover can be pre-filled when editing a link rather than always
   // starting blank.
@@ -161,7 +171,7 @@ export function createEditorCommands(view: EditorView) {
   }
 
   return {
-    isMarkActive, run, applyHighlight, removeHighlight, applyLink, currentLinkHref, toggleTaskList,
+    isMarkActive, run, applyHighlight, removeHighlight, applyLink, removeLink, currentLinkHref, toggleTaskList,
     setHeading, toggleBlockquote, toggleCodeBlock, outdent, indent, setBulletList, setOrderedList,
     wrapInThread,
   }

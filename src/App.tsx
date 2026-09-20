@@ -11,10 +11,13 @@ import StudyTrailSplitToast from '@/components/studyTrail/StudyTrailSplitToast'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { getCommands } from '@/lib/commands'
+import { SPRING_SNAPPY, TWEEN_FAST } from '@/lib/motion'
 import Sidebar from '@/components/shell/Sidebar'
 import FloatingRail from '@/components/shell/FloatingRail'
 import ActivePanel from '@/components/shell/ActivePanel'
 import ShellHeader from '@/components/shell/ShellHeader'
+import { PopoverBoundaryContext } from '@/components/ui/PopoverSurface'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
 import VerseSelectionBar from '@/components/bible/VerseSelectionBar'
@@ -62,6 +65,8 @@ export default function App() {
   // DOM node for the top bar's portal slot — set once ShellHeader mounts, consumed
   // by the active tab panel via useTopBarSlot() to portal its own controls in.
   const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
+  // Popovers flip/shift to stay inside the content row (never under the toolbar).
+  const [shellBoundary, setShellBoundary] = useState<HTMLDivElement | null>(null)
   useTTSPlayback()
   useQueueAutosave()
   // Installed once, app-wide — every navigateToVerse() call anywhere feeds this without its
@@ -133,6 +138,7 @@ export default function App() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
   // Keep the module-level Hermas prefs (used by getTranslationForBook + hermasMap,
   // which are pure and called from many places) in sync with the chosen translation.
@@ -176,6 +182,7 @@ export default function App() {
   const findBarQuery = useAppStore((s) => s.findBarQuery)
   const activePanelId = useAppStore((s) => s.activePanelId)
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
+  const setWindowWidth = useAppStore((s) => s.setWindowWidth)
   const closeActiveTab = useAppStore((s) => s.closeActiveTab)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const tabMRUList = useAppStore((s) => s.tabMRUList)
@@ -337,6 +344,36 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openImportModal, openImportBibleGateway, openImportESword])
 
+  // Native File/View/Go/Help menu dispatcher — electron/main.ts's buildAppMenu sends a
+  // src/lib/commands.ts command id over app:command; run the matching command's run().
+  useEffect(() => {
+    window.app.onAppCommand?.((id) => getCommands().find((c) => c.id === id)?.run())
+  }, [])
+
+  // Live window width, published to the store — rAF-coalesced (resize fires on every pixel
+  // during a drag) and only committed once it's moved at least 8px, so components reading
+  // windowWidth for a breakpoint check don't re-render on every intermediate frame.
+  useEffect(() => {
+    let rafId: number | null = null
+    let lastWidth = window.innerWidth
+    const handleResize = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        const w = window.innerWidth
+        if (Math.abs(w - lastWidth) >= 8) {
+          lastWidth = w
+          setWindowWidth(w)
+        }
+      })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [setWindowWidth])
+
   // Cross-window tab sync ────────────────────────────────────────────────────
   // When tabs change in this window, broadcast to other windows.
   // When receiving a broadcast from another window, apply it (no re-broadcast).
@@ -374,7 +411,7 @@ export default function App() {
     const tabsSig = SPACE_IDS
       .map((sp) => (storeTabs[sp] ?? []).map((t) => `${t.id}~${t.title}~${t.isPinned ? 1 : 0}`).join(','))
       .join('|')
-    const sig = `${tabsSig}::${theme}::${themePreset}::${backgroundAnimationEnabled}::${backgroundAnimationStyle}::${backgroundAnimationIntensity}`
+    const sig = `${tabsSig}::${theme}::${themePreset}::${backgroundAnimationEnabled}::${backgroundAnimationStyle}::${backgroundAnimationIntensity}::${glassAppearance}`
     if (sig === lastBroadcastSigRef.current) return
     lastBroadcastSigRef.current = sig
     const timer = setTimeout(() => {
@@ -383,12 +420,12 @@ export default function App() {
       // blindly overwriting it.
       const payload = {
         tabs: storeTabs, theme, themePreset, updatedAt: Date.now(),
-        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
       }
       window.app.broadcastTabState?.(payload)
     }, 150) // debounce
     return () => clearTimeout(timer)
-  }, [storeTabs, theme, themePreset, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [storeTabs, theme, themePreset, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   // Only one overlay (find bar, "More" menu, Settings) open at a time — the
   // Bible find bar is global store state, so it closes here on the shared
@@ -571,9 +608,9 @@ export default function App() {
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   // Sync per-section font families
   useEffect(() => {
@@ -600,6 +637,7 @@ export default function App() {
     // scripture and notes sections override it with their own vars.
     const uiFont = uiFontFamily === 'system' ? NATIVE_FONT_STACK : (fontMap[uiFontFamily] ?? 'inherit')
     document.body.style.fontFamily = uiFont
+    document.documentElement.style.setProperty('--font-ui', uiFont)
   }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
 
   // ── On mount: load history, settings, check onboarding, vault reconcile ──
@@ -1052,21 +1090,17 @@ export default function App() {
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
   }), [tabMRUList, storeTabs])
 
-  // Deliberately a plain, DISTINCT background from ShellHeader's own (topbar-vibrant/
-  // surface-2) — an earlier version matched them so the notch behind ShellHeader's rounded
-  // bottom corners would render identically to the header itself, but that made the header
-  // read as a plain square bar again (the whole point of rounding those corners is for them
-  // to visibly stand out against what's behind).
-  // surface-3 (not surface-1) specifically — surface-1/2 are the app's "chrome" tone
-  // (deliberately a shade darker/grayer than content, e.g. 245/245/248 in the light theme,
-  // for the sidebar/header material), while surface-3 is the true content-area white
-  // (255/255/255 in light mode — <main> below uses this same token). The header's rounded
-  // corners sit above <main> on the right (always) and above Sidebar OR <main> on the left
-  // depending on collapse state — surface-1 showing through read as a visibly gray patch
-  // against the actually-white content beside it, reported as "a shadow"/gray fill in the
-  // corners that shouldn't be there. surface-3 is the closer match for the common case.
+  // Deliberately a plain, DISTINCT background from ShellHeader's own (`.material-bar`,
+  // surface-2) — surface-3 (not surface-1) specifically: surface-1/2 are the app's "chrome"
+  // tone (deliberately a shade darker/grayer than content, e.g. 245/245/248 in the light
+  // theme, for the sidebar/header material), while surface-3 is the true content-area white
+  // (255/255/255 in light mode — <main> below uses this same token). ShellHeader is now a
+  // flush, edge-to-edge bar (no rounded bottom corners, per the design-system's "real macOS
+  // toolbar" decision), so this root background only ever shows through where <main>/Sidebar
+  // haven't yet painted — surface-3 is the correct base tone for that either way.
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-screen overflow-hidden bg-surface-3">
+      <PopoverBoundaryContext.Provider value={shellBoundary}>
       <TopBarSlotContext.Provider value={topBarSlot}>
         {/* ShellHeader spans the FULL window width — it folds what used to be two separate
             bars (SidebarTopBar.tsx docked above just the sidebar, TopBar.tsx docked beside it)
@@ -1082,7 +1116,7 @@ export default function App() {
         >
           <ShellHeader slotRef={setTopBarSlot} />
         </div>
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden" ref={setShellBoundary}>
           {/* Sidebar collapse (width → 0) and fade instead of an instant mount/unmount,
               and the content column's own width change (full ↔ max-w-3xl) is handled via
               `layout` on the motion.main/motion.div below — framer-motion animates both
@@ -1107,10 +1141,12 @@ export default function App() {
                 exit={{ width: 0, opacity: 0 }}
                 // Opacity on its own quicker transition, finishing before the width collapse —
                 // see Sidebar.tsx's internal collapse-toggle spring for the matching fix and the
-                // full reasoning (width-only animation reads as a clip, not a fade).
+                // full reasoning (width-only animation reads as a clip, not a fade). Shared
+                // motion constants (@/lib/motion) rather than bespoke durations — SPRING_SNAPPY
+                // is the same spring Sidebar.tsx's own internal collapse toggle uses for width.
                 transition={{
-                  width: { duration: 0.22, ease: 'easeInOut' },
-                  opacity: { duration: 0.12, ease: 'easeOut' },
+                  width: SPRING_SNAPPY,
+                  opacity: TWEEN_FAST,
                 }}
                 className="flex"
                 style={{ overflow: 'hidden' }}
@@ -1126,7 +1162,7 @@ export default function App() {
               render them mid-transition. An inline `maxWidth` between two real lengths
               (`100%` ↔ `48rem`, never the keyword `none`, which CSS can't interpolate from)
               animates smoothly as a genuine reflow instead. */}
-          <main className={`flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))] ${noteFocusMode ? 'flex justify-center' : ''}`}>
+          <main className={`flex-1 overflow-hidden bg-surface-3 ${noteFocusMode ? 'flex justify-center' : ''}`}>
             <div
               className="w-full h-full transition-[max-width] duration-200 ease-in-out"
               style={{ maxWidth: noteFocusMode ? '48rem' : '100%' }}
@@ -1136,6 +1172,7 @@ export default function App() {
           </main>
         </div>
       </TopBarSlotContext.Provider>
+      </PopoverBoundaryContext.Provider>
       <FloatingSearch />
       <PresenterControls />
       <AudioPlayer />

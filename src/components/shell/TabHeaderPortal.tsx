@@ -1,17 +1,26 @@
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import PanelHeader from './PanelHeader'
-import { useTopBarSlot } from './TopBarSlotContext'
+import PanelHeader, { subscribeFloatingActionsSlot, getFloatingActionsSlot } from './PanelHeader'
+import { useTopBarSlots } from './TopBarSlotContext'
 
 /**
- * Drop-in replacement for PanelHeader at each of the 5 tab-panel call sites.
+ * Drop-in replacement for PanelHeader at each of the tab-panel call sites.
  * Floating windows (no sidebar, no shared TopBar) keep their own PanelHeader
  * exactly as before. Docked panels portal the same header content into the
  * shared TopBar's slot instead of drawing their own top strip.
+ *
+ * Two zones — `context` (title/nav, left, the default; every existing call site keeps working
+ * unchanged) and `actions` (trailing action group(s), right). A panel that needs both issues two
+ * separate `<TabHeaderPortal>` calls, one per zone (see PDFViewer.tsx). Docked, each portals into
+ * the matching node from `useTopBarSlots()` (ShellHeader.tsx owns both). Floating, only the
+ * `context` call renders the actual `PanelHeader` bar; the `actions` call portals into the
+ * container that bar publishes (see PanelHeader.tsx's `publishFloatingActionsSlot` comment) —
+ * neither call is an ancestor of the other, so a prop can't carry the content across.
  */
 export default function TabHeaderPortal({
   floating = false,
   active = true,
+  zone = 'context',
   className = '',
   children,
 }: {
@@ -20,10 +29,12 @@ export default function TabHeaderPortal({
    * stays mounted for PiP even when hidden — it must not fight the active tab
    * for the shared slot). */
   active?: boolean
+  /** Which top-bar zone this call's children belong in. Defaults to 'context' — the title/nav
+   * controls every existing panel already portals there. */
+  zone?: 'context' | 'actions'
   className?: string
   children: ReactNode
 }) {
-  const slotEl = useTopBarSlot()
   // The Home button used to be rendered here, ahead of `children`. It moved into ShellHeader's
   // fixed left nav pill (beside back/forward/history): portaled here it landed in the top bar's
   // flex-1, justify-end slot, so its appearing/disappearing with tab navigation state pushed
@@ -32,7 +43,22 @@ export default function TabHeaderPortal({
   // new home in ShellHeader.tsx. Floating windows keep their own PanelHeader and have no shared
   // top bar, so they simply have no Home affordance now; their nav is per-window anyway.
   const content = <>{children}</>
-  if (floating) return <PanelHeader floating className={className}>{content}</PanelHeader>
+
+  // Both hooks are read unconditionally (regardless of `zone`/`floating`) so their call order
+  // never varies across renders — only which one's value actually gets used below depends on
+  // those props.
+  const dockedSlots = useTopBarSlots()
+  const floatingActionsEl = useSyncExternalStore(subscribeFloatingActionsSlot, getFloatingActionsSlot, () => null)
+
+  if (floating) {
+    if (zone === 'actions') {
+      if (!active || !floatingActionsEl) return null
+      return createPortal(content, floatingActionsEl)
+    }
+    return <PanelHeader floating className={className}>{content}</PanelHeader>
+  }
+
+  const slotEl = zone === 'actions' ? dockedSlots.actions : dockedSlots.context
   if (!active || !slotEl) return null
   return createPortal(
     <div className={`flex items-center gap-2 min-w-0 w-full ${className}`}>{content}</div>,

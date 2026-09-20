@@ -267,6 +267,7 @@ export interface AppState {
     tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number
     backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: AppState['backgroundAnimationStyle']
     backgroundAnimationIntensity?: AppState['backgroundAnimationIntensity']
+    glassAppearance?: AppState['glassAppearance']
   }) => void
 
   // Cross-panel lexicon communication
@@ -334,6 +335,20 @@ export interface AppState {
   // Used to route Cmd+F to the correct panel's find bar
   activePanelId: 'bible' | 'notes' | 'lexicon'
   setActivePanelId: (id: 'bible' | 'notes' | 'lexicon') => void
+
+  // Live window width — App.tsx's rAF-throttled resize listener keeps this current so
+  // layout code can react to it without each component owning its own resize listener.
+  windowWidth: number
+  setWindowWidth: (w: number) => void
+  // Screen-space rect of whatever triggered the History modal (e.g. the Go ▸ History menu
+  // item or its toolbar button) — read by HistoryModal so it can animate/originate from
+  // its trigger instead of always appearing centered.
+  /** Verse range currently shown on the presenter (from the band geometry) — read by the
+   *  presenter toolbar badge tooltip and the controls pill; null when no band. */
+  presenterRange: { first: number; last: number } | null
+  setPresenterRange: (r: { first: number; last: number } | null) => void
+  historyTriggerRect: { x: number; y: number; w: number; h: number } | null
+  setHistoryTriggerRect: (rect: { x: number; y: number; w: number; h: number } | null) => void
 
   // YouTube video navigation (from note timestamp links — handles tab creation + space switch)
   pendingYouTubeVideo: { videoId: string; startTime: number } | null
@@ -629,6 +644,10 @@ export interface AppState {
   setBackgroundAnimationStyle: (v: AppState['backgroundAnimationStyle']) => void
   backgroundAnimationIntensity: import('@/lib/themePresets').AnimationIntensity
   setBackgroundAnimationIntensity: (v: AppState['backgroundAnimationIntensity']) => void
+  // Glass appearance (design system) — scales every translucent material's opacity, mirroring
+  // macOS 27's system transparency slider: 'clear' shows more through, 'tinted' is denser.
+  glassAppearance: import('@/lib/applyTheme').GlassAppearance
+  setGlassAppearance: (v: AppState['glassAppearance']) => void
   // Live macOS accent color ("r g b" string, matching the other palette fields) — runtime
   // only, not persisted; populated from systemPreferences.getAccentColor() via IPC and kept
   // live via the 'accent-color-changed' event. Backs the 'system-accent' theme preset.
@@ -1114,6 +1133,12 @@ export const useAppStore = create<AppState>()(
       setFindBarWordMode: (mode) => set({ findBarWordMode: mode }),
       activePanelId: 'bible' as 'bible' | 'notes' | 'lexicon',
       setActivePanelId: (id) => set({ activePanelId: id }),
+      windowWidth: window.innerWidth,
+      setWindowWidth: (w) => set({ windowWidth: w }),
+      presenterRange: null,
+      setPresenterRange: (r) => set((st) => (st.presenterRange?.first === r?.first && st.presenterRange?.last === r?.last ? st : { presenterRange: r })),
+      historyTriggerRect: null,
+      setHistoryTriggerRect: (rect) => set({ historyTriggerRect: rect }),
       updateStatus: { status: 'idle' } as UpdateStatus,
       setUpdateStatus: (status) => set({
         updateStatus: status,
@@ -1158,6 +1183,8 @@ export const useAppStore = create<AppState>()(
       setBackgroundAnimationStyle: (v) => set({ backgroundAnimationStyle: v }),
       backgroundAnimationIntensity: 'noticeable',
       setBackgroundAnimationIntensity: (v) => set({ backgroundAnimationIntensity: v }),
+      glassAppearance: 'regular',
+      setGlassAppearance: (v) => set({ glassAppearance: v }),
       systemAccentColor: null,
       setSystemAccentColor: (v) => set({ systemAccentColor: v }),
 
@@ -1433,7 +1460,9 @@ export const useAppStore = create<AppState>()(
         // Note/Lexicon/YouTube tabs can go one step further back than usual, to idx -1 —
         // the list/search/browse view, with nothing open. Other tab types (Bible,
         // Search, PDF) have no equivalent "nothing open" state, so they stop at 0.
-        const stackType = tabStack.stack[0]?.type
+        // Keyed on the TAB's type (a Bible tab's stack may start with a cross-tab 'note'
+        // entry — "came here from note X" — which must not turn it into a notes tab).
+        const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
         const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
         if (tabStack.idx <= (supportsHome ? -1 : 0)) return
         // Remember where the reader is in the entry we're leaving, so Cmd+] forward restores it.
@@ -1465,7 +1494,14 @@ export const useAppStore = create<AppState>()(
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
         } else if (entry.noteId) {
-          set({ pendingNoteId: entry.noteId })
+          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
+          else {
+            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
+            // to that note in the Notes space (the pill that used to do this is gone).
+            get().requestOpenNote(entry.noteId)
+            get().ensureTab('note')
+            get().setActiveSpace('notes')
+          }
         } else if (entry.videoId) {
           set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
         } else if (entry.pdfId && entry.page) {
@@ -1498,7 +1534,14 @@ export const useAppStore = create<AppState>()(
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
         } else if (entry.noteId) {
-          set({ pendingNoteId: entry.noteId })
+          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
+          else {
+            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
+            // to that note in the Notes space (the pill that used to do this is gone).
+            get().requestOpenNote(entry.noteId)
+            get().ensureTab('note')
+            get().setActiveSpace('notes')
+          }
         } else if (entry.videoId) {
           set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
         } else if (entry.pdfId && entry.page) {
@@ -2422,9 +2465,9 @@ export const useAppStore = create<AppState>()(
       updatePanelLayout: (layout) => set({ panelLayout: layout }),
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      // Bounds (224-250px) mirrored in Sidebar.tsx's own drag-resize handler — kept here too
+      // Bounds (200–360px, §89) mirrored in Sidebar.tsx's own drag-resize handler — kept here too
       // since this setter is also reachable directly (not just via the drag handle).
-      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(224, Math.min(250, width)) }),
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(360, width)) }),
 
       recentSearchQueries: [] as string[],
       addRecentSearchQuery: (q) => {
@@ -2474,6 +2517,7 @@ export const useAppStore = create<AppState>()(
         if (payload.backgroundAnimationEnabled !== undefined) update.backgroundAnimationEnabled = payload.backgroundAnimationEnabled
         if (payload.backgroundAnimationStyle !== undefined) update.backgroundAnimationStyle = payload.backgroundAnimationStyle
         if (payload.backgroundAnimationIntensity !== undefined) update.backgroundAnimationIntensity = payload.backgroundAnimationIntensity
+        if (payload.glassAppearance !== undefined) update.glassAppearance = payload.glassAppearance
         set(update)
       },
 
@@ -2513,9 +2557,11 @@ export const useAppStore = create<AppState>()(
         recordLexiconConnection(strongsNum, depth ?? 'click')
         if (!get().isNavJumping) {
           const tabId = get().activeTabId['lexicon']
+          // Opened from a note: the note becomes the previous history entry of the lexicon tab.
+          if (tabId && fromNote) get().pushTabNav(tabId, { type: 'note', title: fromNote.title, noteId: fromNote.noteId })
           if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: lexTitle })
         }
-        set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: fromNote ?? null })
+        set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: null })
       },
       clearLexiconEntry: () => set({ pendingLexiconEntry: null }),
       requestLexiconSearch: (term) => set({ pendingLexiconSearch: term }),
@@ -3044,6 +3090,7 @@ export const useAppStore = create<AppState>()(
         backgroundAnimationEnabled: state.backgroundAnimationEnabled,
         backgroundAnimationStyle: state.backgroundAnimationStyle,
         backgroundAnimationIntensity: state.backgroundAnimationIntensity,
+        glassAppearance: state.glassAppearance,
         scriptureFontFamily: state.scriptureFontFamily,
         notesFontFamily: state.notesFontFamily,
         noteTypingLook: state.noteTypingLook,
@@ -3161,6 +3208,7 @@ const ASK_WHY_SYNC_KEY = 'berean-ask-why-sync'
 const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = [
   'theme', 'themePreset', 'systemAccentColor',
   'backgroundAnimationEnabled', 'backgroundAnimationStyle', 'backgroundAnimationIntensity',
+  'glassAppearance',
 ]
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {

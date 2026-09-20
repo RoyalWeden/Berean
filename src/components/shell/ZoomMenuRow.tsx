@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ZoomIn } from 'lucide-react'
+import { ZoomIn, Minus, Plus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { zoomPercent, ZOOM_MIN, ZOOM_MAX } from '@/lib/zoom'
+import { IconButton, TextField, Button } from '@/components/ui'
 
 /**
  * Zoom row, shown from the rail's Zoom button. Replaces the old per-panel
@@ -30,20 +31,15 @@ export default function ZoomMenuRow() {
 
   return (
     <div className="flex items-center gap-1.5 w-full px-2.5 py-1.5">
-      <span className="flex-shrink-0 text-[rgb(var(--color-text-primary))] [&_svg]:w-3.5 [&_svg]:h-3.5"><ZoomIn /></span>
-      <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))]">Zoom</span>
-      <button
-        onClick={() => adjust(-1)}
-        title="Zoom out (⌘−)"
-        className="flex items-center justify-center w-5 h-5 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors text-xs leading-none font-medium"
-      >
-        −
-      </button>
-      <input
+      <ZoomIn size={14} className="flex-shrink-0 text-text-primary" />
+      <span className="flex-1 text-footnote text-text-primary">Zoom</span>
+      {/* No tooltips inside this row — it already floats as a hover surface; a tooltip on top of it stacked two layers. */}
+      <IconButton icon={Minus} label="Zoom out" tooltip={false} size={24} onClick={() => adjust(-1)} />
+      <TextField
         type="text"
         inputMode="numeric"
         value={displayValue}
-        title={`Zoom level — type an exact percentage (${Math.round(ZOOM_MIN * 100)}–${Math.round(ZOOM_MAX * 100)})`}
+        aria-label={`Zoom level — type an exact percentage (${Math.round(ZOOM_MIN * 100)}–${Math.round(ZOOM_MAX * 100)})`}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
         onBlur={(e) => commit(e.target.value)}
@@ -51,22 +47,14 @@ export default function ZoomMenuRow() {
           if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); (e.target as HTMLInputElement).blur() }
           if (e.key === 'Escape') { e.preventDefault(); setDraft(null); (e.target as HTMLInputElement).blur() }
         }}
-        className="w-9 text-center text-[11px] tabular-nums bg-[rgb(var(--color-surface-4))] rounded px-0.5 py-0.5 text-[rgb(var(--color-text-primary))] outline-none focus:ring-1 focus:ring-[rgb(var(--color-accent))]"
+        size="sm"
+        className="h-6 w-11 px-1 text-center tabular-nums"
+        wrapperClassName="w-11 flex-shrink-0"
       />
-      <button
-        onClick={() => adjust(1)}
-        title="Zoom in (⌘+)"
-        className="flex items-center justify-center w-5 h-5 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors text-xs leading-none font-medium"
-      >
-        +
-      </button>
-      <button
-        onClick={() => reset()}
-        title="Reset to 100% (⌘0)"
-        className="flex-shrink-0 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors"
-      >
+      <IconButton icon={Plus} label="Zoom in" tooltip={false} size={24} onClick={() => adjust(1)} />
+      <Button variant="ghost" size="xs" className="flex-shrink-0" onClick={() => reset()} aria-label="Reset to 100% (⌘0)">
         Reset
-      </button>
+      </Button>
     </div>
   )
 }

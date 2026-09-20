@@ -1,4 +1,5 @@
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Spline, Type } from 'lucide-react'
+import { IconButton, ControlGroup } from '@/components/ui'
 
 interface Props {
   onZoomIn: () => void
@@ -11,35 +12,36 @@ interface Props {
   onToggleLabels: () => void
 }
 
-const BASE = 'w-7 h-7 rounded-shell flex items-center justify-center transition-colors cursor-pointer'
-const IDLE = 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-const TOGGLED = 'bg-[rgb(var(--color-accent)/0.18)] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent)/0.28)]'
-
 /** Floating frosted control cluster, bottom-right of the graph canvas. Static surface (no
- *  per-frame repaint) so .glass-panel's backdrop-filter is safe here. */
+ *  per-frame repaint) so .material-popover's backdrop-filter is safe here. */
 export default function TagGraphControls({
   onZoomIn, onZoomOut, onFit, onResetLayout,
   showCoOccurrence, showLabels, onToggleCoOccurrence, onToggleLabels,
 }: Props) {
   return (
-    <div className="absolute bottom-4 right-4 z-20 pointer-events-auto flex items-center gap-0.5 rounded-shell-lg glass-panel px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
-      <button className={`${BASE} ${IDLE}`} title="Zoom out" onClick={onZoomOut}><ZoomOut size={14} /></button>
-      <button className={`${BASE} ${IDLE}`} title="Zoom in" onClick={onZoomIn}><ZoomIn size={14} /></button>
-      <button className={`${BASE} ${IDLE}`} title="Fit graph" onClick={onFit}><Maximize2 size={14} /></button>
-      <span className="w-px self-stretch mx-0.5 bg-[rgb(var(--color-surface-4))]" />
-      <button className={`${BASE} ${IDLE}`} title="Reset layout & view" onClick={onResetLayout}><RotateCcw size={14} /></button>
-      <button
-        className={`${BASE} ${showCoOccurrence ? TOGGLED : IDLE}`}
-        title={showCoOccurrence ? 'Hide shared-verse links' : 'Show shared-verse links'}
-        aria-pressed={showCoOccurrence}
-        onClick={onToggleCoOccurrence}
-      ><Spline size={14} /></button>
-      <button
-        className={`${BASE} ${showLabels ? TOGGLED : IDLE}`}
-        title={showLabels ? 'Hide labels' : 'Show labels'}
-        aria-pressed={showLabels}
-        onClick={onToggleLabels}
-      ><Type size={14} /></button>
+    <div className="absolute bottom-4 right-4 z-raised pointer-events-auto flex items-center gap-2">
+      <ControlGroup variant="glass">
+        <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={onZoomOut} />
+        <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={onZoomIn} />
+        <IconButton icon={Maximize2} label="Fit graph" size={28} onClick={onFit} />
+        <IconButton icon={RotateCcw} label="Reset layout & view" size={28} onClick={onResetLayout} />
+      </ControlGroup>
+      <ControlGroup variant="glass">
+        <IconButton
+          icon={Spline}
+          label={showCoOccurrence ? 'Hide shared-verse links' : 'Show shared-verse links'}
+          size={28}
+          active={showCoOccurrence}
+          onClick={onToggleCoOccurrence}
+        />
+        <IconButton
+          icon={Type}
+          label={showLabels ? 'Hide labels' : 'Show labels'}
+          size={28}
+          active={showLabels}
+          onClick={onToggleLabels}
+        />
+      </ControlGroup>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomExportEntry, t
 import type { PrintThemeId } from '@/lib/notePreviewRender'
 import type { Note } from '@/types'
 import { loadPdfFromBytes, type PDFDocumentProxy, type PDFPageProxy } from '@/lib/pdfjs'
+import { IconButton, Button, SegmentedControl, TextField, SectionLabel, Switch, ListRow, OptionCard, Slider } from '@/components/ui'
 
 interface Props {
   title: string
@@ -29,11 +30,11 @@ function ThemeSwatch({ th, size = 'md' }: { th: (typeof PRINT_THEMES)[PrintTheme
   const dim = size === 'sm' ? 20 : 26
   return (
     <span
-      className="flex-shrink-0 rounded border overflow-hidden"
+      className="flex-shrink-0 rounded-card border overflow-hidden"
       style={{ width: dim, height: dim, background: th.bg, borderColor: th.h2Border }}
     >
       <span className="block w-full" style={{ height: size === 'sm' ? 5 : 7, background: th.verseBorder }} />
-      <span className="block mx-0.5 mt-0.5 rounded-sm" style={{ height: size === 'sm' ? 3 : 4, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
+      <span className="block mx-0.5 mt-0.5 rounded-chip" style={{ height: size === 'sm' ? 3 : 4, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
     </span>
   )
 }
@@ -80,7 +81,7 @@ function PreviewPdfPage({ doc, pageNumber, scale }: { doc: PDFDocumentProxy; pag
   return (
     <canvas
       ref={canvasRef}
-      className="block shadow-xl rounded flex-shrink-0"
+      className="block shadow-2 rounded-card flex-shrink-0"
       style={{ width: size?.w, height: size?.h }}
     />
   )
@@ -116,7 +117,8 @@ export function ScaledPagePreview({ html, maxHeight = 360 }: { html: string; max
 
   function syncHeight() {
     const doc = iframeRef.current?.contentWindow?.document
-    if (doc) setContentH(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
+    // srcDoc can still be mid-parse when the 60ms timer fires (documentElement/body null).
+    if (doc?.documentElement && doc.body) setContentH(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
   }
   useEffect(() => { const id = setTimeout(syncHeight, 60); return () => clearTimeout(id) }, [html])
 
@@ -124,7 +126,7 @@ export function ScaledPagePreview({ html, maxHeight = 360 }: { html: string; max
   return (
     <div
       ref={wrapRef}
-      className="w-full overflow-hidden rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      className="w-full overflow-hidden rounded-card border border-separator bg-surface-1"
       style={{ height: scaledH || 180 }}
     >
       <iframe
@@ -149,13 +151,15 @@ export function CustomMarginInputs({
   }
   const field = (side: keyof Sides, label: string) => (
     <label className="flex items-center gap-1">
-      <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">{label}</span>
-      <input
+      <span className="text-caption2 text-text-muted w-9 flex-shrink-0">{label}</span>
+      <TextField
         type="number" min={0} max={4} step={0.25} value={value[side]}
         onChange={set(side)}
-        className="w-full min-w-0 px-1.5 py-1 text-xs text-center rounded border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        size="sm"
+        className="text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        wrapperClassName="w-full min-w-0"
       />
-      <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">in</span>
+      <span className="text-micro text-text-muted flex-shrink-0">in</span>
     </label>
   )
   return (
@@ -360,18 +364,12 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   function doPrint() { persist(); window.app.printNote(html, electronPageSize).catch(() => {}); onClose() }
   function doDownload() { persist(); window.app.exportNotePDF(html, title || 'note', pdfDownloadLocation, electronPageSize).catch(() => {}); onClose() }
 
-  const segBtn = (active: boolean) =>
-    `px-2.5 py-1 text-xs rounded-shell cursor-pointer transition-colors ${active
-      ? 'bg-[rgb(var(--color-accent))] text-white font-medium'
-      : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`
-  const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
-
   const themeList = Object.values(PRINT_THEMES)
 
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[60]" style={{ backdropFilter: 'blur(4px)' }} />
+        <Dialog.Overlay className="fixed inset-0 scrim-modal animate-fade-in z-modal" />
         <Dialog.Content
           aria-describedby={undefined}
           // Was max-w-5xl (1024px) — with the 224px controls sidebar plus padding, the
@@ -380,84 +378,79 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
           // scrolling, on any window size, which is what "the 100% zoom is too close" was
           // reporting. Widened so a true 100%-zoom Letter/Legal page (816px) comfortably
           // fits the preview pane without scrolling on any normal window.
-          className="glass-panel-modal fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]
+          className="material-sheet animate-radix-popup-in fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-modal
             w-[90vw] max-w-[1400px] h-[85vh]
-            rounded-shell-lg flex flex-col overflow-hidden"
+            rounded-sheet flex flex-col overflow-hidden outline-none"
         >
           {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <Eye size={15} className="text-[rgb(var(--color-accent))]" />
-            <Dialog.Title className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Print preview</Dialog.Title>
-            <span className="text-xs text-[rgb(var(--color-text-muted))] truncate">— {title || 'Untitled'}</span>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-separator flex-shrink-0">
+            <Eye size={15} className="text-accent" />
+            <Dialog.Title className="text-subhead font-semibold text-text-primary">Print preview</Dialog.Title>
+            <span className="text-caption text-text-muted truncate">— {title || 'Untitled'}</span>
             <div className="flex-1" />
-            <Dialog.Close className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-              <X size={16} />
+            <Dialog.Close asChild>
+              <IconButton icon={X} label="Close" size={24} />
             </Dialog.Close>
           </div>
 
           {/* Body: controls + preview */}
           <div className="flex-1 flex min-h-0">
             {/* Controls sidebar */}
-            <div className="w-56 flex-shrink-0 border-r border-[rgb(var(--color-surface-4))] overflow-y-auto p-4 space-y-4">
+            <div className="w-56 flex-shrink-0 border-r border-separator overflow-y-auto p-4 space-y-4">
 
               {/* ── Theme picker button + popover ── */}
               <div>
-                <p className={labelCls}>Theme &amp; style</p>
+                <SectionLabel className="mb-1.5">Theme &amp; style</SectionLabel>
                 <div className="relative" ref={themePickerRef}>
-                  <button
+                  <ListRow
+                    className={themeOpen ? 'bg-accent-muted' : 'control-glass'}
+                    buttonClassName="rounded-control"
                     onClick={() => setThemeOpen(v => !v)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-shell border text-left cursor-pointer transition-colors ${
-                      themeOpen
-                        ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                        : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))]'
-                    }`}
-                  >
-                    <ThemeSwatch th={currentTheme} />
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{currentTheme.label}</span>
-                      <span className="block text-[9px] text-[rgb(var(--color-text-muted))] truncate leading-tight">{currentTheme.desc}</span>
-                    </span>
-                    <ChevronDown size={13} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
-                  </button>
+                    leading={<ThemeSwatch th={currentTheme} />}
+                    title={currentTheme.label}
+                    subtitle={currentTheme.desc}
+                    trailing={<ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
+                    trailingAlways
+                  />
 
                   {/* Popover — 3-column grid of all themes */}
                   {themeOpen && (
                     <div
-                      className="absolute left-0 right-0 top-full mt-1.5 z-50
-                        bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]
-                        rounded-shell-lg shadow-2xl p-2 grid grid-cols-3 gap-1"
+                      className="material-popover absolute left-0 right-0 top-full mt-1.5 z-popover
+                        rounded-menu p-2 grid grid-cols-3 gap-1"
                     >
                       {themeList.map((th) => (
-                        <button
+                        <OptionCard
                           key={th.id}
+                          selected={theme === th.id}
                           onClick={() => { setTheme(th.id); setFontFamily(th.suggestedFont); setThemeOpen(false) }}
-                          title={th.desc}
-                          className={`flex flex-col items-center gap-1 p-1.5 rounded-shell border cursor-pointer transition-colors text-center ${
-                            theme === th.id
-                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                              : 'border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))]'
-                          }`}
-                        >
-                          <ThemeSwatch th={th} size="sm" />
-                          <span className="text-[9px] font-medium text-[rgb(var(--color-text-secondary))] leading-none">{th.label}</span>
-                        </button>
+                          title={th.label}
+                          preview={<ThemeSwatch th={th} size="sm" />}
+                        />
                       ))}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Margins */}
+              {/* Margins — a 3-col grid that wraps to 2 rows, so it stays a manual
+                  button grid rather than SegmentedControl (a single non-wrapping row). */}
               <div>
-                <p className={labelCls}>Margins</p>
+                <SectionLabel className="mb-1.5">Margins</SectionLabel>
                 <div className="grid grid-cols-3 gap-1">
                   {(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => (
-                    <button key={m} onClick={() => {
-                      if (m === 'custom' && margin !== 'custom') setCustomMargins(presetToSides(margin))
-                      setMargin(m)
-                    }} className={segBtn(margin === m)}>
+                    <Button
+                      key={m}
+                      variant="secondary"
+                      size="sm"
+                      selected={margin === m}
+                      onClick={() => {
+                        if (m === 'custom' && margin !== 'custom') setCustomMargins(presetToSides(margin))
+                        setMargin(m)
+                      }}
+                    >
                       {m.charAt(0).toUpperCase() + m.slice(1)}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {margin === 'custom' && (
@@ -467,61 +460,60 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
 
               {/* Font size */}
               <div>
-                <p className={labelCls}>Font size — {fontSize}pt</p>
-                <input type="range" min={8} max={18} step={1} value={fontSize}
-                  onChange={(e) => setFontSize(parseInt(e.target.value))}
-                  className="w-full accent-[rgb(var(--color-accent))] cursor-pointer" />
+                <SectionLabel className="mb-1.5">Font size — {fontSize}pt</SectionLabel>
+                <Slider min={8} max={18} step={1} value={fontSize} onValueChange={setFontSize} aria-label="Font size" />
               </div>
 
               {/* Font family */}
               <div>
-                <p className={labelCls}>Font</p>
-                <div className="flex flex-wrap gap-1">
-                  {([['system', 'System'], ['serif', 'Serif'], ['sansserif', 'Sans']] as const).map(([id, lbl]) => (
-                    <button key={id} onClick={() => setFontFamily(id)} className={segBtn(fontFamily === id)}>{lbl}</button>
-                  ))}
-                </div>
+                <SectionLabel className="mb-1.5">Font</SectionLabel>
+                <SegmentedControl
+                  size="sm"
+                  value={fontFamily}
+                  onChange={setFontFamily}
+                  aria-label="Font family"
+                  options={[
+                    { value: 'system', label: 'System' },
+                    { value: 'serif', label: 'Serif' },
+                    { value: 'sansserif', label: 'Sans' },
+                  ]}
+                />
               </div>
 
               {/* Color */}
               <div>
-                <p className={labelCls}>Color</p>
-                <div className="flex gap-1">
-                  {([['color', 'Color'], ['grayscale', 'Gray']] as const).map(([id, lbl]) => (
-                    <button key={id} onClick={() => setColorMode(id)} className={segBtn(colorMode === id)}>{lbl}</button>
-                  ))}
-                </div>
+                <SectionLabel className="mb-1.5">Color</SectionLabel>
+                <SegmentedControl
+                  size="sm"
+                  value={colorMode}
+                  onChange={setColorMode}
+                  aria-label="Color mode"
+                  options={[
+                    { value: 'color', label: 'Color' },
+                    { value: 'grayscale', label: 'Gray' },
+                  ]}
+                />
               </div>
 
               {/* Include title toggle */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-[rgb(var(--color-text-secondary))]">Include title</span>
-                <button
-                  onClick={() => setIncludeTitle(v => !v)}
-                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors cursor-pointer ${includeTitle ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeTitle ? 'translate-x-4' : ''}`} />
-                </button>
+                <span className="text-footnote text-text-secondary">Include title</span>
+                <Switch checked={includeTitle} onCheckedChange={() => setIncludeTitle(v => !v)} label="Include title" />
               </div>
 
               {/* Include linked notes toggle — only shown when notes are available */}
               {!idiomEntries && notes && notes.length > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-[rgb(var(--color-text-secondary))]">Include linked notes</span>
-                  <button
-                    onClick={() => setIncludeLinkedNotes(v => !v)}
-                    className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors cursor-pointer ${includeLinkedNotes ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeLinkedNotes ? 'translate-x-4' : ''}`} />
-                  </button>
+                  <span className="text-footnote text-text-secondary">Include linked notes</span>
+                  <Switch checked={includeLinkedNotes} onCheckedChange={() => setIncludeLinkedNotes(v => !v)} label="Include linked notes" />
                 </div>
               )}
 
               {/* Idiom-specific options — live-update the preview */}
               {idiomEntries && (
-                <div className="flex flex-col gap-3 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                <div className="flex flex-col gap-3 pt-2 border-t border-separator">
                   <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Idioms — include</span>
+                    <SectionLabel>Idioms — include</SectionLabel>
                     {([
                       ['includeMeaning',     'Definition'],
                       ['includeAliases',     'Aliases'],
@@ -530,13 +522,12 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                       ['includeReferences',  'Scripture references'],
                     ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
                       <div key={key} className="flex items-center justify-between">
-                        <span className="text-xs text-[rgb(var(--color-text-primary))]">{label}</span>
-                        <button
-                          onClick={() => setIdiomOpts((o) => ({ ...o, [key]: !o[key] }))}
-                          className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors cursor-pointer ${idiomOpts[key] ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomOpts[key] ? 'translate-x-4' : ''}`} />
-                        </button>
+                        <span className="text-footnote text-text-primary">{label}</span>
+                        <Switch
+                          checked={!!idiomOpts[key]}
+                          onCheckedChange={() => setIdiomOpts((o) => ({ ...o, [key]: !o[key] }))}
+                          label={label}
+                        />
                       </div>
                     ))}
                   </div>
@@ -546,18 +537,15 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                     ['Density', 'density', [['spacious', 'Spacious'], ['compact', 'Compact']]],
                   ] as [string, keyof IdiomsExportOptions, [string, string][]][]).map(([heading, key, choices]) => (
                     <div key={key} className="flex flex-col gap-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{heading}</span>
-                      <div className="flex gap-1">
-                        {choices.map(([val, label]) => (
-                          <button
-                            key={val}
-                            onClick={() => setIdiomOpts((o) => ({ ...o, [key]: val as IdiomsLayout | IdiomsOrganization | IdiomsDensity }))}
-                            className={segBtn(idiomOpts[key] === val) + ' flex-1 !text-[10px]'}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
+                      <SectionLabel>{heading}</SectionLabel>
+                      <SegmentedControl
+                        size="sm"
+                        fill
+                        aria-label={heading}
+                        value={idiomOpts[key] as string}
+                        onChange={(val) => setIdiomOpts((o) => ({ ...o, [key]: val as IdiomsLayout | IdiomsOrganization | IdiomsDensity }))}
+                        options={choices.map(([val, label]) => ({ value: val, label }))}
+                      />
                     </div>
                   ))}
                 </div>
@@ -568,20 +556,20 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                 generated PDF via pdf.js (see the pdfDoc effect above). */}
             <div className="flex-1 min-w-0 flex flex-col">
               {/* Zoom toolbar */}
-              <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
-                <button
-                  title="Zoom out (10%)"
+              <div className="material-bar flex items-center justify-end gap-1 px-3 py-1.5 border-b border-separator flex-shrink-0">
+                <IconButton
+                  icon={Minus}
+                  label="Zoom out (10%)"
+                  size={24}
                   onClick={() => setUserZoom(Math.max(0.5, Math.round((scale * 100 - 10)) / 100))}
-                  className="w-6 h-6 flex items-center justify-center rounded text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                >
-                  <Minus size={13} />
-                </button>
+                />
                 {zoomEditing ? (
-                  <input
+                  <TextField
                     ref={zoomInputRef}
                     type="number"
                     min={50}
                     max={250}
+                    size="sm"
                     value={zoomInputVal}
                     onChange={(e) => setZoomInputVal(e.target.value)}
                     onBlur={commitZoomInput}
@@ -589,25 +577,30 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                       if (e.key === 'Enter') commitZoomInput()
                       if (e.key === 'Escape') setZoomEditing(false)
                     }}
-                    className="w-14 text-center text-[11px] tabular-nums rounded border border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] outline-none px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    wrapperClassName="w-14"
                   />
                 ) : (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     title="Click to set custom zoom (50%–250%)"
                     onClick={() => { setZoomInputVal(String(Math.round(scale * 100))); setZoomEditing(true); setTimeout(() => zoomInputRef.current?.select(), 10) }}
-                    className="text-[11px] tabular-nums text-[rgb(var(--color-text-secondary))] w-12 text-center hover:bg-[rgb(var(--color-surface-4))] rounded cursor-pointer transition-colors px-1 py-0.5"
+                    className="tabular-nums w-12"
                   >
                     {Math.round(scale * 100)}%
-                  </button>
+                  </Button>
                 )}
-                <button
-                  title="Zoom in (10%)"
+                <IconButton
+                  icon={Plus}
+                  label="Zoom in (10%)"
+                  size={24}
                   onClick={() => setUserZoom(Math.min(2.5, Math.round((scale * 100 + 10)) / 100))}
-                  className="w-6 h-6 flex items-center justify-center rounded text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                >
-                  <Plus size={13} />
-                </button>
-                <button
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  selected={userZoom === null}
                   title="Fit to width"
                   onClick={() => {
                     // Recalculate from the live container size so the displayed % is always accurate.
@@ -615,14 +608,10 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                     if (el) setFitScale(calcFitScale(el))
                     setUserZoom(null)
                   }}
-                  className={`ml-1 px-2 h-6 flex items-center justify-center rounded text-[11px] cursor-pointer transition-colors ${
-                    userZoom === null
-                      ? 'bg-[rgb(var(--color-accent))] text-white'
-                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
-                  }`}
+                  className="ml-1"
                 >
                   Fit
-                </button>
+                </Button>
               </div>
               {/*
                 Regression fix: `overflow-x-hidden` in Fit mode had NO escape hatch — if
@@ -635,7 +624,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                 calculation IS correct (no overflow, nothing to scroll) and is the only real
                 fix for when it briefly isn't.
               */}
-              <div ref={previewWrapRef} className="flex-1 min-w-0 bg-[rgb(var(--color-surface-2))] p-4 overflow-auto">
+              <div ref={previewWrapRef} className="flex-1 min-w-0 bg-surface-2 p-4 overflow-auto">
                 {/*
                   Regression fix: this used to be a client-side approximation — one continuous
                   scaled iframe sliced into fixed-height "page" windows purely by dividing
@@ -669,7 +658,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   // modal's lifetime (pdfDoc stays populated across later regenerations, see
                   // the debounced effect above, so this never reappears on a settings tweak).
                   <div
-                    className="mx-auto shadow-xl rounded overflow-hidden relative"
+                    className="mx-auto shadow-2 rounded-card overflow-hidden relative"
                     style={{ width: Math.ceil(pageWidthPx * scale), height: Math.ceil(pageHeightPx * scale), background: currentTheme.bg }}
                   >
                     <iframe
@@ -686,14 +675,14 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                       }}
                     />
                     {pdfError && (
-                      <div className="absolute inset-x-0 bottom-0 px-2 py-1 text-[10px] text-center bg-black/60 text-white">
+                      <div className="absolute inset-x-0 bottom-0 px-2 py-1 text-caption2 text-center bg-black/60 text-white">
                         Preview failed: {pdfError}
                       </div>
                     )}
                   </div>
                 )}
                 {pdfLoading && pdfDoc && (
-                  <div className="fixed bottom-20 right-8 px-2.5 py-1 rounded-shell bg-[rgb(var(--color-surface-4))] text-[10px] text-[rgb(var(--color-text-secondary))] shadow-lg pointer-events-none">
+                  <div className="material-popover fixed bottom-20 right-8 px-2.5 py-1 rounded-menu text-caption2 text-text-secondary pointer-events-none">
                     Updating preview…
                   </div>
                 )}
@@ -702,23 +691,20 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
           </div>
 
           {/* Footer */}
-          <div className="flex items-center gap-2 px-4 py-3 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+          <div className="flex items-center gap-2 px-4 py-3 border-t border-separator flex-shrink-0">
+            <p className="text-caption2 text-text-muted">
               {pdfDownloadLocation ? `Saves to: ${pdfDownloadLocation}` : 'You\'ll be asked where to save'}
             </p>
             <div className="flex-1" />
-            <button onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors">
+            <Button variant="ghost" size="sm" onClick={onClose}>
               Cancel
-            </button>
-            <button onClick={doPrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors">
-              <Printer size={13} /> Print
-            </button>
-            <button onClick={doDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-shell bg-[rgb(var(--color-accent))] text-white font-medium hover:opacity-90 cursor-pointer transition-opacity">
-              <FileDown size={13} /> Download PDF
-            </button>
+            </Button>
+            <Button variant="secondary" size="sm" icon={Printer} onClick={doPrint}>
+              Print
+            </Button>
+            <Button variant="primary" size="sm" icon={FileDown} onClick={doDownload}>
+              Download PDF
+            </Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

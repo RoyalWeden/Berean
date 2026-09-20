@@ -1,8 +1,9 @@
 import * as Popover from '@radix-ui/react-popover'
 import { useState } from 'react'
-import { Check, ChevronDown, CircleDashed } from 'lucide-react'
+import { ChevronDown, CircleDashed } from 'lucide-react'
 import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import type { NoteStatus } from '@/types'
+import { Button, PopoverSurface, MenuItem, MenuLabel, cx } from '@/components/ui'
 
 // Status picker for a single note — used both in the note editor header (while writing) and
 // as a section inside NoteContextMenu (right-click from the list), per the user's request for
@@ -23,66 +24,47 @@ export default function NoteStatusDropdown({
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         {compact ? (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ChevronDown}
+            iconTrailing
             title={current ? `Status: ${current.label}` : 'Set status'}
-            className={`flex items-center gap-1 px-1.5 py-1 rounded-shell text-[10px] font-medium transition-colors cursor-pointer flex-shrink-0 ${
-              open
-                ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-secondary))]'
-            }`}
+            className={open ? 'bg-surface-hover text-text-primary' : ''}
           >
             <CurrentIcon size={11} style={current ? { color: current.color } : undefined} />
             {current && <span>{current.label}</span>}
-            <ChevronDown size={9} className="opacity-60" />
-          </button>
+          </Button>
         ) : (
-          <button className="w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">
-            <CurrentIcon size={13} style={current ? { color: current.color } : undefined} />
-            <span className="flex-1 text-xs">{current ? current.label : 'Set status'}</span>
-            <ChevronDown size={10} className="opacity-60" />
-          </button>
+          <MenuItem
+            className={cx('text-text-secondary', open && 'bg-lift-2')}
+            label={<span className="flex items-center gap-2">
+              <CurrentIcon size={13} style={current ? { color: current.color } : undefined} />
+              <span>{current ? current.label : 'Set status'}</span>
+            </span>}
+            trailing={<ChevronDown size={10} className="opacity-60" />}
+          />
         )}
       </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="bottom"
-          align="end"
-          sideOffset={6}
-          className="z-50 w-44 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1"
-        >
-          <div className="text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide px-2 pt-1 pb-1.5">Status</div>
-          <button
-            onClick={() => { onChange(null); setOpen(false) }}
-            className={`w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
-              ${!value
-                ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
-              }`}
-          >
-            <CircleDashed size={13} className="flex-shrink-0 opacity-60" />
-            <span className="flex-1 text-xs">No status</span>
-            {!value && <Check size={11} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-          </button>
-          {NOTE_STATUSES.map((s) => {
-            const Icon = s.icon
-            return (
-              <button
-                key={s.id}
-                onClick={() => { onChange(s.id); setOpen(false) }}
-                className={`w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
-                  ${value === s.id
-                    ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                    : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
-                  }`}
-              >
-                <Icon size={13} className="flex-shrink-0" style={{ color: s.color }} />
-                <span className="flex-1 text-xs">{s.label}</span>
-                {value === s.id && <Check size={11} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-              </button>
-            )
-          })}
-        </Popover.Content>
-      </Popover.Portal>
+      <PopoverSurface side="bottom" align="end" innerClassName="w-44 p-1">
+        <MenuLabel>Status</MenuLabel>
+        <MenuItem
+          active={!value}
+          onClick={() => { onChange(null); setOpen(false) }}
+          label={<span className="flex items-center gap-2"><CircleDashed size={13} className="flex-shrink-0 opacity-60" /><span>No status</span></span>}
+        />
+        {NOTE_STATUSES.map((s) => {
+          const Icon = s.icon
+          return (
+            <MenuItem
+              key={s.id}
+              active={value === s.id}
+              onClick={() => { onChange(s.id); setOpen(false) }}
+              label={<span className="flex items-center gap-2"><Icon size={13} className="flex-shrink-0" style={{ color: s.color }} /><span>{s.label}</span></span>}
+            />
+          )
+        })}
+      </PopoverSurface>
     </Popover.Root>
   )
 }

@@ -29,7 +29,7 @@ describe('NotesBoardView', () => {
 
   it('renders exactly the 5 status columns, no "No status" column', () => {
     const el = mount([])
-    const headers = Array.from(el.querySelectorAll('.text-xs.font-medium')).map((n) => n.textContent)
+    const headers = Array.from(el.querySelectorAll('[data-testid="board-col-title"]')).map((n) => n.textContent)
     expect(headers).toEqual(['Started', 'In Progress', 'Complete', 'Make Video', 'Archive'])
   })
 

@@ -4,14 +4,16 @@
 
 /* Arc-inspired dark theme tokens */
 :root {
-  --color-surface-1: 17 17 20;
-  --color-surface-2: 22 22 27;
-  --color-surface-3: 28 28 35;
-  --color-surface-4: 38 38 47;
+  /* Default dark — re-tuned Sept 2026 to macOS-dark-like separation: window (1) darker than
+     the sidebar/bar ground (2); content (3) sits between them so bars visibly lift off it. */
+  --color-surface-1: 24 24 28;
+  --color-surface-2: 31 31 37;
+  --color-surface-3: 27 27 32;
+  --color-surface-4: 48 48 58;
   --color-accent: 100 120 220;
   --color-text-primary: 230 230 238;
-  --color-text-secondary: 140 140 160;
-  --color-text-muted: 80 80 100;
+  --color-text-secondary: 150 150 170;
+  --color-text-muted: 104 104 124;
   --color-red-letter: 248 113 113;
   --font-size-base: 16px;
   --line-height-comfortable: 1.75;
@@ -20,10 +22,11 @@
 }
 
 .light {
-  --color-surface-1: 245 245 248;
-  --color-surface-2: 235 235 242;
+  /* Default light — off-white window/sidebar vs white content (macOS light) */
+  --color-surface-1: 240 240 244;
+  --color-surface-2: 232 232 238;
   --color-surface-3: 255 255 255;
-  --color-surface-4: 220 220 230;
+  --color-surface-4: 214 214 224;
   --color-accent: 80 100 200;
   --color-text-primary: 20 20 28;
   --color-text-secondary: 80 80 100;
@@ -31,6 +34,209 @@
   --color-red-letter: 214 40 40;
   --selection-bg: rgba(80, 100, 200, 0.35);
   --verse-highlight-bg: rgba(80, 100, 200, 0.1);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — derived semantic layer (see docs/design-system.md)
+   ──────────────────────────────────────────────────────────────────────────────
+   Every theme block above/below defines ONLY the 11 base vars (surface-1..4,
+   accent, text-primary/secondary/muted, red-letter, selection-bg,
+   verse-highlight-bg). Everything here is DERIVED from those with color-mix() /
+   rgb(var() / α), so all 37 presets × 2 schemes pick it up automatically — never
+   add per-theme overrides for these tokens. Consume via the Tailwind utilities in
+   tailwind.config.js (bg-surface-hover, border-separator, rounded-md, shadow-2,
+   z-menu, text-caption, …) or the .material-* classes further down.            */
+:root {
+  /* Hairlines & borders — surface-4 used to double as both hover fill and border */
+  --color-separator: rgb(var(--color-surface-4) / 0.5);
+  --color-border: rgb(var(--color-surface-4) / 0.85);
+
+  /* Theme-independent "lift" — text-tinted alphas that visibly raise a surface off ANY ground
+     (dark or light, saturated or muted preset). Materials and controls are built from these
+     so hierarchy never depends on how far apart a preset's surface-1..4 happen to be. */
+  --lift-1: rgb(var(--color-text-primary) / 0.04);
+  --lift-2: rgb(var(--color-text-primary) / 0.07);
+  --lift-3: rgb(var(--color-text-primary) / 0.11);
+  --lift-4: rgb(var(--color-text-primary) / 0.16);
+  --hairline: rgb(var(--color-text-primary) / 0.08);
+  --highlight: rgb(var(--color-text-primary) / var(--glass-highlight));   /* inset top edge on glass */
+
+  /* M2 — interactive glass (controls). rest → hover → pressed; selected = raised thumb. */
+  --control-bg: var(--lift-2);
+  --control-bg-hover: var(--lift-3);
+  --control-bg-pressed: var(--lift-4);
+  --control-border: var(--hairline);
+  --control-highlight: inset 0 1px 0 var(--highlight);
+  --control-selected-bg: color-mix(in srgb, rgb(var(--color-surface-3)) 90%, rgb(var(--color-text-primary)) 10%);
+  --control-field-bg: rgb(var(--color-surface-1) / 0.55);
+
+  /* Role aliases (pass 3, §6): components consume ROLES, themes decide what they mean. */
+  --surface-interactive: var(--control-bg);
+  --surface-disabled: var(--lift-1);
+  /* Attached inspector pane (Scripture side panel, Notes side panel): a near-opaque, blur-free
+     surface between the sidebar ground and the content — a Mac inspector is a PANE, not a card. */
+  --surface-inspector: color-mix(in srgb, rgb(var(--color-surface-2)) 55%, rgb(var(--color-surface-3)) 45%);
+  --color-text-tertiary: var(--color-text-muted);                       /* triple — supports /alpha */
+  --color-text-quaternary: rgb(var(--color-text-muted) / 0.6);
+  --color-text-disabled: rgb(var(--color-text-muted) / 0.5);
+  --separator-subtle: var(--hairline);
+  --border-elevated: var(--highlight);
+  --border-focus: var(--color-focus-ring);
+  --border-active: rgb(var(--color-accent) / 0.55);
+  /* Scrims — the only two. modal = sheets/dialogs; light = transient app "windows" (⌘K, History). */
+  --scrim-modal: rgb(0 0 0 / calc(0.40 * var(--shadow-strength) + 0.08));
+  --scrim-light: rgb(0 0 0 / calc(0.18 * var(--shadow-strength) + 0.04));
+  /* Toolbar strokes (macOS 27 toolbars carry a lighter top and darker bottom hairline; observed) */
+  --stroke-top: rgb(var(--color-text-primary) / calc(var(--glass-highlight) * 0.9));
+  --stroke-bottom: rgb(0 0 0 / calc(0.10 * var(--shadow-strength)));
+  /* Badge (toolbar/tab item badges: count, dot, live) */
+  --badge-bg: rgb(var(--color-accent));
+  --badge-fg: white;
+
+  /* Interactive / elevated surfaces */
+  --color-surface-elevated: color-mix(in srgb, rgb(var(--color-surface-2)) 96%, rgb(var(--color-text-primary)) 4%);
+  --color-surface-hover: var(--lift-2);
+  --color-surface-pressed: var(--lift-4);
+  /* Neutral selection for sidebar/list rows (Finder-style, works on every accent) */
+  --color-surface-selected: color-mix(in srgb, rgb(var(--color-surface-4)) 88%, rgb(var(--color-text-primary)) 12%);
+  /* Accent-tinted selection for rail/nav/chips/settings-nav "current" states */
+  --color-accent-muted: rgb(var(--color-accent) / 0.14);
+  --color-accent-hover: rgb(var(--color-accent) / 0.22);
+  --color-accent-raised: color-mix(in srgb, rgb(var(--color-accent)) 92%, white 8%);    /* primary hover */
+  --color-accent-pressed: color-mix(in srgb, rgb(var(--color-accent)) 86%, black 14%);   /* primary pressed */
+  --color-accent-active: rgb(var(--color-accent) / 0.30);                                 /* accent-tinted pressed */
+  --color-focus-ring: rgb(var(--color-accent) / 0.7);
+
+  /* Semantic status pigments — scheme-aware via .scheme-light / .scheme-dark
+     (set by applyThemeToDocument), NOT per theme. Bare triples so Tailwind's
+     <alpha-value> works (text-destructive/70, bg-success/15, …). */
+  --color-destructive: 248 113 113;
+  --color-success: 74 222 128;
+  --color-warning: 251 191 36;
+  --color-info: 96 165 250;
+  --shadow-strength: 1;
+
+  /* Glass knobs (§67/§108) — Settings → Appearance → Glass appearance stamps html[data-glass]
+     (clear / regular / tinted, mirroring macOS 27's transparency slider); each value re-tunes
+     THIS set and nothing else. Every .material-* below is built from these — never write a
+     literal blur()/saturate() in a material again. */
+  --glass-alpha-mult: 1;      /* opacity multiplier on every material alpha */
+  --glass-blur: 1;            /* multiplier on every material blur radius */
+  --glass-saturate: 1.4;      /* backdrop saturation */
+  --glass-contrast: 1;        /* backdrop contrast */
+  --glass-tint: 3%;           /* text-tinted "frost" mixed into bars/sidebar */
+  --glass-highlight: 0.10;    /* alpha of the inset top-edge highlight */
+  --glass-shadow: 1;          /* multiplier on floating-surface drop shadows */
+
+  /* Materials: base surface + alpha + blur radius. Bars deliberately have NO blur —
+     on mac the window itself is transparent with native vibrancy behind it, so the OS
+     already blurs the desktop; a CSS backdrop-filter there would blur our own text. */
+  --material-content: rgb(var(--color-surface-3));                       /* M0 */
+  --material-bar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.62) calc(100% - var(--glass-tint)), rgb(var(--color-text-primary)) var(--glass-tint));   /* M1 */
+  --material-bar-bg-opaque: color-mix(in srgb, rgb(var(--color-surface-2)) calc(100% - var(--glass-tint)), rgb(var(--color-text-primary)) var(--glass-tint));
+  --material-sidebar-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.74) calc(100% - var(--glass-tint)), rgb(var(--color-text-primary)) var(--glass-tint));
+  --material-elevated-bg: rgb(var(--color-surface-1) / min(0.97, calc(0.84 * var(--glass-alpha-mult))));  /* M3+ */
+  --material-elevated-blur: 24px;
+  --material-panel-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.78 * var(--glass-alpha-mult))));
+  --material-panel-blur: 14px;
+  --material-popover-bg: rgb(var(--color-surface-1) / min(0.98, calc(0.86 * var(--glass-alpha-mult))));
+  --material-popover-blur: 16px;
+  --material-sheet-bg: rgb(var(--color-surface-1) / min(0.985, calc(0.94 * var(--glass-alpha-mult))));
+  --material-sheet-blur: 16px;
+  --material-control-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.72 * var(--glass-alpha-mult))));
+  --material-control-blur: 10px;
+  --material-inspector-bg: var(--surface-inspector);
+  /* Opaque twins — used by html[data-reduce-transparency] and non-vibrant windows */
+  --material-elevated-bg-opaque: rgb(var(--color-surface-1));
+  --material-panel-bg-opaque: rgb(var(--color-surface-2));
+  --material-popover-bg-opaque: rgb(var(--color-surface-1));
+  --material-sheet-bg-opaque: rgb(var(--color-surface-1));
+  --material-control-bg-opaque: rgb(var(--color-surface-2));
+
+  /* Elevation — one recipe (inset top hairline + soft drop), three tiers */
+  --shadow-1: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 0 1px 3px -1px rgb(0 0 0 / calc(0.35 * var(--shadow-strength)));
+  --shadow-2: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / calc(0.45 * var(--shadow-strength) * var(--glass-shadow)));
+  --shadow-3: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 18px 50px -12px rgb(0 0 0 / calc(0.55 * var(--shadow-strength) * var(--glass-shadow)));
+
+  /* Radii — macOS 27 scale. Concentric rule: inner = outer − inset. Window = 20pt. */
+  --radius-chip: 4px;      /* marks, ref chips, tags, keycaps */
+  --radius-control-sm: 6px;/* 24px controls (compact contexts) — rounded rectangle */
+  --radius-compact: 7px;   /* = --radius-control-md: 28–32px controls, segments, sidebar rows, icon buttons */
+  --radius-control-md: 7px;
+  --radius-card: 8px;      /* inline cards, code blocks, verse-embed blocks, segmented tracks, menu rows */
+  --radius-row: 10px;      /* sidebar / list / tab rows, calendar cells */
+  --radius-menu: 14px;     /* menus, popovers, inset side panels */
+  --radius-sheet: 20px;    /* dialogs / sheets / large glass panels (= window radius) */
+  --radius-window: 12px;   /* surfaces that sit against the window's own corner */
+  --radius-control: 9999px;/* capsule — ONLY search fields, lg/primary/prominent buttons, tokens, badges, switches
+                              (Apple: mini/small/medium controls are rounded rectangles; large/XL are capsules) */
+
+  /* Layering */
+  /* Menus/popovers/selects are routinely spawned FROM WITHIN a higher-level surface (a
+     <Select> in a Settings Sheet, a "word matching" dropdown inside the ⌘K palette, a color
+     picker from a context menu…) and portal straight to document.body, so their stacking is
+     pure z-index, not DOM nesting — each tier below exists only so the NEXT thing spawned from
+     it can sit above it: modal (Settings, Import, Onboarding) sits above plain overlays;
+     critical (History, ⌘K, Tab Switcher, Theme Picker — standalone app "windows") sits above
+     modals since either can be opened while the other is around; and menu/popover sit above
+     BOTH, as the actual highest tier, because a menu can be spawned from inside ANY of them and
+     must always beat whatever spawned it. Getting this backwards is exactly how a dropdown
+     opened from inside the ⌘K palette or a Settings sheet used to render invisibly behind it. */
+  --z-raised: 10;
+  --z-overlay: 100;
+  --z-modal: 200;
+  --z-critical: 300;
+  --z-popover: 400;
+  --z-menu: 450;   /* a Select/context menu opened from INSIDE a popover must beat the popover */
+
+  /* Motion */
+  --motion-fast: 100ms;
+  --motion-base: 150ms;
+  --motion-slow: 220ms;
+  --motion-popover: 160ms;   /* menus / popovers / tooltips scale-in from their origin */
+  --motion-panel: 240ms;     /* inspector / rail / side panels */
+  --motion-workspace: 280ms; /* tab / workspace cross-fades */
+  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Chrome typography scale (px; Scripture/Notes bodies keep their own user settings) */
+  --text-micro: 9px;
+  --text-caption2: 10px;
+  --text-caption: 11px;
+  --text-footnote: 12px;
+  --text-subhead: 13px;
+  --text-body: 14px;
+  --text-title3: 15px;
+  --text-title2: 17px;
+  --text-title1: 20px;
+
+  /* Chrome geometry */
+  --traffic-light-inset: 76px;
+  --header-h: 44px;
+
+  /* Feature palettes that were hardcoded hex at call sites */
+  --trail-warm: 224 132 104;   /* Study Trail "warm" edge/accent (#e08468) */
+  --trail-cool: 79 195 174;    /* Study Trail "cool" edge/accent (#4fc3ae) */
+  /* Per-tab-type icon colors (unified tab list quick-scan cue) — were hardcoded hex in TabBar.tsx */
+  --tab-icon-bible: 91 110 232;    /* #5b6ee8 */
+  --tab-icon-note: 232 160 63;     /* #e8a03f */
+  --tab-icon-lexicon: 63 191 127;  /* #3fbf7f */
+  --tab-icon-youtube: 232 91 91;   /* #e85b5b */
+  --tab-icon-search: 139 143 152;  /* #8b8f98 */
+  --tab-icon-pdf: 139 143 152;     /* #8b8f98 */
+  --tab-icon-tags: 176 111 232;    /* #b06fe8 */
+  --font-lemma: Georgia, "Times New Roman", "Noto Serif Hebrew", "SBL Hebrew", serif; /* Hebrew/Greek lemma display */
+}
+
+/* Scheme-aware values (light grounds need darker status pigments + lighter shadows) */
+.scheme-light {
+  --color-destructive: 220 38 38;
+  --color-success: 22 163 74;
+  --color-warning: 180 83 9;
+  --color-info: 37 99 235;
+  --shadow-strength: 0.55;
+  --color-surface-selected: color-mix(in srgb, rgb(var(--color-surface-4)) 93%, rgb(var(--color-text-primary)) 7%);
+  --color-surface-elevated: rgb(var(--color-surface-3));
 }
 
 /* ── Highlight & link palette (universal — same pigment across all themes) ──
@@ -1190,6 +1396,30 @@
   --font-ui: inherit;
 }
 
+/* ── Reading column (pass 4 §26–27) ──────────────────────────────────────────
+   Left-anchored, wider cap — Michael's decision. `--reading-max-ch` is a starting
+   point [inference]; `ch` under/over-counts depending on the selected Scripture
+   font, so a font whose measured chars-per-line lands outside ~60–80 gets its own
+   override below rather than a per-workspace hack. `--reading-margin` resolves
+   as a genuine percentage of the reading column's own containing block (no
+   container-query plumbing needed — percentage padding already keys off the
+   nearest block container's width), clamped so it never gets cramped on a narrow
+   inspector-open pane or absurd on an ultra-wide window. */
+:root {
+  /* Measured in the running app (system serif, 16px): 1ch ≈ 8px, so 72ch rendered ~72 chars/line
+     (typographically ideal) but ~190px NARROWER than the previous 768px cap — the opposite of
+     Michael's "wider cap" decision. 86ch ≈ 688px ≈ 86 chars/line keeps a comfortable measure while
+     using more of the pane; tune this ONE token, never the component. */
+  --reading-max-ch: 86;
+  --reading-margin: clamp(24px, 6%, 72px);
+}
+.berean-reading-column {
+  padding-inline: var(--reading-margin);
+  padding-block: 24px;
+  max-width: min(calc(var(--reading-max-ch) * 1ch), calc(100% - (2 * var(--reading-margin))));
+  margin-inline-start: 0;
+}
+
 /* Apply font families to the relevant sections */
 .berean-scripture-text {
   font-family: var(--font-scripture);
@@ -1218,17 +1448,6 @@
   font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
 }
 
-/* ── Find-bar text highlights ────────────────────────────────────────────────── */
-/* Legacy: applied imperatively to parent elements (used in CodeMirror editor view) */
-.berean-find-match {
-  background-color: rgba(234, 179, 8, 0.18) !important;
-  border-radius: 3px;
-  outline: none;
-}
-.berean-find-active {
-  background-color: rgba(234, 179, 8, 0.48) !important;
-  border-radius: 3px;
-}
 /* Note highlight colors (used in preview HTML and CodeMirror via .cm-live-hl-*).
    Values sourced from the --highlight-* vars above (src/styles/highlightPalette.ts
    is the canonical JS-side accessor) — kept as literal rgba() here since these
@@ -1324,6 +1543,14 @@ body {
   background: rgb(var(--color-text-muted));
 }
 
+/* Scroll containers (ui/ScrollContainer): overlay scrollbar (global recipe), contained overscroll. */
+.scroll-container { overflow-y: auto; overscroll-behavior: contain; }
+
+/* Overlay-style scroller: no reserved gutter, so edge-to-edge rows (sidebar tab list) reach the
+   pane's edge; trackpad scrolling is unaffected. */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { width: 0; height: 0; }
+
 /* react-mosaic overrides */
 .mosaic-root {
   position: absolute;
@@ -1340,7 +1567,7 @@ body {
 
 .mosaic-window {
   background: rgb(var(--color-surface-3)) !important;
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   overflow: hidden;
 }
 
@@ -1581,163 +1808,252 @@ body {
    INNER wrapper div (one that Radix doesn't control), never to
    Tooltip.Content/Popover.Content itself — there it's safe to animate
    scale too, since nothing else owns that element's transform. */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fade-in var(--motion-base) ease-out both; }
+
 @keyframes radix-popup-in {
   from { opacity: 0; transform: scale(0.94); }
   to   { opacity: 1; transform: scale(1); }
 }
 .animate-radix-popup-in {
-  animation: radix-popup-in 0.14s ease-out;
+  animation: radix-popup-in var(--motion-popover) var(--motion-ease-out) both;
+  /* Radix Popper exposes the side it resolved to as a transform-origin var on Content; the
+     inner element inherits it so the surface grows out of its trigger, not its own centre. */
+  transform-origin: var(--radix-popover-content-transform-origin, var(--radix-tooltip-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, center)));
 }
 
-/* ── macOS native sidebar vibrancy ────────────────────────────────────────────
-   The BrowserWindow is created with { transparent: true, vibrancy: 'sidebar' }
-   on macOS only (electron/main.ts) — a true frosted-glass effect against the
-   desktop/other windows, which plain CSS backdrop-blur cannot produce in an
-   opaque window (it only blurs the app's own DOM, not what's behind the
-   window). This class makes the sidebar's own background semi-transparent so
-   that native blur actually shows through; applied conditionally in
-   Sidebar.tsx via window.__berean_platform === 'darwin' since the window is
-   only transparent on mac — Windows keeps its original opaque background and
-   must not get a see-through sidebar with nothing behind it to blur. No
-   backdrop-filter here: the OS already blurs what's behind the window, adding
-   our own blur on top would blur the sidebar's own text/icons too. */
-.sidebar-vibrant {
-  background: rgb(var(--color-surface-2) / 0.6);
-  /* Subtle depth cues only — no backdrop-filter (see note above: the OS already
-     blurs what's behind the transparent window, so adding our own blur here
-     would blur the sidebar's own text/icons too). A soft inset top highlight
-     plus a faint right-edge shadow give the sidebar the same "distinct surface"
-     read its own popovers (.glass-panel) already have, without re-blurring. */
-  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 1px 0 12px -4px rgb(0 0 0 / 0.25);
+/* ── Materials (design system) ──────────────────────────────────────────────
+   Four layers (docs/design-system.md → Layers):
+     content   — .material-content: flat, no glass, ever (Scripture, notes, definitions, graphs)
+     chrome    — .material-bar / .material-sidebar / .material-inspector: integrated panes
+     controls  — .control-glass / .control-field / .material-control: tactile M2
+     elevated  — .material-popover / .material-elevated / .material-sheet: transient surfaces
+   .material-bar     — toolbars / sidebar ground. Translucent ONLY on a vibrant window
+                       (html[data-vibrant], stamped by main.tsx for the main window on mac);
+                       every other window (Windows, pop-out, viewer, trail, picker) is an
+                       opaque BrowserWindow and gets the opaque fallback automatically.
+   .material-inspector — ATTACHED inspector pane (Scripture side panel, Notes side panel):
+                       hairline left edge, no radius, no blur, no drop shadow.
+   .material-panel   — legacy inset floating panel (kept for CompareView/PDF; new code uses
+                       .material-inspector or .material-popover).
+   .material-popover — menus, context menus, dropdowns, tooltips, hover cards, popovers.
+   .material-sheet   — modal sheets / dialogs (denser so long-form content stays legible).
+   .material-control — a single floating grouped control (e.g. the notes editor toolbar).
+   Every blur()/saturate() below is driven by the --glass-* knobs; html[data-glass] retunes them. */
+.material-bar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--stroke-top); }
+html[data-vibrant] .material-bar { background: var(--material-bar-bg); }
+/* Sidebar ground: same material, slightly more opaque than the toolbar (macOS 27 sidebars
+   are darker/denser than the toolbar strip above them). */
+.material-sidebar { background: var(--material-bar-bg-opaque); box-shadow: inset 0 1px 0 var(--highlight); }
+html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
+.material-content { background: var(--material-content); }
+.material-inspector {
+  background: var(--material-inspector-bg);
+  border-left: 1px solid var(--color-separator);
 }
 
-/* Same translucent-vibrancy background as .sidebar-vibrant, WITHOUT its box-shadow —
-   ShellHeader.tsx uses this instead of .sidebar-vibrant: the right-edge shadow that
-   class bakes in was designed for a vertical sidebar's side edge, but on the header
-   it rendered as an unwanted shadow along the header's bottom edge (reported as
-   "the top bar still has the shadow" even after ShellHeader's own shadow-* class was
-   removed — this box-shadow, inherited from .sidebar-vibrant, was the real source). */
-.topbar-vibrant {
-  background: rgb(var(--color-surface-2) / 0.6);
+/* Interactive glass (M2) — the resting surface of every visible control (toolbar buttons,
+   secondary buttons, fields, segmented tracks, grouped controls). Hover/pressed swap the fill only. */
+.control-glass {
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  box-shadow: var(--control-highlight), 0 1px 2px -1px rgb(0 0 0 / calc(0.25 * var(--shadow-strength)));
+}
+.control-field {
+  background: var(--control-field-bg);
+  box-shadow: inset 0 0 0 1px var(--control-border);
 }
 
-/* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
-   Reusable treatment for sidebar, floating search, context menus, tooltips.
-   NOTE: PresenterControls.tsx's older glass pattern (95% opaque + default 8px
-   Tailwind blur) reads as an almost-solid panel — the opacity leaves too
-   little of the backdrop showing through for the blur to be visible at all.
-   This is deliberately more translucent (72%) with a stronger blur + a touch
-   of saturation boost, so the frosted effect is actually perceptible against
-   whatever is behind the panel (verse text, sidebar content, etc).
-   Blur radius was 24px — trimmed to 14px (GPU compositor cost scales with the
-   square of the radius, so this is a meaningful saving, not a cosmetic tweak)
-   after profiling showed these panels recompositing every scroll frame and
-   competing for GPU budget with OS-level screen mirroring (AirPlay/Screen
-   Mirroring casting while scrolling in the app). Still visibly frosted at
-   14px against typical content behind it.                                  */
-.glass-panel {
-  background: rgb(var(--color-surface-1) / 0.72);
-  backdrop-filter: blur(14px) saturate(1.5);
-  -webkit-backdrop-filter: blur(14px) saturate(1.5);
-  border: 1px solid rgb(var(--color-surface-4) / 0.5);
-  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
+/* Elevated glass (M3+) — Spotlight-class floating windows inside the app: History, ⌘K,
+   Tab Switcher, the expanded contextual rail. More blur than a popover, lighter scrim than a sheet. */
+.material-elevated {
+  background: var(--material-elevated-bg);
+  backdrop-filter: blur(calc(var(--material-elevated-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) + 0.1)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-elevated-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) + 0.1)) contrast(var(--glass-contrast));
+  border: 1px solid var(--hairline);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-3);
 }
 
-/* ── Floating panel header buttons (Pop Out Tab window) ──────────────────────
-   PanelHeader.tsx's `floating` row itself has NO background at all — no shared
-   bar for buttons to sit flush inside. Instead, only the row's actual CONTROLS
-   (plain buttons/links, and ActionPillGroup's segmented clusters, tagged via
-   its own `.action-pill-group` marker class) get a small frosted chip each —
-   deliberately NOT every direct child indiscriminately (an earlier version of
-   this rule used `> *`, which also painted a background behind plain text/
-   spacer elements that aren't controls at all — e.g. a `flex-1` spacer between
-   button groups — hiding the transparency the point of this whole treatment
-   was to show, and covering text that should have read directly against the
-   panel's own content). Anything that isn't a `button`/`a`/`[role="button"]`/
-   `.action-pill-group` stays fully transparent, so the header reads as a loose
-   cluster of floating controls with visible gaps between them, not a bar.
-   `border-radius` IS forced here (unlike the first pass) — most of these are
-   plain small icon buttons with no radius of their own at all, so a background
-   with no matching radius rendered as a sharp-cornered box behind a round
-   icon ("looked clipped"); forcing a full pill radius on plain controls (a
-   `button`/`a`/`[role=button]` selector has strictly higher specificity than
-   a single Tailwind utility class, so this correctly wins over whatever
-   `rounded-*` a given button happened to declare for the DOCKED context,
-   giving every floating chip one consistent radius language) while leaving
-   `.action-pill-group` to its own already-correct `rounded-shell` — forcing a
-   full pill radius on a WIDE multi-segment group would look wrong, not a
-   plain small square icon button. Tailwind's own `hover:bg-*` utilities on
-   these same elements still win on hover — a `button`/`a`/`[role=button]`/
-   `.action-pill-group` selector's specificity is still lower than a single
-   hover pseudo-class utility, so the frosted chip background is exactly the
-   RESTING state, not a competing coat of paint.
-
-   Also reaches ONE level through a plain `<div>` (`> div > button` etc.) — several trigger
-   components (BookChapterPicker.tsx's own `<div className={wrapperClassName ?? 'relative'}>`
-   is the one that surfaced this: a positioning wrapper around its real `<button>`, needed so
-   its dropdown panel can anchor to it) render their actual control one level deeper than the
-   header row itself, so the plain direct-child selectors above never reached them, leaving
-   those specific buttons with no chip ("some of the buttons... look like floating tabs" but
-   not these). Popover/dropdown PANEL content doesn't defeat this: every menu in this codebase
-   portals its open panel straight to `document.body` (see HeaderOverflowMenu.tsx and
-   YouTubeTab.tsx's own comment on why), so it's never actually a DOM descendant of the header
-   to begin with — only the trigger button sitting inside its wrapper div is. */
-.floating-header-buttons > button,
-.floating-header-buttons > a,
-.floating-header-buttons > [role="button"],
-.floating-header-buttons > div > button,
-.floating-header-buttons > div > a,
-.floating-header-buttons > div > [role="button"],
-.floating-header-buttons > .action-pill-group {
-  background: rgb(var(--color-surface-2) / 0.72);
-  backdrop-filter: blur(10px) saturate(1.4);
-  -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 0 3px 10px -5px rgb(0 0 0 / 0.35);
+.material-panel {
+  background: var(--material-panel-bg);
+  backdrop-filter: blur(calc(var(--material-panel-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-panel-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
+  border: 1px solid var(--color-separator);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2);
 }
-.floating-header-buttons > button,
-.floating-header-buttons > a,
-.floating-header-buttons > [role="button"],
-.floating-header-buttons > div > button,
-.floating-header-buttons > div > a,
-.floating-header-buttons > div > [role="button"] {
-  border-radius: 9999px;
+.material-popover {
+  background: var(--material-popover-bg);
+  backdrop-filter: blur(calc(var(--material-popover-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-popover-blur) * var(--glass-blur))) saturate(var(--glass-saturate)) contrast(var(--glass-contrast));
+  border: 1px solid var(--color-separator);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2);
 }
+/* Opaque popover — opened over a blurred sheet, where blur-over-blur would stack two filters. */
+.material-popover.popover-opaque { background: var(--material-popover-bg-opaque); backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* Denser popover for hover cards that sit directly over body text (verse / note previews). */
+.material-popover-dense { background: rgb(var(--color-surface-1) / min(0.99, calc(0.96 * var(--glass-alpha-mult)))); }
+.material-sheet {
+  background: var(--material-sheet-bg);
+  backdrop-filter: blur(calc(var(--material-sheet-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-sheet-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-3);
+}
+.material-control {
+  background: var(--material-control-bg);
+  backdrop-filter: blur(calc(var(--material-control-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(var(--material-control-blur) * var(--glass-blur))) saturate(calc(var(--glass-saturate) - 0.1)) contrast(var(--glass-contrast));
+  border: 1px solid var(--color-separator);
+  box-shadow: var(--shadow-1);
+  border-radius: var(--radius-control);
+}
+/* Opaque windows have nothing behind them to blur — drop the filter (GPU cost) and rely on the
+   alpha alone; the alpha still lets the app's own content beneath a popover show through. */
+html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(var(--color-surface-2) / 0.97); }
 
-/* ── Glass panel, modal variant ───────────────────────────────────────────────
-   For large, primary-content modals (Settings, the Cmd+K search palette,
-   Print/export preview) rather than small transient popovers — .glass-panel's
-   72% opacity is right for a glanceable context menu, but reads as too
-   see-through once it's the main surface holding dense, long-form content
-   (settings text, a full print-preview page): verse text or sidebar content
-   showing through hurts legibility rather than reading as intentional
-   "frosted chrome". Keeps the same blur/saturation character, just far less
-   transparent, paired with a blurred (not just dimmed) backdrop overlay so
-   the content behind the modal still reads as "there, but out of focus"
-   rather than a flat dark scrim. Blur radius trimmed 24px → 16px for the same
-   GPU-cost reason as .glass-panel above — kept slightly higher than
-   .glass-panel's 14px since modals are larger, more central, and stay
-   mounted longer, so a touch more blur is worth the marginal extra cost.    */
-.glass-panel-modal {
-  background: rgb(var(--color-surface-1) / 0.92);
-  backdrop-filter: blur(16px) saturate(1.35);
-  -webkit-backdrop-filter: blur(16px) saturate(1.35);
-  border: 1px solid rgb(var(--color-surface-4) / 0.6);
-  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
+/* Glass appearance presets (Settings → Appearance → Glass appearance). */
+html[data-glass="clear"]  { --glass-alpha-mult: 0.8;  --glass-blur: 1.15; --glass-saturate: 1.55; --glass-tint: 2%; --glass-highlight: 0.13; }
+html[data-glass="tinted"] { --glass-alpha-mult: 1.18; --glass-blur: 0.85; --glass-saturate: 1.25; --glass-tint: 5%; --glass-highlight: 0.08; }
+
+/* Reduce Transparency (System Settings → Accessibility → Display, forwarded by electron/main.ts as
+   html[data-reduce-transparency]; the media query covers browsers that expose it directly).
+   Every material becomes its opaque twin and drops its backdrop filter — glass must never be a
+   precondition for a legible app. */
+html[data-reduce-transparency] .material-bar,
+html[data-reduce-transparency] .material-sidebar { background: var(--material-bar-bg-opaque); }
+html[data-reduce-transparency] .material-elevated { background: var(--material-elevated-bg-opaque); }
+html[data-reduce-transparency] .material-panel    { background: var(--material-panel-bg-opaque); }
+html[data-reduce-transparency] .material-popover  { background: var(--material-popover-bg-opaque); }
+html[data-reduce-transparency] .material-sheet    { background: var(--material-sheet-bg-opaque); }
+html[data-reduce-transparency] .material-control  { background: var(--material-control-bg-opaque); }
+html[data-reduce-transparency] .material-elevated,
+html[data-reduce-transparency] .material-panel,
+html[data-reduce-transparency] .material-popover,
+html[data-reduce-transparency] .material-sheet,
+html[data-reduce-transparency] .material-control,
+html[data-reduce-transparency] .scrim-modal,
+html[data-reduce-transparency] .scrim-light { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+@media (prefers-reduced-transparency: reduce) {
+  /* html[data-vibrant] selectors above outrank a bare class — match their specificity. */
+  .material-bar, .material-sidebar, html[data-vibrant] .material-bar, html[data-vibrant] .material-sidebar { background: var(--material-bar-bg-opaque); }
+  .material-elevated { background: var(--material-elevated-bg-opaque); }
+  .material-panel    { background: var(--material-panel-bg-opaque); }
+  .material-popover  { background: var(--material-popover-bg-opaque); }
+  .material-sheet    { background: var(--material-sheet-bg-opaque); }
+  .material-control  { background: var(--material-control-bg-opaque); }
+  .material-elevated, .material-panel, .material-popover, .material-sheet, .material-control { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 }
 
-/* ── Context menu (flat, opaque — matches real NSMenu behavior) ──────────────
-   Right-click/dropdown menus were split between .glass-panel (blurred) in some
-   files and a flat bordered card in others — two competing "the" menu look.
-   Real AppKit menus are crisp and opaque, not heavily blurred, so this
-   standardizes on that: no backdrop-filter (menus are short-lived and small,
-   so there's no meaningful GPU saving to chase here — the point is just visual
-   consistency, not performance). Scoped to actual context/dropdown menus only;
-   .glass-panel itself is unchanged and still used by tooltips/popovers/modals. */
-.context-menu {
-  background: rgb(var(--color-surface-2));
-  border: 1px solid rgb(var(--color-surface-4));
-  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
+/* Inactive window (§85) — electron/main.ts forwards blur/focus as html[data-inactive]. A Mac window
+   that isn't key drops its accent: selection goes neutral, controls flatten, bar text recedes.
+   Only chrome reacts; content (Scripture, notes) is untouched so reading isn't disturbed. */
+html[data-inactive] {
+  --color-accent-muted: var(--lift-2);
+  --color-accent-hover: var(--lift-3);
+  --color-focus-ring: rgb(var(--color-text-muted) / 0.6);
+  --glass-highlight: 0.05;
+  --shadow-strength: 0.6;
 }
+html[data-inactive] .material-bar,
+html[data-inactive] .material-sidebar,
+html[data-inactive] .material-inspector { color: rgb(var(--color-text-secondary)); }
+html[data-inactive] .material-bar .control-glass,
+html[data-inactive] .material-sidebar .control-glass { box-shadow: none; background: var(--lift-1); }
+html[data-inactive] .text-accent { color: rgb(var(--color-text-secondary)); }
+/* Pass 4 additions — only what native vibrancy does NOT already do: prominent tint off, sidebar
+   glyphs desaturate, badges neutral, focus ring hidden, toolbar title recedes. Text stays legible. */
+html[data-inactive] .border-accent\/25 { border-color: var(--hairline); }
+html[data-inactive] [class*="text-tab-"] { filter: saturate(0.4); }
+html[data-inactive] .focus-ring:focus-visible { box-shadow: none; }
+html[data-inactive] .material-bar .text-subhead.font-semibold { color: rgb(var(--color-text-secondary)); }
+
+/* Increase Contrast (System Settings → Accessibility → Display; electron forwards
+   nativeTheme.shouldUseHighContrastColors as html[data-increase-contrast]): stronger hairlines,
+   visible control borders, a heavier focus ring, tertiary text promoted to secondary. */
+html[data-increase-contrast] {
+  --hairline: rgb(var(--color-text-primary) / 0.22);
+  --color-separator: rgb(var(--color-surface-4) / 0.95);
+  --color-border: rgb(var(--color-text-primary) / 0.35);
+  --control-border: rgb(var(--color-text-primary) / 0.28);
+  --color-text-tertiary: var(--color-text-secondary);
+  --color-focus-ring: rgb(var(--color-accent));
+}
+html[data-increase-contrast] .focus-ring:focus-visible { box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 5px var(--color-focus-ring); }
+
+/* Live badge: one soft pulse on activation, then static (§63 — presence, not animation). */
+@keyframes badge-live { 0% { box-shadow: 0 0 0 0 rgb(var(--color-accent) / 0.55); } 100% { box-shadow: 0 0 0 6px rgb(var(--color-accent) / 0); } }
+.badge-live { animation: badge-live 900ms var(--motion-ease-out) 1; }
+html[data-inactive] .bg-badge { background: rgb(var(--color-text-muted)); }
+
+/* Scrims — the only two (§58). */
+.scrim-modal { background: var(--scrim-modal); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.scrim-light { background: var(--scrim-light); }
+
+/* Scroll-edge (§37/§61) — a bar that content scrolls beneath shows its hairline + a soft shadow
+   ONLY while scrolled (useScrollEdge / Toolbar edge="auto"); at rest it is seamless with the page. */
+[data-scroll-edge] { transition: box-shadow var(--motion-base) var(--motion-ease); }
+[data-scroll-edge="bottom"][data-scrolled] { box-shadow: inset 0 1px 0 var(--highlight), 0 1px 0 var(--color-separator), 0 4px 12px -4px rgb(0 0 0 / calc(0.35 * var(--shadow-strength))); }
+/* Hard style (macOS 27's near-opaque top edge under floating bars): a denser backing appears
+   only while scrolled, so the bar reads as chrome the content passes beneath. */
+[data-scroll-edge][data-edge-style="hard"][data-scrolled] { background: color-mix(in srgb, var(--material-bar-bg-opaque) 92%, transparent); }
+html[data-vibrant] [data-scroll-edge][data-edge-style="hard"][data-scrolled].material-bar { background: color-mix(in srgb, var(--material-bar-bg-opaque) 86%, transparent); }
+[data-scroll-edge="top"][data-scrolled]    { box-shadow: 0 -1px 0 var(--color-separator), 0 -4px 12px -4px rgb(0 0 0 / calc(0.35 * var(--shadow-strength))); }
+
+/* Menu entrance from its trigger (§57/§103): MenuPositioner sets --menu-origin from the side it
+   actually opened toward; the surface scales in from there. PopoverSurface/Tooltip use Radix's
+   own --radix-*-content-transform-origin the same way. */
+@keyframes menu-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.animate-menu-in { animation: menu-in var(--motion-popover) var(--motion-ease-out) both; transform-origin: var(--menu-origin, top left); }
+
+/* Scroll containment (§60): nested scrollers inside chrome/transient surfaces never hand their
+   overscroll to the page behind them (an inspector list bouncing the whole reader, a menu
+   scrolling the sidebar). Momentum/rubber-banding inside each scroller is untouched. */
+.material-inspector, .material-popover, .material-elevated, .material-sheet, .material-sidebar,
+.material-inspector .overflow-y-auto, .material-sidebar .overflow-y-auto, [data-scroll-root] { overscroll-behavior: contain; }
+
+/* Find / search-term marks — one pigment for every "matched text" highlight. */
+.find-mark { background-color: rgb(var(--highlight-amber) / 0.35); color: rgb(var(--color-text-primary)); border-radius: var(--radius-chip); font-weight: 600; }
+
+/* Meta text role (§78): the ONE way to render counts, timestamps, word counts, status —
+   caption2 + tertiary, tabular. Never stack opacity-* on top of a muted text color. */
+.text-meta { font-size: var(--text-caption2); line-height: 1.3; color: rgb(var(--color-text-muted)); font-variant-numeric: tabular-nums; }
+
+/* Global reduced-motion: every CSS transition/animation collapses to (near) zero. framer-motion
+   is covered separately by <MotionConfig reducedMotion="user"> at each renderer root. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus ring — keyboard only, never on mouse clicks. Shared by every ui/ primitive. */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1.5px rgb(var(--color-surface-1)), 0 0 0 3.5px var(--color-focus-ring);
+}
+
+/* ── Slider (ui/Slider.tsx) — native range styled as an NSSlider ─────────────────────── */
+.ui-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 16px; background: transparent; cursor: pointer;
+}
+.ui-slider:disabled { opacity: 0.4; cursor: default; }
+.ui-slider::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 9999px;
+  background: linear-gradient(to right, rgb(var(--color-accent)) 0 var(--slider-fill, 0%), var(--lift-3) var(--slider-fill, 0%) 100%);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.ui-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 9999px;
+  background: white; border: 1px solid rgb(0 0 0 / 0.12);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(0 0 0 / 0.08);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.ui-slider:active::-webkit-slider-thumb { transform: scale(1.06); }
+.ui-slider:focus-visible { outline: none; }
+.ui-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 0 0 3px var(--color-focus-ring); }
 
 /* Inline Strong's numbers are absolutely positioned in the leading gap under each word
    (StrongsInline.tsx's .strongs-chip-abs) so they add ZERO layout — toggling them on/off just
@@ -1763,31 +2079,8 @@ body {
   background-color: rgb(var(--color-accent) / 0.22);
 }
 
-/* ── Native-feel interactive state (press + focus-visible) ───────────────────
-   There's no shared Button component in this codebase (698+ hand-rolled
-   <button> elements), so a single "fix it everywhere" change isn't possible
-   without a much larger migration — that's its own dedicated round. This is
-   the honest partial version: applied via one scoping class on the root of
-   the highest-traffic shell chrome (Ribbon, Sidebar, ShellHeader) rather than
-   hand-editing every individual button's className, so every plain <button>
-   in those three component trees gets press feedback (scale down slightly,
-   matching AppKit's button press) and a real keyboard focus ring — applied
-   via :focus-visible so it never shows on mouse clicks, only keyboard/switch-
-   control navigation. Doesn't reach content that Radix portals to
-   document.body (e.g. popover/menu bodies) since that's outside this DOM
-   subtree — acceptable partial coverage per the same tradeoff as everywhere
-   else in this pass. */
-.native-buttons button:not(:disabled) {
-  transition: transform 0.1s ease, filter 0.1s ease;
-}
-.native-buttons button:not(:disabled):active {
-  transform: scale(0.94);
-  filter: brightness(0.92);
-}
-.native-buttons button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px rgb(var(--color-accent) / 0.7);
-}
+/* (The former `.native-buttons` scoping rules were retired in design-system pass 2: every
+   control is now a ui/ primitive that owns its own press/focus states.) */
 
 /* ── Strong's/KJV-LXX crossfade (BiblePanel.tsx toggleStrongsForTab, ChapterView.tsx's
    translation-switch commit) ──────────────────────────────────────────────
@@ -1854,7 +2147,7 @@ html.theme-anim-bg body::before {
   z-index: 40;
   pointer-events: none;
   /* Reported: the animation "looks kind of off near the left." Root cause — on mac, Sidebar and
-     ShellHeader use `.sidebar-vibrant`/`.topbar-vibrant`, which sit inside a genuinely
+     ShellHeader use `.material-bar` (translucent on the vibrant main window), which sit inside a genuinely
      transparent Electron window (`transparent: true, vibrancy: 'sidebar'`, electron/main.ts),
      not just a translucent CSS color. This layer is a normal opaque-DOM-content paint, so
      wherever it sits BEHIND one of those two real vibrant surfaces, its color visibly tints
@@ -1976,33 +2269,10 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
   }
 }
 
-/* Study Trail's right-click context menu (TrailRefContextMenu.tsx) — every option renders a
-   `trail-ctx-btn` button but never had a hover/focus rule defined anywhere, so hovering an
-   option gave no visual feedback at all about which one you were about to click. Uses the same
-   theme-aware surface token every other hover affordance in the app already uses. */
-.trail-ctx-btn:hover,
-.trail-ctx-btn:focus-visible {
-  background: rgb(var(--color-surface-3)) !important;
-}
-
-/* The small chips in Study Trail's Threads and Search tabs (a passage, a Strong's word, a
-   session). Same problem the context-menu buttons had: they're clickable but gave no feedback,
-   so nothing about them said so. Per direct feedback, "the threads doesnt highlight or whatever
-   when hovered." */
-.trail-row-hover:hover {
-  background: rgb(var(--color-surface-2));
-}
-
-.trail-chip:hover,
-.trail-chip:focus-visible {
-  background: rgb(var(--color-accent) / 0.16) !important;
-  color: rgb(var(--color-accent)) !important;
-}
-
 /* Same idea, for the ACCENT-filled buttons in Study Trail's note/reason forms (Save, in
    TrailReasonFormBody — ReasonPromptPopover.tsx, shared by the full popup and the arrival-prompt
    toast) — those buttons already have a solid accent background, so overlaying the plain
-   surface-3 tint `.trail-ctx-btn` uses would barely read against it. A slight brightness dip
+   surface-3 tint the old trail buttons used would barely read against it. A slight brightness dip
    gives the same "something is about to happen" feedback without fighting the button's own
    color. Per direct feedback: "toast buttons have no hover highlight." */
 .trail-btn-accent:hover,
@@ -2010,25 +2280,3 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
   filter: brightness(0.9);
 }
 
-/* Sidebar's "new tab per space" tiles, the search / location bar (+ its "+" button), and the
-   session switcher rows. Their old `hover:bg-[rgb(var(--color-accent))/NN]` Tailwind
-   arbitrary-opacity utilities barely shifted the colour — the hover read as "not being
-   hovered" (direct feedback). Match how the tab rows highlight: a neutral light-grey lift, not
-   an accent tint. Mixing white into the resting surface lifts both the transparent-rest
-   buttons (session switcher) and the surface-4-rest ones (tiles, search bar) in the right
-   direction. */
-.sidebar-new-btn {
-  transition: background-color 120ms ease, color 120ms ease;
-}
-.sidebar-new-btn:hover {
-  background-color: color-mix(in srgb, white 16%, rgb(var(--color-surface-4)));
-  color: rgb(var(--color-text-primary));
-}
-/* The currently-selected session row keeps its accent tint at rest; on hover it gets the same
-   neutral lift layered a little brighter so it still clearly reacts. */
-.sidebar-new-btn.is-active {
-  background-color: color-mix(in srgb, rgb(var(--color-accent)) 15%, transparent);
-}
-.sidebar-new-btn.is-active:hover {
-  background-color: color-mix(in srgb, white 12%, color-mix(in srgb, rgb(var(--color-accent)) 18%, rgb(var(--color-surface-4))));
-}

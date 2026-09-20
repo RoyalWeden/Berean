@@ -8,8 +8,8 @@ import {
   BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
+import { IconButton, Button, ControlGroup, OverflowGroup, OverflowSection, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
-import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
 import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
 import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
@@ -207,26 +207,21 @@ function PanelSlot({
       { type: 'lexicon',   label: 'Lexicon',   icon: BookMarked, desc: 'Look up a word' },
     ]
     return (
-      <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
-        <div className="flex items-center px-3 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
-          <span className="flex-1 text-xs font-medium text-[rgb(var(--color-text-muted))]">{label}</span>
-          <button onClick={onClear} title="Remove panel" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"><X size={11} /></button>
-        </div>
+      <div className="flex flex-col h-full overflow-hidden bg-surface-3">
+        <Toolbar size="sm">
+          <span className="flex-1 text-footnote font-medium text-text-muted">{label}</span>
+          <IconButton icon={X} label="Remove panel" size={20} danger onClick={onClear} />
+        </Toolbar>
         <div className="flex-1 flex flex-col justify-center gap-2 p-3">
-          <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center mb-1">Choose what this panel shows</p>
+          <p className="text-caption text-text-muted text-center mb-1">Choose what this panel shows</p>
           {TYPES.map(({ type, label: tl, icon: Icon, desc }) => (
-            <button key={type}
+            <OptionCard key={type}
+              icon={Icon}
+              title={tl}
+              description={desc}
               onClick={() => { onSet({ type } as YouTubePanelState) }}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/8] transition-all cursor-pointer text-left group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-[rgb(var(--color-surface-4))] group-hover:bg-[rgb(var(--color-accent))/15] flex items-center justify-center flex-shrink-0 transition-colors">
-                <Icon size={16} className="text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-accent))]" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">{tl}</p>
-                <p className="text-[10px] text-[rgb(var(--color-text-muted))]">{desc}</p>
-              </div>
-            </button>
+              className="w-full flex-row items-center"
+            />
           ))}
         </div>
       </div>
@@ -1610,134 +1605,134 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     const panelWrapperSide = panelSide(effectiveLayout)
 
     return (
-      <div className="flex flex-col h-full bg-[rgb(var(--color-surface-1))]">
+      <div className="flex flex-col h-full bg-surface-1">
         {/* Header — active gated on activeSpace since this panel stays mounted
-             (hidden via CSS) even when not the active tab, to keep PiP/playback alive. */}
-        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0">
+             (hidden via CSS) even when not the active tab, to keep PiP/playback alive.
+             Two zones: context (video identity) and actions (grouped controls, folding into
+             ONE "…" via OverflowGroup + `extraItems` — replaces the separate HeaderOverflowMenu,
+             which would otherwise have produced a second "…" button alongside the fold menu). */}
+        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0" zone="context">
           {/* No local "← Back" button — TabHeaderPortal's shared HomeButton (now youtube-aware,
               see store's youtubeHomeToken) covers "back to browse", and the shared TopBar
               back/forward buttons cover video-to-video history, matching Notes/Lexicon. */}
           {youtubeNoteBack && (
-            <button
+            <Button
+              variant="ghost" size="sm" icon={ArrowLeft}
               onClick={() => {
                 useAppStore.getState().requestOpenNote(youtubeNoteBack.noteId)
                 setYoutubeNoteBack(null)
                 useAppStore.getState().ensureTab('note')
               }}
-              className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[140px] truncate"
+              className="flex-shrink-0 max-w-[140px]"
               title={`Back to "${youtubeNoteBack.title}"`}
             >
-              <ArrowLeft size={11} className="flex-shrink-0" />
               <span className="truncate">{youtubeNoteBack.title}</span>
-            </button>
+            </Button>
           )}
-          <span className="flex-1 min-w-0 text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
+          <span className="flex-1 min-w-0 text-footnote font-medium text-text-primary truncate">
             {activeVideo?.title ?? ''}
           </span>
-          <button
-            onClick={() => handleToggleStar(activeVideoId)}
-            title={activeVideo?.isStarred ? 'Unstar' : 'Star this video'}
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer flex-shrink-0"
-          >
-            <Star size={13} className={activeVideo?.isStarred ? 'text-yellow-400 fill-yellow-400' : ''} />
-          </button>
-          <button
-            onClick={() => setVideoMaximized((v) => !v)}
-            title={videoMaximized ? 'Restore' : 'Maximize video'}
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer flex-shrink-0"
-          >
-            {videoMaximized ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
-          </button>
-          {/* Layout button — hidden in floating tabs */}
-          {!floating && (
-            <div className="relative" ref={layoutPickerRef}>
-              <button
-                onClick={() => setShowLayoutPicker((v) => !v)}
-                title="Change layout"
-                className={`p-1 rounded transition-colors cursor-pointer flex-shrink-0 ${
-                  showLayoutPicker ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-                }`}
-              >
-                <LayoutGrid size={13} />
-              </button>
-              {showLayoutPicker && (
-                <div className="glass-panel absolute right-0 top-full mt-1 z-50 rounded-shell-lg p-3 w-[340px]">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-2">Layout</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {YOUTUBE_LAYOUTS.map((def) => (
-                      <button
-                        key={def.id}
-                        onClick={() => {
-                          setYtLayout(def.id)
-                          setShowLayoutPicker(false)
-                          // If layout requires both panels but we only have A, add a placeholder B
-                          if (def.requiresBoth && panelA && !panelB) {
-                          }
-                        }}
-                        className={`flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-lg text-left border transition-all cursor-pointer text-[11px]
-                          ${ytLayout === def.id
-                            ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-                            : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
-                          }`}
-                      >
-                        <span className="font-semibold">{def.label}</span>
-                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] leading-snug">{def.description}</span>
-                        {def.requiresBoth && <span className="text-[9px] text-amber-400 mt-0.5">Needs 2 panels</span>}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Active panels summary */}
-                  {(panelA || panelB) && (
-                    <div className="mt-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1.5">Active panels</p>
-                      <div className="flex flex-col gap-1">
-                        {panelA && (
-                          <div className="flex items-center justify-between gap-2 text-[11px]">
-                            <span className="text-[rgb(var(--color-text-secondary))]">Panel A: <span className="font-medium capitalize">{panelA.type}</span></span>
-                            <button onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }} className="text-red-400 hover:text-red-300 cursor-pointer text-[10px]">Remove</button>
-                          </div>
-                        )}
-                        {panelB && (
-                          <div className="flex items-center justify-between gap-2 text-[11px]">
-                            <span className="text-[rgb(var(--color-text-secondary))]">Panel B: <span className="font-medium capitalize">{panelB.type}</span></span>
-                            <button onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }} className="text-red-400 hover:text-red-300 cursor-pointer text-[10px]">Remove</button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {/* Lower-frequency actions — copy/insert only matter mid-watch, open-in-
-              browser is occasional. Maximize + layout picker stay inline above
-              since they're used far more often while actually watching. */}
-          <HeaderOverflowMenu
-            items={[
+        </TabHeaderPortal>
+        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0" zone="actions">
+          <OverflowGroup
+            label="More"
+            extraItems={[
               ...(playerReady && !videoEnded ? [
                 {
                   key: 'copy-link',
                   label: 'Copy video link (no timestamp)',
-                  icon: <Link2 />,
-                  onClick: () => insertTimestamp('link'),
+                  icon: Link2,
+                  onSelect: () => insertTimestamp('link'),
                 },
                 {
                   key: 'insert-timestamp',
                   label: activeSpace === 'youtube' ? 'Copy timestamp link' : 'Insert timestamp link into active note',
-                  icon: <Paperclip />,
+                  icon: Paperclip,
                   shortcut: '⌘⇧L',
-                  onClick: () => insertTimestamp('timestamp'),
+                  onSelect: () => insertTimestamp('timestamp'),
                 },
               ] : []),
               {
                 key: 'open-external',
                 label: 'Open in browser',
-                icon: <ExternalLink />,
-                onClick: () => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`),
+                icon: ExternalLink,
+                onSelect: () => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`),
               },
             ]}
-          />
+          >
+            <OverflowSection priority="last" items={[
+              { key: 'star', label: activeVideo?.isStarred ? 'Unstar' : 'Star this video', icon: Star, checked: activeVideo?.isStarred, onSelect: () => handleToggleStar(activeVideoId) },
+              { key: 'maximize', label: videoMaximized ? 'Restore' : 'Maximize video', icon: videoMaximized ? Minimize2 : Maximize2, onSelect: () => setVideoMaximized((v) => !v) },
+            ]}>
+              <ControlGroup>
+                <IconButton
+                  icon={Star}
+                  label={activeVideo?.isStarred ? 'Unstar' : 'Star this video'}
+                  size={28}
+                  iconClassName={activeVideo?.isStarred ? 'text-warning fill-warning' : undefined}
+                  onClick={() => handleToggleStar(activeVideoId)}
+                />
+                <IconButton
+                  icon={videoMaximized ? Minimize2 : Maximize2}
+                  label={videoMaximized ? 'Restore' : 'Maximize video'}
+                  size={28}
+                  onClick={() => setVideoMaximized((v) => !v)}
+                />
+              </ControlGroup>
+            </OverflowSection>
+            {/* Layout button — hidden in floating tabs. Own popover (not a portal), so it's
+                items-less: when folded it renders as its own stacked block instead of a plain
+                MenuItem, keeping the same `absolute` positioning working unchanged. */}
+            {!floating && (
+              <OverflowSection>
+                <div className="relative" ref={layoutPickerRef}>
+                  <IconButton
+                    icon={LayoutGrid}
+                    label="Change layout"
+                    size={28}
+                    active={showLayoutPicker}
+                    onClick={() => setShowLayoutPicker((v) => !v)}
+                  />
+                  {showLayoutPicker && (
+                    <div className="material-popover absolute right-0 top-full mt-1 z-menu rounded-menu p-3 w-[340px]">
+                      <SectionLabel className="mb-2">Layout</SectionLabel>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {YOUTUBE_LAYOUTS.map((def) => (
+                          <OptionCard
+                            key={def.id}
+                            title={def.label}
+                            description={<>{def.description}{def.requiresBoth && <span className="block text-micro text-warning mt-0.5">Needs 2 panels</span>}</>}
+                            selected={ytLayout === def.id}
+                            onClick={() => { setYtLayout(def.id); setShowLayoutPicker(false) }}
+                          />
+                        ))}
+                      </div>
+                      {/* Active panels summary */}
+                      {(panelA || panelB) && (
+                        <div className="mt-2 pt-2 border-t border-separator">
+                          <SectionLabel className="mb-1.5">Active panels</SectionLabel>
+                          <div className="flex flex-col gap-1">
+                            {panelA && (
+                              <div className="flex items-center justify-between gap-2 text-caption">
+                                <span className="text-text-secondary">Panel A: <span className="font-medium capitalize">{panelA.type}</span></span>
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }}>Remove</Button>
+                              </div>
+                            )}
+                            {panelB && (
+                              <div className="flex items-center justify-between gap-2 text-caption">
+                                <span className="text-text-secondary">Panel B: <span className="font-medium capitalize">{panelB.type}</span></span>
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }}>Remove</Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </OverflowSection>
+            )}
+          </OverflowGroup>
         </TabHeaderPortal>
 
         {/* ── Layout container: wraps video column + optional secondary panels ─ */}
@@ -1754,7 +1749,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
              pins to the webview's own viewport regardless of YouTube's layout,
              and setSize() drives the actual pixel dimensions. */}
         <div
-          className={`relative overflow-hidden rounded-lg ${videoMaximized ? 'flex-1 min-h-0' : 'flex-shrink-0'}`}
+          className={`relative overflow-hidden rounded-card ${videoMaximized ? 'flex-1 min-h-0' : 'flex-shrink-0'}`}
           style={!videoMaximized ? { height: '56vh', minHeight: '240px' } : undefined}
         >
           {/* Webview — invisible until playerReady to avoid flash of unstyled YouTube chrome.
@@ -1785,25 +1780,26 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
           {/* Loading spinner — covers the invisible webview until ready */}
           {(!playerReady || !playerSrc) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[rgb(var(--color-surface-1))]">
-              <div className="w-8 h-8 rounded-full border-2 border-[rgb(var(--color-surface-4))] border-t-[rgb(var(--color-text-muted))] animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center bg-surface-1">
+              <div className="w-8 h-8 rounded-full border-2 border-surface-4 border-t-text-muted animate-spin" />
             </div>
           )}
 
           {/* Floating copy toast */}
           {copyToast && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[rgb(var(--color-surface-1))]/90 backdrop-blur border border-[rgb(var(--color-surface-4))] text-xs font-medium text-[rgb(var(--color-text-primary))] shadow-lg pointer-events-none animate-fade-in-up">
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-overlay px-4 py-2 material-control text-footnote font-medium text-text-primary pointer-events-none animate-fade-in-up">
               Copied to clipboard
             </div>
           )}
 
           {/* Ended overlay — recommendations grid (delayed 400ms so rapid Back never flashes it) */}
           {showEndOverlay && (
-            <div className="absolute inset-0 bg-[rgb(var(--color-surface-1))]/97 flex flex-col p-4 overflow-y-auto z-10">
+            <div className="absolute inset-0 bg-surface-1/97 flex flex-col p-4 overflow-y-auto z-raised">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Up next</p>
+                <p className="text-subhead font-semibold text-text-primary">Up next</p>
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    variant="ghost" size="sm" icon={RotateCcw}
                     onClick={() => {
                       setVideoEnded(false)
                       if (webviewRef.current) {
@@ -1814,27 +1810,21 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         ;(webviewRef.current as any).executeJavaScript(js).catch(() => {})
                       }
                     }}
-                    className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
                   >
-                    <RotateCcw size={10} /> Watch again
-                  </button>
-                  <button
-                    onClick={handleBack}
-                    className="text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-                  >
-                    Back to list
-                  </button>
+                    Watch again
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleBack}>Back to list</Button>
                 </div>
               </div>
               {recommendations.length === 0
                 ? (
                   <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
                     {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="rounded-lg overflow-hidden bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] animate-pulse">
-                        <div className="w-full aspect-video bg-[rgb(var(--color-surface-3))]" />
+                      <div key={i} className="rounded-card overflow-hidden bg-surface-elevated border border-border animate-pulse">
+                        <div className="w-full aspect-video bg-surface-3" />
                         <div className="p-1.5 space-y-1">
-                          <div className="h-2 bg-[rgb(var(--color-surface-3))] rounded w-full" />
-                          <div className="h-2 bg-[rgb(var(--color-surface-3))] rounded w-2/3" />
+                          <div className="h-2 bg-surface-3 rounded-chip w-full" />
+                          <div className="h-2 bg-surface-3 rounded-chip w-2/3" />
                         </div>
                       </div>
                     ))}
@@ -1846,9 +1836,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       <button
                         key={rec.videoId}
                         onClick={() => { setVideoEnded(false); setActiveVideoId(rec.videoId) }}
-                        className="text-left group rounded-lg overflow-hidden bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] transition-all cursor-pointer"
+                        className="text-left group rounded-card overflow-hidden bg-surface-elevated border border-border hover:border-accent/50 transition-all cursor-pointer"
                       >
-                        <div className="relative w-full aspect-video bg-[rgb(var(--color-surface-4))]">
+                        <div className="relative w-full aspect-video bg-surface-4">
                           {(() => {
                             const level = thumbFallback.get(rec.videoId) ?? 0
                             const src = thumbnailUrlAtLevel(rec.thumbnailUrl, level)
@@ -1868,12 +1858,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                             )
                           })()}
                           {rec.channelHandle === activeVideo?.channelHandle && (
-                            <div className="absolute top-1 right-1 text-[8px] font-bold px-1 py-0.5 rounded bg-[rgb(var(--color-accent))] text-white">SAME CH</div>
+                            <div className="absolute top-1 right-1 text-micro font-semibold px-1 py-0.5 rounded-chip bg-accent text-white">SAME CH</div>
                           )}
                         </div>
                         <div className="p-1.5">
-                          <p className="text-[10px] font-medium text-[rgb(var(--color-text-primary))] line-clamp-2 leading-tight">{rec.title}</p>
-                          <p className="text-[9px] text-[rgb(var(--color-text-muted))] mt-0.5 truncate">{rec.channelName}</p>
+                          <p className="text-caption2 font-medium text-text-primary line-clamp-2 leading-tight">{rec.title}</p>
+                          <p className="text-micro text-text-muted mt-0.5 truncate">{rec.channelName}</p>
                         </div>
                       </button>
                     ))}
@@ -1888,48 +1878,45 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {!videoMaximized && (
           // When a note is open: flex column so the note editor fills all remaining space to the
           // bottom. When no note: scrollable so long descriptions are accessible.
-          <div className={`flex-1 min-h-0 ${inlinePanelNoteId ? 'flex flex-col' : 'overflow-y-auto'}`}>
+          <div className={`material-panel flex-1 min-h-0 ${inlinePanelNoteId ? 'flex flex-col' : 'overflow-y-auto'}`}>
             {/* Channel / date row — always compact */}
-            <div className="px-4 pt-3 pb-2 border-t border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
+            <div className="px-4 pt-3 pb-2 border-t border-separator flex-shrink-0">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <button
+                <Button
+                  variant="ghost" size="sm"
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey) window.app.openExternal(`https://www.youtube.com/${activeVideo?.channelHandle}`)
                     else if (activeVideo) handleBackAndFilter(activeVideo.channelHandle)
                   }}
                   title="Filter by channel (⌘+click to open in browser)"
-                  className="text-xs font-medium text-[rgb(var(--color-accent))] hover:underline cursor-pointer truncate max-w-[60%]"
+                  className="max-w-[60%]"
                 >
-                  {activeVideo?.channelName ?? ''}
-                </button>
+                  <span className="truncate">{activeVideo?.channelName ?? ''}</span>
+                </Button>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {activeVideo?.published && (
-                    <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{formatDateFull(activeVideo.published)}</span>
+                    <span className="text-caption2 text-text-muted">{formatDateFull(activeVideo.published)}</span>
                   )}
-                  <button
+                  <IconButton
+                    icon={ExternalLink}
+                    label="Open channel in browser"
+                    size={20}
                     onClick={() => activeVideo && window.app.openExternal(`https://www.youtube.com/${activeVideo.channelHandle}`)}
-                    title="Open channel in browser"
-                    className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                  >
-                    <ExternalLink size={11} />
-                  </button>
+                  />
                 </div>
               </div>
             </div>
             {/* ── Synced transcript — highlights the line at the current playback time ─ */}
             {!inlinePanelNoteId && activeTranscript.length > 0 && (
-              <div className="border-t border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]">
-                <button
+              <div className="border-t border-separator">
+                <DisclosureRow
+                  open={showTranscript}
                   onClick={() => setShowTranscript((v) => !v)}
-                  className="w-full px-4 pt-2.5 pb-1.5 flex items-center gap-2 cursor-pointer hover:bg-[rgb(var(--color-surface-3))] transition-colors"
-                >
-                  <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform ${showTranscript ? '' : '-rotate-90'}`} />
-                  <Captions size={12} className="text-[rgb(var(--color-text-muted))]" />
-                  <span className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
-                    Transcript
-                  </span>
-                  <span className="text-[9px] text-[rgb(var(--color-text-muted))] opacity-60">{activeTranscript.length} lines · click to jump</span>
-                </button>
+                  icon={Captions}
+                  className="!h-auto px-4 pt-2.5 pb-1.5"
+                  title={<span className="text-caption2 font-semibold text-text-muted uppercase tracking-wider">Transcript</span>}
+                  trailing={<span className="text-micro text-text-quaternary">{activeTranscript.length} lines · click to jump</span>}
+                />
                 {showTranscript && (
                   <div style={{ height: '320px' }}>
                     <TranscriptViewer segments={activeTranscript} currentTimeMs={currentTimeMs} onSeek={seekTo} />
@@ -1942,82 +1929,73 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             {!inlinePanelNoteId && (
               videoDescription
                 ? (
-                  <div className="px-4 py-3 bg-[rgb(var(--color-surface-2))]">
-                    <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-2">Description</p>
-                    <p className="text-xs text-[rgb(var(--color-text-secondary))] whitespace-pre-wrap leading-relaxed">{videoDescription}</p>
+                  <div className="px-4 py-3">
+                    <SectionLabel className="mb-2">Description</SectionLabel>
+                    <p className="text-footnote text-text-secondary whitespace-pre-wrap leading-relaxed">{videoDescription}</p>
                   </div>
                 )
-                : <div className="h-4 bg-[rgb(var(--color-surface-2))]" />
+                : <div className="h-4" />
             )}
 
             {/* ── Linked notes ─────────────────────────────────────────────── */}
             {/* Always show the notes section (with a "New note" button) */}
-            <div className={`border-t border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex min-h-0 ${inlinePanelNoteId ? 'flex-1' : ''}`}>
+            <div className={`border-t border-separator flex min-h-0 ${inlinePanelNoteId ? 'flex-1' : ''}`}>
               {/* Left: note list */}
-              <div className={`flex flex-col ${inlinePanelNoteId ? 'w-48 flex-shrink-0 border-r border-[rgb(var(--color-surface-4))]' : 'flex-1'} overflow-y-auto`}>
+              <div className={`flex flex-col ${inlinePanelNoteId ? 'w-48 flex-shrink-0 border-r border-separator' : 'flex-1'} overflow-y-auto`}>
                   <div className="px-4 pt-3 pb-1 flex items-center gap-2 flex-shrink-0">
-                    <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider flex-1">
+                    <SectionLabel className="flex-1">
                       Video notes {videoNotes.length > 0 && `(${videoNotes.length})`}
-                    </p>
-                    <button
-                      onClick={createVideoNote}
-                      title="New note for this video"
-                      className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors flex-shrink-0"
-                    >
-                      <Plus size={12} />
-                    </button>
+                    </SectionLabel>
+                    <IconButton icon={Plus} label="New note for this video" size={20} onClick={createVideoNote} />
                   </div>
                   {videoNotes.length === 0 && (
                     <div className="px-4 pb-4 flex flex-col items-center gap-2 text-center">
-                      <p className="text-[10px] text-[rgb(var(--color-text-muted))]">No notes linked to this video yet</p>
-                      <button
-                        onClick={createVideoNote}
-                        className="text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors flex items-center gap-1"
-                      >
-                        <Plus size={10} /> New note
-                      </button>
+                      <p className="text-caption2 text-text-muted">No notes linked to this video yet</p>
+                      <Button variant="ghost" size="sm" icon={Plus} selected onClick={createVideoNote}>New note</Button>
                     </div>
                   )}
                 {videoNotes.length > 0 && (
-                  <div className="px-3 pb-3 space-y-1 flex-1">
+                  <div className="px-1.5 pb-3 space-y-0.5 flex-1">
                     {/* Whole-video links */}
                     {videoNotes.filter(n => n.timestamp === 0).map((n) => (
-                      <div key={`${n.noteId}-0`} className={`group flex items-center gap-1.5 rounded px-1 py-0.5 cursor-pointer transition-colors ${inlinePanelNoteId === n.noteId ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
-                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}>
-                        <NotepadText size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-                        <span className="flex-1 text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{n.noteTitle}</span>
-                        <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }}
-                          title="Open in Notes tab"
-                          className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] flex-shrink-0 opacity-0 group-hover:opacity-100">
-                          <ExternalLink size={9} />
-                        </button>
-                      </div>
+                      <ListRow key={`${n.noteId}-0`} dense
+                        leading={<NotepadText size={12} />}
+                        title={n.noteTitle}
+                        selected={inlinePanelNoteId === n.noteId}
+                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}
+                        trailing={
+                          <IconButton icon={ExternalLink} label="Open in Notes tab" size={20} tooltip={false}
+                            onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }} />
+                        }
+                      />
                     ))}
                     {/* Timestamped links */}
                     {videoNotes.filter(n => n.timestamp > 0).map((n, i) => (
-                      <div key={`${n.noteId}-${i}`} className={`flex items-center gap-1.5 rounded px-1 py-0.5 cursor-pointer transition-colors group ${inlinePanelNoteId === n.noteId ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
-                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}>
-                        <button
-                          onMouseDown={(e) => {
-                            e.stopPropagation()
-                            if (webviewRef.current) {
-                              const js = watchFallback
-                                ? `(()=>{var v=document.querySelector("video");if(v){v.currentTime=${n.timestamp};v.play().catch(function(){});}null;})()`
-                                : `(()=>{var f=document.querySelector("iframe");if(f&&f.contentWindow){f.contentWindow.postMessage(JSON.stringify({event:"command",func:"seekTo",args:[${n.timestamp},true]}),"*");f.contentWindow.postMessage(JSON.stringify({event:"command",func:"playVideo",args:""}),"*");}null;})()`
-                              ;(webviewRef.current as any).executeJavaScript(js).catch(() => {}) // eslint-disable-line @typescript-eslint/no-explicit-any
-                            }
-                          }}
-                          className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[9px] font-mono text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/15] flex-shrink-0"
-                        >
-                          <Clock size={7} />{fmtSecs(n.timestamp)}
-                        </button>
-                        <span className="flex-1 text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{n.noteTitle}</span>
-                        <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }}
-                          title="Open in Notes tab"
-                          className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] flex-shrink-0 opacity-0 group-hover:opacity-100">
-                          <ExternalLink size={9} />
-                        </button>
-                      </div>
+                      <ListRow key={`${n.noteId}-${i}`} dense
+                        leading={
+                          <RefChip
+                            size="xs"
+                            onMouseDown={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              if (webviewRef.current) {
+                                const js = watchFallback
+                                  ? `(()=>{var v=document.querySelector("video");if(v){v.currentTime=${n.timestamp};v.play().catch(function(){});}null;})()`
+                                  : `(()=>{var f=document.querySelector("iframe");if(f&&f.contentWindow){f.contentWindow.postMessage(JSON.stringify({event:"command",func:"seekTo",args:[${n.timestamp},true]}),"*");f.contentWindow.postMessage(JSON.stringify({event:"command",func:"playVideo",args:""}),"*");}null;})()`
+                                ;(webviewRef.current as any).executeJavaScript(js).catch(() => {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+                              }
+                            }}
+                          >
+                            <Clock size={7} />{fmtSecs(n.timestamp)}
+                          </RefChip>
+                        }
+                        title={n.noteTitle}
+                        selected={inlinePanelNoteId === n.noteId}
+                        onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}
+                        trailing={
+                          <IconButton icon={ExternalLink} label="Open in Notes tab" size={20} tooltip={false}
+                            onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }} />
+                        }
+                      />
                     ))}
                   </div>
                 )}
@@ -2027,50 +2005,32 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 {inlinePanelNoteId && (
                   <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     {/* Panel header */}
-                    <div className="flex items-center px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 gap-0.5">
-                      <span className="text-[10px] font-medium text-[rgb(var(--color-text-secondary))] truncate flex-1 min-w-0 px-1">
+                    <div className="flex items-center px-2 py-1 border-b border-separator flex-shrink-0 gap-0.5">
+                      <span className="text-caption2 font-medium text-text-secondary truncate flex-1 min-w-0 px-1">
                         {videoNotes.find(n => n.noteId === inlinePanelNoteId)?.noteTitle ?? 'Note'}
                       </span>
                       {/* Undo / Redo — only meaningful in edit mode */}
                       {inlinePanelEditing && (
                         <>
-                          <button
-                            onClick={() => inlinePanelCommandsRef.current?.undo()}
-                            title="Undo (⌘Z)"
-                            className="p-1 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-                          >
-                            <Undo2 size={10} />
-                          </button>
-                          <button
-                            onClick={() => inlinePanelCommandsRef.current?.redo()}
-                            title="Redo (⌘⇧Z)"
-                            className="p-1 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-                          >
-                            <Redo2 size={10} />
-                          </button>
+                          <IconButton icon={Undo2} label="Undo" tooltip={{ shortcut: '⌘Z' }} size={20} onClick={() => inlinePanelCommandsRef.current?.undo()} />
+                          <IconButton icon={Redo2} label="Redo" tooltip={{ shortcut: '⌘⇧Z' }} size={20} onClick={() => inlinePanelCommandsRef.current?.redo()} />
                         </>
                       )}
                       {/* Edit / Preview toggle */}
-                      <button
+                      <IconButton
+                        icon={inlinePanelEditing ? Eye : Edit3}
+                        label={inlinePanelEditing ? 'Preview' : 'Edit note'}
+                        size={20}
+                        selected={inlinePanelEditing}
                         onClick={() => setInlinePanelEditing(v => !v)}
-                        title={inlinePanelEditing ? 'Preview' : 'Edit note'}
-                        className={`p-1 rounded cursor-pointer transition-colors ${inlinePanelEditing ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-                      >
-                        {inlinePanelEditing ? <Eye size={10} /> : <Edit3 size={10} />}
-                      </button>
-                      <button
+                      />
+                      <IconButton
+                        icon={ExternalLink}
+                        label="Open in Notes tab"
+                        size={20}
                         onClick={() => { useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(inlinePanelNoteId) }}
-                        title="Open in Notes tab"
-                        className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                      >
-                        <ExternalLink size={10} />
-                      </button>
-                      <button
-                        onClick={() => setInlinePanelNoteId(null)}
-                        className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                      >
-                        <X size={10} />
-                      </button>
+                      />
+                      <IconButton icon={X} label="Close" size={20} onClick={() => setInlinePanelNoteId(null)} />
                     </div>
 
                     {/* flex-1 min-h-0 so NoteEditor fills remaining height after the panel header */}
@@ -2100,27 +2060,27 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {effectiveLayout !== 'video-full' && (
           stackedPanels ? (
             // Stacked: panelA + panelB in a nested flex-col column
-            <div className={`flex flex-col overflow-hidden border-l border-[rgb(var(--color-surface-4))] ${panelWrapperSide === 'right' ? layoutStyle.panelAClass : layoutStyle.videoClass}`}>
+            <div className={`flex flex-col overflow-hidden border-l border-separator ${panelWrapperSide === 'right' ? layoutStyle.panelAClass : layoutStyle.videoClass}`}>
               <div className="flex-1 min-h-0 overflow-hidden">
                 <PanelSlot panel={panelA} label="Panel A" onSet={setPanelA} onClear={closePanelA} />
               </div>
-              <div className="flex-1 min-h-0 overflow-hidden border-t border-[rgb(var(--color-surface-4))]">
+              <div className="flex-1 min-h-0 overflow-hidden border-t border-separator">
                 <PanelSlot panel={panelB} label="Panel B" onSet={setPanelB} onClear={closePanelB} />
               </div>
             </div>
           ) : effectiveLayout === 'three-col' || effectiveLayout === 'three-col-wide-video' ? (
             // Three-column: panelA left | video center | panelB right
             <>
-              <div className={`overflow-hidden border-l border-[rgb(var(--color-surface-4))] order-first ${layoutStyle.panelAClass}`}>
+              <div className={`overflow-hidden border-l border-separator order-first ${layoutStyle.panelAClass}`}>
                 <PanelSlot panel={panelA} label="Left panel" onSet={setPanelA} onClear={closePanelA} />
               </div>
-              <div className={`overflow-hidden border-l border-[rgb(var(--color-surface-4))] ${layoutStyle.panelBClass}`}>
+              <div className={`overflow-hidden border-l border-separator ${layoutStyle.panelBClass}`}>
                 <PanelSlot panel={panelB} label="Right panel" onSet={setPanelB} onClear={closePanelB} />
               </div>
             </>
           ) : (
             // Single secondary panel (side-right/left, stack-below/above, wide-*)
-            <div className={`overflow-hidden border-l border-[rgb(var(--color-surface-4))] ${layoutStyle.panelAClass}`}>
+            <div className={`overflow-hidden border-l border-separator ${layoutStyle.panelAClass}`}>
               <PanelSlot panel={panelA} label="Panel" onSet={setPanelA} onClear={closePanelA} />
             </div>
           )
@@ -2138,120 +2098,113 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const moreFiltersCount = [starredOnly, watchFilter !== 'all', durationFilter !== 'any'].filter(Boolean).length
 
   return (
-    <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]" onClick={closeMenus}>
-      {/* Toolbar — portaled into the shared top bar instead of drawing its own
-           second header row (was previously a full bar with its own drag-region,
-           stacked directly under the app-level top bar). The portal target
-           (ShellHeader's slot) is a fixed 44px-tall, overflow-hidden row, so this
-           can't wrap to a second line without getting clipped — scroll horizontally
-           instead when everything doesn't fit, same as any single-row toolbar. */}
-      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="flex-nowrap overflow-x-auto">
-        <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <input
-          type="text"
+    <div className="flex flex-col h-full bg-surface-3" onClick={closeMenus}>
+      {/* Toolbar — portaled into the shared top bar instead of drawing its own second header
+           row. Two zones: context (the browse search field — a bare input like every other
+           tab's context-zone search, never folds since it isn't part of any OverflowGroup) and
+           actions (the filter/view controls). The portal target (ShellHeader's slot) is a fixed
+           44px-tall, overflow-hidden row, so the actions zone can't wrap to a second line without
+           getting clipped — OverflowGroup folds trailing controls into a "…" popover once the
+           row is too narrow instead (nothing hidden, nothing scrolls sideways; see its own
+           comment). */}
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} zone="context">
+        <SearchField
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+          onValueChange={(v) => { setSearch(v); setPage(1) }}
           placeholder="Search title, channel, or transcript…"
-          className="flex-1 min-w-[100px] bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+          bare
+          wrapperClassName="flex-1 min-w-[100px]"
         />
-        {search && (
-          <button onClick={() => { setSearch(''); setPage(1) }} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
-            <X size={13} />
-          </button>
-        )}
-
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} zone="actions">
+      <OverflowGroup label="More filters">
         {/* Search scope — only shown while searching: Title / Transcript / Both */}
         {search && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {(['title', 'transcript', 'both'] as SearchScope[]).map((s) => (
-              <button key={s}
-                onClick={(e) => { e.stopPropagation(); setSearchScope(s); setPage(1) }}
-                title={s === 'title' ? 'Search titles & channels' : s === 'transcript' ? 'Search transcript text' : 'Search titles & transcripts'}
-                className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors capitalize ${searchScope === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            aria-label="Search scope"
+            className="flex-shrink-0"
+            value={searchScope}
+            onChange={(s) => { setSearchScope(s); setPage(1) }}
+            options={(['title', 'transcript', 'both'] as SearchScope[]).map((s) => ({
+              value: s,
+              label: s[0].toUpperCase() + s.slice(1),
+              title: s === 'title' ? 'Search titles & channels' : s === 'transcript' ? 'Search transcript text' : 'Search titles & transcripts',
+            }))}
+          />
         )}
 
         {/* Type filter */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {(['all', 'video', 'short', 'live'] as TypeFilter[]).map((t) => (
-            <button key={t}
-              onClick={(e) => { e.stopPropagation(); setTypeFilter(t); setPage(1) }}
-              className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${typeFilter === t ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              {TYPE_LABEL[t]}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Video type"
+          className="flex-shrink-0"
+          value={typeFilter}
+          onChange={(t) => { setTypeFilter(t); setPage(1) }}
+          options={(['all', 'video', 'short', 'live'] as TypeFilter[]).map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+        />
 
+        {/* View controls — filters/channel/sort are all "narrow the video list" siblings, so
+             they share one grouped container instead of three independently-chromed buttons. */}
+        <ControlGroup>
         {/* More Filters toggle button — shows badge count when filters are active */}
-        <button
+        <Button
+          variant="ghost" size="sm" icon={LayoutGrid} selected={moreFiltersActive}
           onClick={(e) => { e.stopPropagation(); setShowMoreFilters((v) => !v) }}
-          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors cursor-pointer flex-shrink-0 ${moreFiltersActive ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
         >
-          <LayoutGrid size={10} />
           Filters
           {moreFiltersCount > 0 && (
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[rgb(var(--color-accent))] text-white text-[8px] font-bold">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-white text-micro font-semibold">
               {moreFiltersCount}
             </span>
           )}
           <ChevronDown size={9} className={`transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
-        </button>
+        </Button>
 
         {/* Channel filter */}
-        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
+        <div onClick={(e) => e.stopPropagation()}>
+          <Button
             ref={channelBtnRef}
+            variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showChannelMenu}
             onClick={() => { setShowChannelMenu((v) => !v); setShowSortMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[120px]"
+            className="max-w-[120px]"
           >
             <span className="truncate">{channelFilter === 'all' ? 'All channels' : channelFilter.replace('@', '')}</span>
-            <ChevronDown size={10} className="flex-shrink-0" />
-          </button>
+          </Button>
           {showChannelMenu && channelBtnRef.current && createPortal(
             <MenuPositioner
               x={channelBtnRef.current.getBoundingClientRect().right}
               y={channelBtnRef.current.getBoundingClientRect().bottom + 4}
               align="right"
               onClick={(e) => e.stopPropagation()}
-              className="glass-panel rounded-shell-lg w-max min-w-[140px] max-w-[280px] flex flex-col overflow-hidden"
-              style={{ maxHeight: '300px' }}
             >
-              <div className="p-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                <input
-                  autoFocus
-                  type="text"
-                  value={channelSearch}
-                  onChange={(e) => setChannelSearch(e.target.value)}
-                  placeholder="Filter channels…"
-                  className="w-full px-2 py-1 text-xs rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none focus:border-[rgb(var(--color-accent))]"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-              <div className="overflow-y-auto flex-1 py-1">
-                {!channelSearch && (
-                  <button
-                    onClick={() => { setChannelFilter('all'); setShowChannelMenu(false); setChannelSearch(''); setPage(1) }}
-                    className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${channelFilter === 'all' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                  >
-                    All channels
-                  </button>
-                )}
-                {channelNames
-                  .filter((h) => !channelSearch || h.toLowerCase().includes(channelSearch.toLowerCase()))
-                  .map((handle) => (
-                    <button key={handle}
-                      onClick={() => { setChannelFilter(handle); setShowChannelMenu(false); setChannelSearch(''); setPage(1) }}
-                      className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors truncate ${channelFilter === handle ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                    >
-                      {handle.replace('@', '')}
-                    </button>
-                  ))}
-              </div>
+              <MenuSurface className="w-max max-w-[280px] flex flex-col overflow-hidden" style={{ maxHeight: '300px' }}>
+                <div className="-m-1 mb-1 p-1.5 border-b border-separator flex-shrink-0">
+                  <SearchField
+                    autoFocus
+                    value={channelSearch}
+                    onValueChange={setChannelSearch}
+                    placeholder="Filter channels…"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {!channelSearch && (
+                    <MenuItem
+                      label="All channels"
+                      active={channelFilter === 'all'}
+                      onClick={() => { setChannelFilter('all'); setShowChannelMenu(false); setChannelSearch(''); setPage(1) }}
+                    />
+                  )}
+                  {channelNames
+                    .filter((h) => !channelSearch || h.toLowerCase().includes(channelSearch.toLowerCase()))
+                    .map((handle) => (
+                      <MenuItem key={handle}
+                        label={handle.replace('@', '')}
+                        active={channelFilter === handle}
+                        onClick={() => { setChannelFilter(handle); setShowChannelMenu(false); setChannelSearch(''); setPage(1) }}
+                      />
+                    ))}
+                </div>
+              </MenuSurface>
             </MenuPositioner>,
             document.body
           )}
@@ -2260,109 +2213,89 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {/* Duration filter moved to More Filters panel */}
 
         {/* Sort */}
-        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
+        <div onClick={(e) => e.stopPropagation()}>
+          <Button
             ref={sortBtnRef}
+            variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showSortMenu}
             onClick={() => { setShowSortMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
           >
-            {SORT_LABEL[sort]} <ChevronDown size={10} />
-          </button>
+            {SORT_LABEL[sort]}
+          </Button>
           {showSortMenu && sortBtnRef.current && createPortal(
             <MenuPositioner
               x={sortBtnRef.current.getBoundingClientRect().right}
               y={sortBtnRef.current.getBoundingClientRect().bottom + 4}
               align="right"
               onClick={(e) => e.stopPropagation()}
-              className="glass-panel rounded-shell-lg w-[104px] py-1"
             >
-              {(Object.keys(SORT_LABEL) as SortOption[])
-                // 'Best match' only applies while searching — hide it otherwise.
-                .filter((opt) => opt !== 'relevance' || search.trim().length > 0)
-                .map((opt) => (
-                <button key={opt}
-                  onClick={() => { setSort(opt); setShowSortMenu(false); setPage(1) }}
-                  className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${sort === opt ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                >
-                  {SORT_LABEL[opt]}
-                </button>
-              ))}
+              <MenuSurface className="w-[130px]">
+                {(Object.keys(SORT_LABEL) as SortOption[])
+                  // 'Best match' only applies while searching — hide it otherwise.
+                  .filter((opt) => opt !== 'relevance' || search.trim().length > 0)
+                  .map((opt) => (
+                    <MenuItem key={opt}
+                      label={SORT_LABEL[opt]}
+                      active={sort === opt}
+                      onClick={() => { setSort(opt); setShowSortMenu(false); setPage(1) }}
+                    />
+                  ))}
+              </MenuSurface>
             </MenuPositioner>,
             document.body
           )}
         </div>
+        </ControlGroup>
 
         {/* Clear all filters */}
         {isFiltered && (
-          <button
+          <IconButton
+            icon={X} label="Clear all filters" size={20} danger
             onClick={(e) => {
               e.stopPropagation()
               setTypeFilter('all'); setChannelFilter('all'); setDurationFilter('any')
               setWatchFilter('all'); setStarredOnly(false); setPage(1)
             }}
-            className="text-[10px] px-2 py-1 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer transition-colors flex-shrink-0"
-            title="Clear all filters"
-          >
-            <X size={10} />
-          </button>
+          />
         )}
 
         {/* Refresh */}
-        <button
+        <IconButton
+          icon={RefreshCw} label="Check for new videos" size={28} disabled={loading || syncing}
+          iconClassName={loading && !syncing ? 'animate-spin' : ''}
           onClick={doRefresh}
-          title="Check for new videos"
-          disabled={loading || syncing}
-          className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer disabled:opacity-40 flex-shrink-0"
-        >
-          <RefreshCw size={13} className={loading && !syncing ? 'animate-spin' : ''} />
-        </button>
+        />
 
         {isDev && (
-          <button
-            onClick={doFullSync}
-            title="Full Sync (dev only)"
-            disabled={loading || syncing}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer disabled:opacity-40 flex-shrink-0 transition-colors"
-          >
-            <Download size={10} />
+          <Button variant="ghost" size="sm" icon={Download} selected disabled={loading || syncing} onClick={doFullSync} className="flex-shrink-0">
             {syncing ? 'Syncing…' : 'Full Sync'}
-          </button>
+          </Button>
         )}
 
         {/* Transcript filter toggle — dev only (a debugging aid for transcript coverage) */}
         {isDev && (
-          <button
+          <Button
+            variant="ghost" size="sm" icon={Captions} selected={transcriptOnly}
             onClick={(e) => { e.stopPropagation(); setTranscriptOnly((v) => !v); setPage(1) }}
             title={transcriptOnly ? 'Showing only videos with transcripts' : 'Show only videos with transcripts'}
-            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer flex-shrink-0 transition-colors ${
-              transcriptOnly
-                ? 'bg-emerald-500/25 text-emerald-400'
-                : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-emerald-400'
-            }`}
+            className="flex-shrink-0"
           >
-            <Captions size={11} />
             {transcriptIds.size > 0 ? transcriptIds.size : ''}
-          </button>
+          </Button>
         )}
 
         {/* Transcript tools — collapsed into a single popover */}
         <div className="flex-shrink-0" ref={transcriptMenuRef}>
-            <button
+            <Button
               ref={transcriptBtnRef}
+              variant="ghost" size="sm" icon={Captions} iconTrailing={false} selected={showTranscriptMenu || fetchingTranscripts}
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
               title="Transcript tools (dev only)"
-              className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border cursor-pointer transition-colors ${
-                fetchingTranscripts
-                  ? 'bg-emerald-500/16 border-emerald-500/45 text-emerald-400 font-semibold'
-                  : 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold hover:bg-[rgb(var(--color-accent))]/25'
-              }`}
             >
-              <Captions size={11} />
               {fetchingTranscripts && progress
                 ? `${progress.done}/${progress.total}`
                 : 'Transcripts'}
               <ChevronDown size={10} className={`transition-transform ${showTranscriptMenu ? 'rotate-180' : ''}`} />
-            </button>
+            </Button>
 
             {showTranscriptMenu && transcriptBtnRef.current && createPortal(
               <MenuPositioner
@@ -2370,155 +2303,148 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 y={transcriptBtnRef.current.getBoundingClientRect().bottom + 4}
                 align="right"
                 onClick={(e) => e.stopPropagation()}
-                className="w-56 rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl p-3 space-y-3"
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Fetch transcripts</p>
+                <div className="material-popover rounded-menu w-56 p-3 space-y-3">
+                  <SectionLabel>Fetch transcripts</SectionLabel>
 
-                {/* Batch size */}
-                <label className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-[rgb(var(--color-text-secondary))]">Videos per run</span>
-                  <input
-                    type="number" min={1} max={10000} value={transcriptBatchSize}
-                    onChange={(e) => setTranscriptBatchSize(Math.max(1, Math.min(10000, parseInt(e.target.value) || 1)))}
-                    disabled={fetchingTranscripts}
-                    className="w-20 text-center text-[11px] px-1.5 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none disabled:opacity-40"
-                  />
-                </label>
+                  {/* Batch size */}
+                  <label className="flex items-center justify-between gap-2">
+                    <span className="text-caption text-text-secondary">Videos per run</span>
+                    <TextField
+                      type="number" min={1} max={10000} value={transcriptBatchSize}
+                      onChange={(e) => setTranscriptBatchSize(Math.max(1, Math.min(10000, parseInt(e.target.value) || 1)))}
+                      disabled={fetchingTranscripts}
+                      size="sm"
+                      className="w-20 text-center"
+                    />
+                  </label>
 
-                {/* Worker count */}
-                <label className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-[rgb(var(--color-text-secondary))]">Parallel workers</span>
-                  <input
-                    type="number" min={1} max={16} value={transcriptWorkers}
-                    onChange={(e) => setTranscriptWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
-                    disabled={fetchingTranscripts}
-                    className="w-20 text-center text-[11px] px-1.5 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none disabled:opacity-40"
-                  />
-                </label>
+                  {/* Worker count */}
+                  <label className="flex items-center justify-between gap-2">
+                    <span className="text-caption text-text-secondary">Parallel workers</span>
+                    <TextField
+                      type="number" min={1} max={16} value={transcriptWorkers}
+                      onChange={(e) => setTranscriptWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
+                      disabled={fetchingTranscripts}
+                      size="sm"
+                      className="w-20 text-center"
+                    />
+                  </label>
 
-                {/* Progress bar while fetching */}
-                {fetchingTranscripts && progress && progress.total > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[9px] text-[rgb(var(--color-text-muted))]">
-                      <span className="truncate">{progress.phase}</span>
-                      <span className="tabular-nums flex-shrink-0">{progress.done}/{progress.total}</span>
+                  {/* Progress bar while fetching */}
+                  {fetchingTranscripts && progress && progress.total > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-micro text-text-muted">
+                        <span className="truncate">{progress.phase}</span>
+                        <span className="tabular-nums flex-shrink-0">{progress.done}/{progress.total}</span>
+                      </div>
+                      <div className="h-1 rounded-full bg-surface-4 overflow-hidden">
+                        <div className="h-full bg-success transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
+                      </div>
                     </div>
-                    <div className="h-1 rounded-full bg-[rgb(var(--color-surface-4))] overflow-hidden">
-                      <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={doFetchTranscripts}
-                    disabled={loading || syncing || fetchingTranscripts}
-                    className="flex-1 flex items-center justify-center gap-1 text-[11px] px-2 py-1.5 rounded bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 cursor-pointer disabled:opacity-40 transition-colors"
-                  >
-                    <Captions size={11} />
-                    {fetchingTranscripts ? 'Fetching…' : 'Get transcripts'}
-                  </button>
-                  <button
-                    onClick={doClearTranscripts}
-                    disabled={fetchingTranscripts}
-                    title="Clear all stored transcripts"
-                    className="flex items-center gap-1 text-[11px] px-2 py-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/10 cursor-pointer disabled:opacity-40 transition-colors"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-
-                {/* Status footer */}
-                <div className="flex items-center justify-between text-[9px] text-[rgb(var(--color-text-muted))] pt-1 border-t border-[rgb(var(--color-surface-4))]">
-                  <span>{transcriptIds.size} downloaded</span>
-                  {transcriptResult && (
-                    <span className="tabular-nums">✓{transcriptResult.fetched} · skip {transcriptResult.skipped} · err {transcriptResult.errors}</span>
                   )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      variant="success" size="sm" icon={Captions}
+                      onClick={doFetchTranscripts}
+                      disabled={loading || syncing || fetchingTranscripts}
+                      className="flex-1"
+                    >
+                      {fetchingTranscripts ? 'Fetching…' : 'Get transcripts'}
+                    </Button>
+                    <IconButton icon={Trash2} label="Clear all stored transcripts" size={24} danger disabled={fetchingTranscripts} onClick={doClearTranscripts} />
+                  </div>
+
+                  {/* Status footer */}
+                  <div className="flex items-center justify-between text-micro text-text-muted pt-1 border-t border-separator">
+                    <span>{transcriptIds.size} downloaded</span>
+                    {transcriptResult && (
+                      <span className="tabular-nums">✓{transcriptResult.fetched} · skip {transcriptResult.skipped} · err {transcriptResult.errors}</span>
+                    )}
+                  </div>
                 </div>
               </MenuPositioner>,
               document.body
             )}
           </div>
+      </OverflowGroup>
       </TabHeaderPortal>
 
       {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
       {showMoreFilters && (
-        <div className="px-3 py-2.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex flex-wrap gap-x-5 gap-y-2 flex-shrink-0">
+        <Toolbar size="sm" className="h-auto py-2.5 flex-wrap gap-x-5 gap-y-2">
 
           {/* Search scope — where the search box looks (title, transcript text, or both) */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Search in</span>
-            <div className="flex items-center gap-1">
-              {([['title', 'Title'], ['transcript', 'Transcript'], ['both', 'Both']] as [SearchScope, string][]).map(([s, lbl]) => (
-                <button key={s}
-                  onClick={() => { setSearchScope(s); setPage(1) }}
-                  className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${searchScope === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                >
-                  {lbl}
-                </button>
-              ))}
-            </div>
+            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Search in</span>
+            <SegmentedControl
+              aria-label="Search in"
+              value={searchScope}
+              onChange={(s) => { setSearchScope(s); setPage(1) }}
+              options={[
+                { value: 'title', label: 'Title' },
+                { value: 'transcript', label: 'Transcript' },
+                { value: 'both', label: 'Both' },
+              ]}
+            />
           </div>
 
-          {/* Starred */}
+          {/* Starred — a segment of the same SegmentedControl primitive as its "Search in" /
+              "Progress" / "Length" siblings in this row (pill taxonomy: filter → Chip OR a
+              segment matching its row's own idiom; this row's idiom is SegmentedControl). */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Starred</span>
-            <button
-              onClick={() => { setStarredOnly((v) => !v); setPage(1) }}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors cursor-pointer ${starredOnly ? 'bg-yellow-500/15 text-yellow-400' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              <Star size={9} className={starredOnly ? 'fill-yellow-400' : ''} />
-              {starredOnly ? 'Only starred' : 'All'}
-            </button>
+            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Starred</span>
+            <SegmentedControl
+              aria-label="Starred"
+              value={starredOnly ? 'starred' : 'all'}
+              onChange={(v) => { setStarredOnly(v === 'starred'); setPage(1) }}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'starred', label: 'Starred', icon: Star },
+              ]}
+            />
           </div>
 
           {/* Progress / watch filter */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Progress</span>
-            <div className="flex items-center gap-1">
-              {(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => (
-                <button key={opt}
-                  onClick={() => { setWatchFilter(opt); setPage(1) }}
-                  className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${watchFilter === opt ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                >
-                  {WATCH_LABEL[opt]}
-                </button>
-              ))}
-            </div>
+            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Progress</span>
+            <SegmentedControl
+              aria-label="Watch progress"
+              value={watchFilter}
+              onChange={(opt) => { setWatchFilter(opt); setPage(1) }}
+              options={(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => ({ value: opt, label: WATCH_LABEL[opt] }))}
+            />
           </div>
 
           {/* Length / duration filter */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Length</span>
-            <div className="flex items-center gap-1 flex-wrap">
-              {(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => (
-                <button key={opt}
-                  onClick={() => { setDurationFilter(opt); setPage(1) }}
-                  className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${durationFilter === opt ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                >
-                  {DURATION_LABEL[opt]}
-                </button>
-              ))}
-            </div>
+            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Length</span>
+            <SegmentedControl
+              aria-label="Video length"
+              value={durationFilter}
+              onChange={(opt) => { setDurationFilter(opt); setPage(1) }}
+              options={(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => ({ value: opt, label: DURATION_LABEL[opt] }))}
+            />
           </div>
-        </div>
+        </Toolbar>
       )}
 
       {/* Progress bar — only shown while a sync is actively running (total > 0) */}
       {progress && progress.total > 0 && (
-        <div className="px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
+        <div className="px-3 py-1.5 border-b border-separator bg-surface-2 flex-shrink-0">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] truncate max-w-[75%]">{progress.phase}</span>
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 ml-2 tabular-nums">
+            <span className="text-caption2 text-text-muted truncate max-w-[75%]">{progress.phase}</span>
+            <span className="text-caption2 text-text-muted flex-shrink-0 ml-2 tabular-nums">
               {progress.done}/{progress.total}
             </span>
           </div>
           {/* Track — overflow-hidden clips the fill; no rounded-full on the inner bar
               to avoid border-radius consuming the visual fill at small percentages */}
-          <div className="h-[3px] bg-[rgb(var(--color-surface-4))] rounded-full overflow-hidden">
+          <div className="h-[3px] bg-surface-4 rounded-full overflow-hidden">
             <div
-              className="h-full bg-[rgb(var(--color-accent))] transition-[width] duration-200 ease-out"
+              className="h-full bg-accent transition-[width] duration-200 ease-out"
               style={{ width: progressWidth(progress.done, progress.total) }}
             />
           </div>
@@ -2533,27 +2459,25 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       >
         {loading && videos.length === 0 && (
           <div className="px-6 py-8 flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-[rgb(var(--color-accent))] border-t-transparent animate-spin" />
-            {progress && <p className="text-xs text-[rgb(var(--color-text-muted))]">{progress.phase}</p>}
+            <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+            {progress && <p className="text-footnote text-text-muted">{progress.phase}</p>}
           </div>
         )}
 
         {!loading && videos.length === 0 && (
-          <div className="px-6 py-12 flex flex-col items-center gap-4 text-center">
-            <p className="text-sm text-[rgb(var(--color-text-muted))]">No videos stored yet.</p>
-            <button onClick={doRefresh} className="text-xs px-4 py-2 rounded-lg bg-[rgb(var(--color-accent))] text-white cursor-pointer hover:opacity-90 transition-opacity">
-              Load recent videos
-            </button>
-            {isDev && (
-              <button onClick={doFullSync} className="text-xs px-4 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer hover:text-[rgb(var(--color-text-primary))] transition-colors">
-                Full Sync (fetch all history)
-              </button>
-            )}
-          </div>
+          <EmptyState
+            title="No videos stored yet."
+            action={
+              <div className="flex items-center gap-2">
+                <Button variant="primary" size="sm" onClick={doRefresh}>Load recent videos</Button>
+                {isDev && <Button variant="secondary" size="sm" onClick={doFullSync}>Full Sync (fetch all history)</Button>}
+              </div>
+            }
+          />
         )}
 
         {!loading && filtered.length === 0 && videos.length > 0 && (
-          <div className="px-6 py-8 text-center text-sm text-[rgb(var(--color-text-muted))]">No videos match your filters</div>
+          <EmptyState title="No videos match your filters" compact />
         )}
 
         {paged.length > 0 && (
@@ -2570,14 +2494,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       e.preventDefault()
                       setVideoMenu({ video, x: e.clientX, y: e.clientY })
                     }}
-                    className="text-left group rounded-xl overflow-hidden bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] transition-all cursor-pointer relative"
+                    className="text-left group rounded-card overflow-hidden bg-surface-2 border border-separator hover:border-accent/50 hover:bg-surface-hover transition-all cursor-pointer relative"
                   >
                     {/* Thumbnail */}
-                    <div className="relative w-full aspect-video bg-[rgb(var(--color-surface-4))] overflow-hidden">
+                    <div className="relative w-full aspect-video bg-surface-4 overflow-hidden">
                       {(() => {
                         const level = thumbFallback.get(video.videoId) ?? 0
                         const src = thumbnailUrlAtLevel(video.thumbnailUrl, level)
-                        if (!src) return <div className="w-full h-full flex items-center justify-center text-[rgb(var(--color-text-muted))] text-xs">No preview</div>
+                        if (!src) return <div className="w-full h-full flex items-center justify-center text-text-muted text-footnote">No preview</div>
                         return (
                           <img
                             src={src}
@@ -2593,12 +2517,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       {((video.durationSeconds > 0 && !video.isLiveNow) || transcriptIds.has(video.videoId)) && (
                         <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
                           {video.durationSeconds > 0 && !video.isLiveNow && (
-                            <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-black/70 text-white">
+                            <span className="text-micro font-mono px-1 py-0.5 rounded-chip bg-black/70 text-white">
                               {formatDuration(video.durationSeconds)}
                             </span>
                           )}
                           {transcriptIds.has(video.videoId) && (
-                            <span title="Transcript downloaded" className="flex items-center px-1 py-0.5 rounded bg-emerald-600/80 text-white">
+                            <span title="Transcript downloaded" className="flex items-center px-1 py-0.5 rounded-chip bg-success/80 text-white">
                               <Captions size={10} />
                             </span>
                           )}
@@ -2607,8 +2531,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
                       {video.type !== 'video' && (
                         <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
-                          {video.isLiveNow && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: video.type === 'short' ? 'rgb(var(--color-accent))' : '#dc2626' }}>
+                          {video.isLiveNow && <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />}
+                          <span className={cx('text-micro font-semibold px-1.5 py-0.5 rounded-chip text-white', video.type === 'short' ? 'bg-accent' : 'bg-destructive')}>
                             {video.type === 'short' ? 'SHORT' : video.isLiveNow ? 'LIVE NOW' : 'LIVE'}
                           </span>
                         </div>
@@ -2617,7 +2541,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       {/* Watch progress bar */}
                       {watchPct > 0 && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20">
-                          <div className="h-full bg-red-500" style={{ width: `${watchPct}%` }} />
+                          <div className="h-full bg-destructive" style={{ width: `${watchPct}%` }} />
                         </div>
                       )}
 
@@ -2631,17 +2555,17 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
                     {/* Card info */}
                     <div className="p-2.5">
-                      <p className="text-xs font-medium text-[rgb(var(--color-text-primary))] leading-tight line-clamp-2 mb-1">
+                      <p className="text-footnote font-medium text-text-primary leading-tight line-clamp-2 mb-1">
                         {video.title}
                       </p>
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-[10px] text-[rgb(var(--color-accent))] truncate">{video.channelName}</span>
-                        <span className="text-[10px] flex-shrink-0" style={{ color: video.isLiveNow ? '#dc2626' : 'rgb(var(--color-text-muted))' }}>
+                        <span className="text-caption2 text-accent truncate">{video.channelName}</span>
+                        <span className="text-caption2 flex-shrink-0" style={{ color: video.isLiveNow ? 'rgb(var(--color-destructive))' : 'rgb(var(--color-text-muted))' }}>
                           {timeAgo(video.published, video.isLiveNow)}
                         </span>
                       </div>
                       {watchedPos > 0 && (
-                        <p className="text-[9px] text-[rgb(var(--color-text-muted))] mt-0.5">
+                        <p className="text-micro text-text-muted mt-0.5">
                           Watched to {formatDuration(Math.floor(watchedPos))}
                         </p>
                       )}
@@ -2650,7 +2574,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       {search.trim() && searchScope !== 'title' && transcriptMatchInfo.has(video.videoId) && (() => {
                         const info = transcriptMatchInfo.get(video.videoId)!
                         return (
-                          <div className="mt-1.5 rounded border border-emerald-500/20 overflow-hidden">
+                          <div className="mt-1.5 rounded-card border border-success/20 overflow-hidden">
                             {info.segments.map((seg, si) => (
                               <button
                                 key={si}
@@ -2662,28 +2586,28 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                                   setHistoryMap((prev) => ({ ...prev, [video.videoId]: seekSec }))
                                   setActiveVideoId(video.videoId)
                                 }}
-                                className="group w-full text-left flex items-start gap-1.5 px-1.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors border-b border-emerald-500/10 last:border-b-0 cursor-pointer"
+                                className="group w-full text-left flex items-start gap-1.5 px-1.5 py-1 bg-success/10 hover:bg-success/20 active:bg-success/30 transition-colors border-b border-success/10 last:border-b-0 cursor-pointer"
                                 title={`Jump to ${formatDuration(Math.floor(seg.startMs / 1000))}`}
                               >
-                                <Captions size={9} className="text-emerald-400 flex-shrink-0 mt-[2px]" />
-                                <p className="flex-1 min-w-0 text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))] line-clamp-3 transition-colors">
-                                  <span className="font-mono text-emerald-400/80 mr-1">{formatDuration(Math.floor(seg.startMs / 1000))}</span>
+                                <Captions size={9} className="text-success flex-shrink-0 mt-[2px]" />
+                                <p className="flex-1 min-w-0 text-caption2 leading-snug text-text-secondary group-hover:text-text-primary line-clamp-3 transition-colors">
+                                  <span className="font-mono text-success/80 mr-1">{formatDuration(Math.floor(seg.startMs / 1000))}</span>
                                   {highlightSnippet(seg.snippet, search, 240).map((part, pi) =>
                                     part.match
-                                      ? <mark key={pi} className="bg-emerald-400/30 text-[rgb(var(--color-text-primary))] rounded-sm px-0.5">{part.text}</mark>
+                                      ? <mark key={pi} className="bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip px-0.5">{part.text}</mark>
                                       : <span key={pi}>{part.text}</span>
                                   )}
                                 </p>
                                 {/* Play triangle — visible on hover */}
                                 <svg width="7" height="8" viewBox="0 0 7 8" fill="currentColor"
-                                  className="flex-shrink-0 self-center text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity mt-[1px]">
+                                  className="flex-shrink-0 self-center text-success opacity-0 group-hover:opacity-100 transition-opacity mt-[1px]">
                                   <path d="M0 0L7 4L0 8V0Z"/>
                                 </svg>
                               </button>
                             ))}
                             {info.matchCount > info.segments.length && (
-                              <div className="px-1.5 py-0.5 flex items-center gap-1 bg-emerald-500/5">
-                                <span className="text-[9px] text-emerald-400/60">+{info.matchCount - info.segments.length} more matches in this video</span>
+                              <div className="px-1.5 py-0.5 flex items-center gap-1 bg-success/5">
+                                <span className="text-micro text-success/60">+{info.matchCount - info.segments.length} more matches in this video</span>
                               </div>
                             )}
                           </div>
@@ -2692,16 +2616,18 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     </div>
 
                     {/* Star button (hover) */}
-                    <button
+                    <IconButton
+                      icon={Star}
+                      label={video.isStarred ? 'Unstar' : 'Star'}
+                      size={24}
+                      tooltip={false}
+                      iconClassName={video.isStarred ? 'text-warning fill-warning' : 'text-white'}
                       onClick={(e) => handleToggleStar(video.videoId, e)}
-                      title={video.isStarred ? 'Unstar' : 'Star'}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-black/70"
-                    >
-                      <Star size={11} className={video.isStarred ? 'text-yellow-400 fill-yellow-400' : 'text-white'} />
-                    </button>
+                      className="absolute top-1.5 right-1.5 !rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    />
                     {video.isStarred && (
                       <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center group-hover:hidden">
-                        <Star size={11} className="text-yellow-400 fill-yellow-400" />
+                        <Star size={11} className="text-warning fill-warning" />
                       </div>
                     )}
                   </div>
@@ -2711,12 +2637,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
             <div className="px-4 pb-6 flex flex-col items-center gap-2">
               {hasMore && !loading && (
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  className="text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setPage((p) => p + 1)}>
                   Show more ({sorted.length - paged.length} remaining)
-                </button>
+                </Button>
               )}
             </div>
           </>
@@ -2726,43 +2649,41 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       {/* Video right-click context menu */}
       {videoMenu && (
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setVideoMenu(null)} onContextMenu={(e) => { e.preventDefault(); setVideoMenu(null) }} />
-          <MenuPositioner x={videoMenu.x} y={videoMenu.y}
-            className="glass-panel min-w-[230px] rounded-shell-lg py-1 overflow-hidden"
-          >
-            {[
-              {
-                icon: <Link2 size={13} className="flex-shrink-0" />, label: 'Copy link for note',
-                action: async () => {
-                  await navigator.clipboard.writeText(`[${videoMenu.video.title}](https://youtu.be/${videoMenu.video.videoId})`)
-                  setCopyToast(true); setTimeout(() => setCopyToast(false), 2000)
+          <div className="fixed inset-0 z-menu" onClick={() => setVideoMenu(null)} onContextMenu={(e) => { e.preventDefault(); setVideoMenu(null) }} />
+          <MenuPositioner x={videoMenu.x} y={videoMenu.y}>
+            <MenuSurface className="min-w-[230px]">
+              {[
+                {
+                  icon: Link2, label: 'Copy link for note',
+                  action: async () => {
+                    await navigator.clipboard.writeText(`[${videoMenu.video.title}](https://youtu.be/${videoMenu.video.videoId})`)
+                    setCopyToast(true); setTimeout(() => setCopyToast(false), 2000)
+                  },
                 },
-              },
-              {
-                icon: <ExternalLink size={13} className="flex-shrink-0" />, label: 'Copy video URL',
-                action: async () => {
-                  await navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${videoMenu.video.videoId}`)
-                  setCopyToast(true); setTimeout(() => setCopyToast(false), 2000)
+                {
+                  icon: ExternalLink, label: 'Copy video URL',
+                  action: async () => {
+                    await navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${videoMenu.video.videoId}`)
+                    setCopyToast(true); setTimeout(() => setCopyToast(false), 2000)
+                  },
                 },
-              },
-              {
-                icon: <Plus size={13} className="flex-shrink-0" />, label: 'Open in new tab',
-                action: () => useAppStore.getState().openYouTubeVideoInNewTab(videoMenu.video.videoId),
-              },
-              {
-                icon: <Maximize2 size={13} className="flex-shrink-0" />, label: 'Open in floating tab',
-                action: () => window.app.openFloatingTab('youtube', { videoId: videoMenu.video.videoId }),
-              },
-            ].map((item) => (
-              <button
-                key={item.label}
-                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { item.action(); setVideoMenu(null) }}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
+                {
+                  icon: Plus, label: 'Open in new tab',
+                  action: () => useAppStore.getState().openYouTubeVideoInNewTab(videoMenu.video.videoId),
+                },
+                {
+                  icon: Maximize2, label: 'Open in floating tab',
+                  action: () => window.app.openFloatingTab('youtube', { videoId: videoMenu.video.videoId }),
+                },
+              ].map((item) => (
+                <MenuItem
+                  key={item.label}
+                  icon={item.icon}
+                  label={item.label}
+                  onClick={() => { item.action(); setVideoMenu(null) }}
+                />
+              ))}
+            </MenuSurface>
           </MenuPositioner>
         </>
       )}

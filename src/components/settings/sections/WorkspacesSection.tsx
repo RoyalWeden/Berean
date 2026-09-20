@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { TextField, Button, IconButton } from '@/components/ui'
 
 export default function WorkspacesSection() {
   const panelLayout = useAppStore((s) => s.panelLayout)
@@ -60,40 +61,35 @@ export default function WorkspacesSection() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Saved workspaces</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
+        <p className="text-subhead font-medium text-text-primary mb-1">Saved workspaces</p>
+        <p className="s-desc text-caption text-text-muted">
           Save a named snapshot of the current panel layout. Load it later to restore that arrangement. Tab contents are not restored — only the panel split configuration.
         </p>
       </div>
 
       {/* Save current */}
       <div className="flex gap-2">
-        <input
-          type="text"
+        <TextField
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && saveWorkspace()}
           placeholder="Name this workspace…"
-          className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
+          wrapperClassName="flex-1"
         />
-        <button
-          onClick={saveWorkspace}
-          disabled={!newName.trim() || saving}
-          className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-        >
+        <Button variant="primary" size="sm" onClick={saveWorkspace} disabled={!newName.trim() || saving}>
           Save
-        </button>
+        </Button>
       </div>
 
       {/* List */}
       {savedWorkspaces.length === 0 ? (
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] text-center py-4">No saved workspaces yet</p>
+        <p className="s-desc text-caption text-text-muted text-center py-4">No saved workspaces yet</p>
       ) : (
         <div className="space-y-1.5">
           {savedWorkspaces.map((ws) => (
-            <div key={ws.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
+            <div key={ws.id} className="flex items-center gap-2 px-3 py-2 rounded-row bg-surface-elevated">
               {renamingId === ws.id ? (
-                <input
+                <TextField
                   type="text"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
@@ -103,35 +99,28 @@ export default function WorkspacesSection() {
                   }}
                   onBlur={() => finishRename(ws.id)}
                   autoFocus
-                  className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none border-b border-[rgb(var(--color-accent))]"
+                  bare
+                  wrapperClassName="flex-1"
+                  className="border-b border-accent rounded-none"
                 />
               ) : (
-                <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] truncate">{ws.name}</span>
+                <span className="flex-1 text-footnote text-text-primary truncate">{ws.name}</span>
               )}
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
+              <span className="text-caption2 text-text-muted flex-shrink-0">
                 {new Date(ws.created_at).toLocaleDateString()}
               </span>
-              <button
-                onClick={() => loadWorkspace(ws.id)}
-                title="Load this workspace"
-                className="text-[10px] px-2 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-              >
+              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} tooltip="Load this workspace" className="flex-shrink-0">
                 Load
-              </button>
-              <button
+              </Button>
+              <Button
+                size="sm" variant="ghost"
                 onClick={() => { setRenamingId(ws.id); setRenameValue(ws.name) }}
-                title="Rename"
-                className="text-[10px] px-2 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+                tooltip="Rename"
+                className="flex-shrink-0"
               >
                 Rename
-              </button>
-              <button
-                onClick={() => deleteWorkspace(ws.id)}
-                title="Delete this workspace"
-                className="text-[rgb(var(--color-text-muted))] hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
+              </Button>
+              <IconButton icon={Trash2} label="Delete this workspace" size={20} danger onClick={() => deleteWorkspace(ws.id)} />
             </div>
           ))}
         </div>

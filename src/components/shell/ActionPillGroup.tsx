@@ -1,31 +1,11 @@
 import type { ReactNode } from 'react'
+import { ControlGroup } from '@/components/ui/ControlGroup'
 
 /**
- * Shared "joined action pill" wrapper — bordered, rounded, with a hairline divider between
- * children (all but the last). SidebarTopBar.tsx's back/forward/history nav and BiblePanel.tsx's
- * chapter-nav prev/pick/next each independently invented their own version of this (different
- * radius, different divider mechanism) before being unified onto this one. For grouping
- * independent actions — not mutually-exclusive selection, which is HeaderSegmentedToggle.tsx's job.
+ * @deprecated Alias kept for one release — use `ControlGroup` from '@/components/ui'.
+ * The old implementation forced its children flat with `!important` overrides; ControlGroup
+ * provides a context the children read instead (no specificity fights).
  */
-interface Props {
-  children: ReactNode
-  className?: string
-  // A real prop, not a className string to override `items-center` with — Tailwind utility
-  // classes at equal specificity resolve by stylesheet generation order, not by position in a
-  // className string, so appending "items-stretch" after this component's own "items-center"
-  // would NOT reliably win without something like tailwind-merge (not used in this codebase).
-  align?: 'center' | 'stretch'
-}
-
-export default function ActionPillGroup({ children, className = '', align = 'center' }: Props) {
-  return (
-    <div
-      // action-pill-group: a stable marker PanelHeader.tsx's floating-header CSS (global.css)
-      // targets directly, rather than guessing at this component's Tailwind utility classes —
-      // see that rule's own comment for why it needs to single this component out specifically.
-      className={`action-pill-group no-drag flex ${align === 'stretch' ? 'items-stretch' : 'items-center'} rounded-shell border border-[rgb(var(--color-surface-4))] overflow-hidden flex-shrink-0 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-[rgb(var(--color-surface-4))] ${className}`}
-    >
-      {children}
-    </div>
-  )
+export default function ActionPillGroup({ children, className = '', align = 'center' }: { children: ReactNode; className?: string; align?: 'center' | 'stretch' }) {
+  return <ControlGroup className={className} align={align}>{children}</ControlGroup>
 }

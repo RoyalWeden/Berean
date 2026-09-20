@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Cast, MousePointer2, Highlighter, PanelRight, RefreshCw, X, GripVertical, MonitorPlay, Minus, Eye } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { pushCurrentToViewer } from '@/hooks/useViewerSync'
+import { IconButton, Switch, Button, Badge } from '@/components/ui'
 import type { BibleTabState } from '@/types'
 
 /** Current active scripture chapter (the chapter the presenter mirrors), for overlay clears. */
@@ -14,30 +15,24 @@ function activeScriptureChapter(): { bookId: string; chapter: number } | null {
   return bs?.bookId ? { bookId: bs.bookId, chapter: bs.chapter } : null
 }
 
-/** A clear on/off switch (track + knob). */
-function Switch({ on }: { on: boolean }) {
-  return (
-    <span
-      className="relative inline-block flex-shrink-0 rounded-full transition-colors"
-      style={{ width: 34, height: 20, background: on ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))' }}
-    >
-      <span className="absolute rounded-full bg-white shadow transition-all" style={{ width: 16, height: 16, top: 2, left: on ? 16 : 2 }} />
-    </span>
-  )
-}
-
+// The row is a div (not a button) because it wraps a real <Switch> button — the interactive
+// switch carries the `role="switch"` semantics; the row's own onClick just extends the click
+// target to the whole row, stopping propagation from the switch itself so a click there doesn't
+// also bubble up and fire the row's handler a second time.
 function ToggleRow({ icon, label, on, onClick }: { icon: React.ReactNode; label: string; on: boolean; onClick: () => void }) {
+  // The whole row is one keyboard unit (role=switch): Tab reaches it, Space/Enter toggles.
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={on}
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors hover:bg-[rgb(var(--color-surface-3))]"
+      className="focus-ring w-full flex items-center gap-2 px-2.5 py-1.5 rounded-row cursor-pointer transition-colors hover:bg-surface-hover"
     >
-      <span className={on ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}>{icon}</span>
-      <span className={`flex-1 text-left text-[12px] font-medium ${on ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))]'}`}>{label}</span>
-      <span className={`text-[9px] font-bold uppercase tracking-wide ${on ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>{on ? 'On' : 'Off'}</span>
-      <Switch on={on} />
+      <span className={on ? 'text-accent' : 'text-text-muted'}>{icon}</span>
+      <span className={`flex-1 text-left text-footnote font-medium ${on ? 'text-text-primary' : 'text-text-muted'}`}>{label}</span>
+      <span className={`text-micro font-semibold uppercase tracking-wide ${on ? 'text-accent' : 'text-text-muted'}`}>{on ? 'On' : 'Off'}</span>
+      <Switch checked={on} onCheckedChange={onClick} label={label} decorative />
     </button>
   )
 }
@@ -46,9 +41,10 @@ export default function PresenterControls() {
   // Drop behind the floating search / settings modal (both z-50) when one is open, so those
   // overlays sit fully in front of the presenter pill instead of it floating over them.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
-  const zClass = modalOpen ? 'z-40' : 'z-[9998]'
+  const zClass = modalOpen ? 'z-raised' : 'z-overlay'
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const viewerPaused = useAppStore((s) => s.viewerPaused)
+  const presenterRange = useAppStore((s) => s.presenterRange)
   const setViewerPaused = useAppStore((s) => s.setViewerPaused)
   const setViewerWindowOpen = useAppStore((s) => s.setViewerWindowOpen)
   const laserEnabled = useAppStore((s) => s.viewerLaserEnabled)
@@ -132,13 +128,14 @@ export default function PresenterControls() {
         data-presenter-controls
         onMouseDown={startDrag}
         onClick={() => setCollapsed(false)}
-        className={`fixed ${zClass} flex items-center gap-1.5 px-2.5 py-1.5 rounded-full shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur cursor-pointer`}
+        className={`fixed ${zClass} flex items-center gap-1.5 px-2.5 py-1.5 rounded-control material-popover cursor-pointer`}
         style={{ ...(pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }), userSelect: 'none', WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties}
         title="Expand presenter controls"
       >
-        <MonitorPlay size={14} className="text-[rgb(var(--color-accent))]" />
-        <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">Presenter</span>
-        {viewerPaused && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+        <MonitorPlay size={14} className="text-accent" />
+        <span className="text-caption font-semibold text-text-primary">Presenter</span>
+        {presenterRange && !viewerPaused && <span className="text-meta">v.{presenterRange.first}{presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}</span>}
+        {viewerPaused ? <Badge variant="text" tone="warning">Paused</Badge> : <Badge variant="live" tone="accent" label="Live" />}
       </div>,
       document.body
     )
@@ -147,22 +144,20 @@ export default function PresenterControls() {
   return createPortal(
     <div
       data-presenter-controls
-      className={`fixed ${zClass} w-[224px] rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur`}
+      className={`fixed ${zClass} w-[224px] material-popover rounded-menu`}
       style={{ ...(pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }), userSelect: 'none', WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties}
     >
       {/* Header: drag handle + collapse + close */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-[rgb(var(--color-surface-3))]">
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-separator">
         <div onMouseDown={startDrag} className="flex items-center gap-1.5 flex-1 cursor-grab active:cursor-grabbing">
-          <GripVertical size={12} className="text-[rgb(var(--color-text-muted))]" />
-          <MonitorPlay size={13} className="text-[rgb(var(--color-accent))]" />
-          <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">Presenter</span>
+          <GripVertical size={12} className="text-text-muted" />
+          <MonitorPlay size={13} className="text-accent" />
+          <span className="text-caption font-semibold text-text-primary">Presenter</span>
+          {presenterRange && !viewerPaused && <span className="text-meta">v.{presenterRange.first}{presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}</span>}
+          {viewerPaused ? <Badge variant="text" tone="warning">Paused</Badge> : <Badge variant="live" tone="accent" label="Live" />}
         </div>
-        <button onClick={() => setCollapsed(true)} title="Collapse" className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-          <Minus size={13} />
-        </button>
-        <button onClick={closePresenter} title="Close presenter window" className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-red-500/15 hover:text-red-400 cursor-pointer">
-          <X size={13} />
-        </button>
+        <IconButton icon={Minus} label="Collapse" size={20} onClick={() => setCollapsed(true)} />
+        <IconButton icon={X} label="Close presenter window" size={20} danger onClick={closePresenter} />
       </div>
 
       {/* Toggles */}
@@ -175,14 +170,17 @@ export default function PresenterControls() {
       </div>
 
       {/* Action */}
-      <div className="p-1.5 border-t border-[rgb(var(--color-surface-3))]">
-        <button
+      <div className="p-1.5 border-t border-separator">
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={RefreshCw}
           onClick={() => { pushCurrentToViewer(); window.app.requestViewerVisibleRegion?.() }}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+          className="w-full"
           title="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
         >
-          <RefreshCw size={13} /> Re-sync now
-        </button>
+          Re-sync now
+        </Button>
       </div>
     </div>,
     document.body

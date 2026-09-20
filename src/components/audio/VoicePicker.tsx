@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import * as Popover from '@radix-ui/react-popover'
-import { Search, Check, ChevronDown, Mic2 } from 'lucide-react'
+import { ChevronDown, Mic2 } from 'lucide-react'
 import type { TTSVoiceOption } from '@/lib/tts/ttsBackend'
+import { Popover, PopoverTrigger, PopoverSurface, IconButton, SectionLabel, SearchField, MenuItem } from '@/components/ui'
 
 interface VoicePickerProps {
   voices: TTSVoiceOption[]
@@ -30,7 +30,7 @@ function localeLabel(lang: string): string {
 function TierBadge({ tier }: { tier: 'Premium' | 'Enhanced' | null }) {
   if (!tier) return null
   return (
-    <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-wide text-[rgb(var(--color-accent))] px-1 py-0.5 rounded bg-[rgb(var(--color-accent))/12]">
+    <span className="flex-shrink-0 text-micro font-semibold uppercase tracking-wide text-accent px-1 py-0.5 rounded-chip bg-accent-muted">
       {tier}
     </span>
   )
@@ -72,18 +72,14 @@ export default function VoicePicker({ voices, value, onChange, compact, iconOnly
   }
 
   return (
-    <Popover.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery('') }}>
-      <Popover.Trigger asChild>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery('') }}>
+      <PopoverTrigger asChild>
         {iconOnly ? (
-          <button
-            title={selected ? `Voice: ${selected.name}` : 'Choose a voice'}
-            className="flex items-center justify-center w-6 h-6 rounded-full text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors flex-shrink-0"
-          >
-            <Mic2 size={13} />
-          </button>
+          <IconButton icon={Mic2} label={selected ? `Voice: ${selected.name}` : 'Choose a voice'} size={24} className="flex-shrink-0" />
         ) : (
           <button
-            className={`flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors ${compact ? 'text-[11px] px-2 py-1.5' : 'text-sm px-3 py-1.5'}`}
+            type="button"
+            className={`no-drag focus-ring flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-control-md control-field bg-field text-text-primary outline-none cursor-pointer hover:bg-surface-1/75 active:bg-surface-1 aria-expanded:bg-surface-1 aria-expanded:shadow-focus transition-colors duration-base ease-mac ${compact ? 'text-caption px-2.5 h-7' : 'text-subhead px-3 h-8'}`}
           >
             <span className="truncate flex items-center gap-1.5 min-w-0">
               {/* The tier badge (Premium/Enhanced) is dropped here in compact mode — it was
@@ -94,60 +90,34 @@ export default function VoicePicker({ voices, value, onChange, compact, iconOnly
               <span className="truncate">{selected ? selected.name : 'Choose a voice'}</span>
               {selected && !compact && <TierBadge tier={selected.tier ?? null} />}
             </span>
-            <ChevronDown size={compact ? 12 : 14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+            <ChevronDown size={compact ? 12 : 14} className="text-text-muted flex-shrink-0" />
           </button>
         )}
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          align="start" sideOffset={6}
-          className="z-[300] w-[290px] rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/98] backdrop-blur overflow-hidden"
-        >
-          <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgb(var(--color-surface-3))]">
-            <Search size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search voices…"
-              className="flex-1 min-w-0 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
-            />
-          </div>
-          <div className="max-h-[280px] overflow-y-auto py-1">
-            <button
-              onClick={() => select(null)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <span className={!value ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-secondary))]'}>System default</span>
-              {!value && <Check size={13} className="text-[rgb(var(--color-accent))]" />}
-            </button>
-            {groups.length === 0 && (
-              <p className="px-2.5 py-3 text-xs text-[rgb(var(--color-text-muted))] text-center">No voices match "{query}"</p>
-            )}
-            {groups.map(([locale, group]) => (
-              <div key={locale}>
-                <p className="px-2.5 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{locale}</p>
-                {group.map((v) => {
-                  const isSelected = v.voiceURI === value
-                  return (
-                    <button
-                      key={v.voiceURI}
-                      onClick={() => select(v.voiceURI)}
-                      className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-                    >
-                      <span className={`flex items-center gap-1.5 min-w-0 ${isSelected ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-secondary))]'}`}>
-                        <span className="truncate">{v.name}</span>
-                        <TierBadge tier={v.tier ?? null} />
-                      </span>
-                      {isSelected && <Check size={13} className="text-[rgb(var(--color-accent))] flex-shrink-0" />}
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+      </PopoverTrigger>
+      <PopoverSurface align="start" className="w-[290px]" innerClassName="overflow-hidden">
+        <div className="px-2 py-1.5 border-b border-separator">
+          <SearchField value={query} onValueChange={setQuery} placeholder="Search voices…" size="sm" bare autoFocus />
+        </div>
+        <div className="max-h-[280px] overflow-y-auto p-1">
+          <MenuItem label="System default" active={!value} onClick={() => select(null)} />
+          {groups.length === 0 && (
+            <p className="px-2.5 py-3 text-caption text-text-muted text-center">No voices match "{query}"</p>
+          )}
+          {groups.map(([locale, group]) => (
+            <div key={locale}>
+              <SectionLabel className="px-2.5 pt-2 pb-1">{locale}</SectionLabel>
+              {group.map((v) => (
+                <MenuItem
+                  key={v.voiceURI}
+                  active={v.voiceURI === value}
+                  onClick={() => select(v.voiceURI)}
+                  label={<span className="flex items-center gap-1.5 min-w-0"><span className="truncate">{v.name}</span><TierBadge tier={v.tier ?? null} /></span>}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </PopoverSurface>
+    </Popover>
   )
 }

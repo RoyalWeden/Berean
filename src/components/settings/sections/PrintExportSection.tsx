@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Printer, ChevronDown, FolderOpen, X, Eye } from 'lucide-react'
 import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/lib/notePreviewRender'
 import { ScaledPagePreview, CustomMarginInputs } from '@/components/notes/PrintPreviewModal'
-import Switch from '@/components/shell/Switch'
+import { Switch, SectionLabel, SegmentedControl, TextField, IconButton, OptionCard, Slider, ListRow } from '@/components/ui'
 import { useAppStore } from '@/store'
 
 const PRINT_PRESETS: { id: 'compact' | 'standard' | 'spacious' | 'manuscript'; label: string; desc: string;
@@ -74,85 +74,67 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
     paperSize: printPaperSize,
   })
 
-  const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
-  const segBtn = (active: boolean) =>
-    `px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors ${active
-      ? 'bg-[rgb(var(--color-accent))] text-white font-medium'
-      : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`
-
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
-        <Printer size={14} className="text-[rgb(var(--color-text-muted))]" />
-        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Print &amp; Export</p>
+        <Printer size={14} className="text-text-muted" />
+        <p className="text-subhead font-medium text-text-primary">Print &amp; Export</p>
       </div>
-      <p className="text-xs text-[rgb(var(--color-text-muted))] -mt-3">
+      <p className="text-caption text-text-muted -mt-3">
         Controls how notes look when printed or exported to PDF. Applies to the Print and Export-PDF buttons in the notes editor.
       </p>
 
       {/* Presets */}
       <div>
-        <p className={labelCls}>Presets</p>
+        <SectionLabel className="mb-1.5">Presets</SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           {PRINT_PRESETS.map((p) => (
-            <button
+            <OptionCard
               key={p.id}
+              selected={activePreset?.id === p.id}
               onClick={() => applyPreset(p)}
-              className={`text-left px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
-                activePreset?.id === p.id
-                  ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                  : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] hover:border-[rgb(var(--color-accent))/50]'
-              }`}
-            >
-              <div className="text-xs font-medium text-[rgb(var(--color-text-primary))]">{p.label}</div>
-              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 leading-snug">{p.desc}</div>
-            </button>
+              title={p.label}
+              description={p.desc}
+            />
           ))}
         </div>
       </div>
 
-      {/* Theme & style — button + popover grid */}
+      {/* Theme & style — row + popover grid */}
       <div>
-        <p className={labelCls}>Theme &amp; style</p>
+        <SectionLabel className="mb-1.5">Theme &amp; style</SectionLabel>
         <div className="relative" ref={themePickerRef}>
-          <button
+          <ListRow
+            className={themeOpen ? 'bg-accent-muted' : 'control-glass'}
+            buttonClassName="rounded-card"
             onClick={() => setThemeOpen(v => !v)}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left cursor-pointer transition-colors ${
-              themeOpen
-                ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))]'
-            }`}
-          >
-            <span className="w-6 h-6 rounded flex-shrink-0 border overflow-hidden" style={{ background: currentTheme.bg, borderColor: currentTheme.h2Border }}>
-              <span className="block w-full h-1.5" style={{ background: currentTheme.verseBorder }} />
-              <span className="block mx-0.5 mt-1 h-1 rounded" style={{ background: currentTheme.verseBg === 'transparent' ? currentTheme.h2Border : currentTheme.verseBg }} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{currentTheme.label}</span>
-              <span className="block text-[9px] text-[rgb(var(--color-text-muted))] truncate leading-tight">{currentTheme.desc}</span>
-            </span>
-            <ChevronDown size={13} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
-          </button>
+            leading={
+              <span className="w-6 h-6 rounded-chip flex-shrink-0 border overflow-hidden" style={{ background: currentTheme.bg, borderColor: currentTheme.h2Border }}>
+                <span className="block w-full h-1.5" style={{ background: currentTheme.verseBorder }} />
+                <span className="block mx-0.5 mt-1 h-1 rounded-chip" style={{ background: currentTheme.verseBg === 'transparent' ? currentTheme.h2Border : currentTheme.verseBg }} />
+              </span>
+            }
+            title={currentTheme.label}
+            subtitle={currentTheme.desc}
+            trailing={<ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
+            trailingAlways
+          />
 
           {themeOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-menu material-popover rounded-menu p-2 grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
               {Object.values(PRINT_THEMES).map((th) => (
-                <button
+                <OptionCard
                   key={th.id}
+                  selected={printTheme === th.id}
                   onClick={() => { setPrintTheme(th.id); setPrintFontFamily(th.suggestedFont); setThemeOpen(false) }}
-                  title={th.desc}
-                  className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border cursor-pointer transition-colors text-center ${
-                    printTheme === th.id
-                      ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                      : 'border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))]'
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
-                    <span className="block w-full" style={{ height: 5, background: th.verseBorder }} />
-                    <span className="block mx-0.5 mt-0.5 rounded-sm" style={{ height: 3, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
-                  </span>
-                  <span className="text-[9px] font-medium text-[rgb(var(--color-text-secondary))] leading-none">{th.label}</span>
-                </button>
+                  title={th.label}
+                  preview={
+                    <span className="w-5 h-5 rounded-chip flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
+                      <span className="block w-full" style={{ height: 5, background: th.verseBorder }} />
+                      <span className="block mx-0.5 mt-0.5 rounded-chip" style={{ height: 3, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
+                    </span>
+                  }
+                />
               ))}
             </div>
           )}
@@ -161,23 +143,24 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
 
       {/* Live preview — scaled to true page proportions so margins look accurate */}
       <div>
-        <p className={labelCls}>Live preview</p>
+        <SectionLabel className="mb-1.5">Live preview</SectionLabel>
         <ScaledPagePreview html={previewHtml} />
       </div>
 
       {/* Margins */}
       <div>
-        <p className={labelCls}>Margins</p>
-        <div className="flex flex-wrap gap-1.5">
-          {(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => (
-            <button key={m} onClick={() => {
-              if (m === 'custom' && printMarginPreset !== 'custom') setPrintCustomMargins(presetToSides(printMarginPreset))
-              setPrintMarginPreset(m)
-            }} className={segBtn(printMarginPreset === m)}>
-              {m === 'none' ? 'None' : m.charAt(0).toUpperCase() + m.slice(1)}
-            </button>
-          ))}
-        </div>
+        <SectionLabel className="mb-1.5">Margins</SectionLabel>
+        <SegmentedControl
+          aria-label="Margins"
+          value={printMarginPreset}
+          onChange={(m) => {
+            if (m === 'custom' && printMarginPreset !== 'custom') setPrintCustomMargins(presetToSides(printMarginPreset))
+            setPrintMarginPreset(m)
+          }}
+          options={(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => ({
+            value: m, label: m === 'none' ? 'None' : m.charAt(0).toUpperCase() + m.slice(1),
+          }))}
+        />
         {printMarginPreset === 'custom' && (
           <CustomMarginInputs value={printCustomMargins} onChange={setPrintCustomMargins} />
         )}
@@ -185,88 +168,90 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
 
       {/* Font size */}
       <div>
-        <p className={labelCls}>Font size — {printFontSizePt}pt</p>
-        <input
-          type="range" min={8} max={18} step={1} value={printFontSizePt}
-          onChange={(e) => setPrintFontSizePt(parseInt(e.target.value))}
-          className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
-        />
+        <SectionLabel className="mb-1.5">Font size — {printFontSizePt}pt</SectionLabel>
+        <Slider min={8} max={18} step={1} value={printFontSizePt} onValueChange={setPrintFontSizePt} aria-label="Font size" />
       </div>
 
       {/* Font family */}
       <div>
-        <p className={labelCls}>Font family</p>
-        <div className="flex gap-1.5">
-          {([['system', 'System'], ['serif', 'Serif'], ['sansserif', 'Sans-serif']] as const).map(([id, lbl]) => (
-            <button key={id} onClick={() => setPrintFontFamily(id)} className={segBtn(printFontFamily === id)}>{lbl}</button>
-          ))}
-        </div>
+        <SectionLabel className="mb-1.5">Font family</SectionLabel>
+        <SegmentedControl
+          aria-label="Font family"
+          value={printFontFamily}
+          onChange={setPrintFontFamily}
+          options={[
+            { value: 'system', label: 'System' },
+            { value: 'serif', label: 'Serif' },
+            { value: 'sansserif', label: 'Sans-serif' },
+          ]}
+        />
       </div>
 
       {/* Paper size */}
       <div>
-        <p className={labelCls}>Paper size</p>
-        <div className="flex gap-1.5">
-          {([['letter', 'Letter'], ['a4', 'A4'], ['legal', 'Legal']] as const).map(([id, lbl]) => (
-            <button key={id} onClick={() => setPrintPaperSize(id)} className={segBtn(printPaperSize === id)}>{lbl}</button>
-          ))}
-        </div>
+        <SectionLabel className="mb-1.5">Paper size</SectionLabel>
+        <SegmentedControl
+          aria-label="Paper size"
+          value={printPaperSize}
+          onChange={setPrintPaperSize}
+          options={[
+            { value: 'letter', label: 'Letter' },
+            { value: 'a4', label: 'A4' },
+            { value: 'legal', label: 'Legal' },
+          ]}
+        />
       </div>
 
       {/* Color mode */}
       <div>
-        <p className={labelCls}>Color</p>
-        <div className="flex gap-1.5">
-          {([['color', 'Color'], ['grayscale', 'Grayscale']] as const).map(([id, lbl]) => (
-            <button key={id} onClick={() => setPrintColorMode(id)} className={segBtn(printColorMode === id)}>{lbl}</button>
-          ))}
-        </div>
+        <SectionLabel className="mb-1.5">Color</SectionLabel>
+        <SegmentedControl
+          aria-label="Color mode"
+          value={printColorMode}
+          onChange={setPrintColorMode}
+          options={[
+            { value: 'color', label: 'Color' },
+            { value: 'grayscale', label: 'Grayscale' },
+          ]}
+        />
       </div>
 
       {/* Include title toggle */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-[rgb(var(--color-text-primary))]">Include note title</p>
-          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5">Print the note title as a heading at the top</p>
+          <p className="text-subhead font-medium text-text-primary">Include note title</p>
+          <p className="text-caption2 text-text-muted mt-0.5">Print the note title as a heading at the top</p>
         </div>
         <Switch checked={printIncludeTitle} onCheckedChange={() => setPrintIncludeTitle(!printIncludeTitle)} />
       </div>
 
       {/* Default download location */}
       <div>
-        <p className={labelCls}>Default download location</p>
+        <SectionLabel className="mb-1.5">Default download location</SectionLabel>
         <div className="flex items-center gap-2">
-          <input
-            type="text"
+          <TextField
             value={pdfDownloadLocation}
             onChange={(e) => setPdfDownloadLocation(e.target.value)}
             placeholder="Ask each time (system default)"
-            className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
+            wrapperClassName="flex-1"
           />
-          <button
+          <IconButton
+            icon={FolderOpen}
+            label="Choose folder"
+            size={28}
             onClick={async () => { const picked = await window.app.openFolderDialog(); if (picked) setPdfDownloadLocation(picked) }}
-            title="Choose folder"
-            className="p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-          >
-            <FolderOpen size={14} />
-          </button>
+          />
           {pdfDownloadLocation && (
-            <button
-              onClick={() => setPdfDownloadLocation('')}
-              title="Clear (ask each time)"
-              className="p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
-            >
-              <X size={14} />
-            </button>
+            <IconButton icon={X} label="Clear (ask each time)" size={28} danger onClick={() => setPdfDownloadLocation('')} />
           )}
         </div>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
+        <p className="text-caption2 text-text-muted mt-1.5">
           When set, exported PDFs default to this folder. Leave empty to be prompted each time.
         </p>
       </div>
 
-      <p className="text-[10px] text-[rgb(var(--color-text-muted))] flex items-center gap-1.5">
-        <Eye size={11} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
+      <p className="text-caption2 text-text-muted flex items-center gap-1.5">
+        <Eye size={11} className="text-accent flex-shrink-0" />
         These settings are the defaults. You can also adjust them per-note in the print preview (the Print / Export buttons in the notes editor).
       </p>
     </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle, Copy, Check, X } from 'lucide-react'
+import { IconButton, Button } from '@/components/ui'
 
 interface CrashInfo {
   message: string
@@ -43,44 +44,30 @@ export default function CrashReport() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] w-80 rounded-xl border border-red-500/30 bg-[rgb(var(--color-surface-1))] shadow-2xl overflow-hidden">
+    <div className="fixed bottom-4 right-4 z-[1000] pointer-events-auto w-80 material-popover rounded-menu border border-destructive/30 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-red-500/20 bg-red-500/8">
-        <AlertTriangle size={14} className="text-red-400 flex-shrink-0" />
-        <span className="text-xs font-semibold text-red-400 flex-1">App recovered from a crash</span>
-        <button
-          onClick={() => setCrash(null)}
-          className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-        >
-          <X size={13} />
-        </button>
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-destructive/20 bg-destructive/8">
+        <AlertTriangle size={14} className="text-destructive flex-shrink-0" />
+        <span className="text-caption font-semibold text-destructive flex-1">App recovered from a crash</span>
+        <IconButton icon={X} label="Dismiss" size={20} onClick={() => setCrash(null)} />
       </div>
 
       {/* Error detail */}
       <div className="px-3 py-2.5">
-        <p className="text-[11px] text-[rgb(var(--color-text-secondary))] font-medium mb-1">
+        <p className="text-caption text-text-secondary font-medium mb-1">
           {crash.label}
         </p>
-        <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-relaxed line-clamp-3">
+        <p className="text-caption text-text-muted leading-relaxed line-clamp-3">
           {crash.message}
         </p>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-2 px-3 pb-2.5">
-        <button
-          onClick={copyDetails}
-          className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-        >
-          {copied ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+        <Button size="sm" icon={copied ? Check : Copy} onClick={copyDetails}>
           {copied ? 'Copied' : 'Copy details'}
-        </button>
-        <button
-          onClick={() => setCrash(null)}
-          className="text-[10px] px-2 py-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-        >
-          Dismiss
-        </button>
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setCrash(null)}>Dismiss</Button>
       </div>
     </div>
   )

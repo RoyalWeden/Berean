@@ -1,5 +1,4 @@
-import { ToggleLeft, ToggleRight } from 'lucide-react'
-import Switch from '@/components/shell/Switch'
+import { Switch, SectionLabel } from '@/components/ui'
 import type { WordReplacerRule } from '@/store'
 
 interface WordReplacerSectionProps {
@@ -15,8 +14,8 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
       {/* Master toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Word replacer</p>
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+          <p className="text-subhead font-medium text-text-primary">Word replacer</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">
             Substitute archaic or Latinised names in scripture text with more recognisable forms.
             Only applies to the Scripture tab — never to notes, lexicon, or YouTube.
           </p>
@@ -31,35 +30,28 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
         const RuleRow = (rule: WordReplacerRule) => (
           <div
             key={rule.id}
-            className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
+            className={`flex items-center justify-between px-3 py-2 rounded-row transition-colors ${
               rule.enabled && enabled
-                ? 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))]'
-                : 'border-[rgb(var(--color-surface-4))/50] bg-[rgb(var(--color-surface-3))/50] opacity-60'
+                ? 'bg-surface-elevated'
+                : 'bg-surface-elevated/50 opacity-60'
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <code className="text-[11px] font-mono text-[rgb(var(--color-text-muted))] truncate">
+              <code className="text-caption font-mono text-text-muted truncate">
                 {rule.strongsNum ?? rule.queries.join(' / ')}
               </code>
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">→</span>
-              <span className="text-[11px] text-[rgb(var(--color-text-primary))] font-medium truncate">{rule.replacement}</span>
+              <span className="text-caption2 text-text-muted flex-shrink-0">→</span>
+              <span className="text-caption text-text-primary font-medium truncate">{rule.replacement}</span>
               {rule.strongsNum && (
-                <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 flex-shrink-0 font-semibold">KJVA</span>
+                <span className="text-micro px-1 py-0.5 rounded-chip bg-warning/15 text-warning flex-shrink-0 font-semibold">KJVA</span>
               )}
               {rule.wholeWord && (
-                <span className="text-[9px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] flex-shrink-0">whole word</span>
+                <span className="text-micro px-1 py-0.5 rounded-chip bg-surface-4 text-text-muted flex-shrink-0">whole word</span>
               )}
             </div>
-            <button
-              onClick={() => onToggleRule(rule.id)}
-              title={rule.enabled ? 'Disable this rule' : 'Enable this rule'}
-              className="flex-shrink-0 ml-2 cursor-pointer"
-            >
-              {rule.enabled
-                ? <ToggleRight size={18} className="text-[rgb(var(--color-accent))]" />
-                : <ToggleLeft size={18} className="text-[rgb(var(--color-text-muted))]" />
-              }
-            </button>
+            <span className="ml-2">
+              <Switch checked={rule.enabled} onCheckedChange={() => onToggleRule(rule.id)} label={rule.enabled ? 'Disable this rule' : 'Enable this rule'} />
+            </span>
           </div>
         )
         return (
@@ -67,10 +59,10 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
             {strongsRules.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Divine Name</p>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold">KJVA only</span>
+                  <SectionLabel>Divine Name</SectionLabel>
+                  <span className="text-micro px-1.5 py-0.5 rounded-chip bg-warning/15 text-warning font-semibold">KJVA only</span>
                 </div>
-                <p className="text-[10px] text-[rgb(var(--color-text-muted))] mb-2 leading-relaxed">
+                <p className="text-caption2 text-text-muted mb-2 leading-relaxed">
                   Matches by Strong's number — precise per-word replacement regardless of how the word is spelled in English. Only applies where Strong's tags are available (KJVA).
                 </p>
                 <div className="space-y-1">
@@ -79,7 +71,7 @@ export default function WordReplacerSection({ enabled, rules, onToggleEnabled, o
               </div>
             )}
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-2">Text rules</p>
+              <SectionLabel className="mb-2">Text rules</SectionLabel>
               <div className="space-y-1">
                 {textRules.map(RuleRow)}
               </div>

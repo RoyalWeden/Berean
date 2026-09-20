@@ -6,6 +6,7 @@ import { noteStatusMeta } from '@/lib/noteStatus'
 import NoteEditor from './pm/NoteEditorPM'
 import type { FindMode } from './pm/findHighlight'
 import { folderPathFor } from './NotesFolderView'
+import { Button, IconButton, SectionHeader, EmptyState, ListRow, ControlGroup, Chip } from '@/components/ui'
 
 // ── Small local helpers ───────────────────────────────────────────────────────
 
@@ -44,31 +45,18 @@ const NOOP = () => {}
 function NoteRow({ note, onPreview, onOpen }: { note: Note; onPreview: (n: Note) => void; onOpen: (n: Note) => void }) {
   const meta = noteStatusMeta(note.status)
   return (
-    <button
+    <ListRow
+      flush
+      leading={<FileText size={13} />}
+      title={note.title?.trim() || 'Untitled'}
+      meta={<span className="inline-flex items-center gap-1">
+        {meta && <meta.icon size={11} style={{ color: meta.color }} />}
+        {timeAgo(note.updatedAt)}
+      </span>}
       onClick={() => onPreview(note)}
       onDoubleClick={() => onOpen(note)}
-      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-    >
-      <FileText size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[rgb(var(--color-text-primary))]">
-        {note.title?.trim() || 'Untitled'}
-      </span>
-      {meta && <meta.icon size={11} className="flex-shrink-0" style={{ color: meta.color }} />}
-      <span className="flex-shrink-0 text-[10px] text-[rgb(var(--color-text-muted))] tabular-nums">{timeAgo(note.updatedAt)}</span>
-      <ArrowUpRight
-        size={12}
-        onClick={(e) => { e.stopPropagation(); onOpen(note) }}
-        className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-opacity"
-      />
-    </button>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))]">
-      {children}
-    </div>
+      trailing={<IconButton icon={ArrowUpRight} label="Open in editor" size={20} variant="ghost" onClick={() => onOpen(note)} />}
+    />
   )
 }
 
@@ -138,7 +126,7 @@ export default function NotesHomePanel({
     setMatchIdx((i) => (matchCount === 0 ? 0 : (i + dir + matchCount) % matchCount))
   }, [matchCount])
 
-  const wrap = 'flex min-w-[16rem] flex-1 flex-col overflow-hidden bg-[rgb(var(--color-surface-3))]'
+  const wrap = 'flex min-w-[16rem] flex-1 flex-col overflow-hidden bg-surface-3'
 
   // ── Note preview — the real editor in read-only ('view') mode, so it renders exactly
   //    like the note does when open, just non-editable. ───────────────────────────────
@@ -146,70 +134,45 @@ export default function NotesHomePanel({
     const tags = note.tags ?? []
     return (
       <div className={wrap}>
-        <div className="flex-shrink-0 border-b border-[rgb(var(--color-surface-4))] px-5 py-3">
+        <div className="flex-shrink-0 border-b border-separator px-5 py-3">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               {folderPath.length > 0 && (
-                <div className="mb-0.5 truncate text-[10px] text-[rgb(var(--color-text-muted))]">
+                <div className="mb-0.5 truncate text-caption2 text-text-muted">
                   {folderPath.join(' / ')}
                 </div>
               )}
-              <div className="truncate text-[15px] font-semibold text-[rgb(var(--color-text-primary))]">
+              <div className="truncate text-title3 font-semibold text-text-primary">
                 {note.title?.trim() || 'Untitled'}
               </div>
             </div>
-            <button
-              onClick={() => onOpen(note)}
-              className="flex flex-shrink-0 items-center gap-1 rounded-md bg-[rgb(var(--color-accent))] px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-85 active:opacity-75 cursor-pointer transition-opacity"
-            >
-              Open in editor <ArrowUpRight size={12} />
-            </button>
-            <button
-              onClick={() => onPrint(note)}
-              title="Print / export PDF"
-              className="flex-shrink-0 rounded-md p-1.5 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-            >
-              <Printer size={13} />
-            </button>
-            <button
-              onClick={() => onOpenNewTab(note)}
-              title="Open in new tab"
-              className="flex-shrink-0 rounded-md p-1.5 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-            >
-              <ExternalLink size={13} />
-            </button>
+            <Button variant="primary" size="sm" icon={ExternalLink} iconTrailing onClick={() => onOpen(note)}>
+              Open in editor
+            </Button>
+            <ControlGroup>
+              <IconButton icon={Printer} label="Print / export PDF" size={28} onClick={() => onPrint(note)} />
+              <IconButton icon={ExternalLink} label="Open in new tab" size={28} onClick={() => onOpenNewTab(note)} />
+            </ControlGroup>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[rgb(var(--color-text-muted))]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption2 text-text-muted">
             <span>Edited {timeAgo(note.updatedAt)}</span>
             <span>Created {fullDate(note.createdAt)}</span>
             {backlinks.length > 0 && <span>{backlinks.length} backlink{backlinks.length === 1 ? '' : 's'}</span>}
             {tags.map((t) => (
-              <span key={t} className="rounded bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 text-[rgb(var(--color-text-secondary))]">#{t}</span>
+              <Chip key={t} static size="sm">#{t}</Chip>
             ))}
           </div>
           {q && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-[rgb(var(--color-text-muted))]">
+            <div className="mt-1.5 flex items-center gap-1.5 text-caption2 text-text-muted">
               <span className="tabular-nums">
                 {matchCount === 0 ? 'No matches for' : `${matchIdx + 1} / ${matchCount} ·`}
               </span>
-              <span className="max-w-[40%] truncate text-[rgb(var(--color-text-secondary))]">“{q}”</span>
+              <span className="max-w-[40%] truncate text-text-secondary">“{q}”</span>
               <span>in this note</span>
-              <button
-                onClick={() => stepMatch(-1)}
-                disabled={matchCount === 0}
-                title="Previous match"
-                className="rounded p-0.5 hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
-              >
-                <ChevronUp size={12} />
-              </button>
-              <button
-                onClick={() => stepMatch(1)}
-                disabled={matchCount === 0}
-                title="Next match"
-                className="rounded p-0.5 hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
-              >
-                <ChevronDown size={12} />
-              </button>
+              <ControlGroup>
+                <IconButton icon={ChevronUp} label="Previous match" size={20} disabled={matchCount === 0} onClick={() => stepMatch(-1)} />
+                <IconButton icon={ChevronDown} label="Next match" size={20} disabled={matchCount === 0} onClick={() => stepMatch(1)} />
+              </ControlGroup>
             </div>
           )}
         </div>
@@ -242,28 +205,28 @@ export default function NotesHomePanel({
     const fTags = Array.from(new Set(inFolder.flatMap((n) => n.tags ?? []))).slice(0, 12)
     return (
       <div className={wrap}>
-        <div className="flex-shrink-0 border-b border-[rgb(var(--color-surface-4))] px-5 py-3">
-          <div className="text-[15px] font-semibold text-[rgb(var(--color-text-primary))]">{folder.name}</div>
-          <div className="mt-1 flex flex-wrap gap-x-3 text-[10px] text-[rgb(var(--color-text-muted))]">
+        <div className="flex-shrink-0 border-b border-separator px-5 py-3">
+          <div className="text-title3 font-semibold text-text-primary">{folder.name}</div>
+          <div className="mt-1 flex flex-wrap gap-x-3 text-caption2 text-text-muted">
             <span>{inFolder.length} note{inFolder.length === 1 ? '' : 's'}</span>
             {fInProgress > 0 && <span>{fInProgress} in progress</span>}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-2">
           {fRecent.length === 0
-            ? <div className="px-2 py-4 text-[13px] italic text-[rgb(var(--color-text-muted))]">No notes in this folder yet.</div>
+            ? <EmptyState compact title="No notes in this folder yet." />
             : (
               <>
-                <SectionLabel>Recently edited</SectionLabel>
+                <SectionHeader className="pt-3">Recently edited</SectionHeader>
                 {fRecent.map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
               </>
             )}
           {fTags.length > 0 && (
             <>
-              <SectionLabel>Tags in this folder</SectionLabel>
+              <SectionHeader className="pt-3">Tags in this folder</SectionHeader>
               <div className="flex flex-wrap gap-1 px-2 py-1">
                 {fTags.map((t) => (
-                  <span key={t} className="rounded bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 text-[10px] text-[rgb(var(--color-text-secondary))]">#{t}</span>
+                  <Chip key={t} static size="sm">#{t}</Chip>
                 ))}
               </div>
             </>
@@ -279,19 +242,23 @@ export default function NotesHomePanel({
       <div className="flex-1 overflow-y-auto px-3 py-2">
         {inProgress.length > 0 && (
           <>
-            <SectionLabel><span className="inline-flex items-center gap-1"><Clock size={10} className="text-[#60a5fa]" /> In progress · {inProgress.length}</span></SectionLabel>
+            <SectionHeader className="pt-3" count={inProgress.length}>
+              <span className="inline-flex items-center gap-1"><Clock size={10} className="text-info" /> In progress</span>
+            </SectionHeader>
             {inProgress.slice(0, 6).map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
           </>
         )}
         {pinned.length > 0 && (
           <>
-            <SectionLabel><span className="inline-flex items-center gap-1"><Pin size={10} /> Pinned</span></SectionLabel>
+            <SectionHeader className="pt-3">
+              <span className="inline-flex items-center gap-1"><Pin size={10} /> Pinned</span>
+            </SectionHeader>
             {pinned.slice(0, 6).map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
           </>
         )}
-        <SectionLabel>Recently edited</SectionLabel>
+        <SectionHeader className="pt-3">Recently edited</SectionHeader>
         {recent.length === 0
-          ? <div className="px-2 py-4 text-[13px] italic text-[rgb(var(--color-text-muted))]">No notes yet — create one to get started.</div>
+          ? <EmptyState compact title="No notes yet — create one to get started." />
           : recent.map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
       </div>
     </div>

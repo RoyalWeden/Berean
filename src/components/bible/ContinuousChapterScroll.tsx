@@ -6,6 +6,7 @@ import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_ST
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useAppStore } from '@/store'
+import { SectionLabel, ScrollContainer } from '@/components/ui'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -72,6 +73,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     const audioPlaybackActive = useAppStore((s) => s.audioPlayback != null)
     // Reserve room for the fixed, body-portaled verse selection action bar (see BiblePanel).
     const verseSelectionBarOpen = useAppStore((s) => s.verseSelectionBarOpen)
+    const bibleFontSize = useAppStore((s) => s.bibleFontSize)
     const headingRefs = useRef<Map<number, HTMLDivElement>>(new Map())
     // ── Height-preserving placeholders for evicted chapters ──────────────────────────────
     // Chapters outside [firstCh, lastCh] used to be fully absent from the DOM with nothing
@@ -263,29 +265,26 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
 
     return (
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
-        {/* Presenter visible-region band */}
+      <ScrollContainer ref={scrollRef} className={`flex-1 relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
+        {/* Presenter visible-region outline — same style layer as BiblePanel's (§62/§63):
+            dashed, subtle tint, no in-column text; geometry pipeline unchanged. */}
         {presenterBand && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-[5]"
+            // Sized like the reading column (same font → same `ch`) so the outline hugs the
+            // text, not the whole pane; compact/compare views have no column cap (100%).
+            className="absolute pointer-events-none z-raised rounded-card animate-fade-in berean-scripture-text"
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
-              border: `2px solid ${viewerPaused ? 'rgba(251,191,36,0.85)' : 'rgb(var(--color-accent))'}`,
-              background: viewerPaused ? 'rgba(251,191,36,0.07)' : 'rgb(var(--color-accent) / 0.06)',
-              borderRadius: 6,
+              left: 0,
+              right: 0,
+              maxWidth: 'min(calc(var(--reading-max-ch) * 1ch), 100%)',
+              fontSize: bibleFontSize,
+              border: `1.5px dashed ${viewerPaused ? 'rgb(var(--color-warning) / 0.6)' : 'rgb(var(--color-accent) / 0.55)'}`,
+              background: viewerPaused ? 'rgb(var(--color-warning) / 0.035)' : 'rgb(var(--color-accent) / 0.035)',
+              transition: 'height var(--motion-fast) var(--motion-ease-out), border-color var(--motion-base), background-color var(--motion-base)',
             }}
-          >
-            <span
-              className="absolute top-0.5 right-1 px-1.5 text-[9px] font-bold uppercase tracking-wide rounded"
-              style={{
-                color: '#fff',
-                background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
-              }}
-            >
-              {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
-            </span>
-          </div>
+          />
         )}
 
         {/* Placeholder for evicted chapters before firstCh — keeps scrollHeight (and therefore
@@ -308,15 +307,15 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
                 else headingRefs.current.delete(ch)
               }}
               data-chapter={ch}
-              className="group sticky top-0 z-10 px-8 py-2 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2"
+              className="group sticky top-0 z-raised px-8 py-2 material-bar border-b border-separator flex items-center gap-2"
             >
-              <span className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider select-none">
+              <SectionLabel className="select-none">
                 {bookName(bookId)} {ch}
-              </span>
+              </SectionLabel>
               <button
                 onClick={(e) => setChapterTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), ch })}
                 title={`Tag ${bookName(bookId)} ${ch} (whole chapter)`}
-                className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                className="text-text-muted hover:text-accent cursor-pointer"
               >
                 <TagIcon size={12} />
               </button>
@@ -359,7 +358,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
             />
           )
         })()}
-      </div>
+      </ScrollContainer>
     )
   }
 )

@@ -13,6 +13,7 @@ import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import { useAppStore } from '@/store'
 import { applyThemeToDocument } from '@/lib/applyTheme'
+import { Button } from '@/components/ui'
 
 // Lazy so the heavy YouTube webview code isn't pulled into the initial bundle
 // via this floating-window entry point (see ActivePanel.tsx for the same split).
@@ -46,6 +47,7 @@ export default function FloatingShell() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
 
   // ── On mount: apply the right-clicked tab's params to the active scripture tab ──
@@ -113,9 +115,9 @@ export default function FloatingShell() {
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   useEffect(() => {
     // Listen for theme broadcasts from the main window.
@@ -125,7 +127,7 @@ export default function FloatingShell() {
     window.app.onTabStateUpdate?.((payload) => {
       const p = payload as {
         theme?: string; themePreset?: string
-        backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: string; backgroundAnimationIntensity?: string
+        backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: string; backgroundAnimationIntensity?: string; glassAppearance?: string
       }
       const update: Record<string, unknown> = {}
       if (p.theme !== undefined) update.theme = p.theme
@@ -133,6 +135,7 @@ export default function FloatingShell() {
       if (p.backgroundAnimationEnabled !== undefined) update.backgroundAnimationEnabled = p.backgroundAnimationEnabled
       if (p.backgroundAnimationStyle !== undefined) update.backgroundAnimationStyle = p.backgroundAnimationStyle
       if (p.backgroundAnimationIntensity !== undefined) update.backgroundAnimationIntensity = p.backgroundAnimationIntensity
+      if (p.glassAppearance !== undefined) update.glassAppearance = p.glassAppearance
       if (Object.keys(update).length) useAppStore.setState(update)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,13 +178,13 @@ export default function FloatingShell() {
   return (
     // hiddenInset mode: traffic lights sit at (12,14). The BiblePanel's own toolbar
     // already handles content, but we overlay a drag region for window movement.
-    <div className="relative flex flex-col h-screen bg-[rgb(var(--color-surface-1))] overflow-hidden">
+    <div className="relative flex flex-col h-screen bg-surface-1 overflow-hidden">
       {/* Drag handle — Mac only. On Windows the OS title bar owns the top area;
           the hiddenInset traffic-light zone does not exist so the overlay would
           create a dead zone. The app's own toolbar handles dragging on Mac. */}
       {window.__berean_platform !== 'win32' && (
         <div
-          className="absolute top-0 left-0 z-50 pointer-events-none"
+          className="absolute top-0 left-0 z-raised pointer-events-none"
           style={{ height: 40, width: 76, WebkitAppRegion: 'drag' } as React.CSSProperties}
         />
       )}
@@ -195,23 +198,17 @@ export default function FloatingShell() {
         {params.type === 'search'  && <SearchTab floating />}
         {params.type === 'pdf'     && <PDFViewer floating />}
         {!['bible', 'notes', 'lexicon', 'youtube', 'search', 'pdf'].includes(params.type) && (
-          <div className="flex items-center justify-center h-full text-[rgb(var(--color-text-muted))] text-sm">
+          <div className="flex items-center justify-center h-full text-text-muted text-subhead">
             Float view for <strong className="ml-1">{params.type}</strong> coming soon.
           </div>
         )}
       </div>
 
       {/* "Put back" button — bottom-right, away from traffic lights and toolbar */}
-      <div className="absolute bottom-4 right-4 z-[60]">
-        <button
-          onClick={putBack}
-          title="Return tab to main window"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] shadow-lg transition-colors cursor-pointer"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          <PanelLeftOpen size={12} />
+      <div className="absolute bottom-4 right-4 z-raised">
+        <Button variant="secondary" size="sm" icon={PanelLeftOpen} onClick={putBack} tooltip="Return tab to main window" className="shadow-2">
           Put back
-        </button>
+        </Button>
       </div>
     </div>
   )

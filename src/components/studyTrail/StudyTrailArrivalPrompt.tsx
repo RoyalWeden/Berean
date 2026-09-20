@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
 import { useSwipeDismissGesture } from '@/hooks/useSwipeDismissGesture'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { IconButton } from '@/components/ui'
 import type { TrailConnection } from '@/types/studyTrail'
 import ReasonPromptPopover, { TrailReasonFormBody } from './ReasonPromptPopover'
 
@@ -224,23 +225,19 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
   return createPortal(
     <div
       ref={setRefs}
-      className="no-drag"
+      className="no-drag material-popover rounded-menu"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       style={{
-        position: 'fixed', right: rightPx, bottom: bottomPx, zIndex: modalOpen ? 40 : 200, width: PILL_WIDTH,
-        // Translucent so it reads as a transient overlay, not a solid panel — matches the app's
-        // other floating rails (FloatingHoverPanel/FloatingRail). Solid on hover/while typing.
-        background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.9)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        border: '1px solid rgb(var(--color-surface-4) / 0.7)',
-        borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', overflow: 'hidden',
+        position: 'fixed', right: rightPx, bottom: bottomPx,
+        zIndex: (modalOpen ? 'var(--z-raised)' : 'var(--z-popover)') as unknown as number,
+        width: PILL_WIDTH, overflow: 'hidden',
         opacity: swipeOpacity, transform: `translateY(${swipeTranslateY}px)`,
         // No transition while the finger is actively dragging (the hook's own per-frame ease
         // handles smoothing); restore the spring/settle transition otherwise.
         transition: (swipeActive && swiping)
           ? 'none'
-          : `right 160ms ease, bottom 160ms ease, background 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
+          : `right 160ms ease, bottom 160ms ease, opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`,
       }}
     >
       {/* Collapsed CTA — hidden once expanded (hover or touched); no dismiss × here (per direct
@@ -249,9 +246,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
           toast's controls once it's actually open. Text wraps within the fixed PILL_WIDTH rather
           than the box resizing to fit it. */}
       {!expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
-          <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
-          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.35, color: 'rgb(var(--color-text-primary))' }}>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <MessageSquarePlus size={13} className="text-accent flex-shrink-0" />
+          <span className="flex-1 min-w-0 text-footnote font-semibold leading-snug text-text-primary">
             {question}
           </span>
         </div>
@@ -259,10 +256,10 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
       {/* Real form — always mounted (so expanding never pops in unmeasured), collapsed to
           max-height:0/opacity:0 until hover or touch. Compact per direct feedback ("less text/
           explanation, tighter layout"): smaller padding/font than the full popup. */}
-      <div style={{
+      <div className="text-footnote" style={{
         position: 'relative', maxHeight: expanded ? 2000 : 0, opacity: expanded ? 1 : 0, overflow: 'hidden',
         transition: 'max-height 160ms ease, opacity 130ms ease',
-        padding: expanded ? '10px 12px 12px' : '0 10px', fontSize: 11,
+        padding: expanded ? '10px 12px 12px' : '0 10px',
       }}>
         {/* Header when expanded — keeps the "Why'd you go to …?" question visible at the top of
             the hover form (per direct feedback), with the dismiss × on the same row. Inline
@@ -271,20 +268,12 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
             to input") — accent-tinted icon and a touch more weight/size on the question itself,
             instead of everything reading in the same flat muted grey. */}
         {expanded && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <MessageSquarePlus size={13} className="text-accent flex-shrink-0" />
+            <span className="flex-1 min-w-0 text-footnote font-semibold text-text-primary">
               {question}
             </span>
-            <button
-              className="trail-ctx-btn"
-              onClick={onClose}
-              title="Dismiss"
-              style={{
-                background: 'transparent', border: 'none', borderRadius: 6,
-                color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0,
-              }}
-            ><X size={11} /></button>
+            <IconButton icon={X} label="Dismiss" size={20} tooltip={false} onClick={onClose} className="flex-shrink-0" />
           </div>
         )}
         {/* key={local.id} — the same fix as ReasonPromptPopover's own usage in MapView.tsx: a

@@ -4,6 +4,7 @@ import { ArrowRight, ExternalLink, PictureInPicture2, CornerUpLeft, GitBranch, F
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { MenuSurface, MenuItem, MenuSeparator, MenuLabel, Button } from '@/components/ui'
 
 // Shared right-click menu for every chapter/Strong's label in the Study Trail window.
 //
@@ -54,26 +55,6 @@ export function openTrailRefMenu(
   openMenu({ ref, onJumpToOrigin, onDelete, topicBreak, tangentToggle, nodeActions, x: e.clientX, y: e.clientY })
 }
 
-function MenuItem({ icon, label, title, onClick, active, color }: {
-  icon: React.ReactNode; label: string; title?: string; onClick: () => void; active?: boolean; color?: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      className="trail-ctx-btn"
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px',
-        background: active ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-        color: color ?? (active ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))'), textAlign: 'left', fontSize: 12,
-      }}
-    >
-      <span style={{ display: 'flex', flexShrink: 0, opacity: 0.85 }}>{icon}</span>
-      {label}
-    </button>
-  )
-}
-
 export function TrailRefContextMenu({
   menu, menuRef, onClose,
 }: {
@@ -99,92 +80,78 @@ export function TrailRefContextMenu({
   // the spine in `transform: scale(...)`, which makes that ancestor the containing block for
   // `position: fixed` descendants instead of the real viewport.
   return createPortal(
-    <div
-      ref={menuRef}
-      style={{
-        position: 'fixed', top: menu.y, left: menu.x, zIndex: 10001, minWidth: 190,
-        background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-        borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
-      }}
-    >
-      <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', padding: '3px 8px 5px' }}>{label}</div>
+    <div ref={menuRef} style={{ position: 'fixed', top: menu.y, left: menu.x, zIndex: 'var(--z-menu)' as unknown as number, minWidth: 190 }}>
+      <MenuSurface>
+        <MenuLabel>{label}</MenuLabel>
 
-      <MenuItem icon={<ArrowRight size={13} />} label="Open in current tab" onClick={() => { navigateTrailRef(menu.ref, false); onClose() }} />
-      <MenuItem icon={<ExternalLink size={13} />} label="Open in new tab" onClick={() => { navigateTrailRef(menu.ref, true); onClose() }} />
-      <MenuItem icon={<PictureInPicture2 size={13} />} label="Open in floating tab" onClick={() => { trailRefOpenFloating(menu.ref); onClose() }} />
+        <MenuItem icon={ArrowRight} label="Open in current tab" onClick={() => { navigateTrailRef(menu.ref, false); onClose() }} />
+        <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { navigateTrailRef(menu.ref, true); onClose() }} />
+        <MenuItem icon={PictureInPicture2} label="Open in floating tab" onClick={() => { trailRefOpenFloating(menu.ref); onClose() }} />
 
-      {(menu.tangentToggle || menu.topicBreak) && <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />}
-      {menu.tangentToggle && (
-        <MenuItem
-          icon={<GitBranch size={13} />} active={menu.tangentToggle.active}
-          label={menu.tangentToggle.active ? 'Tangent (unmark)' : 'Mark as tangent'}
-          onClick={() => { menu.tangentToggle!.onToggle(); onClose() }}
-        />
-      )}
-      {menu.topicBreak && (
-        <MenuItem
-          icon={<Flag size={13} />} active={menu.topicBreak.active}
-          label={menu.topicBreak.active ? 'New topic (remove)' : 'Mark as new topic'}
-          onClick={() => { menu.topicBreak!.onToggle(); onClose() }}
-        />
-      )}
+        {(menu.tangentToggle || menu.topicBreak) && <MenuSeparator />}
+        {menu.tangentToggle && (
+          <MenuItem
+            icon={GitBranch} active={menu.tangentToggle.active}
+            label={menu.tangentToggle.active ? 'Tangent (unmark)' : 'Mark as tangent'}
+            onClick={() => { menu.tangentToggle!.onToggle(); onClose() }}
+          />
+        )}
+        {menu.topicBreak && (
+          <MenuItem
+            icon={Flag} active={menu.topicBreak.active}
+            label={menu.topicBreak.active ? 'New topic (remove)' : 'Mark as new topic'}
+            onClick={() => { menu.topicBreak!.onToggle(); onClose() }}
+          />
+        )}
 
-      {menu.nodeActions && (menu.nodeActions.onSplitHere || menu.nodeActions.onAddSection || menu.nodeActions.onAddNote) && (
-        <>
-          <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 2px' }} />
-          {menu.nodeActions.onAddSection && (
-            <MenuItem
-              icon={<Heading size={13} />} label="Add a section here"
-              title="A labelled divider on the spine — everything below belongs to it until the next one"
-              onClick={() => { menu.nodeActions!.onAddSection!(); onClose() }}
-            />
-          )}
-          {menu.nodeActions.onAddNote && (
-            <MenuItem
-              icon={<StickyNote size={13} />} label="Add a note here"
-              title="A resizable sticky pinned beside this stop"
-              onClick={() => { menu.nodeActions!.onAddNote!(); onClose() }}
-            />
-          )}
-          {menu.nodeActions.onSplitHere && (
-            <MenuItem
-              icon={<Scissors size={13} />} label="Start a new session here"
-              title="Moves this stop and everything after it into a brand-new session"
-              onClick={() => { menu.nodeActions!.onSplitHere!(); onClose() }}
-            />
-          )}
-        </>
-      )}
-      {menu.onJumpToOrigin && (
-        <>
-          <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />
-          <MenuItem icon={<CornerUpLeft size={13} />} label="Scroll to where this came from" onClick={() => { menu.onJumpToOrigin!(); onClose() }} />
-        </>
-      )}
+        {menu.nodeActions && (menu.nodeActions.onSplitHere || menu.nodeActions.onAddSection || menu.nodeActions.onAddNote) && (
+          <>
+            <MenuSeparator />
+            {menu.nodeActions.onAddSection && (
+              <MenuItem
+                icon={Heading} label="Add a section here"
+                description="A labelled divider on the spine — everything below belongs to it until the next one"
+                onClick={() => { menu.nodeActions!.onAddSection!(); onClose() }}
+              />
+            )}
+            {menu.nodeActions.onAddNote && (
+              <MenuItem
+                icon={StickyNote} label="Add a note here"
+                description="A resizable sticky pinned beside this stop"
+                onClick={() => { menu.nodeActions!.onAddNote!(); onClose() }}
+              />
+            )}
+            {menu.nodeActions.onSplitHere && (
+              <MenuItem
+                icon={Scissors} label="Start a new session here"
+                description="Moves this stop and everything after it into a brand-new session"
+                onClick={() => { menu.nodeActions!.onSplitHere!(); onClose() }}
+              />
+            )}
+          </>
+        )}
+        {menu.onJumpToOrigin && (
+          <>
+            <MenuSeparator />
+            <MenuItem icon={CornerUpLeft} label="Scroll to where this came from" onClick={() => { menu.onJumpToOrigin!(); onClose() }} />
+          </>
+        )}
 
-      {menu.onDelete && (
-        <>
-          <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />
-          {confirmingDelete ? (
-            <div style={{ display: 'flex', gap: 4, padding: '2px 4px' }}>
-              <button
-                className="trail-ctx-btn" onClick={() => { menu.onDelete!(); onClose() }}
-                style={{ ...menuBtnStyle, color: '#e08468', flex: 1 }}
-              >Delete</button>
-              <button className="trail-ctx-btn" onClick={() => setConfirmingDelete(false)} style={{ ...menuBtnStyle, flex: 1 }}>Cancel</button>
-            </div>
-          ) : (
-            <MenuItem icon={<Trash2 size={13} />} label="Delete" color="#e08468" onClick={() => setConfirmingDelete(true)} />
-          )}
-        </>
-      )}
+        {menu.onDelete && (
+          <>
+            <MenuSeparator />
+            {confirmingDelete ? (
+              <div className="flex gap-1 px-1 py-0.5">
+                <Button variant="destructive" size="sm" className="flex-1" onClick={() => { menu.onDelete!(); onClose() }}>Delete</Button>
+                <Button variant="secondary" size="sm" className="flex-1" onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <MenuItem icon={Trash2} label="Delete" danger onClick={() => setConfirmingDelete(true)} />
+            )}
+          </>
+        )}
+      </MenuSurface>
     </div>,
     document.body,
   )
-}
-
-const menuBtnStyle: React.CSSProperties = {
-  display: 'block', width: '100%', textAlign: 'left', fontSize: 12, padding: '6px 8px',
-  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-  color: 'rgb(var(--color-text-primary))',
 }

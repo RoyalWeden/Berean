@@ -1,5 +1,6 @@
 import { ChevronRight, Tag as TagIcon } from 'lucide-react'
 import { resolveTagColor } from '@/lib/tagPalette'
+import { Badge, ListRow, RefChip } from '@/components/ui'
 import { VerseCopyMenu, useVerseCopyMenu } from './VerseCopyMenu'
 
 export interface TaggedVerseRow {
@@ -26,7 +27,7 @@ export interface TaggedVerseGroup {
  * Renders tagged-verse groups with the SAME visual language as an Advanced Scripture Search
  * result group: a bordered card whose header carries the full reference (the role the
  * `chapter:verse` pill plays for a single result), and whose body stacks each verse exactly like
- * the search view's "±N verses" context mode (mono verse number, `text-[13px] leading-relaxed`).
+ * the search view's "±N verses" context mode (mono verse number, `text-subhead leading-relaxed`).
  * Used by the Tag graph inspector and by Advanced Search's tag-filter listing so the two match.
  */
 export default function TaggedVerseList({
@@ -47,43 +48,49 @@ export default function TaggedVerseList({
         return (
           <div
             key={g.key}
-            className={`${mx} rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] overflow-hidden group`}
+            className={`${mx} rounded-card border border-separator bg-surface-2 overflow-hidden`}
           >
-            <button
+            <ListRow
               onClick={() => first && onNavigate(first.bookId, first.chapter, first.verse)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
-            >
-              <span className="text-[10.5px] font-mono font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded-md px-2 py-1 flex-shrink-0">
-                {g.label}
-              </span>
-              {g.tagName && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: resolveTagColor(g.tagColor ?? undefined) }} />
-                  {g.tagName}
+              leading={<RefChip size="lg" mono={false} className="px-2 py-1">{g.label}</RefChip>}
+              title={
+                <span className="flex items-center gap-2">
+                  {g.tagName && (
+                    <span className="inline-flex items-center gap-1 text-caption2 px-1.5 py-0.5 rounded-chip bg-surface-4 text-text-secondary">
+                      {/* Status dot (pill taxonomy: rounded-full → Badge dot) — the tag's own
+                          arbitrary slot colour overrides Badge's fixed tone palette via style,
+                          same technique as the edition dots above. */}
+                      <Badge variant="dot" tone="neutral" label={g.tagName} style={{ backgroundColor: resolveTagColor(g.tagColor ?? undefined) }} />
+                      {g.tagName}
+                    </span>
+                  )}
+                  {g.kind === 'chapter' && (
+                    <span className="inline-flex items-center gap-1 text-caption2 text-text-muted">
+                      <TagIcon size={9} /> whole chapter
+                    </span>
+                  )}
                 </span>
-              )}
-              {g.kind === 'chapter' && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))]">
-                  <TagIcon size={9} /> whole chapter
-                </span>
-              )}
-              <ChevronRight size={13} className="ml-auto flex-shrink-0 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
+              }
+              trailing={<ChevronRight size={13} className="text-text-muted" />}
+            />
 
             <div className="px-3 pb-2 pt-0.5 flex flex-col gap-0.5">
               {g.rows.map((v) => (
-                <button
+                <ListRow
                   key={`${v.bookId}.${v.chapter}.${v.verse}`}
+                  // Not `dense`: that pins the row to a fixed 28px, and a wrapped verse then
+                  // spilled over its neighbours (the ref chip above rendered on top of the text).
+                  titleClamp="none"
+                  titleSize="subhead"
+                  buttonClassName="py-1 items-start"
                   onClick={() => onNavigate(v.bookId, v.chapter, v.verse)}
                   onContextMenu={(e) => ctx.open(e, { bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: v.text })}
-                  className="w-full text-left flex gap-2 rounded px-1 -mx-1 py-0.5 hover:bg-[rgb(var(--color-surface-4))/50] transition-colors cursor-pointer"
-                >
-                  <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 pt-1 w-6 text-right opacity-70">{v.verse}</span>
-                  <span className="flex-1 text-[13px] leading-relaxed text-[rgb(var(--color-text-primary))]">{v.text || '…'}</span>
-                </button>
+                  leading={<span className="font-mono text-caption2 text-text-quaternary w-6 text-right pt-1">{v.verse}</span>}
+                  title={<span className="leading-relaxed text-text-primary">{v.text || '…'}</span>}
+                />
               ))}
               {g.truncatedNote && (
-                <p className="text-[10px] text-[rgb(var(--color-text-muted))] pl-7 pt-0.5">…open the chapter to read the rest</p>
+                <p className="text-caption2 text-text-muted pl-7 pt-0.5">…open the chapter to read the rest</p>
               )}
             </div>
           </div>

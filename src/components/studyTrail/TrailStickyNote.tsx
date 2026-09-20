@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { NotepadText, Trash2, FileUp, GripHorizontal } from 'lucide-react'
+import { NotepadText, Trash2, FileUp, GripHorizontal, ChevronDown } from 'lucide-react'
 import type { TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import { CARET_COLLAPSED_ROTATE } from './trailStyle'
+import { IconButton, TextField, TextArea, SectionLabel } from '@/components/ui'
 
 // Sticky notes and section headers on the map, per direct feedback: "with the headings thing...
 // maybe like putting notes or something as like resizable sticky notes sort of things", and
@@ -50,41 +51,29 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
     // inside, which is what a section actually is, instead of as one more line on a map that
     // already has plenty.
     <div
-      className="no-drag"
+      className="no-drag flex items-center gap-2 my-4 mb-2 px-3 py-1.5 rounded-row bg-accent-muted border border-accent/30"
       onClick={(e) => e.stopPropagation()}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 9, margin: '18px 0 8px', padding: '7px 12px',
-        borderRadius: 9, background: 'rgb(var(--color-accent) / 0.10)',
-        border: '1px solid rgb(var(--color-accent) / 0.28)',
-        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-      }}
     >
-      <button
-        onClick={onToggle}
-        title={collapsed ? 'Expand this section' : 'Collapse this section'}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-          fontSize: 13, lineHeight: 1, color: 'rgb(var(--color-accent))',
-          transform: collapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms',
-        }}
-      >▾</button>
-      <input
+      <IconButton
+        icon={ChevronDown} label={collapsed ? 'Expand this section' : 'Collapse this section'} size={20}
+        variant="ghost" tooltip={false} onClick={onToggle}
+        className="text-accent hover:text-accent hover:bg-accent-hover"
+        style={{ transform: collapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms' }}
+      />
+      <TextField
         ref={ref}
+        bare
         value={title}
         onChange={(e) => { setTitle(e.target.value); save({ title: e.target.value }) }}
         onBlur={onChanged}
         placeholder="Name this section…"
-        style={{
-          flex: 1, minWidth: 60, background: 'transparent', border: 'none', outline: 'none',
-          fontSize: 13, fontWeight: 700, letterSpacing: '.03em',
-          color: 'rgb(var(--color-accent))',
-        }}
+        wrapperClassName="flex-1 min-w-[60px]"
+        className="text-subhead font-semibold tracking-wide text-accent placeholder:text-accent/50"
       />
-      <button
+      <IconButton
+        icon={Trash2} label="Remove this section" size={20} variant="ghost" danger tooltip={false}
         onClick={() => { void window.studyTrail.deleteNote(note.id).then(onChanged) }}
-        title="Remove this section"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.6, flexShrink: 0 }}
-      ><Trash2 size={13} /></button>
+      />
     </div>
   )
 }
@@ -216,27 +205,25 @@ export function TrailAnnotation({ note, onChanged, resolveAnchor, zoom = 1 }: {
           setIsDragging(true)
         }}
         title="Drag to move"
-        style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, cursor: isDragging ? 'grabbing' : 'grab' }}
+        className="flex items-center gap-1.5 mb-1"
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
-        <NotepadText size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
-        <span style={{ fontSize: 10, letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgb(var(--color-text-muted))' }}>
-          {linked ? 'Berean note' : 'Trail note'}
-        </span>
-        <span style={{ flex: 1 }} />
+        <NotepadText size={12} className="opacity-60 flex-shrink-0" />
+        <SectionLabel className="normal-case">{linked ? 'Berean note' : 'Trail note'}</SectionLabel>
+        <span className="flex-1" />
         {!linked && (
-          <button
+          <IconButton
+            icon={FileUp} label="Make this a real Berean note (syncs to the vault)" size={20} variant="ghost"
             onClick={promoteToBereanNote}
-            title="Make this a real Berean note (syncs to the vault)"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.7 }}
-          ><FileUp size={13} /></button>
+          />
         )}
-        <button
+        <IconButton
+          icon={Trash2} label={linked ? 'Unpin from the trail (the Berean note itself is kept)' : 'Delete this note'}
+          size={20} variant="ghost" danger
           onClick={() => { void window.studyTrail.deleteNote(note.id).then(onChanged) }}
-          title={linked ? 'Unpin from the trail (the Berean note itself is kept)' : 'Delete this note'}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.6 }}
-        ><Trash2 size={13} /></button>
+        />
       </div>
-      <textarea
+      <TextArea
         ref={textRef}
         value={body}
         onChange={(e) => {
@@ -248,11 +235,8 @@ export function TrailAnnotation({ note, onChanged, resolveAnchor, zoom = 1 }: {
         }}
         onBlur={onChanged}
         placeholder="Note…"
-        style={{
-          width: '100%', height: size.h, resize: 'none', background: 'transparent', border: 'none',
-          outline: 'none', fontSize: 13, lineHeight: 1.5, color: 'rgb(var(--color-text-primary))',
-          fontFamily: 'inherit',
-        }}
+        className="w-full resize-none bg-transparent p-0 text-subhead leading-relaxed shadow-none focus:shadow-none"
+        style={{ height: size.h }}
       />
       <div
         onPointerDown={(e) => { resizing.current = { x: e.clientX, y: e.clientY, w: size.w, h: size.h } }}

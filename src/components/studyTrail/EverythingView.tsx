@@ -6,6 +6,7 @@ import { EVERYTHING_SCROLL_KEY, type TrailHeaderPos } from './trailWindowPrefs'
 import TrailMapHeader from './TrailMapHeader'
 import { getDailyNoteAnchorDate, toDateKey } from '@/lib/dailyNoteUtils'
 import { useAppStore } from '@/store'
+import { Button } from '@/components/ui'
 
 // How many sessions are loaded at a time. Everything used to call listAllSessions() and then
 // getSession() for EVERY session on every change (plus a 2s poll), which is the "it will just get
@@ -136,7 +137,7 @@ export default function EverythingView({
   const totalConnections = details.reduce((n, d) => n + d.connections.length, 0)
   const totalNodes = details.reduce((n, d) => n + d.nodes.length, 0)
 
-  if (loading) return <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
+  if (loading) return <div className="text-body text-text-muted">Loading…</div>
 
   // Merge every session's nodes/connections/pausedIntervals into one chronologically-sorted
   // timeline. Nodes are globally-unique UUIDs (not per-session sequence numbers), so a plain
@@ -192,29 +193,23 @@ export default function EverythingView({
         onToggleCollapsed={onToggleHeaderCollapsed}
         pos={headerPos}
         onDragStart={onHeaderDragStart}
-        title={<h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Everything</h2>}
+        title={<h2 className="m-0 text-title3 font-semibold overflow-hidden text-ellipsis whitespace-nowrap">Everything</h2>}
         filterValue={filter}
         onFilterChange={setFilter}
         statsLine={<>{sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total</>}
       />
       {mergedNodes.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
+        <div className="text-footnote text-text-muted">No sessions yet — start one from the rail on the left.</div>
       ) : (
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="flex-1 min-h-0 flex flex-col">
           {/* Older sessions load on demand rather than all at once. Deliberately a button and not
               a scroll sentinel: the map restores its own scroll position on mount and auto-jumps
               to the newest stop, so an "am I near the top?" observer would fire spuriously during
               those jumps and pull in pages nobody asked for. */}
           {!exhausted && (
-            <button
-              onClick={() => { void loadOlder() }}
-              disabled={loadingMore}
-              style={{
-                alignSelf: 'center', marginBottom: 6, fontSize: 11, padding: '4px 12px', borderRadius: 999,
-                cursor: loadingMore ? 'default' : 'pointer', background: 'rgb(var(--color-surface-2))',
-                border: '1px solid rgb(var(--color-surface-4))', color: 'rgb(var(--color-text-muted))',
-              }}
-            >{loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} older sessions`}</button>
+            <Button variant="secondary" size="sm" className="self-center mb-1.5" disabled={loadingMore} onClick={() => { void loadOlder() }}>
+              {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} older sessions`}
+            </Button>
           )}
           <MapView detail={merged} onChanged={() => { void loadWindow(loadedCountRef.current, false) }} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} />
         </div>

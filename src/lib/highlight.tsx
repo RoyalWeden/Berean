@@ -90,7 +90,7 @@ export function applyFindHighlight(
           ? (
             <mark
               key={i}
-              className="berean-find-mark bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm not-italic"
+              className="berean-find-mark bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip not-italic"
             >
               {p}
             </mark>

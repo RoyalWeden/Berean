@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { RotateCcw, BookOpen, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { RotateCcw, BookOpen, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { Button, DisclosureRow, SectionLabel, cx } from '@/components/ui'
 import { clearChapterCache } from '@/lib/chapterCache'
 import { clearChapterAnnotationCaches } from '@/components/bible/ChapterView'
 import { clearNoteCache } from '@/lib/noteCache'
@@ -64,32 +65,27 @@ function SimulateFirstLaunchButton() {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-orange-500/40 bg-orange-500/5">
-      <span className="text-[10px] font-mono text-orange-400 flex-shrink-0">DEV</span>
+    <div className="flex items-center gap-2 px-3 py-2 rounded-card border border-dashed border-warning/40 bg-orange-500/5">
+      <span className="text-caption2 font-mono text-warning flex-shrink-0">DEV</span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-orange-300">Simulate first launch</p>
-        <p className="text-[10px] text-orange-400/70 leading-snug">
+        <p className="text-footnote font-medium text-warning">Simulate first launch</p>
+        <p className="text-caption2 text-warning/70 leading-snug">
           Clears all onboarding state &amp; reloads. Tests the full first-run experience.
         </p>
       </div>
-      <button
+      <Button
+        variant={confirming ? 'warning' : 'ghost'}
+        size="sm"
         onClick={handleReset}
         disabled={busy}
-        className={`flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50 ${
-          confirming
-            ? 'bg-orange-500 text-white hover:bg-orange-600'
-            : 'bg-[rgb(var(--color-surface-4))] text-orange-300 hover:bg-orange-500/20'
-        }`}
+        className={cx('flex-shrink-0', !confirming && 'text-warning hover:bg-warning/20')}
       >
         {busy ? 'Resetting…' : confirming ? 'Confirm reset' : 'Reset'}
-      </button>
+      </Button>
       {confirming && !busy && (
-        <button
-          onClick={() => setConfirming(false)}
-          className="flex-shrink-0 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-        >
+        <Button variant="ghost" size="sm" onClick={() => setConfirming(false)} className="flex-shrink-0">
           Cancel
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -120,15 +116,11 @@ function RebuildSeedButton() {
 
   return (
     <div className="flex items-start gap-2">
-      <button
-        onClick={handleRebuild}
-        disabled={status === 'busy'}
-        className="flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-medium bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/20] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer disabled:opacity-50"
-      >
+      <Button variant="secondary" size="sm" loading={status === 'busy'} onClick={handleRebuild} disabled={status === 'busy'} className="flex-shrink-0">
         {status === 'busy' ? 'Building…' : 'Rebuild youtube_seed.db'}
-      </button>
+      </Button>
       {status !== 'idle' && status !== 'busy' && (
-        <span className={`text-[11px] mt-0.5 ${status === 'done' ? 'text-green-400' : 'text-red-400'}`}>
+        <span className={`text-caption mt-0.5 ${status === 'done' ? 'text-success' : 'text-destructive'}`}>
           {status === 'done' ? `Done — ${result}` : `Error: ${result}`}
         </span>
       )}
@@ -183,43 +175,30 @@ export default function AboutSection() {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Desktop Bible study for Yehovah's servants</p>
-        <span className="s-desc text-xs text-[rgb(var(--color-text-muted))] font-mono mt-2 block">
+        <p className="text-subhead font-semibold text-text-primary">Berean</p>
+        <p className="s-desc text-caption text-text-muted mt-0.5">Desktop Bible study for Yehovah's servants</p>
+        <span className="s-desc text-caption text-text-muted font-mono mt-2 block">
           {version ? `v${version}` : '—'}{isDev ? ' (dev)' : ''}
         </span>
       </div>
 
       {/* Replay onboarding */}
-      <button
-        onClick={handleReplayOnboarding}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left"
-      >
-        <RotateCcw size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+      <Button variant="secondary" size="md" icon={RotateCcw} onClick={handleReplayOnboarding} className="w-full justify-start">
         Replay getting started walkthrough
-      </button>
+      </Button>
 
       {/* Recreate Getting Started notes */}
-      <button
-        onClick={handleRecreateNotes}
-        disabled={recreating}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left disabled:opacity-50"
-      >
-        <BookOpen size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+      <Button variant="secondary" size="md" icon={BookOpen} onClick={handleRecreateNotes} disabled={recreating} className="w-full justify-start">
         {recreating ? 'Creating…' : 'Recreate Getting Started notes'}
-      </button>
+      </Button>
 
       {/* Clear in-memory content caches (chapters, notes, side-panel fetches). Harmless — the
           app just refetches on next open. Useful if a stale cached chapter/note is showing. */}
-      <button
-        onClick={handleClearCache}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left"
-      >
-        <Trash2 size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+      <Button variant="secondary" size="md" icon={Trash2} onClick={handleClearCache} className="w-full justify-start">
         {cacheCleared ? 'Cached content cleared' : 'Clear cached content'}
-      </button>
-      <div className="p-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+      </Button>
+      <div className="p-3 rounded-card bg-surface-elevated">
+        <p className="s-desc text-caption text-text-muted leading-relaxed">
           Texts included: KJV, KJVA (with Apocrypha), Brenton LXX, 1 Enoch, Jubilees, Apocalypse of Elijah,
           Ascension of Isaiah, Epistle of Barnabas (Sharpe 1880), Testaments of the Twelve Patriarchs,
           Recognitions of Clement, and Shepherd of Hermas — all public domain.
@@ -231,17 +210,11 @@ export default function AboutSection() {
           {/* ── Simulate first launch ─────────────────────────────── */}
           <SimulateFirstLaunchButton />
 
-          <button
-            onClick={() => setShowDevGuide((v) => !v)}
-            className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            {showDevGuide ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            Developer release workflow
-          </button>
+          <DisclosureRow open={showDevGuide} title="Developer release workflow" onClick={() => setShowDevGuide((v) => !v)} />
           {showDevGuide && (
-            <div className="mt-2 p-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">How to release a new version</p>
-              <ol className="space-y-1.5 text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed list-none">
+            <div className="mt-2 p-3 rounded-card bg-surface-elevated space-y-2.5">
+              <SectionLabel>How to release a new version</SectionLabel>
+              <ol className="space-y-1.5 text-caption text-text-secondary leading-relaxed list-none">
                 {[
                   ['1', 'Bump the version in package.json (e.g. "0.1.0" → "0.2.0")'],
                   ['2', 'Run: export GH_TOKEN=your_token (needs "repo" scope on RoyalWeden/Berean)'],
@@ -250,22 +223,22 @@ export default function AboutSection() {
                   ['5', 'The installed beta app auto-checks on next launch (6 s delay) and shows a notification'],
                 ].map(([n, text]) => (
                   <li key={n} className="flex gap-2">
-                    <span className="text-[rgb(var(--color-accent))] font-mono flex-shrink-0">{n}.</span>
+                    <span className="text-accent font-mono flex-shrink-0">{n}.</span>
                     <span>{text}</span>
                   </li>
                 ))}
               </ol>
-              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Local test build (no GitHub)</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))]">Run <kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1 rounded">npm run build:local</kbd> — outputs the DMG to <span className="font-mono">release/</span> without publishing</p>
+              <div className="border-t border-separator pt-2">
+                <SectionLabel className="mb-1">Local test build (no GitHub)</SectionLabel>
+                <p className="text-caption text-text-secondary">Run <kbd className="font-mono bg-surface-4 px-1 rounded">npm run build:local</kbd> — outputs the DMG to <span className="font-mono">release/</span> without publishing</p>
               </div>
-              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Data separation</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))]">Dev userData: <span className="font-mono">~/Library/Application Support/Berean-dev</span> · Prod: <span className="font-mono">~/Library/Application Support/Berean</span></p>
+              <div className="border-t border-separator pt-2">
+                <SectionLabel className="mb-1">Data separation</SectionLabel>
+                <p className="text-caption text-text-secondary">Dev userData: <span className="font-mono">~/Library/Application Support/Berean-dev</span> · Prod: <span className="font-mono">~/Library/Application Support/Berean</span></p>
               </div>
-              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Transcript seed workflow</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-2">
+              <div className="border-t border-separator pt-2">
+                <SectionLabel className="mb-1">Transcript seed workflow</SectionLabel>
+                <p className="text-caption text-text-secondary mb-2">
                   After running <span className="font-mono">fetchTranscripts</span> in the YouTube tab, rebuild the seed DB so the next release ships updated data to users.
                   Then bump <span className="font-mono">SEED_VERSION</span> in <span className="font-mono">electron/db/berean.ts</span> before building.
                 </p>

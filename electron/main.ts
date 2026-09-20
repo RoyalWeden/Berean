@@ -106,6 +106,9 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 // 'berean' and 'Berean' resolve to the same directory without this.
 if (!app.isPackaged) {
   app.setPath('userData', join(app.getPath('appData'), 'Berean-dev'))
+  // Dev-only: `BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol so
+  // visual-QA tooling can drive the real window (screenshots, resize, theme cycling).
+  if (process.env.BEREAN_CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.BEREAN_CDP_PORT)
 }
 
 if (app.isPackaged && process.mas) {
@@ -364,6 +367,57 @@ function buildAppMenu(): Electron.Menu {
       ],
     }] : []),
 
+    // ── File — tab/note creation; renderer's keydown layer owns most accelerators, so
+    // most items here set registerAccelerator: false and exist for discoverability/menu
+    // click only (see the per-item comments for which ones Electron itself still fires). ─
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Note',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧N
+          click: () => menuSend('app:command', 'new-note'),
+        },
+        {
+          label: 'New Verse Note',
+          accelerator: 'CmdOrCtrl+Shift+V',
+          // No renderer keydown handles ⌘⇧V — Electron fires this normally.
+          click: () => menuSend('app:command', 'new-verse-note'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'New Scripture Tab',
+          click: () => menuSend('app:command', 'new-scripture-tab'),
+        },
+        {
+          label: 'New Lexicon Tab',
+          click: () => menuSend('app:command', 'new-lexicon-tab'),
+        },
+        {
+          label: 'New YouTube Tab',
+          click: () => menuSend('app:command', 'new-youtube-tab'),
+        },
+        { type: 'separator' as const },
+        {
+          label: "Today's Daily Note",
+          accelerator: 'CmdOrCtrl+Shift+D',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧D
+          click: () => menuSend('app:command', 'todays-daily-note'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Close Tab',
+          accelerator: 'CmdOrCtrl+W',
+          // Renderer already intercepts ⌘W at the BrowserWindow input level (before-input-event
+          // above, 'app:closeTab') — leave the OS-level accelerator unregistered so it isn't
+          // handled twice.
+          registerAccelerator: false,
+          click: () => menuSend('app:command', 'close-tab'),
+        },
+      ],
+    },
+
     // ── Edit — keep standard roles for system clipboard + CodeMirror undo/redo ─
     {
       label: 'Edit',
@@ -378,17 +432,119 @@ function buildAppMenu(): Electron.Menu {
       ],
     },
 
-    // ── View — dev tools only (all navigation handled by React shortcut layer) ─
-    ...(is.dev ? [{
+    // ── View — app display toggles; dev tools appended under a trailing separator ──
+    {
       label: 'View',
       submenu: [
-        { role: 'reload' as const },
-        { role: 'forceReload' as const },
-        { role: 'toggleDevTools' as const },
+        {
+          label: 'Toggle Sidebar',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧S
+          click: () => menuSend('app:command', 'toggle-sidebar'),
+        },
+        {
+          label: 'Toggle Inspector',
+          click: () => menuSend('app:command', 'toggle-inspector'),
+        },
+        {
+          label: "Strong's Numbers",
+          accelerator: 'CmdOrCtrl+G',
+          registerAccelerator: false, // renderer keydown handles ⌘G
+          click: () => menuSend('app:command', 'toggle-strongs'),
+        },
+        {
+          label: 'Focus Mode',
+          accelerator: 'CmdOrCtrl+Shift+U',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧U
+          click: () => menuSend('app:command', 'toggle-focus-mode'),
+        },
         { type: 'separator' as const },
-        { role: 'togglefullscreen' as const },
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+=',
+          registerAccelerator: false, // renderer keydown handles ⌘=/⌘+
+          click: () => menuSend('app:command', 'zoom-in'),
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
+          registerAccelerator: false, // renderer keydown handles ⌘-
+          click: () => menuSend('app:command', 'zoom-out'),
+        },
+        {
+          label: 'Actual Size',
+          accelerator: 'CmdOrCtrl+0',
+          registerAccelerator: false, // renderer keydown handles ⌘0
+          click: () => menuSend('app:command', 'zoom-reset'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Find',
+          accelerator: 'CmdOrCtrl+F',
+          registerAccelerator: false, // renderer keydown handles ⌘F (routes per active panel)
+          click: () => menuSend('app:command', 'find'),
+        },
+        { type: 'separator' as const },
+        // `id` so app.on('browser-window-focus') below can look this item up and disable it
+        // for windows that aren't fullscreenable (Study Trail, verse picker, pop-outs — Pass 4
+        // §5.1: "The View menu item's enabled is recomputed on browser-window-focus so it is
+        // disabled for non-fullscreenable windows").
+        { id: 'toggle-fullscreen', role: 'togglefullscreen' as const },
+        ...(is.dev ? [
+          { type: 'separator' as const },
+          { role: 'reload' as const },
+          { role: 'forceReload' as const },
+          { role: 'toggleDevTools' as const },
+        ] : []),
       ],
-    }] : []),
+    },
+
+    // ── Go — chapter/tab-history navigation ─────────────────────────────────────
+    {
+      label: 'Go',
+      submenu: [
+        {
+          label: 'Back',
+          accelerator: 'CmdOrCtrl+[',
+          // No renderer keydown handles ⌘[ — Electron fires this normally.
+          click: () => menuSend('app:command', 'nav-back'),
+        },
+        {
+          label: 'Forward',
+          accelerator: 'CmdOrCtrl+]',
+          // No renderer keydown handles ⌘] — Electron fires this normally.
+          click: () => menuSend('app:command', 'nav-forward'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Previous Chapter',
+          click: () => menuSend('app:command', 'prev-chapter'),
+        },
+        {
+          label: 'Next Chapter',
+          click: () => menuSend('app:command', 'next-chapter'),
+        },
+        {
+          label: 'Go to Reference…',
+          accelerator: 'CmdOrCtrl+L',
+          registerAccelerator: false, // renderer keydown handles ⌘L
+          click: () => menuSend('app:command', 'focus-ref-bar'),
+        },
+        { type: 'separator' as const },
+        {
+          label: 'History',
+          accelerator: 'CmdOrCtrl+H',
+          registerAccelerator: false, // renderer keydown handles ⌘H (app 'hide' is remapped to ⌘⇧H)
+          click: () => menuSend('app:command', 'open-history'),
+        },
+        {
+          label: 'Search Everything',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          registerAccelerator: false, // renderer keydown handles ⌘⇧F
+          click: () => menuSend('app:command', 'full-text-search'),
+        },
+      ],
+    },
 
     // ── Window — OS-level actions; app navigation lives in the React layer ────
     {
@@ -421,6 +577,27 @@ function buildAppMenu(): Electron.Menu {
         ] : []),
       ],
     },
+
+    // ── Help ────────────────────────────────────────────────────────────────
+    {
+      ...(isMac ? { role: 'help' as const } : { label: 'Help' }),
+      submenu: [
+        {
+          label: 'Berean Help',
+          click: () => { shell.openExternal('https://sitgmeat.com') },
+        },
+        {
+          // No dedicated "jump to Shortcuts section" command exists yet — opens
+          // Settings, where the read-only Shortcuts section lives (§15).
+          label: 'Keyboard Shortcuts',
+          click: () => menuSend('app:command', 'open-settings'),
+        },
+        {
+          label: 'Markdown Reference',
+          click: () => menuSend('app:command', 'open-markdown-reference'),
+        },
+      ],
+    },
   ]
 
   return Menu.buildFromTemplate(template)
@@ -428,8 +605,71 @@ function buildAppMenu(): Electron.Menu {
 
 const VIEWER_BOUNDS_KEY = 'viewerWindowBounds'
 const VIEWER_DEFAULT_BOUNDS = { width: 900, height: 700 }
+// Pass 4 §5.1: viewer minimum shrunk from 500×400 to 480×360 to match the spec's
+// "viewer min 480×360" — kept in sync with the BrowserWindow's own minWidth/minHeight below.
+const VIEWER_MIN = { minWidth: 480, minHeight: 360 }
 
 interface WindowBounds { x?: number; y?: number; width: number; height: number }
+
+/** Does `bounds` overlap at least one currently-connected display's work area? Shared by every
+ *  bounds-loader below (main/viewer/Study Trail/verse picker/pop-outs) and by the live
+ *  display-change re-clamp (screen.on('display-removed'|'display-metrics-changed') below) so a
+ *  bounds saved on — or a window dragged onto — a monitor that's since been disconnected can't
+ *  strand a window off-screen. */
+function boundsFitAnyDisplay(bounds: { x: number; y: number; width: number; height: number }): boolean {
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea
+    return bounds.x < a.x + a.width && bounds.x + bounds.width > a.x &&
+           bounds.y < a.y + a.height && bounds.y + bounds.height > a.y
+  })
+}
+
+/** Generic settings-table bounds persistence for a secondary window — same load/save shape as
+ *  the bespoke viewer/main-window functions this was extracted alongside, minus the main
+ *  window's `maximized` flag (secondary windows here are never maximized/fullscreen-restored the
+ *  same way). Used by Study Trail, the verse picker, and floating pop-outs (Pass 4 §5.3's "ADD:
+ *  bounds persistence for Study Trail / verse picker / floating pop-outs, using the same
+ *  loadXBounds/saveXBounds shape with display-fit clamping"). */
+function makeBoundsStore(key: string, defaults: { width: number; height: number }, min: { minWidth: number; minHeight: number }) {
+  return {
+    load(): WindowBounds {
+      try {
+        const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
+        if (!row) return { ...defaults }
+        const saved = JSON.parse(row.value) as Partial<WindowBounds>
+        const width = Math.max(min.minWidth, Math.round(saved.width ?? defaults.width))
+        const height = Math.max(min.minHeight, Math.round(saved.height ?? defaults.height))
+        if (typeof saved.x !== 'number' || typeof saved.y !== 'number') return { width, height }
+        const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
+        return boundsFitAnyDisplay(candidate) ? candidate : { width, height }
+      } catch {
+        return { ...defaults }
+      }
+    },
+    save(bounds: WindowBounds): void {
+      try {
+        getBereanDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(bounds))
+      } catch { /* best-effort — never block window close/resize on a settings-write failure */ }
+    },
+  }
+}
+
+/** Attaches debounced (300ms, per Pass 4 §5.3) bounds persistence to a secondary window: saves
+ *  on resize/move while open, and once more on close (the window still exists at 'close', so
+ *  getBounds() is safe — by 'closed' it's already destroyed). */
+function persistBoundsOnClose(win: BrowserWindow, store: ReturnType<typeof makeBoundsStore>): void {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const schedule = () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => { if (!win.isDestroyed()) store.save(win.getBounds()) }, 300)
+  }
+  win.on('resize', schedule)
+  win.on('move', schedule)
+  win.on('close', () => {
+    if (timer) clearTimeout(timer)
+    if (!win.isDestroyed()) store.save(win.getBounds())
+  })
+}
 
 /** Reads the last-saved viewer window bounds from the settings table (same table/
  *  pattern already used for `vaultSync` above), clamped to fit some currently-
@@ -441,20 +681,15 @@ function loadViewerBounds(): WindowBounds {
     const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get(VIEWER_BOUNDS_KEY) as { value: string } | undefined
     if (!row) return { ...VIEWER_DEFAULT_BOUNDS }
     const saved = JSON.parse(row.value) as Partial<WindowBounds>
-    const width = Math.max(500, Math.round(saved.width ?? VIEWER_DEFAULT_BOUNDS.width))
-    const height = Math.max(400, Math.round(saved.height ?? VIEWER_DEFAULT_BOUNDS.height))
+    const width = Math.max(VIEWER_MIN.minWidth, Math.round(saved.width ?? VIEWER_DEFAULT_BOUNDS.width))
+    const height = Math.max(VIEWER_MIN.minHeight, Math.round(saved.height ?? VIEWER_DEFAULT_BOUNDS.height))
     if (typeof saved.x !== 'number' || typeof saved.y !== 'number') {
       return { width, height }
     }
     // Only keep x/y if they'd place the window (at least partially) within some
     // currently-connected display's work area — otherwise let Electron auto-position.
     const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
-    const fits = screen.getAllDisplays().some((d) => {
-      const a = d.workArea
-      return candidate.x < a.x + a.width && candidate.x + width > a.x &&
-             candidate.y < a.y + a.height && candidate.y + height > a.y
-    })
-    return fits ? candidate : { width, height }
+    return boundsFitAnyDisplay(candidate) ? candidate : { width, height }
   } catch {
     return { ...VIEWER_DEFAULT_BOUNDS }
   }
@@ -483,12 +718,7 @@ function loadMainBounds(): WindowBounds & { maximized?: boolean } {
       return { width, height, maximized: saved.maximized }
     }
     const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
-    const fits = screen.getAllDisplays().some((d) => {
-      const a = d.workArea
-      return candidate.x < a.x + a.width && candidate.x + width > a.x &&
-             candidate.y < a.y + a.height && candidate.y + height > a.y
-    })
-    return fits ? { ...candidate, maximized: saved.maximized } : { width, height, maximized: saved.maximized }
+    return boundsFitAnyDisplay(candidate) ? { ...candidate, maximized: saved.maximized } : { width, height, maximized: saved.maximized }
   } catch {
     return { ...MAIN_DEFAULT_BOUNDS }
   }
@@ -519,11 +749,17 @@ function createViewerWindow(): void {
   const bounds = loadViewerBounds()
   viewerWindow = new BrowserWindow({
     ...bounds,
-    minWidth: 500,
-    minHeight: 400,
+    minWidth: VIEWER_MIN.minWidth,
+    minHeight: VIEWER_MIN.minHeight,
+    // Pass 4 §5.1: unlike Study Trail / the verse picker / pop-outs, the viewer stays
+    // fullscreenable — presenting on a second display is its whole purpose (fullscreenable
+    // defaults to true, left implicit here; the enter/leave-full-screen handlers just below
+    // are what make combining that with always-on-top actually work).
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#111114',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: is.dev ? 'Berean Viewer [Dev]' : 'Berean Viewer',
     webPreferences: {
@@ -537,6 +773,16 @@ function createViewerWindow(): void {
 
   viewerWindow.setAlwaysOnTop(true, 'floating')
   viewerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  // Pass 4 §5.1: an always-on-top fullscreen window is not a supported macOS combination —
+  // clear always-on-top while the viewer is actually fullscreen (e.g. presenting on a second
+  // display via the View menu's fullscreen command, Phase 14) and restore the normal floating
+  // level the instant it leaves fullscreen.
+  viewerWindow.on('enter-full-screen', () => { viewerWindow?.setAlwaysOnTop(false) })
+  viewerWindow.on('leave-full-screen', () => { viewerWindow?.setAlwaysOnTop(true, 'floating') })
+
+  viewerWindow.on('focus', () => { viewerWindow?.webContents.send('app:windowActive', true) })
+  viewerWindow.on('blur',  () => { viewerWindow?.webContents.send('app:windowActive', false) })
 
   const paramStr = 'viewer=1'
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -593,14 +839,19 @@ function createStudyTrailWindow(trailSessionId?: string): void {
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
   const isWin = process.platform === 'win32'
+  const trailBoundsStore = makeBoundsStore('trailWindowBounds', { width: 900, height: 640 }, { minWidth: 640, minHeight: 480 })
+  const trailBounds = trailBoundsStore.load()
   studyTrailWindow = new BrowserWindow({
-    width: 900,
-    height: 640,
+    ...trailBounds,
     minWidth: 640,
-    minHeight: 420,
+    minHeight: 480,
+    // Pass 4 §5.1: an always-on-top utility window that must not take over a display.
+    fullscreenable: false,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#17151a',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: is.dev ? 'Study Trail [Dev]' : 'Study Trail',
     webPreferences: {
@@ -613,6 +864,10 @@ function createStudyTrailWindow(trailSessionId?: string): void {
   ;(studyTrailWindow as any).__isStudyTrail = true
   studyTrailWindow.setAlwaysOnTop(true, 'floating')
   studyTrailWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  persistBoundsOnClose(studyTrailWindow, trailBoundsStore)
+
+  studyTrailWindow.on('focus', () => { studyTrailWindow?.webContents.send('app:windowActive', true) })
+  studyTrailWindow.on('blur',  () => { studyTrailWindow?.webContents.send('app:windowActive', false) })
 
   const query: Record<string, string> = { studyTrail: '1' }
   if (trailSessionId) query.trailSessionId = trailSessionId
@@ -657,14 +912,19 @@ function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): 
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
   const isWin = process.platform === 'win32'
+  const versePickerBoundsStore = makeBoundsStore('versePickerBounds', { width: 760, height: 640 }, { minWidth: 560, minHeight: 420 })
+  const pickerBounds = versePickerBoundsStore.load()
   versePickerWindow = new BrowserWindow({
-    width: 760,
-    height: 640,
+    ...pickerBounds,
     minWidth: 560,
     minHeight: 420,
+    // Pass 4 §5.1: an always-on-top utility window that must not take over a display.
+    fullscreenable: false,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#17151a',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: 'Pick verses',
     webPreferences: {
@@ -682,6 +942,10 @@ function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): 
     versePickerWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
   }
 
+  versePickerWindow.on('focus', () => { versePickerWindow?.webContents.send('app:windowActive', true) })
+  versePickerWindow.on('blur',  () => { versePickerWindow?.webContents.send('app:windowActive', false) })
+  persistBoundsOnClose(versePickerWindow, versePickerBoundsStore)
+
   versePickerWindow.on('closed', () => { versePickerWindow = null; versePickerOwnerId = null })
 }
 
@@ -696,14 +960,22 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   )}).toString()
 
   const isWin = process.platform === 'win32'
+  // Pass 4 §5.3: one bounds slot per tab type (a popped-out Bible tab and a popped-out
+  // Notes tab remember their own last size/position independently) — same
+  // loadXBounds/saveXBounds shape as Study Trail / the verse picker above.
+  const floatBoundsStore = makeBoundsStore(`floatBounds:${type}`, { width: 700, height: 700 }, { minWidth: 480, minHeight: 400 })
+  const floatBounds = floatBoundsStore.load()
   const floatWin = new BrowserWindow({
-    width: 700,
-    height: 700,
-    minWidth: 400,
+    ...floatBounds,
+    minWidth: 480,
     minHeight: 400,
+    // Pass 4 §5.1: an always-on-top utility window that must not take over a display.
+    fullscreenable: false,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
-    backgroundColor: '#111114',
+    // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
+    // instead of always painting the dark-mode tone underneath a light-scheme app.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
     icon: appIcon,
     title: is.dev ? 'Berean Float [Dev]' : 'Berean',
     webPreferences: {
@@ -723,6 +995,10 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   floatWin.setAlwaysOnTop(true, 'screen-saver')
   // Show on all macOS Spaces so it follows the user across desktops
   floatWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  floatWin.on('focus', () => { floatWin.webContents.send('app:windowActive', true) })
+  floatWin.on('blur',  () => { floatWin.webContents.send('app:windowActive', false) })
+  persistBoundsOnClose(floatWin, floatBoundsStore)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     floatWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${paramStr}`)
@@ -764,19 +1040,30 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
         : {})),
     minWidth: 800,
     minHeight: 600,
+    // No maxWidth/maxHeight — no max size (Pass 4 §5.1, "zoomable true"). Electron's own name
+    // for the native macOS green-button "zoom" behavior is `maximizable` (there is no
+    // `zoomable` constructor option) — true is already the default, set explicitly so it reads
+    // as a documented decision rather than an implicit default someone could flip later.
+    maximizable: true,
     // On Windows: frameless so we draw our own title bar in React
     frame: !isWinWin,
     titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
-    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 14 } } : {}),
+    // Centered on the HEADER_HEIGHT (44px, src/lib/windowChrome.ts) bar: traffic
+    // lights are 12px tall, so y = (44 - 12) / 2 = 16 puts their centre on the bar's centre.
+    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
     // macOS: transparent + native vibrancy so the sidebar column can show a true
     // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
     // this in an opaque window — it only blurs the app's own content, not what's
-    // behind the window). The renderer is responsible for keeping the main
-    // content column opaque via CSS (see .app-opaque-base in global.css) since
+    // behind the window). The renderer stamps `data-vibrant` on <html> for this
+    // window (src/main.tsx) so global.css's `.material-bar`/etc. know to render
+    // translucent here and fall back to an opaque paint everywhere else, since
     // the whole window surface is transparent now, not just the sidebar strip.
     // Windows keeps the original opaque background — vibrancy is mac-only.
+    // visualEffectState: 'followWindow' (not 'active') — the vibrancy dims when
+    // the window isn't key, matching every native macOS app; 'active' pinned it
+    // fully lit even while the window sat in the background.
     ...(isMacWin
-      ? { transparent: true, backgroundColor: '#00000000', vibrancy: 'sidebar' as const, visualEffectState: 'active' as const }
+      ? { transparent: true, backgroundColor: '#00000000', vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const }
       : { backgroundColor: '#111114' }),
     icon: appIcon,
     // Show [Dev] in the window title (visible in macOS app switcher / dock tooltip)
@@ -845,6 +1132,11 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
   // Notify renderer when window is maximized/unmaximized (for Windows title bar button state)
   win.on('maximize',   () => { win.webContents.send('window:maximizeChanged', true); scheduleBoundsSave() })
   win.on('unmaximize', () => { win.webContents.send('window:maximizeChanged', false); scheduleBoundsSave() })
+
+  // Relay OS-level key/active state so the renderer can dim chrome to match the rest of
+  // the system (html[data-inactive] — global.css already consumes it).
+  win.on('focus', () => { win.webContents.send('app:windowActive', true) })
+  win.on('blur',  () => { win.webContents.send('app:windowActive', false) })
 
   // Intercept Cmd+W so the renderer can close a tab instead of quitting. Captures
   // `win` (never the mutable `mainWindow`) so it always targets its own window.
@@ -1487,6 +1779,12 @@ app.whenReady().then(async () => {
   // Live macOS accent color, for the "System" theme preset — converts Electron's hex
   // ("rrggbb[aa]") into the "r g b" decimal-triple string the rest of the palette uses.
   ipcMain.handle('app:getAccentColor', () => hexToRgbTriple(safeGetAccentColor()))
+  // System Settings → Accessibility → Display → Reduce transparency. Read once at renderer
+  // boot (a fresh window's did-finish-load can race the app:reduceTransparency push below);
+  // nativeTheme.on('updated') pushes subsequent live toggles to every open window.
+  ipcMain.handle('app:getReduceTransparency', () => nativeTheme.prefersReducedTransparency)
+  // System Settings → Accessibility → Display → Increase contrast.
+  ipcMain.handle('app:getIncreaseContrast', () => nativeTheme.shouldUseHighContrastColors)
   // 'normal' | 'throttled' — see powerAwareness.ts. app:resourceModeChanged (registered
   // above, alongside setupPowerAwareness()) pushes subsequent changes.
   ipcMain.handle('app:getResourceMode', () => getResourceMode())
@@ -1614,10 +1912,17 @@ app.whenReady().then(async () => {
 
   // Relay OS-level dark/light changes to all renderer windows.
   // matchMedia 'change' events are unreliable in Electron; nativeTheme is authoritative.
+  // Also fires for a Reduce Transparency toggle (System Settings → Accessibility →
+  // Display) — nativeTheme's single 'updated' event covers both — so re-push
+  // prefersReducedTransparency here too rather than a second listener.
   nativeTheme.on('updated', () => {
     const isDark = nativeTheme.shouldUseDarkColors
+    const reduceTransparency = nativeTheme.prefersReducedTransparency
     BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('app:nativeThemeChanged', isDark)
+      if (win.isDestroyed()) return
+      win.webContents.send('app:nativeThemeChanged', isDark)
+      win.webContents.send('app:reduceTransparency', reduceTransparency)
+      win.webContents.send('app:increaseContrast', nativeTheme.shouldUseHighContrastColors)
     })
   })
 
@@ -1634,6 +1939,43 @@ app.whenReady().then(async () => {
   // see powerAwareness.ts for what "throttled" actually gates (vault watcher polling cadence,
   // YouTube tab's re-injection/transcript-sync polling).
   setupPowerAwareness()
+
+  // Pass 4 §5.1: "The View menu item's enabled is recomputed on browser-window-focus so it is
+  // disabled for non-fullscreenable windows." isFullScreenable() reflects each window's own
+  // `fullscreenable` constructor option (main windows: true/default; Study Trail, verse picker,
+  // pop-outs: false; viewer: true).
+  app.on('browser-window-focus', (_e, win) => {
+    const item = Menu.getApplicationMenu()?.getMenuItemById('toggle-fullscreen')
+    if (item) item.enabled = win.isFullScreenable()
+  })
+
+  // Pass 4 §5.1: "Display changes: on screen.on('display-removed'|'display-metrics-changed')
+  // re-clamp every window's bounds with the existing display-fit logic; setBounds only if
+  // off-screen." A removed/reconfigured display can leave a window (fully or partly) off any
+  // remaining screen — reposition+resize it onto the primary display's work area, but only the
+  // windows that are actually now off-screen (boundsFitAnyDisplay), never ones that still fit.
+  function reclampIfOffscreen(win: BrowserWindow | null): void {
+    if (!win || win.isDestroyed()) return
+    const b = win.getBounds()
+    if (boundsFitAnyDisplay(b)) return
+    const a = screen.getPrimaryDisplay().workArea
+    const width = Math.min(b.width, a.width)
+    const height = Math.min(b.height, a.height)
+    win.setBounds({
+      x: a.x + Math.round((a.width - width) / 2),
+      y: a.y + Math.round((a.height - height) / 2),
+      width,
+      height,
+    })
+  }
+  function reclampAllWindows(): void {
+    for (const w of appWindows) reclampIfOffscreen(w)
+    reclampIfOffscreen(viewerWindow)
+    reclampIfOffscreen(studyTrailWindow)
+    reclampIfOffscreen(versePickerWindow)
+  }
+  screen.on('display-removed', reclampAllWindows)
+  screen.on('display-metrics-changed', reclampAllWindows)
 
   app.on('activate', () => {
     if (appWindows.size === 0) createWindow()

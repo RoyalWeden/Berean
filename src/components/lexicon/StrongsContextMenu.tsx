@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { BookMarked, ExternalLink, Layers, Copy, Hash } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
 
 export interface StrongsContextTarget {
   strongsNum: string
@@ -65,7 +66,6 @@ export function StrongsContextMenu({
   })
 
   if (!target) return null
-  const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
 
   function openFloating(num: string) {
     window.app.openFloatingTab?.('lexicon', { strongsNum: num })
@@ -76,50 +76,40 @@ export function StrongsContextMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[10000] min-w-[160px] rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl py-1"
+      className="fixed z-menu min-w-[160px]"
       style={{ left: target.x, top: target.y }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="px-3 py-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
-        {target.strongsNum}
-      </div>
-      <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-      <button
-        className={ITEM}
-        onClick={() => { onOpen(target.strongsNum); onClose() }}
-      >
-        <BookMarked size={12} className="flex-shrink-0" />
-        Open
-      </button>
-      <button
-        className={ITEM}
-        onClick={() => { onOpenNewTab(target.strongsNum); onClose() }}
-      >
-        <Layers size={12} className="flex-shrink-0" />
-        Open in new tab
-      </button>
-      <button
-        className={ITEM}
-        onClick={() => openFloating(target.strongsNum)}
-      >
-        <ExternalLink size={12} className="flex-shrink-0" />
-        Open in floating tab
-      </button>
-      <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-      <button
-        className={ITEM}
-        onClick={() => { navigator.clipboard.writeText(target.strongsNum); onClose() }}
-      >
-        <Copy size={12} className="flex-shrink-0" />
-        Copy Strong's
-      </button>
-      <button
-        className={ITEM}
-        onClick={() => { navigator.clipboard.writeText(`Strong's ${target.strongsNum}`); onClose() }}
-      >
-        <Hash size={12} className="flex-shrink-0" />
-        Copy reference
-      </button>
+      <MenuSurface>
+        <MenuLabel>{target.strongsNum}</MenuLabel>
+        <MenuSeparator />
+        <MenuItem
+          icon={BookMarked}
+          label="Open"
+          onClick={() => { onOpen(target.strongsNum); onClose() }}
+        />
+        <MenuItem
+          icon={Layers}
+          label="Open in new tab"
+          onClick={() => { onOpenNewTab(target.strongsNum); onClose() }}
+        />
+        <MenuItem
+          icon={ExternalLink}
+          label="Open in floating tab"
+          onClick={() => openFloating(target.strongsNum)}
+        />
+        <MenuSeparator />
+        <MenuItem
+          icon={Copy}
+          label="Copy Strong's"
+          onClick={() => { navigator.clipboard.writeText(target.strongsNum); onClose() }}
+        />
+        <MenuItem
+          icon={Hash}
+          label="Copy reference"
+          onClick={() => { navigator.clipboard.writeText(`Strong's ${target.strongsNum}`); onClose() }}
+        />
+      </MenuSurface>
     </div>,
     document.body,
   )

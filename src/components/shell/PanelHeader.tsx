@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useCallback, type ReactNode } from 'react'
 import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
+import { Toolbar } from '@/components/ui'
 
 /**
  * Shared header chrome for every tab-panel type (Bible, Notes, Lexicon,
@@ -10,31 +11,29 @@ import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
  * dropped `app-drag-region` in docked mode; Search never had floating
  * handling at all).
  *
- * `floating` gets its own distinct look: no bar background at all (the row
- * itself is fully transparent, laid directly over the panel's own content,
- * so any plain text/spacer sitting between controls stays fully visible
- * against the panel behind it) — each actual CONTROL (a button/link, or an
- * `ActionPillGroup` cluster) instead floats on its own as a small frosted
- * chip, via the `.floating-header-buttons` CSS rule in global.css. That rule
- * deliberately targets only `button`/`a`/`[role=button]`/`.action-pill-group`
- * among this row's direct children — not every direct child indiscriminately
- * — so a layout spacer or plain text sibling never gets an unwanted chip
- * background of its own. See that rule's own comment for the radius handling
- * too (forced to a full pill on plain controls, since most have none of
- * their own — left alone on `.action-pill-group`, which already has one).
- * A "Pop Out Tab" window (FloatingShell.tsx) is a real separate top-level
- * BrowserWindow, plain and OPAQUE (no `transparent`/`vibrancy`, see
- * createFloatingWindow in main.ts) — `.floating-header-buttons`'s chips use
- * `backdrop-filter` (blurs the app's OWN DOM behind them, i.e. content
- * scrolling under the header) rather than `.topbar-vibrant`'s OS-level
- * vibrancy, which needs window transparency to have anything behind it to
- * blur and would just be a flat tint here.
+ * `floating` is now a REAL bar, not a transparent row of individually-chipped
+ * floating controls — macOS 27 dropped the "floating chip toolbar" idiom
+ * (see docs/design-system.md's decision log: "Toolbars are real bars, not
+ * floating chip clusters — the floating pop-out window header will become a
+ * bar too"). Both variants now share the one `.material-bar` recipe; the
+ * only real difference is the traffic-light inset a floating "Pop Out Tab"
+ * window (FloatingShell.tsx, a real separate top-level BrowserWindow) needs
+ * to clear its own traffic lights, vs. a docked panel's plain padding.
  *
  * Window-drag on this bar uses the manual JS-tracked `useWindowDrag` hook, not a real
  * `-webkit-app-region: drag` CSS region (this used to be `app-drag-region`) — see that hook's
  * own comment for why: reported "drag doesn't work" / "starts selecting text instead" and
  * flaky multi-monitor dragging both trace back to Electron's native drag-region hit-testing,
  * which this sidesteps entirely.
+ *
+ * Two zones, same as the docked shared TopBar (ShellHeader.tsx): `children` is the CONTEXT
+ * zone (title/nav, left), and a second, independently-portaled ACTIONS zone (trailing action
+ * group(s), right) sits after a flexible spacer. TabHeaderPortal calls this component only for
+ * the panel's `zone="context"` (the default) call — its `zone="actions"` call, a sibling in the
+ * caller's tree rather than a child of this one, can't hand its content down as a prop, so it
+ * portals into the actions container this publishes via `publishFloatingActionsSlot` (see that
+ * function's own comment). A panel that never issues a `zone="actions"` call (every panel but
+ * PDFViewer, for now) simply leaves that container empty — harmless, no layout effect.
  */
 export default function PanelHeader({
   floating = false,
@@ -46,16 +45,44 @@ export default function PanelHeader({
   className?: string
 }) {
   const onMouseDown = useWindowDrag(isInteractiveDragTarget)
+  const actionsRef = useCallback((el: HTMLDivElement | null) => {
+    publishFloatingActionsSlot(el)
+  }, [])
   return (
     <div
       onMouseDown={onMouseDown}
-      className={`flex items-center gap-2 h-11 flex-shrink-0 no-drag select-none ${
-        floating
-          ? 'floating-header-buttons pl-[76px] pr-4'
-          : 'border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] px-4'
+      className={`h-11 flex-shrink-0 no-drag select-none material-bar border-b border-separator ${
+        floating ? 'pl-traffic-lights pr-3' : 'px-3'
       } ${className}`}
     >
-      {children}
+      <Toolbar size="md" edge="none" material="none">
+        <div className="flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
+        <div className="flex-1" />
+        <div ref={actionsRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+      </Toolbar>
     </div>
   )
+}
+
+// ── Floating ACTIONS-zone slot ──────────────────────────────────────────────────────
+// Mirrors TopBarSlotContext's docked `publishActionsSlot`/`useTopBarSlots` pair (see that
+// file's comment for the full reasoning behind the module-singleton approach). A floating "Pop
+// Out Tab" window is its own renderer process/module scope and hosts exactly one panel at a
+// time, so a bare singleton here — rather than a React context threaded down from FloatingShell
+// (out of scope for this lane) — is safe.
+let floatingActionsSlotEl: HTMLDivElement | null = null
+const floatingActionsListeners = new Set<() => void>()
+
+export function publishFloatingActionsSlot(el: HTMLDivElement | null) {
+  floatingActionsSlotEl = el
+  floatingActionsListeners.forEach((listener) => listener())
+}
+
+export function subscribeFloatingActionsSlot(listener: () => void) {
+  floatingActionsListeners.add(listener)
+  return () => floatingActionsListeners.delete(listener)
+}
+
+export function getFloatingActionsSlot() {
+  return floatingActionsSlotEl
 }

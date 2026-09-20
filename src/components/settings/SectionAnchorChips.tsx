@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Chip } from '@/components/ui'
 
 /**
  * A sticky row of "jump to" chips at the top of a Settings section. Auto-discovers targets
@@ -69,20 +70,16 @@ export default function SectionAnchorChips({
       // now — that was what pushed a `sticky top-0` element down and left a gap above it).
       // Translucent + blur so it reads as a frosted strip over the scrolling content;
       // `[&+*]:!mt-2` trims the parent `space-y-6`'s 1.5rem gap under the row to a tight one.
-      className="sticky top-0 z-20 -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 bg-[rgb(var(--color-surface-1))/92] backdrop-blur-sm border-b border-[rgb(var(--color-surface-4))/60] [&+*]:!mt-2"
+      className="sticky top-0 z-raised -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 material-bar border-b border-separator [&+*]:!mt-2"
     >
       {anchors.map((a) => (
-        <button
+        <Chip
           key={a.id}
+          selected={activeId === a.id}
           onClick={() => document.getElementById(a.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
-            activeId === a.id
-              ? 'bg-[rgb(var(--color-accent))]/14 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))] font-semibold'
-              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'
-          }`}
         >
           {a.label}
-        </button>
+        </Chip>
       ))}
     </div>
   )

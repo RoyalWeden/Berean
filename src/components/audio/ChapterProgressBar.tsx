@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SPRING_GENTLE } from '@/lib/motion'
 import { useChapterProgress } from '@/hooks/useChapterProgress'
 
 interface ChapterProgressBarProps {
@@ -166,26 +167,18 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
               initial={{ x: '-50%', y: '-100%', scale: 0.5, opacity: 0 }}
               animate={{ x: '-50%', y: '-100%', scale: 1, opacity: 1 }}
               exit={{ x: '-50%', y: '-100%', scale: 0.5, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={SPRING_GENTLE}
               // Soft radial gradient + layered shadow (rather than a flat surface-2 fill) so the
               // bubble reads as "floating above" the bar instead of "pasted on" — plus a small
               // speech-bubble tail (below) pointing down at the exact bar position it reports.
-              className="fixed z-[9999] pointer-events-none flex items-center justify-center rounded-full border border-[rgb(var(--color-surface-4))]"
-              style={{
-                left: bubblePos.x, top: bubblePos.y,
-                width: 44, height: 44,
-                background: 'radial-gradient(circle at 32% 28%, rgb(var(--color-surface-3)), rgb(var(--color-surface-1)) 75%)',
-                boxShadow: '0 10px 28px -6px rgba(0,0,0,0.4), 0 3px 10px -2px rgba(0,0,0,0.25)',
-              }}
+              className="material-popover fixed z-critical pointer-events-none flex items-center justify-center rounded-control"
+              style={{ left: bubblePos.x, top: bubblePos.y, width: 44, height: 44 }}
             >
               {/* Tail: a rotated square, half-hidden behind the circle's bottom edge, sharing the
                   circle's border on its visible (lower-right) edges so it reads as one continuous
                   callout shape rather than a separate floating diamond. */}
-              <span
-                className="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 rotate-45 border-r border-b border-[rgb(var(--color-surface-4))]"
-                style={{ background: 'rgb(var(--color-surface-1))' }}
-              />
-              <span className="relative text-[15px] font-semibold text-[rgb(var(--color-text-primary))] tabular-nums">
+              <span className="material-popover absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-2.5 h-2.5 rotate-45 border-r border-b border-separator" />
+              <span className="relative text-title3 font-semibold text-text-primary tabular-nums">
                 {bubbleVerseNum}
               </span>
             </motion.div>
@@ -198,10 +191,10 @@ export default function ChapterProgressBar({ bookId, chapter, textId, currentVer
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`relative w-full rounded-full bg-[rgb(var(--color-surface-4))] cursor-pointer transition-[height] duration-150 ${expanded ? 'h-2' : 'h-[3px]'}`}
+        className={`relative w-full rounded-control bg-lift-3 cursor-pointer transition-[height] duration-150 ${expanded ? 'h-2' : 'h-[3px]'}`}
       >
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-[rgb(var(--color-accent))] transition-[width] duration-150"
+          className="absolute inset-y-0 left-0 rounded-control bg-accent transition-[width] duration-150"
           style={{ width: `${fraction * 100}%` }}
         />
       </div>

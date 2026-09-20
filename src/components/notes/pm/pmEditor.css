@@ -13,15 +13,20 @@
   scroll-behavior: smooth;
 }
 
-/* SelectionToolbar.tsx's toolbar + dropdown popovers — plain, reliably-
-   opaque background (NOT the shared .glass-panel translucent/blur
-   treatment, which an earlier attempt tried to override with a Tailwind
-   arbitrary-value + important-modifier combo that didn't reliably win,
-   leaving these nearly see-through). Needs to read clearly against busy
-   note text sitting directly behind it. */
+/* SelectionToolbar.tsx's toolbar + dropdown popovers, and Toolbar.tsx's own dropdown
+   panels — kept as a marker class (NoteEditorPM.tsx's click-outside handler looks for
+   `.pm-toolbar-solid` specifically, since SelectionToolbar isn't a DOM descendant of the
+   editor host and isn't portaled — see that file's own comment) even though every
+   consumer now also carries `.material-popover .rounded-menu` for the actual design-system
+   look. Redefined here to the SAME recipe as `.material-popover` (global.css), using the
+   same vars, so the two classes never visually disagree regardless of which one's rule
+   happens to win the cascade. */
 .pm-toolbar-solid {
-  background-color: rgb(var(--color-surface-1));
-  border: 1px solid rgb(var(--color-surface-4));
+  background: var(--material-popover-bg);
+  backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--material-popover-blur)) saturate(1.4);
+  border: 1px solid var(--color-separator);
+  box-shadow: var(--shadow-2);
 }
 
 /* Highlights, scoped to the editor. Boosted well past the shared
@@ -74,7 +79,7 @@
 .pm-wikilink:hover { background-color: rgb(var(--link-wikilink) / 0.2); }
 
 .pm-verse-ref, .pm-lxx-ref, .pm-lexicon-ref {
-  border-radius: 3px;
+  border-radius: 4px;
   transition: background-color 0.12s ease;
 }
 .pm-verse-ref:hover, .pm-lxx-ref:hover, .pm-lexicon-ref:hover { background-color: rgb(var(--color-text-primary) / 0.06); }
@@ -129,7 +134,7 @@
    lexicon block refs, heading-collapse arrows all already get one). A plain background tint,
    not a border/shadow change, to stay quiet/consistent with those. */
 .berean-pm-editor .ProseMirror .pm-callout-header:hover {
-  background-color: rgb(0 0 0 / 0.04);
+  background-color: rgb(var(--color-text-primary) / 0.04);
   border-radius: 4px;
   margin: -0.1em -0.3em;
   padding: 0.1em 0.3em;
@@ -243,8 +248,8 @@
   transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
 }
 .berean-pm-editor .ProseMirror .pm-image-delete-btn:hover {
-  background: rgb(220 38 38);
-  border-color: rgb(220 38 38);
+  background: rgb(var(--color-destructive));
+  border-color: rgb(var(--color-destructive));
   color: white;
 }
 .berean-pm-editor .ProseMirror .pm-image-wrap:hover .pm-image-delete-btn,
@@ -349,9 +354,8 @@
    the ref/definition sub-highlighting within either rendering path. */
 .pm-verse-block, .pm-lexicon-block {
   display: block;
-  border: 1px solid rgb(var(--color-accent) / 0.35);
   border-left: 3px solid rgb(var(--color-accent) / 0.6);
-  background-color: rgb(var(--color-accent) / 0.07);
+  background-color: rgb(var(--color-accent) / 0.06);
   padding: 0.55em 0.8em;
   /* Fluid-feel polish #2.2 — softens re-verification flicker on an ALREADY-boxed block
      (e.g. editing text inside it invalidates the verse-text cache and re-triggers a pending
@@ -362,9 +366,8 @@
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .pm-lexicon-block {
-  border-color: rgb(var(--link-lexicon-ref) / 0.35);
   border-left-color: rgb(var(--link-lexicon-ref) / 0.6);
-  background-color: rgb(var(--link-lexicon-ref) / 0.07);
+  background-color: rgb(var(--link-lexicon-ref) / 0.06);
 }
 /* Multi-paragraph blocks (the normal way of typing a multi-line verse
    passage — one Enter per line, each its own paragraph, see
@@ -389,7 +392,7 @@
 .pm-verse-block-line, .pm-lexicon-block-line {
   border-bottom: 2px solid rgb(var(--color-accent) / 0.4);
   background-color: rgb(var(--color-accent) / 0.08);
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 1px 4px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -402,12 +405,12 @@
    citation than inline emphasis. */
 .pm-verse-block-ref, .pm-lexicon-block-ref {
   display: inline-block;
-  font-weight: 700;
-  font-size: 0.85em;
+  font-weight: 600;
+  font-size: 0.8em;
   color: rgb(var(--color-accent));
-  background-color: rgb(var(--color-accent) / 0.12);
+  background-color: rgb(var(--color-accent) / 0.14);
   border-radius: 4px;
-  padding: 0.05em 0.45em;
+  padding: 0.08em 0.4em;
   margin-bottom: 0.15em;
   cursor: pointer;
   transition: background-color 0.12s ease;
@@ -594,7 +597,6 @@
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgb(var(--color-surface-4));
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
 }
 .berean-pm-editor .ProseMirror td,
 .berean-pm-editor .ProseMirror th {
@@ -937,7 +939,7 @@
 }
 .berean-pm-editor .ProseMirror .pm-thread-title:hover,
 .berean-pm-editor .ProseMirror .pm-thread-title:focus {
-  background: rgb(0 0 0 / 0.04);
+  background: rgb(var(--color-text-primary) / 0.04);
 }
 .pm-thread-title-placeholder {
   font-weight: 400;

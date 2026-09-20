@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { TextField, Button } from '@/components/ui'
 
 export default function HistorySection() {
   const tabNavMaxStack    = useAppStore((s) => s.tabNavMaxStack)
@@ -16,42 +17,45 @@ export default function HistorySection() {
     <div className="space-y-5">
       {/* Tab navigation history */}
       <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">Tab navigation (back / forward)</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">How many pages to remember per tab for the back / forward buttons.</p>
+        <p className="text-subhead font-medium text-text-primary mb-1">Tab navigation (back / forward)</p>
+        <p className="s-desc text-caption text-text-muted mb-3">How many pages to remember per tab for the back / forward buttons.</p>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))]">
+          <label className="flex items-center gap-2 text-caption text-text-secondary">
             Max entries per tab
-            <input
+            <TextField
               type="number" min={10} max={1000} step={10}
               value={tabNavMaxStack}
               onChange={(e) => setTabNavMaxStack(parseInt(e.target.value) || 100)}
-              className="w-20 text-center px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs outline-none"
+              className="text-center"
+              wrapperClassName="w-20"
             />
           </label>
-          <span className="text-xs text-[rgb(var(--color-text-muted))]">{stackCount} total entries stored</span>
+          <span className="text-caption text-text-muted">{stackCount} total entries stored</span>
         </div>
         <div className="mt-3">
-          <button
+          <Button
+            variant="destructive"
+            size="sm"
+            icon={Trash2}
             onClick={() => { clearAllTabNavStacks(); setCleared(true); setTimeout(() => setCleared(false), 2000) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
           >
-            <Trash2 size={12} />
             {cleared ? 'Cleared ✓' : 'Clear all tab nav history'}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* App history */}
       <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">App history log</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Maximum number of entries kept in the history sidebar (older entries are pruned automatically).</p>
-        <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))]">
+        <p className="text-subhead font-medium text-text-primary mb-1">App history log</p>
+        <p className="s-desc text-caption text-text-muted mb-3">Maximum number of entries kept in the history sidebar (older entries are pruned automatically).</p>
+        <label className="flex items-center gap-2 text-caption text-text-secondary">
           Max entries
-          <input
+          <TextField
             type="number" min={50} max={10000} step={50}
             value={historyMaxEntries}
             onChange={(e) => setHistoryMaxEntries(parseInt(e.target.value) || 500)}
-            className="w-24 text-center px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs outline-none"
+            className="text-center"
+            wrapperClassName="w-24"
           />
         </label>
       </div>

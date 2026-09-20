@@ -1,10 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
+import { BookMarked, X, ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
@@ -18,6 +16,8 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
+import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext, OverflowGroup, OverflowSection } from '@/components/ui'
+import { LexiconEntryHeader, OccurrenceRow as OccurrenceRowUI, DerivedTermRow } from './parts'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
 type RelatedWord = { strongsNum: string; lemma: string; transliteration: string; gloss: string }
@@ -145,24 +145,13 @@ function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; match
           ? (
             <mark
               key={i}
-              className="berean-find-mark bg-yellow-400/40 text-[rgb(var(--color-text-primary))] rounded-sm not-italic font-medium"
+              className="berean-find-mark bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip not-italic font-medium"
             >
               {token}
             </mark>
           )
           : <span key={i}>{token}</span>
       })}
-    </span>
-  )
-}
-
-function LangBadge({ num }: { num: string }) {
-  const isHebrew = num.startsWith('H')
-  return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-      isHebrew ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'
-    }`}>
-      {isHebrew ? 'Hebrew' : 'Greek'}
     </span>
   )
 }
@@ -179,7 +168,7 @@ function BdbNotesText({ text }: { text: string }) {
             <span
               key={i}
               title={t.raw}
-              className="italic text-[rgb(var(--color-accent))] opacity-80"
+              className="italic text-accent opacity-80"
             >{t.text}</span>
           )
         }
@@ -189,9 +178,9 @@ function BdbNotesText({ text }: { text: string }) {
               key={i}
               dir="ltr"
               title={`${t.text} occurrences in the Hebrew Bible`}
-              className="text-[rgb(var(--color-text-muted))] opacity-70"
+              className="text-meta"
             >
-              {t.text}<span className="text-[0.72em] opacity-60">&nbsp;occ.</span>
+              {t.text}<span className="text-micro">&nbsp;occ.</span>
             </span>
           )
         }
@@ -233,14 +222,17 @@ export function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: 
         }
         if (prefixed) {
           return (
-            <button
+            <span
               key={i}
+              role="link"
+              tabIndex={0}
               onClick={(e) => onNav(prefixed!, e.metaKey || e.ctrlKey)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNav(prefixed!, e.metaKey || e.ctrlKey) } }}
               onContextMenu={(e) => onContextMenu?.(e, prefixed!)}
-              className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+              className="font-mono text-accent hover:underline cursor-pointer focus-ring rounded-chip"
             >
               {prefixed}
-            </button>
+            </span>
           )
         }
         return <span key={i}>{findQuery ? applyFindHighlight(part, findQuery) : part}</span>
@@ -310,21 +302,21 @@ function LexiconInfoPopover({ onClose }: { onClose: () => void }) {
   return (
     <div
       ref={ref}
-      className="absolute top-full right-0 mt-1 z-50 w-80 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden"
+      className="material-popover absolute top-full right-0 mt-1 z-popover w-80 rounded-menu overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
-        <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))]">How to read a lexicon entry</span>
-        <button onClick={onClose} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><X size={13} /></button>
+      <div className="px-4 py-3 border-b border-separator flex items-center justify-between">
+        <span className="text-footnote font-semibold text-text-primary">How to read a lexicon entry</span>
+        <IconButton icon={X} label="Close" size={20} onClick={onClose} />
       </div>
       <div className="overflow-y-auto max-h-80">
         {LEXICON_GUIDE.map((g) => (
-          <div key={g.section} className="px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] last:border-0">
+          <div key={g.section} className="px-4 py-2.5 border-b border-separator last:border-0">
             <div className="flex items-baseline gap-2 mb-0.5">
-              <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">{g.section}</span>
-              <code className="text-[9px] text-[rgb(var(--color-text-muted))] font-mono truncate">{g.example}</code>
+              <span className="text-caption font-semibold text-text-primary">{g.section}</span>
+              <code className="text-micro text-text-muted font-mono truncate">{g.example}</code>
             </div>
-            <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">{g.desc}</p>
+            <p className="text-caption text-text-secondary leading-relaxed">{g.desc}</p>
           </div>
         ))}
       </div>
@@ -387,13 +379,9 @@ function EntryView({
   // requiring an explicit "Show all" click to see anything past the first page.
   const [visibleOccCount, setVisibleOccCount] = useState(10)
   const [occSort, setOccSort] = useState<'canon' | 'matches'>('canon')
-  // Single-select book filter — a custom dropdown (not a native <select>), see the
-  // trigger+portal popover below. 'all' = every book.
+  // Single-select book filter — a <Select> dropdown (owns its own open state/positioning).
+  // 'all' = every book.
   const [occBookFilter, setOccBookFilter] = useState<string>('all')
-  const [occBookMenuOpen, setOccBookMenuOpen] = useState(false)
-  const [occBookMenuPos, setOccBookMenuPos] = useState<{ left: number; top: number } | null>(null)
-  const occBookTriggerRef = useRef<HTMLButtonElement>(null)
-  const occBookMenuRef = useRef<HTMLDivElement>(null)
   // Which actual rendered word-form(s) (e.g. H2617 chesed showing as "mercy" in one verse,
   // "kindness" in another) to show occurrences for — empty set = show every form. This is
   // the "which occurrences to show" chip filter; the book filter above is a separate,
@@ -480,18 +468,6 @@ function EntryView({
     return () => el.removeEventListener('scroll', onScroll)
   }, [occurrences.length, scrollRef])
 
-  // Close the book-filter dropdown on an outside click.
-  useEffect(() => {
-    if (!occBookMenuOpen) return
-    function onDown(e: MouseEvent) {
-      if (occBookMenuRef.current?.contains(e.target as Node)) return
-      if (occBookTriggerRef.current?.contains(e.target as Node)) return
-      setOccBookMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [occBookMenuOpen])
-
   useEffect(() => {
     const num = entry.strongsNum
     const isHebrew = num.startsWith('H')
@@ -523,39 +499,43 @@ function EntryView({
       />
       {/* Header — portaled into the shared top bar, not a second local header.
            Back/home navigation is gone: the top bar's own back button now
-           reaches the search view (idx -1) directly via the global nav stack. */}
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
-        {noteBack && onNoteBack && (
-          <button
-            onClick={onNoteBack}
-            title={`Back to "${noteBack.title}"`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[120px] truncate"
-          >
-            <ArrowLeft size={11} className="flex-shrink-0" />
-            <span className="truncate">{noteBack.title}</span>
-          </button>
-        )}
-        <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))] font-mono">{entry.strongsNum}</span>
-        <LangBadge num={entry.strongsNum} />
-        <div className="flex-1" />
-        <button
-          onClick={handleCopy}
-          title="Copy Strong's number and definition"
-          className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-        >
-          {copied ? <CheckIcon size={14} className="text-green-400" /> : <Copy size={14} />}
-        </button>
-        <div className="relative">
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setInfoOpen((v) => !v)}
-            title="How to read a lexicon entry"
-            className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'}`}
-          >
-            <Info size={14} />
-          </button>
-          {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
-        </div>
+           reaches the search view (idx -1) directly via the global nav stack.
+           Two zones: context (entry identity) and actions (grouped controls). */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
+        <LexiconEntryHeader strongsNum={entry.strongsNum} lemma={entry.lemma} />
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        {/* Two tiny controls — an OverflowGroup here mostly future-proofs the row for a narrow
+            floating window rather than folding often in practice. Copy gets `items` metadata
+            (a plain action); Info stays items-less (folds as its own stacked block) since its
+            popover is CSS-`absolute` off the wrapping div, not portaled — the same subtree has
+            to render together wherever OverflowGroup places it for that positioning to hold. */}
+        <OverflowGroup label="More">
+          <OverflowSection items={[
+            { key: 'copy', label: "Copy Strong's number and definition", icon: copied ? CheckIcon : Copy, onSelect: handleCopy },
+          ]}>
+            <IconButton
+              icon={copied ? CheckIcon : Copy}
+              label="Copy Strong's number and definition"
+              size={28}
+              iconClassName={copied ? 'text-success' : undefined}
+              onClick={handleCopy}
+            />
+          </OverflowSection>
+          <OverflowSection>
+            <div className="relative flex-shrink-0">
+              <IconButton
+                icon={Info}
+                label="How to read a lexicon entry"
+                size={28}
+                selected={infoOpen}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setInfoOpen((v) => !v)}
+              />
+              {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
+            </div>
+          </OverflowSection>
+        </OverflowGroup>
       </TabHeaderPortal>
 
       {/* Entry body bumped to ~reading size (READING_REGION_ZOOM) while still tracking app
@@ -572,24 +552,26 @@ function EntryView({
         {/* Word + transliteration */}
         <div className="space-y-1">
           {entry.lemma && (
-            <div className="text-2xl font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}>
+            <div className="text-title1 font-medium text-text-primary font-lemma">
               <span dir="rtl">{findQuery ? applyFindHighlight(entry.lemma, findQuery) : entry.lemma}</span>
             </div>
           )}
           <div className="flex items-baseline gap-2 flex-wrap">
             {entry.transliteration && (
-              <span className="text-base text-[rgb(var(--color-text-secondary))] italic">
+              <span className="text-body text-text-secondary italic">
                 {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
               </span>
             )}
             {entry.pronunciation && (
-              <span className="text-xs text-[rgb(var(--color-text-muted))]">({entry.pronunciation})</span>
+              <span className="text-footnote text-text-muted">({entry.pronunciation})</span>
             )}
           </div>
         </div>
 
         {entry.gloss && (
-          <div className="text-sm text-[rgb(var(--color-text-primary))] font-medium bg-[rgb(var(--color-surface-4))] px-3 py-2 rounded-lg">
+          <div>
+            <SectionLabel className="mb-1.5">Gloss</SectionLabel>
+            <p className="text-body text-text-primary font-medium leading-relaxed">
             {(() => {
               const isUnrepresented = entry.gloss.toLowerCase().includes('unrepresented in english')
               const rawGloss = isUnrepresented
@@ -612,22 +594,20 @@ function EntryView({
                 />
               )
             })()}
+            </p>
           </div>
         )}
 
         {!expanded && (
-          <button
-            onClick={() => setExpanded(true)}
-            className="w-full text-center text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer py-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(true)} className="w-full justify-center">
             Show full entry
-          </button>
+          </Button>
         )}
         {expanded && (<>
         {entry.definition && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Definition</p>
-            <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">
+            <SectionLabel className="mb-1.5">Definition</SectionLabel>
+            <p className="text-body text-text-secondary leading-relaxed">
               <DerivationText text={wr(entry.definition)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} findQuery={findQuery} />
             </p>
           </div>
@@ -635,8 +615,8 @@ function EntryView({
 
         {hasDerivation && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Derivation</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed italic">
+            <SectionLabel className="mb-1.5">Derivation</SectionLabel>
+            <p className="text-footnote text-text-muted leading-relaxed italic">
               <DerivationText text={wr(entry.derivation)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} />
             </p>
           </div>
@@ -644,10 +624,10 @@ function EntryView({
 
         {hasExtended && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">
+            <SectionLabel className="mb-1.5">
               {entry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
-            </p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+            </SectionLabel>
+            <p className="text-footnote text-text-muted leading-relaxed">
               <BdbNotesText text={wr(entry.extendedDef)} />
             </p>
           </div>
@@ -655,22 +635,18 @@ function EntryView({
 
         {related.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-2">Derived terms</p>
+            <SectionLabel className="mb-2">Derived terms</SectionLabel>
             <div className="space-y-1">
               {related.map((r) => (
-                <button
+                <DerivedTermRow
                   key={r.strongsNum}
+                  strongsNum={r.strongsNum}
+                  lemma={r.lemma}
+                  transliteration={r.transliteration}
+                  gloss={r.gloss}
                   onClick={(e) => onNav(r.strongsNum, e.metaKey || e.ctrlKey)}
                   onContextMenu={(e) => strongsCtx.open(e, r.strongsNum)}
-                  className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left transition-colors"
-                >
-                  <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 w-10">{r.strongsNum}</span>
-                  {r.lemma && (
-                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}><span dir="rtl">{r.lemma}</span></span>
-                  )}
-                  <span className="text-xs text-[rgb(var(--color-text-muted))] italic flex-shrink-0">{r.transliteration}</span>
-                  <span className="text-xs text-[rgb(var(--color-text-secondary))] truncate">{r.gloss}</span>
-                </button>
+                />
               ))}
             </div>
           </div>
@@ -678,66 +654,51 @@ function EntryView({
 
         {/* Verse Occurrences */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
-              Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
-            </p>
-            <div className="flex items-center gap-1.5">
-              {occurrences.length > 0 && (
-                <button
-                  onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
-                  title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
-                  className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
-                >
-                  <ScanSearch size={11} />
-                  Open all in a tab
-                </button>
-              )}
-              {occurrences.length > 10 && (
-                <button
-                  onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
-                >
-                  {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
-                </button>
-              )}
-            </div>
-          </div>
+          <SectionLabel className="mb-2">
+            Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
+          </SectionLabel>
 
-          {/* Sort + book filter (dropdown) + word-form filter (chips). Occurrences previously
+          {/* Sort + book filter (dropdown) + word-form filter (chips) + the two occurrence
+              actions, all in one control cluster above the list (§52). Occurrences previously
               had no way to narrow a long list down to one book, bring the most-repeated
               verses to the top, or isolate which actual English rendering of this word to
               look at (the same Strong's number often renders as several different English
               words — e.g. H2617 chesed as "mercy" in one verse and "kindness" in another).
               Book stays single-select via a custom dropdown (not a native <select> — the app
               never uses OS-chrome controls); word-form is the multi-select chip row, since
-              several renderings can be shown together. */}
-          {!occurrencesLoading && occurrences.length > 5 && (() => {
-            const bookCounts = new Map<string, number>()
-            for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
-            const bookOptions = Array.from(bookCounts.entries())
-              .sort((a, b) => b[1] - a[1])
-              .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
-            const hasMultipleBooks = bookOptions.length > 1
-            const selectedBookLabel = occBookFilter === 'all'
-              ? `All books (${occurrences.length})`
-              : bookOptions.find((b) => b.id === occBookFilter)?.name ?? occBookFilter
+              several renderings can be shown together. The sort/book picker and word-form row
+              only need occurrences.length > 5 (a handful of occurrences needs no narrowing) —
+              but "Open all in a tab" / "Show all N" have their own, looser gates, so the
+              whole cluster still renders whenever there's at least one occurrence to act on. */}
+          {!occurrencesLoading && occurrences.length > 0 && (() => {
+            let bookOptions: { id: string; count: number; name: string }[] = []
+            let hasMultipleBooks = false
+            let wordOptions: { key: string; display: string; count: number }[] = []
+            let hasMultipleWordForms = false
+            if (occurrences.length > 5) {
+              const bookCounts = new Map<string, number>()
+              for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
+              bookOptions = Array.from(bookCounts.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
+              hasMultipleBooks = bookOptions.length > 1
 
-            // Word-form chips: which actual word(s) this Strong's number was rendered as,
-            // in the (word-replacer-applied) occurrence text, at the matched word index(es).
-            const wordCounts = new Map<string, { display: string; count: number }>()
-            for (const o of occurrences) {
-              for (const w of extractMatchedWords(o)) {
-                const key = w.toLowerCase()
-                const existing = wordCounts.get(key)
-                if (existing) existing.count++
-                else wordCounts.set(key, { display: w, count: 1 })
+              // Word-form chips: which actual word(s) this Strong's number was rendered as,
+              // in the (word-replacer-applied) occurrence text, at the matched word index(es).
+              const wordCounts = new Map<string, { display: string; count: number }>()
+              for (const o of occurrences) {
+                for (const w of extractMatchedWords(o)) {
+                  const key = w.toLowerCase()
+                  const existing = wordCounts.get(key)
+                  if (existing) existing.count++
+                  else wordCounts.set(key, { display: w, count: 1 })
+                }
               }
+              wordOptions = Array.from(wordCounts.entries())
+                .sort((a, b) => b[1].count - a[1].count)
+                .map(([key, v]) => ({ key, ...v }))
+              hasMultipleWordForms = wordOptions.length > 1
             }
-            const wordOptions = Array.from(wordCounts.entries())
-              .sort((a, b) => b[1].count - a[1].count)
-              .map(([key, v]) => ({ key, ...v }))
-            const hasMultipleWordForms = wordOptions.length > 1
             function toggleWord(key: string) {
               setOccWordFilter((prev) => {
                 const next = new Set(prev)
@@ -749,78 +710,59 @@ function EntryView({
 
             return (
               <div className="mb-2 space-y-1.5">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
-                    {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
-                      <button
-                        key={m}
-                        onClick={() => setOccSort(m)}
-                        className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  {hasMultipleBooks && (
-                    <button
-                      ref={occBookTriggerRef}
-                      onClick={() => {
-                        if (!occBookMenuOpen) {
-                          const r = occBookTriggerRef.current?.getBoundingClientRect()
-                          if (r) setOccBookMenuPos({ left: r.left, top: r.bottom + 4 })
-                        }
-                        setOccBookMenuOpen((v) => !v)
-                      }}
-                      className="flex items-center gap-1 text-[9.5px] px-2 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[140px]"
-                    >
-                      <span className="truncate">{selectedBookLabel}</span>
-                      <ChevronDown size={10} className={`flex-shrink-0 transition-transform ${occBookMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
+                <Toolbar size="sm" edge="none" material="none" className="px-0 h-auto flex-wrap gap-1.5">
+                  {occurrences.length > 5 && (
+                    <SegmentedControl
+                      size="sm"
+                      value={occSort}
+                      onChange={setOccSort}
+                      aria-label="Sort occurrences"
+                      options={[
+                        { value: 'canon', label: 'Canon order' },
+                        { value: 'matches', label: 'Most matches' },
+                      ]}
+                    />
                   )}
-                  {occBookMenuOpen && occBookMenuPos && createPortal(
-                    <div
-                      ref={occBookMenuRef}
-                      style={{ position: 'fixed', left: occBookMenuPos.left, top: occBookMenuPos.top, zIndex: 9999 }}
-                      className="min-w-[160px] max-h-64 overflow-y-auto rounded-shell context-menu py-1"
-                    >
-                      <button
-                        onClick={() => { setOccBookFilter('all'); setOccBookMenuOpen(false) }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                      >
-                        <span className="flex-1">All books ({occurrences.length})</span>
-                        {occBookFilter === 'all' && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-                      </button>
-                      {bookOptions.map((b) => (
-                        <button
-                          key={b.id}
-                          onClick={() => { setOccBookFilter(b.id); setOccBookMenuOpen(false) }}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-                        >
-                          <span className="flex-1 truncate">{b.name} ({b.count})</span>
-                          {occBookFilter === b.id && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-                        </button>
-                      ))}
-                    </div>,
-                    document.body
+                  {occurrences.length > 5 && hasMultipleBooks && (
+                    <Select
+                      variant="ghost"
+                      size="sm"
+                      value={occBookFilter}
+                      onChange={setOccBookFilter}
+                      aria-label="Filter by book"
+                      className="max-w-[140px]"
+                      options={[
+                        { value: 'all', label: `All books (${occurrences.length})` },
+                        ...bookOptions.map((b) => ({ value: b.id, label: `${b.name} (${b.count})` })),
+                      ]}
+                    />
                   )}
-                </div>
-                {hasMultipleWordForms && (
+                  <div className="flex-1" />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={ExternalLink}
+                    onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
+                    tooltip={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
+                  >
+                    Open all in a tab
+                  </Button>
+                  {occurrences.length > 10 && (
+                    <Button variant="ghost" size="sm" onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}>
+                      {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
+                    </Button>
+                  )}
+                </Toolbar>
+                {occurrences.length > 5 && hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide mr-0.5">Shown as:</span>
-                    <button
-                      onClick={() => setOccWordFilter(new Set())}
-                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.size === 0 ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
+                    <SectionLabel className="mr-0.5">Shown as:</SectionLabel>
+                    <Chip size="sm" selected={occWordFilter.size === 0} onClick={() => setOccWordFilter(new Set())}>
                       All
-                    </button>
+                    </Chip>
                     {wordOptions.map((w) => (
-                      <button
-                        key={w.key}
-                        onClick={() => toggleWord(w.key)}
-                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.has(w.key) ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                      >
-                        {w.display} ({w.count})
-                      </button>
+                      <Chip key={w.key} size="sm" selected={occWordFilter.has(w.key)} count={w.count} onClick={() => toggleWord(w.key)}>
+                        {w.display}
+                      </Chip>
                     ))}
                   </div>
                 )}
@@ -829,10 +771,10 @@ function EntryView({
           })()}
 
           {occurrencesLoading && (
-            <p className="text-xs text-[rgb(var(--color-text-muted))] text-center py-2">Loading…</p>
+            <p className="text-footnote text-text-muted text-center py-2">Loading…</p>
           )}
           {!occurrencesLoading && occurrences.length === 0 && (
-            <p className="text-xs text-[rgb(var(--color-text-muted))]">No occurrence data available.</p>
+            <p className="text-footnote text-text-muted">No occurrence data available.</p>
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
             let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
@@ -843,7 +785,7 @@ function EntryView({
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
             }
             if (visible.length === 0) {
-              return <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">No occurrences match the current filters.</p>
+              return <p className="text-footnote text-text-muted py-2">No occurrences match the current filters.</p>
             }
             return (
             <div className="space-y-1">
@@ -852,34 +794,21 @@ function EntryView({
                 const refLabel = `${bk} ${occ.chapter}:${occ.verse_num}`
                 const multipleMatches = (occ.matchWordIndices?.length ?? 0) > 1
                 return (
-                  <button
+                  <OccurrenceRowUI
                     key={i}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
                     onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: wr(occ.text ?? '') })}
-                    className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
-                  >
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 flex-shrink-0 group-hover:bg-[rgb(var(--color-accent))]/18">
-                        {refLabel}
-                      </span>
-                      {occ.text_id === 'lxx' && (
-                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 rounded">
-                          LXX
-                        </span>
-                      )}
-                      {multipleMatches && (
-                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 rounded">
-                          ×{occ.matchWordIndices?.length}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed mt-1">
-                      {occ.text
+                    refLabel={refLabel}
+                    badges={<>
+                      {occ.text_id === 'lxx' && <RefChip variant="neutral" size="xs">LXX</RefChip>}
+                      {multipleMatches && <RefChip variant="neutral" size="xs">×{occ.matchWordIndices?.length}</RefChip>}
+                    </>}
+                    text={
+                      occ.text
                         ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
-                        : <span className="italic text-[rgb(var(--color-text-muted))]">—</span>
-                      }
-                    </p>
-                  </button>
+                        : <span className="italic text-text-muted">—</span>
+                    }
+                  />
                 )
               })}
             </div>
@@ -890,36 +819,42 @@ function EntryView({
             toggle above has been used) — redundant with that toggle at that point, since
             there's nothing left this button would be collapsing away from. */}
         {!(occurrences.length <= 10 || showAllOccurrences) && (
-          <button
-            onClick={() => setExpanded(false)}
-            className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(false)} className="w-full justify-center">
             Show less
-          </button>
+          </Button>
         )}
         </>)}
       </div>
       </div>
 
-      {/* Prev / Next navigation */}
-      <div className="flex items-center border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
-        <button
-          onClick={() => adjacent.prev && onNav(adjacent.prev, false)}
-          disabled={!adjacent.prev}
-          className="flex-1 flex items-center gap-1 px-4 py-2.5 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-        >
-          <ChevronLeft size={14} />
-          {adjacent.prev}
-        </button>
-        <div className="w-px h-5 bg-[rgb(var(--color-surface-4))]" />
-        <button
-          onClick={() => adjacent.next && onNav(adjacent.next, false)}
-          disabled={!adjacent.next}
-          className="flex-1 flex items-center justify-end gap-1 px-4 py-2.5 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-        >
-          {adjacent.next}
-          <ChevronRight size={14} />
-        </button>
+      {/* Prev / Next navigation — flat footer, not a ControlGroup card: wrapped only in the
+          context so Button reads `inGroup` and renders its own flat `rounded-none`, no
+          !important override needed for a footer that's already flush to the panel edges. */}
+      <div className="flex items-center border-t border-separator flex-shrink-0">
+        <ControlGroupContext.Provider value={true}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ChevronLeft}
+            onClick={() => adjacent.prev && onNav(adjacent.prev, false)}
+            disabled={!adjacent.prev}
+            className="flex-1 justify-start px-4 py-2.5 h-auto"
+          >
+            {adjacent.prev}
+          </Button>
+          <Divider orientation="vertical" />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ChevronRight}
+            iconTrailing
+            onClick={() => adjacent.next && onNav(adjacent.next, false)}
+            disabled={!adjacent.next}
+            className="flex-1 justify-end px-4 py-2.5 h-auto"
+          >
+            {adjacent.next}
+          </Button>
+        </ControlGroupContext.Provider>
       </div>
     </div>
   )
@@ -1057,45 +992,57 @@ function SearchView({
         onOpen={() => { if (ctxEntry) { onSelect(ctxEntry); searchCtx.close() } }}
         onOpenNewTab={() => { if (ctxEntry) { onOpenNewTab?.(ctxEntry); searchCtx.close() } }}
       />
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="relative">
-        <BookMarked size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Lexicon</span>
-        <div className="ml-auto flex items-center gap-1">
-          <HeaderSegmentedToggle
-            value={lang}
-            onChange={setLang}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'H',   label: 'Heb' },
-              { value: 'G',   label: 'Grk' },
-            ]}
-          />
-          <div className="relative ml-1">
-            <button
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setInfoOpen((v) => !v)}
-              title="How to read a lexicon entry"
-              className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              <Info size={13} />
-            </button>
-            {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
-          </div>
-        </div>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
+        <BookMarked size={14} className="text-text-muted flex-shrink-0" />
+        <span className="text-subhead font-semibold text-text-primary">Lexicon</span>
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        <OverflowGroup label="More">
+          <OverflowSection priority="last" items={[
+            { key: 'lang-all', label: 'All languages', checked: lang === 'all', onSelect: () => setLang('all') },
+            { key: 'lang-h',   label: 'Hebrew',        checked: lang === 'H',   onSelect: () => setLang('H') },
+            { key: 'lang-g',   label: 'Greek',          checked: lang === 'G',   onSelect: () => setLang('G') },
+          ]}>
+            <SegmentedControl
+              size="sm"
+              value={lang}
+              onChange={setLang}
+              aria-label="Language"
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'H',   label: 'Heb' },
+                { value: 'G',   label: 'Grk' },
+              ]}
+            />
+          </OverflowSection>
+          <OverflowSection>
+            <div className="relative flex-shrink-0">
+              <IconButton
+                icon={Info}
+                label="How to read a lexicon entry"
+                size={28}
+                selected={infoOpen}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setInfoOpen((v) => !v)}
+              />
+              {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
+            </div>
+          </OverflowSection>
+        </OverflowGroup>
       </TabHeaderPortal>
 
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
-        <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <input ref={inputRef} type="text" value={query}
-          onChange={(e) => handleInput(e.target.value)} onKeyDown={handleKeyDown}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-separator">
+        <SearchField
+          ref={inputRef}
+          size="sm"
+          bare
+          value={query}
+          onValueChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onClear={() => setResults([])}
           placeholder="H7225 · G3056 · beginning..."
-          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none" />
-        {query && (
-          <button onClick={() => { setQuery(''); setResults([]) }}
-            className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-            <X size={13} />
-          </button>
-        )}
+          wrapperClassName="flex-1"
+        />
       </div>
 
       <div
@@ -1107,42 +1054,38 @@ function SearchView({
           scrollSaveTimerRef.current = setTimeout(() => onScrollChange?.(top), 150)
         }}
       >
-        {loading && <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">Searching…</div>}
+        {loading && <EmptyState compact title="Searching…" />}
         {!loading && results.length === 0 && query.trim().length >= 2 && (
-          <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">No results for "{query}"</div>
+          <EmptyState compact title={`No results for "${query}"`} />
         )}
         {!loading && results.length === 0 && query.trim().length < 2 && (
-          <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-            <BookMarked size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-40" />
-            <p className="text-sm text-[rgb(var(--color-text-secondary))]">Search Strong's lexicon</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">Enter a Strong's number (H7225) or keyword</p>
-          </div>
+          <EmptyState
+            icon={BookMarked}
+            title="Search Strong's lexicon"
+            hint="Enter a Strong's number (H7225) or keyword"
+            className="h-full"
+          />
         )}
         {!loading && results.length > 0 && (
-          <div className="divide-y divide-[rgb(var(--color-surface-4))]">
+          <div className="divide-y divide-separator">
             {results.map((entry, i) => (
-              <button key={entry.strongsNum} onClick={() => onSelect(entry)}
+              <ListRow
+                key={entry.strongsNum}
+                selected={i === selectedIdx}
+                onClick={() => onSelect(entry)}
                 onContextMenu={(e) => { setCtxEntry(entry); searchCtx.open(e, entry.strongsNum) }}
-                className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
-                  i === selectedIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))]'
-                }`}>
-                <span className="font-mono text-xs text-[rgb(var(--color-text-muted))] flex-shrink-0 mt-0.5 w-12">{entry.strongsNum}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5 mb-0.5">
-                    {entry.lemma && (
-                      <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}><span dir="rtl">{entry.lemma}</span></span>
-                    )}
-                    {entry.transliteration && (
-                      <span className="text-xs text-[rgb(var(--color-text-muted))] italic">
-                        {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-[rgb(var(--color-text-secondary))] truncate">
-                    {(() => { const t = wr(entry.gloss); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
-                  </p>
-                </div>
-              </button>
+                flush
+                leading={<span className="font-mono text-footnote text-text-muted w-12">{entry.strongsNum}</span>}
+                title={<span className="flex items-baseline gap-1.5">
+                  {entry.lemma && <span className="font-lemma" dir="rtl">{entry.lemma}</span>}
+                  {entry.transliteration && (
+                    <span className="italic text-text-muted font-normal">
+                      {findQuery ? applyFindHighlight(entry.transliteration, findQuery) : entry.transliteration}
+                    </span>
+                  )}
+                </span>}
+                subtitle={(() => { const t = wr(entry.gloss); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
+              />
             ))}
           </div>
         )}

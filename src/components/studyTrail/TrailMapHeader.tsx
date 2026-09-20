@@ -1,4 +1,5 @@
 import { GripVertical, ChevronDown } from 'lucide-react'
+import { IconButton, TextField } from '@/components/ui'
 import type { TrailHeaderPos } from './trailWindowPrefs'
 
 // Deliberately NOT the shared CARET_COLLAPSED_ROTATE from trailStyle.ts — that constant is
@@ -36,48 +37,39 @@ export default function TrailMapHeader({
   statsLine: React.ReactNode
 }) {
   return (
-    <div style={{
-      position: 'absolute', zIndex: 6, width: 'fit-content', maxWidth: collapsed ? 180 : 260,
-      top: pos ? pos.y : 0,
-      ...(pos ? { left: pos.x } : side === 'left' ? { left: 0 } : { right: 0 }),
-      display: 'flex', flexDirection: 'column', gap: 4,
-      background: 'rgb(var(--color-surface-1) / 0.7)',
-      backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 10,
-      boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '7px 9px',
-    }}>
+    <div
+      className="material-popover rounded-menu"
+      style={{
+        position: 'absolute', zIndex: 'var(--z-raised)' as unknown as number, width: 'fit-content', maxWidth: collapsed ? 180 : 260,
+        top: pos ? pos.y : 0,
+        ...(pos ? { left: pos.x } : side === 'left' ? { left: 0 } : { right: 0 }),
+        display: 'flex', flexDirection: 'column', gap: 4, padding: '7px 9px',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <GripVertical
           size={13}
           onMouseDown={onDragStart}
-          style={{ flexShrink: 0, cursor: 'grab', color: 'rgb(var(--color-text-muted))', opacity: 0.6 }}
+          className="flex-shrink-0 text-text-quaternary"
+          style={{ cursor: 'grab' }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>{title}</div>
-        <button
+        <IconButton
+          icon={ChevronDown} label={collapsed ? 'Expand' : 'Collapse'} size={20} tooltip={false}
           onClick={onToggleCollapsed}
-          title={collapsed ? 'Expand' : 'Collapse'}
-          style={{
-            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 18, height: 18, borderRadius: 5, border: 'none', cursor: 'pointer',
-            background: 'transparent', color: 'rgb(var(--color-text-muted))',
-          }}
-        >
-          <ChevronDown size={13} style={{ transform: collapsed ? HEADER_CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms' }} />
-        </button>
+          style={{ transform: collapsed ? HEADER_CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms' }}
+        />
       </div>
       {!collapsed && (
         <>
-          <input
+          <TextField
             value={filterValue}
             onChange={(e) => onFilterChange(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
             placeholder="Filter timeline…"
-            style={{
-              width: '100%', fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
-              border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-            }}
+            size="sm"
           />
-          <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))' }}>{statsLine}</div>
+          <div className="text-caption text-text-secondary">{statsLine}</div>
         </>
       )}
     </div>

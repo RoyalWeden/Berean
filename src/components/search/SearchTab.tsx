@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
+import { Search, BookOpen, ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { recordNavigation } from '@/lib/verseNavigation'
@@ -8,6 +8,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
+import { SearchField, Select, SegmentedControl, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader, OverflowGroup, OverflowSection } from '@/components/ui'
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
@@ -96,7 +97,7 @@ function highlight(text: string, query: string): React.ReactNode[] {
   const parts = text.split(new RegExp(`(${combined})`, 'gi'))
   return parts.map((p, i) =>
     new RegExp(`^(?:${combined})$`, 'i').test(p)
-      ? <mark key={i} className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{p}</mark>
+      ? <mark key={i} className="bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip">{p}</mark>
       : p
   )
 }
@@ -126,12 +127,10 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const [results, setResults] = useState<RawResult[]>([])
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(false)
-  const [translationOpen, setTranslationOpen] = useState(false)
   const [testamentFilter, setTestamentFilter] = useState<TestamentFilter>('all')
   const [sortMode, setSortMode] = useState<SortMode>('relevance')
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const translationRef = useRef<HTMLDivElement>(null)
   const resultsScrollRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -162,18 +161,6 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       .then((raw) => setBooks(raw.map((b) => ({ ...b, name: normalizeBookName(b.name) }))))
       .catch(() => {})
   }, [textId])
-
-  // Close translation dropdown on outside click
-  useEffect(() => {
-    if (!translationOpen) return
-    function onDown(e: MouseEvent) {
-      if (translationRef.current && !translationRef.current.contains(e.target as Node)) {
-        setTranslationOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [translationOpen])
 
   // Pick up pending search query (e.g. from FloatingSearch)
   useEffect(() => {
@@ -280,7 +267,6 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   function selectTranslation(tid: string) {
     setTextId(tid)
     setResults([])
-    setTranslationOpen(false)
     if (query.trim().length >= 2) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => runSearch(query, tid), 100)
@@ -382,113 +368,63 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const showTestamentFilter = testamentFilter !== 'all' || true  // always show
 
   return (
-    <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
+    <div className="flex flex-col h-full bg-surface-3">
       {/* Search input row */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
-        <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        <input
+        <SearchField
           ref={inputRef}
-          type="text"
+          size="md"
           value={query}
-          onChange={(e) => handleInput(e.target.value)}
+          onValueChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder="Search scripture…"
-          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+          wrapperClassName="flex-1 min-w-0 w-[min(420px,40vw)]"
           autoFocus
         />
-        {/* Translation selector dropdown */}
-        <div ref={translationRef} className="relative flex-shrink-0">
-          <button
-            onClick={() => setTranslationOpen((v) => !v)}
-            className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-shell transition-colors cursor-pointer ${
-              translationOpen
-                ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
-            {currentLabel}
-            <ChevronDown size={10} className={`transition-transform ${translationOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {translationOpen && (
-            <div className="glass-panel absolute top-full right-0 mt-1 z-50 min-w-[180px] rounded-shell overflow-hidden py-1">
-              {/* All texts option */}
-              <button
-                onClick={() => selectTranslation('all')}
-                className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                  textId === 'all'
-                    ? 'text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                }`}
-              >
-                <Check size={11} className={textId === 'all' ? 'opacity-100' : 'opacity-0'} />
-                <span className="text-xs font-medium">All texts</span>
-              </button>
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
-              {/* Bible translations */}
-              <div className="px-3 py-0.5">
-                <span className="text-[9px] uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Bible</span>
-              </div>
-              {SEARCH_TRANSLATIONS.filter((t) => t.category === 'bible').map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => selectTranslation(t.id)}
-                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                    textId === t.id
-                      ? 'text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                  }`}
-                >
-                  <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs">{t.label}</span>
-                </button>
-              ))}
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
-              {/* Pseudepigrapha */}
-              <div className="px-3 py-0.5">
-                <span className="text-[9px] uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Pseudepigrapha</span>
-              </div>
-              {SEARCH_TRANSLATIONS.filter((t) => t.category === 'pseudo').map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => selectTranslation(t.id)}
-                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                    textId === t.id
-                      ? 'text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                  }`}
-                >
-                  <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs">{t.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        {/* Translation selector — the sole actions-zone control (§17's "translation" never-fold
+            item); the testament/sort filter chips live in their own Toolbar row below the header
+            (outside the TabHeaderPortal zones), not folded here. Wrapped in an OverflowGroup
+            anyway for architectural consistency with the other tabs' actions zones, though with
+            a single small control it will essentially never fold in practice. */}
+        <OverflowGroup label="More">
+          <OverflowSection priority="last">
+            <Select
+              value={textId}
+              onChange={selectTranslation}
+              variant="ghost"
+              size="sm"
+              align="right"
+              aria-label="Translation"
+              className="flex-shrink-0"
+              options={[
+                { value: 'all', label: 'All texts' },
+                ...SEARCH_TRANSLATIONS.map((t, i, arr) => ({
+                  value: t.id,
+                  label: t.label,
+                  group: i === 0 || arr[i - 1].category !== t.category
+                    ? (t.category === 'bible' ? 'Bible' : 'Pseudepigrapha')
+                    : undefined,
+                })),
+              ]}
+            />
+          </OverflowSection>
+        </OverflowGroup>
       </TabHeaderPortal>
 
       {/* Filter + sort bar */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 flex-wrap">
+      <Toolbar size="sm" className="flex-wrap h-auto py-1.5">
         {(['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as TestamentFilter[]).map((f) => (
-          <button
-            key={f}
-            onClick={() => setTestamentFilter(f)}
-            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
-              testamentFilter === f
-                ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
+          <Chip key={f} selected={testamentFilter === f} onClick={() => setTestamentFilter(f)}>
             {f === 'all' ? 'All sections' : f}
-          </button>
+          </Chip>
         ))}
         <div className="flex-1 min-w-0" />
-        <button
-          onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
-          className="text-[10px] px-2 py-0.5 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer flex-shrink-0"
-        >
+        <Chip onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}>
           {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
-        </button>
-      </div>
+        </Chip>
+      </Toolbar>
 
       {/* Results */}
       <div
@@ -503,19 +439,20 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         }}
       >
         {loading && (
-          <div className="px-4 py-6 text-center text-sm text-[rgb(var(--color-text-muted))] animate-pulse">Searching…</div>
+          <EmptyState compact title="Searching…" className="animate-pulse" />
         )}
 
         {!loading && query.trim().length >= 2 && results.length === 0 && (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-[rgb(var(--color-text-secondary))]">No results for "{query}"</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">Try a different phrase or translation</p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title={`No results for "${query}"`}
+            hint="Try a different phrase or translation"
+          />
         )}
 
         {!loading && filteredAndSorted.length > 0 && (
           <div>
-            <p className="px-4 py-1.5 text-[10px] text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] sticky top-0 z-20">
+            <p className="material-bar px-4 py-1.5 text-caption2 text-text-muted border-b border-separator sticky top-0 z-raised">
               {results.length >= 100 && textId !== 'all' ? '100+ results' : `${totalFilteredCount} result${totalFilteredCount !== 1 ? 's' : ''}`}
               {testamentFilter !== 'all' && ` in ${testamentFilter}`}
               {textId === 'all' && ` across all texts`}
@@ -524,35 +461,46 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
 
             {filteredAndSorted.map((group) => (
               <div key={`${group.textId}::${group.bookId}`}>
-                {/* Book / text header */}
-                <div className="flex items-center gap-1.5 px-4 py-1.5 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] sticky top-[29px] z-10">
-                  <BookOpen size={11} className="text-[rgb(var(--color-text-muted))]" />
-                  <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">{group.bookName}</span>
-                  <span className="text-[10px] text-[rgb(var(--color-text-muted))] ml-1">{group.results.length}</span>
-                  <div className="flex-1" />
-                  {textId === 'all' && (
-                    <span className="text-[9px] text-[rgb(var(--color-accent))] font-medium uppercase tracking-wide">{group.textLabel}</span>
-                  )}
-                  {group.testament && textId !== 'all' && (
-                    <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">{group.testament}</span>
-                  )}
+                {/* Book / text header — outer bar owns the sticky/material/padding chrome;
+                    SectionHeader renders `flush` (its own minimal padding) inside it, rather
+                    than fighting its default padding with an `!important` override. */}
+                <div className="material-bar border-b border-separator sticky top-[29px] z-raised px-4 pt-1.5">
+                  <SectionHeader
+                    flush
+                    count={group.results.length}
+                    trailing={<>
+                      {textId === 'all' && (
+                        <span className="text-meta text-accent">{group.textLabel}</span>
+                      )}
+                      {group.testament && textId !== 'all' && (
+                        <span className="text-meta">{group.testament}</span>
+                      )}
+                    </>}
+                  >
+                    <span className="inline-flex items-center gap-1.5 normal-case tracking-normal text-footnote font-semibold text-text-secondary">
+                      <BookOpen size={11} className="text-text-muted" />
+                      {group.bookName}
+                    </span>
+                  </SectionHeader>
                 </div>
 
                 {/* Verse results */}
                 {group.results.map((r) => (
-                  <button
+                  <ListRow
                     key={`${r._textId ?? textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
                     onClick={() => navigateToVerse(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
-                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
-                  >
-                    <span className="text-xs font-mono text-[rgb(var(--color-text-muted))] w-14 flex-shrink-0 pt-0.5">
-                      {r.chapter}:{r.verse_num}
-                    </span>
-                    <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] leading-relaxed">
-                      {highlight(r.text, query)}
-                    </span>
-                    <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
+                    flush
+                    className="border-b border-separator"
+                    buttonClassName="items-start"
+                    leading={
+                      <RefChip size="md" variant="neutral" mono={false} className="w-16 justify-center">
+                        {r.chapter}:{r.verse_num}
+                      </RefChip>
+                    }
+                    title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(r.text, query)}</span>}
+                    titleClamp={3}
+                    trailing={<ChevronRight size={11} className="text-text-muted" />}
+                  />
                 ))}
               </div>
             ))}
@@ -560,13 +508,11 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         )}
 
         {!loading && !query.trim() && (
-          <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
-            <Search size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1">
-              {textId === 'all' ? 'Searching all texts' : `Searching ${currentLabel}`}
-            </p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Type to search · prefix with "lxx:", "enoch:", etc. to narrow</p>
-          </div>
+          <EmptyState
+            icon={Search}
+            title={textId === 'all' ? 'Searching all texts' : `Searching ${currentLabel}`}
+            hint={'Type to search · prefix with "lxx:", "enoch:", etc. to narrow'}
+          />
         )}
       </div>
     </div>

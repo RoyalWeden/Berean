@@ -1,15 +1,14 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
 import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel, OverflowGroup, OverflowSection } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
-import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import NotesList from './NotesList'
 import NoteEditor from './pm/NoteEditorPM'
 import PrintPreviewModal from './PrintPreviewModal'
@@ -448,6 +447,36 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // that a single click opens the editor as before (see homePanelVisible).
   const [previewNoteId, setPreviewNoteId] = useState<string | null>(null)
   const [previewFolderId, setPreviewFolderId] = useState<string | null>(null)
+
+  // ── Per-tab home-view isolation ──────────────────────────────────────────
+  // This panel is one shared instance for every Notes tab. On a tab switch, snapshot the
+  // OUTGOING tab's home UI state into its NoteTabState.homeView (the local state still holds
+  // the outgoing tab's values at that moment) and restore the INCOMING tab's snapshot — or the
+  // defaults for a brand-new tab — so tabs never bleed search/filters/preview into each other.
+  // useLayoutEffect so the swap lands before paint (no flash of the other tab's list).
+  const homeSnapshotRef = useRef({ noteSearch, noteSearchWordMode, noteFilter, statusFilter, noteSort, viewMode, expandAll, previewNoteId, previewFolderId })
+  homeSnapshotRef.current = { noteSearch, noteSearchWordMode, noteFilter, statusFilter, noteSort, viewMode, expandAll, previewNoteId, previewFolderId }
+  const prevHomeTabRef = useRef<string | null>(notesTabId)
+  useLayoutEffect(() => {
+    const prev = prevHomeTabRef.current
+    if (prev === notesTabId) return
+    prevHomeTabRef.current = notesTabId
+    const st = useAppStore.getState()
+    if (prev && st.tabs.notes.some((t) => t.id === prev)) {
+      st.updateTabState('notes', prev, { homeView: { ...homeSnapshotRef.current } })
+    }
+    const next = (st.tabs.notes.find((t) => t.id === notesTabId)?.state as NoteTabState | undefined)?.homeView
+    setNoteSearch(next?.noteSearch ?? '')
+    setNoteSearchWordMode(next?.noteSearchWordMode ?? 'all')
+    setNoteFilter((next?.noteFilter as NoteFilter | undefined) ?? 'all')
+    setStatusFilter((next?.statusFilter as StatusFilter | undefined) ?? 'all')
+    setNoteSort((next?.noteSort as NoteSort | undefined) ?? 'modified')
+    setViewMode(next?.viewMode ?? cachedNotesViewMode ?? 'list')
+    setExpandAll(next?.expandAll ?? false)
+    setPreviewNoteId(next?.previewNoteId ?? null)
+    setPreviewFolderId(next?.previewFolderId ?? null)
+    setSelectMode(false); setSelectedIds([]); setSelectedFolderIds([])
+  }, [notesTabId])
   // Seed from the window width (pane is never wider than the window) so the panel shows on the
   // very first frame for a normal-sized window, before the ResizeObserver's first callback.
   const [homeWrapWidth, setHomeWrapWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -556,13 +585,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   function renderIdiomsExport() {
     if (!notes.some((n) => n.type === 'idiom')) return null
     return (
-      <button
+      <IconButton
+        icon={BookText}
+        label="Export all idioms to a single PDF"
+        size={24}
+        variant="ghost"
         onClick={() => setIdiomsModalOpen(true)}
-        title="Export all idioms to a single PDF"
-        className="flex-shrink-0 p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-      >
-        <BookText size={15} />
-      </button>
+      />
     )
   }
 
@@ -1166,13 +1195,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const parts = (target.verseRef ?? '').split('.')
     const hasRef = parts.length >= 2 && parts[0] && parts[1]
 
+    // Back (⌘[) in the Scripture tab returns to this note — recorded as a cross-tab nav entry.
+    fresh.pushTabNav(scriptureTabId, { type: 'note', title: target.title || 'Untitled', noteId: target.id })
     const stateUpdate: Record<string, unknown> = {
       rightPanelOpen: true,
       rightPanelTab: 'notes',
       rightPanelNoteId: target.id,
       scrollPosition: 0,
-      // Back button in scripture toolbar → returns to this note as a note tab
-      noteBack: { noteId: target.id, title: target.title || 'Untitled' },
+      noteBack: null,
     }
 
     if (hasRef) {
@@ -1204,10 +1234,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const scriptureTabId = fresh.activeTabId['scripture']
     if (!scriptureTabId) return
     const translation = (getTranslationForBook(parsed.bookId) ?? fresh.defaultBibleTranslation).toUpperCase()
+    if (activeNote) fresh.pushTabNav(scriptureTabId, { type: 'note', title: activeNote.title || 'Untitled', noteId: activeNote.id })
     fresh.updateTabState('scripture', scriptureTabId, {
       bookId: parsed.bookId, chapter: parsed.chapter,
       targetVerse: parsed.verse, scrollPosition: 0, translation,
-      noteBack: activeNote ? { noteId: activeNote.id, title: activeNote.title || 'Untitled' } : null,
+      noteBack: null,
     })
     fresh.setActiveSpace('scripture')
   }
@@ -1343,7 +1374,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       ref.forcedTranslation ??
       getTranslationForBook(ref.bookId) ??
       fresh.defaultBibleTranslation
-    const noteBack = activeNote ? { noteId: activeNote.id, title: activeNote.title || 'Untitled' } : null
+    if (activeNote) fresh.pushTabNav(scriptureTabId, { type: 'note', title: activeNote.title || 'Untitled', noteId: activeNote.id })
     fresh.updateTabState('scripture', scriptureTabId, {
       bookId: ref.bookId,
       chapter: ref.chapter,
@@ -1351,7 +1382,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       targetVerse: ref.verse,
       endVerse: ref.endVerse,
       scrollPosition: 0,
-      noteBack,
+      noteBack: null,
       translation: translationOverride.toUpperCase(),
     })
     // Tier 2 — a wikilink/verse-ref inside a note is soft-inferred (the reason is the note's
@@ -1417,7 +1448,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={notesContentRef}
-      className="native-buttons flex flex-col h-full bg-[rgb(var(--color-surface-3))] relative"
+      className="flex flex-col h-full bg-surface-3 relative"
       onMouseDown={() => setActivePanelId('notes')}
     >
       <FindBar
@@ -1439,17 +1470,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 emoji picker (NoteIconPicker) rather than relying on the user knowing to
                 paste one or invoke the OS-level picker — that was the previous approach
                 and read as "there's no picker, it just lets me type". */}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect()
                 iconPicker.openMenu({ x: r.left, y: r.bottom + 4 })
               }}
-              title="Page icon — click to choose an emoji"
-              className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center text-center text-sm rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] outline-none text-[rgb(var(--color-text-primary))] transition-colors"
+              tooltip="Page icon — click to choose an emoji"
+              className="no-drag w-6 h-6 px-0 justify-center"
             >
-              {activeNote.icon || <Plus size={14} className="text-[rgb(var(--color-text-muted))]/50" />}
-            </button>
+              {activeNote.icon || <Plus size={14} className="text-text-muted/50" />}
+            </Button>
             {iconPicker.menu && (
               <NoteIconPicker
                 x={iconPicker.menu.x}
@@ -1477,23 +1509,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     <span
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                       title="Open scripture reference"
-                      className="no-drag text-sm font-medium truncate cursor-pointer text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] transition-colors min-w-0"
+                      className="no-drag text-subhead font-semibold truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
                     >
                       {headerDisplayTitle(activeNote)}
                     </span>
-                    <button
+                    <IconButton
+                      icon={ExternalLink}
+                      label="Open scripture reference"
+                      size={20}
+                      variant="ghost"
+                      className="no-drag"
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
-                      title="Open scripture reference"
-                      className="no-drag flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors"
-                    >
-                      <ExternalLink size={12} />
-                    </button>
+                    />
                     {/* draggable filler so the blank header space moves the window */}
                     <div className="flex-1 self-stretch" aria-hidden="true" />
                   </>
                 ) : (
                   <>
-                    <span className="text-sm font-medium truncate text-[rgb(var(--color-text-primary))] opacity-75 select-none min-w-0">
+                    <span className="text-subhead font-semibold truncate text-text-secondary select-none min-w-0">
                       {headerDisplayTitle(activeNote)}
                     </span>
                     <div className="flex-1 self-stretch" aria-hidden="true" />
@@ -1509,22 +1542,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               <>
                 <span
                   onClick={() => setTitleFocused(true)}
-                  className="no-drag text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))] min-w-0"
+                  className="no-drag text-subhead font-semibold truncate cursor-text text-text-primary min-w-0"
                 >
-                  {activeNote.title || <span className="text-[rgb(var(--color-text-muted))]">Untitled</span>}
+                  {activeNote.title || <span className="text-text-muted">Untitled</span>}
                 </span>
                 <div className="flex-1 self-stretch" aria-hidden="true" />
               </>
             ) : (
-              <input
+              <TextField
                 ref={titleInputRef}
+                bare
                 autoFocus
                 value={activeNote.title ?? ''}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 onKeyDown={handleTitleKeyDown}
                 onBlur={() => setTitleFocused(false)}
                 placeholder="Untitled"
-                className="no-drag flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                className="no-drag font-medium px-0"
+                wrapperClassName="flex-1"
               />
             )}
             {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
@@ -1541,156 +1576,167 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               }}
               compact
             />
-            {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
-                editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
-                likely to need undoing as a typed one. Only meaningful while actually editing —
-                hidden in read-only 'view' mode. No disabled state: prosemirror-history's
-                undo()/redo() are harmless no-ops with nothing to undo/redo, and tracking
-                undoDepth()/redoDepth() reactively would mean re-rendering this header on every
-                single transaction just to grey out two buttons. */}
-            {editorMode === 'edit' && (
-              <div className="flex items-center">
-                <button
-                  onClick={() => editorCommandsRef.current?.undo()}
-                  title="Undo (⌘Z)"
-                  className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-                >
-                  <Undo2 size={13} />
-                </button>
-                <button
-                  onClick={() => editorCommandsRef.current?.redo()}
-                  title="Redo (⌘⇧Z)"
-                  className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-                >
-                  <Redo2 size={13} />
-                </button>
-              </div>
-            )}
-            {/* Quick "look" preset for the note editor while typing — separate,
-                curated shortcut next to the mode toggle; the fuller font-family
-                picker stays in Settings → Display. */}
-            <NoteLookDropdown value={noteTypingLook} onChange={setNoteTypingLook} />
-            {/* ── Editor mode segmented toggle ── */}
-            <HeaderSegmentedToggle
+          </>
+        ) : restoringSpecificNote ? (
+          <span className="text-subhead font-semibold text-text-tertiary">Notes</span>
+        ) : (
+          <span className="text-subhead font-semibold text-text-primary">Notes</span>
+        )}
+      </TabHeaderPortal>
+      {/* Actions zone (right of the toolbar's flexible space): per-mode action groups, folded
+          into ONE "…" via OverflowGroup + a single `extraItems` list (replaces the separate
+          HeaderOverflowMenu that used to sit beside it — two overflow buttons in one bar would
+          have violated §17's "one More per bar"). The two mode switches — the editor's Edit/View
+          segmented toggle and the list's list/folder/board segmented control — are rendered as
+          plain siblings OUTSIDE the OverflowGroup rather than as `priority="never"` children of
+          it: OverflowGroup hoists `never` children to the FRONT of its own row to guarantee they
+          measure first (see OverflowGroup.tsx), which is exactly right for a leading mode switch
+          like these, but would be wrong for a trailing primary action — so "New note" (the
+          panel's primary action, with its own shortcut) gets the same treatment on the trailing
+          side instead, after the OverflowGroup's own "…", matching where Mail/Notes/Xcode keep
+          an always-visible "compose new" button outside any overflow chevron. */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        {editing ? (
+          <>
+            {/* ── Editor mode segmented toggle — never folds (§17), see the zone comment. ── */}
+            <SegmentedControl
+              size="sm"
               value={editorMode}
               onChange={setEditorMode}
-              title="Editor mode (⌘⇧M to toggle)"
+              aria-label="Editor mode (⌘⇧M to toggle)"
               options={[
                 { value: 'edit', label: 'Edit', icon: PenLine, title: 'Edit — rich editing' },
                 { value: 'view', label: 'View', icon: Eye,     title: 'View — rendered read-only output' },
               ]}
             />
-            {/* Everything below is occasional, not per-edit frequency like
-                the mode toggle or find-in-note — collected behind the More
-                menu instead of growing the inline icon row further. Zoom
-                moved here from its own always-visible hover icon — that
-                popover's 350ms hover-close timing read as unreliable; this
-                row is plain click + a real typeable percentage input. */}
-            <HeaderOverflowMenu
-              items={[
+            <OverflowGroup
+              label="More"
+              extraItems={[
                 {
                   key: 'history',
                   label: 'Version history',
-                  icon: <History />,
-                  onClick: () => { if (activeNote) setVersionHistoryOpen(true) },
+                  icon: History,
+                  onSelect: () => { if (activeNote) setVersionHistoryOpen(true) },
                 },
                 {
                   key: 'markdown-help',
                   label: 'Markdown reference guide',
-                  icon: <HelpCircle />,
-                  onClick: openMarkdownReference,
+                  icon: HelpCircle,
+                  onSelect: openMarkdownReference,
                 },
                 {
                   key: 'print',
                   label: 'Print / export note',
-                  icon: <Printer />,
-                  onClick: () => { if (activeNote) setPrintPreviewOpen(true) },
+                  icon: Printer,
+                  onSelect: () => { if (activeNote) setPrintPreviewOpen(true) },
                 },
                 ...(!floating ? [{
                   key: 'open-scripture',
                   label: 'Open alongside scripture',
-                  icon: <BookOpen />,
-                  onClick: () => openNoteAsScripture(),
+                  icon: BookOpen,
+                  onSelect: () => openNoteAsScripture(),
                 }] : []),
                 {
                   key: 'delete',
                   label: 'Delete note',
-                  icon: <Trash2 />,
-                  onClick: () => deleteNote(),
+                  icon: Trash2,
+                  onSelect: () => deleteNote(),
                   danger: true,
-                  divider: true,
                 },
               ]}
-            />
-            {youtubeIsPlaying && (
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  window.dispatchEvent(new CustomEvent('berean:requestTimestamp'))
-                }}
-                title="Insert YouTube timestamp at cursor"
-                className="p-1 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors"
-              >
-                <Paperclip size={14} />
-              </button>
-            )}
+            >
+              {/* Quick "look" preset for the note editor while typing — placed first among the
+                  foldable groups (protected longest) since, unlike undo/redo, it has no
+                  keyboard-shortcut fallback once tucked into the menu. */}
+              <OverflowSection priority="last">
+                <NoteLookDropdown value={noteTypingLook} onChange={setNoteTypingLook} />
+              </OverflowSection>
+              {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
+                  editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
+                  likely to need undoing as a typed one. Only meaningful while actually editing —
+                  hidden in read-only 'view' mode. No disabled state: prosemirror-history's
+                  undo()/redo() are harmless no-ops with nothing to undo/redo, and tracking
+                  undoDepth()/redoDepth() reactively would mean re-rendering this header on every
+                  single transaction just to grey out two buttons. Has a shortcut, so folding it
+                  costs nothing — it folds before the Look preset. */}
+              {editorMode === 'edit' && (
+                <OverflowSection items={[
+                  { key: 'undo', label: 'Undo', icon: Undo2, shortcut: '⌘Z', onSelect: () => editorCommandsRef.current?.undo() },
+                  { key: 'redo', label: 'Redo', icon: Redo2, shortcut: '⌘⇧Z', onSelect: () => editorCommandsRef.current?.redo() },
+                ]}>
+                  <ControlGroup>
+                    <IconButton icon={Undo2} label="Undo" tooltip={{ shortcut: '⌘Z' }} size={24} onClick={() => editorCommandsRef.current?.undo()} />
+                    <IconButton icon={Redo2} label="Redo" tooltip={{ shortcut: '⌘⇧Z' }} size={24} onClick={() => editorCommandsRef.current?.redo()} />
+                  </ControlGroup>
+                </OverflowSection>
+              )}
+              {youtubeIsPlaying && (
+                <OverflowSection items={[
+                  { key: 'timestamp', label: 'Insert YouTube timestamp at cursor', icon: Paperclip, onSelect: () => window.dispatchEvent(new CustomEvent('berean:requestTimestamp')) },
+                ]}>
+                  <IconButton
+                    icon={Paperclip}
+                    label="Insert YouTube timestamp at cursor"
+                    size={28}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      window.dispatchEvent(new CustomEvent('berean:requestTimestamp'))
+                    }}
+                  />
+                </OverflowSection>
+              )}
+            </OverflowGroup>
           </>
-        ) : restoringSpecificNote ? (
-          <span className="text-sm font-medium text-[rgb(var(--color-text-muted))] flex-1 opacity-60">Notes</span>
-        ) : (
+        ) : restoringSpecificNote ? null : (
           <>
-            <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] flex-1">Notes</span>
             {/* View mode: list / folder / board — exactly one active, switchable from any of
-                the three at any time. */}
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-shell p-0.5">
-              {([
-                ['list',   List,       'List view',                'rounded-l-[11px] rounded-r-[6px]'],
-                ['folder', FolderTree, 'Folder view',               'rounded-[6px]'],
-                ['board',  Columns3,   'Board view (by status)',    'rounded-l-[6px] rounded-r-[11px]'],
-              ] as const).map(([mode, Icon, label, edgeRounding]) => (
-                <button
-                  key={mode}
-                  onClick={() => changeViewMode(mode)}
-                  title={label}
-                  className={`p-1 cursor-pointer transition-colors ${edgeRounding}
-                    ${viewMode === mode
-                      ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-accent))] shadow-sm'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-                    }`}
-                >
-                  <Icon size={14} />
-                </button>
-              ))}
-            </div>
-            {/* Idioms → single PDF export (reachable from list and folder view) */}
-            {renderIdiomsExport()}
-            {/* Tag relationship graph */}
-            <button
-              onClick={() => useAppStore.getState().openTagsGraph()}
-              title="Tag graph"
-              className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
-              <Waypoints size={15} />
-            </button>
-            {/* Select mode toggle */}
-            <button
-              onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
-              title="Select notes"
-              className={`p-1 rounded-shell cursor-pointer transition-colors ${selectMode ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-            >
-              <CheckSquare size={15} />
-            </button>
-            <button
+                the three at any time. Never folds (§17), see the zone comment. */}
+            <SegmentedControl
+              size="sm"
+              value={viewMode}
+              onChange={changeViewMode}
+              aria-label="View mode"
+              options={[
+                { value: 'list', icon: List, title: 'List view' },
+                { value: 'folder', icon: FolderTree, title: 'Folder view' },
+                { value: 'board', icon: Columns3, title: 'Board view (by status)' },
+              ]}
+            />
+            <OverflowGroup label="More">
+              {/* Idioms → single PDF export (reachable from list and folder view) */}
+              {notes.some((n) => n.type === 'idiom') && (
+                <OverflowSection>{renderIdiomsExport()}</OverflowSection>
+              )}
+              <OverflowSection items={[
+                { key: 'tag-graph', label: 'Tag graph', icon: Waypoints, onSelect: () => useAppStore.getState().openTagsGraph() },
+              ]}>
+                <IconButton icon={Waypoints} label="Tag graph" size={28} onClick={() => useAppStore.getState().openTagsGraph()} />
+              </OverflowSection>
+              <OverflowSection items={[
+                { key: 'select-notes', label: 'Select notes', icon: CheckSquare, checked: selectMode, onSelect: () => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } } },
+              ]}>
+                <IconButton
+                  icon={CheckSquare}
+                  label="Select notes"
+                  size={28}
+                  active={selectMode}
+                  onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
+                />
+              </OverflowSection>
+            </OverflowGroup>
+            {/* New note — the panel's primary action (⌘⇧N); always visible, outside the fold
+                system, see the zone comment. */}
+            <IconButton
+              icon={Plus}
+              label="New note"
+              tooltip={{ shortcut: '⌘⇧N' }}
+              size={28}
               onClick={createNote}
               onContextMenu={(e) => {
                 e.preventDefault()
                 setPlusMenu({ x: e.clientX, y: e.clientY })
               }}
-              title="New note (⌘⇧N) · right-click for more"
-              className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
-              <Plus size={16} />
-            </button>
+            />
           </>
         )}
       </TabHeaderPortal>
@@ -1698,26 +1744,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       {/* Plus-button context menu: new note / new folder */}
       {plusMenu && (
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setPlusMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPlusMenu(null) }} />
-          <MenuPositioner x={plusMenu.x} y={plusMenu.y}
-            className="min-w-[160px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-          >
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => { setPlusMenu(null); createNote() }}
-            >
-              <NotepadText size={13} className="flex-shrink-0" /> New note
-            </button>
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => {
-                setPlusMenu(null)
-                if (!folderView) changeViewMode('folder')
-                handleCreateFolder(null)
-              }}
-            >
-              <FolderPlus size={13} className="flex-shrink-0" /> New folder
-            </button>
+          <div className="fixed inset-0 z-menu" onClick={() => setPlusMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPlusMenu(null) }} />
+          <MenuPositioner x={plusMenu.x} y={plusMenu.y} className="min-w-[160px]">
+            <MenuSurface>
+              <MenuItem icon={NotepadText} label="New note" onClick={() => { setPlusMenu(null); createNote() }} />
+              <MenuItem
+                icon={FolderPlus}
+                label="New folder"
+                onClick={() => {
+                  setPlusMenu(null)
+                  if (!folderView) changeViewMode('folder')
+                  handleCreateFolder(null)
+                }}
+              />
+            </MenuSurface>
           </MenuPositioner>
         </>
       )}
@@ -1725,31 +1765,26 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       {/* Move-selected-to-folder menu (multi-select, folder view) */}
       {moveMenu && (
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setMoveMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMoveMenu(null) }} />
+          <div className="fixed inset-0 z-menu" onClick={() => setMoveMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMoveMenu(null) }} />
           <div
-            className="fixed z-[9999] min-w-[180px] max-h-72 overflow-y-auto bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+            className="fixed z-menu"
             style={{ left: Math.min(moveMenu.x, window.innerWidth - 200), top: Math.min(moveMenu.y, window.innerHeight - 320) }}
           >
-            <button
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => moveSelectedToFolder(null)}
-            >
-              <Home size={12} className="flex-shrink-0" /> No folder (root)
-            </button>
-            <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-            {orderedFolders(folders).map(({ folder, depth }) => (
-              <button
-                key={folder.id}
-                className="w-full text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer py-1.5"
-                style={{ paddingLeft: 12 + depth * 12, paddingRight: 12 }}
-                onClick={() => moveSelectedToFolder(folder.id)}
-              >
-                {folder.name}
-              </button>
-            ))}
-            {folders.length === 0 && (
-              <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No folders yet — create one first</div>
-            )}
+            <MenuSurface className="min-w-[180px] max-h-72 overflow-y-auto">
+              <MenuItem icon={Home} label="No folder (root)" onClick={() => moveSelectedToFolder(null)} />
+              <MenuSeparator />
+              {orderedFolders(folders).map(({ folder, depth }) => (
+                <MenuItem
+                  key={folder.id}
+                  label={folder.name}
+                  style={{ paddingLeft: 12 + depth * 12 }}
+                  onClick={() => moveSelectedToFolder(folder.id)}
+                />
+              ))}
+              {folders.length === 0 && (
+                <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet — create one first</div>
+              )}
+            </MenuSurface>
           </div>
         </>
       )}
@@ -1775,67 +1810,67 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         {restoringSpecificNote ? (
           <div className="flex-1" />
         ) : editing ? (
-          // `relative` here (not a flex-row split with NoteSidePanel as a sibling
-          // taking its own docked width) — NoteSidePanel is now a floating
-          // trigger pill + portaled card, positioned against THIS wrapper, same
-          // treatment as ScriptureSearchView's "jump to book" rail. The editor
-          // gets the full width always; the panel only ever overlays on top of
-          // it, never resizes it.
-          <div className="flex-1 overflow-hidden flex flex-col relative">
-            {/* Idiom header strip — shown when editing an idiom note */}
-            {activeNote.type === 'idiom' && (
-              <IdiomHeader
-                note={activeNote}
-                onUpdate={async (updates) => {
-                  await window.notes.updateNote(activeNote.id, updates)
-                  const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
-                  setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
-                  setActiveNote(patched)
-                  window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
-                }}
-              />
-            )}
-            <NoteEditor
-              content={activeNote.content}
-              noteId={activeNote.id}
-              tabId={notesTabId ?? undefined}
-              onChange={handleContentChange}
-              lastSavedAt={lastAutosaveAt}
-              onFocusRef={(fn) => { editorFocusRef.current = fn }}
-              onCommandsRef={(cmds) => { editorCommandsRef.current = cmds }}
-              onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
-              onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
-              initialScrollTop={restoredScrollTop}
-              initialCursorPos={restoredCursorPos}
-              autoFocus={autoFocusEditor}
-              mode={editorMode}
-              typingLook={noteTypingLook}
-              notes={notes}
-              onWikilinkClick={handleWikilinkClick}
-              onVerseRefClick={handleVerseRefClick}
-              onLexiconRefClick={handleLexiconRefClick}
-              findQuery={findBarVisible ? localFindQuery : ''}
-              // Term/Aliases/Meaning/Explanation/Compare/References already live in
-              // IdiomHeader above — this body is genuinely optional scratch space, so it
-              // gets a real visible placeholder explaining that (rather than sitting
-              // blank with no explanation) and loses the persistent formatting toolbar,
-              // which was adding a wall of buttons over an area with no stated purpose.
-              placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : noteEditorPlaceholder(activeNote)}
-              hideFormattingToolbar={activeNote.type === 'idiom'}
-              importSource={
-                activeNote.tags?.includes('biblegateway') ? 'biblegateway'
-                : activeNote.tags?.includes('esword') ? 'esword'
-                : undefined
-              }
-              importedAt={
-                (activeNote.tags?.includes('biblegateway') || activeNote.tags?.includes('esword'))
-                  ? activeNote.importedAt
+          // Column for the editor + idiom header, and — as a real flex sibling, not an
+          // overlay — the attached outline/backlinks inspector (NoteSidePanel). The
+          // inspector only takes its own width while pinned open; collapsed it's a thin
+          // dock rail, same "attached pane" treatment as the Scripture side panel.
+          <div className="flex-1 overflow-hidden flex min-h-0">
+            <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+              {/* Idiom header strip — shown when editing an idiom note */}
+              {activeNote.type === 'idiom' && (
+                <IdiomHeader
+                  note={activeNote}
+                  onUpdate={async (updates) => {
+                    await window.notes.updateNote(activeNote.id, updates)
+                    const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
+                    setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
+                    setActiveNote(patched)
+                    window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
+                  }}
+                />
+              )}
+              <NoteEditor
+                content={activeNote.content}
+                noteId={activeNote.id}
+                tabId={notesTabId ?? undefined}
+                onChange={handleContentChange}
+                lastSavedAt={lastAutosaveAt}
+                onFocusRef={(fn) => { editorFocusRef.current = fn }}
+                onCommandsRef={(cmds) => { editorCommandsRef.current = cmds }}
+                onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
+                onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
+                initialScrollTop={restoredScrollTop}
+                initialCursorPos={restoredCursorPos}
+                autoFocus={autoFocusEditor}
+                mode={editorMode}
+                typingLook={noteTypingLook}
+                notes={notes}
+                onWikilinkClick={handleWikilinkClick}
+                onVerseRefClick={handleVerseRefClick}
+                onLexiconRefClick={handleLexiconRefClick}
+                findQuery={findBarVisible ? localFindQuery : ''}
+                // Term/Aliases/Meaning/Explanation/Compare/References already live in
+                // IdiomHeader above — this body is genuinely optional scratch space, so it
+                // gets a real visible placeholder explaining that (rather than sitting
+                // blank with no explanation) and loses the persistent formatting toolbar,
+                // which was adding a wall of buttons over an area with no stated purpose.
+                placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : noteEditorPlaceholder(activeNote)}
+                hideFormattingToolbar={activeNote.type === 'idiom'}
+                importSource={
+                  activeNote.tags?.includes('biblegateway') ? 'biblegateway'
+                  : activeNote.tags?.includes('esword') ? 'esword'
                   : undefined
-              }
-            />
-            {/* Stays visible in Focus mode too — it's a floating trigger pill the user
-                summons on demand (outline/folder path/backlinks stay tucked away until
-                clicked), not persistent chrome Focus mode needs to clear away. */}
+                }
+                importedAt={
+                  (activeNote.tags?.includes('biblegateway') || activeNote.tags?.includes('esword'))
+                    ? activeNote.importedAt
+                    : undefined
+                }
+              />
+            </div>
+            {/* Stays visible in Focus mode too — same reasoning as before: outline/folder
+                path/backlinks stay tucked away (collapsed to a thin rail) until the user
+                pins it open, so it's not persistent chrome Focus mode needs to clear away. */}
             <NoteSidePanel
               content={activeNote.content}
               noteTitle={activeNote.title || 'Untitled'}
@@ -1858,7 +1893,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           <div ref={homeWrapRef} className="relative flex-1 min-h-0 overflow-hidden">
           <div className="absolute inset-0 flex min-h-0 overflow-hidden">
           <div
-            className={`relative flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-[rgb(var(--color-surface-4))]' : 'w-full'}`}
+            className={`relative flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-separator' : 'w-full'}`}
             // Board view opts out of the cap — it wants the full pane. When the panel shows this
             // column flexes down toward its min; otherwise it caps at 760 and sits left.
             style={boardView ? undefined : {
@@ -1868,66 +1903,65 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           >
           <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
             {/* Search bar — with sort selector inline on the right */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-              <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-              <input
-                type="text"
+            <Toolbar size="md">
+              <SearchField
+                size="sm"
+                bare
                 value={noteSearch}
-                onChange={(e) => setNoteSearch(e.target.value)}
+                onValueChange={setNoteSearch}
                 placeholder="Search notes…"
-                className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none min-w-0"
+                wrapperClassName="flex-1 min-w-0"
               />
-              {noteSearch && (
-                <button onClick={() => setNoteSearch('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
-                  <X size={13} />
-                </button>
-              )}
               {/* Word mode — only meaningful while actively searching; matches the same
                   all/any/phrase pills used in the floating search bar. */}
               {noteSearch.trim() && (
-                <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-shrink-0">
-                  {(['all', 'any', 'phrase'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setNoteSearchWordMode(m)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors capitalize
-                        ${noteSearchWordMode === m ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'}`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  size="sm"
+                  value={noteSearchWordMode}
+                  onChange={setNoteSearchWordMode}
+                  aria-label="Word match mode"
+                  className="flex-shrink-0"
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'any', label: 'Any' },
+                    { value: 'phrase', label: 'Phrase' },
+                  ]}
+                />
               )}
-              <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <select
+              <Divider orientation="vertical" />
+              <Select
+                variant="ghost"
+                size="sm"
                 value={noteSort}
-                onChange={e => setNoteSort(e.target.value as NoteSort)}
-                className="text-[10px] bg-transparent text-[rgb(var(--color-text-muted))] outline-none cursor-pointer hover:text-[rgb(var(--color-text-primary))] flex-shrink-0"
-                title="Sort notes"
-              >
-                <option value="modified">Modified</option>
-                <option value="created">Created</option>
-                <option value="name">A-Z</option>
-              </select>
+                onChange={(v) => setNoteSort(v)}
+                aria-label="Sort notes"
+                className="flex-shrink-0"
+                options={[
+                  { value: 'modified', label: 'Modified' },
+                  { value: 'created', label: 'Created' },
+                  { value: 'name', label: 'A-Z' },
+                ]}
+              />
               {/* Expand all toggle — only meaningful in list view (folder view has no
                   snippets, board view cards are already fixed-height). */}
               {viewMode === 'list' && (
                 <>
-                  <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-                  <button
+                  <Divider orientation="vertical" />
+                  <IconButton
+                    icon={AlignJustify}
+                    label={expandAll ? 'Collapse notes' : 'Expand all notes'}
+                    size={24}
+                    active={expandAll}
+                    className="flex-shrink-0"
                     onClick={() => setExpandAll(v => !v)}
-                    title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-                    className={`p-1 rounded-shell cursor-pointer transition-colors flex-shrink-0 ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-                  >
-                    <AlignJustify size={13} />
-                  </button>
+                  />
                 </>
               )}
-            </div>
+            </Toolbar>
 
             {/* Filter chips bar (list view only) */}
             {!folderView && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
+            <Toolbar size="sm" className="h-auto py-1 flex-wrap overflow-x-auto">
               {([
                 ['all',          'All'],
                 ['scripture',    'Scripture'],
@@ -1938,92 +1972,53 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 ['esword',       'eSword'],
                 ['idiom',        'Idioms'],
               ] as [NoteFilter, string][]).map(([f, label]) => (
-                <button
-                  key={f}
-                  onClick={() => setNoteFilter(f)}
-                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
-                    ${noteFilter === f
-                      ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
-                    }`}
-                >
+                <Chip key={f} selected={noteFilter === f} onClick={() => setNoteFilter(f)}>
                   {label}
-                </button>
+                </Chip>
               ))}
-            </div>
+            </Toolbar>
             )}
 
             {/* Status filter chips — independent axis from the type chips above, combinable */}
             {!folderView && (
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
-                  ${statusFilter === 'all'
-                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
-                  }`}
-              >
+            <Toolbar size="sm" className="h-auto py-1 flex-wrap overflow-x-auto">
+              <Chip selected={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
                 All statuses
-              </button>
+              </Chip>
               {NOTE_STATUSES.map((s) => {
                 const Icon = s.icon
                 return (
-                  <button
-                    key={s.id}
-                    onClick={() => setStatusFilter(s.id)}
-                    className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
-                      ${statusFilter === s.id
-                        ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
-                      }`}
-                  >
+                  <Chip key={s.id} selected={statusFilter === s.id} onClick={() => setStatusFilter(s.id)}>
                     <Icon size={10} style={{ color: statusFilter === s.id ? undefined : s.color }} /> {s.label}
-                  </button>
+                  </Chip>
                 )
               })}
-              <button
-                onClick={() => setStatusFilter('no-status')}
-                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
-                  ${statusFilter === 'no-status'
-                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
-                  }`}
-              >
+              <Chip selected={statusFilter === 'no-status'} onClick={() => setStatusFilter('no-status')}>
                 No status
-              </button>
-            </div>
+              </Chip>
+            </Toolbar>
             )}
 
             {/* Multi-select action bar */}
             {selectMode && (
-              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-4))/50]">
-                <span className="text-xs text-[rgb(var(--color-text-muted))] flex-1">
+              <Toolbar size="sm" material="bar">
+                <span className="text-footnote text-text-muted flex-1">
                   {selectedIds.length + selectedFolderIds.length} selected
                 </span>
                 {folderView && (selectedIds.length + selectedFolderIds.length) > 0 && (
-                  <button
-                    onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}
-                    className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer px-2 py-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] transition-colors"
-                  >
-                    <FolderInput size={11} /> Move to folder
-                  </button>
+                  <Button variant="ghost" size="sm" icon={FolderInput} onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}>
+                    Move to folder
+                  </Button>
                 )}
                 {(selectedIds.length + selectedFolderIds.length) > 0 && (
-                  <button
-                    onClick={deleteSelected}
-                    className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 cursor-pointer px-2 py-0.5 rounded hover:bg-red-500/15 transition-colors"
-                  >
-                    <Trash2 size={11} /> Delete selected
-                  </button>
+                  <Button variant="ghost" size="sm" icon={Trash2} className="text-destructive" onClick={deleteSelected}>
+                    Delete selected
+                  </Button>
                 )}
-                <button
-                  onClick={exitSelectMode}
-                  className="text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
-                >
+                <Button variant="ghost" size="sm" onClick={exitSelectMode}>
                   Cancel
-                </button>
-              </div>
+                </Button>
+              </Toolbar>
             )}
 
             {/* Continuous daily scroll mode — replaces the list when toggled on the 'daily' filter */}
@@ -2163,116 +2158,86 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       )}
       {/* Idiom creation modal */}
       {idiomModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/40" onClick={() => setIdiomModal(null)} />
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-            <div
-              className="pointer-events-auto w-80 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 flex flex-col gap-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">New Idiom Note</div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Term</label>
-                <input
-                  autoFocus
-                  value={idiomModal.term}
-                  onChange={e => setIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
-                  placeholder="e.g. fox"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
-                  onKeyDown={e => { if (e.key === 'Escape') setIdiomModal(null) }}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Meaning</label>
-                <input
-                  value={idiomModal.meaning}
-                  onChange={e => setIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
-                  placeholder="e.g. cunning, deception, false teachers"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
-                  onKeyDown={async e => {
-                    if (e.key === 'Enter') {
-                      await submitIdiomModal()
-                    } else if (e.key === 'Escape') { setIdiomModal(null) }
-                  }}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setIdiomModal(null)} className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">Cancel</button>
-                <button
-                  disabled={!idiomModal.term.trim()}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
-                  onClick={submitIdiomModal}
-                >
-                  Create
-                </button>
-              </div>
+        <Sheet open onOpenChange={(o) => { if (!o) setIdiomModal(null) }} size="sm" title="New Idiom Note">
+          <div className="p-5 flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-footnote text-text-muted">Term</label>
+              <TextField
+                autoFocus
+                value={idiomModal.term}
+                onChange={e => setIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
+                placeholder="e.g. fox"
+                onKeyDown={e => { if (e.key === 'Escape') setIdiomModal(null) }}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-footnote text-text-muted">Meaning</label>
+              <TextField
+                value={idiomModal.meaning}
+                onChange={e => setIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
+                placeholder="e.g. cunning, deception, false teachers"
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    await submitIdiomModal()
+                  } else if (e.key === 'Escape') { setIdiomModal(null) }
+                }}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setIdiomModal(null)}>Cancel</Button>
+              <Button variant="primary" size="sm" disabled={!idiomModal.term.trim()} onClick={submitIdiomModal}>
+                Create
+              </Button>
             </div>
           </div>
-        </>
+        </Sheet>
       )}
 
       {/* Convert note to idiom modal */}
       {convertIdiomModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/40" onClick={() => setConvertIdiomModal(null)} />
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-            <div
-              className="pointer-events-auto w-96 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 flex flex-col gap-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <div>
-                <div className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-0.5">Convert to Idiom Note</div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))]">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
-              </div>
+        <Sheet open onOpenChange={(o) => { if (!o) setConvertIdiomModal(null) }} size="sm" title="Convert to Idiom Note">
+          <div className="p-5 flex flex-col gap-4">
+              <div className="text-footnote text-text-muted">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Term</label>
-                <input
+                <label className="text-footnote text-text-muted">Term</label>
+                <TextField
                   autoFocus
                   value={convertIdiomModal.term}
                   onChange={e => setConvertIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
                   placeholder="e.g. fox"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-[rgb(var(--color-text-muted))]">Meaning <span className="opacity-60">(optional)</span></label>
-                <input
+                <label className="text-footnote text-text-muted">Meaning <span className="opacity-60">(optional)</span></label>
+                <TextField
                   value={convertIdiomModal.meaning}
                   onChange={e => setConvertIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
                   placeholder="e.g. cunning, deception, false teachers"
-                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
                 />
               </div>
               {convertIdiomModal.note.content.trim() && (
-                <div className="flex flex-col gap-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                  <div className="text-xs text-[rgb(var(--color-text-muted))]">This note has existing content. What should happen to it?</div>
+                <div className="flex flex-col gap-2 pt-2 border-t border-separator">
+                  <div className="text-footnote text-text-muted">This note has existing content. What should happen to it?</div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[rgb(var(--color-text-secondary))]">
-                      <input
-                        type="radio"
-                        checked={convertIdiomModal.keepContent}
-                        onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: true } : m)}
-                        className="accent-[rgb(var(--color-accent))]"
-                      />
-                      Keep as body content of the idiom note
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[rgb(var(--color-text-secondary))]">
-                      <input
-                        type="radio"
-                        checked={!convertIdiomModal.keepContent}
-                        onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: false } : m)}
-                        className="accent-[rgb(var(--color-accent))]"
-                      />
-                      Clear body content (idiom term + meaning only)
-                    </label>
+                    <Radio
+                      label="Keep as body content of the idiom note"
+                      checked={convertIdiomModal.keepContent}
+                      onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: true } : m)}
+                    />
+                    <Radio
+                      label="Clear body content (idiom term + meaning only)"
+                      checked={!convertIdiomModal.keepContent}
+                      onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: false } : m)}
+                    />
                   </div>
                 </div>
               )}
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setConvertIdiomModal(null)} className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">Cancel</button>
-                <button
+                <Button variant="ghost" size="sm" onClick={() => setConvertIdiomModal(null)}>Cancel</Button>
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={!convertIdiomModal.term.trim()}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
                   onClick={async () => {
                     const { note, term, meaning, keepContent } = convertIdiomModal
                     if (!term.trim()) return
@@ -2292,11 +2257,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   }}
                 >
                   Convert
-                </button>
+                </Button>
               </div>
-            </div>
           </div>
-        </>
+        </Sheet>
       )}
 
       {versionHistoryOpen && activeNote && (
@@ -2326,16 +2290,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="fixed bottom-4 right-4 z-[500] flex items-center gap-2 pl-3 pr-2 py-2 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl text-[12px] text-[rgb(var(--color-text-secondary))]"
+              className="fixed bottom-4 right-4 z-critical flex items-center gap-2 pl-3 pr-2 py-2 material-popover rounded-menu text-footnote text-text-secondary"
             >
               <span>Click a note to open it</span>
-              <button
-                onClick={dismissOpenNoteHint}
-                title="Dismiss"
-                className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"
-              >
-                <X size={12} />
-              </button>
+              <IconButton icon={X} label="Dismiss" size={20} className="flex-shrink-0" onClick={dismissOpenNoteHint} />
             </motion.div>
           )}
         </AnimatePresence>,
@@ -2443,12 +2401,13 @@ function IdiomHeader({ note, onUpdate }: {
   const availableFieldDefs = IDIOM_FIELD_DEFS.filter((f) => !addedFields.has(f.key))
 
   return (
-    <div className="flex flex-col gap-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 px-4 pt-3 pb-2">
+    <div className="flex flex-col gap-1.5 border-b border-separator flex-shrink-0 px-4 pt-3 pb-2">
       <div className="flex items-start gap-2">
-        {/* Term — the printed entry's own heading style (bold, uppercase, colored). */}
-        <input
+        {/* Term — the printed entry's own heading style (uppercase, colored). */}
+        <TextField
           key={note.id + '-term'}
-          className="flex-1 min-w-0 bg-transparent outline-none text-violet-400 placeholder:text-[rgb(var(--color-text-muted))] font-bold text-base uppercase tracking-wide"
+          bare
+          className="flex-1 font-semibold text-[rgb(var(--link-wikilink))] uppercase tracking-wide px-0"
           placeholder="Term…"
           defaultValue={note.idiomTerm ?? note.title}
           onBlur={async (e) => {
@@ -2460,39 +2419,43 @@ function IdiomHeader({ note, onUpdate }: {
         {/* Behavior-only settings (never printed) — plurals matching + example sentences,
             tucked away here instead of sitting in the main field flow. */}
         <div className="relative flex-shrink-0">
-          <button
+          <IconButton
+            icon={SlidersHorizontal}
+            label="Highlighting behavior"
+            size={24}
+            variant="ghost"
+            active={behaviorMenuOpen}
             onClick={() => setBehaviorMenuOpen((v) => !v)}
-            title="Highlighting behavior"
-            className={`p-1 rounded cursor-pointer transition-colors ${behaviorMenuOpen ? 'text-violet-400 bg-violet-500/10' : 'text-[rgb(var(--color-text-muted))] hover:text-violet-400'}`}
-          >
-            <SlidersHorizontal size={14} />
-          </button>
+          />
           {behaviorMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setBehaviorMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 w-64 rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg p-2.5 flex flex-col gap-2.5">
-                <button
-                  onClick={() => onUpdate({ idiomAutoVariants: !autoVariants })}
-                  className="flex items-center justify-between gap-2 text-left cursor-pointer group"
-                >
-                  <span className="text-xs text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))]">Also match plurals/possessives</span>
-                  <span className={`relative flex-shrink-0 w-8 h-4 rounded-full transition-colors ${autoVariants ? 'bg-violet-500' : 'bg-[rgb(var(--color-surface-4))]'}`}>
-                    <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${autoVariants ? 'translate-x-4' : ''}`} />
-                  </span>
-                </button>
-                <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
-                  <button onClick={() => setExamplesOpen((v) => !v)} className="w-full flex items-center justify-between text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-                    <span>Example sentences{examples.length > 0 ? ` (${examples.length})` : ''}</span>
-                    <span>{examplesOpen ? '▾' : '▸'}</span>
-                  </button>
-                  <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 mt-1">Not printed — just text to mine for scripture references.</p>
+              <div className="fixed inset-0 z-raised" onClick={() => setBehaviorMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-overlay w-64 material-popover rounded-menu p-2.5 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-2 group">
+                  <span className="text-footnote text-text-secondary group-hover:text-text-primary">Also match plurals/possessives</span>
+                  <Switch
+                    checked={autoVariants}
+                    onCheckedChange={() => onUpdate({ idiomAutoVariants: !autoVariants })}
+                    checkedColorClass="bg-[rgb(var(--link-wikilink))]"
+                    label="Also match plurals/possessives"
+                  />
+                </div>
+                <div className="pt-2 border-t border-separator">
+                  <DisclosureRow
+                    open={examplesOpen}
+                    onClick={() => setExamplesOpen((v) => !v)}
+                    title={`Example sentences${examples.length > 0 ? ` (${examples.length})` : ''}`}
+                    className="!px-0"
+                  />
+                  <p className="text-caption2 text-text-quaternary mt-1">Not printed — just text to mine for scripture references.</p>
                   {examplesOpen && (
                     <div className="flex flex-col gap-1 mt-1.5">
                       {examples.map((ex, i) => (
                         <div key={i} className="flex items-center gap-1.5">
-                          <input
+                          <TextField
                             defaultValue={ex}
-                            className="flex-1 text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))]"
+                            size="sm"
+                            wrapperClassName="flex-1"
                             onBlur={(e) => {
                               const v = e.target.value.trim()
                               const next = [...examples]
@@ -2500,16 +2463,17 @@ function IdiomHeader({ note, onUpdate }: {
                               updateData({ examples: next })
                             }}
                           />
-                          <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer text-xs">×</button>
+                          <IconButton icon={X} label="Remove example" size={20} variant="ghost" danger onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} />
                         </div>
                       ))}
-                      <input
+                      <TextField
+                        bare
                         value={exInput}
                         onChange={(e) => setExInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && exInput.trim()) { e.preventDefault(); updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
                         onBlur={() => { if (exInput.trim()) { updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
                         placeholder="+ add an example sentence…"
-                        className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                        className="!px-0"
                       />
                     </div>
                   )}
@@ -2521,12 +2485,12 @@ function IdiomHeader({ note, onUpdate }: {
       </div>
 
       {/* Meaning — the export's definition paragraph. Only other field always visible. */}
-      <textarea
+      <TextArea
         key={note.id + '-meaning'}
         defaultValue={note.idiomMeaning ?? ''}
         rows={1}
         placeholder="Meaning…"
-        className="w-full text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] bg-transparent outline-none resize-none leading-snug"
+        className="!bg-transparent !border-0 !shadow-none text-body !px-0 !py-0 resize-none leading-snug"
         onBlur={async (e) => {
           const meaning = e.target.value.trim()
           if (meaning === (note.idiomMeaning ?? '')) return
@@ -2538,17 +2502,18 @@ function IdiomHeader({ note, onUpdate }: {
         <IdiomFieldWrap label="Aliases" onRemove={() => removeField('aliases')}>
           <div className="flex items-center gap-1.5 flex-wrap">
             {aliases.map((alias) => (
-              <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
+              <Chip
+                key={alias}
+                tint="var(--link-wikilink)"
+                onRemove={() => removeAlias(alias)}
+              >
                 {alias}
-                <button
-                  onClick={() => removeAlias(alias)}
-                  className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
-                  title="Remove"
-                >×</button>
-              </span>
+              </Chip>
             ))}
-            <input
-              className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[120px] max-w-[180px]"
+            <TextField
+              bare
+              wrapperClassName="min-w-[120px] max-w-[180px]"
+              className="!px-0"
               placeholder="+ same idiom, different wording…"
               value={aliasInput}
               onChange={e => setAliasInput(e.target.value)}
@@ -2564,12 +2529,12 @@ function IdiomHeader({ note, onUpdate }: {
 
       {addedFields.has('explanation') && (
         <IdiomFieldWrap label="Explanation" onRemove={() => removeField('explanation')}>
-          <textarea
+          <TextArea
             key={note.id + '-expl'}
             defaultValue={data.explanation ?? ''}
             rows={2}
             placeholder="What it means, where it comes from…"
-            className="w-full text-xs text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] bg-transparent outline-none resize-y leading-relaxed"
+            className="!bg-transparent !shadow-none !px-0 !py-0 leading-relaxed"
             onBlur={(e) => { const v = e.target.value.trim(); if (v !== (data.explanation ?? '')) updateData({ explanation: v || undefined }) }}
           />
         </IdiomFieldWrap>
@@ -2585,7 +2550,7 @@ function IdiomHeader({ note, onUpdate }: {
         <IdiomFieldWrap label="References" onRemove={() => removeField('references')}>
           <IdiomChipRow items={verses} onChange={(next) => updateData({ verses: next })} placeholder="+ e.g. Luke 13:32…" />
           {autoVerses.length > 0 && (
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic mt-1">
+            <p className="text-caption2 text-text-muted italic mt-1">
               Also found in your text (included automatically, no need to add): {autoVerses.join(', ')}
             </p>
           )}
@@ -2594,26 +2559,18 @@ function IdiomHeader({ note, onUpdate }: {
 
       {availableFieldDefs.length > 0 && (
         <div className="relative self-start">
-          <button
-            onClick={() => setAddFieldMenuOpen((v) => !v)}
-            className="text-[11px] text-[rgb(var(--color-text-muted))] hover:text-violet-400 cursor-pointer flex items-center gap-1 py-0.5"
-          >
-            <span>+</span>
-            <span>Add field</span>
-          </button>
+          <Button variant="ghost" size="sm" icon={Plus} onClick={() => setAddFieldMenuOpen((v) => !v)}>
+            Add field
+          </Button>
           {addFieldMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setAddFieldMenuOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-20 w-40 rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg py-1">
-                {availableFieldDefs.map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => addField(f.key)}
-                    className="w-full text-left px-3 py-1.5 text-xs text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
-                  >
-                    {f.label}
-                  </button>
-                ))}
+              <div className="fixed inset-0 z-raised" onClick={() => setAddFieldMenuOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-overlay w-40">
+                <MenuSurface>
+                  {availableFieldDefs.map((f) => (
+                    <MenuItem key={f.key} label={f.label} onClick={() => addField(f.key)} />
+                  ))}
+                </MenuSurface>
               </div>
             </>
           )}
@@ -2630,13 +2587,16 @@ function IdiomFieldWrap({ label, onRemove, children }: { label: string; onRemove
   return (
     <div className="flex flex-col gap-1 group/field">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--color-text-muted))]">{label}</span>
-        <button
+        <SectionLabel>{label}</SectionLabel>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onRemove}
-          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer opacity-0 group-hover/field:opacity-100 transition-opacity"
+          danger
+          className="h-auto px-1 text-caption2 opacity-0 group-hover/field:opacity-100 focus-visible:opacity-100"
         >
           Remove
-        </button>
+        </Button>
       </div>
       {children}
     </div>
@@ -2651,18 +2611,19 @@ function IdiomChipRow({ items, onChange, placeholder }: { items: string[]; onCha
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {items.map((it) => (
-        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-xs font-medium">
+        <Chip key={it} tint="var(--link-wikilink)" onRemove={() => onChange(items.filter((x) => x !== it))}>
           {it}
-          <button onClick={() => onChange(items.filter((x) => x !== it))} className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100">×</button>
-        </span>
+        </Chip>
       ))}
-      <input
+      <TextField
+        bare
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ',') && input.trim()) { e.preventDefault(); add(input) } }}
         onBlur={() => { if (input.trim()) add(input) }}
         placeholder={placeholder}
-        className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[110px]"
+        wrapperClassName="min-w-[110px]"
+        className="!px-0"
       />
     </div>
   )

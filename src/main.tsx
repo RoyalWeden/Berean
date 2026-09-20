@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { MotionConfig } from 'framer-motion'
 import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
 import ViewerApp from '@/components/viewer/ViewerApp'
@@ -48,6 +49,62 @@ const isViewerMode = searchParams.get('viewer') === '1'
 const isStudyTrailMode = searchParams.get('studyTrail') === '1'
 const isVersePickerMode = searchParams.get('versePicker') === '1'
 
+// Design-system window stamps (read by global.css). `data-window` names which renderer root
+// this is; `data-vibrant` is present ONLY where the BrowserWindow is genuinely transparent with
+// native vibrancy behind it — the main window on macOS (electron/main.ts) — so `.material-bar`
+// can be translucent there and fall back to an opaque paint everywhere else (Windows, and every
+// secondary window: pop-out tab, presenter/viewer, Study Trail, verse picker are all opaque).
+{
+  const html = document.documentElement
+  html.dataset.window = isViewerMode ? 'viewer' : isStudyTrailMode ? 'trail' : isVersePickerMode ? 'picker' : isFloatMode ? 'float' : 'main'
+  if (html.dataset.window === 'main' && window.__berean_platform === 'darwin') html.dataset.vibrant = ''
+  else delete html.dataset.vibrant
+}
+
+// Inactive-window stamp (§85) — electron/main.ts forwards this window's own focus/blur as
+// app:windowActive; global.css's html[data-inactive] dims chrome to match every other native
+// Mac app once it isn't key. Initialised from document.hasFocus() so a window that opens
+// already out of focus (e.g. a secondary window spawned behind the main one) starts dim too,
+// rather than waiting for its first blur event.
+{
+  const html = document.documentElement
+  if (!document.hasFocus()) html.dataset.inactive = ''
+  else delete html.dataset.inactive
+  window.app?.onWindowActive?.((active) => {
+    if (active) delete html.dataset.inactive
+    else html.dataset.inactive = ''
+  })
+}
+
+// Reduce Transparency (System Settings → Accessibility → Display) — global.css's
+// html[data-reduce-transparency] already swaps every material to its opaque twin.
+// getReduceTransparency() gives the true value at boot; onReduceTransparency covers a live
+// toggle while the app is running.
+{
+  const html = document.documentElement
+  window.app?.getReduceTransparency?.().then((reduce) => {
+    if (reduce) html.dataset.reduceTransparency = ''
+    else delete html.dataset.reduceTransparency
+  }).catch(() => { /* best-effort — falls back to no attribute (full transparency) */ })
+  window.app?.getIncreaseContrast?.().then((on) => {
+    if (on) html.dataset.increaseContrast = ''
+    else delete html.dataset.increaseContrast
+  }).catch(() => {})
+  window.app?.onIncreaseContrast?.((on) => {
+    if (on) html.dataset.increaseContrast = ''
+    else delete html.dataset.increaseContrast
+  })
+  window.app?.onReduceTransparency?.((reduce) => {
+    if (reduce) html.dataset.reduceTransparency = ''
+    else delete html.dataset.reduceTransparency
+  })
+}
+
+// Dev-only: expose the store for visual-QA tooling driven over CDP (BEREAN_CDP_PORT).
+if (import.meta.env.DEV) {
+  import('@/store').then((m) => { (window as unknown as { __bereanStore?: unknown }).__bereanStore = m.useAppStore }).catch(() => {})
+}
+
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
 
@@ -67,7 +124,9 @@ function showCrashOverlay(message: string, stack: string, source: string) {
   const overlay = document.createElement('div')
   overlay.id = 'crash-overlay'
   overlay.style.cssText = [
-    'position:fixed', 'inset:0', 'z-index:99999',
+    // pointer-events:auto — a Radix modal (Settings, Import…) sets `pointer-events:none` on
+    // <body> while open, which this overlay would otherwise inherit and become unclickable.
+    'position:fixed', 'inset:0', 'z-index:99999', 'pointer-events:auto',
     'background:rgba(10,10,12,0.92)',
     'display:flex', 'align-items:center', 'justify-content:center',
     'font-family:system-ui,sans-serif',
@@ -163,6 +222,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isFloatMode ? <FloatingShell /> : <App />}
+    {/* reducedMotion="user": every framer-motion animation in every window honors the OS
+        "Reduce motion" setting (CSS transitions are covered by global.css's media rule). */}
+    <MotionConfig reducedMotion="user">
+      {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isFloatMode ? <FloatingShell /> : <App />}
+    </MotionConfig>
   </React.StrictMode>
 )

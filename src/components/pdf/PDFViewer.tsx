@@ -13,12 +13,24 @@ import {
 } from 'lucide-react'
 import { loadPdfFromBytes, type PDFDocumentProxy } from '@/lib/pdfjs'
 import { useAppStore } from '@/store'
-import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
 import PdfPage, { hlColor } from './PdfPage'
 import PdfPicker from './PdfPicker'
+import { IconButton, Button, ControlGroup, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow, OverflowGroup, OverflowSection } from '@/components/ui'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import type { PdfTabState, PdfHighlight } from '@/types'
 
 const HL_COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'purple'] as const
+// "r g b" triples matching hlColor()'s rgba() map (PdfPage.tsx) — ColorSwatchRow wants a plain
+// triple it can compose its own opacity around, not the pre-alpha'd rgba() string.
+const HL_SWATCH_RGB: Record<(typeof HL_COLORS)[number], string> = {
+  yellow: '250 204 21',
+  green: '74 222 128',
+  blue: '96 165 250',
+  pink: '244 114 182',
+  orange: '251 146 60',
+  purple: '192 132 252',
+}
 
 interface SelToolbar {
   page: number
@@ -35,7 +47,8 @@ interface Bookmark { page: number; label: string; createdAt: number }
 interface RawOutlineNode { title: string; dest: string | unknown[] | null; items?: RawOutlineNode[] }
 
 export default function PDFViewer({ floating = false }: { floating?: boolean }) {
-  const windowDragMouseDown = useWindowDrag(isInteractiveDragTarget)
+  const isActivePdfPanel = useIsActivePanel('pdf')
+  const isActivePanel = floating || isActivePdfPanel
   const activeTabId = useAppStore((s) => s.activeTabId.scripture)
   // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
   const tabs = useAppStore((s) => s.tabs.scripture)
@@ -431,68 +444,92 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
   // ── Render ───────────────────────────────────────────────────────────────────
   if (!pdfId) {
-    return <div className="flex items-center justify-center h-full text-sm text-[rgb(var(--color-text-muted))]">No PDF selected</div>
+    return <div className="flex items-center justify-center h-full text-subhead text-text-muted">No PDF selected</div>
   }
 
   return (
-    <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
-      {/* Toolbar — window-drag via useWindowDrag (manual JS-tracked drag), not a real
-          `-webkit-app-region: drag` region; see that hook's comment (same fix as
-          PanelHeader.tsx, for the same reported "drag doesn't work"/text-selection bug). */}
-      <div
-        onMouseDown={windowDragMouseDown}
-        className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] no-drag select-none ${floating ? 'pl-[76px] pr-3' : 'px-3'}`}
-      >
-        {/* Title doubles as the PDF switcher / library button */}
-        <button
+    <div className="flex flex-col h-full bg-surface-1">
+      {/* CONTEXT zone — title doubles as the PDF switcher / library button, plus the page
+          indicator. Docked, this portals into ShellHeader's shared bar; floating, TabHeaderPortal
+          renders the actual PanelHeader bar (see that component). */}
+      <TabHeaderPortal floating={floating} active={isActivePanel} zone="context">
+        <Button
+          variant="ghost" size="sm"
           onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setPdfSwitcher({ x: r.left, y: r.bottom + 4 }) }}
-          title="Switch PDF / library"
-          className="flex items-center gap-1.5 flex-1 min-w-0 text-left group cursor-pointer"
+          tooltip="Switch PDF / library"
+          className="min-w-0 justify-start px-1 -mx-1"
         >
-          <FileText size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-          <span className="flex-1 min-w-0 text-sm font-medium text-[rgb(var(--color-text-primary))] truncate group-hover:text-[rgb(var(--color-accent))] transition-colors">{title}</span>
-          <ChevronDownIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-        </button>
-        {!floating && (
-          <button onClick={() => useAppStore.getState().createTab('bible')} title="New Scripture tab"
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] cursor-pointer flex-shrink-0"><BookOpen size={14} /></button>
-        )}
-        <span className="text-[11px] text-[rgb(var(--color-text-muted))] tabular-nums flex-shrink-0">
+          <FileText size={14} className="text-text-muted flex-shrink-0" />
+          <span className="min-w-0 text-subhead font-semibold text-text-primary truncate transition-colors">{title}</span>
+          <ChevronDownIcon size={12} className="flex-shrink-0 text-text-muted" />
+        </Button>
+        <span className="text-caption text-text-muted tabular-nums flex-shrink-0 px-1">
           {numPages ? `${currentPage} / ${numPages}` : '…'}
         </span>
-        <button onClick={() => changeScale(scale - 0.15)} title="Zoom out" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ZoomOut size={14} /></button>
-        <button onClick={() => changeScale(scale + 0.15)} title="Zoom in" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ZoomIn size={14} /></button>
-        <button onClick={addBookmark} title="Add bookmark at current page" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] cursor-pointer"><BookmarkPlus size={14} /></button>
-        <button onClick={() => setFindOpen((v) => !v)} title="Find (⌘F)" className={`p-1 rounded cursor-pointer transition-colors ${findOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}><Search size={14} /></button>
+      </TabHeaderPortal>
+
+      {/* ACTIONS zone — tool buttons, grouped by what they act on, folding into ONE "…" via
+          OverflowGroup as the bar narrows (§17). "Outline & highlights" stays OUTSIDE the
+          OverflowGroup, after it: it's a panel-chrome toggle (opens the right-side panel), the
+          same role as Scripture's inspector toggle, so it's never subject to folding rather than
+          pinned inside the fold system — see BiblePanel.tsx's zone comment for why "never" +
+          "inside" don't mix for a trailing control (OverflowGroup hoists `never` children to the
+          FRONT of its own row). */}
+      <TabHeaderPortal floating={floating} active={isActivePanel} zone="actions">
+        <OverflowGroup label="More">
+          <OverflowSection priority="last" items={[
+            { key: 'zoom-out', label: 'Zoom out', icon: ZoomOut, onSelect: () => changeScale(scale - 0.15) },
+            { key: 'zoom-in', label: 'Zoom in', icon: ZoomIn, onSelect: () => changeScale(scale + 0.15) },
+          ]}>
+            <ControlGroup>
+              <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={() => changeScale(scale - 0.15)} />
+              <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={() => changeScale(scale + 0.15)} />
+            </ControlGroup>
+          </OverflowSection>
+          <OverflowSection items={[
+            { key: 'find', label: 'Find', icon: Search, shortcut: '⌘F', checked: findOpen, onSelect: () => setFindOpen((v) => !v) },
+          ]}>
+            <IconButton icon={Search} label="Find" tooltip={{ shortcut: '⌘F' }} size={28} selected={findOpen} onClick={() => setFindOpen((v) => !v)} />
+          </OverflowSection>
+          <OverflowSection items={[
+            { key: 'bookmark', label: 'Add bookmark at current page', icon: BookmarkPlus, onSelect: addBookmark },
+          ]}>
+            <IconButton icon={BookmarkPlus} label="Add bookmark at current page" size={28} onClick={addBookmark} />
+          </OverflowSection>
+          {!floating && (
+            <OverflowSection items={[
+              { key: 'new-scripture-tab', label: 'New Scripture tab', icon: BookOpen, onSelect: () => useAppStore.getState().createTab('bible') },
+            ]}>
+              <IconButton icon={BookOpen} label="New Scripture tab" size={28} onClick={() => useAppStore.getState().createTab('bible')} />
+            </OverflowSection>
+          )}
+        </OverflowGroup>
         {!floating && (
-          <button onClick={() => setPanelOpen((v) => !v)} title="Outline & highlights"
-            className={`p-1 rounded cursor-pointer transition-colors ${panelOpen ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}><PanelRightIcon size={14} /></button>
+          <IconButton icon={PanelRightIcon} label="Outline & highlights" size={28} active={panelOpen} onClick={() => setPanelOpen((v) => !v)} />
         )}
-      </div>
+      </TabHeaderPortal>
 
       {/* Find bar */}
       {findOpen && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
-          <Search size={12} className="text-[rgb(var(--color-text-muted))]" />
-          <input
-            autoFocus value={findQuery}
-            onChange={(e) => { setFindQuery(e.target.value); runFind(e.target.value, findScope) }}
+        <div className="flex items-center gap-2 mx-2 my-1.5 px-2 py-1.5 material-popover rounded-menu flex-shrink-0">
+          <SearchField
+            autoFocus
+            value={findQuery}
+            onValueChange={(v) => { setFindQuery(v); runFind(v, findScope) }}
             onKeyDown={(e) => { if (e.key === 'Enter') navMatch(e.shiftKey ? -1 : 1); if (e.key === 'Escape') setFindOpen(false) }}
             placeholder={findScope === 'page' ? 'Find on this page…' : 'Find in entire book…'}
-            className="flex-1 bg-transparent text-xs outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+            wrapperClassName="flex-1"
           />
-          <div className="flex items-center bg-[rgb(var(--color-surface-4))] rounded p-0.5">
-            {(['page', 'book'] as const).map((s) => (
-              <button key={s} onClick={() => { setFindScope(s); runFind(findQuery, s) }}
-                className={`text-[10px] px-1.5 py-0.5 rounded capitalize cursor-pointer ${findScope === s ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
-                {s === 'page' ? 'Page' : 'Book'}
-              </button>
-            ))}
-          </div>
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))] tabular-nums">{matches.length ? `${matchIdx + 1}/${matches.length}` : '0'}</span>
-          <button onClick={() => navMatch(-1)} className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ChevronUp size={13} /></button>
-          <button onClick={() => navMatch(1)} className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ChevronDown size={13} /></button>
-          <button onClick={() => setFindOpen(false)} className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><X size={13} /></button>
+          <SegmentedControl
+            value={findScope}
+            onChange={(s) => { setFindScope(s); runFind(findQuery, s) }}
+            options={[{ value: 'page', label: 'Page' }, { value: 'book', label: 'Book' }]}
+            aria-label="Find scope"
+          />
+          <span className="text-caption2 text-text-muted tabular-nums flex-shrink-0">{matches.length ? `${matchIdx + 1}/${matches.length}` : '0'}</span>
+          <IconButton icon={ChevronUp} label="Previous match" size={24} tooltip={false} onClick={() => navMatch(-1)} />
+          <IconButton icon={ChevronDown} label="Next match" size={24} tooltip={false} onClick={() => navMatch(1)} />
+          <IconButton icon={X} label="Close find" size={24} tooltip={false} onClick={() => setFindOpen(false)} />
         </div>
       )}
 
@@ -500,8 +537,8 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
       <div className="flex-1 flex flex-row overflow-hidden">
         {/* Pages scroll area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto min-w-0" onMouseUp={onMouseUp} style={{ contain: 'paint' }}>
-          {loadError && <div className="p-6 text-center text-sm text-red-400">Failed to load PDF: {loadError}</div>}
-          {!doc && !loadError && <div className="p-6 text-center text-sm text-[rgb(var(--color-text-muted))]">Loading PDF…</div>}
+          {loadError && <div className="p-6 text-center text-subhead text-destructive">Failed to load PDF: {loadError}</div>}
+          {!doc && !loadError && <div className="p-6 text-center text-subhead text-text-muted">Loading PDF…</div>}
           {doc && Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div key={page} className="relative">
               <PdfPage
@@ -521,55 +558,64 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
         {/* Side panel: outline (TOC + bookmarks) and highlights */}
         {panelOpen && !floating && (
-          <div className="w-64 flex-shrink-0 flex flex-col border-l border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] overflow-hidden">
-            <div className="flex items-center border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-              {(['outline', 'highlights'] as const).map((t) => (
-                <button key={t} onClick={() => setPanelTab(t)}
-                  className={`flex-1 text-[11px] font-medium py-2 capitalize cursor-pointer transition-colors ${panelTab === t ? 'text-[rgb(var(--color-accent))] border-b-2 border-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}>
-                  {t}
-                </button>
-              ))}
+          <div className="material-panel w-64 flex-shrink-0 flex flex-col border-l border-separator overflow-hidden">
+            <div className="p-1.5 border-b border-separator flex-shrink-0">
+              <SegmentedControl
+                value={panelTab}
+                onChange={setPanelTab}
+                options={[{ value: 'outline', label: 'Outline' }, { value: 'highlights', label: 'Highlights' }]}
+                fill
+                aria-label="Panel section"
+              />
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto p-1">
               {panelTab === 'outline' && (
                 <div className="py-1">
                   {/* Bookmarks */}
-                  <div className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-widest text-[rgb(var(--color-text-muted))] font-semibold flex items-center justify-between">
-                    Bookmarks
-                    <button onClick={addBookmark} title="Add bookmark" className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"><BookmarkPlus size={11} /></button>
+                  <div className="flex items-center justify-between">
+                    <SectionLabel className="px-2">Bookmarks</SectionLabel>
+                    <IconButton icon={BookmarkPlus} label="Add bookmark" size={20} tooltip={false} onClick={addBookmark} />
                   </div>
-                  {bookmarks.length === 0 && <div className="px-3 py-1 text-[11px] text-[rgb(var(--color-text-muted))] italic">No bookmarks</div>}
+                  {bookmarks.length === 0 && <div className="px-2 py-1 text-caption text-text-muted italic">No bookmarks</div>}
                   {bookmarks.map((b, i) => (
-                    <div key={i} className="group flex items-center gap-1.5 px-3 py-1 hover:bg-[rgb(var(--color-surface-4))] cursor-pointer" onClick={() => scrollToPage(b.page)}>
-                      <BookmarkIcon size={11} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
-                      <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{b.label}</span>
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]">p.{b.page}</span>
-                      <button onClick={(e) => { e.stopPropagation(); removeBookmark(i) }} className="opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"><X size={11} /></button>
-                    </div>
+                    <ListRow key={i} dense
+                      leading={<BookmarkIcon size={11} className="text-accent" />}
+                      title={b.label}
+                      meta={`p.${b.page}`}
+                      onClick={() => scrollToPage(b.page)}
+                      trailing={
+                        <IconButton icon={X} label="Remove bookmark" size={20} tooltip={false}
+                          onClick={(e) => { e.stopPropagation(); removeBookmark(i) }} />
+                      }
+                    />
                   ))}
                   {/* TOC */}
-                  <div className="px-3 pt-3 pb-1 text-[9px] uppercase tracking-widest text-[rgb(var(--color-text-muted))] font-semibold">Contents</div>
-                  {toc.length === 0 && <div className="px-3 py-1 text-[11px] text-[rgb(var(--color-text-muted))] italic">No table of contents</div>}
+                  <SectionLabel className="px-2 pt-3">Contents</SectionLabel>
+                  {toc.length === 0 && <div className="px-2 py-1 text-caption text-text-muted italic">No table of contents</div>}
                   {toc.map((item, i) => (
-                    <button key={i} onClick={() => item.page && scrollToPage(item.page)}
+                    <ListRow key={i} dense
+                      title={item.title}
                       disabled={!item.page}
-                      style={{ paddingLeft: 12 + item.depth * 12 }}
-                      className="w-full text-left pr-2 py-1 text-xs text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer truncate disabled:opacity-40 disabled:cursor-default">
-                      {item.title}
-                    </button>
+                      indent={8 + item.depth * 12}
+                      onClick={() => item.page && scrollToPage(item.page)}
+                    />
                   ))}
                 </div>
               )}
               {panelTab === 'highlights' && (
                 <div className="py-1">
-                  {highlights.length === 0 && <div className="px-3 py-3 text-[11px] text-[rgb(var(--color-text-muted))] italic">No highlights yet — select text to add one</div>}
+                  {highlights.length === 0 && <div className="px-2 py-3 text-caption text-text-muted italic">No highlights yet — select text to add one</div>}
                   {highlights.map((h) => (
-                    <div key={h.id} className="group flex items-start gap-1.5 px-3 py-1.5 hover:bg-[rgb(var(--color-surface-4))] cursor-pointer border-b border-[rgb(var(--color-surface-4))/50]" onClick={() => scrollToPage(h.page)}>
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: hlColor(h.color).replace('0.45', '0.9') }} />
-                      <span className="flex-1 min-w-0 text-[11px] text-[rgb(var(--color-text-secondary))] line-clamp-2">{h.text || '(no text)'}</span>
-                      <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">p.{h.page}</span>
-                      <button onClick={(e) => { e.stopPropagation(); removeHighlight(h.id) }} title="Remove" className="opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer flex-shrink-0"><Trash2 size={11} /></button>
-                    </div>
+                    <ListRow key={h.id}
+                      leading={<span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hlColor(h.color).replace('0.45', '0.9') }} />}
+                      title={<span className="line-clamp-2 whitespace-normal">{h.text || '(no text)'}</span>}
+                      meta={`p.${h.page}`}
+                      onClick={() => scrollToPage(h.page)}
+                      trailing={
+                        <IconButton icon={Trash2} label="Remove highlight" size={20} tooltip={false} danger
+                          onClick={(e) => { e.stopPropagation(); removeHighlight(h.id) }} />
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -584,18 +630,19 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
       {/* Selection toolbar */}
       {selToolbar && (
         <div
-          className="fixed z-[200] flex items-center gap-1 px-1.5 py-1 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl"
+          className="fixed z-popover flex items-center gap-1 px-1.5 py-1 material-popover rounded-menu"
           style={{ left: Math.min(selToolbar.x, window.innerWidth - 240), top: selToolbar.y + 6 }}
           onMouseDown={(e) => e.preventDefault()}
         >
-          {HL_COLORS.map((c) => (
-            <button key={c} onClick={() => addHighlight(c)} title={`Highlight ${c}`}
-              className="w-5 h-5 rounded-full border border-black/10 cursor-pointer hover:scale-110 transition-transform"
-              style={{ backgroundColor: hlColor(c).replace('0.45', '0.9') }} />
-          ))}
-          <div className="w-px h-4 bg-[rgb(var(--color-surface-4))] mx-0.5" />
-          <button onClick={highlightAndNote} title="Highlight + new note" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><NotepadText size={13} /></button>
-          <button onClick={copyLinkToSelection} title="Copy link to selection" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><Link2 size={13} /></button>
+          <ColorSwatchRow
+            value={null}
+            onChange={(c) => c && addHighlight(c)}
+            swatches={HL_COLORS.map((c) => ({ id: c, rgb: HL_SWATCH_RGB[c], label: `Highlight ${c}` }))}
+            size={20}
+          />
+          <Divider orientation="vertical" className="h-4 mx-0.5" />
+          <IconButton icon={NotepadText} label="Highlight + new note" size={24} tooltip={false} onClick={highlightAndNote} />
+          <IconButton icon={Link2} label="Copy link to selection" size={24} tooltip={false} onClick={copyLinkToSelection} />
         </div>
       )}
     </div>

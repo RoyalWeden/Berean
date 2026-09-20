@@ -1,25 +1,37 @@
 /**
- * Shared on/off toggle switch (track + knob) — was previously hand-rolled
- * per call site with slightly different sizing each time (PresenterControls'
- * own local Switch, three copy-pasted instances in SettingsModal). One
- * component now backs all of them so the visual and click target stay
- * identical everywhere a boolean setting is toggled.
+ * Shared on/off toggle switch (track + knob) — macOS-proportioned (26×16). One component
+ * backs every boolean setting so the visual and click target stay identical everywhere.
+ * States: off (field material) → hover (lift) → on (accent) → on-hover (raised accent) →
+ * pressed (knob squashes) → focus ring → disabled.
  */
 export default function Switch({
-  checked, onCheckedChange, disabled = false, checkedColorClass = 'bg-[rgb(var(--color-accent))]',
-}: { checked: boolean; onCheckedChange: () => void; disabled?: boolean; /** Override the "on" track color — e.g. amber for a risk-flagged setting like beta updates. */ checkedColorClass?: string }) {
+  checked, onCheckedChange, disabled = false, checkedColorClass = 'bg-accent hover:bg-accent-raised active:bg-accent-pressed', label, decorative = false,
+}: {
+  checked: boolean
+  onCheckedChange: () => void
+  disabled?: boolean
+  /** Override the "on" track color — e.g. `bg-warning` for a risk-flagged setting like beta updates. */
+  checkedColorClass?: string
+  /** Accessible name when no visible label is associated. */
+  label?: string
+  /** Render as a non-interactive visual only (the enclosing row is the real role="switch"). */
+  decorative?: boolean
+}) {
+  const Tag = (decorative ? 'span' : 'button') as 'button'
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={onCheckedChange}
-      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors ${disabled ? 'opacity-40 cursor-default' : 'cursor-pointer'} ${
-        checked ? checkedColorClass : 'bg-[rgb(var(--color-surface-4))]'
+    <Tag
+      type={decorative ? undefined : 'button'}
+      role={decorative ? undefined : 'switch'}
+      aria-checked={decorative ? undefined : checked}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : label}
+      disabled={decorative ? undefined : disabled}
+      onClick={decorative ? undefined : onCheckedChange}
+      className={`focus-ring no-drag group/sw relative flex-shrink-0 w-[26px] h-4 rounded-control transition-colors duration-base ease-mac ${disabled ? 'opacity-40 cursor-default' : 'cursor-pointer'} ${
+        checked ? checkedColorClass : 'control-field bg-field hover:bg-lift-3 active:bg-lift-4'
       }`}
     >
-      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
-    </button>
+      <span className={`absolute top-[2px] left-[2px] w-3 h-3 rounded-control bg-white shadow-[0_1px_2px_rgb(0_0_0/0.35),0_0_0_0.5px_rgb(0_0_0/0.08)] transition-[transform,width] duration-base ease-mac-out group-active/sw:w-[14px] ${checked ? 'translate-x-[10px] group-active/sw:translate-x-[8px]' : ''}`} />
+    </Tag>
   )
 }

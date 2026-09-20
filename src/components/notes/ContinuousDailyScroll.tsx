@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { PenLine, Plus } from 'lucide-react'
+import { IconButton } from '@/components/ui'
 import { renderMarkdownToHTML } from './pm/staticRender'
 import type { Note } from '@/types'
 import { toDateKey, dailyNoteTitle, addDays, dailyNoteToday } from '@/lib/dailyNoteUtils'
@@ -159,18 +160,18 @@ export default function ContinuousDailyScroll({ targetDate, notes, onDateChange,
                 else headingRefs.current.delete(key)
               }}
               data-date-key={key}
-              className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))]"
+              className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-surface-2 border-b border-separator"
             >
-              <span className={`text-xs font-semibold uppercase tracking-wider select-none ${isToday ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
+              <span className={`text-caption2 font-semibold uppercase tracking-wide select-none ${isToday ? 'text-accent' : 'text-text-muted'}`}>
                 {isToday ? 'Today — ' : ''}{formatDateHeader(date)}
               </span>
-              <button
+              <IconButton
+                icon={note ? PenLine : Plus}
+                label={note ? "Edit this day's note" : 'Create note for this day'}
+                size={24}
+                className="ml-auto"
                 onClick={() => onDayOpen(date)}
-                title={note ? "Edit this day's note" : 'Create note for this day'}
-                className="ml-auto p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-              >
-                {note ? <PenLine size={12} /> : <Plus size={12} />}
-              </button>
+              />
             </div>
 
             {/* Day content */}
@@ -180,22 +181,22 @@ export default function ContinuousDailyScroll({ targetDate, notes, onDateChange,
             >
               {note ? (
                 <div
-                  className="prose-note text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed group-hover:text-[rgb(var(--color-text-primary))] transition-colors"
+                  className="prose-note text-body text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors"
                   // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(note.content || '') }}
                 />
               ) : isFuture ? (
-                <p className="text-xs text-[rgb(var(--color-text-muted))] italic select-none">
+                <p className="text-footnote text-text-muted italic select-none">
                   No entry yet
                 </p>
               ) : (
-                <p className="text-xs text-[rgb(var(--color-text-muted))] italic select-none group-hover:text-[rgb(var(--color-text-secondary))] transition-colors">
+                <p className="text-footnote text-text-muted italic select-none group-hover:text-text-secondary transition-colors">
                   No entry for this day — click to start writing
                 </p>
               )}
             </div>
 
-            <div className="border-b border-[rgb(var(--color-surface-3))]" />
+            <div className="border-b border-separator" />
           </div>
         )
       })}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppStore } from '@/store'
+import { TextField, Button } from '@/components/ui'
 
 interface DangerAction {
   id: string
@@ -33,41 +34,34 @@ function DangerCard({ action }: { action: DangerAction }) {
   }
 
   return (
-    <div className="border border-red-500/25 rounded-lg overflow-hidden">
+    <div className="border border-destructive/25 rounded-card overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 bg-red-500/8 border-b border-red-500/20">
-        <p className="text-sm font-semibold text-red-400">{action.title}</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">{action.description}</p>
+      <div className="px-4 py-3 bg-destructive/8 border-b border-destructive/20">
+        <p className="text-subhead font-semibold text-destructive">{action.title}</p>
+        <p className="s-desc text-caption text-text-muted mt-0.5">{action.description}</p>
       </div>
       {/* Confirmation input + button */}
-      <div className="px-4 py-3 bg-[rgb(var(--color-surface-3))] flex items-center gap-3">
+      <div className="px-4 py-3 bg-surface-elevated flex items-center gap-3">
         <div className="flex-1">
-          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mb-1">
-            Type <span className="font-mono font-semibold text-[rgb(var(--color-text-secondary))]">{action.confirmWord}</span> to confirm
+          <p className="text-caption2 text-text-muted mb-1">
+            Type <span className="font-mono font-semibold text-text-secondary">{action.confirmWord}</span> to confirm
           </p>
-          <input
-            type="text"
+          <TextField
             value={inputValue}
             onChange={(e) => { setInputValue(e.target.value); setStatus('idle') }}
             placeholder={action.confirmWord}
-            className="w-full text-sm px-3 py-1.5 rounded-md bg-[rgb(var(--color-surface-4))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none focus:border-red-500/50 transition-colors"
+            wrapperClassName="w-full"
           />
         </div>
-        <button
+        <Button
+          size="md"
+          variant={status === 'done' ? 'secondary' : status === 'error' || isReady ? 'destructive' : 'secondary'}
           onClick={handleClick}
           disabled={!isReady || status === 'busy'}
-          className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed ${
-            status === 'done'
-              ? 'bg-green-600/20 text-green-400 border border-green-600/30'
-              : status === 'error'
-              ? 'bg-red-600/20 text-red-400 border border-red-600/30'
-              : isReady
-              ? 'bg-red-600 hover:bg-red-700 text-white border border-red-600'
-              : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] border border-[rgb(var(--color-surface-4))] opacity-50'
-          }`}
+          className={status === 'done' ? 'text-success border border-success/30' : status === 'error' ? 'text-destructive' : undefined}
         >
           {status === 'busy' ? 'Working…' : status === 'done' ? 'Done' : status === 'error' ? (errorMsg || 'Error') : action.buttonLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -126,8 +120,8 @@ export default function DangerSection() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-sm font-semibold text-red-400 mb-0.5">Danger zone</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
+        <p className="text-subhead font-semibold text-destructive mb-0.5">Danger zone</p>
+        <p className="s-desc text-caption text-text-muted">
           These actions are permanent and cannot be undone. Each action requires you to type a confirmation word before the button activates.
         </p>
       </div>

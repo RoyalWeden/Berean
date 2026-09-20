@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { NotepadText, Trash2, CheckSquare, Square, Pin, PinOff } from 'lucide-react'
+import { NotepadText, Trash2, Pin, PinOff } from 'lucide-react'
 import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
@@ -9,6 +9,8 @@ import type { Note, NoteStatus } from '@/types'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NoteBadgeRow } from './NoteBadgeRow'
 import NoteIcon from './NoteIcon'
+import { EmptyState, Checkbox, IconButton, TextField } from '@/components/ui'
+import { useRovingNav } from '@/lib/useRovingNav'
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
@@ -88,6 +90,7 @@ export default function NotesList({
   onTogglePinned,
 }: NotesListProps) {
   const [contextMenu, setContextMenu] = useState<{ note: Note; x: number; y: number } | null>(null)
+  const rovingNavKeyDown = useRovingNav({ orientation: 'vertical', selector: '[data-roving]' })
   // Pinned notes float to the top — a stable sort (pinned notes otherwise keep their original
   // relative order among themselves, same for unpinned) so this doesn't fight whatever sort/
   // filter order the caller already applied beyond the pin/unpin split itself.
@@ -127,21 +130,18 @@ export default function NotesList({
 
   if (notes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-        <NotepadText size={32} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-40" />
-        <p className="text-sm text-[rgb(var(--color-text-secondary))]">No notes yet</p>
-        <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">
-          Click a verse number to add a verse note, or press{' '}
-          <ShortcutKeys keys="⌘⇧N" className="align-middle" />{' '}
-          for a general note.
-        </p>
-      </div>
+      <EmptyState
+        icon={NotepadText}
+        title="No notes yet"
+        hint={<>Click a verse number to add a verse note, or press{' '}<ShortcutKeys keys="⌘⇧N" className="align-middle" />{' '}for a general note.</>}
+        className="h-full"
+      />
     )
   }
 
   return (
     <>
-      <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+      <div className="relative" style={{ height: virtualizer.getTotalSize() }} onKeyDown={rovingNavKeyDown}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const note = sortedNotes[virtualRow.index]
           const rawSnippet = note.type === 'idiom' && note.idiomMeaning
@@ -167,14 +167,9 @@ export default function NotesList({
               // by at a glance when not hovering; this restores just enough structure without
               // going back to a full box around every entry. Skipped on the very last note.
               className={`absolute top-0 left-0 w-full px-2 py-0.5 ${
-                virtualRow.index < sortedNotes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
+                virtualRow.index < sortedNotes.length - 1 ? 'border-b border-separator' : ''
               }`}
-              style={{
-                transform: `translateY(${virtualRow.start}px)`,
-                // Dim accent wash across the whole previewed row (softer than the side bar).
-                // Inline so it doesn't depend on Tailwind's arbitrary-opacity parsing.
-                ...(isPreviewed ? { backgroundColor: 'rgb(var(--color-accent) / 0.16)' } : {}),
-              }}
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
             >
             <div
               draggable={!selectMode && !renamingNoteId}
@@ -199,12 +194,11 @@ export default function NotesList({
               // and the Linear-style accent bar below for the "this one's active" signal. The
               // previous bordered-card-per-row treatment (bg + border on every single row) read
               // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
-              className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
-                ${isPreviewed
-                  ? '' /* the full-width wash lives on the wrapper above; keep the card clear */
-                  : isSelected
-                  ? 'bg-[rgb(var(--color-accent))/8]'
-                  : 'hover:bg-[rgb(var(--color-surface-3))]'
+              // Selected/previewed share one recipe with NotesFolderView's active row.
+              className={`relative group flex items-stretch rounded-row transition-colors overflow-hidden
+                ${isSelected || isPreviewed
+                  ? 'bg-surface-selected'
+                  : 'hover:bg-surface-hover'
                 }`}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -213,28 +207,21 @@ export default function NotesList({
                 setContextMenu({ note, x: e.clientX, y: e.clientY })
               }}
             >
-              {/* Linear-style left accent bar — solid when selected/previewed, fades in on hover */}
-              <div
-                className={`absolute left-0 top-0 bottom-0 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
-                  ${isPreviewed ? 'w-1' : 'w-0.5'}
-                  ${isSelected || isPreviewed ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
-              />
-
               {/* Checkbox in select mode */}
               {selectMode && (
-                <button
-                  onClick={() => onToggleSelect?.(note.id)}
-                  className="flex items-center pl-3 pr-1 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer flex-shrink-0"
-                >
-                  {isSelected
-                    ? <CheckSquare size={15} className="text-[rgb(var(--color-accent))]" />
-                    : <Square size={15} />
-                  }
-                </button>
+                <Checkbox
+                  checked={isSelected}
+                  onChange={() => onToggleSelect?.(note.id)}
+                  className="pl-3 pr-1 flex-shrink-0"
+                />
               )}
 
-              {/* Note row */}
-              <button
+              {/* Note row — a div (not a real <button>) since it hosts multi-line rich content
+                  (title, snippet, badges, date); keyboard-reachable via role="button". */}
+              <div
+                role="button"
+                tabIndex={0}
+                data-roving=""
                 onClick={() => {
                   if (isRenaming) return
                   if (selectMode) {
@@ -244,14 +231,19 @@ export default function NotesList({
                   }
                 }}
                 onDoubleClick={() => { if (!isRenaming && !selectMode) onSelect(note) }}
-                className={`flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
+                onKeyDown={(e) => {
+                  if (isRenaming) return
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (selectMode ? onToggleSelect?.(note.id) : (onPreview ?? onSelect)(note)) }
+                }}
+                className={`focus-ring flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
                   ${selectMode ? 'px-2 pr-9' : 'px-4 pr-9'}
                 `}
               >
                 {/* Title: inline rename input or normal text */}
                 {isRenaming ? (
-                  <input
+                  <TextField
                     ref={renameInputRef}
+                    size="md"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onKeyDown={(e) => {
@@ -260,12 +252,13 @@ export default function NotesList({
                     }}
                     onBlur={() => commitRename(note.id, renameValue)}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm font-medium text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))] rounded px-1 w-full outline-none border border-[rgb(var(--color-accent))/50]"
+                    className="font-medium"
+                    wrapperClassName="w-full"
                   />
                 ) : (
                   <span className="flex items-center gap-1 w-full min-w-0">
                     <NoteIcon icon={note.icon} size={13} />
-                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
+                    <span className="text-subhead font-medium text-text-primary truncate">
                       {findQuery ? applyFindHighlight(note.title || 'Untitled', findQuery) : (note.title || 'Untitled')}
                     </span>
                   </span>
@@ -273,7 +266,7 @@ export default function NotesList({
                 {!isRenaming && (
                   <>
                     <span
-                      className={`text-xs text-[rgb(var(--color-text-muted))] w-full ${expandAll ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}
+                      className={`text-footnote text-text-muted w-full ${expandAll ? 'whitespace-pre-wrap break-words' : 'line-clamp-2'}`}
                       style={expandAll ? undefined : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                     >
                       {findQuery
@@ -282,52 +275,45 @@ export default function NotesList({
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <NoteBadgeRow note={note} />
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]">
+                      <span className="text-caption2 text-text-muted">
                         {formatDate(note.createdAt)}
                         {note.updatedAt !== note.createdAt && (
-                          <span className="opacity-60"> · {timeAgo(note.updatedAt)}</span>
+                          <span className="text-text-tertiary"> · {timeAgo(note.updatedAt)}</span>
                         )}
                       </span>
                     </div>
                   </>
                 )}
-              </button>
+              </div>
 
               {/* Pin toggle — a pinned note's icon stays visible always (so pinned status
                   reads at a glance without hovering); an unpinned note's only shows on hover,
                   matching the delete button's own reveal-on-hover convention below. Sits left
                   of delete (right-9 vs right-2) so the two never overlap. */}
               {onTogglePinned && !selectMode && (
-                <button
+                <IconButton
+                  icon={note.pinned ? Pin : PinOff}
+                  label={note.pinned ? 'Unpin note' : 'Pin note'}
+                  size={28}
+                  variant="ghost"
+                  active={note.pinned}
+                  iconClassName={note.pinned ? 'fill-current' : undefined}
                   onClick={(e) => { e.stopPropagation(); onTogglePinned(note) }}
-                  className={`
-                    absolute right-9 top-1/2 -translate-y-1/2
-                    p-1.5 rounded transition-opacity cursor-pointer
-                    ${note.pinned
-                      ? 'text-[rgb(var(--color-accent))] opacity-100'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] opacity-0 group-hover:opacity-100'
-                    }
-                  `}
-                  title={note.pinned ? 'Unpin note' : 'Pin note'}
-                >
-                  {note.pinned ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
-                </button>
+                  className={`absolute right-9 top-1/2 -translate-y-1/2 transition-opacity ${note.pinned ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                />
               )}
 
               {/* Delete button — appears on row hover (not in select mode) */}
               {onDelete && !selectMode && (
-                <button
+                <IconButton
+                  icon={Trash2}
+                  label="Delete note"
+                  size={28}
+                  variant="ghost"
+                  danger
                   onClick={(e) => { e.stopPropagation(); onDelete(note) }}
-                  className="
-                    absolute right-2 top-1/2 -translate-y-1/2
-                    p-1.5 rounded opacity-0 group-hover:opacity-100
-                    text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/15
-                    transition-opacity cursor-pointer
-                  "
-                  title="Delete note"
-                >
-                  <Trash2 size={13} />
-                </button>
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                />
               )}
             </div>
             {/* In-note search matches — truncated snippets with the match highlighted */}
@@ -337,7 +323,7 @@ export default function NotesList({
                   <div
                     key={i}
                     onClick={() => onSelect(note)}
-                    className="text-[11px] leading-snug text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))/40] rounded px-2 py-1 cursor-pointer hover:bg-[rgb(var(--color-surface-4))]"
+                    className="text-caption leading-snug text-text-secondary bg-surface-4/40 rounded-card px-2 py-1 cursor-pointer hover:bg-surface-hover"
                   >
                     {applyFindHighlight(s, searchQuery!)}
                   </div>

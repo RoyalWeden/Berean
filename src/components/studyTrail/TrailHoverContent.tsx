@@ -3,6 +3,7 @@ import { Pencil } from 'lucide-react'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { originDisplayText } from './trailNav'
 import { useWordReplace } from './useWordReplace'
+import { IconButton, cx } from '@/components/ui'
 import type { TrailConnection, TrailNode } from '@/types/studyTrail'
 
 // Rich hover-card body — timestamp/duration plus a live-fetched verse or Strong's-gloss
@@ -22,9 +23,9 @@ function fmtDuration(ms: number): string {
   return `${s}s`
 }
 
-const rowStyle: React.CSSProperties = { fontSize: 11, color: 'rgb(var(--color-text-secondary))', lineHeight: 1.5 }
-const dividerStyle: React.CSSProperties = { height: 1, background: 'rgb(var(--color-surface-4))', margin: '6px 0' }
-const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
+const rowClassName = 'text-caption leading-relaxed text-text-secondary'
+const dividerClassName = 'h-px bg-separator my-1.5'
+const TIER_COLOR: Record<number, string> = { 1: 'rgb(var(--trail-cool))', 2: 'rgb(var(--color-accent))', 3: 'rgb(var(--trail-warm))' }
 const TIER_LABEL: Record<number, string> = { 1: 'clear', 2: 'soft', 3: 'ambiguous' }
 
 // A small note/pencil button shared by every hover card (node, connection, tangent bullet) —
@@ -33,26 +34,19 @@ const TIER_LABEL: Record<number, string> = { 1: 'clear', 2: 'soft', 3: 'ambiguou
 // unified note concept everywhere, not a separate quick-note system) — this is just another
 // place to reach it, right where you're already looking at the fact card.
 function EditNoteBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick} title="Add/edit a note for this"
-      className="trail-ctx-btn"
-      style={{
-        background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer',
-        padding: 3, borderRadius: 5, display: 'flex', flexShrink: 0,
-      }}
-    ><Pencil size={11} /></button>
-  )
+  return <IconButton icon={Pencil} label="Add/edit a note for this" size={20} variant="ghost" onClick={onClick} />
 }
 
 function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
   const color = TIER_COLOR[tier]
   return (
-    <span style={{
-      fontSize: 9.5, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
-      border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`, borderRadius: 999, padding: '1px 6px',
-      textTransform: 'uppercase', letterSpacing: '.03em',
-    }}>{TIER_LABEL[tier]}</span>
+    <span
+      className="text-micro font-semibold rounded-control px-1.5 py-px uppercase tracking-wide"
+      style={{
+        color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
+      }}
+    >{TIER_LABEL[tier]}</span>
   )
 }
 
@@ -62,7 +56,7 @@ function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
 function OriginLine({ conn }: { conn: TrailConnection }) {
   const replace = useWordReplace()
   return (
-    <div style={{ ...rowStyle, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div className={cx(rowClassName, 'flex items-center gap-1.5 flex-wrap')}>
       <span>via {replace(originDisplayText(conn))}</span>
       <ClarityBadge tier={conn.clarityTier} />
     </div>
@@ -88,30 +82,29 @@ export function TrailNodeHoverContent({ node, originConn, onEditNote }: { node: 
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>
+      <div className="flex justify-between items-center gap-2.5 text-footnote font-semibold text-text-primary">
         <span>{bookName(node.bookId)} {node.chapter}</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
+        <span className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="font-medium text-text-muted text-caption2">{fmtClock(node.anchorStartedAt)}</span>
           {onEditNote && <EditNoteBtn onClick={onEditNote} />}
         </span>
       </div>
-      <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div className={cx(rowClassName, 'mt-0.5 flex items-center gap-1.5')}>
         <span>{fmtDuration(duration)} on this chapter</span>
         {/* No indication anywhere of which text (KJV vs LXX, or a dedicated translation) a
             chapter was actually read in — per direct feedback ("i dont see any indication in
             the hover thing if the user checked the lxx"). Suppressed for plain kjva since
             that's the silent default everyone assumes; anything else is worth calling out. */}
         {effectiveTranslation && effectiveTranslation !== 'kjva' && (
-          <span style={{
-            fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.12)',
-            borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
-          }}>{effectiveTranslation}</span>
+          <span className="text-micro font-semibold text-accent bg-accent-muted rounded-control px-1.5 py-px uppercase tracking-wide">
+            {effectiveTranslation}
+          </span>
         )}
       </div>
-      {originConn && <div style={dividerStyle} />}
+      {originConn && <div className={dividerClassName} />}
       {originConn && <OriginLine conn={originConn} />}
-      {node.cachedSubnote && <div style={dividerStyle} />}
-      {node.cachedSubnote && <div style={rowStyle}>{replace(node.cachedSubnote)}</div>}
+      {node.cachedSubnote && <div className={dividerClassName} />}
+      {node.cachedSubnote && <div className={rowClassName}>{replace(node.cachedSubnote)}</div>}
     </div>
   )
 }
@@ -132,14 +125,14 @@ export function TrailVersePreview({ bookId, chapter, verse, onEditNote }: { book
   }, [bookId, chapter, verse])
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{bookName(bookId)} {chapter}:{verse}</div>
+      <div className="flex justify-between items-center gap-2.5">
+        <div className="text-footnote font-semibold text-text-primary">{bookName(bookId)} {chapter}:{verse}</div>
         {onEditNote && <EditNoteBtn onClick={onEditNote} />}
       </div>
       {preview && (
         <>
-          <div style={dividerStyle} />
-          <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          <div className={dividerClassName} />
+          <div className={cx(rowClassName, 'italic line-clamp-2')}>
             “{replace(preview)}”
           </div>
         </>
@@ -177,18 +170,18 @@ export function TrailConnectionHoverContent({ conn, onEditNote }: { conn: TrailC
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{label}</div>
+      <div className="flex justify-between items-center gap-2.5">
+        <div className="text-footnote font-semibold text-text-primary">{label}</div>
         {onEditNote && <EditNoteBtn onClick={onEditNote} />}
       </div>
-      <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <div className={cx(rowClassName, 'mt-0.5 flex items-center gap-1.5 flex-wrap')}>
         <ClarityBadge tier={conn.clarityTier} />
         <span>{fmtClock(conn.createdAt)}{conn.weight === 'glance' ? ' · glance' : ''}</span>
       </div>
       {preview && (
         <>
-          <div style={dividerStyle} />
-          <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          <div className={dividerClassName} />
+          <div className={cx(rowClassName, 'italic line-clamp-2')}>
             {conn.toKind === 'lexicon' ? replace(preview) : `“${replace(preview)}”`}
           </div>
         </>
@@ -199,8 +192,8 @@ export function TrailConnectionHoverContent({ conn, onEditNote }: { conn: TrailC
           user-authored reasonText (a real note about WHY) still shows. */}
       {conn.reasonText && (
         <>
-          <div style={dividerStyle} />
-          <div style={rowStyle}>{replace(conn.reasonText)}</div>
+          <div className={dividerClassName} />
+          <div className={rowClassName}>{replace(conn.reasonText)}</div>
         </>
       )}
     </div>

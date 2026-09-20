@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
-import { Scissors, Plus, ListChecks, ChevronLeft, ChevronRight, CalendarDays, CalendarCheck } from 'lucide-react'
+import { Scissors, Plus, Minus, ListChecks, ChevronLeft, ChevronRight, CalendarDays, CalendarCheck, Play, X } from 'lucide-react'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail, TrailTag } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
@@ -16,6 +16,10 @@ import {
   readTrailWindowPrefs, setTrailWindowPrefs, EVERYTHING_SCROLL_KEY,
   TRAIL_ZOOM_MIN, TRAIL_ZOOM_MAX, type TrailHeaderPos,
 } from './trailWindowPrefs'
+import {
+  IconButton, Toolbar, Button, SegmentedControl, ListRow, Chip, TextField, Checkbox,
+  MenuSurface, MenuItem, MenuSeparator, MenuLabel, SectionLabel, ControlGroup, cx,
+} from '@/components/ui'
 
 // 'review' is gone — it was a per-session recap list that Michael said outright he wouldn't use.
 // Threads answers "what have I been chasing across sessions"; Search covers every stop, jump,
@@ -114,8 +118,6 @@ export default function StudyTrailApp() {
   const [tagFilter, setTagFilter] = useState<Set<string>>(() => new Set())
   const [dragSessionId, setDragSessionId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null)
   // Right-click on a session row (or its name specifically) → Rename / Delete. Inline rename
   // reuses the same "swap to an input" idiom as the new-session button above.
   const [sessionCtxMenu, setSessionCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
@@ -198,6 +200,7 @@ export default function StudyTrailApp() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const glassAppearance = useAppStore((s) => s.glassAppearance)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
   const setAskChapterJumpReason = useAppStore((s) => s.setStudyTrailAskChapterJumpReason)
   const [systemIsDark, setSystemIsDark] = useState(
@@ -212,9 +215,9 @@ export default function StudyTrailApp() {
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
   async function refresh() {
     const rows = await window.studyTrail.listSessions()
@@ -537,147 +540,94 @@ export default function StudyTrailApp() {
   // this whole block. `pinned` only affects the key/wrapper, not the row's own look.
   function renderSessionRow(s: TrailSession | undefined, pinned: boolean) {
     if (!s) return null
-    const isHovered = hoveredId === s.id
-    const isXHovered = hoveredDeleteId === s.id
-    return (
-      <div
-        key={pinned ? `pinned:${s.id}` : s.id}
-        // Native HTML5 drag, the same idiom TagManagerPanel / TabBar / NotesFolderView already
-        // use in this app — no dnd library is a dependency and adding one for a 20-row list
-        // would be out of proportion. Dropping on a row inserts BEFORE it; the drop target's own
-        // top border is the insertion indicator.
-        draggable={!selectMode}
-        onDragStart={(e) => { setDragSessionId(s.id); e.dataTransfer.effectAllowed = 'move' }}
-        onDragEnd={() => { setDragSessionId(null); setDragOverId(null) }}
-        onDragOver={(e) => { if (dragSessionId && dragSessionId !== s.id) { e.preventDefault(); setDragOverId(s.id) } }}
-        onDragLeave={() => setDragOverId((d) => (d === s.id ? null : d))}
-        onDrop={(e) => {
-          e.preventDefault()
-          const dragged = dragSessionId
-          setDragSessionId(null); setDragOverId(null)
-          if (dragged && dragged !== s.id) void commitReorder(dragged, s.id)
-        }}
-        onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { selectSessionToggle(s.id) } }}
-        onMouseEnter={() => setHoveredId(s.id)}
-        onMouseLeave={() => setHoveredId((h) => h === s.id ? null : h)}
-        onContextMenu={(e) => openSessionMenu(e, s.id)}
-        style={{
-          borderTop: dragOverId === s.id ? '2px solid rgb(var(--color-accent))' : '2px solid transparent',
-          opacity: dragSessionId === s.id ? 0.45 : undefined,
-          padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
-          // Selected + hover need to layer, not pick one or the other — a selected row
-          // hovered previously looked visually identical to an un-hovered selected row
-          // (no feedback at all). Bump selected's own tint up a notch on hover instead
-          // of falling through to the plain hover shade.
-          background: selectedId === s.id && mainTab === 'map' && !selectMode
-            ? isHovered ? 'rgb(var(--color-accent) / 0.22)' : 'rgb(var(--color-accent) / 0.14)'
-            : isHovered ? 'rgb(var(--color-surface-3))' : 'transparent',
-        }}
-      >
-        {selectMode && (
-          <input
-            type="checkbox"
-            checked={selectedIds.has(s.id)}
-            onChange={(e) => toggleSelected(e, s.id)}
+    const dot = (
+      <span
+        className={cx('w-[5px] h-[5px] rounded-full inline-block flex-shrink-0', s.status === 'live' && 'trail-live-dot')}
+        style={{ background: s.status === 'live' ? 'rgb(var(--trail-cool))' : s.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-muted))' }}
+      />
+    )
+    // Native HTML5 drag, the same idiom TagManagerPanel / TabBar / NotesFolderView already
+    // use in this app — no dnd library is a dependency and adding one for a 20-row list
+    // would be out of proportion. Dropping on a row inserts BEFORE it; the drop target's own
+    // top border is the insertion indicator.
+    const dragProps = {
+      draggable: !selectMode,
+      onDragStart: (e: React.DragEvent) => { setDragSessionId(s.id); e.dataTransfer.effectAllowed = 'move' },
+      onDragEnd: () => { setDragSessionId(null); setDragOverId(null) },
+      onDragOver: (e: React.DragEvent) => { if (dragSessionId && dragSessionId !== s.id) { e.preventDefault(); setDragOverId(s.id) } },
+      onDragLeave: () => setDragOverId((d) => (d === s.id ? null : d)),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault()
+        const dragged = dragSessionId
+        setDragSessionId(null); setDragOverId(null)
+        if (dragged && dragged !== s.id) void commitReorder(dragged, s.id)
+      },
+      onContextMenu: (e: React.MouseEvent) => openSessionMenu(e, s.id),
+      style: {
+        borderTop: dragOverId === s.id ? '2px solid rgb(var(--color-accent))' : '2px solid transparent',
+        opacity: dragSessionId === s.id ? 0.45 : undefined,
+      } as React.CSSProperties,
+    }
+    // Renaming swaps the whole row for a plain TextField in place — ListRow's title lives
+    // inside a real <button>, and nesting a text input inside a button isn't valid markup.
+    if (renamingId === s.id) {
+      return (
+        <div key={pinned ? `pinned:${s.id}` : s.id} className="flex items-center gap-2 px-2.5 py-1" {...dragProps}>
+          {dot}
+          <TextField
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
             onClick={(e) => e.stopPropagation()}
-            style={{ marginTop: 3, flexShrink: 0 }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename()
+              else if (e.key === 'Escape') setRenamingId(null)
+            }}
+            onBlur={commitRename}
+            wrapperClassName="flex-1"
           />
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span
-              className={s.status === 'live' ? 'trail-live-dot' : undefined}
-              style={{
-                width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
-              }}
-            />
-            {renamingId === s.id ? (
-              <input
-                ref={renameInputRef}
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename()
-                  else if (e.key === 'Escape') setRenamingId(null)
-                }}
-                onBlur={commitRename}
-                style={{
-                  flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, background: 'rgb(var(--color-surface-1))',
-                  border: '1px solid rgb(var(--color-accent))', borderRadius: 5, padding: '1px 4px', color: 'rgb(var(--color-text-primary))',
-                }}
-              />
-            ) : (
-              <span
-                onContextMenu={(e) => openSessionMenu(e, s.id)}
-                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >{s.name}</span>
-            )}
-          </div>
-          <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>{s.status} · {fmtLastUsed(s.updatedAt)}</span>
-            {s.possiblyAccidental && (
-              <button
-                onClick={(e) => dismissAccidental(e, s.id)}
-                title="Empty/accidental session — dismiss without confirming"
-                style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
-              >dismiss</button>
-            )}
-            {s.status === 'ended' && !s.possiblyAccidental && (
-              <button
-                onClick={(e) => resumeEnded(e, s.id)}
-                title="Pick this session back up — pauses whatever's currently active"
-                style={{ fontSize: 9.5, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
-              >▶ resume</button>
-            )}
-          </div>
-          {tagsForSession(s.id).length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
-              {tagsForSession(s.id).map((t) => (
-                <span
-                  key={t.id}
-                  style={{
-                    fontSize: 9, padding: '0 5px', borderRadius: 999, lineHeight: '14px',
-                    background: t.color ? `${t.color}22` : 'rgb(var(--color-surface-3))',
-                    color: t.color ?? 'rgb(var(--color-text-muted))',
-                  }}
-                >{t.name}</span>
-              ))}
-            </div>
-          )}
         </div>
-        {!selectMode && (
+      )
+    }
+    const alwaysShowTrailing = selectMode || s.possiblyAccidental || s.status === 'ended' || confirmDeleteId === s.id
+    return (
+      <ListRow
+        key={pinned ? `pinned:${s.id}` : s.id}
+        {...dragProps}
+        onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { selectSessionToggle(s.id) } }}
+        selected={selectedId === s.id && mainTab === 'map' && !selectMode}
+        leading={dot}
+        title={s.name}
+        subtitle={
+          <span className="flex items-center gap-1.5">
+            <span>{s.status} · {fmtLastUsed(s.updatedAt)}</span>
+            {tagsForSession(s.id).map((t) => (
+              <Chip key={t.id} static size="sm">{t.name}</Chip>
+            ))}
+          </span>
+        }
+        trailing={selectMode ? (
+          <Checkbox checked={selectedIds.has(s.id)} onChange={(e) => toggleSelected(e, s.id)} onClick={(e) => e.stopPropagation()} />
+        ) : (
           confirmDeleteId === s.id ? (
-            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-              <button
-                onClick={(e) => confirmDelete(e, s.id)}
-                style={{ fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
-              >Delete</button>
-              <button
-                onClick={cancelDelete}
-                style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
-              >Cancel</button>
-            </div>
-          ) : (isHovered || isXHovered) ? (
-            <button
-              onClick={(e) => requestDelete(e, s.id)}
-              onMouseEnter={() => setHoveredDeleteId(s.id)}
-              onMouseLeave={() => setHoveredDeleteId((h) => h === s.id ? null : h)}
-              title="Delete this session"
-              style={{
-                fontSize: 13, lineHeight: 1, color: isXHovered ? '#e08468' : 'rgb(var(--color-text-muted))',
-                background: isXHovered ? 'rgba(224,132,104,0.14)' : 'transparent', borderRadius: 5,
-                border: 'none', cursor: 'pointer', padding: '1px 5px', flexShrink: 0,
-              }}
-            >×</button>
+            <span className="flex items-center gap-1">
+              <Button variant="destructive" size="sm" onClick={(e) => confirmDelete(e, s.id)}>Delete</Button>
+              <Button variant="secondary" size="sm" onClick={cancelDelete}>Cancel</Button>
+            </span>
           ) : (
-            // Reserves the same width as the × button so rows don't jiggle horizontally
-            // when the hover state toggles it in and out.
-            <span style={{ width: 18, flexShrink: 0 }} />
+            <span className="flex items-center gap-1">
+              {s.possiblyAccidental && (
+                <Button variant="ghost" size="sm" onClick={(e) => dismissAccidental(e, s.id)} tooltip="Empty/accidental session — dismiss without confirming">Dismiss</Button>
+              )}
+              {s.status === 'ended' && !s.possiblyAccidental && (
+                <Button variant="ghost" size="sm" icon={Play} onClick={(e) => resumeEnded(e, s.id)} tooltip="Pick this session back up — pauses whatever's currently active">Resume</Button>
+              )}
+              <IconButton icon={X} label="Delete this session" size={20} danger onClick={(e) => requestDelete(e, s.id)} tooltip={false} />
+            </span>
           )
         )}
-      </div>
+        trailingAlways={alwaysShowTrailing}
+      />
     )
   }
 
@@ -686,95 +636,71 @@ export default function StudyTrailApp() {
       display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui, sans-serif',
       background: 'rgb(var(--color-surface-1))', color: 'rgb(var(--color-text-primary))',
     }}>
-      {/* Real :hover (not JS mouseenter/leave state) for every plain context-menu-style button
-          in this window, including TrailRefContextMenu's — that one portals to document.body,
-          but a global style tag still reaches it since it's just a class selector, not scoped
-          to this subtree. */}
+      {/* Slow, low-amplitude breathe on the live-session dot — a small indicator like this
+          reads better as a gentle pulse than a sharp blink. */}
       <style>{`
-        .trail-ctx-btn:hover { background: rgb(var(--color-surface-3)); }
-        /* Slow, low-amplitude breathe on the live-session dot — a small indicator like this
-           reads better as a gentle pulse than a sharp blink. */
         @keyframes trail-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
         .trail-live-dot { animation: trail-live-pulse 2s ease-in-out infinite; }
-        .trail-everything-row:not([data-selected="true"]):hover { background: rgb(var(--color-surface-3)) !important; }
-        .trail-everything-row[data-selected="true"]:hover { background: rgb(var(--color-accent) / 0.22) !important; }
-        .trail-day-row:hover { background: rgb(var(--color-surface-3)); }
       `}</style>
       {/* Title bar — the whole strip is a drag region (titleBarStyle: 'hiddenInset' on this
           BrowserWindow gives no native drag handling beyond the tiny traffic-light inset area
           itself, so without an explicit -webkit-app-region: drag somewhere the window couldn't
-          be dragged at all) with interactive children explicitly opted back OUT of it (a
-          descendant marked 'no-drag' still receives clicks normally — otherwise every button
-          here would silently stop responding to clicks, since 'drag' consumes mouse-down). Left
-          padding clears the macOS traffic lights, same 78px ViewerApp.tsx uses for the same
-          trafficLightPosition. */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px 8px 78px',
-        borderBottom: '1px solid rgb(var(--color-surface-4))', flexShrink: 0,
-        WebkitAppRegion: 'drag',
-        // A drag region is otherwise still plain selectable text underneath — dragging the
-        // title bar to move the window could instead start a text selection across "Study
-        // Trail" / the tab labels, which then blocks the actual drag from registering at all.
-        WebkitUserSelect: 'none',
-        userSelect: 'none',
-      } as React.CSSProperties}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, marginRight: 10 }}>Study Trail</span>
+          be dragged at all); every primitive button/field/segmented-control below already bakes
+          in 'no-drag' so they keep receiving clicks normally. Left padding clears the macOS
+          traffic lights, same 78px ViewerApp.tsx uses for the same trafficLightPosition. */}
+      <Toolbar
+        size="md"
+        className="pl-traffic-lights"
+        style={{ WebkitAppRegion: 'drag', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+      >
+        {/* Zones-like layout: title · space · [actions ControlGroup] (no nav cluster here) */}
+        <span className="text-subhead font-semibold mr-2.5">Study Trail</span>
         {/* REMOVED: the persistent "paused" pill. Per direct feedback, "pausing a session doesnt
             pause everything" — recording continues into the loose-stops bucket whenever no user
             session is live, so a window-level banner claiming the Study Trail as a whole was
             paused was simply untrue. Each session row in the rail still shows its own status,
             which is the accurate scope for that fact. */}
-        <div style={{ display: 'flex', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, overflow: 'hidden', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {MAIN_TABS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setMainTab(t)}
-              style={{
-                fontSize: 11, fontWeight: 600, padding: '4px 12px', cursor: 'pointer', border: 'none',
-                background: mainTab === t ? 'rgb(var(--color-accent) / 0.16)' : 'transparent',
-                color: mainTab === t ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))', textTransform: 'capitalize',
-              }}
-            >{t}</button>
-          ))}
-        </div>
-        <div style={{ flex: 1 }} />
-        {/* Opt-in "ask why I jumped chapters" arrival prompt (StudyTrailArrivalPrompt.tsx,
-            mounted in the main Bible-reader window) — off by default since it's an
-            interruption. Setting lives on the shared useAppStore (see
-            setStudyTrailAskChapterJumpReason), so it's a real persisted preference, not
-            session-local state, and syncs to the main window via the same localStorage
-            persist theme/wordReplacer already rely on. */}
-        <button
-          onClick={() => setAskChapterJumpReason(!askChapterJumpReason)}
-          title="Ask why you jumped chapters — a dismissible prompt appears in the main window on tier-2/3 chapter jumps"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '4px 10px',
-            cursor: 'pointer', borderRadius: 8, WebkitAppRegion: 'no-drag', marginRight: 8,
-            border: `1px solid ${askChapterJumpReason ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
-            background: askChapterJumpReason ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
-            color: askChapterJumpReason ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
-          } as React.CSSProperties}
-        >
-          {askChapterJumpReason ? '● ' : '○ '}Ask why?
-        </button>
-        {selectedSession && selectedSession.id === currentTrailSessionId && (
-          <>
-            <button
-              onClick={() => (trailSessionStatus === 'live' ? pauseTrailSession() : resumeTrailSession())}
-              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: '4px 10px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer', fontSize: 11, WebkitAppRegion: 'no-drag', marginRight: 6 } as React.CSSProperties}
-            >
-              {trailSessionStatus === 'live' ? '⏸ Pause' : '▶ Resume'}
-            </button>
-            <button
-              onClick={async () => { await endTrailSession(); await refresh() }}
-              title="End this session — it stops recording and moves to 'ended'"
-              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: '4px 10px', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', fontSize: 11, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-            >
-              ■ End
-            </button>
-          </>
-        )}
-      </div>
+        <SegmentedControl
+          aria-label="View"
+          value={mainTab}
+          onChange={setMainTab}
+          options={MAIN_TABS.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+        />
+        <div className="flex-1" />
+        <ControlGroup>
+          {/* Opt-in "ask why I jumped chapters" arrival prompt (StudyTrailArrivalPrompt.tsx,
+              mounted in the main Bible-reader window) — off by default since it's an
+              interruption. Setting lives on the shared useAppStore (see
+              setStudyTrailAskChapterJumpReason), so it's a real persisted preference, not
+              session-local state, and syncs to the main window via the same localStorage
+              persist theme/wordReplacer already rely on. */}
+          <Button
+            variant="secondary"
+            selected={askChapterJumpReason}
+            onClick={() => setAskChapterJumpReason(!askChapterJumpReason)}
+            tooltip="Ask why you jumped chapters — a dismissible prompt appears in the main window on tier-2/3 chapter jumps"
+          >
+            Ask why?
+          </Button>
+          {selectedSession && selectedSession.id === currentTrailSessionId && (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => (trailSessionStatus === 'live' ? pauseTrailSession() : resumeTrailSession())}
+              >
+                {trailSessionStatus === 'live' ? 'Pause' : 'Resume'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => { await endTrailSession(); await refresh() }}
+                tooltip="End this session — it stops recording and moves to 'ended'"
+              >
+                End
+              </Button>
+            </>
+          )}
+        </ControlGroup>
+      </Toolbar>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* Session rail */}
@@ -805,60 +731,39 @@ export default function StudyTrailApp() {
               rendered further down, under that view's date heading. Icon-only, no "Sessions"/
               "Select" text labels, per the earlier feedback that removed those. */}
           {railView !== 'day' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <button
-                onClick={() => setCreatingSession(true)}
-                title="New session"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
-                  background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 7, cursor: 'pointer',
-                  color: 'rgb(var(--color-accent))', flexShrink: 0,
-                }}
-              ><Plus size={14} /></button>
-              <span style={{ flex: 1 }} />
+            <div className="flex items-center gap-1.5 mb-2">
+              <IconButton icon={Plus} label="New session" size={24} active onClick={() => setCreatingSession(true)} />
+              <span className="flex-1" />
               {sessions.length > 0 && (
-                <button
+                <IconButton
+                  icon={ListChecks} label={selectMode ? 'Cancel selecting' : 'Select multiple to delete'} size={24}
+                  active={selectMode}
                   onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
-                  title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
-                    background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 7, cursor: 'pointer',
-                    color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
-                  }}
-                ><ListChecks size={14} /></button>
+                />
               )}
             </div>
           )}
           {selectMode && selectedIds.size > 0 && (
-            <button
-              onClick={bulkDelete}
-              style={{
-                width: '100%', marginBottom: 8, fontSize: 11, fontWeight: 600, padding: '6px 8px', cursor: 'pointer',
-                background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 7, color: '#e08468',
-              }}
-            >Delete {selectedIds.size} session{selectedIds.size === 1 ? '' : 's'}</button>
+            <Button variant="destructive" size="sm" className="w-full mb-2" onClick={bulkDelete}>
+              Delete {selectedIds.size} session{selectedIds.size === 1 ? '' : 's'}
+            </Button>
           )}
           {tags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+            <div className="flex flex-wrap gap-1 mb-2.5">
               {tags.map((t) => {
                 const on = tagFilter.has(t.id)
                 return (
-                  <button
+                  <Chip
                     key={t.id}
+                    selected={on}
+                    count={t.sessionIds.length}
                     onClick={() => setTagFilter((prev) => {
                       const next = new Set(prev)
                       if (next.has(t.id)) next.delete(t.id)
                       else next.add(t.id)
                       return next
                     })}
-                    title={`${t.sessionIds.length} session${t.sessionIds.length === 1 ? '' : 's'}`}
-                    style={{
-                      fontSize: 9.5, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
-                      background: on ? 'rgb(var(--color-accent) / 0.18)' : 'rgb(var(--color-surface-3))',
-                      border: `1px solid ${on ? 'rgb(var(--color-accent) / 0.5)' : 'transparent'}`,
-                      color: on ? 'rgb(var(--color-accent))' : (t.color ?? 'rgb(var(--color-text-muted))'),
-                    }}
-                  >{t.name}</button>
+                  >{t.name}</Chip>
                 )
               })}
             </div>
@@ -866,21 +771,13 @@ export default function StudyTrailApp() {
           {/* "Everything" — the default (selectedId starts null): not in any particular
               session, just show what's been tracked across all of them. Pinned above the
               individual session list, same idea as the plan's "Sessions/Everything toggle". */}
-          <div
+          <ListRow
             onClick={() => { setSelectedId(null); setMainTab('map') }}
-            className="trail-everything-row"
-            data-selected={selectedId === null && mainTab === 'map'}
-            style={{
-              padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
-              background: selectedId === null && mainTab === 'map' ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
-              border: '1px dashed rgb(var(--color-surface-4))',
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 600, color: selectedId === null ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))' }}>
-              Everything
-            </div>
-            <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
-          </div>
+            current={selectedId === null && mainTab === 'map'}
+            className="border border-dashed border-separator mb-1.5"
+            title="Everything"
+            subtitle="every session, all at once"
+          />
           {/* The name-input and the live session's own row now share this ONE slot right below
               Everything, instead of the input living in a separate spot near the +/Select
               buttons above and just vanishing once you hit Enter — per direct feedback, typing
@@ -890,7 +787,7 @@ export default function StudyTrailApp() {
               input into that session's real row in place, rather than the input disappearing and
               a same-looking-but-different block popping in somewhere else. */}
           {creatingSession ? (
-            <input
+            <TextField
               ref={newSessionInputRef}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -900,7 +797,6 @@ export default function StudyTrailApp() {
               }}
               onBlur={() => { if (!newName.trim()) setCreatingSession(false) }}
               placeholder="New session name…"
-              style={{ width: '100%', background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
             />
           ) : renderSessionRow(liveSession, true)}
           </div>
@@ -910,78 +806,43 @@ export default function StudyTrailApp() {
               its own separately-sticky element fighting them for the same top:0 spot. Each
               button gets its OWN translucent pill background now, not one shared band. */}
           {railView === 'day' && selectedDayKey && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+            <div className="mt-1.5">
+              <div className="flex items-center gap-1 mb-1.5">
                 {/* text-shadow (not a background pill) keeps this legible over whatever
                     scrolls underneath without turning the translucent-background request
                     into another opaque box. */}
-                <div style={{ fontSize: 13.5, fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgb(var(--color-surface-1))' }}>
+                <div className="text-subhead font-semibold flex-1 truncate" style={{ textShadow: '0 1px 4px rgb(var(--color-surface-1))' }}>
                   {fmtDayHeading(selectedDayKey)}
                 </div>
-                {selectedDayKey !== dayKeyFor(Date.now()) && (
-                  <button
-                    onClick={() => setSelectedDayKey(dayKeyFor(Date.now()))}
-                    title="Jump to today"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgb(var(--color-accent))', flexShrink: 0 }}
-                  ><CalendarCheck size={13} /></button>
-                )}
-                <button
-                  onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)}
-                  disabled={!prevDayKey}
-                  title="Earlier day"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: prevDayKey ? 'pointer' : 'default', color: prevDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
-                ><ChevronLeft size={12} /></button>
-                <button
-                  onClick={() => nextDayKey && setSelectedDayKey(nextDayKey)}
-                  disabled={!nextDayKey}
-                  title="Later day"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'transparent', border: 'none', borderRadius: 6, cursor: nextDayKey ? 'pointer' : 'default', color: nextDayKey ? 'rgb(var(--color-text-muted))' : 'rgb(var(--color-surface-4))', flexShrink: 0 }}
-                ><ChevronRight size={12} /></button>
+                <ControlGroup>
+                  {selectedDayKey !== dayKeyFor(Date.now()) && (
+                    <IconButton icon={CalendarCheck} label="Jump to today" size={20} onClick={() => setSelectedDayKey(dayKeyFor(Date.now()))} />
+                  )}
+                  <IconButton icon={ChevronLeft} label="Earlier day" size={20} disabled={!prevDayKey} onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)} />
+                  <IconButton icon={ChevronRight} label="Later day" size={20} disabled={!nextDayKey} onClick={() => nextDayKey && setSelectedDayKey(nextDayKey)} />
+                </ControlGroup>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <button
-                  onClick={() => setRailView('month')}
-                  title="Back to the month calendar"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', flexShrink: 0,
-                    background: 'rgb(var(--color-surface-3) / 0.7)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-                    border: 'none', borderRadius: 6, cursor: 'pointer',
-                    color: 'rgb(var(--color-text-secondary))', fontSize: 10.5, fontWeight: 600,
-                  }}
-                ><CalendarDays size={12} /> Months</button>
-                <span style={{ flex: 1 }} />
-                <button
-                  onClick={() => setCreatingSession(true)}
-                  title="New session"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
-                    background: 'rgb(var(--color-accent) / 0.14)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
-                    border: 'none', borderRadius: 6, cursor: 'pointer',
-                    color: 'rgb(var(--color-accent))', flexShrink: 0,
-                  }}
-                ><Plus size={13} /></button>
+              <div className="flex items-center gap-1">
+                <Button variant="secondary" size="sm" icon={CalendarDays} onClick={() => setRailView('month')} tooltip="Back to the month calendar">Months</Button>
+                <span className="flex-1" />
+                <IconButton icon={Plus} label="New session" size={24} active onClick={() => setCreatingSession(true)} />
                 {sessions.length > 0 && (
-                  <button
+                  <IconButton
+                    icon={ListChecks} label={selectMode ? 'Cancel selecting' : 'Select multiple to delete'} size={24}
+                    active={selectMode}
                     onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
-                    title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22,
-                      background: selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3) / 0.5)',
-                      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', border: 'none', borderRadius: 6, cursor: 'pointer',
-                      color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', flexShrink: 0,
-                    }}
-                  ><ListChecks size={13} /></button>
+                  />
                 )}
               </div>
             </div>
           )}
           </div>
-          {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
+          {sessions.length === 0 && <div className="text-footnote text-text-muted">No sessions yet — start one above.</div>}
           {sessions.length > 0 && restSessions.length === 0 && tagFilter.size > 0 && (
-            <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions with those tags.</div>
+            <div className="text-footnote text-text-muted">No sessions with those tags.</div>
           )}
           {restSessions.length === 0 && tagFilter.size === 0 && sessions.length > 0 && (
-            <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No past sessions yet.</div>
+            <div className="text-footnote text-text-muted">No past sessions yet.</div>
           )}
           {/* Select mode (bulk delete) deliberately keeps the OLD flat, checkbox-per-row list —
               a spatial calendar/timeline has no natural place for a checkbox, and bulk-cleanup
@@ -996,26 +857,17 @@ export default function StudyTrailApp() {
               user can scroll through the months... then click on one of the days." Empty days/
               months (after the tag filter) never render at all. */}
           {!selectMode && restSessions.length > 0 && railView === 'month' && monthsSorted.map((mk) => (
-            <div key={mk} style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgb(var(--color-text-muted))', marginBottom: 5 }}>
-                {fmtMonthHeading(mk)}
-              </div>
+            <div key={mk} className="mb-4">
+              <SectionLabel className="mb-1">{fmtMonthHeading(mk)}</SectionLabel>
               {(daysByMonth.get(mk) ?? []).map((dk) => {
                 const daySessions = sessionsByDay.get(dk) ?? []
                 return (
-                  <div
+                  <ListRow
                     key={dk}
                     onClick={() => openDay(dk)}
-                    className="trail-day-row"
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 9px', borderRadius: 8, cursor: 'pointer' }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {fmtDayHeading(dk)}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', flexShrink: 0 }}>
-                      {daySessions.length} session{daySessions.length === 1 ? '' : 's'}
-                    </div>
-                  </div>
+                    title={fmtDayHeading(dk)}
+                    meta={`${daySessions.length} session${daySessions.length === 1 ? '' : 's'}`}
+                  />
                 )
               })}
             </div>
@@ -1094,21 +946,18 @@ export default function StudyTrailApp() {
                     const height = Math.max(16, (clipEnd - clipStart) / 60_000 * PX_PER_MIN)
                     const lane = laneOf.get(s.id) ?? 0
                     const selected = selectedId === s.id && mainTab === 'map'
-                    const color = s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-secondary))'
+                    const color = s.status === 'live' ? 'rgb(var(--trail-cool))' : s.status === 'paused' ? 'rgb(var(--trail-warm))' : 'rgb(var(--color-text-secondary))'
                     return renamingId === s.id ? (
-                      <input
-                        key={s.id}
-                        ref={renameInputRef}
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') setRenamingId(null) }}
-                        onBlur={commitRename}
-                        style={{
-                          position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)`,
-                          fontSize: 11, fontWeight: 600, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))',
-                          borderRadius: 5, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
-                        }}
-                      />
+                      <div key={s.id} style={{ position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)` }}>
+                        <TextField
+                          ref={renameInputRef}
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') setRenamingId(null) }}
+                          onBlur={commitRename}
+                          className="font-semibold h-full"
+                        />
+                      </div>
                     ) : (
                       // Per feedback ("show some hover thing... like some details" — and "i
                       // dont want a plain browser tooltip"): TrailHoverCard (the same rich
@@ -1119,19 +968,19 @@ export default function StudyTrailApp() {
                         onClick={() => selectSessionToggle(s.id)}
                         onDoubleClick={() => startRename(s.id, s.name)}
                         onContextMenu={(e) => openSessionMenu(e, s.id)}
+                        className={selected ? 'shadow-2' : undefined}
                         style={{
                           position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)`,
                           borderRadius: 6, cursor: 'pointer', overflow: 'hidden', padding: '2px 6px',
                           background: selected ? 'rgb(var(--color-accent) / 0.22)' : `${color}1f`,
                           borderLeft: `3px solid ${color}`,
-                          boxShadow: selected ? '0 0 0 1px rgb(var(--color-accent))' : undefined,
                         }}
                       >
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div className="text-caption" style={{ fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {s.name}
                         </div>
                         {height >= 30 && (
-                          <div style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))' }}>
+                          <div className="text-caption2" style={{ color: 'rgb(var(--color-text-muted))' }}>
                             {new Date(s.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                           </div>
                         )}
@@ -1151,31 +1000,28 @@ export default function StudyTrailApp() {
           const s = sessions.find((x) => x.id === sessionCtxMenu.id)
           if (!s) return null
           return (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: 'fixed', top: sessionCtxMenu.y, left: sessionCtxMenu.x, zIndex: 10001, minWidth: 150,
-                background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-                borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
-              }}
-            >
-              <button className="trail-ctx-btn" onClick={() => startRename(s.id, s.name)} style={sessionMenuBtnStyle}>Rename</button>
-              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); setTagEditorFor(s.id) }} style={sessionMenuBtnStyle}>Tags…</button>
-              {/* Merge is one-way and irreversible, so it names the target explicitly rather than
-                  offering a vague "merge" that could go either direction. Splitting back apart
-                  afterwards is possible (right-click a stop on the map), which is what makes this
-                  safe enough to offer without a confirmation step. */}
-              {sessions.length > 1 && (
-                <div style={{ borderTop: '1px solid rgb(var(--color-surface-4))', marginTop: 4, paddingTop: 4 }}>
-                  <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'rgb(var(--color-text-muted))', padding: '2px 8px 4px' }}>Merge into</div>
-                  <div style={{ maxHeight: 160, overflowY: 'auto' }}>
-                    {sessions.filter((o) => o.id !== s.id).map((o) => (
-                      <button key={o.id} className="trail-ctx-btn" onClick={() => mergeInto(o.id, s.id)} style={sessionMenuBtnStyle}>{o.name}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468', marginTop: 4 }}>Delete</button>
+            <div onClick={(e) => e.stopPropagation()} style={{ position: 'fixed', top: sessionCtxMenu.y, left: sessionCtxMenu.x, zIndex: 'var(--z-menu)' as unknown as number }}>
+              <MenuSurface className="min-w-[160px]">
+                <MenuItem label="Rename" onClick={() => startRename(s.id, s.name)} />
+                <MenuItem label="Tags…" onClick={() => { setSessionCtxMenu(null); setTagEditorFor(s.id) }} />
+                {/* Merge is one-way and irreversible, so it names the target explicitly rather than
+                    offering a vague "merge" that could go either direction. Splitting back apart
+                    afterwards is possible (right-click a stop on the map), which is what makes this
+                    safe enough to offer without a confirmation step. */}
+                {sessions.length > 1 && (
+                  <>
+                    <MenuSeparator />
+                    <MenuLabel>Merge into</MenuLabel>
+                    <div className="max-h-40 overflow-y-auto">
+                      {sessions.filter((o) => o.id !== s.id).map((o) => (
+                        <MenuItem key={o.id} label={o.name} onClick={() => mergeInto(o.id, s.id)} />
+                      ))}
+                    </div>
+                  </>
+                )}
+                <MenuSeparator />
+                <MenuItem danger label="Delete" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} />
+              </MenuSurface>
             </div>
           )
         })()}
@@ -1189,46 +1035,36 @@ export default function StudyTrailApp() {
           return (
             <div
               onClick={(e) => e.stopPropagation()}
-              style={{
-                position: 'fixed', inset: 0, zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(0,0,0,0.35)',
-              }}
+              className="fixed inset-0 z-critical flex items-center justify-center scrim-modal"
               onMouseDown={(e) => { if (e.target === e.currentTarget) setTagEditorFor(null) }}
             >
-              <div style={{
-                width: 300, maxHeight: '70vh', overflowY: 'auto', padding: 14, borderRadius: 12,
-                background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-                boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
-              }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Tags</div>
-                <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginBottom: 10 }}>{s.name}</div>
-                {tags.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>No tags yet.</div>}
+              <div className="w-[300px] max-h-[70vh] overflow-y-auto p-3.5 material-elevated rounded-sheet">
+                <div className="text-subhead font-semibold mb-0.5">Tags</div>
+                <div className="text-footnote text-text-muted mb-2.5">{s.name}</div>
+                {tags.length === 0 && <div className="text-footnote text-text-muted mb-2">No tags yet.</div>}
                 {tags.map((t) => (
-                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', fontSize: 12, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={own.has(t.id)} onChange={() => toggleSessionTag(s.id, t.id)} />
-                    <span style={{ color: t.color ?? 'rgb(var(--color-text-primary))' }}>{t.name}</span>
-                    <span style={{ flex: 1 }} />
-                    <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>{t.sessionIds.length}</span>
-                  </label>
+                  <Checkbox
+                    key={t.id}
+                    className="w-full py-1"
+                    checked={own.has(t.id)}
+                    onChange={() => toggleSessionTag(s.id, t.id)}
+                    label={
+                      <span className="flex items-center w-full" style={{ color: t.color ?? undefined }}>
+                        {t.name}
+                        <span className="flex-1" />
+                        <span className="text-caption2 text-text-muted">{t.sessionIds.length}</span>
+                      </span>
+                    }
+                  />
                 ))}
-                <input
+                <TextField
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') void addTagToSession(s.id, newTagName) }}
                   placeholder="New tag…"
-                  style={{
-                    width: '100%', marginTop: 10, fontSize: 12, padding: '5px 8px', borderRadius: 7,
-                    background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))',
-                    color: 'rgb(var(--color-text-primary))',
-                  }}
+                  wrapperClassName="mt-2.5"
                 />
-                <button
-                  onClick={() => setTagEditorFor(null)}
-                  style={{
-                    width: '100%', marginTop: 10, fontSize: 12, fontWeight: 600, padding: '6px 8px', borderRadius: 7,
-                    cursor: 'pointer', background: 'rgb(var(--color-accent) / 0.16)', border: 'none', color: 'rgb(var(--color-accent))',
-                  }}
-                >Done</button>
+                <Button variant="secondary" className="w-full mt-2.5" onClick={() => setTagEditorFor(null)}>Done</Button>
               </div>
             </div>
           )
@@ -1249,23 +1085,13 @@ export default function StudyTrailApp() {
               this stays put until it's answered, so a proposal raised while you were reading is
               still actionable next time you look at the trail. */}
           {splitProposal && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '7px 10px',
-              borderRadius: 9, background: 'rgb(var(--color-accent) / 0.12)',
-              border: '1px solid rgb(var(--color-accent) / 0.35)',
-            }}>
-              <Scissors size={13} style={{ color: 'rgb(var(--color-accent))', flexShrink: 0 }} />
-              <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-secondary))', flex: 1 }}>
+            <div className="flex items-center gap-2.5 mb-2.5 px-2.5 py-1.5 rounded-card bg-accent-muted border border-accent/35">
+              <Scissors size={13} className="text-accent flex-shrink-0" />
+              <span className="text-footnote text-text-secondary flex-1">
                 Split here into a new trail — {splitProposal.reason}?
               </span>
-              <button
-                onClick={() => { void acceptSplitProposal().then(refresh) }}
-                style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 7, cursor: 'pointer', background: 'rgb(var(--color-accent) / 0.2)', border: 'none', color: 'rgb(var(--color-accent))' }}
-              >Split</button>
-              <button
-                onClick={clearSplitProposal}
-                style={{ fontSize: 11, padding: '3px 10px', borderRadius: 7, cursor: 'pointer', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', color: 'rgb(var(--color-text-muted))' }}
-              >Dismiss</button>
+              <Button variant="ghost" selected size="sm" onClick={() => { void acceptSplitProposal().then(refresh) }}>Split</Button>
+              <Button variant="secondary" size="sm" onClick={clearSplitProposal}>Dismiss</Button>
             </div>
           )}
           {mainTab === 'threads' ? (
@@ -1286,7 +1112,7 @@ export default function StudyTrailApp() {
               headerPos={headerPos} onHeaderDragStart={handleHeaderDragStart}
             />
           ) : !detail ? (
-            <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
+            <div className="text-body text-text-muted">Loading…</div>
           ) : (
             <div data-trail-map-viewport style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {/* Floating session header — a small shrink-wrapped pill (name + filter + stats).
@@ -1303,7 +1129,7 @@ export default function StudyTrailApp() {
                 onDragStart={handleHeaderDragStart}
                 title={
                   renamingId === detail.session.id ? (
-                    <input
+                    <TextField
                       ref={renameInputRef}
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
@@ -1312,17 +1138,15 @@ export default function StudyTrailApp() {
                         else if (e.key === 'Escape') setRenamingId(null)
                       }}
                       onBlur={commitRename}
-                      style={{
-                        display: 'block', width: '100%', fontSize: 15, fontWeight: 700, background: 'rgb(var(--color-surface-2))',
-                        border: '1px solid rgb(var(--color-accent))', borderRadius: 6, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
-                      }}
+                      className="text-title3 font-semibold"
+                      wrapperClassName="block w-full"
                     />
                   ) : (
                     <h2
                       onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
                       onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
                       title="Double-click or right-click to rename"
-                      style={{ margin: 0, fontSize: 15, fontWeight: 700, cursor: 'text', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      className="m-0 text-title3 font-semibold cursor-text min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
                     >{detail.session.name}</h2>
                   )
                 }
@@ -1357,36 +1181,21 @@ export default function StudyTrailApp() {
           removed per direct feedback (useless UI, nobody adjusted it) — the revisit window
           is now just DEFAULT_REVISIT_WINDOW_MS (see trailTime.ts), no control needed. */}
       {mainTab === 'map' && (
-        <div style={{
-          position: 'fixed', bottom: 20, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 50,
+        <div
+          className={cx('fixed bottom-5 flex flex-col gap-2', zoomSide === 'left' ? 'items-start' : 'items-end')}
           // Same side as MapView's Recenter/Latest cluster (both decided from `layoutRoom` with
           // CTRL_W.zoom); on the left, `left: 240` clears the 220px session rail.
-          ...(zoomSide === 'left' ? { left: 240, alignItems: 'flex-start' } : { right: 20, alignItems: 'flex-end' }),
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 2, background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-          }}>
+          style={{ left: zoomSide === 'left' ? 240 : undefined, right: zoomSide === 'left' ? undefined : 20 }}
+        >
+          <ControlGroup className="material-control shadow-2">
             {/* Multiplicative steps, matching the wheel — a fixed ±0.1 felt like a lurch at the
                 bottom of the range and like nothing at the top. */}
-            <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z / 1.15))} title="Zoom out (⌘−)" style={zoomBtnStyle}>−</button>
-            <button onClick={() => setZoom(1)} title="Reset zoom (⌘0)" style={{ ...zoomBtnStyle, width: 46, fontSize: 12 }}>{Math.round(zoom * 100)}%</button>
-            <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z * 1.15))} title="Zoom in (⌘+)" style={zoomBtnStyle}>+</button>
-          </div>
+            <IconButton icon={Minus} label="Zoom out" size={24} tooltip={{ shortcut: '⌘−' }} onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z / 1.15))} />
+            <Button variant="ghost" size="sm" className="w-12" onClick={() => setZoom(1)} tooltip="Reset zoom (⌘0)">{Math.round(zoom * 100)}%</Button>
+            <IconButton icon={Plus} label="Zoom in" size={24} tooltip={{ shortcut: '⌘+' }} onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z * 1.15))} />
+          </ControlGroup>
         </div>
       )}
     </div>
   )
-}
-
-const zoomBtnStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, width: 22, height: 22, lineHeight: '20px', textAlign: 'center',
-  color: 'rgb(var(--color-text-secondary))', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-}
-
-const sessionMenuBtnStyle: React.CSSProperties = {
-  display: 'block', width: '100%', textAlign: 'left', fontSize: 12, padding: '6px 8px',
-  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-  color: 'rgb(var(--color-text-primary))',
 }

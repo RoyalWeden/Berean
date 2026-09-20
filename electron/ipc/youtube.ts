@@ -55,7 +55,7 @@ export const CHANNELS = [
   '@PeculiarPeople_',
   '@Michael-Rebecca-7',
   '@evelynblair544',
-  '@michaelfollowsyah',
+  '@michael4yeshua',
   '@Sara.I.Lawrence',
   '@RoyalLawYeshua',
   '@CalledToBeSaintsforYeshua',
@@ -171,7 +171,28 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
+// Channels that changed their YouTube handle. Rows already stored under the old handle are
+// re-keyed once (on first load) so the video list, sync bookkeeping and watch history keep
+// following the channel instead of orphaning under a handle CHANNELS no longer lists.
+const HANDLE_RENAMES: Record<string, string> = {
+  '@michaelfollowsyah': '@michael4yeshua',
+}
+let handleRenamesApplied = false
+function applyHandleRenames(): void {
+  if (handleRenamesApplied) return
+  handleRenamesApplied = true
+  const db = getBereanDb()
+  for (const [from, to] of Object.entries(HANDLE_RENAMES)) {
+    try {
+      db.prepare('UPDATE youtube_videos SET channel_handle = ? WHERE channel_handle = ?').run(to, from)
+      db.prepare('DELETE FROM youtube_sync WHERE channel_handle = ? AND EXISTS (SELECT 1 FROM youtube_sync WHERE channel_handle = ?)').run(from, to)
+      db.prepare('UPDATE youtube_sync SET channel_handle = ? WHERE channel_handle = ?').run(to, from)
+    } catch { /* table shapes are stable; a failure here must never block the video list */ }
+  }
+}
+
 function loadAll(): VideoEntry[] {
+  applyHandleRenames()
   const rows = getBereanDb()
     .prepare('SELECT * FROM youtube_videos ORDER BY published DESC')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

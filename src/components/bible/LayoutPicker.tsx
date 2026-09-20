@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import type { ScriptureLayout } from '@/types'
+import { OptionCard, SectionLabel, Button } from '@/components/ui'
 
 // ─── Layout metadata ─────────────────────────────────────────────────────────
 
@@ -31,12 +32,12 @@ export const LAYOUT_DEFS: LayoutDef[] = [
 
 // ─── Visual thumbnails ───────────────────────────────────────────────────────
 
-const S = 'rounded-[2px] bg-[rgb(var(--color-accent))/35]'        // scripture
-const N = 'rounded-[2px] bg-[rgb(var(--color-surface-4))]'         // notes / panel
-const L = 'rounded-[2px] bg-amber-500/30'                          // lexicon
-const C = 'rounded-[2px] bg-sky-500/25'                            // crossrefs
-const DIVH = 'w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0' // vertical divider
-const DIVV = 'h-px bg-[rgb(var(--color-surface-4))] flex-shrink-0' // horizontal divider
+const S = 'rounded-[2px] bg-accent/35'        // scripture
+const N = 'rounded-[2px] bg-surface-4'         // notes / panel
+const L = 'rounded-[2px] bg-warning/30'                            // lexicon
+const C = 'rounded-[2px] bg-info/25'                               // crossrefs
+const DIVH = 'w-px bg-surface-4 flex-shrink-0' // vertical divider
+const DIVV = 'h-px bg-surface-4 flex-shrink-0' // horizontal divider
 
 function LayoutThumb({ id }: { id: ScriptureLayout }) {
   const w = 'w-full h-full flex'
@@ -152,58 +153,47 @@ export default function LayoutPicker({ current, onSelect, onClose, defaultLayout
   return (
     <div
       ref={ref}
-      className="absolute top-full right-0 mt-1 z-50 w-[420px] rounded-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-2xl p-3"
+      className="absolute top-full right-0 mt-1 z-popover w-[420px] material-popover rounded-menu p-3"
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-2 px-1">
-        Panel Layout
-      </div>
+      <SectionLabel className="mb-2 px-1">Panel Layout</SectionLabel>
       <div className="grid grid-cols-3 gap-1.5">
         {LAYOUT_DEFS.map((def) => {
           const isActive = current === def.id
           const isDefault = defaultLayout === def.id
           return (
-            <button
+            <OptionCard
               key={def.id}
+              selected={isActive}
               onClick={() => { onSelect(def.id); onClose() }}
-              title={def.description}
-              className={`
-                relative flex flex-col gap-1.5 p-2 rounded-lg border transition-colors cursor-pointer text-left
-                ${isActive
-                  ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                  : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] hover:bg-[rgb(var(--color-surface-3))]'
-                }
-              `}
-            >
-              {/* Thumbnail */}
-              <div className="w-full h-[42px] rounded-sm overflow-hidden">
-                <LayoutThumb id={def.id} />
-              </div>
-              {/* Label row */}
-              <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[10px] font-medium text-[rgb(var(--color-text-primary))] truncate flex-1">
-                  {def.label}
+              title={
+                <span className="flex items-center gap-1 min-w-0 w-full">
+                  <span className="truncate flex-1">{def.label}</span>
+                  {isActive && <Check size={10} className="text-accent flex-shrink-0" />}
+                  {isDefault && !isActive && (
+                    <span className="text-micro px-1 py-0.5 rounded-chip bg-surface-4 text-text-muted flex-shrink-0 leading-none">
+                      default
+                    </span>
+                  )}
                 </span>
-                {isActive && <Check size={10} className="text-[rgb(var(--color-accent))] flex-shrink-0" />}
-                {isDefault && !isActive && (
-                  <span className="text-[8px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] flex-shrink-0 leading-none">
-                    default
-                  </span>
-                )}
-              </div>
-            </button>
+              }
+              aria-label={def.description}
+              className="gap-1.5"
+              preview={
+                <div className="w-full h-[42px] rounded-card overflow-hidden">
+                  <LayoutThumb id={def.id} />
+                </div>
+              }
+            />
           )
         })}
       </div>
 
       {/* Save as default */}
       {onSaveDefault && current !== defaultLayout && (
-        <div className="mt-2 pt-2 border-t border-[rgb(var(--color-surface-4))] flex justify-end">
-          <button
-            onClick={() => { onSaveDefault(current); onClose() }}
-            className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer px-1"
-          >
+        <div className="mt-2 pt-2 border-t border-separator flex justify-end">
+          <Button variant="ghost" size="sm" onClick={() => { onSaveDefault(current); onClose() }}>
             Save as default layout
-          </button>
+          </Button>
         </div>
       )}
     </div>

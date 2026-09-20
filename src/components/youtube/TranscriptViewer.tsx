@@ -1,6 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react'
-import { Captions, Search, X } from 'lucide-react'
+import { Captions, Play } from 'lucide-react'
 import { decodeEntities } from '@/lib/youtubeSearch'
+import { EmptyState, SearchField, SectionLabel, ListRow, cx } from '@/components/ui'
 
 export interface TranscriptSegment {
   startMs: number
@@ -34,7 +35,7 @@ export default function TranscriptViewer({
   autoScroll?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const activeRef = useRef<HTMLButtonElement>(null)
+  const activeRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [userScrolling, setUserScrolling] = useState(false)
   const userScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -72,36 +73,24 @@ export default function TranscriptViewer({
   }, [query, segments])
 
   if (segments.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8 gap-2 text-[rgb(var(--color-text-muted))]">
-        <Captions size={22} className="opacity-30" />
-        <p className="text-[11px] opacity-60">No transcript downloaded for this video</p>
-      </div>
-    )
+    return <EmptyState icon={Captions} title="No transcript downloaded for this video" compact />
   }
 
   return (
     <div className="flex flex-col min-h-0 h-full">
       {/* Header + search */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-shrink-0">
-        <Captions size={12} className="text-[rgb(var(--color-text-muted))]" />
-        <p className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider flex-1">
+        <Captions size={12} className="text-text-muted flex-shrink-0" />
+        <SectionLabel className="flex-1 px-0">
           Transcript <span className="opacity-50 normal-case">({segments.length} lines)</span>
-        </p>
-        <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-          <Search size={10} className="text-[rgb(var(--color-text-muted))]" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find…"
-            className="w-24 text-[10px] bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
-          />
-          {query && (
-            <button onClick={() => setQuery('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
-              <X size={9} />
-            </button>
-          )}
-        </div>
+        </SectionLabel>
+        <SearchField
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Find…"
+          size="sm"
+          wrapperClassName="w-28 flex-shrink-0"
+        />
       </div>
 
       {/* Segment list */}
@@ -110,41 +99,22 @@ export default function TranscriptViewer({
           const isActive = i === activeIdx
           const dimmed = filtered ? !filtered.has(i) : false
           return (
-            <button
+            <ListRow
               key={i}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSeek(seg.startMs / 1000)}
-              title={`Jump to ${formatTs(seg.startMs)}`}
-              className={`group w-full text-left flex gap-2 items-start rounded px-2 py-1 cursor-pointer transition-colors ${
-                isActive
-                  ? 'bg-[rgb(var(--color-accent))/20] ring-1 ring-inset ring-[rgb(var(--color-accent))/40]'
-                  : 'hover:bg-[rgb(var(--color-accent))/10]'
-              } ${dimmed ? 'opacity-30' : ''}`}
-            >
-              {/* Timestamp — turns accent-colored on hover */}
-              <span className={`flex-shrink-0 pt-0.5 text-[10px] font-mono tabular-nums transition-colors min-w-[36px] text-right ${
-                isActive
-                  ? 'text-[rgb(var(--color-accent))]'
-                  : 'text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-accent))]'
-              }`}>
-                {formatTs(seg.startMs)}
-              </span>
-              <span className={`flex-1 text-[12px] leading-snug transition-colors ${
-                isActive
-                  ? 'text-[rgb(var(--color-text-primary))] font-medium'
-                  : 'text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))]'
-              }`}>
-                {decodeEntities(seg.text)}
-              </span>
-              {/* Play triangle — visible only on hover for non-active lines */}
-              {!isActive && (
-                <span className="ml-auto flex-shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg width="8" height="9" viewBox="0 0 8 9" fill="currentColor" className="text-[rgb(var(--color-accent))]">
-                    <path d="M0 0L8 4.5L0 9V0Z"/>
-                  </svg>
+              title={decodeEntities(seg.text)}
+              titleClassName={isActive ? 'font-medium' : undefined}
+              current={isActive}
+              className={cx(isActive && 'ring-1 ring-inset ring-accent/40', dimmed && 'opacity-30')}
+              buttonProps={{ title: `Jump to ${formatTs(seg.startMs)}` }}
+              leading={
+                <span className={cx('text-caption2 font-mono tabular-nums min-w-[36px] text-right', isActive ? 'text-accent' : 'text-text-muted')}>
+                  {formatTs(seg.startMs)}
                 </span>
-              )}
-            </button>
+              }
+              trailing={!isActive && <Play size={8} className="text-accent fill-accent" />}
+            />
           )
         })}
       </div>

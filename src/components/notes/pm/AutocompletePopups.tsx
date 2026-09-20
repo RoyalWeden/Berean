@@ -1,9 +1,13 @@
+import { createPortal } from 'react-dom'
 import { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 import type { Note, Book } from '@/types'
 import type { SlashCommand } from './slashCommands'
 import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
+import { Select, Button, IconButton, SectionLabel, MenuSurface, ListRow, CompactMetrics } from '@/components/ui'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 
 // Slash-command icons come straight from the shared block-type config, which is keyed
 // by the same ids SLASH_COMMANDS uses — so there is no local icon map to fall out of
@@ -18,7 +22,7 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 //
 // Every popup in this file carries `.animate-radix-popup-in` (global.css: 140ms
 // opacity+scale ease-out). Each one used to appear as a hard pop while every other
-// floating surface in the app — tooltips, Radix dropdowns, HintTooltip — fades in;
+// floating surface in the app — tooltips, Radix dropdowns, Tooltip — fades in;
 // reusing the existing keyframes rather than inventing a second timing keeps them
 // identical. Deliberately NOT applied to SelectionToolbar's bubble: that one measures
 // its own rendered size with getBoundingClientRect to clamp itself inside the viewport,
@@ -27,56 +31,34 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 export function StrongsSuggestPopup({
   num, x, y, onInsert, onDismiss,
 }: { num: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
-  return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{num}</span>
-      <button
-        className="text-[10px] text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors font-medium flex items-center gap-1"
-        onMouseDown={onInsert}
-      >
+  return createPortal(
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-menu-in">
+      <span className="text-caption2 font-mono font-semibold text-accent">{num}</span>
+      <Button variant="ghost" size="sm" onMouseDown={onInsert}>
         Insert Strong&apos;s block
         <ShortcutKeys keys="↵" className="ml-0.5" />
-      </button>
-      <button
-        className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-        onMouseDown={onDismiss}
-        title="Dismiss (Esc)"
-      >
-        ✕
-      </button>
-    </div>
+      </Button>
+      <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
+    </MenuPositioner>,
+    document.body,
   )
 }
 
 export function VerseSuggestPopup({
   refText, x, y, onInsert, onDismiss,
 }: { refText: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
-  return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{refText}</span>
-      <button
-        className="text-[10px] text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors font-medium flex items-center gap-1"
-        onMouseDown={onInsert}
-      >
+  return createPortal(
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-menu-in">
+      <span className="text-caption2 font-mono font-semibold text-accent">{refText}</span>
+      <Button variant="ghost" size="sm" onMouseDown={onInsert}>
         Insert scripture block
         <ShortcutKeys keys="↵" className="ml-0.5" />
-      </button>
-      <button
-        className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-        onMouseDown={onDismiss}
-        title="Dismiss (Esc)"
-      >
-        ✕
-      </button>
-    </div>
+      </Button>
+      <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -85,37 +67,30 @@ export function WikilinkPopup({
 }: { notes: Note[]; x: number; y: number; activeIdx: number; onHoverIdx: (i: number) => void; onInsert: (note: Note) => void }) {
   if (notes.length === 0) return null
   const active = notes[activeIdx] ?? notes[0]
-  return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <div className="w-56 max-h-64 overflow-y-auto bg-[rgb(var(--color-surface-1))] py-1 flex-shrink-0">
+  return createPortal(
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="flex material-popover rounded-menu overflow-hidden animate-menu-in">
+      <MenuSurface className="w-56 max-h-64 overflow-y-auto flex-shrink-0" dense role="listbox">
         {notes.map((note, i) => (
-          <button
+          <ListRow
             key={note.id}
-            onMouseDown={() => onInsert(note)}
+            current={i === activeIdx}
             onMouseEnter={() => onHoverIdx(i)}
-            className={`w-full text-left px-3 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
-              i === activeIdx
-                ? 'bg-[rgb(var(--color-accent))]/20 text-[rgb(var(--color-text-primary))] border-l-2 border-[rgb(var(--color-accent))]'
-                : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] border-l-2 border-transparent'
-            }`}
-          >
-            <span className="truncate">{note.title || 'Untitled'}</span>
-          </button>
+            title={note.title || 'Untitled'}
+            dense
+            buttonProps={{ role: 'option', 'aria-selected': i === activeIdx, onMouseDown: () => onInsert(note) }}
+          />
         ))}
-      </div>
+      </MenuSurface>
       {active && (
-        <div className="w-64 max-h-64 overflow-y-auto bg-[rgb(var(--color-surface-2))] border-l border-[rgb(var(--color-surface-4))] p-3 flex-shrink-0">
-          <p className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] mb-1.5 truncate">
+        <div className="w-64 max-h-64 overflow-y-auto bg-surface-2/60 border-l border-separator p-3 flex-shrink-0">
+          <p className="text-caption font-semibold text-text-primary mb-1.5 truncate">
             {active.title || 'Untitled'}
           </p>
           {active.verseRef && (
-            <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{formatDottedVerseRef(active.verseRef)}</p>
+            <p className="text-micro text-accent mb-1.5 font-mono">{formatDottedVerseRef(active.verseRef)}</p>
           )}
-          <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
+          <p className="text-caption2 text-text-secondary leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
             {(active.content || '')
               .replace(/^---[\s\S]*?---\n?/, '')
               .replace(/#{1,6}\s/g, '')
@@ -127,7 +102,8 @@ export function WikilinkPopup({
           </p>
         </div>
       )}
-    </div>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -141,16 +117,15 @@ export function WikilinkPopup({
 export function RefHoverPreview({
   x, y, refLabel, text, loading,
 }: { x: number; y: number; refLabel: string; text: string; loading: boolean }) {
-  return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none animate-radix-popup-in"
-    >
-      <p className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{refLabel}</p>
-      <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed line-clamp-6">
+  return createPortal(
+    <MenuPositioner x={x} y={y}
+      className="max-w-xs px-3 py-2 material-popover rounded-menu pointer-events-none animate-menu-in">
+      <p className="text-caption2 font-semibold text-accent mb-1">{refLabel}</p>
+      <p className="text-caption text-text-secondary leading-relaxed line-clamp-6">
         {loading ? 'Loading…' : (text || 'Not found')}
       </p>
-    </div>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -189,54 +164,54 @@ export function VersePickerPopup({
 
   if (books.length === 0) return null
 
-  return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 9999 }}
-      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px] animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <select
-        value={bookId}
-        onChange={(e) => { setBookId(e.target.value); setChapter(1) }}
-        className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
-      >
-        {books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-      </select>
-      <div className="flex items-center gap-1.5">
-        <select
-          value={chapter}
-          onChange={(e) => setChapter(Number(e.target.value))}
-          className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
-        >
-          {Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => (
-            <option key={c} value={c}>Ch {c}</option>
-          ))}
-        </select>
-        <select
-          value={verse}
-          onChange={(e) => setVerse(Number(e.target.value))}
-          className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
-        >
-          {Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => (
-            <option key={v} value={v}>Vs {v}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex items-center gap-1.5 justify-end pt-0.5">
-        <button
-          onMouseDown={onDismiss}
-          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors px-1.5 py-1"
-        >
-          Cancel
-        </button>
-        <button
-          onMouseDown={() => onInsert(bookId, chapter, verse)}
-          className="text-[10px] font-medium text-white bg-[rgb(var(--color-accent))] hover:opacity-90 rounded-md px-2.5 py-1 cursor-pointer transition-opacity"
-        >
-          Insert
-        </button>
-      </div>
-    </div>
+  // CompactMetrics — same "popover contents step one size down" contract PopoverSurface/
+  // MenuSurface give every other floating panel in the app (packet §41: "Verse picker → keeps
+  // VersePickerPopup but on PopoverSurface + compact metrics"). The positioning/viewport-
+  // clamping stays on MenuPositioner, matching every other dropdown anchored from Toolbar.tsx's
+  // and SelectionToolbar's single shared dropdown mechanism — switching only this one picker to
+  // Radix's separate Popover/collision system would fork that mechanism in two (COMMON.md
+  // implementation-safety rule 9), so this adopts PopoverSurface's material/metrics contract
+  // without its positioning engine.
+  return createPortal(
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="pm-toolbar-solid material-popover rounded-menu p-2 flex flex-col gap-1.5 w-[220px] animate-menu-in">
+      <CompactMetrics>
+        <Select
+          size="sm"
+          value={bookId}
+          onChange={(v) => { setBookId(v); setChapter(1) }}
+          options={books.map((b) => ({ value: b.id, label: b.name }))}
+          aria-label="Book"
+        />
+        <div className="flex items-center gap-1.5">
+          <Select
+            size="sm"
+            className="flex-1 min-w-0"
+            value={String(chapter)}
+            onChange={(v) => setChapter(Number(v))}
+            options={Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => ({ value: String(c), label: `Ch ${c}` }))}
+            aria-label="Chapter"
+          />
+          <Select
+            size="sm"
+            className="flex-1 min-w-0"
+            value={String(verse)}
+            onChange={(v) => setVerse(Number(v))}
+            options={Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => ({ value: String(v), label: `Vs ${v}` }))}
+            aria-label="Verse"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 justify-end pt-0.5">
+          <Button variant="ghost" size="sm" onMouseDown={onDismiss}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" onMouseDown={() => onInsert(bookId, chapter, verse)}>
+            Insert
+          </Button>
+        </div>
+      </CompactMetrics>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -250,40 +225,34 @@ export function SlashCommandPopup({
     if (!g) { g = { group: cmd.group, items: [] }; groups.push(g) }
     g.items.push({ cmd, idx })
   })
-  return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="w-64 max-h-80 overflow-y-auto shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg bg-[rgb(var(--color-surface-1))] py-1 animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      {groups.map(({ group, items }) => (
-        <div key={group}>
-          <div className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{group}</div>
-          {items.map(({ cmd, idx }) => {
-            const Icon = BLOCK_TYPE_META[cmd.id]?.icon
-            return (
-              <button
-                key={cmd.id}
-                onMouseDown={() => onSelect(cmd)}
-                onMouseEnter={() => onHoverIdx(idx)}
-                className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors flex items-center gap-2.5 border-l-2 ${
-                  idx === activeIdx
-                    ? 'bg-[rgb(var(--color-accent))]/25 border-l-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))] font-medium'
-                    : 'border-l-transparent text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))]'
-                }`}
-              >
-                <span className="w-6 h-6 flex-shrink-0 rounded flex items-center justify-center bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))]">
-                  {Icon && <Icon size={13} />}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block truncate font-medium text-[rgb(var(--color-text-primary))]">{cmd.label}</span>
-                  <span className="block truncate text-[10px] text-[rgb(var(--color-text-muted))]">{cmd.description}</span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      ))}
-    </div>
+  return createPortal(
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}>
+      <MenuSurface className="w-64 max-h-80 overflow-y-auto" role="listbox">
+        {groups.map(({ group, items }) => (
+          <div key={group}>
+            <SectionLabel className="px-2.5 pt-2 pb-1">{group}</SectionLabel>
+            {items.map(({ cmd, idx }) => {
+              const Icon = BLOCK_TYPE_META[cmd.id]?.icon
+              return (
+                <ListRow
+                  key={cmd.id}
+                  current={idx === activeIdx}
+                  onMouseEnter={() => onHoverIdx(idx)}
+                  buttonProps={{ role: 'option', 'aria-selected': idx === activeIdx, onMouseDown: () => onSelect(cmd) }}
+                  leading={
+                    <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-lift-1">
+                      {Icon && <Icon size={13} />}
+                    </span>
+                  }
+                  title={cmd.label}
+                  subtitle={cmd.description}
+                />
+              )
+            })}
+          </div>
+        ))}
+      </MenuSurface>
+    </MenuPositioner>,
+    document.body,
   )
 }

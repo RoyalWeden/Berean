@@ -1,18 +1,19 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
-import { useRef, useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowLeft, ArrowRight, History, PanelLeft, Home, NotepadText, BookMarked, FileType, ScrollText, Youtube,
   Download, RotateCcw,
 } from 'lucide-react'
+import ShortcutKeys from './ShortcutKeys'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
-import { CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
+import { CLOSE_CONTEXT_MENUS_EVENT, MenuPositioner } from '@/lib/usePositionedMenu'
 import { getAllNotes } from '@/lib/notesCache'
 import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
 import { cachedLexiconTitle } from '@/lib/lexiconTitle'
-import ActionPillGroup from './ActionPillGroup'
-import ShortcutKeys from './ShortcutKeys'
+import { TRAFFIC_LIGHT_INSET, HEADER_HEIGHT } from '@/lib/windowChrome'
+import { IconButton, Button, ControlGroup, Toolbar, MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
+import { publishActionsSlot } from './TopBarSlotContext'
 import WindowControls from './WindowControls'
 import type { TabNavEntry } from '@/types'
 
@@ -70,6 +71,14 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   const updateStatus = useAppStore((s) => s.updateStatus)
 
   const isWin = window.__berean_platform === 'win32'
+
+  // Publishes the ACTIONS-zone container to TopBarSlotContext's module-level store (see that
+  // file's comment) — the panel-side counterpart of `slotRef` below, which App.tsx still owns
+  // directly for the CONTEXT zone. `useCallback` with no deps keeps this ref callback's identity
+  // stable across renders, so React only invokes it on mount/unmount, not on every render.
+  const actionsSlotRef = useCallback((el: HTMLDivElement | null) => {
+    publishActionsSlot(el)
+  }, [])
 
   // Manual click-drag-to-move on blank header space — same pattern as Sidebar.tsx's tabListRef
   // (see that file's own comment for why: a real CSS `-webkit-app-region: drag` region can
@@ -132,7 +141,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
 
   // Publishes this header's real rendered height as a CSS var so global.css's ambient
   // background-animation layer (html.theme-anim-bg body::before) can clip itself below it —
-  // on mac this header is `.topbar-vibrant` (a genuinely transparent Electron window with
+  // on mac this header is `.material-bar` over a genuinely transparent Electron window with
   // vibrancy, not just a translucent-looking CSS color: electron/main.ts sets
   // `transparent: true, vibrancy: 'sidebar'`), so the animated blob painting behind it was
   // visibly tinting what's supposed to be neutral OS-blurred vibrancy — worst right at the
@@ -160,7 +169,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
 
   const currentTabId  = activeTabId
   const currentTabNav = currentTabId ? (tabNavStacks[currentTabId] ?? null) : null
-  const navStackType = currentTabNav?.stack[0]?.type
+  const navStackType = currentTab?.type ?? currentTabNav?.stack[0]?.type
   const navSupportsHome = navStackType === 'note' || navStackType === 'lexicon' || navStackType === 'youtube'
   const canNavBack    = currentTabNav ? currentTabNav.idx > (navSupportsHome ? -1 : 0) : false
   const canNavForward = currentTabNav ? currentTabNav.idx < currentTabNav.stack.length - 1 : false
@@ -227,16 +236,34 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
     }
   }, [navDropdown])
 
+  const homeSupported = navStackType === 'note' || navStackType === 'lexicon' || navStackType === 'youtube'
+  // A note open in the current tab always has a "home" to go to (the notes list), even when this
+  // tab's nav stack was never seeded (e.g. a note opened straight into its own dedicated tab) —
+  // so the button must not depend solely on the nav-stack idx there. It stays disabled only once
+  // the tab is already back on the notes home view (no open note → noteId cleared).
+  const noteOpenHere = currentTab?.type === 'note' && !!(currentTab.state as { noteId?: string | null }).noteId
+  const canGoHome = noteOpenHere || (!!currentTabNav && homeSupported && currentTabNav.idx >= 0)
+  const homeLabel = (navStackType === 'note' || noteOpenHere) ? 'Notes list'
+    : navStackType === 'lexicon' ? 'Lexicon search'
+    : navStackType === 'youtube' ? 'YouTube browse'
+    : 'Home'
+  const hasHistory = !!currentTabNav && currentTabNav.stack.length > 0
+
   return (
-    <Tooltip.Provider delayDuration={200}>
+    <>
       <div
         ref={headerRef}
-        className={`
-          native-buttons no-drag flex-shrink-0 border-b border-[rgb(var(--color-surface-4))]
-          ${window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
-          pr-3 rounded-b-shell
-          ${!isWin ? 'pl-[76px]' : 'pl-2'}
-        `}
+        className="no-drag flex-shrink-0 material-bar"
+        // No permanent `border-b` — scroll-edge (macOS 26/27's seamless-at-rest toolbar) owns the
+        // hairline instead, appearing only once the content beneath has actually scrolled. Full
+        // wiring (a `scrolled` boolean driven by a `scrollEdge` store slice, passed to `Toolbar`
+        // below) is a later lane; for now this only sets up the CSS hook (`data-scroll-edge`)
+        // so nothing regresses to a permanent line, and the inner Toolbar stays `edge="none"`
+        // (no `data-scrolled` is ever set, so `[data-scroll-edge="bottom"][data-scrolled]` in
+        // global.css never matches — the bar is seamless until that store slice lands).
+        // TODO(scrollEdge store slice): pass `scrolled` through and switch the inner Toolbar to
+        // `edge="auto"`.
+        data-scroll-edge="bottom"
         // Unconditional on mac (not gated on sidebarCollapsed), and a FULL 76px inset, not the
         // 30px this briefly used — this bar is a single row spanning the entire window width,
         // sitting ABOVE the Ribbon+Sidebar row rather than beside it (App.tsx renders
@@ -246,51 +273,33 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
         // y:0 directly and contributed 46px of its own width, so a bar beside it only needed
         // 30px more (46+30=76) to reach full clearance. Ribbon no longer touches y:0 at all
         // (it's below this bar now), so this bar alone owns the full 76px — the original value
-        // this file used before that intermediate layout ever existed. Deliberately on THIS
-        // outer div, outside the `zoom: appZoom` scaling below — the traffic lights are real,
+        // this file used before that intermediate layout ever existed. Deliberately computed
+        // here, outside the `zoom: appZoom` scaling below — the traffic lights are real,
         // fixed-pixel OS chrome, so this clearance must stay true pixels regardless of the
-        // user's zoom preference, not get inflated/shrunk along with it.
+        // user's zoom preference, not get inflated/shrunk along with it. Sourced from
+        // windowChrome.ts's shared constants rather than re-hardcoded here.
         //
-        // Rounded BOTTOM corners only (rounded-b-shell), deliberately NOT touching the top
-        // edge or left/right edges: the top-left corner sits directly under the real macOS
-        // traffic-light buttons (the 76px inset above), and Electron's drag-region
-        // hit-testing is a plain rectangle that doesn't follow border-radius — rounding or
-        // insetting the TOP would either visually clip near the traffic lights or leave a
-        // sliver of "looks like content, still drags the window" mismatch right where the
-        // user is most likely to click. No shadow (removed per feedback — even a tight
-        // custom value still read as too pronounced), and no bottom margin either (also
-        // removed per feedback — the gap it created exposed the app root's background
-        // color as a visible mismatched bar between the header and Sidebar/main below,
-        // since that gap sits directly above surface-3 main content, not the header's own
-        // surface-2 tone). The header now sits flush against Sidebar/FloatingRail/main —
-        // rounding alone gives the corners a softened edge without needing a gap to read.
-        style={{ height: 44 * appZoom }}
+        // No rounded bottom corners anymore — a real macOS toolbar is flush with the window
+        // edge, and (per the design-system decision log) bars never carry their own shadow;
+        // `.material-bar` + the scroll-edge hairline above is the whole visual treatment.
+        style={{ height: HEADER_HEIGHT * appZoom, paddingLeft: isWin ? 8 : TRAFFIC_LIGHT_INSET }}
       >
-        <div className="flex items-center gap-1 h-full" style={{ zoom: appZoom }}>
+        <Toolbar size="md" edge="none" material="none" style={{ zoom: appZoom }}>
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* ── Collapse / expand sidebar ── */}
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  onClick={toggleSidebar}
-                  className="no-drag flex items-center justify-center w-7 h-7 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-                >
-                  <PanelLeft size={14} className={sidebarCollapsed ? 'rotate-180' : ''} />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content side="bottom" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                  {sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
-                  <ShortcutKeys keys="⌘⇧S" />
-                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
+            <IconButton
+              icon={PanelLeft}
+              label={sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+              tooltip={{ shortcut: '⌘⇧S' }}
+              size={28}
+              iconClassName={sidebarCollapsed ? 'rotate-180' : undefined}
+              onClick={toggleSidebar}
+            />
 
             {/* ── Global nav back / forward — joined pill. Pinned here, flush-left, in every
                  sidebar state (see file header comment — this is the functional fix over the
                  old split where collapsing the sidebar hid these entirely). ── */}
-            <ActionPillGroup>
+            <ControlGroup>
               {/* ── Home — first in the nav pill, immediately right of the sidebar toggle ──
                    This used to be portaled in from each panel's own TabHeaderPortal, which lands
                    in the flex-1 tab-content slot on the RIGHT. Because it appeared and vanished
@@ -301,45 +310,26 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                    ALWAYS rendered — dimmed and inert when the current tab has no home to return
                    to, exactly like the back/forward/history buttons beside it. A control that
                    holds its position and greys out is far easier to aim at than one that
-                   disappears. ── */}
-              {(() => {
-                // Scripture deliberately excluded: there's no real "home page" for it, just
-                // "the earliest chapter you happened to visit in this tab" — treating that as a
-                // home destination (as an earlier version of this button did, jumping to
-                // `currentTabNav.idx 0`) was misleading, not a real "go home" action. The
-                // dropdown a few dozen lines below (`supportsHome`) already excludes 'bible' for
-                // the same reason — this button now matches it, always greyed out for Scripture.
-                const homeSupported = navStackType === 'note' || navStackType === 'lexicon'
-                  || navStackType === 'youtube'
-                // A note open in the current tab always has a "home" to go to (the notes list),
-                // even when this tab's nav stack was never seeded (e.g. a note opened straight
-                // into its own dedicated tab) — so the button must not depend solely on the
-                // nav-stack idx there. It stays disabled only once the tab is already back on
-                // the notes home view (no open note → noteId cleared).
-                const noteOpenHere = currentTab?.type === 'note'
-                  && !!(currentTab.state as { noteId?: string | null }).noteId
-                const canGoHome = noteOpenHere
-                  || (!!currentTabNav && homeSupported && currentTabNav.idx >= 0)
-                const homeLabel = (navStackType === 'note' || noteOpenHere) ? 'Notes list'
-                  : navStackType === 'lexicon' ? 'Lexicon search'
-                  : navStackType === 'youtube' ? 'YouTube browse'
-                  : 'Home'
-                return (
-                  <button
-                    onClick={canGoHome ? () => { cancelNavDropdownOpen(); useAppStore.getState().goToTabHome() } : undefined}
-                    title={canGoHome ? homeLabel : 'No home view for this tab'}
-                    className={`flex items-center justify-center w-7 h-7 transition-colors ${
-                      canGoHome
-                        ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
-                        : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
-                    }`}
-                  >
-                    <Home size={14} />
-                  </button>
-                )
-              })()}
-              <button
-                onClick={canGoBack ? () => {
+                   disappears. Scripture is deliberately excluded from `homeSupported` above:
+                   there's no real "home page" for it, just "the earliest chapter you happened to
+                   visit in this tab" — treating that as a home destination would be misleading,
+                   not a real "go home" action. ── */}
+              <IconButton
+                icon={Home}
+                label={canGoHome ? homeLabel : 'No home view for this tab'}
+                size={28}
+                disabled={!canGoHome}
+                onClick={() => { cancelNavDropdownOpen(); useAppStore.getState().goToTabHome() }}
+              />
+              <IconButton
+                icon={ArrowLeft}
+                label={canNavBack ? 'Back' : canReturnToOrigin ? `Close tab & return to "${originTab!.title}"` : 'No back history'}
+                // The hover dropdown IS the hover surface when there's history (its header carries
+                // the name + shortcut) — a second tooltip on top of it read as doubled chrome.
+                tooltip={canNavBack ? false : true}
+                size={28}
+                disabled={!canGoBack}
+                onClick={() => {
                   cancelNavDropdownOpen()
                   if (canNavBack) {
                     navTabBack()
@@ -347,95 +337,79 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                     closeTab(currentTab.spaceId, currentTab.id)
                     activateTab(originTab)
                   }
-                } : undefined}
+                }}
                 onContextMenu={canNavBack ? (e) => { e.preventDefault(); setNavDropdown({ x: e.clientX, y: e.clientY, mode: 'back' }) } : undefined}
                 onMouseEnter={canNavBack ? (e) => openNavDropdown('back', (e.currentTarget as HTMLElement).getBoundingClientRect()) : undefined}
                 onMouseLeave={canNavBack ? () => { cancelNavDropdownOpen(); scheduleNavDropdownClose() } : undefined}
-                title={canNavBack ? 'Back (⌘[)' : canReturnToOrigin ? `Close tab & return to "${originTab!.title}"` : 'No back history'}
-                className={`flex items-center justify-center w-7 h-7 transition-colors ${
-                  canGoBack
-                    ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
-                    : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
-                }`}
-              >
-                <ArrowLeft size={14} />
-              </button>
-              <button
-                onClick={canNavForward ? () => { cancelNavDropdownOpen(); navTabForward() } : undefined}
+              />
+              <IconButton
+                icon={ArrowRight}
+                label={canNavForward ? 'Forward' : 'No forward history'}
+                tooltip={canNavForward ? false : true}
+                size={28}
+                disabled={!canNavForward}
+                onClick={() => { cancelNavDropdownOpen(); navTabForward() }}
                 onContextMenu={canNavForward ? (e) => { e.preventDefault(); setNavDropdown({ x: e.clientX, y: e.clientY, mode: 'forward' }) } : undefined}
                 onMouseEnter={canNavForward ? (e) => openNavDropdown('forward', (e.currentTarget as HTMLElement).getBoundingClientRect()) : undefined}
                 onMouseLeave={canNavForward ? () => { cancelNavDropdownOpen(); scheduleNavDropdownClose() } : undefined}
-                title={canNavForward ? 'Forward (⌘])' : 'No forward history'}
-                className={`flex items-center justify-center w-7 h-7 transition-colors ${
-                  canNavForward
-                    ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
-                    : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
-                }`}
-              >
-                <ArrowRight size={14} />
-              </button>
-              {(() => {
-                const hasHistory = !!currentTabNav && currentTabNav.stack.length > 0
-                return (
-                  <button
-                    onClick={hasHistory ? (e) => {
-                      cancelNavDropdownOpen()
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      setNavDropdown(d => d?.mode === 'all' ? null : { x: rect.left, y: rect.bottom, mode: 'all' })
-                    } : undefined}
-                    onMouseEnter={hasHistory ? (e) => openNavDropdown('all', (e.currentTarget as HTMLElement).getBoundingClientRect()) : undefined}
-                    onMouseLeave={hasHistory ? () => { cancelNavDropdownOpen(); scheduleNavDropdownClose() } : undefined}
-                    title={hasHistory ? 'Navigation history' : 'No navigation history yet'}
-                    className={`flex items-center justify-center w-7 h-7 transition-colors ${
-                      hasHistory
-                        ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
-                        : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
-                    }`}
-                  >
-                    <History size={14} />
-                  </button>
-                )
-              })()}
-            </ActionPillGroup>
+              />
+              <IconButton
+                icon={History}
+                label={hasHistory ? 'Navigation history' : 'No navigation history yet'}
+                tooltip={hasHistory ? false : true}
+                size={28}
+                disabled={!hasHistory}
+                onClick={(e) => {
+                  cancelNavDropdownOpen()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setNavDropdown((d) => d?.mode === 'all' ? null : { x: rect.left, y: rect.bottom, mode: 'all' })
+                  // Trigger rect for the History overlay (lane S1) to animate/anchor from — optional
+                  // chaining since that setter is landing concurrently on another lane.
+                  useAppStore.getState().setHistoryTriggerRect?.({ x: rect.left, y: rect.top, w: rect.width, h: rect.height })
+                }}
+                onMouseEnter={hasHistory ? (e) => openNavDropdown('all', (e.currentTarget as HTMLElement).getBoundingClientRect()) : undefined}
+                onMouseLeave={hasHistory ? () => { cancelNavDropdownOpen(); scheduleNavDropdownClose() } : undefined}
+              />
+            </ControlGroup>
           </div>
 
-          {/* ── Tab-specific controls — portal target for the active panel. NOT marked
-               no-drag: individual buttons/inputs portaled in are already auto-excluded from
-               the drag region by the .app-drag-region CSS rule, so leaving this undecorated
-               keeps any empty gap in here draggable too, instead of blanket-blocking the
-               whole slot. No fixed-width spacer between this and the nav pill above — the
-               whole bar shares one background now, so there's nothing marking a boundary
-               that would need to line up with Sidebar's animating width; ordinary flex
-               spacing (this div is flex-1, justify-end) is enough. ── */}
-          {/* ── Divider: global navigation | everything else ──────────────────────────────
-               The left cluster (sidebar toggle, home, back/forward/history) acts on the WINDOW
-               and is identical no matter what is open. Everything to the right is the active
-               tab's own controls, portaled in and changing completely per tab. Without a
-               boundary the two read as one undifferentiated row of icons; this hairline makes
-               the split legible at a glance. `self-stretch` with vertical inset keeps it a
-               proportional hairline rather than a full-height rule cutting the bar in two. ── */}
-          <div className="self-stretch w-px my-2.5 bg-[rgb(var(--color-surface-4))] flex-shrink-0 ml-1 mr-2" aria-hidden="true" />
+          {/* ── CONTEXT zone — portal target for the active panel's title/nav control
+               (TabHeaderPortal's default `zone="context"`). NOT marked no-drag: individual
+               buttons/inputs portaled in are already auto-excluded from the drag region by the
+               .app-drag-region CSS rule, so leaving this undecorated keeps any empty gap in here
+               draggable too. No divider between this and the nav pill above — grouping (the
+               ControlGroup container itself) already makes the nav cluster legible as one unit;
+               a bar-spanning hairline on top of that read as double emphasis. ── */}
+          <div ref={slotRef} className="flex items-center gap-2 min-w-0 flex-shrink" />
 
-          <div ref={slotRef} className="flex-1 flex items-center justify-end gap-2 min-w-0 overflow-hidden" />
+          {/* ── Flexible space — pushes the ACTIONS zone to the right, CONTEXT zone to the
+               left, macOS toolbar-style. ── */}
+          <div className="flex-1" />
 
-          {/* ── Download in progress — same top-bar slot as the button below, shown instead of
+          {/* ── ACTIONS zone — portal target for the active panel's trailing action group(s)
+               (TabHeaderPortal's `zone="actions"`). ── */}
+          <div ref={actionsSlotRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+
+          {/* ── Download in progress — same top-bar spot as the button below, shown instead of
                it while a download is running. Fires from the SAME 'downloading' updateStatus
                regardless of whether the user just clicked "Download update" above or the
                download started on its own (Settings → Updates → auto-download), so this one
-               bar covers both triggers without needing to know which one caused it. Percent
+               bar covers both triggers without needing to know which one caused it. Plain text +
+               a thin progress bar, not a glass capsule — this is passive status, not a control,
+               so it shouldn't carry CONTROL-layer chrome (per the design-system's four-layer
+               rule: CHROME is the bar itself; a status readout inside it stays flat). Percent
                bar styling matches UpdatesSection.tsx's own downloading state (surface-4 track,
-               accent fill) — here as a thin strip along the bottom of the pill instead of a
-               separate block, to fit the compact top-bar footprint. ── */}
+               accent fill). ── */}
           {updateStatus.status === 'downloading' && (
             <div
+              className="relative flex items-center gap-1.5 px-1 flex-shrink-0"
               title={`Downloading update… ${updateStatus.percent ?? 0}%`}
-              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] flex-shrink-0 overflow-hidden"
             >
-              <Download size={12} className="flex-shrink-0" />
-              <span>Downloading… {updateStatus.percent ?? 0}%</span>
-              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgb(var(--color-surface-4))]">
+              <Download size={12} className="flex-shrink-0 text-text-tertiary" />
+              <span className="text-meta">Downloading… {updateStatus.percent ?? 0}%</span>
+              <div className="w-10 h-0.5 rounded-full bg-separator overflow-hidden flex-shrink-0">
                 <div
-                  className="h-full bg-[rgb(var(--color-accent))] transition-all duration-300"
+                  className="h-full bg-accent transition-all duration-300"
                   style={{ width: `${updateStatus.percent ?? 0}%` }}
                 />
               </div>
@@ -447,56 +421,48 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                reads as an actual clickable next step wherever the user happens to be looking,
                not something they have to already know to go find. Same window.app calls
                Settings → Updates already uses; the status itself is the single shared
-               updateStatus store field (App.tsx owns the one onUpdateStatus subscription). ── */}
+               updateStatus store field (App.tsx owns the one onUpdateStatus subscription).
+               'available' is a lower-urgency nudge (tinted glass); 'ready' is the one actually
+               worth a filled accent button — restarting finishes something already downloaded. ── */}
           {(updateStatus.status === 'available' || updateStatus.status === 'ready') && (
-            <button
+            <Button
+              variant={updateStatus.status === 'ready' ? 'primary' : 'prominent'}
+              size="sm"
+              icon={updateStatus.status === 'available' ? Download : RotateCcw}
               onClick={() => {
                 if (updateStatus.status === 'available') window.app.downloadUpdate()
                 else if (updateStatus.status === 'ready') window.app.installUpdate()
               }}
-              title={updateStatus.status === 'available' ? `Download update${updateStatus.version ? ` (v${updateStatus.version})` : ''}` : 'Restart to finish installing the update'}
-              className="no-drag flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer flex-shrink-0"
+              tooltip={updateStatus.status === 'available' ? `Download update${updateStatus.version ? ` (v${updateStatus.version})` : ''}` : 'Restart to finish installing the update'}
+              className="flex-shrink-0"
             >
-              {updateStatus.status === 'available'
-                ? <><Download size={12} /> Download update</>
-                : <><RotateCcw size={12} /> Restart to update</>}
-            </button>
+              {updateStatus.status === 'available' ? 'Download update' : 'Restart to update'}
+            </Button>
           )}
 
           {/* ── Windows min/max/close — same row, far right ── */}
           {isWin && <WindowControls />}
-        </div>
+        </Toolbar>
       </div>
 
-      {/* ── Per-tab nav history preview — hover-triggered (see openNavDropdown), restyled with
-           real lucide icons instead of bare emoji and a labeled header row. ── */}
+      {/* ── Per-tab nav history preview — hover-triggered (see openNavDropdown). ── */}
       {navDropdown && createPortal(
-        <div
+        <MenuPositioner
           ref={navDropdownRef}
-          // WebkitAppRegion: 'no-drag' stays explicit (not just the .no-drag class) — this
-          // panel sits right against this bar's own app-drag-region strip, and Electron's
-          // OS-level drag hit-testing doesn't reliably respect DOM paint order the way click
-          // hit-testing does, so relying on CSS class alone here previously left the cursor
-          // "inside" the panel while it still behaved as draggable underneath it.
-          style={{ position: 'fixed', left: navDropdown.x, top: navDropdown.y, zIndex: 9999, minWidth: 240, maxWidth: 360, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          // `overflow-hidden` moved to a nested inner div, off the same element as the shadow —
-          // combining overflow:hidden + border-radius + box-shadow on ONE element is a known
-          // WebKit/Chromium compositing gotcha where the shadow can render clipped to the
-          // element's square bounding box instead of following its own rounded corners (the
-          // "topbar" version of the same square-shadow-corner bug already fixed for the
-          // Bible side panel elsewhere — same root cause, different element). The outer div
-          // here now only carries the rounding + glass-panel shadow; the inner one clips.
-          className="rounded-shell-lg glass-panel text-xs"
-          onMouseEnter={keepNavDropdownOpen}
-          onMouseLeave={scheduleNavDropdownClose}
+          x={navDropdown.x}
+          y={navDropdown.y}
         >
-          <div className="rounded-shell-lg overflow-hidden">
+          <MenuSurface
+            className="min-w-[240px] max-w-[360px]"
+            onMouseEnter={keepNavDropdownOpen}
+            onMouseLeave={scheduleNavDropdownClose}
+          >
           {(() => {
             const tabStack = currentTabNav?.stack ?? []
             const tabIdx   = currentTabNav?.idx ?? -1
             const stackType = tabStack[0]?.type
             const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
-            const homeLabel = stackType === 'note' ? 'Notes list' : stackType === 'lexicon' ? 'Lexicon search' : 'YouTube browse'
+            const dropdownHomeLabel = stackType === 'note' ? 'Notes list' : stackType === 'lexicon' ? 'Lexicon search' : 'YouTube browse'
 
             type Row = { kind: 'entry'; stackIdx: number; entry: TabNavEntry } | { kind: 'home' }
             const backItems: Row[] = tabStack.slice(0, tabIdx).map((entry, i) => ({ kind: 'entry' as const, stackIdx: i, entry })).reverse()
@@ -512,35 +478,35 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
             const items = fullItems.slice(0, 5)
             const hasMore = fullItems.length > 5
             if (items.length === 0) {
-              return <div className="px-3 py-3 text-[rgb(var(--color-text-muted))]">No history yet</div>
+              return <div className="px-3 py-3 text-text-muted">No history yet</div>
             }
-            const label = navDropdown.mode === 'back' ? 'Back' : navDropdown.mode === 'forward' ? 'Forward' : 'Tab history'
+            const dropdownLabel = navDropdown.mode === 'back' ? 'Back' : navDropdown.mode === 'forward' ? 'Forward' : 'Tab history'
             return (
               <>
-                <div className="px-3 py-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-3))] border-b border-[rgb(var(--color-surface-4))]">{label}</div>
-                <div className="py-1">
+                <MenuLabel className="flex items-center justify-between gap-3">
+                  <span>{dropdownLabel}</span>
+                  {navDropdown.mode !== 'all' && <ShortcutKeys keys={navDropdown.mode === 'back' ? '⌘[' : '⌘]'} className="opacity-70" />}
+                </MenuLabel>
                 {items.map((row) => {
                   if (row.kind === 'home') {
                     return (
-                      <button
+                      <MenuItem
                         key="__home__"
-                        onClick={() => {
-                          useAppStore.getState().goToTabHome()
-                          setNavDropdown(null)
-                        }}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left transition-colors cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]"
-                      >
-                        <Home size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                        <span className="truncate">{homeLabel}</span>
-                      </button>
+                        icon={Home}
+                        label={dropdownHomeLabel}
+                        onClick={() => { useAppStore.getState().goToTabHome(); setNavDropdown(null) }}
+                      />
                     )
                   }
                   const { stackIdx, entry } = row
                   const isCurrent = stackIdx === tabIdx
                   const TypeIcon = NAV_TYPE_ICON[entry.type] ?? ScrollText
                   return (
-                    <button
+                    <MenuItem
                       key={entry.id}
+                      icon={TypeIcon}
+                      label={navEntryTitle(entry)}
+                      active={isCurrent}
                       onClick={() => {
                         const delta = stackIdx - tabIdx
                         const store = useAppStore.getState()
@@ -548,39 +514,25 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                         else            { for (let j = 0; j < delta;  j++) store.navTabForward() }
                         setNavDropdown(null)
                       }}
-                      className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                        isCurrent
-                          ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <TypeIcon size={12} className={`flex-shrink-0 ${isCurrent ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`} />
-                      <span className="truncate">{navEntryTitle(entry)}</span>
-                      {isCurrent && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
-                    </button>
+                    />
                   )
                 })}
-                </div>
                 {hasMore && (
-                  <div className="py-1 border-t border-[rgb(var(--color-surface-4))]">
-                    <button
-                      onClick={() => {
-                        useAppStore.getState().openHistory()
-                        setNavDropdown(null)
-                      }}
-                      className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-                    >
-                      <span className="truncate">View all in History →</span>
-                    </button>
-                  </div>
+                  <>
+                    <MenuSeparator />
+                    <MenuItem
+                      label="View all in History →"
+                      onClick={() => { useAppStore.getState().openHistory(); setNavDropdown(null) }}
+                    />
+                  </>
                 )}
               </>
             )
           })()}
-          </div>
-        </div>,
+          </MenuSurface>
+        </MenuPositioner>,
         document.body
       )}
-    </Tooltip.Provider>
+    </>
   )
 }

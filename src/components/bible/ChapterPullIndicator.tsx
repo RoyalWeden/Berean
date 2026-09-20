@@ -60,7 +60,7 @@ export default function ChapterPullIndicator({
 
   const banner = (
     <div
-      className="flex items-center gap-2 px-3 py-1.5 text-xs"
+      className="flex items-center gap-2 px-3 py-1.5 text-footnote"
       style={{
         background: ready ? 'rgb(var(--color-accent) / 0.16)' : 'rgb(var(--color-surface-2) / 0.92)',
         borderBottom: isPrev ? undefined : '1px solid rgb(var(--color-surface-4))',
@@ -74,7 +74,7 @@ export default function ChapterPullIndicator({
       >
         {label}
       </span>
-      <span className="text-[rgb(var(--color-text-muted))]">
+      <span className="text-text-muted">
         {state.committing ? 'opening…' : ready ? 'let go to open' : 'keep pulling'}
       </span>
       <span className="ml-auto h-1 w-24 overflow-hidden rounded-full" style={{ background: 'rgb(var(--color-surface-4))' }}>
@@ -98,14 +98,16 @@ export default function ChapterPullIndicator({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: isPrev ? 'flex-end' : 'flex-start',
+        // Alpha-mode mask (the default `mask-mode`) only reads the gradient's alpha channel,
+        // never its RGB — `black` here is an opaque marker, not a themed color.
         maskImage: isPrev
-          ? 'linear-gradient(to top, #000 40%, transparent)'
-          : 'linear-gradient(to bottom, #000 40%, transparent)',
+          ? 'linear-gradient(to top, black 40%, transparent)'
+          : 'linear-gradient(to bottom, black 40%, transparent)',
       }}
     >
       {shown.map((v) => (
         <span key={v.verse_num}>
-          <sup className="mr-0.5 text-[0.7em] text-[rgb(var(--color-text-muted))]">{v.verse_num}</sup>
+          <sup className="mr-0.5 text-[0.7em] text-text-muted">{v.verse_num}</sup>
           {v.text}{' '}
         </span>
       ))}
