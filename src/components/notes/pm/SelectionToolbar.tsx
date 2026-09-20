@@ -164,7 +164,10 @@ export default function SelectionToolbar({
       style={style}
       onMouseDown={(e) => e.preventDefault()}
       {...POP_IN}
-      className="material-popover rounded-menu relative flex items-center gap-2 px-1.5 py-1"
+      // `pm-toolbar-solid` is the marker NoteEditorPM's outside-mousedown dismiss checks for —
+      // without it a click on any button here counted as "outside" and closed the bubble
+      // before its dropdown could even open.
+      className="pm-toolbar-solid material-popover rounded-menu relative flex items-center gap-2 px-1.5 py-1"
     >
       {/* Style — current block type + the Thread insert action. */}
       <ControlGroup>

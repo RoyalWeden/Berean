@@ -30,7 +30,7 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       ? { className: 'bg-accent-muted text-accent border border-accent/20 hover:bg-accent-hover active:bg-accent-active', style: undefined }
       : { className: 'control-glass text-text-secondary hover:text-text-primary hover:bg-control-hover active:bg-control-pressed', style: undefined }
   const cls = cx(
-    'inline-flex items-center rounded-control font-medium whitespace-nowrap select-none leading-none',
+    'inline-flex items-center flex-shrink-0 rounded-control font-medium whitespace-nowrap select-none leading-none',
     'transition-[background-color,color,box-shadow] duration-base ease-mac',
     SIZE[size], look.className, className,
   )

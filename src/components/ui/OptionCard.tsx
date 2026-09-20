@@ -30,7 +30,8 @@ export const OptionCard = forwardRef<HTMLButtonElement, OptionCardProps>(functio
       )}
       {...rest}
     >
-      {preview}
+      {/* items-start on the card keeps text left-aligned, so the preview needs its own full-width box. */}
+      {preview && <div className="w-full min-w-0">{preview}</div>}
       <span className="flex items-center gap-2 w-full min-w-0">
         {Icon && <Icon size={14} strokeWidth={1.75} className={selected ? 'text-accent' : 'text-text-muted'} />}
         <span className={cx('text-footnote font-medium truncate', selected ? 'text-accent' : 'text-text-primary')}>{title}</span>

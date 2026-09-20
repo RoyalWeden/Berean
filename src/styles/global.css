@@ -1521,6 +1521,11 @@ body {
   background: rgb(var(--color-text-muted));
 }
 
+/* Overlay-style scroller: no reserved gutter, so edge-to-edge rows (sidebar tab list) reach the
+   pane's edge; trackpad scrolling is unaffected. */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { width: 0; height: 0; }
+
 /* react-mosaic overrides */
 .mosaic-root {
   position: absolute;

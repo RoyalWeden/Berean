@@ -289,6 +289,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [flashAnchor, setFlashAnchor] = useState<{ verse: number; nonce: number } | null>(null)
   // "Tag this whole chapter" — anchor rect for the toolbar tag button's popover.
   const [chapterTagRect, setChapterTagRect] = useState<DOMRect | null>(null)
+  // The popover closes itself on any outside mousedown — including one on its own toolbar
+  // button — so by the time that button's click fires the state is already null and it would
+  // simply reopen. Remember whether it was open at mousedown so the click can act as a toggle.
+  const chapterTagWasOpenRef = useRef(false)
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   // Whether 2+ visible compare columns currently share the same bookId+chapter —
@@ -3148,7 +3152,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               icon={TagIcon}
               label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
               size={28}
-              onClick={(e) => setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())}
+              active={!!chapterTagRect}
+              onMouseDown={() => { chapterTagWasOpenRef.current = !!chapterTagRect }}
+              onClick={(e) => {
+                if (chapterTagWasOpenRef.current) { chapterTagWasOpenRef.current = false; setChapterTagRect(null); return }
+                setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())
+              }}
               className="self-center"
             />
             {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
@@ -3180,7 +3189,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onClick={(e) => {
                   if (!infoOpen) {
                     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    setInfoPos({ x: r.left, y: r.bottom + 4 })
+                    // The key is a 288px (w-72) panel: keep it on-screen by right-aligning it
+                    // to the button whenever opening rightward would run past the window edge.
+                    const w = 288
+                    const x = r.left + w + 8 > window.innerWidth ? Math.max(8, r.right - w) : r.left
+                    setInfoPos({ x, y: r.bottom + 4 })
                   }
                   setInfoOpen((v) => !v)
                 }}

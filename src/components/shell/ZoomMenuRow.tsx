@@ -33,12 +33,13 @@ export default function ZoomMenuRow() {
     <div className="flex items-center gap-1.5 w-full px-2.5 py-1.5">
       <ZoomIn size={14} className="flex-shrink-0 text-text-primary" />
       <span className="flex-1 text-footnote text-text-primary">Zoom</span>
-      <IconButton icon={Minus} label="Zoom out" tooltip={{ shortcut: '⌘−' }} size={24} onClick={() => adjust(-1)} />
+      {/* No tooltips inside this row — it already floats as a hover surface; a tooltip on top of it stacked two layers. */}
+      <IconButton icon={Minus} label="Zoom out" tooltip={false} size={24} onClick={() => adjust(-1)} />
       <TextField
         type="text"
         inputMode="numeric"
         value={displayValue}
-        title={`Zoom level — type an exact percentage (${Math.round(ZOOM_MIN * 100)}–${Math.round(ZOOM_MAX * 100)})`}
+        aria-label={`Zoom level — type an exact percentage (${Math.round(ZOOM_MIN * 100)}–${Math.round(ZOOM_MAX * 100)})`}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ''))}
         onBlur={(e) => commit(e.target.value)}
@@ -49,8 +50,8 @@ export default function ZoomMenuRow() {
         size="sm"
         className="w-14 text-center"
       />
-      <IconButton icon={Plus} label="Zoom in" tooltip={{ shortcut: '⌘+' }} size={24} onClick={() => adjust(1)} />
-      <Button variant="ghost" size="sm" className="flex-shrink-0" onClick={() => reset()} title="Reset to 100% (⌘0)">
+      <IconButton icon={Plus} label="Zoom in" tooltip={false} size={24} onClick={() => adjust(1)} />
+      <Button variant="ghost" size="sm" className="flex-shrink-0" onClick={() => reset()} aria-label="Reset to 100% (⌘0)">
         Reset
       </Button>
     </div>

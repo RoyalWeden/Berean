@@ -613,18 +613,23 @@ function CrossRefCard({
     <ListRow
       onClick={onClick}
       onContextMenu={onContextMenu}
-      titleClamp={3}
+      titleClamp="none"
       titleSize="footnote"
-      titleClassName="text-text-secondary leading-relaxed font-normal"
-      title={<VerseText bookId={bookId} chapter={chapter} verse={verse} endVerse={endVerse} />}
-      subtitle={
-        <span className="flex items-center gap-1.5">
-          <RefChip size="md" mono={false} className="w-fit">{refLabel}</RefChip>
-          {meta}
+      titleClassName="font-normal"
+      // Reference first (what you scan for), then the passage beneath it.
+      title={
+        <span className="block">
+          <span className="flex items-center gap-1.5 mb-1">
+            <RefChip size="md" mono={false} className="w-fit">{refLabel}</RefChip>
+            {meta}
+          </span>
+          <span className="block text-text-secondary leading-relaxed line-clamp-3">
+            <VerseText bookId={bookId} chapter={chapter} verse={verse} endVerse={endVerse} />
+          </span>
         </span>
       }
       meta={footer}
-      buttonClassName="py-2"
+      buttonClassName="py-2 items-start"
     />
   )
 }
@@ -1083,12 +1088,7 @@ function UserNotesChapterView({
                 key={i}
                 refLabel={<RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />}
                 bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
-                footer={
-                  <span className="flex items-center gap-1 max-w-[100px]">
-                    <NotepadText size={9} className="flex-shrink-0 text-text-tertiary" />
-                    <span className="truncate">{r.sourceNoteTitle}</span>
-                  </span>
-                }
+                // No source-note footer here: this list is already scoped to the verse's own note.
                 onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'notes', reason: r.sourceNoteTitle, fromVerse: verseNum })}
                 onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
               />

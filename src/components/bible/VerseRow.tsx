@@ -1877,7 +1877,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       {indicatorMenu && createPortal(
         <MenuSurface
           ref={indicatorMenuRef}
-          style={{ position: 'fixed', left: indicatorMenu.x, top: indicatorMenu.y, zIndex: 'var(--z-menu)' }}
+          // Spawned from INSIDE the indicator hover card (z-popover), so it must sit above it.
+          style={{ position: 'fixed', left: indicatorMenu.x, top: indicatorMenu.y, zIndex: 'calc(var(--z-popover) + 1)' }}
           className="min-w-44"
         >
           {indicatorMenu.type === 'note' ? (

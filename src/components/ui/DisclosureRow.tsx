@@ -25,7 +25,9 @@ export const DisclosureRow = forwardRef<HTMLButtonElement, DisclosureRowProps>(f
       type={type}
       aria-expanded={open}
       className={cx(
-        'focus-ring group/dr flex items-center gap-1.5 w-full text-left rounded-row cursor-pointer select-none min-w-0',
+        // display:flex makes the button block-level (fills its container width), so no `w-full` —
+        // w-full + a caller's mx-* margins would overflow the scroller by the margin width.
+        'focus-ring group/dr flex items-center gap-1.5 text-left rounded-row cursor-pointer select-none min-w-0',
         dense ? 'h-7 px-1.5' : 'h-8 px-2',
         'text-text-secondary hover:text-text-primary hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast',
         className,

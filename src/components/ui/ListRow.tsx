@@ -36,7 +36,7 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
   /** Wrap the title to 2 or 3 lines (line-clamp) instead of the default single-line truncate —
    *  for rows whose "title" is really a quoted passage that needs room to be read, not a name
    *  to be scanned (verse/note preview hover cards). */
-  titleClamp?: 2 | 3
+  titleClamp?: 2 | 3 | 'none'
   /** aria-current / role overrides for the inner control. */
   buttonProps?: Record<string, unknown>
   /** Title type role. Defaults to footnote (dense) / subhead — set explicitly instead of
@@ -85,6 +85,9 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
             'focus-ring flex-1 min-w-0 flex items-center gap-2 text-left cursor-pointer outline-none',
             flush ? 'rounded-none' : 'rounded-row',
             dense ? 'h-7' : 'min-h-9 py-1.5', flush ? 'px-3' : dense ? 'px-2' : 'px-2.5',
+            // Hover-revealed trailing actions overlay the row's right edge, so the title only
+            // gives up room for them while they're actually visible (hover / focus-within).
+            trailing && !trailingAlways && 'transition-[padding] duration-fast group-hover/row:pr-8 group-focus-within/row:pr-8',
             current ? 'text-accent' : 'text-text-primary',
             buttonClassName,
           ),
@@ -95,7 +98,7 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
         <span key="t" className="flex-1 min-w-0">
           <span className={cx(
             'block',
-            titleClamp === 3 ? 'line-clamp-3 whitespace-normal' : titleClamp === 2 ? 'line-clamp-2 whitespace-normal' : 'truncate',
+            titleClamp === 3 ? 'line-clamp-3 whitespace-normal' : titleClamp === 2 ? 'line-clamp-2 whitespace-normal' : titleClamp === 'none' ? 'whitespace-normal' : 'truncate',
             size === 'caption' ? 'text-caption' : size === 'footnote' ? 'text-footnote' : size === 'body' ? 'text-body' : 'text-subhead',
             (selected || current) ? 'font-medium' : 'font-normal', titleClassName,
           )}>{title}</span>
@@ -104,7 +107,7 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
         meta && <span key="m" className="flex-shrink-0 text-meta">{meta}</span>,
       )}
       {trailing && (
-        <div className={cx('flex items-center gap-0.5 pr-1 flex-shrink-0', !trailingAlways && 'opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity duration-fast')}>
+        <div className={cx('flex items-center gap-0.5 pr-1 flex-shrink-0', !trailingAlways && 'absolute inset-y-0 right-0 opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto group-focus-within/row:opacity-100 group-focus-within/row:pointer-events-auto transition-opacity duration-fast')}>
           {trailing}
         </div>
       )}

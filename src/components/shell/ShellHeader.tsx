@@ -4,6 +4,7 @@ import {
   ArrowLeft, ArrowRight, History, PanelLeft, Home, NotepadText, BookMarked, FileType, ScrollText, Youtube,
   Download, RotateCcw,
 } from 'lucide-react'
+import ShortcutKeys from './ShortcutKeys'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { CLOSE_CONTEXT_MENUS_EVENT, MenuPositioner } from '@/lib/usePositionedMenu'
@@ -323,7 +324,9 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
               <IconButton
                 icon={ArrowLeft}
                 label={canNavBack ? 'Back' : canReturnToOrigin ? `Close tab & return to "${originTab!.title}"` : 'No back history'}
-                tooltip={canNavBack ? { shortcut: '⌘[' } : true}
+                // The hover dropdown IS the hover surface when there's history (its header carries
+                // the name + shortcut) — a second tooltip on top of it read as doubled chrome.
+                tooltip={canNavBack ? false : true}
                 size={28}
                 disabled={!canGoBack}
                 onClick={() => {
@@ -342,7 +345,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
               <IconButton
                 icon={ArrowRight}
                 label={canNavForward ? 'Forward' : 'No forward history'}
-                tooltip={canNavForward ? { shortcut: '⌘]' } : true}
+                tooltip={canNavForward ? false : true}
                 size={28}
                 disabled={!canNavForward}
                 onClick={() => { cancelNavDropdownOpen(); navTabForward() }}
@@ -353,6 +356,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
               <IconButton
                 icon={History}
                 label={hasHistory ? 'Navigation history' : 'No navigation history yet'}
+                tooltip={hasHistory ? false : true}
                 size={28}
                 disabled={!hasHistory}
                 onClick={(e) => {
@@ -479,7 +483,10 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
             const dropdownLabel = navDropdown.mode === 'back' ? 'Back' : navDropdown.mode === 'forward' ? 'Forward' : 'Tab history'
             return (
               <>
-                <MenuLabel>{dropdownLabel}</MenuLabel>
+                <MenuLabel className="flex items-center justify-between gap-3">
+                  <span>{dropdownLabel}</span>
+                  {navDropdown.mode !== 'all' && <ShortcutKeys keys={navDropdown.mode === 'back' ? '⌘[' : '⌘]'} className="opacity-70" />}
+                </MenuLabel>
                 {items.map((row) => {
                   if (row.kind === 'home') {
                     return (

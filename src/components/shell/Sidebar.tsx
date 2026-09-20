@@ -687,7 +687,7 @@ export default function Sidebar() {
 
             <div
               ref={tabListRef}
-              className="no-drag flex-1 overflow-y-auto min-h-0"
+              className="no-drag flex-1 overflow-y-auto min-h-0 scrollbar-none"
               onKeyDown={tabListRovingNav}
               onDoubleClick={(e) => {
                 const t = e.target as HTMLElement
