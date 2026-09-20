@@ -170,7 +170,7 @@ export default function AudioSection() {
           {previewing && (
             <Tooltip label="Playing Genesis 1:1 preview…">
               <span className="flex items-center justify-center w-8 h-8 flex-shrink-0">
-                <AudioLines size={15} className="text-accent animate-pulse" />
+                <AudioLines size={16} className="text-accent animate-pulse" />
               </span>
             </Tooltip>
           )}

@@ -343,7 +343,7 @@ export default function BibleGatewayImporter() {
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <CheckCircle2 size={15} className="text-success flex-shrink-0" />
+          <CheckCircle2 size={16} className="text-success flex-shrink-0" />
           <span className="text-footnote font-medium text-text-primary">Import complete</span>
         </div>
         <p className="text-caption text-text-muted leading-relaxed">{bgImportMessage}</p>
@@ -356,7 +356,7 @@ export default function BibleGatewayImporter() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <XCircle size={15} className="text-destructive flex-shrink-0" />
+        <XCircle size={16} className="text-destructive flex-shrink-0" />
         <span className="text-footnote font-medium text-text-primary">Import failed</span>
       </div>
       <p className="text-caption text-text-muted leading-relaxed">

@@ -67,7 +67,7 @@ export default function ChapterPullIndicator({
         borderTop: isPrev ? '1px solid rgb(var(--color-surface-4))' : undefined,
       }}
     >
-      {isPrev ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+      {isPrev ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
       <span
         className="font-semibold"
         style={{ color: ready ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))' }}

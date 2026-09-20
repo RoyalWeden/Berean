@@ -1627,7 +1627,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     leading={<span className="font-mono text-caption text-accent w-24 flex-shrink-0">{ref}</span>}
                     title={r.text ? <span className="whitespace-normal">{r.text}</span> : undefined}
                     subtitle={`${'●'.repeat(strength)}${'○'.repeat(5 - strength)}`}
-                    trailing={<ChevronRight size={11} className="text-text-muted" />}
+                    trailing={<ChevronRight size={12} className="text-text-muted" />}
                   />
                 )
               })}

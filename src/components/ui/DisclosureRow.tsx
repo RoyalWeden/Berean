@@ -36,7 +36,7 @@ export const DisclosureRow = forwardRef<HTMLButtonElement, DisclosureRowProps>(f
       {...rest}
     >
       <ChevronRight size={12} strokeWidth={2} className={cx('flex-shrink-0 text-text-muted transition-transform duration-base ease-mac', open && 'rotate-90')} />
-      {Icon && <Icon size={13} strokeWidth={1.75} className={cx('flex-shrink-0', iconClassName ?? 'text-text-muted')} />}
+      {Icon && <Icon size={14} strokeWidth={1.75} className={cx('flex-shrink-0', iconClassName ?? 'text-text-muted')} />}
       <span className="flex-1 min-w-0 truncate text-footnote font-medium">{title}</span>
       {count !== undefined && <span className="text-caption2 text-text-muted tabular-nums">{count}</span>}
       {trailing}

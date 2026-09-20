@@ -1985,7 +1985,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                               }
                             }}
                           >
-                            <Clock size={7} />{fmtSecs(n.timestamp)}
+                            <Clock size={8} />{fmtSecs(n.timestamp)}
                           </RefChip>
                         }
                         title={n.noteTitle}
@@ -2627,7 +2627,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     />
                     {video.isStarred && (
                       <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center group-hover:hidden">
-                        <Star size={11} className="text-warning fill-warning" />
+                        <Star size={12} className="text-warning fill-warning" />
                       </div>
                     )}
                   </div>

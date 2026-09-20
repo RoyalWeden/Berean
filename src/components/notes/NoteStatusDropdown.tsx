@@ -32,14 +32,14 @@ export default function NoteStatusDropdown({
             title={current ? `Status: ${current.label}` : 'Set status'}
             className={open ? 'bg-surface-hover text-text-primary' : ''}
           >
-            <CurrentIcon size={11} style={current ? { color: current.color } : undefined} />
+            <CurrentIcon size={12} style={current ? { color: current.color } : undefined} />
             {current && <span>{current.label}</span>}
           </Button>
         ) : (
           <MenuItem
             className={cx('text-text-secondary', open && 'bg-lift-2')}
             label={<span className="flex items-center gap-2">
-              <CurrentIcon size={13} style={current ? { color: current.color } : undefined} />
+              <CurrentIcon size={14} style={current ? { color: current.color } : undefined} />
               <span>{current ? current.label : 'Set status'}</span>
             </span>}
             trailing={<ChevronDown size={10} className="opacity-60" />}
@@ -51,7 +51,7 @@ export default function NoteStatusDropdown({
         <MenuItem
           active={!value}
           onClick={() => { onChange(null); setOpen(false) }}
-          label={<span className="flex items-center gap-2"><CircleDashed size={13} className="flex-shrink-0 opacity-60" /><span>No status</span></span>}
+          label={<span className="flex items-center gap-2"><CircleDashed size={14} className="flex-shrink-0 opacity-60" /><span>No status</span></span>}
         />
         {NOTE_STATUSES.map((s) => {
           const Icon = s.icon
@@ -60,7 +60,7 @@ export default function NoteStatusDropdown({
               key={s.id}
               active={value === s.id}
               onClick={() => { onChange(s.id); setOpen(false) }}
-              label={<span className="flex items-center gap-2"><Icon size={13} className="flex-shrink-0" style={{ color: s.color }} /><span>{s.label}</span></span>}
+              label={<span className="flex items-center gap-2"><Icon size={14} className="flex-shrink-0" style={{ color: s.color }} /><span>{s.label}</span></span>}
             />
           )
         })}

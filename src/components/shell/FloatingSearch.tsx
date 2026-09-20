@@ -1444,7 +1444,7 @@ export default function FloatingSearch() {
                 {recentSearchQueries.map((q, i) => (
                   <ListRow
                     key={i}
-                    leading={<Clock size={13} />}
+                    leading={<Clock size={14} />}
                     title={q}
                     titleClassName="font-normal text-text-secondary"
                     className="mx-2"

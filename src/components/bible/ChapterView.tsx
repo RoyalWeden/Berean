@@ -323,7 +323,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded-control-md material-control px-2 py-0.5 text-caption text-text-secondary hover:text-text-primary transition-colors cursor-pointer select-none"
       >
-        <Link2 size={11} strokeWidth={2} className="text-text-muted" />
+        <Link2 size={12} strokeWidth={2} className="text-text-muted" />
         <span>{label}</span>
         <ChevronDown size={12} className={`text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -353,7 +353,7 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
   if (!note) return null
   return (
     <div className="mb-4 flex items-start gap-1.5 text-caption text-text-quaternary">
-      <BookOpen size={11} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
+      <BookOpen size={12} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
       <span>{note}</span>
     </div>
   )
@@ -1362,7 +1362,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
                       onClick={clearRangeHighlights}
                       className="ml-auto text-text-muted hover:text-destructive cursor-pointer"
                     >
-                      <X size={11} />
+                      <X size={12} />
                     </button>
                   </Tooltip>
                 )}

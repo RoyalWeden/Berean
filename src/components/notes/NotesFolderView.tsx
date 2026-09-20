@@ -612,7 +612,7 @@ export default function NotesFolderView({
           const status = noteStatusMeta(note.status)
           if (!status) return null
           const Icon = status.icon
-          return <Icon size={11} className="flex-shrink-0" style={{ color: status.color }} />
+          return <Icon size={12} className="flex-shrink-0" style={{ color: status.color }} />
         })()}
         // Hover action buttons — rename, move and delete (not in select mode, not on
         // system-folder notes). ListRow's own `trailing` slot already reveals these on row
@@ -735,7 +735,7 @@ export default function NotesFolderView({
               iconClassName={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
               onClick={(e) => { e.stopPropagation(); toggle(folder.id) }}
             />
-            {isOpen ? <FolderOpen size={13} className="flex-shrink-0 text-accent" /> : <Folder size={13} className="flex-shrink-0 text-accent" />}
+            {isOpen ? <FolderOpen size={14} className="flex-shrink-0 text-accent" /> : <Folder size={14} className="flex-shrink-0 text-accent" />}
           </>}
           title={isRenaming ? (
             <TextField
@@ -1173,7 +1173,7 @@ export default function NotesFolderView({
               <MenuItem
                 icon={FolderInput}
                 label="Move into folder"
-                trailing={<ChevronRight size={11} className={`transition-transform ${folderMoveOpen ? 'rotate-90' : ''}`} />}
+                trailing={<ChevronRight size={12} className={`transition-transform ${folderMoveOpen ? 'rotate-90' : ''}`} />}
                 onClick={() => setFolderMoveOpen(v => !v)}
               />
               {folderMoveOpen && (

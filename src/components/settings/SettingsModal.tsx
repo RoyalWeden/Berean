@@ -505,7 +505,7 @@ export default function SettingsModal() {
         <ListRow
           key={n.id}
           dense
-          leading={<n.icon size={13} className="flex-shrink-0" />}
+          leading={<n.icon size={14} className="flex-shrink-0" />}
           title={n.label}
           current={section === n.id}
           onClick={() => { changeSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}

@@ -384,7 +384,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
         >
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-separator flex-shrink-0">
-            <Eye size={15} className="text-accent" />
+            <Eye size={16} className="text-accent" />
             <Dialog.Title className="text-subhead font-semibold text-text-primary">Print preview</Dialog.Title>
             <span className="text-caption text-text-muted truncate">— {title || 'Untitled'}</span>
             <div className="flex-1" />
@@ -409,7 +409,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                     leading={<ThemeSwatch th={currentTheme} />}
                     title={currentTheme.label}
                     subtitle={currentTheme.desc}
-                    trailing={<ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
+                    trailing={<ChevronDown size={14} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
                     trailingAlways
                   />
 

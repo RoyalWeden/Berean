@@ -273,7 +273,7 @@ function TagInspector({
                   <ListRow
                     key={edge.id}
                     dense
-                    leading={<Glyph size={13} className={outgoing ? '' : 'rotate-180'} />}
+                    leading={<Glyph size={14} className={outgoing ? '' : 'rotate-180'} />}
                     title={other!.name}
                     subtitle={edge.note || undefined}
                     onClick={() => onSelectTag(other!.id)}

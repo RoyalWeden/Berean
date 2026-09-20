@@ -259,7 +259,7 @@ export default function AudioPlayer() {
                     {showSyncRow ? (
                       <RefChip onClick={jumpToPlaying} title="Jump to what's playing" className="gap-1">
                         {label}
-                        <ArrowDownToLine size={11} />
+                        <ArrowDownToLine size={12} />
                       </RefChip>
                     ) : (
                       <span className="text-caption font-medium text-text-primary whitespace-nowrap">

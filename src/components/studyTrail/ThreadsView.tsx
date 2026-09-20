@@ -79,7 +79,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
           <span className="flex items-center gap-2">
             {/* Same caret direction as everywhere else on the map — see CARET_COLLAPSED_ROTATE. */}
             <ChevronDown size={16} className="flex-shrink-0 opacity-50" style={{ transform: open ? undefined : CARET_COLLAPSED_ROTATE, transition: 'transform 120ms' }} />
-            {tagged ? <Tag size={15} className="flex-shrink-0" style={{ color: accent }} /> : <Waypoints size={15} className="flex-shrink-0 opacity-70" />}
+            {tagged ? <Tag size={16} className="flex-shrink-0" style={{ color: accent }} /> : <Waypoints size={16} className="flex-shrink-0 opacity-70" />}
           </span>
         }
         title={thread.label}

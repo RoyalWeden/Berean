@@ -117,7 +117,7 @@ export default function NoteContextMenu({
           <MenuItem
             icon={FolderInput}
             label="Move to folder"
-            trailing={<ChevronRight size={11} className={`transition-transform ${showFolders ? 'rotate-90' : ''}`} />}
+            trailing={<ChevronRight size={12} className={`transition-transform ${showFolders ? 'rotate-90' : ''}`} />}
             onClick={() => setShowFolders(v => !v)}
           />
           {showFolders && (
@@ -156,7 +156,7 @@ export default function NoteContextMenu({
             icon={CircleDashed}
             label="Set status"
             active={statusFlyout ? true : undefined}
-            trailing={<ChevronRight size={11} />}
+            trailing={<ChevronRight size={12} />}
             className={statusFlyout ? 'bg-surface-hover text-text-primary' : ''}
             onClick={() => {
               if (statusFlyout) { setStatusFlyout(null); return }
@@ -174,7 +174,7 @@ export default function NoteContextMenu({
           <MenuItem
             icon={Layers}
             label="Open in session"
-            trailing={<ChevronRight size={11} className={`transition-transform ${showSessions ? 'rotate-90' : ''}`} />}
+            trailing={<ChevronRight size={12} className={`transition-transform ${showSessions ? 'rotate-90' : ''}`} />}
             onClick={() => setShowSessions(v => !v)}
           />
           {showSessions && (

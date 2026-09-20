@@ -904,7 +904,7 @@ function StepWelcome() {
           'Sync notes to any Markdown folder',
         ].map((feat) => (
           <div key={feat} className="flex items-center gap-2 text-subhead text-text-secondary">
-            <CheckCircle size={13} className="text-accent flex-shrink-0" />
+            <CheckCircle size={14} className="text-accent flex-shrink-0" />
             {feat}
           </div>
         ))}

@@ -747,8 +747,8 @@ export default function TasksPanel() {
       <div className="fixed right-5 z-overlay material-control rounded-control" style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}>
         <Button variant="secondary" size="md" onClick={unminimizeTasks} className="rounded-control">
           {allDone
-            ? <Sparkles size={13} className="text-accent" />
-            : <CheckCircle2 size={13} className="text-accent" />
+            ? <Sparkles size={14} className="text-accent" />
+            : <CheckCircle2 size={14} className="text-accent" />
           }
           {allDone ? 'Getting Started — all done!' : `Getting Started · ${doneCount}/${TOTAL}`}
           <ChevronRight size={12} className="text-text-muted -rotate-90" />
@@ -851,7 +851,7 @@ export default function TasksPanel() {
                         className={done ? 'opacity-40' : ''}
                         leading={
                           <div className={`mt-px flex-shrink-0 ${done || isExpanded ? 'text-accent' : 'text-text-muted'}`}>
-                            {done ? <CheckCircle2 size={13} /> : <Icon size={13} />}
+                            {done ? <CheckCircle2 size={14} /> : <Icon size={14} />}
                           </div>
                         }
                         title={
@@ -868,7 +868,7 @@ export default function TasksPanel() {
                             {stepsDone}/{stepsTotal}
                           </Chip>
                         ) : undefined}
-                        trailing={<ChevronRight size={11} className={`flex-shrink-0 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />}
+                        trailing={<ChevronRight size={12} className={`flex-shrink-0 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} />}
                         trailingAlways
                       />
 
@@ -891,8 +891,8 @@ export default function TasksPanel() {
                                   <div className="flex-shrink-0 mt-0.5">
                                     {isDetectable ? (
                                       stepDone
-                                        ? <CheckCircle2 size={13} className="text-accent" />
-                                        : <Circle size={13} className={isNext ? 'text-accent opacity-70' : 'text-text-muted opacity-40'} />
+                                        ? <CheckCircle2 size={14} className="text-accent" />
+                                        : <Circle size={14} className={isNext ? 'text-accent opacity-70' : 'text-text-muted opacity-40'} />
                                     ) : (
                                       <span className="w-[13px] flex items-center justify-center mt-px">
                                         <span className="w-1 h-1 rounded-full bg-text-muted opacity-40 inline-block" />

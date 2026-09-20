@@ -57,7 +57,7 @@ export default function NotesBoardView({ notes, onSelect, onSetStatus }: Props) 
             <SectionHeader count={colNotes.length}>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: col.color }} />
-                <Icon size={13} style={{ color: col.color }} />
+                <Icon size={14} style={{ color: col.color }} />
                 <span data-testid="board-col-title">{col.label}</span>
               </span>
             </SectionHeader>
@@ -83,7 +83,7 @@ export default function NotesBoardView({ notes, onSelect, onSetStatus }: Props) 
                     className="focus-ring rounded-card control-glass shadow-1 hover:shadow-2 px-2.5 py-2 cursor-pointer transition-[background-color,box-shadow]"
                   >
                     <p className="flex items-center gap-1 min-w-0">
-                      <NoteIcon icon={note.icon} size={13} />
+                      <NoteIcon icon={note.icon} size={14} />
                       <span className="text-subhead font-medium text-text-primary truncate">
                         {note.title || 'Untitled'}
                       </span>

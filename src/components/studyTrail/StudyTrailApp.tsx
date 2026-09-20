@@ -1086,7 +1086,7 @@ export default function StudyTrailApp() {
               still actionable next time you look at the trail. */}
           {splitProposal && (
             <div className="flex items-center gap-2.5 mb-2.5 px-2.5 py-1.5 rounded-card bg-accent-muted border border-accent/35">
-              <Scissors size={13} className="text-accent flex-shrink-0" />
+              <Scissors size={14} className="text-accent flex-shrink-0" />
               <span className="text-footnote text-text-secondary flex-1">
                 Split here into a new trail — {splitProposal.reason}?
               </span>

@@ -73,7 +73,7 @@ export default function WordCountFooter({ view, lastSavedAt }: { view: EditorVie
           className="flex items-center gap-1 text-meta transition-opacity ease-out"
           style={{ opacity: saveFlashVisible ? 1 : 0, transitionDuration: `${SAVE_FLASH_FADE_MS}ms` }}
         >
-          <Check size={11} strokeWidth={2.5} /> Saved
+          <Check size={12} strokeWidth={2.5} /> Saved
         </span>
       )}
       <div className="text-meta">

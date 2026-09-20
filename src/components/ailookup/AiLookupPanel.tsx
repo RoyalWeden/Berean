@@ -147,7 +147,7 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
       density="compact"
     >
       <div className="flex items-center gap-1.5 mb-0.5">
-        <NotepadText size={11} className="flex-shrink-0 text-text-muted" />
+        <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
         <span className="text-caption font-semibold text-text-primary truncate">{note.title}</span>
         {note.isIdiom && (
           <span className="flex-shrink-0 text-micro px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">
@@ -792,7 +792,7 @@ export default function AiLookupPanel() {
                               <span className="text-caption font-semibold text-text-primary">
                                 {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
                               </span>
-                              {r.noted && <BookMarked size={11} className="text-accent" />}
+                              {r.noted && <BookMarked size={12} className="text-accent" />}
                             </div>
                             <p className="text-caption text-text-secondary leading-snug">
                               <HighlightedText
@@ -888,7 +888,7 @@ export default function AiLookupPanel() {
             })}
             {loading && (
               <div className="flex items-center gap-2 text-footnote text-text-muted">
-                <Loader2 size={13} className="animate-spin" /> {progressStatus}
+                <Loader2 size={14} className="animate-spin" /> {progressStatus}
               </div>
             )}
           </div>

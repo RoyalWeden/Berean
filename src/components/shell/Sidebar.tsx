@@ -562,7 +562,7 @@ export default function Sidebar() {
                     {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
                   </span>
                 }
-                trailing={<ChevronsUpDown size={11} className="text-text-tertiary" />}
+                trailing={<ChevronsUpDown size={12} className="text-text-tertiary" />}
                 trailingAlways
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -857,7 +857,7 @@ export default function Sidebar() {
           <MenuSurface className="w-56 max-h-[70vh] flex flex-col">
             {/* Filter input — sticky at top */}
             <div className="flex items-center gap-1.5 pb-1.5 border-b border-separator flex-shrink-0">
-              <Search size={11} className="text-text-muted flex-shrink-0" />
+              <Search size={12} className="text-text-muted flex-shrink-0" />
               <TextField
                 autoFocus
                 bare
