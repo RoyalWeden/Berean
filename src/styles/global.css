@@ -1934,7 +1934,8 @@ html[data-reduce-transparency] .material-control,
 html[data-reduce-transparency] .scrim-modal,
 html[data-reduce-transparency] .scrim-light { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 @media (prefers-reduced-transparency: reduce) {
-  .material-bar, .material-sidebar { background: var(--material-bar-bg-opaque); }
+  /* html[data-vibrant] selectors above outrank a bare class — match their specificity. */
+  .material-bar, .material-sidebar, html[data-vibrant] .material-bar, html[data-vibrant] .material-sidebar { background: var(--material-bar-bg-opaque); }
   .material-elevated { background: var(--material-elevated-bg-opaque); }
   .material-panel    { background: var(--material-panel-bg-opaque); }
   .material-popover  { background: var(--material-popover-bg-opaque); }

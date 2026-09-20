@@ -235,6 +235,31 @@ controls (`CircularPlayButton`, `Switch`, Windows `WindowControls`), the pre-CSS
 `main.tsx`, ProseMirror node views, pm/Toolbar's focus-mode `motion.button`, and the Verse Picker's
 font-scaled Scripture text. All carry `focus-ring` + hover/pressed lift states.
 
+## Reading column (pass 4 §26–27)
+Left-anchored (Michael's decision). `--reading-max-ch` (86) × the Scripture font's `ch` caps the
+measure; `--reading-margin: clamp(24px, 6%, 72px)` scales with the pane; compact/compare views have
+no cap. Measured in the app at 16px system serif: 1ch ≈ 10px → 72ch rendered ~72 chars/line but
+~190px narrower than the old 768px cap, so the token was raised to 86 (≈ 90 chars/line, ~720px of
+text). Tune the ONE token; per-font overrides are allowed if a family lands outside 60–90.
+
+## Keyboard model (pass 4)
+- Scripture verses: badges are focusable (Tab in / click a number); ↑/↓ move, ⇧↑/↓ extend, Enter
+  toggles selection, Escape clears, Shift+F10 opens the verse menu; Space / Page keys / Home / End
+  stay native scroll keys.
+- Sidebar rows / notes lists / calendar: roving ↑/↓/Home/End (`useRovingNav`), Shift+F10 context menu;
+  closing stays ⌘W / hover × / menu (no Delete binding).
+- Inspector strip (`TabStrip`): ←/→, Enter; click-active closes the slot.
+- Transient menus focus their first item on open; ↑/↓/Home/End/typeahead; Escape returns focus.
+- Rail: Tab reaches the handle, Enter/Space expands, Escape collapses.
+- Graph canvas: arrows pan (⇧×5), +/−/0 zoom, Tab cycles nodes, Enter opens, Escape clears.
+- Presenter: controls rows are `role="switch"` buttons; viewer ⌘±/0 zoom; zoom overlay on focus.
+
+## Presenter state (pass 4 §62–63)
+The outline derives from the shared verse-fraction geometry (unchanged pipeline) and is the only
+presenter UI inside Scripture: 1.5px dashed accent (warning while paused), 0.035 tint, hugging the
+reading column, `height` eases, `top` never. State text lives in the rail button badge/tooltip
+("On presenter · v.1–6") and the presenter-controls pill.
+
 ## Visual QA (running app)
 `BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol (dev only); the renderer
 also exposes `window.__bereanStore` in dev. A small driver (`scratchpad/p3/cdp.mjs` during pass 3:
@@ -286,6 +311,13 @@ as badges (section labels use `SectionLabel`).
   theme-independent; menu hover is NSMenu accent+white; History/⌘K/Tab Switcher use
   `.material-elevated` with a light scrim (Spotlight-class); Study Trail keeps its mono-italic
   timeline titles as a feature identity while its chrome uses system controls.
+- 2026-09-20 — Pass 4 waves: window (fullscreenable per kind, viewer drops always-on-top in
+  fullscreen, bounds persistence for all window kinds, display re-clamp); toolbar overflow with one
+  More menu per bar (folded controls keep icon/label/shortcut/state); inset sidebar rows; rail
+  keyboard; workspace cross-fade; keyboard verse model; inspector on TabStrip/ResizeHandle/compact;
+  presenter badge + dashed outline; graph keyboard; AlertSheet for tag delete; menus auto-focus.
+  Remaining (see final report): Search filters popover, History badge/disclosure rows, Notes link
+  popover + list roving, Lexicon header hierarchy, Notes side panel sections.
 - 2026-09-20 — Pass 4 foundation: control shapes follow Apple's rule (capsules reserved for search
   fields, lg/primary/prominent buttons, tokens, badges, switches; everything else rounded rectangles);
   `Badge`, `TabStrip`, `useContextMenu`, `MenuGroup`/`MenuSub`, `ScrollContainer`, `CompactMetrics`;
