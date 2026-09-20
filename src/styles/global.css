@@ -1944,6 +1944,12 @@ html[data-inactive] .text-accent { color: rgb(var(--color-text-secondary)); }
 @keyframes menu-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
 .animate-menu-in { animation: menu-in var(--motion-popover) var(--motion-ease-out) both; transform-origin: var(--menu-origin, top left); }
 
+/* Scroll containment (§60): nested scrollers inside chrome/transient surfaces never hand their
+   overscroll to the page behind them (an inspector list bouncing the whole reader, a menu
+   scrolling the sidebar). Momentum/rubber-banding inside each scroller is untouched. */
+.material-inspector, .material-popover, .material-elevated, .material-sheet, .material-sidebar,
+.material-inspector .overflow-y-auto, .material-sidebar .overflow-y-auto, [data-scroll-root] { overscroll-behavior: contain; }
+
 /* Find / search-term marks — one pigment for every "matched text" highlight. */
 .find-mark { background-color: rgb(var(--highlight-amber) / 0.35); color: rgb(var(--color-text-primary)); border-radius: var(--radius-chip); font-weight: 600; }
 

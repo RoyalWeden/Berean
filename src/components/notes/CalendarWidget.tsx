@@ -277,7 +277,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                   aria-selected={isSelected || undefined}
                   onClick={() => onSelectDate(cellDate)}
                   onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
-                  className="focus-ring flex items-center justify-center w-full py-px cursor-pointer group active:scale-[0.97] transition-transform duration-fast"
+                  className="focus-ring flex items-center justify-center w-full py-px cursor-pointer group active:scale-[0.98] transition-transform duration-fast"
                 >
                   <span
                     className={`flex items-center justify-center ${squareSize} rounded-compact leading-none transition-[filter,background-color] duration-150
