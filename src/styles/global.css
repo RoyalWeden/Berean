@@ -1406,7 +1406,11 @@
    nearest block container's width), clamped so it never gets cramped on a narrow
    inspector-open pane or absurd on an ultra-wide window. */
 :root {
-  --reading-max-ch: 72;
+  /* Measured in the running app (system serif, 16px): 1ch ≈ 8px, so 72ch rendered ~72 chars/line
+     (typographically ideal) but ~190px NARROWER than the previous 768px cap — the opposite of
+     Michael's "wider cap" decision. 86ch ≈ 688px ≈ 86 chars/line keeps a comfortable measure while
+     using more of the pane; tune this ONE token, never the component. */
+  --reading-max-ch: 86;
   --reading-margin: clamp(24px, 6%, 72px);
 }
 .berean-reading-column {
