@@ -1284,7 +1284,7 @@ export default function Onboarding() {
         {STEPS.map((step, i) => (
           <div
             key={step.id}
-            className={`h-1 flex-1 rounded-control transition-all duration-300 ${
+            className={`h-1 flex-1 rounded-control transition-[background-color] duration-300 ${
               i <= stepIdx
                 ? 'bg-accent'
                 : 'bg-lift-2'

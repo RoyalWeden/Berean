@@ -21,13 +21,18 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   invalid?: boolean
   /** Capsule geometry — search fields only (SearchField sets it); text fields are rounded rectangles. */
   capsule?: boolean
+  /** 'none' drops the field's own horizontal inset. A `bare` field keeps its padding by default
+   *  because it usually sits in a bar where the inset is what separates it from neighbouring
+   *  controls; an INLINE editor (a note title typed directly into the page) wants the text to
+   *  start exactly where the rendered text would, so it opts out. Replaces `!px-0` at call sites. */
+  padding?: 'default' | 'none'
 }
 
 const SIZE = { sm: { box: 'h-7 text-footnote', pad: 'px-2.5', icon: 12 }, md: { box: 'h-8 text-subhead', pad: 'px-3', icon: 14 } }
 
 /** Text field (rounded rectangle) with optional leading icon and trailing slot; SearchField is the capsule variant. */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { size = 'sm', icon: Icon, trailing, bare, bareUnderline = true, invalid, capsule = false, className, wrapperClassName, ...rest }, ref,
+  { size = 'sm', icon: Icon, trailing, bare, bareUnderline = true, invalid, capsule = false, padding = 'default', className, wrapperClassName, ...rest }, ref,
 ) {
   const s = SIZE[size]
   return (
@@ -41,7 +46,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           capsule ? 'rounded-control' : 'rounded-control-md',
           'transition-[background-color,box-shadow] duration-base ease-mac',
           'disabled:opacity-50 disabled:cursor-default read-only:text-text-secondary',
-          s.box, s.pad,
+          s.box, padding === 'none' ? 'px-0' : s.pad,
           Icon && (size === 'sm' ? 'pl-7' : 'pl-8'),
           trailing && 'pr-7',
           bare
@@ -92,10 +97,18 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
   )
 })
 
-export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> { invalid?: boolean; autoGrow?: boolean }
+export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+  invalid?: boolean
+  autoGrow?: boolean
+  /** Borderless and transparent — the same role `bare` plays on TextField, for a multi-line
+   *  editor typed straight into the page (an inline note body) rather than boxed in a form. */
+  bare?: boolean
+  /** 'none' drops the field's own inset so inline text starts where rendered text would. */
+  padding?: 'default' | 'none'
+}
 
 /** Multi-line field with the same material/states as TextField. */
-export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea({ className, invalid, autoGrow, rows = 3, onInput, ...rest }, ref) {
+export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea({ className, invalid, autoGrow, bare, padding = 'default', rows = 3, onInput, ...rest }, ref) {
   return (
     <textarea
       ref={ref}
@@ -103,10 +116,14 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
       aria-invalid={invalid || undefined}
       onInput={(e) => { if (autoGrow) { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px` } onInput?.(e) }}
       className={cx(
-        'no-drag w-full min-w-0 rounded-card px-3 py-2 text-footnote leading-relaxed outline-none resize-y text-text-primary placeholder:text-text-muted',
-        'control-field bg-field hover:bg-surface-1/75 focus:bg-surface-1 focus:shadow-focus transition-[background-color,box-shadow] duration-base ease-mac',
+        'no-drag w-full min-w-0 text-footnote leading-relaxed outline-none resize-y text-text-primary placeholder:text-text-muted',
+        'transition-[background-color,box-shadow] duration-base ease-mac',
+        padding === 'none' ? 'p-0' : 'px-3 py-2',
+        bare
+          ? 'bg-transparent rounded-none'
+          : 'rounded-card control-field bg-field hover:bg-surface-1/75 focus:bg-surface-1 focus:shadow-focus',
         'disabled:opacity-50 disabled:cursor-default',
-        invalid && 'shadow-[inset_0_0_0_1px_rgb(var(--color-destructive)/0.6)]',
+        invalid && !bare && 'shadow-[inset_0_0_0_1px_rgb(var(--color-destructive)/0.6)]',
         autoGrow && 'resize-none overflow-hidden',
         className,
       )}

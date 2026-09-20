@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Volume2, Download, AudioLines, Sparkles, Trash2, X } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { Switch, Button, IconButton, TextField, SectionLabel, Slider } from '@/components/ui'
+import { Switch, Button, IconButton, TextField, SectionLabel, Slider, Tooltip } from '@/components/ui'
 import VoicePicker from '@/components/audio/VoicePicker'
 import { getVoices, subscribeVoices, isTTSSupported, ttsEngine, type TTSVoiceOption } from '@/lib/tts/ttsEngine'
 import { KOKORO_VOICE_OPTIONS, DEFAULT_KOKORO_VOICE_ID } from '@/lib/tts/kokoro/kokoroVoices'
@@ -168,9 +168,11 @@ export default function AudioSection() {
         <div className="flex items-center gap-2">
           <VoicePicker voices={englishVoices} value={ttsVoiceURI} onChange={handleVoiceChange} />
           {previewing && (
-            <span title="Playing Genesis 1:1 preview…" className="flex items-center justify-center w-8 h-8 flex-shrink-0">
-              <AudioLines size={15} className="text-accent animate-pulse" />
-            </span>
+            <Tooltip label="Playing Genesis 1:1 preview…">
+              <span className="flex items-center justify-center w-8 h-8 flex-shrink-0">
+                <AudioLines size={15} className="text-accent animate-pulse" />
+              </span>
+            </Tooltip>
           )}
         </div>
 

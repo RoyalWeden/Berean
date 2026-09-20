@@ -14,7 +14,7 @@ import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { IconButton, ListRow, ControlGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
+import { IconButton, ListRow, ControlGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField, Tooltip } from '@/components/ui'
 import { useRovingNav } from '@/lib/useRovingNav'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
@@ -1005,13 +1005,14 @@ export default function Sidebar() {
         itself (not the inner aside) so it stays pinned to the right edge regardless of the
         collapse/expand width animation. */}
     {!sidebarCollapsed && (
-      <div
-        onMouseDown={handleSidebarResizeMouseDown}
-        title="Drag to resize"
-        className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-raised no-drag"
-      >
-        <div className="w-px h-full mx-auto bg-transparent group-hover:bg-accent/40 transition-colors" />
-      </div>
+      <Tooltip label="Drag to resize">
+        <div
+          onMouseDown={handleSidebarResizeMouseDown}
+          className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-raised no-drag"
+        >
+          <div className="w-px h-full mx-auto bg-transparent group-hover:bg-accent/40 transition-colors" />
+        </div>
+      </Tooltip>
     )}
     </motion.div>
   )

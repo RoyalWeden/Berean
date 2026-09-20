@@ -21,7 +21,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
-  Badge, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
+  Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
   RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel,
 } from '@/components/ui'
 
@@ -1774,10 +1774,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       className="absolute top-0 left-0 w-full"
                       style={{ transform: `translateY(${virtualRow.start}px)` }}
                     >
-                      <button
+                      <CardButton
                         onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))}
                         onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                        className={`focus-ring w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer group ${row.indexInGroup > 0 ? 'border-t border-separator-subtle' : ''} ${isFocused ? 'bg-surface-selected' : 'hover:bg-lift-2'}`}
+                        surface="plain"
+                        focused={isFocused}
+                        chevron
+                        density="comfortable"
+                        className={`group ${row.indexInGroup > 0 ? 'border-t border-separator-subtle' : ''}`}
                       >
                         <RefChip size="lg" mono={false} className="w-16 flex-shrink-0 justify-center py-1">
                           {r.chapter}:{r.verse_num}
@@ -1881,8 +1885,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             })()}
                           </span>
                         )}
-                        <ChevronRight size={13} className="flex-shrink-0 mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                      </CardButton>
                     </div>
                   )
                 })}

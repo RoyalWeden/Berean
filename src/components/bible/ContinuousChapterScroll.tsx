@@ -6,7 +6,7 @@ import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_ST
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useAppStore } from '@/store'
-import { SectionLabel, ScrollContainer } from '@/components/ui'
+import { SectionLabel, ScrollContainer, IconButton } from '@/components/ui'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -312,13 +312,14 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
               <SectionLabel className="select-none">
                 {bookName(bookId)} {ch}
               </SectionLabel>
-              <button
+              <IconButton
+                icon={TagIcon}
+                label={`Tag ${bookName(bookId)} ${ch} (whole chapter)`}
+                size={20}
+                variant="ghost"
                 onClick={(e) => setChapterTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), ch })}
-                title={`Tag ${bookName(bookId)} ${ch} (whole chapter)`}
-                className="text-text-muted hover:text-accent cursor-pointer"
-              >
-                <TagIcon size={12} />
-              </button>
+                className="text-text-muted hover:text-accent"
+              />
             </div>
 
             <ChapterView

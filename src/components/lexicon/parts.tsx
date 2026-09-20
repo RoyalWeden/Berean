@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { RefChip, SectionHeader, ListRow, Badge, cx } from '@/components/ui'
+import { RefChip, SectionHeader, ListRow, Badge, CardButton, cx } from '@/components/ui'
 
 /**
  * Shared lexicon-entry building blocks — used by BibleRightPanel's side-panel lexicon
@@ -44,9 +44,10 @@ export function LexiconEntryHeader({
 export const LexiconSectionLabel = SectionHeader
 
 /** One verse occurrence: ref chip + badges on their own line, verse text wrapped to up to 3
- *  lines below (a real <button>, not a fixed-height ListRow — a verse quote needs room to
- *  breathe, not a single truncated line). Ref and text share the app's system font (`RefChip
- *  mono={false}`) so the row reads as one paragraph rather than a code-like tag next to prose. */
+ *  lines below (`CardButton surface="plain"` — a block of rich content that is itself one
+ *  button — not a fixed-height ListRow, since a verse quote needs room to breathe, not a single
+ *  truncated line). Ref and text share the app's system font (`RefChip mono={false}`) so the row
+ *  reads as one paragraph rather than a code-like tag next to prose. */
 export function OccurrenceRow({
   refLabel, badges, text, onClick, onContextMenu, className,
 }: {
@@ -59,22 +60,21 @@ export function OccurrenceRow({
   className?: string
 }) {
   return (
-    <button
-      type="button"
+    <CardButton
+      surface="plain"
+      density="compact"
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={cx(
-        'focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 cursor-pointer',
-        'hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast',
-        className,
-      )}
+      className={className}
     >
-      <span className="flex items-center gap-1 flex-wrap">
-        <RefChip size="md" mono={false}>{refLabel}</RefChip>
-        {badges}
+      <span className="flex flex-col gap-1">
+        <span className="flex items-center gap-1 flex-wrap">
+          <RefChip size="md" mono={false}>{refLabel}</RefChip>
+          {badges}
+        </span>
+        <span className="block text-footnote text-text-secondary leading-relaxed line-clamp-3">{text}</span>
       </span>
-      <span className="block text-footnote text-text-secondary leading-relaxed line-clamp-3">{text}</span>
-    </button>
+    </CardButton>
   )
 }
 

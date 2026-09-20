@@ -262,7 +262,12 @@ const HistoryItem = memo(function HistoryItem({
             )}
             {/* Session = informational label (Badge text), never a reference chip. */}
             {entry.sessionName && <Badge variant="text" tone="neutral" className="max-w-[72px] truncate normal-case tracking-normal">{entry.sessionName}</Badge>}
-            {/* Repeat visits: a count badge + a disclosure button (not a Chip — chips are filters/tokens). */}
+            {/* Repeat visits: a count badge + a disclosure button (not a Chip — chips are filters/tokens).
+                Accepted raw-button exception: this is a compact inline pill living inside a ListRow's
+                trailing slot, not a full-width group header, so `DisclosureRow` (leading chevron,
+                mandatory `title`, block-level row) doesn't fit; `IconButton` doesn't fit either since
+                the trigger's content is a count Badge + chevron, not a single icon. Keeps its own
+                focus-ring + hover/pressed recipe. */}
             {repeated && (
               <button
                 type="button"

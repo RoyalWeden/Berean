@@ -1,5 +1,6 @@
 import { memo, type CSSProperties, type ReactNode } from 'react'
 import StrongsTooltip from './StrongsTooltip'
+import { Tooltip } from '@/components/ui'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 
@@ -198,13 +199,14 @@ function StrongsInline({
       ))
     : wordNode
   return (
-    <span
-      className="mr-[0.25em] cursor-pointer border-b border-dashed border-text-muted hover:border-accent hover:text-accent transition-colors"
-      onClick={() => onWordClick?.(word.replace(/[^a-zA-Z]/g, '').toLowerCase())}
-      title="Click to search Strong's lexicon"
-    >
-      {wContent}
-    </span>
+    <Tooltip label="Click to search Strong's lexicon">
+      <span
+        className="mr-[0.25em] cursor-pointer border-b border-dashed border-text-muted hover:border-accent hover:text-accent transition-colors"
+        onClick={() => onWordClick?.(word.replace(/[^a-zA-Z]/g, '').toLowerCase())}
+      >
+        {wContent}
+      </span>
+    </Tooltip>
   )
 }
 
