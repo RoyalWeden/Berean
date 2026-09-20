@@ -265,27 +265,21 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
 
     return (
       <ScrollContainer ref={scrollRef} className={`flex-1 relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
-        {/* Presenter visible-region band */}
+        {/* Presenter visible-region outline — same style layer as BiblePanel's (§62/§63):
+            dashed, subtle tint, no in-column text; geometry pipeline unchanged. */}
         {presenterBand && (
           <div
-            className="absolute left-0 right-0 pointer-events-none z-raised"
+            className="absolute pointer-events-none z-raised rounded-card animate-fade-in"
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
-              border: `2px solid ${viewerPaused ? 'rgb(var(--highlight-amber) / 0.85)' : 'rgb(var(--color-accent))'}`,
-              background: viewerPaused ? 'rgb(var(--highlight-amber) / 0.07)' : 'rgb(var(--color-accent) / 0.06)',
-              borderRadius: 6,
+              left: '-0.75rem',
+              right: 0,
+              border: `1.5px dashed ${viewerPaused ? 'rgb(var(--color-warning) / 0.6)' : 'rgb(var(--color-accent) / 0.55)'}`,
+              background: viewerPaused ? 'rgb(var(--color-warning) / 0.035)' : 'rgb(var(--color-accent) / 0.035)',
+              transition: 'height var(--motion-fast) var(--motion-ease-out), border-color var(--motion-base), background-color var(--motion-base)',
             }}
-          >
-            <span
-              className="absolute top-0.5 right-1 px-1.5 text-micro font-semibold uppercase tracking-wide rounded text-white"
-              style={{
-                background: viewerPaused ? 'rgb(var(--highlight-amber) / 0.95)' : 'rgb(var(--color-accent))',
-              }}
-            >
-              {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
-            </span>
-          </div>
+          />
         )}
 
         {/* Placeholder for evicted chapters before firstCh — keeps scrollHeight (and therefore

@@ -9,7 +9,6 @@ import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import NotesList from './NotesList'
 import NoteEditor from './pm/NoteEditorPM'
 import PrintPreviewModal from './PrintPreviewModal'
@@ -1568,10 +1567,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         {editing ? (
           <>
             {/* ── Editor mode segmented toggle — never folds (§17), see the zone comment. ── */}
-            <HeaderSegmentedToggle
+            <SegmentedControl
+              size="sm"
               value={editorMode}
               onChange={setEditorMode}
-              title="Editor mode (⌘⇧M to toggle)"
+              aria-label="Editor mode (⌘⇧M to toggle)"
               options={[
                 { value: 'edit', label: 'Edit', icon: PenLine, title: 'Edit — rich editing' },
                 { value: 'view', label: 'View', icon: Eye,     title: 'View — rendered read-only output' },
