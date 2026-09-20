@@ -1,10 +1,11 @@
-import { Children, createContext, forwardRef, isValidElement, useCallback, useContext, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
+import { Children, createContext, forwardRef, isValidElement, useCallback, useContext, useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import { SectionLabel } from './SectionLabel'
 import { CompactMetrics } from './metrics'
+import { InPositionedMenuContext } from '@/lib/usePositionedMenu'
 
 /**
  * Menu surface — the one recipe for context menus, dropdowns and command lists.
@@ -15,8 +16,23 @@ import { CompactMetrics } from './metrics'
  *  radio items and plain items. Set on MenuSurface via `inset`. */
 const MenuInsetContext = createContext(false)
 
-export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { dense?: boolean; inset?: boolean }>(
-  function MenuSurface({ className, children, dense, inset = false, onKeyDown, ...rest }, ref) {
+export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { dense?: boolean; inset?: boolean; autoFocus?: boolean }>(
+  function MenuSurface({ className, children, dense, inset = false, autoFocus, onKeyDown, ...rest }, ref) {
+    const inPositioned = useContext(InPositionedMenuContext)
+    const localRef = useRef<HTMLDivElement | null>(null)
+    const setRef = (el: HTMLDivElement | null) => { localRef.current = el; if (typeof ref === 'function') ref(el); else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el }
+    // Transient menus (inside a MenuPositioner) focus their first item on open so ↑/↓/typeahead
+    // work immediately — the macOS menu model. Opt out with autoFocus={false} (e.g. a menu that
+    // contains a text field). Pointer-opened menus keep focus too; focus return is handled by the
+    // opener (useContextMenu / Select).
+    useEffect(() => {
+      if (!(autoFocus ?? inPositioned)) return
+      const root = localRef.current
+      if (!root || root.contains(document.activeElement)) return
+      const first = root.querySelector<HTMLElement>('[aria-checked="true"],[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled]),[role="option"]:not([aria-disabled="true"])')
+      first?.focus({ preventScroll: true })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
     const handleKey = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
       onKeyDown?.(e)
       if (e.defaultPrevented) return
@@ -42,7 +58,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
       <MenuInsetContext.Provider value={inset}>
         <CompactMetrics>
         <div
-          ref={ref}
+          ref={setRef}
           role="menu"
           onKeyDown={handleKey}
           className={cx('material-popover rounded-menu text-footnote text-text-primary select-none min-w-[160px] animate-menu-in', dense ? 'p-0.5' : 'p-1', className)}

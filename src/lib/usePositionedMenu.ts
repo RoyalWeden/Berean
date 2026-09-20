@@ -16,7 +16,11 @@
  *   // menu is null when closed, or { ...data, x, y } when open
  *   // attach ref={menuRef} to the menu div in the portal
  */
-import { useState, useRef, useLayoutEffect, useEffect, forwardRef, createElement, type ReactNode } from 'react'
+import { useState, useRef, useLayoutEffect, useEffect, forwardRef, createElement, createContext, type ReactNode } from 'react'
+
+/** True inside a MenuPositioner: a MenuSurface rendered there is a transient menu and focuses its
+ *  first item on open (keyboard users can arrow immediately; Escape/outside close it). */
+export const InPositionedMenuContext = createContext(false)
 
 type WithPos = { x: number; y: number; _adjusted?: boolean }
 
@@ -182,11 +186,11 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
   // guaranteed to respect what's visually painted on top. Without this, every MenuPositioner-
   // based menu opened from within a drag region (e.g. the session right-click menu) could have
   // its buttons silently unclickable.
-  return createElement('div', {
+  return createElement(InPositionedMenuContext.Provider, { value: true }, createElement('div', {
     ref,
     className,
     onMouseDown,
     onClick,
     style: { position: 'fixed', left: x, top: y, zIndex: 'var(--z-menu)' as unknown as number, WebkitAppRegion: 'no-drag', ...style } as React.CSSProperties,
-  }, children)
+  }, children))
 })
