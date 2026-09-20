@@ -195,12 +195,25 @@ controls (`CircularPlayButton`, `Switch`, Windows `WindowControls`), the pre-CSS
 `main.tsx`, ProseMirror node views, pm/Toolbar's focus-mode `motion.button`, and the Verse Picker's
 font-scaled Scripture text. All carry `focus-ring` + hover/pressed lift states.
 
+## Visual QA (running app)
+`BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol (dev only); the renderer
+also exposes `window.__bereanStore` in dev. A small driver (`scratchpad/p3/cdp.mjs` during pass 3:
+`shot <png>`, `eval <js>`, `size <w> <h>|reset`) captured every workspace × theme × width to find
+"old font / old button / old border / old radius / old shadow / old panel / old menu" leftovers.
+Pass-3 findings fixed from screenshots: inspector pane overflowed its wrapper (min-w-0), inspector
+tab labels clipped (truncate, icons stay), editor toolbar folded everything into "…" (OverflowGroup
+`fit="offsetParent"` for floating bars), active sidebar tab is accent-tinted only in the key window.
+
 ## Consistency gate (must return 0 / allowlist before merge)
 See the "Phase 9" commands in the plan; summary: no `text-[Npx]`, no hex outside
 `src/styles`/`tagPalette`/`highlightPalette`/`trailGraph`, no Tailwind palette classes, no
 `hover:bg-[rgb(var(--color-surface-…))]`, only named z-indexes, no `backdrop-blur` in TSX, no
 `<select>`, no legacy `glass-panel`/`context-menu`/`sidebar-vibrant`/`topbar-vibrant` classes,
-no inline Radix `Tooltip.Content`, no inline `fontFamily:'serif'`.
+no inline Radix `Tooltip.Content`, no inline `fontFamily:'serif'`. Pass 3 adds: no `ActionPillGroup`
+(alias only), no `!text-/!rounded-/!px-/!h-` utilities, no `title=` on ui buttons (→ `tooltip`), no
+`opacity-*` on muted text (→ `text-text-quaternary`/`text-meta`), no numeric `zIndex` outside the
+Study Trail graph overlay allowlist (`MapView.tsx` band/marker layers), inline uppercase labels only
+as badges (section labels use `SectionLabel`).
 
 ## Decision log
 - 2026-09-16 — Menus and popovers share ONE translucent material (modern macOS menus are vibrant);

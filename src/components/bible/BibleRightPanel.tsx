@@ -1743,7 +1743,7 @@ export default function BibleRightPanel({
                   role="radio"
                   aria-checked={active}
                   className={`
-                    focus-ring relative flex-1 flex items-center justify-center gap-1.5 h-[26px] px-2 text-caption font-medium
+                    focus-ring relative flex-1 min-w-0 flex items-center justify-center gap-1.5 h-[26px] px-1.5 text-caption font-medium
                     rounded-compact transition-colors duration-base ease-mac cursor-pointer select-none whitespace-nowrap
                     ${active ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}
                   `}
@@ -1756,7 +1756,8 @@ export default function BibleRightPanel({
                     />
                   )}
                   <Icon size={13} strokeWidth={active ? 2 : 1.75} className="relative z-10 flex-shrink-0" />
-                  <span className="relative z-10">{PANEL_TAB_LABEL[tab]}</span>
+                  {/* Label yields first when the pane is narrow: icons stay, text truncates to nothing. */}
+                  <span className="relative z-10 min-w-0 truncate">{PANEL_TAB_LABEL[tab]}</span>
                 </button>
               )
             })}

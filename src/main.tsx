@@ -92,6 +92,11 @@ const isVersePickerMode = searchParams.get('versePicker') === '1'
   })
 }
 
+// Dev-only: expose the store for visual-QA tooling driven over CDP (BEREAN_CDP_PORT).
+if (import.meta.env.DEV) {
+  import('@/store').then((m) => { (window as unknown as { __bereanStore?: unknown }).__bereanStore = m.useAppStore }).catch(() => {})
+}
+
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
 

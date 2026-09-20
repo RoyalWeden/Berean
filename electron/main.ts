@@ -106,6 +106,9 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 // 'berean' and 'Berean' resolve to the same directory without this.
 if (!app.isPackaged) {
   app.setPath('userData', join(app.getPath('appData'), 'Berean-dev'))
+  // Dev-only: `BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol so
+  // visual-QA tooling can drive the real window (screenshots, resize, theme cycling).
+  if (process.env.BEREAN_CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.BEREAN_CDP_PORT)
 }
 
 if (app.isPackaged && process.mas) {

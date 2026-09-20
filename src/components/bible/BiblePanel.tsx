@@ -3925,7 +3925,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // duration:0 during an active drag is deliberate — see useSwipePanelGesture.ts's
                   // file-level comment for why any tween here causes a "stuck on reversal" feel.
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  className="absolute top-0 right-0 h-full flex overflow-hidden z-20"
+                  // Narrow windows (no reflow): the pane floats OVER the reader as a temporary
+                  // sheet, so it carries a shadow there; attached (reflow) it is flush and flat.
+                  className={`absolute top-0 right-0 h-full flex overflow-hidden z-20 ${inspectorReflow ? '' : 'shadow-3'}`}
                   style={{ width: panelWrapperWidth }}
                 >
                   {hDivider}
@@ -3933,13 +3935,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       blur/shadow, full height). Each pane carries its own hairline-left, so two
                       open slots read as two panes separated by a hairline, no gap (replaces the
                       old floating material-panel boxes). */}
-                  <div className="flex-1 flex h-full">
+                  <div className="flex-1 min-w-0 flex h-full">
                     {/* Slot B (popped out) renders BEFORE slot A — the popped-out panel always
                         sits on the left of the original, per explicit direction. */}
                     {rightPanelSlotB && (
-                      <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
+                      <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                     )}
-                    <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                   </div>
                 </motion.div>
               )}
@@ -3954,12 +3956,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // width instead of losing 260-420px to the inspector on a narrow window.
       case 'panel-left': {
         const leftSlots = (
-          <div className="flex-1 flex h-full">
+          <div className="flex-1 min-w-0 flex h-full">
             {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
             {rightPanelSlotB && (
-              <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
             )}
-            <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
+            <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
           </div>
         )
         if (!inspectorReflow) {
@@ -4017,9 +4019,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 {hDivider}
                 <div className="flex-[3] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
+                  <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4036,9 +4038,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 {hDivider}
                 <div className="flex-[1.5] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
+                  <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4084,9 +4086,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {vDivider}
             <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex [&>*+*]:border-l [&>*+*]:border-separator">
               {rightPanelSlotB && (
-                <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
               )}
-              <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
             </div>
           </div>
         )

@@ -607,7 +607,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 {isActive && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
-                    className="absolute inset-0 rounded-none bg-surface-selected pointer-events-none"
+                    className="absolute inset-0 rounded-none bg-accent-muted pointer-events-none"
                     transition={SPRING_SNAPPY}
                   />
                 )}
@@ -616,8 +616,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   dense
                   flush
                   titleSize="footnote"
-                  selected={isActive && !isCrossSpaceTarget}
-                  current={isCrossSpaceTarget}
+                  // Key-window selection is accent-tinted (macOS source list); html[data-inactive]
+                  // turns --color-accent-muted neutral, so a background window's row goes gray.
+                  current={isActive || isCrossSpaceTarget}
                   data-tab-idx={idx}
                   draggable
                   onClick={() => onTabClick(tab)}
@@ -633,7 +634,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   )}
                   leading={
                     <span className="relative">
-                      <Icon size={13} className={isActive ? 'text-accent' : cx(TAB_ICON_CLASS[tab.type], 'opacity-80')} />
+                      <Icon size={14} className={isActive ? 'text-accent' : TAB_ICON_CLASS[tab.type]} />
                       {tab.type === 'youtube' && tab.id === activeYouTubeTabId && youtubeIsPlaying && (
                         <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                       )}
