@@ -517,21 +517,32 @@ export default function Toolbar({
           )}
 
           {openDropdown === 'link' && (
+            // Link editor (§10.3): URL field + Apply / Remove; Enter applies, Esc closes, invalid
+            // URLs are flagged inline (http(s):// or a berean:/mailto: scheme).
             <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}
-              className="material-popover rounded-menu animate-menu-in p-1.5 flex items-center gap-1 w-[240px]">
+              className="material-popover rounded-menu animate-menu-in p-2 flex flex-col gap-2 w-[280px]">
               <TextField
                 ref={linkInputRef}
                 size="sm"
+                type="url"
                 value={linkUrl}
+                invalid={!!linkUrl.trim() && !/^(https?:\/\/|mailto:|berean:)/i.test(linkUrl.trim())}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') submitLink()
-                  else if (e.key === 'Escape') setOpenDropdown('none')
+                  if (e.key === 'Enter') { e.preventDefault(); submitLink() }
+                  else if (e.key === 'Escape') { e.preventDefault(); setOpenDropdown('none'); editorView.focus() }
                 }}
                 placeholder="https://…"
-                wrapperClassName="flex-1 min-w-0"
+                aria-label="Link URL"
+                wrapperClassName="w-full"
               />
-              <Button variant="ghost" size="sm" onMouseDown={submitLink}>Apply</Button>
+              <div className="flex items-center justify-end gap-1.5">
+                {cmds.currentLinkHref() && (
+                  <Button variant="ghost" size="xs" danger onMouseDown={(e) => { e.preventDefault(); cmds.removeLink(linkRangeRef.current ?? undefined); setOpenDropdown('none') }}>Remove</Button>
+                )}
+                <Button variant="ghost" size="xs" onMouseDown={(e) => { e.preventDefault(); setOpenDropdown('none'); editorView.focus() }}>Cancel</Button>
+                <Button variant="primary" size="xs" disabled={!linkUrl.trim()} onMouseDown={(e) => { e.preventDefault(); submitLink() }}>Apply</Button>
+              </div>
             </MenuPositioner>
           )}
 

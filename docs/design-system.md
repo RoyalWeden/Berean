@@ -316,8 +316,11 @@ as badges (section labels use `SectionLabel`).
   More menu per bar (folded controls keep icon/label/shortcut/state); inset sidebar rows; rail
   keyboard; workspace cross-fade; keyboard verse model; inspector on TabStrip/ResizeHandle/compact;
   presenter badge + dashed outline; graph keyboard; AlertSheet for tag delete; menus auto-focus.
-  Remaining (see final report): Search filters popover, History badge/disclosure rows, Notes link
-  popover + list roving, Lexicon header hierarchy, Notes side panel sections.
+  Follow-ups landed the same day: Search secondary filters behind one Filters popover, History
+  visit counts as Badge + disclosure, Notes link editor popover (Apply/Remove/Cancel), per-tab
+  panel isolation (Lexicon/Search keyed by tab, Notes home-view snapshot), note editor popups
+  portaled to body, cross-tab back history (a note becomes the Scripture/Lexicon tab's previous
+  entry; no "back to note" pills). Still open: NoteSidePanel sections on SectionLabel/ListRow.
 - 2026-09-20 — Pass 4 foundation: control shapes follow Apple's rule (capsules reserved for search
   fields, lg/primary/prominent buttons, tokens, badges, switches; everything else rounded rectangles);
   `Badge`, `TabStrip`, `useContextMenu`, `MenuGroup`/`MenuSub`, `ScrollContainer`, `CompactMetrics`;

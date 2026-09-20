@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { RefChip, SectionHeader, ListRow, cx } from '@/components/ui'
+import { RefChip, SectionHeader, ListRow, Badge, cx } from '@/components/ui'
 
 /**
  * Shared lexicon-entry building blocks — used by BibleRightPanel's side-panel lexicon
@@ -11,14 +11,15 @@ import { RefChip, SectionHeader, ListRow, cx } from '@/components/ui'
 /** Hebrew/Greek language pill next to a Strong's number. */
 export function LangBadge({ num, className }: { num: string; className?: string }) {
   const isHebrew = num.toUpperCase().startsWith('H')
+  // Badge text (the taxonomy's informational label), keeping the language's semantic tint.
   return (
-    <span className={cx(
-      'text-caption2 font-semibold px-1.5 py-0.5 rounded-control leading-none',
-      isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info',
-      className,
-    )}>
+    <Badge
+      variant="text"
+      tone={isHebrew ? 'warning' : 'info'}
+      className={cx('normal-case tracking-normal', isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info', className)}
+    >
       {isHebrew ? 'Hebrew' : 'Greek'}
-    </span>
+    </Badge>
   )
 }
 
