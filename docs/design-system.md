@@ -20,10 +20,20 @@
 | **Controls** | buttons, icon buttons, tabs, segmented, fields, pickers | `.control-glass` / `.control-field` / `ControlGroup` — tactile, never a plain HTML button on the ground |
 | **Transient** | menus, popovers, tooltips, ⌘K, History, expanded rail, sheets | `.material-popover` / `.material-elevated` / `.material-sheet` — strongest depth; originate from their trigger |
 
-Geometry rules (§17/§53): compact icon buttons are **rounded squares** (`rounded-compact`, 7px);
-grouped controls share **one container** (`ControlGroup`, `rounded-row`); capsules are for search
-fields, text buttons, chips, segmented tracks, badges and `Button variant="primary|prominent"`.
-Concentric rule: inner radius = outer − inset (compact inside row inside menu inside sheet/window).
+Geometry rules (pass 4 — Apple's control-shape rule [WWDC25, official]: mini/small/medium controls
+are **rounded rectangles**, large/extra-large are **capsules**):
+- Rounded rectangle: `Button xs` (`rounded-control-sm` 6) · `Button sm|md`, `IconButton`, `Chip
+  kind="filter"`, `Select`, `TextField`, segments, sidebar rows, verse badge, calendar cells
+  (`rounded-control-md` 7) · segmented **track** and menu rows (`rounded-card` 8).
+- Capsule (`rounded-control`): `SearchField`, `Button lg`, `Button primary|prominent`, `Chip
+  kind="token|badge"`, `Badge`, `Switch`, progress bars, floating pills (rail handle, presenter pill).
+- Grouped controls share one container (`ControlGroup`, `rounded-row` 10) with flat 7px items.
+- Concentric rule applies only where an inner surface shares a corner with its container (inner =
+  outer − inset): window 20 → corner surface 12 · group 10 → item 7 · menu 14 → row 8 · segmented
+  track 8 → thumb 7 · card 8 → chip 4. Elsewhere every element uses its ROLE radius.
+- Heights (single authority): window toolbar 44 · sub-toolbars 36 · toolbar items 28 · compact
+  contexts (inspector, popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 ·
+  list rows 36 (28 dense) · menu rows 28 · calendar cells 22.
 
 ## Tokens
 
@@ -95,6 +105,16 @@ material for its `*-bg-opaque` twin and remove backdrop filters.
 
 **Scrims**: `.scrim-modal` (sheets) and `.scrim-light` (transient app windows) — the only two.
 
+**Layering with the OS (pass 4):** the main window is transparent with native `sidebar` vibrancy and
+`visualEffectState: followWindow`, so macOS already provides desktop blur + tint + inactive dimming +
+opacity under Reduce Transparency behind the whole page. CSS decides only how much shows through
+(alpha) and the text-tinted frost; **bars, sidebar and inspector never use `backdrop-filter`** (it
+would blur our own content). `backdrop-filter` is legitimate only on surfaces floating over Berean's
+own content (popovers, menus, elevated windows, sheets, floating control groups) — and never blur
+over blur (`PopoverSurface opaque` over a sheet; the split sheet's sidebar column is opaque).
+`html[data-increase-contrast]` (nativeTheme.shouldUseHighContrastColors) strengthens hairlines,
+control borders and the focus ring.
+
 **Scroll-edge** (§37/§61): bars are seamless at rest. `Toolbar edge="auto"` (default) observes the
 scroll root beneath (`scrollRef`, auto-detected next scrollable sibling, or a `scrolled` prop fed
 from a store slice) and sets `data-scrolled` → hairline + `0 4px 12px -4px` shadow. Permanent
@@ -153,6 +173,13 @@ uppercase recipe.
 | `OverflowGroup` | folds trailing controls into a `…` popover when the row is narrow — nothing hides, nothing scrolls sideways |
 | `SegmentedControl` | mutually-exclusive selector with sliding thumb; `variant segmented\|inspector`; arrow keys / Home / End |
 | `AlertSheet` | the one confirm dialog: icon · title · message · Cancel/Confirm; Enter = default, Esc = cancel |
+| `Badge` | non-interactive status: `variant count\|dot\|live\|text`, `tone`; via `Button/IconButton badge` (NSItemBadge) |
+| `TabStrip` | the one document/panel tab primitive: `variant sidebar\|inspector\|segmented`, layoutId pill, roving keys, close ×, drag handlers, context menu |
+| `useContextMenu` | contextual menus at the pointer or below a focused row (Shift+F10); focus return; Escape/outside/scroll/blur dismissal |
+| `MenuGroup` / `MenuSub` | a menu section reserves its icon column when any item has an icon (Apple 26/27); submenus open right, ←/Esc close |
+| `ScrollContainer` | the one scroll root: overlay auto-hide scrollbar, native momentum, contained overscroll, `data-scroll-root` |
+| `OverflowSection` | groups controls that fold as one labelled section of the More menu (`items` metadata → MenuItems with icon/label/shortcut/checked) |
+| `CompactMetrics` | context: every sized primitive steps one size down (popovers, menus, inspector) |
 | `MenuSurface` / `MenuItem` / `MenuSeparator` / `MenuLabel` | menus + context menus (position with `MenuPositioner`); arrow-key roving built in |
 | `PopoverSurface` + `Popover`/`PopoverTrigger` | Radix popover pre-styled |
 | `Sheet` | modal dialog shell (overlay + sheet material + header) |
@@ -166,6 +193,19 @@ uppercase recipe.
 | `Chip` | capsule filter/tag/badge; `selected`, `count`, `tint`, `onRemove` — never changes weight |
 | `Checkbox` / `Radio` / `Slider` / `TextArea` / `OptionCard` / `DisclosureRow` / `SectionHeader` / `ColorSwatchRow` | form + list building blocks |
 | `EmptyState`, `SectionLabel`, `RefChip`, `Divider`, `Kbd`, `Switch`, `ActionPillGroup` | |
+
+### Pill taxonomy (pass 4 — one primitive per role; never one generic pill)
+| Role | Primitive |
+|---|---|
+| Filter toggle (multi-state row) | `Chip kind="filter"` (rounded rectangle) |
+| Removable token (tag, alias) | `Chip kind="token"` (capsule) |
+| Static label badge | `Chip kind="badge"` or `Badge text` |
+| Count / status / live dot | `Badge count\|dot\|live` |
+| Mutually exclusive mode / scope / sort / language | `SegmentedControl` (≤ 4 options) else `Select` |
+| Menu trigger | `Button variant="menu"` / `Select` |
+| Sort direction | `IconButton` |
+| Disclosure | `DisclosureRow` |
+| Verse / Strong's reference | `RefChip` (clickable = navigates; never a badge) |
 
 ## Consistency matrix (verified in code, pass 2 — 2026-09-18)
 | Component | Typography | Material | Border | Radius | Hover | Press | Selected | Focus | Dark/Light |
@@ -246,6 +286,12 @@ as badges (section labels use `SectionLabel`).
   theme-independent; menu hover is NSMenu accent+white; History/⌘K/Tab Switcher use
   `.material-elevated` with a light scrim (Spotlight-class); Study Trail keeps its mono-italic
   timeline titles as a feature identity while its chrome uses system controls.
+- 2026-09-20 — Pass 4 foundation: control shapes follow Apple's rule (capsules reserved for search
+  fields, lg/primary/prominent buttons, tokens, badges, switches; everything else rounded rectangles);
+  `Badge`, `TabStrip`, `useContextMenu`, `MenuGroup`/`MenuSub`, `ScrollContainer`, `CompactMetrics`;
+  popovers collide against the shell content row and open opaque over sheets; `Toolbar edgeStyle="hard"`;
+  `html[data-increase-contrast]`. Decisions: reading column stays left-anchored with a wider,
+  measured cap; sidebar rows are inset rounded (7px); presenter state = toolbar badge + control pill.
 - 2026-09-18 — Pass 3 foundation: not everything is a capsule (square icon buttons in groups/bars;
   `ControlGroup` owns the container, children render flat — no `!important`); `Toolbar` bars are
   seamless at rest with a scroll-edge hairline; menus/popovers/sheets grow from their trigger;
