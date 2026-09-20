@@ -80,7 +80,7 @@ export default function BgImportProgress() {
           <div className="space-y-1">
             <div className="h-1 rounded-full bg-surface-4 overflow-hidden">
               <div
-                className="h-full rounded-full bg-accent transition-all duration-300"
+                className="h-full rounded-full bg-accent transition-[width] duration-300"
                 style={{ width: `${pct}%` }}
               />
             </div>

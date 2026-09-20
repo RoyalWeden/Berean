@@ -1166,7 +1166,7 @@ export default function SettingsModal() {
                       <div className="mt-2">
                         <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
                           <div
-                            className="h-full bg-accent transition-all"
+                            className="h-full bg-accent transition-[width]"
                             style={{ width: migrationState.total > 0 ? `${(migrationState.done / migrationState.total) * 100}%` : '2%' }}
                           />
                         </div>
