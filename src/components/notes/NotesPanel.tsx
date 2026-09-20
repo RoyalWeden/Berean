@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
 import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
-import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow } from '@/components/ui'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -1447,8 +1447,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 const r = e.currentTarget.getBoundingClientRect()
                 iconPicker.openMenu({ x: r.left, y: r.bottom + 4 })
               }}
-              title="Page icon — click to choose an emoji"
-              className="no-drag !w-6 !h-6 !p-0 justify-center"
+              tooltip="Page icon — click to choose an emoji"
+              className="no-drag w-6 h-6 px-0 justify-center"
             >
               {activeNote.icon || <Plus size={14} className="text-text-muted/50" />}
             </Button>
@@ -1528,7 +1528,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 onKeyDown={handleTitleKeyDown}
                 onBlur={() => setTitleFocused(false)}
                 placeholder="Untitled"
-                className="no-drag !text-subhead font-medium !px-0"
+                className="no-drag font-medium px-0"
                 wrapperClassName="flex-1"
               />
             )}
@@ -1546,6 +1546,17 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               }}
               compact
             />
+          </>
+        ) : restoringSpecificNote ? (
+          <span className="text-subhead font-medium text-text-muted">Notes</span>
+        ) : (
+          <span className="text-subhead font-medium text-text-primary">Notes</span>
+        )}
+      </TabHeaderPortal>
+      {/* Actions zone (right of the toolbar's flexible space): per-mode action groups. */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        {editing ? (
+          <>
             {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
                 editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
                 likely to need undoing as a typed one. Only meaningful while actually editing —
@@ -1554,7 +1565,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 undoDepth()/redoDepth() reactively would mean re-rendering this header on every
                 single transaction just to grey out two buttons. */}
             {editorMode === 'edit' && (
-              <div className="flex items-center">
+              <ControlGroup>
                 <IconButton
                   icon={Undo2}
                   label="Undo"
@@ -1569,7 +1580,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   size={24}
                   onClick={() => editorCommandsRef.current?.redo()}
                 />
-              </div>
+              </ControlGroup>
             )}
             {/* Quick "look" preset for the note editor while typing — separate,
                 curated shortcut next to the mode toggle; the fuller font-family
@@ -1639,11 +1650,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               />
             )}
           </>
-        ) : restoringSpecificNote ? (
-          <span className="text-subhead font-medium text-text-muted flex-1 opacity-60">Notes</span>
-        ) : (
+        ) : restoringSpecificNote ? null : (
           <>
-            <span className="text-subhead font-medium text-text-primary flex-1">Notes</span>
             {/* View mode: list / folder / board — exactly one active, switchable from any of
                 the three at any time. */}
             <SegmentedControl
@@ -2355,7 +2363,7 @@ function IdiomHeader({ note, onUpdate }: {
         <TextField
           key={note.id + '-term'}
           bare
-          className="flex-1 !text-subhead font-semibold text-[rgb(var(--link-wikilink))] uppercase tracking-wide !px-0"
+          className="flex-1 font-semibold text-[rgb(var(--link-wikilink))] uppercase tracking-wide px-0"
           placeholder="Term…"
           defaultValue={note.idiomTerm ?? note.title}
           onBlur={async (e) => {
@@ -2395,7 +2403,7 @@ function IdiomHeader({ note, onUpdate }: {
                     title={`Example sentences${examples.length > 0 ? ` (${examples.length})` : ''}`}
                     className="!px-0"
                   />
-                  <p className="text-caption2 text-text-muted opacity-70 mt-1">Not printed — just text to mine for scripture references.</p>
+                  <p className="text-caption2 text-text-quaternary mt-1">Not printed — just text to mine for scripture references.</p>
                   {examplesOpen && (
                     <div className="flex flex-col gap-1 mt-1.5">
                       {examples.map((ex, i) => (
@@ -2535,12 +2543,13 @@ function IdiomFieldWrap({ label, onRemove, children }: { label: string; onRemove
   return (
     <div className="flex flex-col gap-1 group/field">
       <div className="flex items-center justify-between">
-        <span className="text-caption2 font-medium uppercase tracking-wide text-text-muted">{label}</span>
+        <SectionLabel>{label}</SectionLabel>
         <Button
           variant="ghost"
           size="sm"
           onClick={onRemove}
-          className="!h-auto !px-1 text-caption2 text-text-muted hover:text-destructive opacity-0 group-hover/field:opacity-100"
+          danger
+          className="h-auto px-1 text-caption2 opacity-0 group-hover/field:opacity-100 focus-visible:opacity-100"
         >
           Remove
         </Button>

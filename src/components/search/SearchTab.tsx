@@ -379,9 +379,11 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
           onValueChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder="Search scripture…"
-          wrapperClassName="flex-1 min-w-0"
+          wrapperClassName="flex-1 min-w-0 w-[min(420px,40vw)]"
           autoFocus
         />
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
         {/* Translation selector dropdown */}
         <Select
           value={textId}
@@ -461,10 +463,10 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                     count={group.results.length}
                     trailing={<>
                       {textId === 'all' && (
-                        <span className="text-micro text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
+                        <span className="text-meta text-accent">{group.textLabel}</span>
                       )}
                       {group.testament && textId !== 'all' && (
-                        <span className="text-micro text-text-muted uppercase tracking-wide">{group.testament}</span>
+                        <span className="text-meta">{group.testament}</span>
                       )}
                     </>}
                   >

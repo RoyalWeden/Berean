@@ -902,7 +902,7 @@ export default function TasksPanel() {
 
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-baseline gap-1.5">
-                                      <span className="text-micro text-text-muted font-mono flex-shrink-0 opacity-60">{i + 1}.</span>
+                                      <span className="text-micro text-text-quaternary font-mono flex-shrink-0">{i + 1}.</span>
                                       <span className={`text-caption leading-snug ${
                                         stepDone
                                           ? 'line-through text-text-muted'

@@ -78,7 +78,7 @@ export default function TaggedVerseList({
                   dense
                   onClick={() => onNavigate(v.bookId, v.chapter, v.verse)}
                   onContextMenu={(e) => ctx.open(e, { bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: v.text })}
-                  leading={<span className="font-mono text-caption2 text-text-muted w-6 text-right opacity-70">{v.verse}</span>}
+                  leading={<span className="font-mono text-caption2 text-text-quaternary w-6 text-right">{v.verse}</span>}
                   title={<span className="text-subhead leading-relaxed text-text-primary whitespace-normal">{v.text || '…'}</span>}
                 />
               ))}

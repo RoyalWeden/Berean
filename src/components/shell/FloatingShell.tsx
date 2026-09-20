@@ -206,7 +206,7 @@ export default function FloatingShell() {
 
       {/* "Put back" button — bottom-right, away from traffic lights and toolbar */}
       <div className="absolute bottom-4 right-4 z-raised">
-        <Button variant="secondary" size="sm" icon={PanelLeftOpen} onClick={putBack} title="Return tab to main window" className="shadow-2">
+        <Button variant="secondary" size="sm" icon={PanelLeftOpen} onClick={putBack} tooltip="Return tab to main window" className="shadow-2">
           Put back
         </Button>
       </div>

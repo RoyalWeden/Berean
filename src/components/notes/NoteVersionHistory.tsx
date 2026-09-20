@@ -241,7 +241,7 @@ export default function NoteVersionHistory({
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-subhead text-text-muted opacity-50">
+            <div className="flex-1 flex items-center justify-center text-subhead text-text-disabled">
               Select a version to view
             </div>
           )}

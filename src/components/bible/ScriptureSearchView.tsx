@@ -21,7 +21,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
-  ActionPillGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
+  ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
   RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar,
 } from '@/components/ui'
 
@@ -1205,7 +1205,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-separator bg-surface-2 flex-shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 px-4 py-2 material-bar flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
         <SearchField
           ref={inputRef}
           bare
@@ -1220,7 +1220,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             {/* Sort pill: conjoined "mode dropdown" + "direction flip" — replaces the old
                 single-button relevance/book-order cycle. Direction is its own control
                 (applies to whichever mode is active) rather than folded into the cycle. */}
-            <ActionPillGroup>
+            <ControlGroup>
               <Select
                 variant="ghost" size="sm"
                 aria-label="Sort order"
@@ -1237,7 +1237,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 size={28}
                 onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
               />
-            </ActionPillGroup>
+            </ControlGroup>
 
             {/* Context-length dropdown — was a compact/full flip button; now a 4-way picker
                 (default snippet / full verse / ± context) since "±1 verse" / "±2 verses" have
@@ -1710,21 +1710,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     const group = row.group
                     const collapsed = collapsedGroups.has(key)
                     const editionDot = group.textId === 'kjva' ? 'bg-warning' : group.textId === 'lxx' ? 'bg-info' : 'bg-text-muted'
-                    // A collapsed group (or one with no results, in practice never happens
-                    // since groups are only created from an actual match) has no result row
-                    // to close the card's bottom — the header closes it itself instead.
-                    const selfClosing = collapsed || group.results.length === 0
                     return (
                       <div
                         key={virtualRow.key}
                         data-index={virtualRow.index}
                         ref={rowVirtualizer.measureElement}
-                        className={`absolute top-0 left-0 w-full ${virtualRow.index > 0 ? 'pt-1.5' : ''}`}
+                        className="absolute top-0 left-0 w-full"
                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                       >
                         <button
                           type="button"
-                          className={`focus-ring w-full mx-2 flex items-center gap-2 px-3 py-2 bg-surface-3 border-t border-l border-r border-separator rounded-t-card cursor-pointer select-none hover:bg-lift-2 transition-colors ${selfClosing ? 'border-b rounded-b-card' : ''}`}
+                          className="focus-ring w-full flex items-center gap-2 px-4 py-1.5 material-bar cursor-pointer select-none hover:bg-lift-2 transition-colors"
                           onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
                         >
                           <ChevronDown size={12} className={`text-text-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
@@ -1733,19 +1729,18 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           <RefChip variant="neutral" size="xs">{group.results.length}</RefChip>
                           <div className="flex-1" />
                           {textId === 'all' && (
-                            <span className="flex items-center gap-1 text-caption2 text-text-secondary font-semibold uppercase tracking-wide">
+                            <span className="flex items-center gap-1 text-meta">
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${editionDot}`} />
                               {group.textLabel}
                             </span>
                           )}
-                          {group.testament && textId !== 'all' && <span className="text-caption2 text-text-muted uppercase tracking-wide">{group.testament}</span>}
+                          {group.testament && textId !== 'all' && <span className="text-meta">{group.testament}</span>}
                         </button>
                       </div>
                     )
                   }
                   const r = row.result
                   const isFocused = row.visibleIdx === focusedIdx
-                  const isLastInGroup = row.indexInGroup === row.group.results.length - 1
                   return (
                     <div
                       key={virtualRow.key}
@@ -1757,7 +1752,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       <button
                         onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))}
                         onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                        className={`focus-ring mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-surface-2 border-l border-r border-separator ${isLastInGroup ? 'border-b rounded-b-card' : ''} ${row.indexInGroup > 0 ? 'border-t border-separator' : ''} ${isFocused ? 'bg-accent/10 ring-inset ring-1 ring-accent/30' : 'hover:bg-lift-2'}`}
+                        className={`focus-ring w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer group ${row.indexInGroup > 0 ? 'border-t border-separator-subtle' : ''} ${isFocused ? 'bg-surface-selected' : 'hover:bg-lift-2'}`}
                       >
                         <RefChip size="lg" mono={false} className="w-16 flex-shrink-0 justify-center py-1">
                           {r.chapter}:{r.verse_num}
@@ -1784,7 +1779,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId, vText)
                                 return (
                                   <span key={v.verse_num} className={`text-subhead leading-relaxed ${isMatch ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
-                                    <span className="font-mono text-caption2 mr-1 opacity-70">{v.verse_num}</span>
+                                    <span className="font-mono text-meta mr-1">{v.verse_num}</span>
                                     {isMatch && effectiveMode(query) === 'strongs'
                                       ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
                                       : isMatch

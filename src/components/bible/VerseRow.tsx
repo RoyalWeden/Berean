@@ -23,7 +23,7 @@ import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
-import { Button, ColorSwatchRow, IconButton, ListRow, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
 import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
@@ -360,7 +360,7 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
             // left/top place the badge's BOTTOM-LEFT corner at the container point (the
             // number's top-right corner); transform-origin matches so rotation pivots there.
             className={`pointer-events-auto absolute transition-transform duration-200 ease-out ${fan.base} ${fan.hover}`}
-            style={{ left: 0, bottom: '-2px', transformOrigin: 'left bottom', zIndex: 12 - i }}
+            style={{ left: 0, bottom: '-2px', transformOrigin: 'left bottom', zIndex: 'calc(var(--z-raised) + 2 - ' + i + ')' as unknown as number }}
           >
             <svg width="15" height="10" viewBox="0 0 36 24" className="block drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.3)]">
               <path
@@ -1694,9 +1694,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             >
               {/* Note hover header */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-separator sticky top-0 bg-surface-1 z-raised">
-                <p className="text-micro text-text-muted font-semibold uppercase tracking-wide">
+                <SectionLabel className="text-micro">
                   {total === 1 ? '1 Note' : `${total} Notes`}
-                </p>
+                </SectionLabel>
                 <Button variant="ghost" size="sm" icon={ExternalLink} className="h-auto px-1 text-micro" onClick={() => { setNoteHover(null); openVerseNotes() }}>
                   All in panel
                 </Button>
@@ -1734,7 +1734,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 <>
                   <div className="flex items-center gap-2 px-3 py-1 bg-surface-2">
                     <div className="h-px flex-1 bg-separator" />
-                    <span className="text-micro font-semibold uppercase tracking-wider text-text-muted opacity-70 whitespace-nowrap">
+                    <span className="text-micro font-semibold uppercase tracking-wider text-text-quaternary whitespace-nowrap">
                       also references
                     </span>
                     <div className="h-px flex-1 bg-separator" />
@@ -1779,9 +1779,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               onMouseLeave={() => { if (!indicatorMenu) setCrossRefHover(null) }}
             >
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-separator sticky top-0 bg-surface-1 z-raised">
-                <p className="text-micro text-text-muted font-semibold uppercase tracking-wide">
+                <SectionLabel className="text-micro">
                   Note Cross-References
-                </p>
+                </SectionLabel>
                 <Button variant="ghost" size="sm" icon={ExternalLink} className="h-auto px-1 text-micro" onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}>
                   Open in panel
                 </Button>
@@ -2003,7 +2003,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               reuses that link color rather than a one-off hardcoded violet. */}
           <div className="text-caption2 font-semibold text-[rgb(var(--link-lexicon-ref))] mb-0.5">{idiomTooltip.term}</div>
           {idiomTooltip.meaning && <div className="text-footnote text-text-secondary">{idiomTooltip.meaning}</div>}
-          <div className="text-micro text-text-muted mt-1 opacity-70">Click to open · Right-click for more</div>
+          <div className="text-micro text-text-quaternary mt-1">Click to open · Right-click for more</div>
         </div>,
         document.body
       )}

@@ -1901,7 +1901,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                   icon={Captions}
                   className="!h-auto px-4 pt-2.5 pb-1.5"
                   title={<span className="text-caption2 font-semibold text-text-muted uppercase tracking-wider">Transcript</span>}
-                  trailing={<span className="text-micro text-text-muted opacity-60">{activeTranscript.length} lines · click to jump</span>}
+                  trailing={<span className="text-micro text-text-quaternary">{activeTranscript.length} lines · click to jump</span>}
                 />
                 {showTranscript && (
                   <div style={{ height: '320px' }}>

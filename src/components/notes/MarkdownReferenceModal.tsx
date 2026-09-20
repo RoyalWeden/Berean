@@ -785,7 +785,7 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
     <div className="px-6 py-5 space-y-5">
       {/* Syntax */}
       <div>
-        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Syntax</p>
+        <SectionLabel className="mb-2">Syntax</SectionLabel>
         <code className="block px-3 py-2 rounded-card bg-surface-4 text-accent text-subhead font-mono whitespace-pre-wrap">
           {item.syntax}
         </code>
@@ -793,28 +793,28 @@ function DetailView({ item, onOpenAllBooks }: { item: RefItem; onOpenAllBooks: (
 
       {/* What it does */}
       <div>
-        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">What it does</p>
+        <SectionLabel className="mb-2">What it does</SectionLabel>
         <p className="text-subhead text-text-secondary leading-relaxed">{item.description}</p>
       </div>
 
       {/* Why use it */}
       <div>
-        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Why use it</p>
+        <SectionLabel className="mb-2">Why use it</SectionLabel>
         <p className="text-subhead text-text-secondary leading-relaxed">{item.why}</p>
       </div>
 
       {/* Examples */}
       <div>
-        <p className="text-caption2 font-semibold text-text-muted uppercase tracking-wider mb-2">Examples</p>
+        <SectionLabel className="mb-2">Examples</SectionLabel>
         <div className="space-y-2">
           {item.examples.map((ex, i) => (
             <div key={i} className="rounded-card bg-surface-3 overflow-hidden">
               <div className="px-3 py-2 border-b border-separator">
-                <p className="text-micro font-semibold text-text-muted uppercase tracking-wider mb-1">You type</p>
+                <SectionLabel className="text-micro mb-1">You type</SectionLabel>
                 <code className="text-caption font-mono text-text-primary whitespace-pre-wrap">{ex.input}</code>
               </div>
               <div className="px-3 py-2">
-                <p className="text-micro font-semibold text-text-muted uppercase tracking-wider mb-1">Result</p>
+                <SectionLabel className="text-micro mb-1">Result</SectionLabel>
                 <p className="text-caption text-text-secondary whitespace-pre-wrap">{ex.output}</p>
               </div>
             </div>

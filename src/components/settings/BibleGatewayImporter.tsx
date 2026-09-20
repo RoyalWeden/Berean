@@ -164,7 +164,7 @@ export default function BibleGatewayImporter() {
           <Button variant="primary" icon={Download} onClick={handleFetch} disabled={!username.trim() || !password.trim()}>
             Fetch Notes from BibleGateway
           </Button>
-          <Button variant="ghost" size="sm" icon={LogOut} onClick={handleClearSession} title="Clear saved BibleGateway session (sign out)">
+          <Button variant="ghost" size="sm" icon={LogOut} onClick={handleClearSession} tooltip="Clear saved BibleGateway session (sign out)">
             Sign out
           </Button>
           {import.meta.env.DEV && (

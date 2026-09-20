@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
-import ActionPillGroup from '@/components/shell/ActionPillGroup'
-import { IconButton, RefChip } from '@/components/ui'
+import { IconButton, RefChip, ControlGroup } from '@/components/ui'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch, isLxxTranslation } from '@/lib/translationChapterMap'
@@ -685,14 +684,14 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               draggable
               onDragStart={(e) => handleColDragStart(e, colIdx)}
               onDragEnd={handleColDragEnd}
-              className={`sticky top-0 z-raised border-b border-separator flex items-center gap-1 px-1.5 py-1 cursor-grab active:cursor-grabbing ${isFocused ? 'bg-surface-3' : 'material-bar'} ${draggingColIdx === colIdx ? 'opacity-40' : ''}`}
+              className={`sticky top-0 z-raised flex items-center gap-2 px-2 py-1 cursor-grab active:cursor-grabbing material-bar ${isFocused ? 'bg-surface-selected' : ''} ${draggingColIdx === colIdx ? 'opacity-40' : ''}`}
               onClick={e => e.stopPropagation()}
             >
               {/* min-w-0 so the pill can still shrink/truncate in a genuinely narrow column,
                   but no longer `w-full` — it was stretching to fill the ENTIRE column width
                   (leaving a wide stretch of empty pill after the book/chapter/edition text)
                   instead of hugging its own content like the single-panel toolbar's pill does. */}
-              <ActionPillGroup className="min-w-0 flex-shrink" align="stretch">
+              <ControlGroup className="min-w-0 flex-shrink" align="stretch">
                 <IconButton
                   icon={ChevronLeft}
                   label="Previous chapter"
@@ -719,7 +718,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                   disabled={col.chapter >= maxChapter}
                   onClick={() => navigateColumn(col.id, col.bookId, Math.min(maxChapter, col.chapter + 1))}
                 />
-              </ActionPillGroup>
+              </ControlGroup>
               {/* Spacer pins info/close to the row's right edge now that the pill itself no
                   longer stretches to fill the row on its own. */}
               <div className="flex-1" />

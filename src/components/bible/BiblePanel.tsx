@@ -4015,11 +4015,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                <div className="flex-[3] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('B')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('A')}</div>
+                  <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4034,11 +4034,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                <div className="flex-[1.5] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
                   {rightPanelSlotB && (
-                    <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('B')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
-                  <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('A')}</div>
+                  <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -4056,19 +4056,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   key="notes-right-panel"
                   initial={{ width: 0 }}
                   // See the 'standard' case's comment — same clipped-margin fix.
-                  animate={{ width: panelSize + 14 + 6 }}
+                  animate={{ width: panelSize + 14 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   // rounded-menu (all corners) — see the 'standard' case's shadow-clipping
                   // comment; the previous right-only-corners attempt still left the OTHER two
                   // corners' shadow spread square-clipped by this wrapper.
-                  className="flex-shrink-0 flex overflow-hidden rounded-menu"
+                  className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 material-panel rounded-menu">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-menu">{panelEl('A', 'notes')}</div>
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col material-inspector">
+                    <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A', 'notes')}</div>
                   </div>
                 </motion.div>
               )}
@@ -4082,11 +4082,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex [&>*+*]:border-l [&>*+*]:border-separator">
               {rightPanelSlotB && (
-                <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('B')}</div>
+                <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
               )}
-              <div className="flex-1 flex flex-col overflow-hidden material-panel rounded-menu">{panelEl('A')}</div>
+              <div className="flex-1 flex flex-col overflow-hidden material-inspector">{panelEl('A')}</div>
             </div>
           </div>
         )
@@ -4097,7 +4097,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 material-panel rounded-menu">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-t border-separator">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -4107,7 +4107,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'notes-top':
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 material-panel rounded-menu">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-t border-separator">
               {panelEl('A', 'notes')}
             </div>
             {vDivider}
@@ -4141,7 +4141,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             </div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 material-panel rounded-menu">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-t border-separator">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -4153,7 +4153,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-separator">
                 {panelEl('A', 'lexicon')}
               </div>
@@ -4179,18 +4179,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 flex overflow-hidden min-h-0">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
                 {panelEl('A', 'lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 material-panel rounded-menu">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 material-inspector border-l-0 border-t border-separator">
                 {panelEl('A', 'notes')}
               </div>
-              <div className="w-px bg-surface-4 flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
+              <div className="w-px bg-separator flex-shrink-0" />
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
                 {panelEl('A', 'crossrefs')}
               </div>
             </div>
@@ -4202,7 +4202,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'commentary':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 material-panel rounded-menu">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-r border-separator">
               {panelEl('A', 'notes')}
             </div>
             {hDivider}
@@ -4214,13 +4214,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'triple-col':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 material-panel rounded-menu">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector border-l-0 border-r border-separator">
               {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
               {panelEl('A', 'lexicon')}
             </div>
           </div>
@@ -4240,11 +4240,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 material-panel rounded-menu">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 material-inspector border-l-0 border-t border-separator">
                 {panelEl('A', 'notes')}
               </div>
-              <div className="w-px bg-surface-4 flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 material-panel rounded-menu">
+              <div className="w-px bg-separator flex-shrink-0" />
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden material-inspector">
                 {panelEl('A', 'lexicon')}
               </div>
             </div>

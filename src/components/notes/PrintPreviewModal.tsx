@@ -368,7 +368,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 animate-fade-in z-modal" style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} />
+        <Dialog.Overlay className="fixed inset-0 scrim-modal animate-fade-in z-modal" />
         <Dialog.Content
           aria-describedby={undefined}
           // Was max-w-5xl (1024px) — with the 224px controls sidebar plus padding, the

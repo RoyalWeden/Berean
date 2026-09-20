@@ -787,7 +787,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
           </div>
         )
       })}
-      <div className="px-3 py-1.5 text-micro text-text-muted opacity-50">Treasury of Scripture Knowledge</div>
+      <div className="px-3 py-1.5 text-micro text-text-disabled">Treasury of Scripture Knowledge</div>
     </div>
   )
 }
@@ -1008,7 +1008,7 @@ function UserNotesChapterView({
             onClick={() => setIndirectSectionOpen(v => !v)}
             className="px-3"
             title={`General mentions (${indirectNotes.length})`}
-            trailing={<span className="text-micro text-text-muted opacity-60 italic">connection may be indirect</span>}
+            trailing={<span className="text-micro text-text-quaternary italic">connection may be indirect</span>}
           />
 
           {indirectSectionOpen && (

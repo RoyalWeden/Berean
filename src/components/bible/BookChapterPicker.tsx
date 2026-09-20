@@ -443,9 +443,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                 <div className="flex flex-col gap-1">
                   {getHermasSections(activeBook.id as HermasBookId, hermasVariantForTextId(currentTextId)).map((section) => (
                     <div key={section.sectionName}>
-                      <div className="px-2 pt-1.5 pb-0.5 text-micro font-semibold uppercase tracking-wider text-text-muted">
+                      <SectionLabel className="px-2 pt-1.5 pb-0.5">
                         {section.sectionName}
-                      </div>
+                      </SectionLabel>
                       <div className="grid grid-cols-4 gap-0.5 pl-1">
                         {section.chapters.map((ch, subIdx) => (
                           <button

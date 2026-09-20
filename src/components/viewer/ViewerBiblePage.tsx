@@ -644,7 +644,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
               borderRadius: '50%',
               background: 'radial-gradient(circle, rgba(255,40,40,0.95) 0%, rgba(255,0,0,0.7) 40%, rgba(255,0,0,0) 72%)',
               boxShadow: '0 0 10px 3px rgba(255,0,0,0.6)',
-              zIndex: 40,
+              zIndex: 'var(--z-raised)' as unknown as number,
               // Horizontal eases quickly (within-word glide); vertical eases a bit longer so
               // jumping to a new line feels smooth rather than snappy.
               transition: 'left 55ms ease-out, top 120ms ease-out',
