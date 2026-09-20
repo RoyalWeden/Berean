@@ -75,11 +75,15 @@ export default function TaggedVerseList({
               {g.rows.map((v) => (
                 <ListRow
                   key={`${v.bookId}.${v.chapter}.${v.verse}`}
-                  dense
+                  // Not `dense`: that pins the row to a fixed 28px, and a wrapped verse then
+                  // spilled over its neighbours (the ref chip above rendered on top of the text).
+                  titleClamp="none"
+                  titleSize="subhead"
+                  buttonClassName="py-1 items-start"
                   onClick={() => onNavigate(v.bookId, v.chapter, v.verse)}
                   onContextMenu={(e) => ctx.open(e, { bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: v.text })}
-                  leading={<span className="font-mono text-caption2 text-text-quaternary w-6 text-right">{v.verse}</span>}
-                  title={<span className="text-subhead leading-relaxed text-text-primary whitespace-normal">{v.text || '…'}</span>}
+                  leading={<span className="font-mono text-caption2 text-text-quaternary w-6 text-right pt-1">{v.verse}</span>}
+                  title={<span className="leading-relaxed text-text-primary">{v.text || '…'}</span>}
                 />
               ))}
               {g.truncatedNote && (

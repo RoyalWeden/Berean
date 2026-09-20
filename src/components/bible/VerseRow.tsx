@@ -222,30 +222,25 @@ function computeHoverPlacement(rect: DOMRect, itemCount: number, estItemPx: numb
 }
 
 /** Fetches verse text — renders inline so ref label and text sit on the same line. */
-function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: number; verse: number }) {
+function HoverVerseText({ bookId, chapter, verse, lxx }: { bookId: string; chapter: number; verse: number; lxx?: boolean }) {
   const [text, setText] = useState<string | null>(null)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
-  // Use active scripture tab's translation for canonical books (so LXX refs show LXX text)
-  const activeTranslation = useAppStore((s) => {
-    const tabId = s.activeTabId['scripture']
-    const tab = tabId ? s.tabs['scripture'].find((t) => t.id === tabId) : null
-    return (tab?.state as import('@/types').BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva'
-  })
   useEffect(() => {
     // Resolve the text DB for the REFERENCED book, not the active tab:
     //  - dedicated non-canonical book (Enoch, Jubilees…) → its own DB
-    //  - canonical ref while a dedicated text is active (e.g. Luke ref from 1 Enoch) →
-    //    fall back to KJVA, not the active 'enoch' DB (which has no Luke)
-    //  - canonical ref while a canonical text (KJVA/LXX) is active → keep active (LXX refs show LXX)
+    //  - everything else → KJVA, unless the note itself marked the ref " LXX". A note's
+    //    cross-references are the note's, not the reader's: reading Isaiah in the LXX must
+    //    not silently swap a note's "John 1:1" for a Septuagint lookup (which has no John,
+    //    so the row used to render with no text at all).
     const dedicated = getTranslationForBook(bookId)
-    const textId = dedicated ?? (isDedicatedTranslation(activeTranslation) ? 'kjva' : activeTranslation)
+    const textId = dedicated ?? (lxx ? 'lxx' : 'kjva')
     // When verse=0 (chapter-level ref), fetch verse 1 and append ellipsis
     const queryVerse = verse === 0 ? 1 : verse
     window.bible.queryVerse(bookId, chapter, queryVerse, textId)
       .then(v => setText(v?.text ? (verse === 0 ? v.text + '…' : v.text) : null))
       .catch(() => {})
-  }, [bookId, chapter, verse, activeTranslation]) // re-fetch when translation changes
+  }, [bookId, chapter, verse, lxx])
   if (!text) return null
   const display = wordReplacerEnabled && wordReplacerRules.length > 0
     ? applyWordReplacer(text, wordReplacerRules) : text
@@ -1803,7 +1798,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                       <>
                         <span className="font-semibold text-accent">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
                         {' '}
-                        <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
+                        <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} lxx={r.lxx} />
                       </>
                     }
                     titleClamp={3}
