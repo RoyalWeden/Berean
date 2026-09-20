@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid, ArrowDownWideNarrow, ArrowUpWideNarrow } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
-import { IconButton, Toolbar, ListRow, Chip, RefChip, Button, SegmentedControl, SearchField, Select, TextField, SectionHeader, SectionLabel } from '@/components/ui'
+import { IconButton, Toolbar, ListRow, Chip, RefChip, Button, SegmentedControl, SearchField, Select, TextField, SectionHeader, SectionLabel, Badge, cx } from '@/components/ui'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
@@ -260,18 +260,20 @@ const HistoryItem = memo(function HistoryItem({
                 → {entry.verseRef}
               </RefChip>
             )}
-            {entry.sessionName && <RefChip variant="neutral" size="xs" className="max-w-[72px] truncate">{entry.sessionName}</RefChip>}
-            {/* Repeat-visit count — click toggles the timestamp list */}
+            {/* Session = informational label (Badge text), never a reference chip. */}
+            {entry.sessionName && <Badge variant="text" tone="neutral" className="max-w-[72px] truncate normal-case tracking-normal">{entry.sessionName}</Badge>}
+            {/* Repeat visits: a count badge + a disclosure button (not a Chip — chips are filters/tokens). */}
             {repeated && (
-              <Chip
-                size="sm"
-                icon={ChevronDown}
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-label={`Visited ${visits.length} times — ${open ? 'hide' : 'show'} all`}
                 onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
-                title={`Visited ${visits.length} times — show all`}
-                className={open ? '[&_svg]:rotate-180 [&_svg]:transition-transform' : '[&_svg]:transition-transform'}
+                className="focus-ring inline-flex items-center gap-1 h-5 px-1 rounded-control-sm text-text-secondary hover:bg-lift-2 active:bg-lift-3 transition-colors"
               >
-                ×{visits.length}
-              </Chip>
+                <Badge variant="count" tone="neutral">{visits.length}</Badge>
+                <ChevronDown size={11} strokeWidth={2} className={cx('transition-transform duration-base', open && 'rotate-180')} />
+              </button>
             )}
             <IconButton
               icon={X}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown, Tag, Settings2 } from 'lucide-react'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown, Tag, Settings2, SlidersHorizontal } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import type { Book, Verse } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
@@ -22,7 +22,7 @@ import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
   Badge, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
-  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar,
+  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel,
 } from '@/components/ui'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
@@ -1239,9 +1239,23 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               />
             </ControlGroup>
 
-            {/* Context-length dropdown — was a compact/full flip button; now a 4-way picker
-                (default snippet / full verse / ± context) since "±1 verse" / "±2 verses" have
-                no natural binary toggle counterpart. */}
+            {/* Secondary filters (result length, verse tags) sit behind ONE "Filters" popover
+                (§45 density): the bar keeps mode / word-match / scope / sort visible. The
+                badge counts non-default filters so nothing is hidden silently. */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="menu" size="sm" icon={SlidersHorizontal}
+                  selected={contextMode !== 'default' || selectedTagIds.length > 0}
+                  badge={(contextMode !== 'default' ? 1 : 0) + (selectedTagIds.length > 0 ? 1 : 0) > 0 ? { variant: 'count', children: (contextMode !== 'default' ? 1 : 0) + (selectedTagIds.length > 0 ? 1 : 0), label: 'Active filters' } : undefined}
+                  tooltip="Result length and verse-tag filters"
+                >
+                  Filters
+                </Button>
+              </PopoverTrigger>
+              <PopoverSurface align="end" innerClassName="p-3 w-[260px] flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <SectionLabel>Result length</SectionLabel>
             <Select
               variant="ghost" size="sm"
               aria-label="Result length"
@@ -1255,8 +1269,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               ]}
             />
 
-            {/* Verse-tag filter — lives in this wrapping header row (not the non-wrapping
-                TopBar portal, where it got clipped off the right edge). */}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <SectionLabel>Verse tags</SectionLabel>
             {(() => {
               const on = selectedTagIds.length > 0
               const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
@@ -1267,13 +1282,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   variant="secondary" size="sm" selected={on}
                   icon={Tag}
                   onClick={() => setTagFilterMenuOpen((v) => !v)}
-                  title="Filter results by verse tag"
+                  tooltip="Filter results by verse tag"
                 >
                   <span className="truncate max-w-[140px]">{summary}</span>
                   <ChevronDown size={9} className="flex-shrink-0" />
                 </Button>
               )
             })()}
+                </div>
+              </PopoverSurface>
+            </Popover>
           </>
         )}
       </div>
