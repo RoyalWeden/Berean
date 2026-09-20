@@ -1,6 +1,6 @@
 import { Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
 import { motion } from 'framer-motion'
-import { SPRING_SNAPPY } from '@/lib/motion'
+import { PANEL_SLIDE } from '@/lib/motion'
 import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarCheck, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
@@ -490,10 +490,11 @@ export default function Sidebar() {
       animate={{ width: sidebarCollapsed ? 0 : sidebarWidth, opacity: sidebarCollapsed ? 0 : 1 }}
       initial={false}
       transition={{
-        // No spring while actively dragging the resize handle — a spring lagging behind the
-        // live mouse position during a drag reads as sluggish/rubbery; only collapse/expand
-        // (not a manual resize) benefits from the spring feel.
-        width: isResizingSidebar ? { duration: 0 } : SPRING_SNAPPY,
+        // No tween while actively dragging the resize handle — an animated transition lagging
+        // behind the live mouse position during a drag reads as sluggish/rubbery; only
+        // collapse/expand (not a manual resize) is animated. §7.1: the sidebar/inspector/rail
+        // panel-slide token, not the snappy spring (that's for geometry tracking the pointer).
+        width: isResizingSidebar ? { duration: 0 } : PANEL_SLIDE,
         opacity: { duration: 0.12, ease: 'easeOut', delay: sidebarCollapsed ? 0 : 0.05 },
       }}
       className="h-full flex-shrink-0 overflow-hidden relative"
@@ -671,13 +672,17 @@ export default function Sidebar() {
             className="w-full"
             onKeyDown={useRovingNav({ orientation: 'horizontal', selector: 'button' })}
           >
-            {SPACES.map(({ id, type, icon: Icon, tip }) => (
+            {SPACES.map(({ id, type, icon: Icon, tip }, i) => (
               <IconButton
                 key={id}
                 icon={Icon}
                 label={tip}
                 size={32}
                 active={activeSpace === id}
+                // §7.2: aria-current (not just the visual active state) on the current space,
+                // plus its ⌘1–⌘4 shortcut in the tooltip (SPACE_IDS order in App.tsx).
+                aria-current={activeSpace === id ? 'true' : undefined}
+                tooltip={{ shortcut: `⌘${i + 1}` }}
                 className="flex-1"
                 onClick={() => createTab(type)}
               />
@@ -687,7 +692,9 @@ export default function Sidebar() {
 
             <div
               ref={tabListRef}
-              className="no-drag flex-1 overflow-y-auto min-h-0 scrollbar-none"
+              // §7.1: 8px inset from the sidebar edges — rows sit as an inset selection list
+              // (macOS source list), not flush full-bleed.
+              className="no-drag flex-1 overflow-y-auto min-h-0 scrollbar-none px-2"
               onKeyDown={tabListRovingNav}
               onDoubleClick={(e) => {
                 const t = e.target as HTMLElement
@@ -766,6 +773,8 @@ export default function Sidebar() {
               <TabBar
                 tabs={orderedTabs}
                 activeTabId={activeTabId[activeSpace]}
+                // §7.1 narrow mode: below 240px, hide the compare/LXX meta chips and keep icon + title.
+                narrow={sidebarWidth < 240}
                 onTabClick={(tab) => {
                   // Fire synchronously so panels can snapshot their scroll/cursor before React re-renders
                   window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange'))

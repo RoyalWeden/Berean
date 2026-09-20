@@ -1,13 +1,11 @@
 import { useRef, useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { SPRING_SNAPPY } from '@/lib/motion'
 import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
-import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
-import { IconButton, ListRow, MenuSurface, MenuItem, MenuSeparator, MenuLabel, RefChip, cx } from '@/components/ui'
+import { IconButton, ListRow, MenuItem, MenuSeparator, MenuLabel, RefChip, useContextMenu, cx } from '@/components/ui'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -33,12 +31,6 @@ const TAB_ICON_CLASS: Record<TabType, string> = {
   tags:    'text-tab-tags',
 }
 
-interface ContextMenuState {
-  tab: Tab
-  x: number
-  y: number
-}
-
 interface TabBarProps {
   tabs: Tab[]
   activeTabId: string | null
@@ -46,9 +38,12 @@ interface TabBarProps {
   onTabClose: (tab: Tab) => void
   // fromTabId / toTabId / before — the store owns the index math
   onReorder: (fromTabId: string, toTabId: string, insertBefore: boolean) => void
+  /** Sidebar width has dropped below the point where meta chips (compare/LXX) still fit
+   *  comfortably next to a title — hide them and keep just icon + title (§7.1 narrow mode). */
+  narrow?: boolean
 }
 
-export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onReorder }: TabBarProps) {
+export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onReorder, narrow }: TabBarProps) {
   const youtubeIsPlaying   = useAppStore((s) => s.youtubeIsPlaying)
   const appZoom            = useAppStore((s) => s.appZoom)
   const activeYouTubeTabId = useAppStore((s) => s.activeTabId['youtube'])
@@ -64,8 +59,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   const [dragOverIdx,       setDragOverIdx]        = useState<number | null>(null)
   const [dragInsertBefore,  setDragInsertBefore]  = useState(true)
   const [crossSpaceHoverIdx, setCrossSpaceHoverIdx] = useState<number | null>(null)
-  const { menu: contextMenu, menuRef, openMenu: openContextMenu, closeMenu: closeContextMenu } =
-    usePositionedMenu<{ tab: Tab }>()
+  // §7.1/§7.3: the one contextual-menu helper — also gives the row's Shift+F10 keyboard
+  // invocation (keyboardProps below) for free, so a separate handler isn't needed for that.
+  const tabMenu = useContextMenu<{ tab: Tab }>()
 
   // Keep the active tab's row visible in the (vertically-scrolling) tab list — a tab opened
   // "after active" near the bottom of a long list, or one activated by keyboard, can otherwise
@@ -539,12 +535,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
     }
   }
 
-  function handleContextMenu(e: React.MouseEvent, tab: Tab) {
-    e.preventDefault()
-    e.stopPropagation()
-    openContextMenu({ tab, x: e.clientX, y: e.clientY })
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────
 
   const otherSessions = sessions.filter(s => s.id !== currentSessionId)
@@ -607,14 +597,14 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 {isActive && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
-                    className="absolute inset-0 rounded-none bg-accent-muted pointer-events-none"
+                    className="absolute inset-0 rounded-control-md bg-accent-muted pointer-events-none"
                     transition={SPRING_SNAPPY}
                   />
                 )}
                 <ListRow
                   ref={isActive ? activeRowRef : undefined}
                   dense
-                  flush
+                  inset
                   titleSize="footnote"
                   // Key-window selection is accent-tinted (macOS source list); html[data-inactive]
                   // turns --color-accent-muted neutral, so a background window's row goes gray.
@@ -625,8 +615,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   onDragStart={(e) => handleDragStart(e, idx)}
                   onDragOver={(e) => handleTabDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
-                  onContextMenu={(e) => handleContextMenu(e, tab)}
-                  buttonProps={{ title: hoverTitle, 'data-roving': '' }}
+                  onContextMenu={(e) => tabMenu.openAt(e, { tab })}
+                  // Shift+F10 opens the same context menu at the row (§7.1 keyboard).
+                  buttonProps={{ title: hoverTitle, 'data-roving': '', ...tabMenu.keyboardProps({ tab }) }}
                   className={cx(
                     'relative z-10',
                     isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer',
@@ -641,9 +632,15 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                     </span>
                   }
                   title={<span className="truncate" style={{ zoom: appZoom }}>{displayTitle}</span>}
-                  meta={(isCompare || isLXX) ? (
+                  // Narrow sidebar (< 240px, §7.1): drop the meta chips, keep icon + title only.
+                  meta={!narrow && (isCompare || isLXX) ? (
                     <span className="flex items-center gap-1">
                       {isCompare && <GitCompare size={10} className="text-accent opacity-80" aria-label="Compare mode" />}
+                      {/* Kept as RefChip (not Badge): this is the app-wide dedicated LXX semantic
+                          color (--link-lxx-ref, used everywhere else an LXX reference is tagged) —
+                          Badge's fixed tone palette has no slot for it, and the pass's own
+                          non-negotiable is to preserve semantic colours, not fold them into the
+                          nearest generic tone. */}
                       {isLXX && <RefChip variant="lxx" size="xs">LXX</RefChip>}
                     </span>
                   ) : undefined}
@@ -671,113 +668,95 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
         })}
       </div>
 
-      {contextMenu && createPortal(
-        <MenuSurface
-          ref={menuRef}
-          // WebkitAppRegion: 'no-drag' — this menu is portaled to document.body, so it can land,
-          // purely by screen coordinates, over the top header bar's app-drag-region (especially
-          // after the upward "flip" for a tab near the bottom of the list). Without this, a click
-          // on "Open in floating tab"/"Duplicate tab" there gets swallowed by Electron's drag
-          // hit-testing before the renderer ever sees it — every other portaled menu in this
-          // codebase (MenuPositioner, ShellHeader's nav dropdown, Sidebar's own popups) already
-          // carries this for the identical reason; this one was the one place missing it.
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 'var(--z-menu)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className="min-w-44 no-drag"
-        >
-          {contextMenu.tab.type !== 'tags' && (
-          <MenuItem
-            icon={ExternalLink}
-            label="Open in floating tab"
-            onClick={() => {
-              // Note tabs use type='note' internally but the float shell checks for 'notes'
-              const floatType = contextMenu.tab.type === 'note' ? 'notes' : contextMenu.tab.type
-              // Filter out null/undefined values — they stringify to "null"/"undefined" in URL params
-              const rawState = (contextMenu.tab.state ?? {}) as unknown as Record<string, unknown>
-              const floatState: Record<string, unknown> = {}
-              for (const [k, v] of Object.entries(rawState)) {
-                if (v !== null && v !== undefined) floatState[k] = v
-              }
-              // Hide the right panel in the float; remember to restore it on put-back
-              if (floatType === 'bible' && floatState.rightPanelOpen === true) {
-                floatState.rightPanelOpen = false
-                floatState._rightPanelWasOpen = 'true'
-              }
-              // Previously an unhandled promise — a rejection here (main process throwing, IPC
-              // channel gone) would vanish with zero trace in the renderer console.
-              window.app.openFloatingTab(floatType, floatState).catch((err) => {
-                console.error('[TabBar] openFloatingTab (context menu) failed', err)
-              })
-              useAppStore.getState().bumpFloatingTabToken()
-              onTabClose(contextMenu.tab)
-              closeContextMenu()
-            }}
-          />
-          )}
-          {contextMenu.tab.type !== 'tags' && (
-          <MenuItem
-            icon={Copy}
-            label="Duplicate tab"
-            onClick={() => {
-              const store = useAppStore.getState()
-              const newTab = {
-                ...contextMenu.tab,
-                // Random suffix, not just Date.now() — a bare timestamp can collide with
-                // another tab created/duplicated in the same millisecond (e.g. clicking
-                // "Duplicate tab" twice in quick succession), and addTab() treats a
-                // matching id as "this tab already exists," silently switching to the
-                // existing tab instead of creating a real duplicate — the reported
-                // "duplicating tabs isn't working." Matches createTab's own id scheme.
-                id: `${contextMenu.tab.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                // Deep-clone the state so the duplicate is independent
-                state: JSON.parse(JSON.stringify(contextMenu.tab.state)),
-              }
-              store.addTab(newTab)
-              closeContextMenu()
-            }}
-          />
-          )}
-          <MenuSeparator />
-          <MenuItem
-            icon={Archive}
-            label="Archive tab"
-            onClick={() => {
-              archiveTab(contextMenu.tab.spaceId, contextMenu.tab.id)
-              closeContextMenu()
-            }}
-          />
-          <MenuItem
-            icon={Trash2}
-            label="Close tab"
-            // The one item in this menu with a real keybinding (⌘W, per Settings →
-            // Shortcuts) — carried as MenuItem's own `shortcut` prop (keycap chip),
-            // same as every other menu in the app.
-            shortcut="⌘W"
-            danger
-            onClick={() => {
-              onTabClose(contextMenu.tab)
-              closeContextMenu()
-            }}
-          />
-          {otherSessions.length > 0 && (
-            <>
-              <MenuSeparator />
-              <MenuLabel>Move to session</MenuLabel>
-              {otherSessions.map((session) => (
-                <MenuItem
-                  key={session.id}
-                  icon={Layers}
-                  label={session.name}
-                  onClick={() => {
-                    moveTabToSession(contextMenu.tab.spaceId, contextMenu.tab.id, session.id)
-                    closeContextMenu()
-                  }}
-                />
-              ))}
-            </>
-          )}
-        </MenuSurface>,
-        document.body
-      )}
+      {/* §7.1/§7.3: shared useContextMenu helper — portals a MenuSurface, positions and
+          clamps it, closes on Escape/outside/scroll/blur/another-menu-open, and (via
+          keyboardProps above) answers Shift+F10 on the focused row for free. */}
+      <tabMenu.Menu className="min-w-44">
+        {({ tab: menuTab }) => (
+          <>
+            {menuTab.type !== 'tags' && (
+            <MenuItem
+              icon={ExternalLink}
+              label="Open in floating tab"
+              onClick={() => {
+                // Note tabs use type='note' internally but the float shell checks for 'notes'
+                const floatType = menuTab.type === 'note' ? 'notes' : menuTab.type
+                // Filter out null/undefined values — they stringify to "null"/"undefined" in URL params
+                const rawState = (menuTab.state ?? {}) as unknown as Record<string, unknown>
+                const floatState: Record<string, unknown> = {}
+                for (const [k, v] of Object.entries(rawState)) {
+                  if (v !== null && v !== undefined) floatState[k] = v
+                }
+                // Hide the right panel in the float; remember to restore it on put-back
+                if (floatType === 'bible' && floatState.rightPanelOpen === true) {
+                  floatState.rightPanelOpen = false
+                  floatState._rightPanelWasOpen = 'true'
+                }
+                // Previously an unhandled promise — a rejection here (main process throwing, IPC
+                // channel gone) would vanish with zero trace in the renderer console.
+                window.app.openFloatingTab(floatType, floatState).catch((err) => {
+                  console.error('[TabBar] openFloatingTab (context menu) failed', err)
+                })
+                useAppStore.getState().bumpFloatingTabToken()
+                onTabClose(menuTab)
+              }}
+            />
+            )}
+            {menuTab.type !== 'tags' && (
+            <MenuItem
+              icon={Copy}
+              label="Duplicate tab"
+              onClick={() => {
+                const store = useAppStore.getState()
+                const newTab = {
+                  ...menuTab,
+                  // Random suffix, not just Date.now() — a bare timestamp can collide with
+                  // another tab created/duplicated in the same millisecond (e.g. clicking
+                  // "Duplicate tab" twice in quick succession), and addTab() treats a
+                  // matching id as "this tab already exists," silently switching to the
+                  // existing tab instead of creating a real duplicate — the reported
+                  // "duplicating tabs isn't working." Matches createTab's own id scheme.
+                  id: `${menuTab.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                  // Deep-clone the state so the duplicate is independent
+                  state: JSON.parse(JSON.stringify(menuTab.state)),
+                }
+                store.addTab(newTab)
+              }}
+            />
+            )}
+            <MenuSeparator />
+            <MenuItem
+              icon={Archive}
+              label="Archive tab"
+              onClick={() => archiveTab(menuTab.spaceId, menuTab.id)}
+            />
+            <MenuItem
+              icon={Trash2}
+              label="Close tab"
+              // The one item in this menu with a real keybinding (⌘W, per Settings →
+              // Shortcuts) — carried as MenuItem's own `shortcut` prop (keycap chip),
+              // same as every other menu in the app.
+              shortcut="⌘W"
+              danger
+              onClick={() => onTabClose(menuTab)}
+            />
+            {otherSessions.length > 0 && (
+              <>
+                <MenuSeparator />
+                <MenuLabel>Move to session</MenuLabel>
+                {otherSessions.map((session) => (
+                  <MenuItem
+                    key={session.id}
+                    icon={Layers}
+                    label={session.name}
+                    onClick={() => moveTabToSession(menuTab.spaceId, menuTab.id, session.id)}
+                  />
+                ))}
+              </>
+            )}
+          </>
+        )}
+      </tabMenu.Menu>
     </>
   )
 }

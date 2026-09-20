@@ -17,6 +17,7 @@ export { MenuSurface, MenuItem, MenuSeparator, MenuLabel, MenuGroup, MenuSub, ty
 export { useContextMenu, type ContextMenuState } from './ContextMenu'
 export { TabStrip, type TabStripItem, type TabStripProps } from './TabStrip'
 export { ScrollContainer, type ScrollContainerProps } from './ScrollContainer'
+export { ResizeHandle, type ResizeHandleProps } from './ResizeHandle'
 export { PopoverSurface, Popover, PopoverTrigger, PopoverAnchor, PopoverClose } from './PopoverSurface'
 export { Sheet, SheetClose, type SheetProps, type SheetSize } from './Sheet'
 export { TextField, SearchField, TextArea, type TextFieldProps, type SearchFieldProps, type TextAreaProps } from './TextField'

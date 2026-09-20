@@ -58,7 +58,8 @@ const GAP = 2
 const HEADER_HEIGHT = 44
 const COLLAPSED_WIDTH = 14
 const COLLAPSED_HEIGHT = 40
-const CLOSE_DELAY_MS = 220
+// §7.4: dismiss on mouse-leave after 350ms (was 220ms — bumped to match the packet's value).
+const CLOSE_DELAY_MS = 350
 
 export default function FloatingRail() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
@@ -66,8 +67,25 @@ export default function FloatingRail() {
   const appZoom = useAppStore((s) => s.appZoom)
   const [hovered, setHovered] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const handleRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }, [])
+
+  // §7.4: dismissal on click outside and window blur, in addition to mouse-leave/Escape below.
+  useEffect(() => {
+    if (!hovered) return
+    function onDocDown(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setHovered(false)
+    }
+    function onWindowBlur() { setHovered(false) }
+    document.addEventListener('mousedown', onDocDown, true)
+    window.addEventListener('blur', onWindowBlur)
+    return () => {
+      document.removeEventListener('mousedown', onDocDown, true)
+      window.removeEventListener('blur', onWindowBlur)
+    }
+  }, [hovered])
 
   // `e.buttons` reflects the real OS-level button state at dispatch time regardless of which
   // process/frame originally saw the mousedown — so this also catches a drag that STARTED
@@ -89,23 +107,54 @@ export default function FloatingRail() {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     closeTimerRef.current = setTimeout(() => setHovered(false), CLOSE_DELAY_MS)
   }
+  // §7.4: Escape collapses and returns focus to the handle — from anywhere inside the wrapper
+  // (the handle itself, or a button in the expanded Ribbon).
+  function onWrapperKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape' && hovered) {
+      e.stopPropagation()
+      setHovered(false)
+      handleRef.current?.focus()
+    }
+  }
+  // §7.4: Tab reaches the handle → reveal it too (focus-within), same as a mouse hover; a plain
+  // React onFocus on the wrapper behaves like :focus-within (focus events bubble in React).
+  function onWrapperFocus() { open() }
+  function onWrapperBlur(e: React.FocusEvent) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) scheduleClose()
+  }
+  function onHandleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() }
+  }
 
   const left = (sidebarCollapsed ? 0 : sidebarWidth) + GAP
   const headerHeight = HEADER_HEIGHT * appZoom
 
   return createPortal(
     <div
+      ref={wrapperRef}
       className="no-drag fixed z-raised transition-[left] duration-200 ease-in-out"
       style={{ top: `calc(50% + ${headerHeight / 2}px)`, left }}
       onMouseEnter={open}
       onMouseMove={onMove}
       onMouseLeave={scheduleClose}
+      onFocus={onWrapperFocus}
+      onBlur={onWrapperBlur}
+      onKeyDown={onWrapperKeyDown}
     >
       {/* Collapsed handle — a low-contrast grip pill, always mounted (it's the hover target
           itself); fades out rather than unmounting while the card above is open so the hover
-          region under the cursor never changes shape mid-interaction. */}
+          region under the cursor never changes shape mid-interaction. Also a real keyboard
+          target (§7.4): Tab reaches it, Enter/Space expands it. */}
       <div
-        className="material-control rounded-control flex flex-col items-center justify-center gap-2 transition-opacity duration-150"
+        ref={handleRef}
+        role="button"
+        // Drop out of the tab sequence while expanded — it's invisible and the expanded
+        // Ribbon's own buttons are the ones that should receive Tab focus then.
+        tabIndex={hovered ? -1 : 0}
+        aria-label="Show tools"
+        aria-expanded={hovered}
+        onKeyDown={onHandleKeyDown}
+        className="material-control rounded-control flex flex-col items-center justify-center gap-2 transition-opacity duration-150 focus-ring"
         style={{
           width: COLLAPSED_WIDTH, height: COLLAPSED_HEIGHT, transform: 'translateY(-50%)',
           opacity: hovered ? 0 : 1, pointerEvents: hovered ? 'none' : 'auto', cursor: hovered ? 'default' : 'pointer',

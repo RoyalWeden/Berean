@@ -8,7 +8,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
-import { SearchField, Select, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader } from '@/components/ui'
+import { SearchField, Select, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader, OverflowGroup, OverflowSection } from '@/components/ui'
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
@@ -384,26 +384,34 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
         />
       </TabHeaderPortal>
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
-        {/* Translation selector dropdown */}
-        <Select
-          value={textId}
-          onChange={selectTranslation}
-          variant="ghost"
-          size="sm"
-          align="right"
-          aria-label="Translation"
-          className="flex-shrink-0"
-          options={[
-            { value: 'all', label: 'All texts' },
-            ...SEARCH_TRANSLATIONS.map((t, i, arr) => ({
-              value: t.id,
-              label: t.label,
-              group: i === 0 || arr[i - 1].category !== t.category
-                ? (t.category === 'bible' ? 'Bible' : 'Pseudepigrapha')
-                : undefined,
-            })),
-          ]}
-        />
+        {/* Translation selector — the sole actions-zone control (§17's "translation" never-fold
+            item); the testament/sort filter chips live in their own Toolbar row below the header
+            (outside the TabHeaderPortal zones), not folded here. Wrapped in an OverflowGroup
+            anyway for architectural consistency with the other tabs' actions zones, though with
+            a single small control it will essentially never fold in practice. */}
+        <OverflowGroup label="More">
+          <OverflowSection priority="last">
+            <Select
+              value={textId}
+              onChange={selectTranslation}
+              variant="ghost"
+              size="sm"
+              align="right"
+              aria-label="Translation"
+              className="flex-shrink-0"
+              options={[
+                { value: 'all', label: 'All texts' },
+                ...SEARCH_TRANSLATIONS.map((t, i, arr) => ({
+                  value: t.id,
+                  label: t.label,
+                  group: i === 0 || arr[i - 1].category !== t.category
+                    ? (t.category === 'bible' ? 'Bible' : 'Pseudepigrapha')
+                    : undefined,
+                })),
+              ]}
+            />
+          </OverflowSection>
+        </OverflowGroup>
       </TabHeaderPortal>
 
       {/* Filter + sort bar */}

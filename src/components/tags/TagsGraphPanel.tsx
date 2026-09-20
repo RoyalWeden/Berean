@@ -259,7 +259,7 @@ export default function TagsGraphPanel() {
   return (
     <div className="absolute inset-0 flex bg-surface-1">
       <TabHeaderPortal active={isActive}>
-        <span className="flex items-center gap-1.5 text-subhead font-medium text-text-primary">
+        <span className="flex items-center gap-1.5 text-subhead font-semibold text-text-primary">
           <Waypoints size={14} className="text-[rgb(var(--link-wikilink))]" /> Tags
         </span>
       </TabHeaderPortal>

@@ -15,7 +15,7 @@ import { loadPdfFromBytes, type PDFDocumentProxy } from '@/lib/pdfjs'
 import { useAppStore } from '@/store'
 import PdfPage, { hlColor } from './PdfPage'
 import PdfPicker from './PdfPicker'
-import { IconButton, Button, ControlGroup, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow } from '@/components/ui'
+import { IconButton, Button, ControlGroup, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow, OverflowGroup, OverflowSection } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import type { PdfTabState, PdfHighlight } from '@/types'
@@ -460,7 +460,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
           className="min-w-0 justify-start px-1 -mx-1"
         >
           <FileText size={14} className="text-text-muted flex-shrink-0" />
-          <span className="min-w-0 text-subhead font-medium text-text-primary truncate transition-colors">{title}</span>
+          <span className="min-w-0 text-subhead font-semibold text-text-primary truncate transition-colors">{title}</span>
           <ChevronDownIcon size={12} className="flex-shrink-0 text-text-muted" />
         </Button>
         <span className="text-caption text-text-muted tabular-nums flex-shrink-0 px-1">
@@ -468,17 +468,42 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
         </span>
       </TabHeaderPortal>
 
-      {/* ACTIONS zone — tool buttons, grouped by what they act on. */}
+      {/* ACTIONS zone — tool buttons, grouped by what they act on, folding into ONE "…" via
+          OverflowGroup as the bar narrows (§17). "Outline & highlights" stays OUTSIDE the
+          OverflowGroup, after it: it's a panel-chrome toggle (opens the right-side panel), the
+          same role as Scripture's inspector toggle, so it's never subject to folding rather than
+          pinned inside the fold system — see BiblePanel.tsx's zone comment for why "never" +
+          "inside" don't mix for a trailing control (OverflowGroup hoists `never` children to the
+          FRONT of its own row). */}
       <TabHeaderPortal floating={floating} active={isActivePanel} zone="actions">
-        {!floating && (
-          <IconButton icon={BookOpen} label="New Scripture tab" size={28} onClick={() => useAppStore.getState().createTab('bible')} />
-        )}
-        <ControlGroup>
-          <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={() => changeScale(scale - 0.15)} />
-          <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={() => changeScale(scale + 0.15)} />
-        </ControlGroup>
-        <IconButton icon={BookmarkPlus} label="Add bookmark at current page" size={28} onClick={addBookmark} />
-        <IconButton icon={Search} label="Find" tooltip={{ shortcut: '⌘F' }} size={28} selected={findOpen} onClick={() => setFindOpen((v) => !v)} />
+        <OverflowGroup label="More">
+          <OverflowSection priority="last" items={[
+            { key: 'zoom-out', label: 'Zoom out', icon: ZoomOut, onSelect: () => changeScale(scale - 0.15) },
+            { key: 'zoom-in', label: 'Zoom in', icon: ZoomIn, onSelect: () => changeScale(scale + 0.15) },
+          ]}>
+            <ControlGroup>
+              <IconButton icon={ZoomOut} label="Zoom out" size={28} onClick={() => changeScale(scale - 0.15)} />
+              <IconButton icon={ZoomIn} label="Zoom in" size={28} onClick={() => changeScale(scale + 0.15)} />
+            </ControlGroup>
+          </OverflowSection>
+          <OverflowSection items={[
+            { key: 'find', label: 'Find', icon: Search, shortcut: '⌘F', checked: findOpen, onSelect: () => setFindOpen((v) => !v) },
+          ]}>
+            <IconButton icon={Search} label="Find" tooltip={{ shortcut: '⌘F' }} size={28} selected={findOpen} onClick={() => setFindOpen((v) => !v)} />
+          </OverflowSection>
+          <OverflowSection items={[
+            { key: 'bookmark', label: 'Add bookmark at current page', icon: BookmarkPlus, onSelect: addBookmark },
+          ]}>
+            <IconButton icon={BookmarkPlus} label="Add bookmark at current page" size={28} onClick={addBookmark} />
+          </OverflowSection>
+          {!floating && (
+            <OverflowSection items={[
+              { key: 'new-scripture-tab', label: 'New Scripture tab', icon: BookOpen, onSelect: () => useAppStore.getState().createTab('bible') },
+            ]}>
+              <IconButton icon={BookOpen} label="New Scripture tab" size={28} onClick={() => useAppStore.getState().createTab('bible')} />
+            </OverflowSection>
+          )}
+        </OverflowGroup>
         {!floating && (
           <IconButton icon={PanelRightIcon} label="Outline & highlights" size={28} active={panelOpen} onClick={() => setPanelOpen((v) => !v)} />
         )}

@@ -16,11 +16,10 @@ import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
-import { Button, IconButton, MenuItem, RefChip, ControlGroup } from '@/components/ui'
+import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection } from '@/components/ui'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
@@ -3036,6 +3035,40 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   const isCompareMode = tabState.compareMode || currentLayout === 'compare-notes'
 
+  // Shared by the inline Display-group button and its folded-menu equivalent (OverflowSection
+  // `items`) so the condition/handler exist in exactly one place.
+  const canSwitchTranslation = (textId === 'kjva' || textId === 'lxx') && !!currentBook && counterpartBookIds.has(currentBook.id)
+  function switchTranslation() {
+    if (!activeTab) return
+    const target = textId === 'lxx' ? 'KJVA' : 'LXX'
+    // Anchor by VERSE NUMBER (not raw pixel offset) before switching — KJV and LXX have
+    // different word counts and line-wrapping, so "scroll to this many pixels down" in the
+    // old text can land on an unrelated passage in the new one, which is what made this switch
+    // hard to follow. Anchoring by verse tracks the same passage across both texts
+    // (onVersesLoaded below restores it once the new verses are in the DOM, and flashes the
+    // anchor verse as a landing cue).
+    captureStrongsAnchor()
+    // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter divisions between
+    // KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps 114-115) — map the chapter, don't just
+    // carry the number over unchanged.
+    const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, target.toLowerCase())
+    updateTabState('scripture', activeTab.id, {
+      translation: target,
+      chapter: mappedChapter,
+      targetVerse: undefined,
+      endVerse: undefined,
+    })
+    // Re-point any selected verses onto the new edition so the SAME passage stays selected
+    // across the flip — the translation menu (selectPickerTranslation) already does this; this
+    // quick toggle was missing it, so a verse selected in KJV showed nothing selected after
+    // switching to LXX.
+    useAppStore.getState().remapVerseSelection(activeTab.id, (v) => ({
+      ...v,
+      textId: target.toLowerCase(),
+      chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, target.toLowerCase()),
+    }))
+  }
+
   return (
     <div
       ref={panelRootRef}
@@ -3114,92 +3147,217 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       </TabHeaderPortal>
 
       {/* ACTIONS zone. Reading mode: {Tag chapter, Add compare panel, Annotations key} then a
-          trailing {LXX/KJV toggle, Strong's} — each its own ControlGroup — followed by the
-          standalone inspector toggle and the overflow menu. Compare mode swaps the leading
-          group for the compare-specific controls but keeps the same zone structure. */}
+          trailing {LXX/KJV toggle, Strong's} — each its own ControlGroup, wrapped in an
+          OverflowSection so it folds as a unit into the shared More menu when the bar is too
+          narrow (§17) — followed by the standalone inspector toggle and ONE overflow menu
+          (folded groups + the curated low-frequency items below, via `extraItems`; this
+          replaces the separate HeaderOverflowMenu that used to sit beside the width-based
+          fold, which would have produced two "…" buttons). Compare mode swaps the leading
+          group for the compare-specific controls but keeps the same zone structure.
+          Display group (LXX/KJV · Strong's) is authored first among the foldable sections —
+          OverflowGroup fits/fold items in authored order, so "authored first" is how a group
+          is protected (folds last); it's marked `priority="last"` too for documentation and
+          for a future width-aware algorithm. The chapter-actions group is default priority
+          and folds first. The picker-driven controls in it (tag chapter, add compare, the
+          annotation key) have no `items` metadata, so when folded they render as their own
+          stacked control (still fully interactive, own popover) rather than a flattened
+          MenuItem — matching how they already worked (open their own follow-up UI, not a
+          single action). Inspector toggle stays OUTSIDE the OverflowGroup entirely (see below
+          it, not inside): it's chrome-level like the leading zone's sidebar toggle, not a
+          per-tab action, so it's never subject to folding at all rather than being pinned
+          inside the fold system (OverflowGroup hoists `priority="never"` children to the
+          FRONT of the row to guarantee they fit, which would visually move it ahead of the
+          chapter-actions/Display groups — wrong here since it belongs at the trailing edge,
+          after "…", matching where an inspector/sidebar toggle sits in Mail/Notes toolbars). */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
-        {isCompareMode ? (
-          <ControlGroup align="stretch">
-            <BookChapterPicker
-              books={books}
-              currentBookId={tabState.bookId}
-              currentChapter={tabState.chapter}
-              onNavigate={addComparePanel}
-              editions={EDITIONS}
-              currentTextId={addPanelTextId ?? textId}
-              onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel" size={28} className="self-center" />}
-              popoverHeader={describeComparePanels()}
-            />
-            {/* Sync scroll — only meaningful once 2+ columns share the same chapter (a
-                different translation of the same passage); grays out otherwise rather
-                than disappearing, so it's discoverable before the precondition is met. */}
-            <IconButton
-              icon={Link2}
-              label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}
-              size={28}
-              active={tabState.compareSyncScroll}
-              disabled={!compareSyncEligible}
-              onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
-              className="self-center"
-            />
-          </ControlGroup>
-        ) : (
-          <ControlGroup align="stretch">
-            {/* Tag this whole chapter — the discoverable, always-visible entry point
-                (the per-verse popover's "Tag chapter…" item still works too). */}
-            <IconButton
-              icon={TagIcon}
-              label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
-              size={28}
-              active={!!chapterTagRect}
-              onMouseDown={() => { chapterTagWasOpenRef.current = !!chapterTagRect }}
-              onClick={(e) => {
-                if (chapterTagWasOpenRef.current) { chapterTagWasOpenRef.current = false; setChapterTagRect(null); return }
-                setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())
-              }}
-              className="self-center"
-            />
-            {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
-                column will open here", distinct from the solid picker pill. */}
-            <BookChapterPicker
-              books={books}
-              currentBookId={tabState.bookId}
-              currentChapter={tabState.chapter}
-              onNavigate={addComparePanel}
-              editions={EDITIONS}
-              currentTextId={addPanelTextId ?? textId}
-              onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel (pick a book/chapter)" size={28} className="self-center" />}
-              popoverHeader={describeComparePanels()}
-            />
-            {/* Annotation info button — the panel below is portaled to document.body with
-                fixed positioning (computed from the trigger's rect on open) rather than
-                absolutely positioned inline: this toolbar row is portaled into ShellHeader's
-                slot div, which has overflow-hidden, so an inline `absolute` panel here was
-                being silently clipped — appearing to do nothing when clicked. */}
-            {ANNOTATION_KEYS[textId] && (
-              <IconButton
-                ref={infoRef}
-                icon={Info}
-                label="Text annotations key"
-                size={28}
-                selected={infoOpen}
-                className="self-center"
-                onClick={(e) => {
-                  if (!infoOpen) {
-                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    // The key is a 288px (w-72) panel: keep it on-screen by right-aligning it
-                    // to the button whenever opening rightward would run past the window edge.
-                    const w = 288
-                    const x = r.left + w + 8 > window.innerWidth ? Math.max(8, r.right - w) : r.left
-                    setInfoPos({ x, y: r.bottom + 4 })
-                  }
-                  setInfoOpen((v) => !v)
-                }}
-              />
-            )}
-          </ControlGroup>
+        <OverflowGroup
+          label="More"
+          extraItems={[
+            {
+              key: 'search',
+              label: 'Search scripture',
+              icon: SearchIcon,
+              shortcut: '⌘/',
+              onSelect: () => { openSearch('current', 'verses'); closeFindBar() },
+            },
+            {
+              key: 'compare',
+              label: 'Compare translations',
+              icon: Columns2,
+              checked: tabState.compareMode,
+              onSelect: () => {
+                if (!activeTab) return
+                const turning = !tabState.compareMode
+                updateTabState('scripture', activeTab.id, { compareMode: turning, ...(turning ? { compareColumns: undefined } : {}) })
+                if (turning) {
+                  useAppStore.getState().addHistoryEntry({
+                    type: 'compare',
+                    title: `Compare — ${activeTab.title}`,
+                    bookId: tabState.bookId,
+                    chapter: tabState.chapter,
+                    translation: textId,
+                  })
+                }
+              },
+            },
+            ...(!floating ? [{
+              key: 'layout',
+              label: 'Change layout',
+              icon: LayoutDashboard,
+              checked: layoutPickerOpen,
+              onSelect: (e?: React.MouseEvent) => {
+                const target = e?.currentTarget as HTMLElement | undefined
+                const rect = target?.getBoundingClientRect()
+                if (rect) setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
+                setLayoutPickerOpen((v) => !v)
+              },
+            }] : []),
+          ]}
+        >
+          {isCompareMode ? (
+            <OverflowSection priority="last">
+              <ControlGroup align="stretch">
+                <BookChapterPicker
+                  books={books}
+                  currentBookId={tabState.bookId}
+                  currentChapter={tabState.chapter}
+                  onNavigate={addComparePanel}
+                  editions={EDITIONS}
+                  currentTextId={addPanelTextId ?? textId}
+                  onSelectTranslation={setAddPanelTextId}
+                  triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel" size={28} className="self-center" />}
+                  popoverHeader={describeComparePanels()}
+                />
+                {/* Sync scroll — only meaningful once 2+ columns share the same chapter (a
+                    different translation of the same passage); grays out otherwise rather
+                    than disappearing, so it's discoverable before the precondition is met. */}
+                <IconButton
+                  icon={Link2}
+                  label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}
+                  size={28}
+                  active={tabState.compareSyncScroll}
+                  disabled={!compareSyncEligible}
+                  onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
+                  className="self-center"
+                />
+              </ControlGroup>
+            </OverflowSection>
+          ) : (
+            <>
+              {!isCompareMode && (
+                <OverflowSection priority="last" items={[
+                  ...(canSwitchTranslation ? [{
+                    key: 'switch-translation',
+                    label: textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX',
+                    icon: ArrowLeftRight,
+                    onSelect: switchTranslation,
+                  }] : []),
+                  {
+                    key: 'strongs',
+                    label: "Strong's numbers",
+                    icon: Layers,
+                    shortcut: '⌘G',
+                    checked: tabState.showStrongs,
+                    onSelect: () => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) },
+                  },
+                ]}>
+                  <ControlGroup align="stretch">
+                    {canSwitchTranslation && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={ArrowLeftRight}
+                        tooltip={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}
+                        onClick={switchTranslation}
+                      >
+                        {textId === 'lxx' ? 'KJV' : 'LXX'}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={Layers}
+                      selected={tabState.showStrongs}
+                      tooltip={{ label: "Toggle Strong's numbers", shortcut: '⌘G' }}
+                      onClick={() => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) }}
+                    >
+                      Strong's
+                    </Button>
+                  </ControlGroup>
+                </OverflowSection>
+              )}
+              <OverflowSection>
+                <ControlGroup align="stretch">
+                  {/* Tag this whole chapter — the discoverable, always-visible entry point
+                      (the per-verse popover's "Tag chapter…" item still works too). */}
+                  <IconButton
+                    icon={TagIcon}
+                    label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
+                    size={28}
+                    active={!!chapterTagRect}
+                    onMouseDown={() => { chapterTagWasOpenRef.current = !!chapterTagRect }}
+                    onClick={(e) => {
+                      if (chapterTagWasOpenRef.current) { chapterTagWasOpenRef.current = false; setChapterTagRect(null); return }
+                      setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    }}
+                    className="self-center"
+                  />
+                  {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
+                      column will open here", distinct from the solid picker pill. */}
+                  <BookChapterPicker
+                    books={books}
+                    currentBookId={tabState.bookId}
+                    currentChapter={tabState.chapter}
+                    onNavigate={addComparePanel}
+                    editions={EDITIONS}
+                    currentTextId={addPanelTextId ?? textId}
+                    onSelectTranslation={setAddPanelTextId}
+                    triggerLabel={<IconButton icon={PanelRightDashed} label="Add comparison panel (pick a book/chapter)" size={28} className="self-center" />}
+                    popoverHeader={describeComparePanels()}
+                  />
+                  {/* Annotation info button — the panel below is portaled to document.body with
+                      fixed positioning (computed from the trigger's rect on open) rather than
+                      absolutely positioned inline: this toolbar row is portaled into ShellHeader's
+                      slot div, which has overflow-hidden, so an inline `absolute` panel here was
+                      being silently clipped — appearing to do nothing when clicked. */}
+                  {ANNOTATION_KEYS[textId] && (
+                    <IconButton
+                      ref={infoRef}
+                      icon={Info}
+                      label="Text annotations key"
+                      size={28}
+                      selected={infoOpen}
+                      className="self-center"
+                      onClick={(e) => {
+                        if (!infoOpen) {
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          // The key is a 288px (w-72) panel: keep it on-screen by right-aligning it
+                          // to the button whenever opening rightward would run past the window edge.
+                          const w = 288
+                          const x = r.left + w + 8 > window.innerWidth ? Math.max(8, r.right - w) : r.left
+                          setInfoPos({ x, y: r.bottom + 4 })
+                        }
+                        setInfoOpen((v) => !v)
+                      }}
+                    />
+                  )}
+                </ControlGroup>
+              </OverflowSection>
+            </>
+          )}
+        </OverflowGroup>
+        {/* Toggle right panel — hidden in floating windows (no side panel there). Standalone
+            square glass icon button, chrome-level (like the leading zone's sidebar toggle) —
+            deliberately outside the OverflowGroup above; see the zone comment. */}
+        {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
+          <IconButton
+            icon={PanelRight}
+            label={rightPanelOpen ? 'Close inspector' : 'Open inspector'}
+            tooltip={{ shortcut: '⌥⌘I' }}
+            size={28}
+            selected={rightPanelOpen}
+            onClick={toggleRightPanel}
+          />
         )}
         {chapterTagRect && (() => {
           const ranges = chapterRanges(tabState.bookId, tabState.chapter)
@@ -3288,121 +3446,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </div>,
           document.body
         )}
-        {!isCompareMode && (
-          <ControlGroup align="stretch">
-            {(textId === 'kjva' || textId === 'lxx') && currentBook && counterpartBookIds.has(currentBook.id) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={ArrowLeftRight}
-                tooltip={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}
-                onClick={() => {
-                  if (!activeTab) return
-                  const target = textId === 'lxx' ? 'KJVA' : 'LXX'
-                  // Anchor by VERSE NUMBER (not raw pixel offset) before switching — KJV and LXX
-                  // have different word counts and line-wrapping, so "scroll to this many pixels
-                  // down" in the old text can land on an unrelated passage in the new one, which
-                  // is what made this switch hard to follow. Anchoring by verse tracks the same
-                  // passage across both texts (onVersesLoaded below restores it once the new
-                  // verses are in the DOM, and flashes the anchor verse as a landing cue).
-                  captureStrongsAnchor()
-                  // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter
-                  // divisions between KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps
-                  // 114-115) — map the chapter, don't just carry the number over unchanged.
-                  const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, target.toLowerCase())
-                  updateTabState('scripture', activeTab.id, {
-                    translation: target,
-                    chapter: mappedChapter,
-                    targetVerse: undefined,
-                    endVerse: undefined,
-                  })
-                  // Re-point any selected verses onto the new edition so the SAME passage stays
-                  // selected across the flip — the translation menu (selectPickerTranslation)
-                  // already does this; this quick toggle was missing it, so a verse selected in
-                  // KJV showed nothing selected after switching to LXX.
-                  useAppStore.getState().remapVerseSelection(activeTab.id, (v) => ({
-                    ...v,
-                    textId: target.toLowerCase(),
-                    chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, target.toLowerCase()),
-                  }))
-                }}
-              >
-                {textId === 'lxx' ? 'KJV' : 'LXX'}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={Layers}
-              selected={tabState.showStrongs}
-              tooltip={{ label: "Toggle Strong's numbers", shortcut: '⌘G' }}
-              onClick={() => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) }}
-            >
-              Strong's
-            </Button>
-          </ControlGroup>
-        )}
-        {/* Toggle right panel — hidden in floating windows (no side panel there). Standalone
-            square glass icon button, not part of either ControlGroup above. */}
-        {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
-          <IconButton
-            icon={PanelRight}
-            label={rightPanelOpen ? 'Close inspector' : 'Open inspector'}
-            tooltip={{ shortcut: '⌥⌘I' }}
-            size={28}
-            selected={rightPanelOpen}
-            onClick={toggleRightPanel}
-          />
-        )}
-        {/* Lower-frequency actions — each already has a keyboard shortcut, so folding it into
-            the overflow menu doesn't remove the capability, just the always-visible button.
-            Picker/popover-driven controls (PDF library, annotation info, add-compare-panel)
-            stay inline above since they open their own follow-up UI rather than firing a single
-            action — the layout picker uses this menu's `render` escape hatch instead (see the
-            'layout' item), computing its own fixed-position anchor from the row's rect on open. */}
-        <HeaderOverflowMenu
-          items={[
-            {
-              key: 'search',
-              label: 'Search scripture',
-              icon: <SearchIcon />,
-              shortcut: '⌘/',
-              onClick: () => { openSearch('current', 'verses'); closeFindBar() },
-            },
-            {
-              key: 'compare',
-              label: 'Compare translations',
-              icon: <Columns2 />,
-              active: tabState.compareMode,
-              onClick: () => {
-                if (!activeTab) return
-                const turning = !tabState.compareMode
-                updateTabState('scripture', activeTab.id, { compareMode: turning, ...(turning ? { compareColumns: undefined } : {}) })
-                if (turning) {
-                  useAppStore.getState().addHistoryEntry({
-                    type: 'compare',
-                    title: `Compare — ${activeTab.title}`,
-                    bookId: tabState.bookId,
-                    chapter: tabState.chapter,
-                    translation: textId,
-                  })
-                }
-              },
-            },
-            ...(!floating ? [{
-              key: 'layout',
-              label: 'Change layout',
-              icon: <LayoutDashboard />,
-              active: layoutPickerOpen,
-              onClick: (e?: unknown) => {
-                const target = (e as React.MouseEvent)?.currentTarget as HTMLElement | undefined
-                const rect = target?.getBoundingClientRect()
-                if (rect) setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
-                setLayoutPickerOpen((v) => !v)
-              },
-            }] : []),
-          ]}
-        />
         {/* Layout picker now lives in the overflow menu above (see 'layout'
             item) — hidden entirely in floating windows (layout is locked to
             'reading' there), same as before. */}

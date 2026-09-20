@@ -8,9 +8,8 @@ import {
   BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
-import { IconButton, Button, ControlGroup, OverflowGroup, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
+import { IconButton, Button, ControlGroup, OverflowGroup, OverflowSection, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
-import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
 import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
 import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
@@ -1608,8 +1607,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     return (
       <div className="flex flex-col h-full bg-surface-1">
         {/* Header — active gated on activeSpace since this panel stays mounted
-             (hidden via CSS) even when not the active tab, to keep PiP/playback alive. */}
-        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0">
+             (hidden via CSS) even when not the active tab, to keep PiP/playback alive.
+             Two zones: context (video identity) and actions (grouped controls, folding into
+             ONE "…" via OverflowGroup + `extraItems` — replaces the separate HeaderOverflowMenu,
+             which would otherwise have produced a second "…" button alongside the fold menu). */}
+        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0" zone="context">
           {/* No local "← Back" button — TabHeaderPortal's shared HomeButton (now youtube-aware,
               see store's youtubeHomeToken) covers "back to browse", and the shared TopBar
               back/forward buttons cover video-to-video history, matching Notes/Lexicon. */}
@@ -1630,95 +1632,107 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           <span className="flex-1 min-w-0 text-footnote font-medium text-text-primary truncate">
             {activeVideo?.title ?? ''}
           </span>
-          <IconButton
-            icon={Star}
-            label={activeVideo?.isStarred ? 'Unstar' : 'Star this video'}
-            size={28}
-            iconClassName={activeVideo?.isStarred ? 'text-warning fill-warning' : undefined}
-            onClick={() => handleToggleStar(activeVideoId)}
-          />
-          <IconButton
-            icon={videoMaximized ? Minimize2 : Maximize2}
-            label={videoMaximized ? 'Restore' : 'Maximize video'}
-            size={28}
-            onClick={() => setVideoMaximized((v) => !v)}
-          />
-          {/* Layout button — hidden in floating tabs */}
-          {!floating && (
-            <div className="relative" ref={layoutPickerRef}>
-              <IconButton
-                icon={LayoutGrid}
-                label="Change layout"
-                size={28}
-                active={showLayoutPicker}
-                onClick={() => setShowLayoutPicker((v) => !v)}
-              />
-              {showLayoutPicker && (
-                <div className="material-popover absolute right-0 top-full mt-1 z-menu rounded-menu p-3 w-[340px]">
-                  <SectionLabel className="mb-2">Layout</SectionLabel>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {YOUTUBE_LAYOUTS.map((def) => (
-                      <OptionCard
-                        key={def.id}
-                        title={def.label}
-                        description={<>{def.description}{def.requiresBoth && <span className="block text-micro text-warning mt-0.5">Needs 2 panels</span>}</>}
-                        selected={ytLayout === def.id}
-                        onClick={() => { setYtLayout(def.id); setShowLayoutPicker(false) }}
-                      />
-                    ))}
-                  </div>
-                  {/* Active panels summary */}
-                  {(panelA || panelB) && (
-                    <div className="mt-2 pt-2 border-t border-separator">
-                      <SectionLabel className="mb-1.5">Active panels</SectionLabel>
-                      <div className="flex flex-col gap-1">
-                        {panelA && (
-                          <div className="flex items-center justify-between gap-2 text-caption">
-                            <span className="text-text-secondary">Panel A: <span className="font-medium capitalize">{panelA.type}</span></span>
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }}>Remove</Button>
-                          </div>
-                        )}
-                        {panelB && (
-                          <div className="flex items-center justify-between gap-2 text-caption">
-                            <span className="text-text-secondary">Panel B: <span className="font-medium capitalize">{panelB.type}</span></span>
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }}>Remove</Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {/* Lower-frequency actions — copy/insert only matter mid-watch, open-in-
-              browser is occasional. Maximize + layout picker stay inline above
-              since they're used far more often while actually watching. */}
-          <HeaderOverflowMenu
-            items={[
+        </TabHeaderPortal>
+        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0" zone="actions">
+          <OverflowGroup
+            label="More"
+            extraItems={[
               ...(playerReady && !videoEnded ? [
                 {
                   key: 'copy-link',
                   label: 'Copy video link (no timestamp)',
-                  icon: <Link2 />,
-                  onClick: () => insertTimestamp('link'),
+                  icon: Link2,
+                  onSelect: () => insertTimestamp('link'),
                 },
                 {
                   key: 'insert-timestamp',
                   label: activeSpace === 'youtube' ? 'Copy timestamp link' : 'Insert timestamp link into active note',
-                  icon: <Paperclip />,
+                  icon: Paperclip,
                   shortcut: '⌘⇧L',
-                  onClick: () => insertTimestamp('timestamp'),
+                  onSelect: () => insertTimestamp('timestamp'),
                 },
               ] : []),
               {
                 key: 'open-external',
                 label: 'Open in browser',
-                icon: <ExternalLink />,
-                onClick: () => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`),
+                icon: ExternalLink,
+                onSelect: () => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`),
               },
             ]}
-          />
+          >
+            <OverflowSection priority="last" items={[
+              { key: 'star', label: activeVideo?.isStarred ? 'Unstar' : 'Star this video', icon: Star, checked: activeVideo?.isStarred, onSelect: () => handleToggleStar(activeVideoId) },
+              { key: 'maximize', label: videoMaximized ? 'Restore' : 'Maximize video', icon: videoMaximized ? Minimize2 : Maximize2, onSelect: () => setVideoMaximized((v) => !v) },
+            ]}>
+              <ControlGroup>
+                <IconButton
+                  icon={Star}
+                  label={activeVideo?.isStarred ? 'Unstar' : 'Star this video'}
+                  size={28}
+                  iconClassName={activeVideo?.isStarred ? 'text-warning fill-warning' : undefined}
+                  onClick={() => handleToggleStar(activeVideoId)}
+                />
+                <IconButton
+                  icon={videoMaximized ? Minimize2 : Maximize2}
+                  label={videoMaximized ? 'Restore' : 'Maximize video'}
+                  size={28}
+                  onClick={() => setVideoMaximized((v) => !v)}
+                />
+              </ControlGroup>
+            </OverflowSection>
+            {/* Layout button — hidden in floating tabs. Own popover (not a portal), so it's
+                items-less: when folded it renders as its own stacked block instead of a plain
+                MenuItem, keeping the same `absolute` positioning working unchanged. */}
+            {!floating && (
+              <OverflowSection>
+                <div className="relative" ref={layoutPickerRef}>
+                  <IconButton
+                    icon={LayoutGrid}
+                    label="Change layout"
+                    size={28}
+                    active={showLayoutPicker}
+                    onClick={() => setShowLayoutPicker((v) => !v)}
+                  />
+                  {showLayoutPicker && (
+                    <div className="material-popover absolute right-0 top-full mt-1 z-menu rounded-menu p-3 w-[340px]">
+                      <SectionLabel className="mb-2">Layout</SectionLabel>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {YOUTUBE_LAYOUTS.map((def) => (
+                          <OptionCard
+                            key={def.id}
+                            title={def.label}
+                            description={<>{def.description}{def.requiresBoth && <span className="block text-micro text-warning mt-0.5">Needs 2 panels</span>}</>}
+                            selected={ytLayout === def.id}
+                            onClick={() => { setYtLayout(def.id); setShowLayoutPicker(false) }}
+                          />
+                        ))}
+                      </div>
+                      {/* Active panels summary */}
+                      {(panelA || panelB) && (
+                        <div className="mt-2 pt-2 border-t border-separator">
+                          <SectionLabel className="mb-1.5">Active panels</SectionLabel>
+                          <div className="flex flex-col gap-1">
+                            {panelA && (
+                              <div className="flex items-center justify-between gap-2 text-caption">
+                                <span className="text-text-secondary">Panel A: <span className="font-medium capitalize">{panelA.type}</span></span>
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }}>Remove</Button>
+                              </div>
+                            )}
+                            {panelB && (
+                              <div className="flex items-center justify-between gap-2 text-caption">
+                                <span className="text-text-secondary">Panel B: <span className="font-medium capitalize">{panelB.type}</span></span>
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }}>Remove</Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </OverflowSection>
+            )}
+          </OverflowGroup>
         </TabHeaderPortal>
 
         {/* ── Layout container: wraps video column + optional secondary panels ─ */}
@@ -2085,16 +2099,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   return (
     <div className="flex flex-col h-full bg-surface-3" onClick={closeMenus}>
-      {/* Toolbar — portaled into the shared top bar instead of drawing its own
-           second header row (was previously a full bar with its own drag-region,
-           stacked directly under the app-level top bar). The portal target
-           (ShellHeader's slot) is a fixed 44px-tall, overflow-hidden row, so this
-           can't wrap to a second line without getting clipped — OverflowGroup folds
-           trailing controls into a "…" popover once the row is too narrow instead
-           (nothing hidden, nothing scrolls sideways; see its own comment). Search
-           stays first in priority order, so it's the last thing to fold. */}
-      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'}>
-      <OverflowGroup label="More filters">
+      {/* Toolbar — portaled into the shared top bar instead of drawing its own second header
+           row. Two zones: context (the browse search field — a bare input like every other
+           tab's context-zone search, never folds since it isn't part of any OverflowGroup) and
+           actions (the filter/view controls). The portal target (ShellHeader's slot) is a fixed
+           44px-tall, overflow-hidden row, so the actions zone can't wrap to a second line without
+           getting clipped — OverflowGroup folds trailing controls into a "…" popover once the
+           row is too narrow instead (nothing hidden, nothing scrolls sideways; see its own
+           comment). */}
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} zone="context">
         <SearchField
           value={search}
           onValueChange={(v) => { setSearch(v); setPage(1) }}
@@ -2102,7 +2115,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           bare
           wrapperClassName="flex-1 min-w-[100px]"
         />
-
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} zone="actions">
+      <OverflowGroup label="More filters">
         {/* Search scope — only shown while searching: Title / Transcript / Both */}
         {search && (
           <SegmentedControl

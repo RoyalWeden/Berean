@@ -16,7 +16,7 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
-import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext } from '@/components/ui'
+import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext, OverflowGroup, OverflowSection } from '@/components/ui'
 import { LexiconEntryHeader, OccurrenceRow as OccurrenceRowUI, DerivedTermRow } from './parts'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
@@ -510,8 +510,15 @@ function EntryView({
         <LexiconEntryHeader strongsNum={entry.strongsNum} lemma={entry.lemma} />
       </TabHeaderPortal>
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
-        <div className="relative flex-shrink-0">
-          <ControlGroup>
+        {/* Two tiny controls — an OverflowGroup here mostly future-proofs the row for a narrow
+            floating window rather than folding often in practice. Copy gets `items` metadata
+            (a plain action); Info stays items-less (folds as its own stacked block) since its
+            popover is CSS-`absolute` off the wrapping div, not portaled — the same subtree has
+            to render together wherever OverflowGroup places it for that positioning to hold. */}
+        <OverflowGroup label="More">
+          <OverflowSection items={[
+            { key: 'copy', label: "Copy Strong's number and definition", icon: copied ? CheckIcon : Copy, onSelect: handleCopy },
+          ]}>
             <IconButton
               icon={copied ? CheckIcon : Copy}
               label="Copy Strong's number and definition"
@@ -519,17 +526,21 @@ function EntryView({
               iconClassName={copied ? 'text-success' : undefined}
               onClick={handleCopy}
             />
-            <IconButton
-              icon={Info}
-              label="How to read a lexicon entry"
-              size={28}
-              selected={infoOpen}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setInfoOpen((v) => !v)}
-            />
-          </ControlGroup>
-          {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
-        </div>
+          </OverflowSection>
+          <OverflowSection>
+            <div className="relative flex-shrink-0">
+              <IconButton
+                icon={Info}
+                label="How to read a lexicon entry"
+                size={28}
+                selected={infoOpen}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setInfoOpen((v) => !v)}
+              />
+              {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
+            </div>
+          </OverflowSection>
+        </OverflowGroup>
       </TabHeaderPortal>
 
       {/* Entry body bumped to ~reading size (READING_REGION_ZOOM) while still tracking app
@@ -981,31 +992,41 @@ function SearchView({
       />
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
         <BookMarked size={14} className="text-text-muted flex-shrink-0" />
-        <span className="text-subhead font-medium text-text-primary">Lexicon</span>
+        <span className="text-subhead font-semibold text-text-primary">Lexicon</span>
       </TabHeaderPortal>
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
-        <SegmentedControl
-          size="sm"
-          value={lang}
-          onChange={setLang}
-          aria-label="Language"
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'H',   label: 'Heb' },
-            { value: 'G',   label: 'Grk' },
-          ]}
-        />
-        <div className="relative flex-shrink-0">
-          <IconButton
-            icon={Info}
-            label="How to read a lexicon entry"
-            size={28}
-            selected={infoOpen}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setInfoOpen((v) => !v)}
-          />
-          {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
-        </div>
+        <OverflowGroup label="More">
+          <OverflowSection priority="last" items={[
+            { key: 'lang-all', label: 'All languages', checked: lang === 'all', onSelect: () => setLang('all') },
+            { key: 'lang-h',   label: 'Hebrew',        checked: lang === 'H',   onSelect: () => setLang('H') },
+            { key: 'lang-g',   label: 'Greek',          checked: lang === 'G',   onSelect: () => setLang('G') },
+          ]}>
+            <SegmentedControl
+              size="sm"
+              value={lang}
+              onChange={setLang}
+              aria-label="Language"
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'H',   label: 'Heb' },
+                { value: 'G',   label: 'Grk' },
+              ]}
+            />
+          </OverflowSection>
+          <OverflowSection>
+            <div className="relative flex-shrink-0">
+              <IconButton
+                icon={Info}
+                label="How to read a lexicon entry"
+                size={28}
+                selected={infoOpen}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setInfoOpen((v) => !v)}
+              />
+              {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
+            </div>
+          </OverflowSection>
+        </OverflowGroup>
       </TabHeaderPortal>
 
       <div className="flex items-center gap-2 px-3 py-2 border-b border-separator">

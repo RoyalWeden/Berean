@@ -4,12 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
 import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
-import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel } from '@/components/ui'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel, OverflowGroup, OverflowSection } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import NotesList from './NotesList'
 import NoteEditor from './pm/NoteEditorPM'
@@ -1479,7 +1478,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     <span
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                       title="Open scripture reference"
-                      className="no-drag text-subhead font-medium truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
+                      className="no-drag text-subhead font-semibold truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
                     >
                       {headerDisplayTitle(activeNote)}
                     </span>
@@ -1496,7 +1495,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   </>
                 ) : (
                   <>
-                    <span className="text-subhead font-medium truncate text-text-primary opacity-75 select-none min-w-0">
+                    <span className="text-subhead font-semibold truncate text-text-secondary select-none min-w-0">
                       {headerDisplayTitle(activeNote)}
                     </span>
                     <div className="flex-1 self-stretch" aria-hidden="true" />
@@ -1512,7 +1511,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               <>
                 <span
                   onClick={() => setTitleFocused(true)}
-                  className="no-drag text-subhead font-medium truncate cursor-text text-text-primary min-w-0"
+                  className="no-drag text-subhead font-semibold truncate cursor-text text-text-primary min-w-0"
                 >
                   {activeNote.title || <span className="text-text-muted">Untitled</span>}
                 </span>
@@ -1548,45 +1547,27 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             />
           </>
         ) : restoringSpecificNote ? (
-          <span className="text-subhead font-medium text-text-muted">Notes</span>
+          <span className="text-subhead font-semibold text-text-tertiary">Notes</span>
         ) : (
-          <span className="text-subhead font-medium text-text-primary">Notes</span>
+          <span className="text-subhead font-semibold text-text-primary">Notes</span>
         )}
       </TabHeaderPortal>
-      {/* Actions zone (right of the toolbar's flexible space): per-mode action groups. */}
+      {/* Actions zone (right of the toolbar's flexible space): per-mode action groups, folded
+          into ONE "…" via OverflowGroup + a single `extraItems` list (replaces the separate
+          HeaderOverflowMenu that used to sit beside it — two overflow buttons in one bar would
+          have violated §17's "one More per bar"). The two mode switches — the editor's Edit/View
+          segmented toggle and the list's list/folder/board segmented control — are rendered as
+          plain siblings OUTSIDE the OverflowGroup rather than as `priority="never"` children of
+          it: OverflowGroup hoists `never` children to the FRONT of its own row to guarantee they
+          measure first (see OverflowGroup.tsx), which is exactly right for a leading mode switch
+          like these, but would be wrong for a trailing primary action — so "New note" (the
+          panel's primary action, with its own shortcut) gets the same treatment on the trailing
+          side instead, after the OverflowGroup's own "…", matching where Mail/Notes/Xcode keep
+          an always-visible "compose new" button outside any overflow chevron. */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
         {editing ? (
           <>
-            {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
-                editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
-                likely to need undoing as a typed one. Only meaningful while actually editing —
-                hidden in read-only 'view' mode. No disabled state: prosemirror-history's
-                undo()/redo() are harmless no-ops with nothing to undo/redo, and tracking
-                undoDepth()/redoDepth() reactively would mean re-rendering this header on every
-                single transaction just to grey out two buttons. */}
-            {editorMode === 'edit' && (
-              <ControlGroup>
-                <IconButton
-                  icon={Undo2}
-                  label="Undo"
-                  tooltip={{ shortcut: '⌘Z' }}
-                  size={24}
-                  onClick={() => editorCommandsRef.current?.undo()}
-                />
-                <IconButton
-                  icon={Redo2}
-                  label="Redo"
-                  tooltip={{ shortcut: '⌘⇧Z' }}
-                  size={24}
-                  onClick={() => editorCommandsRef.current?.redo()}
-                />
-              </ControlGroup>
-            )}
-            {/* Quick "look" preset for the note editor while typing — separate,
-                curated shortcut next to the mode toggle; the fuller font-family
-                picker stays in Settings → Display. */}
-            <NoteLookDropdown value={noteTypingLook} onChange={setNoteTypingLook} />
-            {/* ── Editor mode segmented toggle ── */}
+            {/* ── Editor mode segmented toggle — never folds (§17), see the zone comment. ── */}
             <HeaderSegmentedToggle
               value={editorMode}
               onChange={setEditorMode}
@@ -1596,64 +1577,88 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 { value: 'view', label: 'View', icon: Eye,     title: 'View — rendered read-only output' },
               ]}
             />
-            {/* Everything below is occasional, not per-edit frequency like
-                the mode toggle or find-in-note — collected behind the More
-                menu instead of growing the inline icon row further. Zoom
-                moved here from its own always-visible hover icon — that
-                popover's 350ms hover-close timing read as unreliable; this
-                row is plain click + a real typeable percentage input. */}
-            <HeaderOverflowMenu
-              items={[
+            <OverflowGroup
+              label="More"
+              extraItems={[
                 {
                   key: 'history',
                   label: 'Version history',
-                  icon: <History />,
-                  onClick: () => { if (activeNote) setVersionHistoryOpen(true) },
+                  icon: History,
+                  onSelect: () => { if (activeNote) setVersionHistoryOpen(true) },
                 },
                 {
                   key: 'markdown-help',
                   label: 'Markdown reference guide',
-                  icon: <HelpCircle />,
-                  onClick: openMarkdownReference,
+                  icon: HelpCircle,
+                  onSelect: openMarkdownReference,
                 },
                 {
                   key: 'print',
                   label: 'Print / export note',
-                  icon: <Printer />,
-                  onClick: () => { if (activeNote) setPrintPreviewOpen(true) },
+                  icon: Printer,
+                  onSelect: () => { if (activeNote) setPrintPreviewOpen(true) },
                 },
                 ...(!floating ? [{
                   key: 'open-scripture',
                   label: 'Open alongside scripture',
-                  icon: <BookOpen />,
-                  onClick: () => openNoteAsScripture(),
+                  icon: BookOpen,
+                  onSelect: () => openNoteAsScripture(),
                 }] : []),
                 {
                   key: 'delete',
                   label: 'Delete note',
-                  icon: <Trash2 />,
-                  onClick: () => deleteNote(),
+                  icon: Trash2,
+                  onSelect: () => deleteNote(),
                   danger: true,
-                  divider: true,
                 },
               ]}
-            />
-            {youtubeIsPlaying && (
-              <IconButton
-                icon={Paperclip}
-                label="Insert YouTube timestamp at cursor"
-                size={28}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  window.dispatchEvent(new CustomEvent('berean:requestTimestamp'))
-                }}
-              />
-            )}
+            >
+              {/* Quick "look" preset for the note editor while typing — placed first among the
+                  foldable groups (protected longest) since, unlike undo/redo, it has no
+                  keyboard-shortcut fallback once tucked into the menu. */}
+              <OverflowSection priority="last">
+                <NoteLookDropdown value={noteTypingLook} onChange={setNoteTypingLook} />
+              </OverflowSection>
+              {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
+                  editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
+                  likely to need undoing as a typed one. Only meaningful while actually editing —
+                  hidden in read-only 'view' mode. No disabled state: prosemirror-history's
+                  undo()/redo() are harmless no-ops with nothing to undo/redo, and tracking
+                  undoDepth()/redoDepth() reactively would mean re-rendering this header on every
+                  single transaction just to grey out two buttons. Has a shortcut, so folding it
+                  costs nothing — it folds before the Look preset. */}
+              {editorMode === 'edit' && (
+                <OverflowSection items={[
+                  { key: 'undo', label: 'Undo', icon: Undo2, shortcut: '⌘Z', onSelect: () => editorCommandsRef.current?.undo() },
+                  { key: 'redo', label: 'Redo', icon: Redo2, shortcut: '⌘⇧Z', onSelect: () => editorCommandsRef.current?.redo() },
+                ]}>
+                  <ControlGroup>
+                    <IconButton icon={Undo2} label="Undo" tooltip={{ shortcut: '⌘Z' }} size={24} onClick={() => editorCommandsRef.current?.undo()} />
+                    <IconButton icon={Redo2} label="Redo" tooltip={{ shortcut: '⌘⇧Z' }} size={24} onClick={() => editorCommandsRef.current?.redo()} />
+                  </ControlGroup>
+                </OverflowSection>
+              )}
+              {youtubeIsPlaying && (
+                <OverflowSection items={[
+                  { key: 'timestamp', label: 'Insert YouTube timestamp at cursor', icon: Paperclip, onSelect: () => window.dispatchEvent(new CustomEvent('berean:requestTimestamp')) },
+                ]}>
+                  <IconButton
+                    icon={Paperclip}
+                    label="Insert YouTube timestamp at cursor"
+                    size={28}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      window.dispatchEvent(new CustomEvent('berean:requestTimestamp'))
+                    }}
+                  />
+                </OverflowSection>
+              )}
+            </OverflowGroup>
           </>
         ) : restoringSpecificNote ? null : (
           <>
             {/* View mode: list / folder / board — exactly one active, switchable from any of
-                the three at any time. */}
+                the three at any time. Never folds (§17), see the zone comment. */}
             <SegmentedControl
               size="sm"
               value={viewMode}
@@ -1665,23 +1670,30 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 { value: 'board', icon: Columns3, title: 'Board view (by status)' },
               ]}
             />
-            {/* Idioms → single PDF export (reachable from list and folder view) */}
-            {renderIdiomsExport()}
-            {/* Tag relationship graph */}
-            <IconButton
-              icon={Waypoints}
-              label="Tag graph"
-              size={28}
-              onClick={() => useAppStore.getState().openTagsGraph()}
-            />
-            {/* Select mode toggle */}
-            <IconButton
-              icon={CheckSquare}
-              label="Select notes"
-              size={28}
-              active={selectMode}
-              onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
-            />
+            <OverflowGroup label="More">
+              {/* Idioms → single PDF export (reachable from list and folder view) */}
+              {notes.some((n) => n.type === 'idiom') && (
+                <OverflowSection>{renderIdiomsExport()}</OverflowSection>
+              )}
+              <OverflowSection items={[
+                { key: 'tag-graph', label: 'Tag graph', icon: Waypoints, onSelect: () => useAppStore.getState().openTagsGraph() },
+              ]}>
+                <IconButton icon={Waypoints} label="Tag graph" size={28} onClick={() => useAppStore.getState().openTagsGraph()} />
+              </OverflowSection>
+              <OverflowSection items={[
+                { key: 'select-notes', label: 'Select notes', icon: CheckSquare, checked: selectMode, onSelect: () => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } } },
+              ]}>
+                <IconButton
+                  icon={CheckSquare}
+                  label="Select notes"
+                  size={28}
+                  active={selectMode}
+                  onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
+                />
+              </OverflowSection>
+            </OverflowGroup>
+            {/* New note — the panel's primary action (⌘⇧N); always visible, outside the fold
+                system, see the zone comment. */}
             <IconButton
               icon={Plus}
               label="New note"

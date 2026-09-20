@@ -1946,6 +1946,12 @@ html[data-inactive] .material-inspector { color: rgb(var(--color-text-secondary)
 html[data-inactive] .material-bar .control-glass,
 html[data-inactive] .material-sidebar .control-glass { box-shadow: none; background: var(--lift-1); }
 html[data-inactive] .text-accent { color: rgb(var(--color-text-secondary)); }
+/* Pass 4 additions — only what native vibrancy does NOT already do: prominent tint off, sidebar
+   glyphs desaturate, badges neutral, focus ring hidden, toolbar title recedes. Text stays legible. */
+html[data-inactive] .border-accent\/25 { border-color: var(--hairline); }
+html[data-inactive] [class*="text-tab-"] { filter: saturate(0.4); }
+html[data-inactive] .focus-ring:focus-visible { box-shadow: none; }
+html[data-inactive] .material-bar .text-subhead.font-semibold { color: rgb(var(--color-text-secondary)); }
 
 /* Increase Contrast (System Settings → Accessibility → Display; electron forwards
    nativeTheme.shouldUseHighContrastColors as html[data-increase-contrast]): stronger hairlines,

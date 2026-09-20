@@ -248,7 +248,11 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
         function renderDayCell(cellDate: Date, colIdx: number, band: boolean) {
           const dateKey = toDateKey(cellDate)
           const isToday = dateKey === todayStr
-          const isSelected = !isToday && dateKey === selectedStr
+          // §7.5: selected (the daily note actually open) gets the accent fill — the stronger,
+          // "you are here" signal; today gets a ring — a lighter marker that stays visible even
+          // when today IS the selected date (the common case: opening today's own daily note),
+          // where the fill wins and the ring is redundant with it.
+          const isSelected = dateKey === selectedStr
           const noteLength = dailyNoteLength.get(dateKey) ?? 0
           const hasNote = noteLength > 0
           // Heatmap alpha: scales with content length, capped so a single huge entry doesn't
@@ -281,12 +285,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                 >
                   <span
                     className={`flex items-center justify-center ${squareSize} rounded-compact leading-none transition-[filter,background-color] duration-150
-                      ${isToday ? 'bg-accent text-white font-semibold group-hover:brightness-125'
-                        : isSelected ? 'text-text-primary ring-1 ring-inset ring-accent/60 group-hover:bg-lift-2 group-active:bg-lift-3'
+                      ${isSelected ? 'bg-accent text-white font-semibold group-hover:brightness-125'
+                        : isToday ? 'text-text-primary font-semibold ring-1 ring-inset ring-accent group-hover:bg-lift-2 group-active:bg-lift-3'
                         : 'text-text-secondary font-medium group-hover:bg-lift-2 group-active:bg-lift-3'}`}
                     style={{
                       fontSize: dayCellSize,
-                      ...(hasNote && !isToday ? { background: `rgb(var(--color-accent) / ${heatAlpha})`, color: 'rgb(var(--color-text-primary))' } : {}),
+                      ...(hasNote && !isSelected ? { background: `rgb(var(--color-accent) / ${heatAlpha})`, color: 'rgb(var(--color-text-primary))' } : {}),
                     }}
                   >
                     {cellDate.getDate()}

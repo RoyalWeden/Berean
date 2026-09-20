@@ -485,7 +485,11 @@ function buildAppMenu(): Electron.Menu {
           click: () => menuSend('app:command', 'find'),
         },
         { type: 'separator' as const },
-        { role: 'togglefullscreen' as const },
+        // `id` so app.on('browser-window-focus') below can look this item up and disable it
+        // for windows that aren't fullscreenable (Study Trail, verse picker, pop-outs — Pass 4
+        // §5.1: "The View menu item's enabled is recomputed on browser-window-focus so it is
+        // disabled for non-fullscreenable windows").
+        { id: 'toggle-fullscreen', role: 'togglefullscreen' as const },
         ...(is.dev ? [
           { type: 'separator' as const },
           { role: 'reload' as const },
@@ -601,8 +605,71 @@ function buildAppMenu(): Electron.Menu {
 
 const VIEWER_BOUNDS_KEY = 'viewerWindowBounds'
 const VIEWER_DEFAULT_BOUNDS = { width: 900, height: 700 }
+// Pass 4 §5.1: viewer minimum shrunk from 500×400 to 480×360 to match the spec's
+// "viewer min 480×360" — kept in sync with the BrowserWindow's own minWidth/minHeight below.
+const VIEWER_MIN = { minWidth: 480, minHeight: 360 }
 
 interface WindowBounds { x?: number; y?: number; width: number; height: number }
+
+/** Does `bounds` overlap at least one currently-connected display's work area? Shared by every
+ *  bounds-loader below (main/viewer/Study Trail/verse picker/pop-outs) and by the live
+ *  display-change re-clamp (screen.on('display-removed'|'display-metrics-changed') below) so a
+ *  bounds saved on — or a window dragged onto — a monitor that's since been disconnected can't
+ *  strand a window off-screen. */
+function boundsFitAnyDisplay(bounds: { x: number; y: number; width: number; height: number }): boolean {
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea
+    return bounds.x < a.x + a.width && bounds.x + bounds.width > a.x &&
+           bounds.y < a.y + a.height && bounds.y + bounds.height > a.y
+  })
+}
+
+/** Generic settings-table bounds persistence for a secondary window — same load/save shape as
+ *  the bespoke viewer/main-window functions this was extracted alongside, minus the main
+ *  window's `maximized` flag (secondary windows here are never maximized/fullscreen-restored the
+ *  same way). Used by Study Trail, the verse picker, and floating pop-outs (Pass 4 §5.3's "ADD:
+ *  bounds persistence for Study Trail / verse picker / floating pop-outs, using the same
+ *  loadXBounds/saveXBounds shape with display-fit clamping"). */
+function makeBoundsStore(key: string, defaults: { width: number; height: number }, min: { minWidth: number; minHeight: number }) {
+  return {
+    load(): WindowBounds {
+      try {
+        const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
+        if (!row) return { ...defaults }
+        const saved = JSON.parse(row.value) as Partial<WindowBounds>
+        const width = Math.max(min.minWidth, Math.round(saved.width ?? defaults.width))
+        const height = Math.max(min.minHeight, Math.round(saved.height ?? defaults.height))
+        if (typeof saved.x !== 'number' || typeof saved.y !== 'number') return { width, height }
+        const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
+        return boundsFitAnyDisplay(candidate) ? candidate : { width, height }
+      } catch {
+        return { ...defaults }
+      }
+    },
+    save(bounds: WindowBounds): void {
+      try {
+        getBereanDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(bounds))
+      } catch { /* best-effort — never block window close/resize on a settings-write failure */ }
+    },
+  }
+}
+
+/** Attaches debounced (300ms, per Pass 4 §5.3) bounds persistence to a secondary window: saves
+ *  on resize/move while open, and once more on close (the window still exists at 'close', so
+ *  getBounds() is safe — by 'closed' it's already destroyed). */
+function persistBoundsOnClose(win: BrowserWindow, store: ReturnType<typeof makeBoundsStore>): void {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const schedule = () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => { if (!win.isDestroyed()) store.save(win.getBounds()) }, 300)
+  }
+  win.on('resize', schedule)
+  win.on('move', schedule)
+  win.on('close', () => {
+    if (timer) clearTimeout(timer)
+    if (!win.isDestroyed()) store.save(win.getBounds())
+  })
+}
 
 /** Reads the last-saved viewer window bounds from the settings table (same table/
  *  pattern already used for `vaultSync` above), clamped to fit some currently-
@@ -614,20 +681,15 @@ function loadViewerBounds(): WindowBounds {
     const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get(VIEWER_BOUNDS_KEY) as { value: string } | undefined
     if (!row) return { ...VIEWER_DEFAULT_BOUNDS }
     const saved = JSON.parse(row.value) as Partial<WindowBounds>
-    const width = Math.max(500, Math.round(saved.width ?? VIEWER_DEFAULT_BOUNDS.width))
-    const height = Math.max(400, Math.round(saved.height ?? VIEWER_DEFAULT_BOUNDS.height))
+    const width = Math.max(VIEWER_MIN.minWidth, Math.round(saved.width ?? VIEWER_DEFAULT_BOUNDS.width))
+    const height = Math.max(VIEWER_MIN.minHeight, Math.round(saved.height ?? VIEWER_DEFAULT_BOUNDS.height))
     if (typeof saved.x !== 'number' || typeof saved.y !== 'number') {
       return { width, height }
     }
     // Only keep x/y if they'd place the window (at least partially) within some
     // currently-connected display's work area — otherwise let Electron auto-position.
     const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
-    const fits = screen.getAllDisplays().some((d) => {
-      const a = d.workArea
-      return candidate.x < a.x + a.width && candidate.x + width > a.x &&
-             candidate.y < a.y + a.height && candidate.y + height > a.y
-    })
-    return fits ? candidate : { width, height }
+    return boundsFitAnyDisplay(candidate) ? candidate : { width, height }
   } catch {
     return { ...VIEWER_DEFAULT_BOUNDS }
   }
@@ -656,12 +718,7 @@ function loadMainBounds(): WindowBounds & { maximized?: boolean } {
       return { width, height, maximized: saved.maximized }
     }
     const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
-    const fits = screen.getAllDisplays().some((d) => {
-      const a = d.workArea
-      return candidate.x < a.x + a.width && candidate.x + width > a.x &&
-             candidate.y < a.y + a.height && candidate.y + height > a.y
-    })
-    return fits ? { ...candidate, maximized: saved.maximized } : { width, height, maximized: saved.maximized }
+    return boundsFitAnyDisplay(candidate) ? { ...candidate, maximized: saved.maximized } : { width, height, maximized: saved.maximized }
   } catch {
     return { ...MAIN_DEFAULT_BOUNDS }
   }
@@ -692,8 +749,12 @@ function createViewerWindow(): void {
   const bounds = loadViewerBounds()
   viewerWindow = new BrowserWindow({
     ...bounds,
-    minWidth: 500,
-    minHeight: 400,
+    minWidth: VIEWER_MIN.minWidth,
+    minHeight: VIEWER_MIN.minHeight,
+    // Pass 4 §5.1: unlike Study Trail / the verse picker / pop-outs, the viewer stays
+    // fullscreenable — presenting on a second display is its whole purpose (fullscreenable
+    // defaults to true, left implicit here; the enter/leave-full-screen handlers just below
+    // are what make combining that with always-on-top actually work).
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
     // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
@@ -712,6 +773,13 @@ function createViewerWindow(): void {
 
   viewerWindow.setAlwaysOnTop(true, 'floating')
   viewerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  // Pass 4 §5.1: an always-on-top fullscreen window is not a supported macOS combination —
+  // clear always-on-top while the viewer is actually fullscreen (e.g. presenting on a second
+  // display via the View menu's fullscreen command, Phase 14) and restore the normal floating
+  // level the instant it leaves fullscreen.
+  viewerWindow.on('enter-full-screen', () => { viewerWindow?.setAlwaysOnTop(false) })
+  viewerWindow.on('leave-full-screen', () => { viewerWindow?.setAlwaysOnTop(true, 'floating') })
 
   viewerWindow.on('focus', () => { viewerWindow?.webContents.send('app:windowActive', true) })
   viewerWindow.on('blur',  () => { viewerWindow?.webContents.send('app:windowActive', false) })
@@ -771,11 +839,14 @@ function createStudyTrailWindow(trailSessionId?: string): void {
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
   const isWin = process.platform === 'win32'
+  const trailBoundsStore = makeBoundsStore('trailWindowBounds', { width: 900, height: 640 }, { minWidth: 640, minHeight: 480 })
+  const trailBounds = trailBoundsStore.load()
   studyTrailWindow = new BrowserWindow({
-    width: 900,
-    height: 640,
+    ...trailBounds,
     minWidth: 640,
-    minHeight: 420,
+    minHeight: 480,
+    // Pass 4 §5.1: an always-on-top utility window that must not take over a display.
+    fullscreenable: false,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
     // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
@@ -793,6 +864,7 @@ function createStudyTrailWindow(trailSessionId?: string): void {
   ;(studyTrailWindow as any).__isStudyTrail = true
   studyTrailWindow.setAlwaysOnTop(true, 'floating')
   studyTrailWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  persistBoundsOnClose(studyTrailWindow, trailBoundsStore)
 
   studyTrailWindow.on('focus', () => { studyTrailWindow?.webContents.send('app:windowActive', true) })
   studyTrailWindow.on('blur',  () => { studyTrailWindow?.webContents.send('app:windowActive', false) })
@@ -840,11 +912,14 @@ function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): 
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
   const isWin = process.platform === 'win32'
+  const versePickerBoundsStore = makeBoundsStore('versePickerBounds', { width: 760, height: 640 }, { minWidth: 560, minHeight: 420 })
+  const pickerBounds = versePickerBoundsStore.load()
   versePickerWindow = new BrowserWindow({
-    width: 760,
-    height: 640,
+    ...pickerBounds,
     minWidth: 560,
     minHeight: 420,
+    // Pass 4 §5.1: an always-on-top utility window that must not take over a display.
+    fullscreenable: false,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
     // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
@@ -869,6 +944,7 @@ function createVersePickerWindow(ownerWebContentsId: number, payload: unknown): 
 
   versePickerWindow.on('focus', () => { versePickerWindow?.webContents.send('app:windowActive', true) })
   versePickerWindow.on('blur',  () => { versePickerWindow?.webContents.send('app:windowActive', false) })
+  persistBoundsOnClose(versePickerWindow, versePickerBoundsStore)
 
   versePickerWindow.on('closed', () => { versePickerWindow = null; versePickerOwnerId = null })
 }
@@ -884,11 +960,17 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   )}).toString()
 
   const isWin = process.platform === 'win32'
+  // Pass 4 §5.3: one bounds slot per tab type (a popped-out Bible tab and a popped-out
+  // Notes tab remember their own last size/position independently) — same
+  // loadXBounds/saveXBounds shape as Study Trail / the verse picker above.
+  const floatBoundsStore = makeBoundsStore(`floatBounds:${type}`, { width: 700, height: 700 }, { minWidth: 480, minHeight: 400 })
+  const floatBounds = floatBoundsStore.load()
   const floatWin = new BrowserWindow({
-    width: 700,
-    height: 700,
-    minWidth: 400,
+    ...floatBounds,
+    minWidth: 480,
     minHeight: 400,
+    // Pass 4 §5.1: an always-on-top utility window that must not take over a display.
+    fullscreenable: false,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
     ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
     // Opaque secondary window (no vibrancy) — match whichever scheme is actually active
@@ -916,6 +998,7 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
 
   floatWin.on('focus', () => { floatWin.webContents.send('app:windowActive', true) })
   floatWin.on('blur',  () => { floatWin.webContents.send('app:windowActive', false) })
+  persistBoundsOnClose(floatWin, floatBoundsStore)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     floatWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${paramStr}`)
@@ -957,6 +1040,11 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
         : {})),
     minWidth: 800,
     minHeight: 600,
+    // No maxWidth/maxHeight — no max size (Pass 4 §5.1, "zoomable true"). Electron's own name
+    // for the native macOS green-button "zoom" behavior is `maximizable` (there is no
+    // `zoomable` constructor option) — true is already the default, set explicitly so it reads
+    // as a documented decision rather than an implicit default someone could flip later.
+    maximizable: true,
     // On Windows: frameless so we draw our own title bar in React
     frame: !isWinWin,
     titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
@@ -1851,6 +1939,43 @@ app.whenReady().then(async () => {
   // see powerAwareness.ts for what "throttled" actually gates (vault watcher polling cadence,
   // YouTube tab's re-injection/transcript-sync polling).
   setupPowerAwareness()
+
+  // Pass 4 §5.1: "The View menu item's enabled is recomputed on browser-window-focus so it is
+  // disabled for non-fullscreenable windows." isFullScreenable() reflects each window's own
+  // `fullscreenable` constructor option (main windows: true/default; Study Trail, verse picker,
+  // pop-outs: false; viewer: true).
+  app.on('browser-window-focus', (_e, win) => {
+    const item = Menu.getApplicationMenu()?.getMenuItemById('toggle-fullscreen')
+    if (item) item.enabled = win.isFullScreenable()
+  })
+
+  // Pass 4 §5.1: "Display changes: on screen.on('display-removed'|'display-metrics-changed')
+  // re-clamp every window's bounds with the existing display-fit logic; setBounds only if
+  // off-screen." A removed/reconfigured display can leave a window (fully or partly) off any
+  // remaining screen — reposition+resize it onto the primary display's work area, but only the
+  // windows that are actually now off-screen (boundsFitAnyDisplay), never ones that still fit.
+  function reclampIfOffscreen(win: BrowserWindow | null): void {
+    if (!win || win.isDestroyed()) return
+    const b = win.getBounds()
+    if (boundsFitAnyDisplay(b)) return
+    const a = screen.getPrimaryDisplay().workArea
+    const width = Math.min(b.width, a.width)
+    const height = Math.min(b.height, a.height)
+    win.setBounds({
+      x: a.x + Math.round((a.width - width) / 2),
+      y: a.y + Math.round((a.height - height) / 2),
+      width,
+      height,
+    })
+  }
+  function reclampAllWindows(): void {
+    for (const w of appWindows) reclampIfOffscreen(w)
+    reclampIfOffscreen(viewerWindow)
+    reclampIfOffscreen(studyTrailWindow)
+    reclampIfOffscreen(versePickerWindow)
+  }
+  screen.on('display-removed', reclampAllWindows)
+  screen.on('display-metrics-changed', reclampAllWindows)
 
   app.on('activate', () => {
     if (appWindows.size === 0) createWindow()

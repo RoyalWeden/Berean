@@ -1,5 +1,7 @@
 import { EmptyState as UiEmptyState } from '@/components/ui'
 import { lazy, Suspense, type ReactNode } from 'react'
+import { motion } from 'framer-motion'
+import { CROSSFADE } from '@/lib/motion'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import BiblePanel from '@/components/bible/BiblePanel'
@@ -44,10 +46,24 @@ function EmptyState() {
 // an ancestor goes visibility:hidden (the original reason YouTube used display:none
 // here). Kept mounted so switching back is a display flip — no unmount, no refetch,
 // no editor rebuild, scroll position still in the DOM.
+//
+// §7.3/§70/§78: workspace/tab switching is Safari-like — the incoming layer crossfades in
+// (120ms opacity, no slide/scale); the outgoing one just disappears (display:none happens on
+// the same render, so it has nothing to animate anyway). The inner motion.div is unconditionally
+// present (never conditionally wrapped) so toggling `visible` never unmounts/remounts `children`
+// — the YouTube webview and every other panel's own mount-scoped state stay exactly as
+// continuous as before this was added.
 function Layer({ visible, children }: { visible: boolean; children: ReactNode }) {
   return (
     <div className={`absolute inset-0 ${visible ? '' : 'hidden pointer-events-none'}`}>
-      {children}
+      <motion.div
+        initial={false}
+        animate={{ opacity: visible ? 1 : 0 }}
+        transition={CROSSFADE.transition}
+        className="absolute inset-0"
+      >
+        {children}
+      </motion.div>
     </div>
   )
 }
