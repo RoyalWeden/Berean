@@ -1836,7 +1836,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       <button
                         key={rec.videoId}
                         onClick={() => { setVideoEnded(false); setActiveVideoId(rec.videoId) }}
-                        className="text-left group rounded-card overflow-hidden bg-surface-elevated border border-border hover:border-accent/50 transition-[border-color] cursor-pointer"
+                        className="text-left group rounded-card overflow-hidden bg-surface-elevated border border-border hover:border-accent/50 transition-all cursor-pointer"
                       >
                         <div className="relative w-full aspect-video bg-surface-4">
                           {(() => {
@@ -2339,7 +2339,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         <span className="tabular-nums flex-shrink-0">{progress.done}/{progress.total}</span>
                       </div>
                       <div className="h-1 rounded-full bg-surface-4 overflow-hidden">
-                        <div className="h-full bg-success transition-[width]" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
+                        <div className="h-full bg-success transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
                       </div>
                     </div>
                   )}
@@ -2494,7 +2494,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       e.preventDefault()
                       setVideoMenu({ video, x: e.clientX, y: e.clientY })
                     }}
-                    className="text-left group rounded-card overflow-hidden bg-surface-2 border border-separator hover:border-accent/50 hover:bg-surface-hover transition-[border-color,background-color] cursor-pointer relative"
+                    className="text-left group rounded-card overflow-hidden bg-surface-2 border border-separator hover:border-accent/50 hover:bg-surface-hover transition-all cursor-pointer relative"
                   >
                     {/* Thumbnail */}
                     <div className="relative w-full aspect-video bg-surface-4 overflow-hidden">
