@@ -321,7 +321,10 @@ as badges (section labels use `SectionLabel`).
   visit counts as Badge + disclosure, Notes link editor popover (Apply/Remove/Cancel), per-tab
   panel isolation (Lexicon/Search keyed by tab, Notes home-view snapshot), note editor popups
   portaled to body, cross-tab back history (a note becomes the Scripture/Lexicon tab's previous
-  entry; no "back to note" pills). Still open: NoteSidePanel sections on SectionLabel/ListRow.
+  entry; no "back to note" pills); NoteSidePanel already sits on material-inspector + SectionHeader/ListRow.
+  Search: scope · mode · word-mode right-aligned in the actions zone at one 28px/footnote size; the
+  Filters popover hosts result length + the tag checklist (stays open while picking; trigger names
+  the chosen tags, +N beyond two); a menu opened from inside a popover sits above it (z-menu 450).
 - 2026-09-20 — Pass 4 foundation: control shapes follow Apple's rule (capsules reserved for search
   fields, lg/primary/prominent buttons, tokens, badges, switches; everything else rounded rectangles);
   `Badge`, `TabStrip`, `useContextMenu`, `MenuGroup`/`MenuSub`, `ScrollContainer`, `CompactMetrics`;
