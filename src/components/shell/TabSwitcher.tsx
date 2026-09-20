@@ -200,7 +200,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
       {/* Backdrop — a light scrim (Spotlight-class), no blur of its own; the elevated
           card material below supplies the blur. */}
       <motion.div
-        className="absolute inset-0 bg-black/20"
+        className="absolute inset-0 scrim-light"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.12 }}
@@ -208,7 +208,8 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
 
       {/* Switcher card — stop propagation so clicks inside don't trigger backdrop close */}
       <motion.div
-        className="relative pointer-events-auto material-elevated rounded-sheet px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
+        className="relative pointer-events-auto material-elevated rounded-menu px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
+        style={{ transformOrigin: 'center' }}
         onMouseDown={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.95, y: -6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

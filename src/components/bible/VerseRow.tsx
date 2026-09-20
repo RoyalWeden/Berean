@@ -1056,7 +1056,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           {splitStrongsHighlight(verse.text, highlightStrongsWords ?? [], highlightStrongsExtraWords).map((seg, i, arr) => (
             <span key={i}>
               {seg.match
-                ? <mark className="bg-[rgb(var(--highlight-amber)/0.35)] text-text-primary rounded-chip font-semibold">{seg.text}</mark>
+                ? <mark className="find-mark">{seg.text}</mark>
                 : seg.text}
               {i < arr.length - 1 ? ' ' : ''}
             </span>
@@ -1502,7 +1502,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'rounded-card bg-accent/8 ring-1 ring-inset ring-accent/30' : ''}`}
+      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'rounded-card bg-accent-muted' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
@@ -1516,13 +1516,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
           title={isSelected ? 'Deselect verse' : 'Select verse'}
           className={`
-            inline-flex items-center justify-center text-[0.72em] font-medium leading-none
-            h-[1.5em] rounded-[0.4em] cursor-pointer select-none transition-colors
+            focus-ring inline-flex items-center justify-center text-[0.72em] font-medium leading-none
+            h-[1.5em] rounded-compact cursor-pointer select-none transition-colors
             ${isSelected
-              ? 'text-white bg-accent font-semibold hover:brightness-110 shadow-sm'
+              ? 'text-white bg-accent font-semibold hover:brightness-110'
               : isHighlighted
                 ? 'text-accent font-semibold'
-                : 'text-text-muted hover:text-accent hover:bg-accent/10'
+                : 'text-text-muted hover:text-accent hover:bg-accent-muted'
             }
           `}
           style={{ width: '1.9em', minWidth: '1.9em' }}
@@ -1682,12 +1682,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               return (
             <div
               ref={noteHoverRef}
-              className="fixed z-popover w-[300px] max-h-[440px] overflow-y-auto material-popover rounded-menu"
-              // Denser than the default popover alpha (0.86) — this floats directly over live
-              // Scripture text, which read as too see-through to comfortably read the popup's
-              // own rows against. Still genuinely translucent (a hair of the text behind shows
-              // through at the edges), just not enough to compete with what's under it.
-              style={{ left: noteHover.x, top: noteHover.y, backgroundColor: 'rgb(var(--color-surface-1) / 0.96)' }}
+              className="fixed z-popover w-[300px] max-h-[440px] overflow-y-auto material-popover material-popover-dense rounded-menu"
+              // material-popover-dense — denser than the default popover alpha: this floats
+              // directly over live Scripture text, which read as too see-through to comfortably
+              // read the popup's own rows against. Still genuinely translucent (a hair of the
+              // text behind shows through at the edges), just not enough to compete with what's
+              // under it.
+              style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
               onMouseLeave={() => setNoteHover(null)}
             >
@@ -1772,8 +1773,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           {crossRefHover && createPortal(
             <div
               ref={crossRefHoverRef}
-              className="fixed z-popover w-[320px] max-h-[420px] overflow-y-auto material-popover rounded-menu"
-              style={{ left: crossRefHover.x, top: crossRefHover.y, backgroundColor: 'rgb(var(--color-surface-1) / 0.96)' }}
+              className="fixed z-popover w-[320px] max-h-[420px] overflow-y-auto material-popover material-popover-dense rounded-menu"
+              style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
               onMouseLeave={() => { if (!indicatorMenu) setCrossRefHover(null) }}
             >

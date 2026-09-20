@@ -8,7 +8,7 @@ import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import type { ScriptureLayout } from '@/types'
 import { BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { migrateAllNotes, type MigrationResult } from '@/lib/noteMigration'
-import { Switch, SectionLabel, IconButton, Select, TextField, SearchField, Button, SegmentedControl, Sheet, ListRow, Slider, DisclosureRow, OptionCard } from '@/components/ui'
+import { Switch, SectionLabel, IconButton, Select, TextField, SearchField, Button, SegmentedControl, Sheet, ListRow, Slider, DisclosureRow, OptionCard, Divider } from '@/components/ui'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import SectionAnchorChips from './SectionAnchorChips'
 import YtLayoutSetting from './sections/YtLayoutSetting'
@@ -991,8 +991,10 @@ export default function SettingsModal() {
                     <Switch checked={noteVerseBlockSuggest} onCheckedChange={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)} />
                   </div>
 
-                  <div className="px-3 py-2 rounded-card bg-surface-elevated">
-                    <p className="s-desc text-caption text-text-secondary leading-relaxed">
+                  <Divider />
+                  <div>
+                    <SectionLabel className="mb-1.5">Suppressing a suggestion</SectionLabel>
+                    <p className="text-footnote text-text-secondary leading-relaxed">
                       To suppress auto-detection for a specific piece of text, select it in the editor and press <ShortcutKeys keys="⌘⇧R" className="align-middle" /> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
                   </div>
@@ -1061,7 +1063,7 @@ export default function SettingsModal() {
                               {def.symbols.slice(0, 3).map((sym, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                   <span className="text-text-muted text-micro" style={{ marginLeft: `${i * 10}px` }}>{sym}</span>
-                                  <span className="text-text-muted opacity-50 text-micro">item</span>
+                                  <span className="text-text-quaternary text-micro">item</span>
                                 </span>
                               ))}
                             </span>
@@ -1371,8 +1373,10 @@ export default function SettingsModal() {
                     </div>
                   )}
 
-                  <div className="px-3 py-2 rounded-card bg-surface-elevated">
-                    <p className="s-desc text-caption text-text-secondary leading-relaxed">
+                  <Divider />
+                  <div>
+                    <SectionLabel className="mb-1.5">How vault sync works</SectionLabel>
+                    <p className="text-footnote text-text-secondary leading-relaxed">
                       All data is always stored in Berean's internal database. The vault folder is a backup destination — Berean writes files there as you edit, watches for external changes, and periodically re-exports everything as a safety net. Vault data is never deleted when the app is uninstalled — to restore after a reinstall or on a new machine, just point to the same vault folder; it imports automatically when data is found.
                     </p>
                   </div>

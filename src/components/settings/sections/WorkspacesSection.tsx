@@ -109,13 +109,13 @@ export default function WorkspacesSection() {
               <span className="text-caption2 text-text-muted flex-shrink-0">
                 {new Date(ws.created_at).toLocaleDateString()}
               </span>
-              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} title="Load this workspace" className="flex-shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} tooltip="Load this workspace" className="flex-shrink-0">
                 Load
               </Button>
               <Button
                 size="sm" variant="ghost"
                 onClick={() => { setRenamingId(ws.id); setRenameValue(ws.name) }}
-                title="Rename"
+                tooltip="Rename"
                 className="flex-shrink-0"
               >
                 Rename

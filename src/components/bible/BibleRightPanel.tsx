@@ -318,12 +318,18 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
             {activeEntry.pronunciation && <span className="text-footnote text-text-muted">({activeEntry.pronunciation})</span>}
           </div>
           {activeEntry.gloss && (
-            <div className="text-footnote text-text-primary font-medium bg-surface-elevated px-2 py-1.5 rounded-card">
-              {/* Was plain text — the "Compare 3050, 3069." cross-refs Strong's glosses commonly
+            <div>
+              <SectionLabel className="mb-1">Gloss</SectionLabel>
+              {/* Was a boxed card (rounded-card bg-surface-elevated) — CONTENT stays flat per
+                  the design system's four-layer rule, so this reads the same as Definition/
+                  Derivation below rather than as its own little card.
+                  Was plain text — the "Compare 3050, 3069." cross-refs Strong's glosses commonly
                   end with were never clickable in this side-panel view (reported: "still shows
                   as it did before" after the main LexiconPanel.tsx got this same fix). Shared
                   DerivationText component so this can't drift out of sync with that fix again. */}
-              <DerivationText text={activeEntry.gloss} lang={langPrefix} onNav={navToEntry} />
+              <p className="text-footnote text-text-primary font-medium leading-relaxed">
+                <DerivationText text={activeEntry.gloss} lang={langPrefix} onNav={navToEntry} />
+              </p>
             </div>
           )}
           {!expanded && (
@@ -387,7 +393,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                 {occurrences.length > 0 && (
                   <Button variant="ghost" size="sm" icon={ScanSearch} className="h-5 px-1.5 text-micro"
                     onClick={() => useAppStore.getState().openScriptureSearchTab(activeEntry.strongsNum)}
-                    title={`Open all ${activeEntry.strongsNum} occurrences in a tab, with the words highlighted`}>
+                    tooltip={`Open all ${activeEntry.strongsNum} occurrences in a tab, with the words highlighted`}>
                     open in tab
                   </Button>
                 )}
@@ -586,9 +592,10 @@ function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapt
   return <span className="text-text-muted"> {display}</span>
 }
 
-/** Shared cross-ref result card — RefChip (+ optional meta) over the verse preview, with an
- *  optional footer line. Used by TSKe, classic, and note-derived cross-ref lists so the three
- *  don't each hand-roll their own copy of this button. */
+/** Shared cross-ref result card — a flush ListRow: verse text as the title (clamped to 3
+ *  lines), the RefChip (+ optional meta) as the subtitle, an optional footer note-title tucked
+ *  into the trailing meta slot. Used by TSKe, classic, and note-derived cross-ref lists so the
+ *  three don't each hand-roll their own copy of this button. */
 function CrossRefCard({
   refLabel, meta, bookId, chapter, verse, endVerse, footer, onClick, onContextMenu,
 }: {
@@ -603,20 +610,22 @@ function CrossRefCard({
   onContextMenu?: (e: React.MouseEvent) => void
 }) {
   return (
-    <button
+    <ListRow
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className="focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast cursor-pointer group"
-    >
-      <div className="flex items-center gap-1.5">
-        <RefChip size="md" mono={false} className="w-fit">{refLabel}</RefChip>
-        {meta}
-      </div>
-      <p className="text-footnote text-text-secondary leading-relaxed">
-        <VerseText bookId={bookId} chapter={chapter} verse={verse} endVerse={endVerse} />
-      </p>
-      {footer}
-    </button>
+      titleClamp={3}
+      titleSize="footnote"
+      titleClassName="text-text-secondary leading-relaxed font-normal"
+      title={<VerseText bookId={bookId} chapter={chapter} verse={verse} endVerse={endVerse} />}
+      subtitle={
+        <span className="flex items-center gap-1.5">
+          <RefChip size="md" mono={false} className="w-fit">{refLabel}</RefChip>
+          {meta}
+        </span>
+      }
+      meta={footer}
+      buttonClassName="py-2"
+    />
   )
 }
 
@@ -833,7 +842,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
                     : r.endVerse
                       ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
                       : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
-                  meta={<span className="text-micro text-text-muted opacity-70 tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
+                  meta={<span className="text-micro text-text-tertiary tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
                   bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                   onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })}
                   onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
@@ -1075,8 +1084,8 @@ function UserNotesChapterView({
                 refLabel={<RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />}
                 bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                 footer={
-                  <span className="flex items-center gap-1 text-micro text-text-muted">
-                    <NotepadText size={8} className="flex-shrink-0 opacity-70" />
+                  <span className="flex items-center gap-1 max-w-[100px]">
+                    <NotepadText size={9} className="flex-shrink-0 text-text-tertiary" />
                     <span className="truncate">{r.sourceNoteTitle}</span>
                   </span>
                 }
@@ -1587,59 +1596,59 @@ export default function BibleRightPanel({
       .trim()
     const snippet = expandAll ? rawSnippet : rawSnippet.replace(/\n/g, ' ')
     return (
-      <div
+      <ListRow
         key={note.id}
-        className={`relative group transition-colors rounded-row ${i === selectedNoteIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'}`}
-      >
-        {/* The "open in notes tab" button below is absolutely positioned
-            (not a flex sibling) so it doesn't reserve layout space on the
-            right of every row even while invisible (opacity-0 still occupies
-            its box in normal flow) — that reserved gap was what read as
-            "too much padding on the right" in this list. */}
-        <button
-          onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
-          onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-          className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            {/* Note color dot — the same color-coding shown as a verse indicator
-                dot in the chapter view (VerseRow.tsx), surfaced here too so the
-                list itself communicates each note's category at a glance. */}
+        onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
+        onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
+        selected={i === selectedNoteIdx}
+        buttonClassName="py-2 items-start"
+        // Note color dot — the same color-coding shown as a verse indicator dot in the
+        // chapter view (VerseRow.tsx), surfaced here too so the list itself communicates
+        // each note's category at a glance.
+        leading={
+          <span
+            className="w-[6px] h-[6px] rounded-full flex-shrink-0 mt-1"
+            style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
+          />
+        }
+        title={note.title || 'Untitled'}
+        subtitle={
+          <span className="block">
+            {/* An inline `style` beats any class-based `white-space` rule (including
+                ListRow's own default `truncate`), so expandAll can reliably force
+                multi-line wrapping here without fighting the row's own utility classes. */}
             <span
-              className="w-[6px] h-[6px] rounded-full flex-shrink-0"
-              style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
-            />
-            <span className="text-footnote font-medium text-text-primary truncate">
-              {note.title || 'Untitled'}
+              style={{ whiteSpace: expandAll ? 'pre-wrap' : undefined }}
+              className={`block leading-relaxed ${expandAll ? 'break-words' : 'truncate'}`}
+            >
+              {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
             </span>
-          </div>
-          <div className={`text-caption text-text-muted mt-0.5 leading-relaxed ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
-            {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            {note.verseRef && (
-              <RefChip size="xs" className="w-fit flex-shrink-0">
-                {formatRef(note.verseRef)}
-              </RefChip>
-            )}
-            <span className="min-w-0 flex-1 truncate whitespace-nowrap text-right text-caption2 text-text-muted opacity-70 tabular-nums">
-              created {timeAgo(note.createdAt)}
-              {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
+            <span className="flex items-center gap-1.5 mt-1">
+              {note.verseRef && (
+                <RefChip size="xs" className="w-fit flex-shrink-0">
+                  {formatRef(note.verseRef)}
+                </RefChip>
+              )}
+              <span className="min-w-0 flex-1 truncate whitespace-nowrap text-right text-meta">
+                created {timeAgo(note.createdAt)}
+                {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
+              </span>
             </span>
-          </div>
-        </button>
-        <IconButton
-          icon={ExternalLink}
-          label="Open in notes tab"
-          size={24}
-          onClick={() => {
-            createNoteTab('note')
-            setActiveSpace('notes')
-            requestOpenNote(note.id)
-          }}
-          className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100"
-        />
-      </div>
+          </span>
+        }
+        trailing={
+          <IconButton
+            icon={ExternalLink}
+            label="Open in notes tab"
+            size={24}
+            onClick={() => {
+              createNoteTab('note')
+              setActiveSpace('notes')
+              requestOpenNote(note.id)
+            }}
+          />
+        }
+      />
     )
   }
 
@@ -1660,10 +1669,11 @@ export default function BibleRightPanel({
         }
       }}
     >
-      {/* Tab strip — hidden when a tab is forced externally. Styled as a capsule segmented
-          control (the design system's mutually-exclusive selector) but hand-built rather than
-          <SegmentedControl>, because each segment is also a drag source / drop target for the
-          "pop out"/"merge back" affordance (right-click too).
+      {/* Tab strip — hidden when a tab is forced externally. Styled as the flat "inspector"
+          segmented recipe (SegmentedControl variant="inspector": no track, rounded-compact
+          items) but hand-built rather than <SegmentedControl>, because each segment is also a
+          drag source / drop target for the "pop out"/"merge back" affordance (right-click too)
+          — SegmentedControl's options don't carry per-item drag handlers.
           BOTH slots use the same switchable multi-button strip (each filtered to whatever
           isn't already claimed by the OTHER slot) — a popped-out panel can hold more than one
           tab (dragging an additional tab into it adds a second button; dragging its last
@@ -1673,7 +1683,7 @@ export default function BibleRightPanel({
       {!forcedTab && (
         <Toolbar size="md" material="none" role="radiogroup" aria-label="Side panel">
           <div
-            className={`flex items-stretch gap-0.5 flex-1 min-w-0 p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)] transition-[box-shadow] ${dragOverStrip ? 'ring-2 ring-accent/50' : ''}`}
+            className={`flex items-stretch gap-0.5 flex-1 min-w-0 transition-[box-shadow] ${dragOverStrip ? 'ring-1 ring-inset ring-accent/50 rounded-compact' : ''}`}
             // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
             // for custom MIME strings across Chromium/Electron versions, and this drop zone only
             // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
@@ -1734,14 +1744,14 @@ export default function BibleRightPanel({
                   aria-checked={active}
                   className={`
                     focus-ring relative flex-1 flex items-center justify-center gap-1.5 h-[26px] px-2 text-caption font-medium
-                    rounded-control transition-colors duration-base ease-mac cursor-pointer select-none whitespace-nowrap
+                    rounded-compact transition-colors duration-base ease-mac cursor-pointer select-none whitespace-nowrap
                     ${active ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}
                   `}
                 >
                   {active && (
                     <motion.div
                       layoutId={`right-panel-tab-pill-${slotId}`}
-                      className="absolute inset-0 rounded-control bg-control-selected border border-hairline shadow-1 pointer-events-none"
+                      className="absolute inset-0 rounded-compact bg-control-selected pointer-events-none"
                       transition={SPRING_SNAPPY}
                     />
                   )}
@@ -1933,22 +1943,21 @@ export default function BibleRightPanel({
                             .replace(/[#*`_>~\[\]]/g, '')
                             .trim().replace(/\n/g, ' ')
                           return (
-                            <div key={note.id} className="relative group transition-colors hover:bg-surface-hover rounded-row">
-                              <button
-                                onClick={() => openSidebarNote(note)}
-                                className="focus-ring w-full text-left px-3 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
-                              >
-                                <div className="text-footnote font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
-                                <div className="text-caption text-text-muted mt-0.5 leading-relaxed truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
-                              </button>
-                              <IconButton
-                                icon={ExternalLink}
-                                label="Open in notes tab"
-                                size={24}
-                                onClick={() => { createNoteTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
-                                className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100"
-                              />
-                            </div>
+                            <ListRow
+                              key={note.id}
+                              onClick={() => openSidebarNote(note)}
+                              buttonClassName="py-2"
+                              title={note.title || 'Untitled'}
+                              subtitle={rawSnippet.slice(0, 80) || 'Empty note'}
+                              trailing={
+                                <IconButton
+                                  icon={ExternalLink}
+                                  label="Open in notes tab"
+                                  size={24}
+                                  onClick={() => { createNoteTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
+                                />
+                              }
+                            />
                           )
                         })}
                       </div>
@@ -1999,38 +2008,42 @@ export default function BibleRightPanel({
                           .trim()
                         const snippet = expandAll ? rawSnippet : rawSnippet.replace(/\n/g, ' ')
                         return (
-                          <div
+                          <ListRow
                             key={note.id}
-                            className="relative group transition-colors hover:bg-surface-hover rounded-row"
-                          >
-                            <button
-                              onClick={() => openSidebarNote(note)}
-                              onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                              className="focus-ring w-full text-left px-2 py-2.5 rounded-row cursor-pointer min-w-0 hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast"
-                            >
-                              <div className="text-footnote font-medium text-text-primary truncate">
-                                {note.title || 'Untitled'}
-                              </div>
-                              <div className={`text-caption text-text-muted mt-0.5 leading-relaxed ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
-                                {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
-                              </div>
-                              <div className="text-caption2 text-text-muted mt-0.5 opacity-70 truncate whitespace-nowrap">
-                                {note.verseRef ? `${formatRef(note.verseRef)} · ` : 'General · '}
-                                modified {timeAgo(note.updatedAt)}
-                              </div>
-                            </button>
-                            <IconButton
-                              icon={ExternalLink}
-                              label="Open in notes tab"
-                              size={24}
-                              onClick={() => {
-                                createNoteTab('note')
-                                setActiveSpace('notes')
-                                requestOpenNote(note.id)
-                              }}
-                              className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100"
-                            />
-                          </div>
+                            onClick={() => openSidebarNote(note)}
+                            onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
+                            buttonClassName="py-2"
+                            title={note.title || 'Untitled'}
+                            subtitle={
+                              <span className="block">
+                                {/* An inline `style` beats any class-based `white-space` rule
+                                    (including ListRow's own default `truncate`) — see
+                                    renderNoteRow's matching comment above. */}
+                                <span
+                                  style={{ whiteSpace: expandAll ? 'pre-wrap' : undefined }}
+                                  className={`block leading-relaxed ${expandAll ? 'break-words' : 'truncate'}`}
+                                >
+                                  {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
+                                </span>
+                                <span className="block text-meta truncate whitespace-nowrap mt-0.5">
+                                  {note.verseRef ? `${formatRef(note.verseRef)} · ` : 'General · '}
+                                  modified {timeAgo(note.updatedAt)}
+                                </span>
+                              </span>
+                            }
+                            trailing={
+                              <IconButton
+                                icon={ExternalLink}
+                                label="Open in notes tab"
+                                size={24}
+                                onClick={() => {
+                                  createNoteTab('note')
+                                  setActiveSpace('notes')
+                                  requestOpenNote(note.id)
+                                }}
+                              />
+                            }
+                          />
                         )
                       })}
                     </div>

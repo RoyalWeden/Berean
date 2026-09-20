@@ -5,7 +5,8 @@ import type { SlashCommand } from './slashCommands'
 import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
-import { Select, Button, IconButton, SectionLabel, ListRow } from '@/components/ui'
+import { Select, Button, IconButton, SectionLabel, MenuSurface, ListRow } from '@/components/ui'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 
 // Slash-command icons come straight from the shared block-type config, which is keyed
 // by the same ids SLASH_COMMANDS uses — so there is no local icon map to fall out of
@@ -30,18 +31,15 @@ export function StrongsSuggestPopup({
   num, x, y, onInsert, onDismiss,
 }: { num: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
   return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
-      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-menu-in">
       <span className="text-caption2 font-mono font-semibold text-accent">{num}</span>
       <Button variant="ghost" size="sm" onMouseDown={onInsert}>
         Insert Strong&apos;s block
         <ShortcutKeys keys="↵" className="ml-0.5" />
       </Button>
       <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
-    </div>
+    </MenuPositioner>
   )
 }
 
@@ -49,18 +47,15 @@ export function VerseSuggestPopup({
   refText, x, y, onInsert, onDismiss,
 }: { refText: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
   return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
-      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-menu-in">
       <span className="text-caption2 font-mono font-semibold text-accent">{refText}</span>
       <Button variant="ghost" size="sm" onMouseDown={onInsert}>
         Insert scripture block
         <ShortcutKeys keys="↵" className="ml-0.5" />
       </Button>
       <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
-    </div>
+    </MenuPositioner>
   )
 }
 
@@ -70,24 +65,20 @@ export function WikilinkPopup({
   if (notes.length === 0) return null
   const active = notes[activeIdx] ?? notes[0]
   return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
-      className="flex material-popover rounded-menu overflow-hidden animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <div className="w-56 max-h-64 overflow-y-auto py-1 flex-shrink-0">
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="flex material-popover rounded-menu overflow-hidden animate-menu-in">
+      <MenuSurface className="w-56 max-h-64 overflow-y-auto flex-shrink-0" dense role="listbox">
         {notes.map((note, i) => (
           <ListRow
             key={note.id}
-            bar
             current={i === activeIdx}
             onMouseEnter={() => onHoverIdx(i)}
             title={note.title || 'Untitled'}
-            className="mx-1"
-            buttonProps={{ onMouseDown: () => onInsert(note) }}
+            dense
+            buttonProps={{ role: 'option', 'aria-selected': i === activeIdx, onMouseDown: () => onInsert(note) }}
           />
         ))}
-      </div>
+      </MenuSurface>
       {active && (
         <div className="w-64 max-h-64 overflow-y-auto bg-surface-2/60 border-l border-separator p-3 flex-shrink-0">
           <p className="text-caption font-semibold text-text-primary mb-1.5 truncate">
@@ -108,7 +99,7 @@ export function WikilinkPopup({
           </p>
         </div>
       )}
-    </div>
+    </MenuPositioner>
   )
 }
 
@@ -123,15 +114,13 @@ export function RefHoverPreview({
   x, y, refLabel, text, loading,
 }: { x: number; y: number; refLabel: string; text: string; loading: boolean }) {
   return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
-      className="max-w-xs px-3 py-2 material-popover rounded-menu pointer-events-none animate-radix-popup-in"
-    >
+    <MenuPositioner x={x} y={y}
+      className="max-w-xs px-3 py-2 material-popover rounded-menu pointer-events-none animate-menu-in">
       <p className="text-caption2 font-mono font-semibold text-accent mb-1">{refLabel}</p>
       <p className="text-caption text-text-secondary leading-relaxed line-clamp-6">
         {loading ? 'Loading…' : (text || 'Not found')}
       </p>
-    </div>
+    </MenuPositioner>
   )
 }
 
@@ -171,11 +160,8 @@ export function VersePickerPopup({
   if (books.length === 0) return null
 
   return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-menu)' }}
-      className="pm-toolbar-solid material-popover rounded-menu p-2 flex flex-col gap-1.5 w-[220px] animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
+      className="pm-toolbar-solid material-popover rounded-menu p-2 flex flex-col gap-1.5 w-[220px] animate-menu-in">
       <Select
         size="sm"
         value={bookId}
@@ -209,7 +195,7 @@ export function VersePickerPopup({
           Insert
         </Button>
       </div>
-    </div>
+    </MenuPositioner>
   )
 }
 
@@ -224,36 +210,32 @@ export function SlashCommandPopup({
     g.items.push({ cmd, idx })
   })
   return (
-    <div
-      style={{ position: 'fixed', left: x, top: y, zIndex: 'var(--z-popover)' }}
-      className="w-64 max-h-80 overflow-y-auto material-popover rounded-menu py-1 animate-radix-popup-in"
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      {groups.map(({ group, items }) => (
-        <div key={group}>
-          <SectionLabel className="px-3 pt-2 pb-1">{group}</SectionLabel>
-          {items.map(({ cmd, idx }) => {
-            const Icon = BLOCK_TYPE_META[cmd.id]?.icon
-            return (
-              <ListRow
-                key={cmd.id}
-                bar
-                current={idx === activeIdx}
-                onMouseEnter={() => onHoverIdx(idx)}
-                buttonProps={{ onMouseDown: () => onSelect(cmd) }}
-                className="mx-1"
-                leading={
-                  <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-lift-1">
-                    {Icon && <Icon size={13} />}
-                  </span>
-                }
-                title={cmd.label}
-                subtitle={cmd.description}
-              />
-            )
-          })}
-        </div>
-      ))}
-    </div>
+    <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}>
+      <MenuSurface className="w-64 max-h-80 overflow-y-auto" role="listbox">
+        {groups.map(({ group, items }) => (
+          <div key={group}>
+            <SectionLabel className="px-2.5 pt-2 pb-1">{group}</SectionLabel>
+            {items.map(({ cmd, idx }) => {
+              const Icon = BLOCK_TYPE_META[cmd.id]?.icon
+              return (
+                <ListRow
+                  key={cmd.id}
+                  current={idx === activeIdx}
+                  onMouseEnter={() => onHoverIdx(idx)}
+                  buttonProps={{ role: 'option', 'aria-selected': idx === activeIdx, onMouseDown: () => onSelect(cmd) }}
+                  leading={
+                    <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-lift-1">
+                      {Icon && <Icon size={13} />}
+                    </span>
+                  }
+                  title={cmd.label}
+                  subtitle={cmd.description}
+                />
+              )
+            })}
+          </div>
+        ))}
+      </MenuSurface>
+    </MenuPositioner>
   )
 }

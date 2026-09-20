@@ -175,11 +175,11 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className="fixed left-1/2 bottom-5 -translate-x-1/2 material-popover rounded-control px-1.5 py-1"
-        // While a full-screen overlay (floating search / settings / history — all a z-50
-        // bg-black/50 backdrop) is up, sit at z-49: still above every bit of app chrome so it
-        // stays visible in the dimmed/blurred background, but behind the overlay itself.
-        style={{ zIndex: modalOpen ? 49 : 95 }}
+        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-popover rounded-control px-1.5 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
+        // While a full-screen overlay (floating search / settings / history) is up, drop to
+        // z-raised: still above every bit of app chrome so it stays visible in the dimmed/
+        // blurred background, but behind the overlay itself — same token PresenterControls
+        // uses for the same dodge.
         onMouseDown={(e) => e.stopPropagation()}
       >
         <Toolbar material="none" edge="none" size="sm" itemVariant="ghost" className="px-0 gap-0.5 h-auto">

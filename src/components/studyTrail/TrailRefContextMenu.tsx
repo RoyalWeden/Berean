@@ -110,21 +110,21 @@ export function TrailRefContextMenu({
             {menu.nodeActions.onAddSection && (
               <MenuItem
                 icon={Heading} label="Add a section here"
-                title="A labelled divider on the spine — everything below belongs to it until the next one"
+                description="A labelled divider on the spine — everything below belongs to it until the next one"
                 onClick={() => { menu.nodeActions!.onAddSection!(); onClose() }}
               />
             )}
             {menu.nodeActions.onAddNote && (
               <MenuItem
                 icon={StickyNote} label="Add a note here"
-                title="A resizable sticky pinned beside this stop"
+                description="A resizable sticky pinned beside this stop"
                 onClick={() => { menu.nodeActions!.onAddNote!(); onClose() }}
               />
             )}
             {menu.nodeActions.onSplitHere && (
               <MenuItem
                 icon={Scissors} label="Start a new session here"
-                title="Moves this stop and everything after it into a brand-new session"
+                description="Moves this stop and everything after it into a brand-new session"
                 onClick={() => { menu.nodeActions!.onSplitHere!(); onClose() }}
               />
             )}

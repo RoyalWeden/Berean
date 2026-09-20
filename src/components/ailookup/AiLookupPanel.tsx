@@ -619,14 +619,14 @@ export default function AiLookupPanel() {
           </Button>
           <Button
             variant="ghost" size="sm" icon={SearchCheck} selected={agenticOn}
-            title="Verifies the results actually answer your question and refines the search (up to twice more) if not — slower, off by default."
+            tooltip="Verifies the results actually answer your question and refines the search (up to twice more) if not — slower, off by default."
             onClick={() => setAgenticOn(!agenticOn)}
           >
             Deep search
           </Button>
           <Button
             variant="ghost" size="sm" icon={Eye} selected={useTabContext}
-            title="Sends whatever's in your currently active tab (chapter, note, lexicon entry, video) as extra context — you can also just mention it inline, e.g. 'this chapter', without turning this on."
+            tooltip="Sends whatever's in your currently active tab (chapter, note, lexicon entry, video) as extra context — you can also just mention it inline, e.g. 'this chapter', without turning this on."
             onClick={() => setUseTabContext(!useTabContext)}
           >
             This tab
@@ -642,7 +642,9 @@ export default function AiLookupPanel() {
             {!availability.available && availability.checked && (
               <div className="text-footnote text-text-muted bg-surface-elevated rounded-card p-3 leading-relaxed">
                 Ollama isn't running on this machine. Install it from{' '}
-                <Button variant="ghost" size="sm" className="!inline-flex !h-auto !px-0 underline" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</Button>
+                {/* Inline text link, not a Button — Button's fixed-height capsule box doesn't fit
+                    inline text flow; this is the one accepted plain-<button> shape for that. */}
+                <button type="button" className="text-accent underline hover:opacity-80 focus-ring rounded-control" onClick={() => window.app.openExternal('https://ollama.com')}>ollama.com</button>
                 {' '}and pull a model (e.g. <code>ollama pull gemma3:4b</code>), then reopen this panel.
               </div>
             )}
@@ -680,7 +682,7 @@ export default function AiLookupPanel() {
                             if (e.key === 'Escape') setEditingIndex(null)
                           }}
                           style={{ maxHeight: TEXTAREA_MAX_HEIGHT }}
-                          className="flex-1 min-w-0 !rounded-card"
+                          className="flex-1 min-w-0"
                         />
                         <IconButton icon={Send} label="Save & regenerate" size={20} onClick={() => submitEdit(mi)} className="text-accent flex-shrink-0" />
                         <IconButton icon={X} label="Cancel" size={20} onClick={() => setEditingIndex(null)} className="flex-shrink-0" />
@@ -800,7 +802,7 @@ export default function AiLookupPanel() {
                               <Button
                                 variant="ghost" size="sm" icon={crOpen ? ChevronDown : ChevronRight}
                                 onClick={(e) => { e.stopPropagation(); setCrossRefsOpen((prev) => ({ ...prev, [crKey]: !crOpen })) }}
-                                className="mt-1 !h-auto !px-0"
+                                className="mt-1"
                               >
                                 <Link2 size={10} /> {nested.length} related
                               </Button>
@@ -890,7 +892,7 @@ export default function AiLookupPanel() {
               placeholder={availability.available ? 'Ask where something is, or for verses about a topic…' : 'Ollama not running'}
               disabled={!availability.available || loading}
               style={{ maxHeight: TEXTAREA_MAX_HEIGHT }}
-              className="flex-1 min-w-0 !rounded-card"
+              className="flex-1 min-w-0"
             />
             <IconButton
               icon={Send}
@@ -916,7 +918,7 @@ export default function AiLookupPanel() {
         title="Resize"
         className="no-drag absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize touch-none"
       >
-        <svg viewBox="0 0 16 16" className="w-full h-full text-text-muted opacity-50">
+        <svg viewBox="0 0 16 16" className="w-full h-full text-text-quaternary">
           <path d="M14 2 L2 14 M14 8 L8 14" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
         </svg>
       </div>

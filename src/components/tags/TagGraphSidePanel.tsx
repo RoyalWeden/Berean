@@ -96,11 +96,13 @@ export default function TagGraphSidePanel(props: Props) {
             </form>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-1.5 px-1.5 flex flex-col gap-0.5">
+          <div className="flex-1 overflow-y-auto py-1">
             {filtered.map((t) => (
               <ListRow
                 key={t.id}
                 dense
+                flush
+                selected={t.id === selectedTagId}
                 leading={<span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />}
                 title={t.name}
                 meta={
@@ -251,6 +253,7 @@ function TagInspector({
               <ListRow
                 key={t.id}
                 dense
+                flush
                 title={`Merge into "${t.name}"`}
                 onClick={() => { onMerge(tag.id, t.id); setMergeOpen(false); onBack() }}
               />

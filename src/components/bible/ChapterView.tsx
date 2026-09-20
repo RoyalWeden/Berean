@@ -352,7 +352,7 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
   const note = textId ? versificationNote(bookId, chapter, textId) : null
   if (!note) return null
   return (
-    <div className="mb-4 flex items-start gap-1.5 text-caption text-text-muted opacity-80">
+    <div className="mb-4 flex items-start gap-1.5 text-caption text-text-quaternary">
       <BookOpen size={11} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
       <span>{note}</span>
     </div>
@@ -1246,7 +1246,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
                   : `vv.${missingBefore.join(', ')}`
               return (
                 <p
-                  className="px-3 py-0.5 text-caption2 text-text-muted opacity-60 select-none"
+                  className="px-3 py-0.5 text-caption2 text-text-quaternary select-none"
                   title="Present in the KJV but not in this Septuagint text"
                 >
                   — {label} not in LXX —
@@ -1254,7 +1254,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               )
             })()}
             {verse.title && (
-              <div className="px-3 pt-3 pb-0.5 text-caption text-text-muted opacity-75">
+              <div className="px-3 pt-3 pb-0.5 text-caption text-text-quaternary">
                 {verse.title}
               </div>
             )}

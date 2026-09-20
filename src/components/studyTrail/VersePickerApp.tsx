@@ -139,7 +139,7 @@ function VersePickerColumn({
               selected={textId === 'lxx'}
               size="sm"
               onClick={() => setTextId((t) => (t === 'lxx' ? 'kjva' : 'lxx'))}
-              title={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}
+              tooltip={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}
             >{textId === 'lxx' ? 'LXX' : 'KJV'}</Button>
           )}
         </div>

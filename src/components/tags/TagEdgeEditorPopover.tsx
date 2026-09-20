@@ -100,7 +100,7 @@ export default function TagEdgeEditorPopover({
 
       <div className="flex items-center justify-between">
         {draft.id ? (
-          <Button variant="ghost" size="sm" icon={Trash2} className="text-destructive hover:bg-destructive/12" onClick={onDelete}>Delete</Button>
+          <Button variant="ghost" size="sm" icon={Trash2} danger onClick={onDelete}>Delete</Button>
         ) : <span className="text-caption text-text-muted">Set anything or press Enter to keep</span>}
         <Button variant="ghost" size="sm" onClick={onClose}>Done</Button>
       </div>

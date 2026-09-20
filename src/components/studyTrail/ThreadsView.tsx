@@ -73,7 +73,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
     <div className={cx('rounded-card border mb-2 overflow-hidden transition-colors duration-fast', open ? 'border-accent/45' : 'border-separator')}>
       <ListRow
         onClick={() => setOpen((v) => !v)}
-        className="!rounded-none"
+        flush
         dense={false}
         leading={
           <span className="flex items-center gap-2">
@@ -146,7 +146,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
                       title={`${sn}${w?.gloss ? ` — ${w.gloss}` : ''} · Cmd-click to open in the main window`}
                     >
                       {w?.translit || sn}
-                      {w?.gloss && <span className="opacity-60"> {w.gloss}</span>}
+                      {w?.gloss && <span className="text-text-tertiary"> {w.gloss}</span>}
                     </Chip>
                   )
                 })}

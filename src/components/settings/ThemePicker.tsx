@@ -99,8 +99,7 @@ export default function ThemePicker({
 
   return createPortal(
     <div
-      className="no-drag fixed inset-0 z-critical flex flex-col bg-black/40 animate-fade-in"
-      style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+      className="no-drag fixed inset-0 z-critical flex flex-col scrim-modal animate-fade-in"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="flex flex-col flex-1 min-h-0 max-w-5xl w-full mx-auto my-6 material-sheet rounded-sheet overflow-hidden">

@@ -216,7 +216,7 @@ export function TrailReasonFormBody({
         <Button
           variant="ghost" size="sm" icon={MapPin} selected disabled={!pickerAvailable}
           onClick={openPicker}
-          title={pickerAvailable ? 'Pick which verses this connection ties together' : 'Verse ties need both a known origin and destination chapter'}
+          tooltip={pickerAvailable ? 'Pick which verses this connection ties together' : 'Verse ties need both a known origin and destination chapter'}
         >
           {tieFrom || tieTo ? 'Edit verse ties' : 'Pick verses'}
         </Button>

@@ -452,31 +452,36 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
 
             {filteredAndSorted.map((group) => (
               <div key={`${group.textId}::${group.bookId}`}>
-                {/* Book / text header */}
-                <SectionHeader
-                  count={group.results.length}
-                  className="material-bar !px-4 !py-1.5 border-b border-separator sticky top-[29px] z-raised"
-                  trailing={<>
-                    {textId === 'all' && (
-                      <span className="text-micro text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
-                    )}
-                    {group.testament && textId !== 'all' && (
-                      <span className="text-micro text-text-muted uppercase tracking-wide">{group.testament}</span>
-                    )}
-                  </>}
-                >
-                  <span className="inline-flex items-center gap-1.5 normal-case tracking-normal text-footnote font-semibold text-text-secondary">
-                    <BookOpen size={11} className="text-text-muted" />
-                    {group.bookName}
-                  </span>
-                </SectionHeader>
+                {/* Book / text header — outer bar owns the sticky/material/padding chrome;
+                    SectionHeader renders `flush` (its own minimal padding) inside it, rather
+                    than fighting its default padding with an `!important` override. */}
+                <div className="material-bar border-b border-separator sticky top-[29px] z-raised px-4 pt-1.5">
+                  <SectionHeader
+                    flush
+                    count={group.results.length}
+                    trailing={<>
+                      {textId === 'all' && (
+                        <span className="text-micro text-accent font-medium uppercase tracking-wide">{group.textLabel}</span>
+                      )}
+                      {group.testament && textId !== 'all' && (
+                        <span className="text-micro text-text-muted uppercase tracking-wide">{group.testament}</span>
+                      )}
+                    </>}
+                  >
+                    <span className="inline-flex items-center gap-1.5 normal-case tracking-normal text-footnote font-semibold text-text-secondary">
+                      <BookOpen size={11} className="text-text-muted" />
+                      {group.bookName}
+                    </span>
+                  </SectionHeader>
+                </div>
 
                 {/* Verse results */}
                 {group.results.map((r) => (
                   <ListRow
                     key={`${r._textId ?? textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
                     onClick={() => navigateToVerse(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
-                    className="!rounded-none border-b border-separator"
+                    flush
+                    className="border-b border-separator"
                     buttonClassName="items-start"
                     leading={
                       <RefChip size="md" variant="neutral" mono={false} className="w-16 justify-center">
@@ -484,7 +489,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                       </RefChip>
                     }
                     title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(r.text, query)}</span>}
-                    titleClassName="!whitespace-normal !overflow-visible !text-clip"
+                    titleClamp={3}
                     trailing={<ChevronRight size={11} className="text-text-muted" />}
                   />
                 ))}

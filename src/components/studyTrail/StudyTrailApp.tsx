@@ -18,7 +18,7 @@ import {
 } from './trailWindowPrefs'
 import {
   IconButton, Toolbar, Button, SegmentedControl, ListRow, Chip, TextField, Checkbox,
-  MenuSurface, MenuItem, MenuSeparator, MenuLabel, SectionLabel, ActionPillGroup, cx,
+  MenuSurface, MenuItem, MenuSeparator, MenuLabel, SectionLabel, ControlGroup, cx,
 } from '@/components/ui'
 
 // 'review' is gone — it was a per-session recap list that Michael said outright he wouldn't use.
@@ -617,10 +617,10 @@ export default function StudyTrailApp() {
           ) : (
             <span className="flex items-center gap-1">
               {s.possiblyAccidental && (
-                <Button variant="ghost" size="sm" onClick={(e) => dismissAccidental(e, s.id)} title="Empty/accidental session — dismiss without confirming">Dismiss</Button>
+                <Button variant="ghost" size="sm" onClick={(e) => dismissAccidental(e, s.id)} tooltip="Empty/accidental session — dismiss without confirming">Dismiss</Button>
               )}
               {s.status === 'ended' && !s.possiblyAccidental && (
-                <Button variant="ghost" size="sm" icon={Play} onClick={(e) => resumeEnded(e, s.id)} title="Pick this session back up — pauses whatever's currently active">Resume</Button>
+                <Button variant="ghost" size="sm" icon={Play} onClick={(e) => resumeEnded(e, s.id)} tooltip="Pick this session back up — pauses whatever's currently active">Resume</Button>
               )}
               <IconButton icon={X} label="Delete this session" size={20} danger onClick={(e) => requestDelete(e, s.id)} tooltip={false} />
             </span>
@@ -650,8 +650,10 @@ export default function StudyTrailApp() {
           traffic lights, same 78px ViewerApp.tsx uses for the same trafficLightPosition. */}
       <Toolbar
         size="md"
-        style={{ paddingLeft: 78, WebkitAppRegion: 'drag', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+        className="pl-traffic-lights"
+        style={{ WebkitAppRegion: 'drag', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
       >
+        {/* Zones-like layout: title · space · [actions ControlGroup] (no nav cluster here) */}
         <span className="text-subhead font-semibold mr-2.5">Study Trail</span>
         {/* REMOVED: the persistent "paused" pill. Per direct feedback, "pausing a session doesnt
             pause everything" — recording continues into the loose-stops bucket whenever no user
@@ -665,37 +667,39 @@ export default function StudyTrailApp() {
           options={MAIN_TABS.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
         />
         <div className="flex-1" />
-        {/* Opt-in "ask why I jumped chapters" arrival prompt (StudyTrailArrivalPrompt.tsx,
-            mounted in the main Bible-reader window) — off by default since it's an
-            interruption. Setting lives on the shared useAppStore (see
-            setStudyTrailAskChapterJumpReason), so it's a real persisted preference, not
-            session-local state, and syncs to the main window via the same localStorage
-            persist theme/wordReplacer already rely on. */}
-        <Button
-          variant="secondary"
-          selected={askChapterJumpReason}
-          onClick={() => setAskChapterJumpReason(!askChapterJumpReason)}
-          title="Ask why you jumped chapters — a dismissible prompt appears in the main window on tier-2/3 chapter jumps"
-        >
-          Ask why?
-        </Button>
-        {selectedSession && selectedSession.id === currentTrailSessionId && (
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => (trailSessionStatus === 'live' ? pauseTrailSession() : resumeTrailSession())}
-            >
-              {trailSessionStatus === 'live' ? 'Pause' : 'Resume'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={async () => { await endTrailSession(); await refresh() }}
-              title="End this session — it stops recording and moves to 'ended'"
-            >
-              End
-            </Button>
-          </>
-        )}
+        <ControlGroup>
+          {/* Opt-in "ask why I jumped chapters" arrival prompt (StudyTrailArrivalPrompt.tsx,
+              mounted in the main Bible-reader window) — off by default since it's an
+              interruption. Setting lives on the shared useAppStore (see
+              setStudyTrailAskChapterJumpReason), so it's a real persisted preference, not
+              session-local state, and syncs to the main window via the same localStorage
+              persist theme/wordReplacer already rely on. */}
+          <Button
+            variant="secondary"
+            selected={askChapterJumpReason}
+            onClick={() => setAskChapterJumpReason(!askChapterJumpReason)}
+            tooltip="Ask why you jumped chapters — a dismissible prompt appears in the main window on tier-2/3 chapter jumps"
+          >
+            Ask why?
+          </Button>
+          {selectedSession && selectedSession.id === currentTrailSessionId && (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => (trailSessionStatus === 'live' ? pauseTrailSession() : resumeTrailSession())}
+              >
+                {trailSessionStatus === 'live' ? 'Pause' : 'Resume'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={async () => { await endTrailSession(); await refresh() }}
+                tooltip="End this session — it stops recording and moves to 'ended'"
+              >
+                End
+              </Button>
+            </>
+          )}
+        </ControlGroup>
       </Toolbar>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -810,16 +814,16 @@ export default function StudyTrailApp() {
                 <div className="text-subhead font-semibold flex-1 truncate" style={{ textShadow: '0 1px 4px rgb(var(--color-surface-1))' }}>
                   {fmtDayHeading(selectedDayKey)}
                 </div>
-                <ActionPillGroup>
+                <ControlGroup>
                   {selectedDayKey !== dayKeyFor(Date.now()) && (
                     <IconButton icon={CalendarCheck} label="Jump to today" size={20} onClick={() => setSelectedDayKey(dayKeyFor(Date.now()))} />
                   )}
                   <IconButton icon={ChevronLeft} label="Earlier day" size={20} disabled={!prevDayKey} onClick={() => prevDayKey && setSelectedDayKey(prevDayKey)} />
                   <IconButton icon={ChevronRight} label="Later day" size={20} disabled={!nextDayKey} onClick={() => nextDayKey && setSelectedDayKey(nextDayKey)} />
-                </ActionPillGroup>
+                </ControlGroup>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="secondary" size="sm" icon={CalendarDays} onClick={() => setRailView('month')} title="Back to the month calendar">Months</Button>
+                <Button variant="secondary" size="sm" icon={CalendarDays} onClick={() => setRailView('month')} tooltip="Back to the month calendar">Months</Button>
                 <span className="flex-1" />
                 <IconButton icon={Plus} label="New session" size={24} active onClick={() => setCreatingSession(true)} />
                 {sessions.length > 0 && (
@@ -964,12 +968,12 @@ export default function StudyTrailApp() {
                         onClick={() => selectSessionToggle(s.id)}
                         onDoubleClick={() => startRename(s.id, s.name)}
                         onContextMenu={(e) => openSessionMenu(e, s.id)}
+                        className={selected ? 'shadow-2' : undefined}
                         style={{
                           position: 'absolute', top, height, left: `${(lane / laneCount) * 100}%`, width: `calc(${100 / laneCount}% - 4px)`,
                           borderRadius: 6, cursor: 'pointer', overflow: 'hidden', padding: '2px 6px',
                           background: selected ? 'rgb(var(--color-accent) / 0.22)' : `${color}1f`,
                           borderLeft: `3px solid ${color}`,
-                          boxShadow: selected ? '0 0 0 1px rgb(var(--color-accent))' : undefined,
                         }}
                       >
                         <div className="text-caption" style={{ fontWeight: 600, color: 'rgb(var(--color-text-primary))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1031,7 +1035,7 @@ export default function StudyTrailApp() {
           return (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="fixed inset-0 z-critical flex items-center justify-center bg-black/20"
+              className="fixed inset-0 z-critical flex items-center justify-center scrim-modal"
               onMouseDown={(e) => { if (e.target === e.currentTarget) setTagEditorFor(null) }}
             >
               <div className="w-[300px] max-h-[70vh] overflow-y-auto p-3.5 material-elevated rounded-sheet">
@@ -1183,13 +1187,13 @@ export default function StudyTrailApp() {
           // CTRL_W.zoom); on the left, `left: 240` clears the 220px session rail.
           style={{ left: zoomSide === 'left' ? 240 : undefined, right: zoomSide === 'left' ? undefined : 20 }}
         >
-          <ActionPillGroup className="material-control shadow-2">
+          <ControlGroup className="material-control shadow-2">
             {/* Multiplicative steps, matching the wheel — a fixed ±0.1 felt like a lurch at the
                 bottom of the range and like nothing at the top. */}
             <IconButton icon={Minus} label="Zoom out" size={24} tooltip={{ shortcut: '⌘−' }} onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z / 1.15))} />
-            <Button variant="ghost" size="sm" className="w-12" onClick={() => setZoom(1)} title="Reset zoom (⌘0)">{Math.round(zoom * 100)}%</Button>
+            <Button variant="ghost" size="sm" className="w-12" onClick={() => setZoom(1)} tooltip="Reset zoom (⌘0)">{Math.round(zoom * 100)}%</Button>
             <IconButton icon={Plus} label="Zoom in" size={24} tooltip={{ shortcut: '⌘+' }} onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z * 1.15))} />
-          </ActionPillGroup>
+          </ControlGroup>
         </div>
       )}
     </div>

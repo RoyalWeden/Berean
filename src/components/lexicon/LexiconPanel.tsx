@@ -16,7 +16,7 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
-import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar } from '@/components/ui'
+import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext } from '@/components/ui'
 import { LexiconEntryHeader, OccurrenceRow as OccurrenceRowUI, DerivedTermRow } from './parts'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
@@ -178,9 +178,9 @@ function BdbNotesText({ text }: { text: string }) {
               key={i}
               dir="ltr"
               title={`${t.text} occurrences in the Hebrew Bible`}
-              className="text-text-muted opacity-70"
+              className="text-meta"
             >
-              {t.text}<span className="text-[0.72em] opacity-60">&nbsp;occ.</span>
+              {t.text}<span className="text-micro">&nbsp;occ.</span>
             </span>
           )
         }
@@ -499,31 +499,35 @@ function EntryView({
       />
       {/* Header — portaled into the shared top bar, not a second local header.
            Back/home navigation is gone: the top bar's own back button now
-           reaches the search view (idx -1) directly via the global nav stack. */}
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
+           reaches the search view (idx -1) directly via the global nav stack.
+           Two zones: context (entry identity) and actions (grouped controls). */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
         {noteBack && onNoteBack && (
-          <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onNoteBack} title={`Back to "${noteBack.title}"`} className="max-w-[120px] flex-shrink-0">
+          <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onNoteBack} tooltip={`Back to "${noteBack.title}"`} className="max-w-[120px] flex-shrink-0">
             <span className="truncate">{noteBack.title}</span>
           </Button>
         )}
-        <LexiconEntryHeader strongsNum={entry.strongsNum} />
-        <div className="flex-1" />
-        <IconButton
-          icon={copied ? CheckIcon : Copy}
-          label="Copy Strong's number and definition"
-          size={28}
-          iconClassName={copied ? 'text-success' : undefined}
-          onClick={handleCopy}
-        />
-        <div className="relative">
-          <IconButton
-            icon={Info}
-            label="How to read a lexicon entry"
-            size={28}
-            selected={infoOpen}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setInfoOpen((v) => !v)}
-          />
+        <LexiconEntryHeader strongsNum={entry.strongsNum} lemma={entry.lemma} />
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        <div className="relative flex-shrink-0">
+          <ControlGroup>
+            <IconButton
+              icon={copied ? CheckIcon : Copy}
+              label="Copy Strong's number and definition"
+              size={28}
+              iconClassName={copied ? 'text-success' : undefined}
+              onClick={handleCopy}
+            />
+            <IconButton
+              icon={Info}
+              label="How to read a lexicon entry"
+              size={28}
+              selected={infoOpen}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => setInfoOpen((v) => !v)}
+            />
+          </ControlGroup>
           {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
         </div>
       </TabHeaderPortal>
@@ -559,7 +563,9 @@ function EntryView({
         </div>
 
         {entry.gloss && (
-          <div className="text-body text-text-primary font-medium bg-surface-elevated px-3 py-2 rounded-card">
+          <div>
+            <SectionLabel className="mb-1.5">Gloss</SectionLabel>
+            <p className="text-body text-text-primary font-medium leading-relaxed">
             {(() => {
               const isUnrepresented = entry.gloss.toLowerCase().includes('unrepresented in english')
               const rawGloss = isUnrepresented
@@ -582,6 +588,7 @@ function EntryView({
                 />
               )
             })()}
+            </p>
           </div>
         )}
 
@@ -645,14 +652,14 @@ function EntryView({
             <SectionLabel>
               Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </SectionLabel>
-            <Toolbar size="sm" material="none" edge="none" className="!px-0 !h-auto w-auto">
+            <Toolbar size="sm" edge="auto" material="none" className="w-auto flex-shrink-0">
               {occurrences.length > 0 && (
                 <Button
                   variant="secondary"
                   size="sm"
                   icon={ScanSearch}
                   onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
-                  title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
+                  tooltip={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
                 >
                   Open all in a tab
                 </Button>
@@ -735,7 +742,7 @@ function EntryView({
                 </div>
                 {hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-micro text-text-muted uppercase tracking-wide mr-0.5">Shown as:</span>
+                    <SectionLabel className="mr-0.5">Shown as:</SectionLabel>
                     <Chip size="sm" selected={occWordFilter.size === 0} onClick={() => setOccWordFilter(new Set())}>
                       All
                     </Chip>
@@ -807,30 +814,34 @@ function EntryView({
       </div>
       </div>
 
-      {/* Prev / Next navigation */}
+      {/* Prev / Next navigation — flat footer, not a ControlGroup card: wrapped only in the
+          context so Button reads `inGroup` and renders its own flat `rounded-none`, no
+          !important override needed for a footer that's already flush to the panel edges. */}
       <div className="flex items-center border-t border-separator flex-shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={ChevronLeft}
-          onClick={() => adjacent.prev && onNav(adjacent.prev, false)}
-          disabled={!adjacent.prev}
-          className="flex-1 justify-start !rounded-none px-4 py-2.5 h-auto"
-        >
-          {adjacent.prev}
-        </Button>
-        <Divider orientation="vertical" />
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={ChevronRight}
-          iconTrailing
-          onClick={() => adjacent.next && onNav(adjacent.next, false)}
-          disabled={!adjacent.next}
-          className="flex-1 justify-end !rounded-none px-4 py-2.5 h-auto"
-        >
-          {adjacent.next}
-        </Button>
+        <ControlGroupContext.Provider value={true}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ChevronLeft}
+            onClick={() => adjacent.prev && onNav(adjacent.prev, false)}
+            disabled={!adjacent.prev}
+            className="flex-1 justify-start px-4 py-2.5 h-auto"
+          >
+            {adjacent.prev}
+          </Button>
+          <Divider orientation="vertical" />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ChevronRight}
+            iconTrailing
+            onClick={() => adjacent.next && onNav(adjacent.next, false)}
+            disabled={!adjacent.next}
+            className="flex-1 justify-end px-4 py-2.5 h-auto"
+          >
+            {adjacent.next}
+          </Button>
+        </ControlGroupContext.Provider>
       </div>
     </div>
   )
@@ -968,32 +979,32 @@ function SearchView({
         onOpen={() => { if (ctxEntry) { onSelect(ctxEntry); searchCtx.close() } }}
         onOpenNewTab={() => { if (ctxEntry) { onOpenNewTab?.(ctxEntry); searchCtx.close() } }}
       />
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="relative">
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
         <BookMarked size={14} className="text-text-muted flex-shrink-0" />
         <span className="text-subhead font-medium text-text-primary">Lexicon</span>
-        <div className="ml-auto flex items-center gap-1">
-          <SegmentedControl
-            size="sm"
-            value={lang}
-            onChange={setLang}
-            aria-label="Language"
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'H',   label: 'Heb' },
-              { value: 'G',   label: 'Grk' },
-            ]}
+      </TabHeaderPortal>
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+        <SegmentedControl
+          size="sm"
+          value={lang}
+          onChange={setLang}
+          aria-label="Language"
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'H',   label: 'Heb' },
+            { value: 'G',   label: 'Grk' },
+          ]}
+        />
+        <div className="relative flex-shrink-0">
+          <IconButton
+            icon={Info}
+            label="How to read a lexicon entry"
+            size={28}
+            selected={infoOpen}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setInfoOpen((v) => !v)}
           />
-          <div className="relative ml-1">
-            <IconButton
-              icon={Info}
-              label="How to read a lexicon entry"
-              size={28}
-              selected={infoOpen}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setInfoOpen((v) => !v)}
-            />
-            {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
-          </div>
+          {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
         </div>
       </TabHeaderPortal>
 
@@ -1040,7 +1051,7 @@ function SearchView({
                 selected={i === selectedIdx}
                 onClick={() => onSelect(entry)}
                 onContextMenu={(e) => { setCtxEntry(entry); searchCtx.open(e, entry.strongsNum) }}
-                className="!rounded-none"
+                flush
                 leading={<span className="font-mono text-footnote text-text-muted w-12">{entry.strongsNum}</span>}
                 title={<span className="flex items-baseline gap-1.5">
                   {entry.lemma && <span className="font-lemma" dir="rtl">{entry.lemma}</span>}

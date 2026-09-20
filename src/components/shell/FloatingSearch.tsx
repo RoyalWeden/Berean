@@ -16,7 +16,24 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import { IconButton, SectionLabel, SearchField, Select, RefChip, Chip, ListRow, Toolbar, Button } from '@/components/ui'
+import { IconButton, SectionLabel, SectionHeader, SearchField, Select, RefChip, Chip, ListRow, Toolbar, Button } from '@/components/ui'
+
+/** Spotlight-style group heading for each result kind — the order matches how `results` is
+ *  actually built/ranked below; groups are inserted around already-ordered runs (never
+ *  reordering the list itself, which selectedIdx indexes directly for keyboard nav). */
+function resultGroupLabel(type: string): string {
+  switch (type) {
+    case 'ref': return 'Go to'
+    case 'verse': return 'Verses'
+    case 'lexicon': return 'Lexicon'
+    case 'note': return 'Notes'
+    case 'youtube': return 'YouTube'
+    case 'crossref': return 'Cross References'
+    case 'command': return 'Commands'
+    case 'tag': return 'Tags'
+    default: return 'Results'
+  }
+}
 import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
 
 interface CrossRef {
@@ -273,8 +290,12 @@ export default function FloatingSearch() {
     if (DIAG && searchOpen) dlog('commit #' + renderCountRef.current, 'query=' + JSON.stringify(query) + sinceKeystroke(query))
   })
 
+  // Focus returns to whatever was focused before ⌘K opened it (Spotlight convention) —
+  // captured on open, restored on close (only if that element is still attached).
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
     if (searchOpen) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null
       const tid = defaultBibleTranslation.toLowerCase()
       setSearchTextId(tid)
       setTimeout(() => inputRef.current?.focus(), 50)
@@ -288,6 +309,9 @@ export default function FloatingSearch() {
       setSelectedIdx(-1)
       setSelectedTags([])
       setTagFocusIdx(0)
+      const prev = previouslyFocusedRef.current
+      if (prev && document.contains(prev)) prev.focus()
+      previouslyFocusedRef.current = null
     }
   }, [searchOpen, defaultBibleTranslation])
 
@@ -1244,6 +1268,7 @@ export default function FloatingSearch() {
               z-critical w-full max-w-2xl
               material-elevated rounded-sheet overflow-hidden
             "
+            style={{ transformOrigin: 'top center' }}
             initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
             exit={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
@@ -1269,7 +1294,7 @@ export default function FloatingSearch() {
               >
                 <span className="invisible">{query}</span>
                 {predictedSpace && selectedIdx < 0 && (
-                  <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 opacity-35 text-text-muted text-caption">
+                  <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 text-text-quaternary text-caption">
                     → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
                   </span>
                 )}
@@ -1369,10 +1394,14 @@ export default function FloatingSearch() {
                 // Only highlight matches on verse/note sub-text, not ref labels
                 const highlightQ = (r.type === 'verse' || r.type === 'note' || r.type === 'youtube') ? cleanQuery : ''
                 const isSelected = i === selectedIdx
+                // A group header precedes the first row of each same-type run — the list
+                // itself is never reordered (selectedIdx indexes `results` directly).
+                const showGroupHeader = i === 0 || results[i - 1].type !== r.type
 
                 return (
+                  <div key={i}>
+                  {showGroupHeader && <SectionHeader className="px-4 pt-2.5 pb-1">{resultGroupLabel(r.type)}</SectionHeader>}
                   <ListRow
-                    key={i}
                     ref={isSelected ? selectedItemRef : undefined}
                     leading={r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-[rgb(var(--highlight-red))]" /> : r.type === 'crossref' ? <GitFork size={14} className="text-accent" /> : r.type === 'command' ? <Terminal size={14} className="text-accent" /> : r.type === 'tag' ? <Tag size={14} className="text-accent" /> : <Hash size={14} />}
                     title={r.label}
@@ -1396,6 +1425,7 @@ export default function FloatingSearch() {
                     // of the Tab order rather than competing with it.
                     buttonProps={{ tabIndex: -1 }}
                   />
+                  </div>
                 )
               })}
             </div>
@@ -1450,12 +1480,12 @@ export default function FloatingSearch() {
           {!isCommandMode && (query.trim().length > 0 || isTagMode || selectedTags.length > 0) && (
             <Toolbar size="sm" material="none" edge="top" className="text-text-muted">
               {isTagMode && candidateTags.length > 0 && (
-                <span className="inline-flex items-center gap-1 text-caption2 font-medium whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 text-meta whitespace-nowrap">
                   <ShortcutKeys keys="↵" /> add tag
                 </span>
               )}
               {isTagMode && verseTags.length === 0 && (
-                <span className="text-caption2 font-medium whitespace-nowrap">No verse tags yet</span>
+                <span className="text-meta whitespace-nowrap">No verse tags yet</span>
               )}
               <div className="flex-1" />
               <Button variant="ghost" size="sm" onClick={openAdvancedScriptureSearch}>

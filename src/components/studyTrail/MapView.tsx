@@ -466,7 +466,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             size="sm"
             className="!h-[18px] !px-2 flex-shrink-0"
             onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', conn.id) }}
-            title={collapsed ? 'Show what came off this' : 'Fold this branch away'}
+            tooltip={collapsed ? 'Show what came off this' : 'Fold this branch away'}
           >
             <GitBranch size={ICON.sm} />
             {branchCount}
@@ -542,7 +542,11 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
     return (
       <div>
         {items.map((c) => <ConnRow key={c.id} conn={c} refFor={refFor} onOpenPrompt={() => {}} openMenu={openMenu} registerPoint={registerPoint} />)}
-        <Button variant="ghost" size="sm" icon={ChevronUp} className="!h-auto !px-0 text-text-muted" onClick={() => setExpanded(false)}>collapse</Button>
+        {/* Inline text link, not a Button — Button's fixed-height capsule box doesn't fit this
+            dense inline row; the accepted plain-<button> shape for that (see AiLookupPanel.tsx). */}
+        <button type="button" className="inline-flex items-center gap-1 text-footnote text-text-muted hover:text-text-primary focus-ring rounded-control" onClick={() => setExpanded(false)}>
+          <ChevronUp size={ICON.sm} /> collapse
+        </button>
       </div>
     )
   }
@@ -607,7 +611,9 @@ function NodeClusterGroup({
             gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
           />
         ))}
-        <Button variant="ghost" size="sm" icon={ChevronUp} className="!h-auto !pl-[21px] !pr-0 text-text-muted" onClick={() => setExpanded(false)}>collapse</Button>
+        <button type="button" className="inline-flex items-center gap-1 pl-[21px] text-footnote text-text-muted hover:text-text-primary focus-ring rounded-control" onClick={() => setExpanded(false)}>
+          <ChevronUp size={ICON.sm} /> collapse
+        </button>
       </div>
     )
   }
@@ -1002,7 +1008,7 @@ function NodeBlock({
                 size="sm"
                 className="!h-[18px] !px-2 flex-shrink-0"
                 onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', nodeKey) }}
-                title={rowsCollapsed ? 'Show what came off this stop' : 'Fold this stop\u2019s branches away'}
+                tooltip={rowsCollapsed ? 'Show what came off this stop' : 'Fold this stop\u2019s branches away'}
               >
                 <GitBranch size={ICON.sm} />
                 {branchTotal}
@@ -1042,7 +1048,7 @@ function NodeBlock({
                 selected
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); bounceBadge.onExpand() }}
-                title={bounceBadge.variant === 'run'
+                tooltip={bounceBadge.variant === 'run'
                   ? `Read straight through ${bounceBadge.count} chapters over ${formatGap(bounceBadge.spanMs)} — click to show every one`
                   : `Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
               >

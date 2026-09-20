@@ -16,7 +16,8 @@ import { useAppStore } from '@/store'
 import { bookName, bookOrder } from '@/lib/parseRef'
 import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
-import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton, Checkbox, DisclosureRow, ListRow } from '@/components/ui'
+import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton, Checkbox, DisclosureRow, ListRow, cx } from '@/components/ui'
+import { useRovingNav } from '@/lib/useRovingNav'
 
 // ── System (virtual) folders ─────────────────────────────────────────────────
 // Notes belong to a system folder by their type/tags. A note that has been moved
@@ -566,36 +567,30 @@ export default function NotesFolderView({
         }}
         onDrop={(e) => onDropTo(e, note.folderId ?? null)}
       >
-      <div
-        data-note-row
+      <ListRow
+        data-note-row=""
+        flush
+        dense
+        indent={12 + depth * 16}
         draggable={!isRenaming && !selectMode}
         onDragStart={(e) => onNoteDragStart(e, note)}
         onDragEnd={(e) => onNoteDragEnd(e)}
         onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : (onPreview ?? onSelect)(note) }}
         onDoubleClick={() => { if (!isRenaming && !isMoveMenuOpen && !selectMode) onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
-        style={{ paddingLeft: 12 + depth * 16 }}
-        // Flat, no border — matches NotesList's row treatment (a bordered box around every
-        // single row read as heavy/boxy and out of step with the rest of the app). Just a
-        // soft hover tint and a slightly stronger accent tint for the active note — same
-        // bg-surface-selected + accent-bar recipe as NotesList's selected/previewed row.
-        className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-row cursor-pointer transition-colors ${
-          isDraggingThis ? 'opacity-40' :
-          activeNoteId === note.id
-            ? 'bg-surface-selected font-medium'
-            : 'hover:bg-surface-hover'
-        }`}
-      >
-        {activeNoteId === note.id && (
-          <span className="absolute -left-1.5 top-1 bottom-1 w-[3px] rounded-control bg-accent" />
-        )}
-        {selectMode && (
-          <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            <Checkbox checked={isSelected} onChange={() => onToggleSelectNote?.(note.id)} />
-          </span>
-        )}
-        <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
-        {isRenaming ? (
+        className={cx('mx-1.5', isDraggingThis && 'opacity-40')}
+        selected={activeNoteId === note.id}
+        titleSize="footnote"
+        buttonProps={{ 'data-roving': '' }}
+        leading={<>
+          {selectMode && (
+            <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <Checkbox checked={isSelected} onChange={() => onToggleSelectNote?.(note.id)} />
+            </span>
+          )}
+          <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
+        </>}
+        title={isRenaming ? (
           <TextField
             ref={noteRenameRef}
             size="sm"
@@ -610,71 +605,68 @@ export default function NotesFolderView({
             wrapperClassName="flex-1 min-w-0"
             className="h-5"
           />
-        ) : (
-          <span className="min-w-0 truncate text-footnote text-text-primary">{note.title || 'Untitled'}</span>
-        )}
-        {/* Status indicator — same colored icon used in the list/board views, for a consistent
-            at-a-glance status signal across every way of browsing notes. */}
-        {!isRenaming && (() => {
+        ) : (note.title || 'Untitled')}
+        // Status indicator — same colored icon used in the list/board views, for a consistent
+        // at-a-glance status signal across every way of browsing notes.
+        meta={!isRenaming && (() => {
           const status = noteStatusMeta(note.status)
           if (!status) return null
           const Icon = status.icon
           return <Icon size={11} className="flex-shrink-0" style={{ color: status.color }} />
         })()}
-        {/* Hover action buttons — rename and move (not in select mode, not on system-folder notes) */}
-        {!selectMode && !isRenaming && renameable && onRenameNote && (
-          <IconButton
-            icon={Pencil}
-            label="Rename"
-            size={20}
-            className="opacity-0 group-hover:opacity-100"
-            onClick={(e) => { e.stopPropagation(); setNoteRenameVal(note.title || ''); setRenamingNoteId(note.id) }}
-          />
-        )}
-        {!selectMode && !isRenaming && movable && (
-          <div className="relative" data-note-move-menu>
+        // Hover action buttons — rename, move and delete (not in select mode, not on
+        // system-folder notes). ListRow's own `trailing` slot already reveals these on row
+        // hover/focus-within, so they carry no opacity classes of their own.
+        trailing={!selectMode && !isRenaming ? <>
+          {renameable && onRenameNote && (
             <IconButton
-              icon={FolderInput}
-              label="Move to folder"
+              icon={Pencil}
+              label="Rename"
               size={20}
-              className="opacity-0 group-hover:opacity-100"
-              onClick={(e) => { e.stopPropagation(); setNoteMoveMenu(isMoveMenuOpen ? null : { noteId: note.id }) }}
+              onClick={(e) => { e.stopPropagation(); setNoteRenameVal(note.title || ''); setRenamingNoteId(note.id) }}
             />
-            {isMoveMenuOpen && (
-              <MenuSurface className="absolute right-0 top-full mt-0.5 z-menu max-h-48 overflow-y-auto min-w-[150px]">
-                {note.folderId != null && (
-                  <MenuItem
-                    label="Move out (no folder)"
-                    onClick={(e) => { e.stopPropagation(); onSetNoteFolder(note.id, null); setNoteMoveMenu(null) }}
-                  />
-                )}
-                {orderedFolders(folders).map(({ folder: f, depth: d }) => (
-                  <MenuItem
-                    key={f.id}
-                    disabled={f.id === note.folderId}
-                    label={f.name}
-                    style={{ paddingLeft: 12 + d * 10 }}
-                    onClick={(e) => { e.stopPropagation(); if (f.id !== note.folderId) { onSetNoteFolder(note.id, f.id); setNoteMoveMenu(null) } }}
-                  />
-                ))}
-                {folders.length === 0 && (
-                  <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet</div>
-                )}
-              </MenuSurface>
-            )}
-          </div>
-        )}
-        {!selectMode && !isRenaming && (
+          )}
+          {movable && (
+            <div className="relative" data-note-move-menu>
+              <IconButton
+                icon={FolderInput}
+                label="Move to folder"
+                size={20}
+                onClick={(e) => { e.stopPropagation(); setNoteMoveMenu(isMoveMenuOpen ? null : { noteId: note.id }) }}
+              />
+              {isMoveMenuOpen && (
+                <MenuSurface className="absolute right-0 top-full mt-0.5 z-menu max-h-48 overflow-y-auto min-w-[150px]">
+                  {note.folderId != null && (
+                    <MenuItem
+                      label="Move out (no folder)"
+                      onClick={(e) => { e.stopPropagation(); onSetNoteFolder(note.id, null); setNoteMoveMenu(null) }}
+                    />
+                  )}
+                  {orderedFolders(folders).map(({ folder: f, depth: d }) => (
+                    <MenuItem
+                      key={f.id}
+                      disabled={f.id === note.folderId}
+                      label={f.name}
+                      style={{ paddingLeft: 12 + d * 10 }}
+                      onClick={(e) => { e.stopPropagation(); if (f.id !== note.folderId) { onSetNoteFolder(note.id, f.id); setNoteMoveMenu(null) } }}
+                    />
+                  ))}
+                  {folders.length === 0 && (
+                    <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet</div>
+                  )}
+                </MenuSurface>
+              )}
+            </div>
+          )}
           <IconButton
             icon={Trash2}
             label="Delete note"
             size={20}
             danger
-            className="opacity-0 group-hover:opacity-100"
             onClick={(e) => { e.stopPropagation(); onDelete(note) }}
           />
-        )}
-      </div>
+        </> : undefined}
+      />
       {/* In-folder search snippets — more compact than list view */}
       {snippets.length > 0 && (
         <div className="flex flex-col gap-0.5 pb-1" style={{ paddingLeft: 28 + depth * 16, paddingRight: 8 }}>
@@ -701,8 +693,11 @@ export default function NotesFolderView({
     const isSelected = selectedFolderIds.includes(folder.id)
     return (
       <div key={folder.id}>
-        <div
-          data-folder-row
+        <ListRow
+          data-folder-row=""
+          flush
+          dense
+          indent={8 + depth * 16}
           ref={(el) => { if (el) folderRowRefs.current.set(folder.id, el); else folderRowRefs.current.delete(folder.id) }}
           draggable={!isRenaming && !selectMode}
           onDragStart={(e) => onFolderDragStart(e, folder.id)}
@@ -721,28 +716,28 @@ export default function NotesFolderView({
           onDrop={(e) => { e.stopPropagation(); onDropTo(e, folder.id) }}
           onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id); onFolderSelect?.(folder.id) } }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setFolderMenu({ folder, x: e.clientX, y: e.clientY }); setFolderMoveOpen(false) }}
-          style={{ paddingLeft: 8 + depth * 16 }}
-          className={`group flex items-center gap-1.5 pr-2 py-1.5 mx-1.5 rounded-row cursor-pointer transition-colors ${
-            dragOverId === folder.id ? 'bg-accent-muted ring-1 ring-inset ring-accent/40'
-              : isSelected ? 'bg-accent-muted' : 'hover:bg-surface-hover'
-          }`}
-        >
-          {selectMode && (
-            <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <Checkbox checked={isSelected} onChange={() => onToggleSelectFolder?.(folder.id)} />
-            </span>
-          )}
-          <IconButton
-            icon={ChevronRight}
-            label={isOpen ? 'Collapse' : 'Expand'}
-            tooltip={false}
-            size={20}
-            variant="ghost"
-            iconClassName={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
-            onClick={(e) => { e.stopPropagation(); toggle(folder.id) }}
-          />
-          {isOpen ? <FolderOpen size={13} className="flex-shrink-0 text-accent" /> : <Folder size={13} className="flex-shrink-0 text-accent" />}
-          {isRenaming ? (
+          className={cx('mx-1.5', dragOverId === folder.id && 'ring-1 ring-inset ring-accent/40')}
+          current={isSelected || dragOverId === folder.id}
+          titleSize="footnote"
+          buttonProps={{ 'data-roving': '' }}
+          leading={<>
+            {selectMode && (
+              <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Checkbox checked={isSelected} onChange={() => onToggleSelectFolder?.(folder.id)} />
+              </span>
+            )}
+            <IconButton
+              icon={ChevronRight}
+              label={isOpen ? 'Collapse' : 'Expand'}
+              tooltip={false}
+              size={20}
+              variant="ghost"
+              iconClassName={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
+              onClick={(e) => { e.stopPropagation(); toggle(folder.id) }}
+            />
+            {isOpen ? <FolderOpen size={13} className="flex-shrink-0 text-accent" /> : <Folder size={13} className="flex-shrink-0 text-accent" />}
+          </>}
+          title={isRenaming ? (
             <TextField
               ref={renameRef}
               size="sm"
@@ -757,26 +752,20 @@ export default function NotesFolderView({
               wrapperClassName="flex-1 min-w-0"
               className="h-5"
             />
-          ) : (
-            <span className="min-w-0 truncate text-footnote font-medium text-text-primary">{folder.name}</span>
-          )}
-          {/* "→ drop here" badge — shows for both note and folder drags */}
-          {(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id ? (
-            <span className="ml-auto text-caption2 font-medium text-accent animate-pulse flex-shrink-0">→ here</span>
-          ) : (
-            <span className="text-caption2 text-text-muted">{fNotes.length || ''}</span>
-          )}
-          {!isRenaming && !selectMode && (
-            <>
-              <IconButton icon={FolderPlus} label="New subfolder" size={20} className="opacity-0 group-hover:opacity-100"
-                onClick={(e) => { e.stopPropagation(); onCreateFolder(folder.id) }} />
-              <IconButton icon={Pencil} label="Rename" size={20} className="opacity-0 group-hover:opacity-100"
-                onClick={(e) => { e.stopPropagation(); setRenameVal(folder.name); setRenamingId(folder.id) }} />
-              <IconButton icon={Trash2} label="Delete folder (notes move to root)" size={20} danger className="opacity-0 group-hover:opacity-100"
-                onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id) }} />
-            </>
-          )}
-        </div>
+          ) : <span className="font-medium">{folder.name}</span>}
+          // "→ drop here" badge — shows for both note and folder drags
+          meta={(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id
+            ? <span className="font-medium text-accent animate-pulse">→ here</span>
+            : (fNotes.length || '')}
+          trailing={!isRenaming && !selectMode ? <>
+            <IconButton icon={FolderPlus} label="New subfolder" size={20}
+              onClick={(e) => { e.stopPropagation(); onCreateFolder(folder.id) }} />
+            <IconButton icon={Pencil} label="Rename" size={20}
+              onClick={(e) => { e.stopPropagation(); setRenameVal(folder.name); setRenamingId(folder.id) }} />
+            <IconButton icon={Trash2} label="Delete folder (notes move to root)" size={20} danger
+              onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id) }} />
+          </> : undefined}
+        />
         {/* Was an instant show/hide with no transition at all — flagged in the notes-feel pass.
             AnimatePresence/motion (already a dependency, used throughout the app) handles the
             "animate to/from height:auto" problem CSS transitions can't do without a JS
@@ -940,7 +929,7 @@ export default function NotesFolderView({
               icon={Icon}
               title={label}
               count={sysNotes.length || undefined}
-              trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+              trailing={<Lock size={9} className="text-text-tertiary" />}
               className="mx-1.5"
             />
             {isOpen && (
@@ -963,7 +952,7 @@ export default function NotesFolderView({
           icon={FileType2}
           title="PDFs"
           count={pdfs.length || undefined}
-          trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+          trailing={<Lock size={9} className="text-text-tertiary" />}
           className="mx-1.5"
         />
         {expanded.has('pdfs') && (
@@ -1001,7 +990,7 @@ export default function NotesFolderView({
           icon={Trash2}
           title="Trash"
           count={trashedNotes.length || undefined}
-          trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+          trailing={<Lock size={9} className="text-text-tertiary" />}
           className="mx-1.5"
         />
         {expanded.has('trash') && (
@@ -1324,7 +1313,7 @@ export default function NotesFolderView({
                   }}
                   leading={<Icon size={12} />}
                   title={label}
-                  trailing={<Lock size={9} className="text-text-muted opacity-50" />}
+                  trailing={<Lock size={9} className="text-text-tertiary" />}
                   trailingAlways
                 />
               ))}

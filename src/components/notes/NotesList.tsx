@@ -10,6 +10,7 @@ import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NoteBadgeRow } from './NoteBadgeRow'
 import NoteIcon from './NoteIcon'
 import { EmptyState, Checkbox, IconButton, TextField } from '@/components/ui'
+import { useRovingNav } from '@/lib/useRovingNav'
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
@@ -89,6 +90,7 @@ export default function NotesList({
   onTogglePinned,
 }: NotesListProps) {
   const [contextMenu, setContextMenu] = useState<{ note: Note; x: number; y: number } | null>(null)
+  const rovingNavKeyDown = useRovingNav({ orientation: 'vertical', selector: '[data-roving]' })
   // Pinned notes float to the top — a stable sort (pinned notes otherwise keep their original
   // relative order among themselves, same for unpinned) so this doesn't fight whatever sort/
   // filter order the caller already applied beyond the pin/unpin split itself.
@@ -139,7 +141,7 @@ export default function NotesList({
 
   return (
     <>
-      <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+      <div className="relative" style={{ height: virtualizer.getTotalSize() }} onKeyDown={rovingNavKeyDown}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const note = sortedNotes[virtualRow.index]
           const rawSnippet = note.type === 'idiom' && note.idiomMeaning
@@ -205,12 +207,6 @@ export default function NotesList({
                 setContextMenu({ note, x: e.clientX, y: e.clientY })
               }}
             >
-              {/* Linear-style left accent bar — solid when selected/previewed, fades in on hover */}
-              <div
-                className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-control bg-accent origin-center transition-transform duration-100
-                  ${isSelected || isPreviewed ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
-              />
-
               {/* Checkbox in select mode */}
               {selectMode && (
                 <Checkbox
@@ -225,6 +221,7 @@ export default function NotesList({
               <div
                 role="button"
                 tabIndex={0}
+                data-roving=""
                 onClick={() => {
                   if (isRenaming) return
                   if (selectMode) {
@@ -246,7 +243,7 @@ export default function NotesList({
                 {isRenaming ? (
                   <TextField
                     ref={renameInputRef}
-                    size="sm"
+                    size="md"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onKeyDown={(e) => {
@@ -255,7 +252,7 @@ export default function NotesList({
                     }}
                     onBlur={() => commitRename(note.id, renameValue)}
                     onClick={(e) => e.stopPropagation()}
-                    className="!text-subhead font-medium"
+                    className="font-medium"
                     wrapperClassName="w-full"
                   />
                 ) : (
@@ -281,7 +278,7 @@ export default function NotesList({
                       <span className="text-caption2 text-text-muted">
                         {formatDate(note.createdAt)}
                         {note.updatedAt !== note.createdAt && (
-                          <span className="opacity-60"> · {timeAgo(note.updatedAt)}</span>
+                          <span className="text-text-tertiary"> · {timeAgo(note.updatedAt)}</span>
                         )}
                       </span>
                     </div>

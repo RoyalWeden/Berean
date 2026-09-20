@@ -7,7 +7,7 @@ import { isHermasBook, getHermasSections, getHermasSection, hermasVariantForText
 import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { editionForTextId, type Edition } from '@/lib/bibleTexts'
 import { bookName } from '@/lib/parseRef'
-import { Button, Chip, IconButton, ListRow, RefChip, SearchField, SectionLabel } from '@/components/ui'
+import { Button, Chip, IconButton, ListRow, RefChip, SearchField, SectionLabel, cx } from '@/components/ui'
 
 interface BookChapterPickerProps {
   books: Book[]
@@ -45,9 +45,13 @@ interface BookChapterPickerProps {
    *  to make clear what selecting a book/chapter here will do, since that popup is
    *  otherwise identical to the main chapter picker's. */
   popoverHeader?: string
+  /** Window CustomEvent name that opens (and focuses the search field of) this picker — e.g.
+   *  the main toolbar picker passes 'berean:focusRefBar' so ⌘L opens/focuses it. Omit on any
+   *  secondary picker instance (add-compare-panel, etc.) so only one reacts. */
+  focusEvent?: string
 }
 
-export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, editions, currentTextId, onSelectTranslation, onOpenPdfLibrary, segmented, popoverHeader }: BookChapterPickerProps) {
+export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, editions, currentTextId, onSelectTranslation, onOpenPdfLibrary, segmented, popoverHeader, focusEvent }: BookChapterPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [editionsExpanded, setEditionsExpanded] = useState(false)
@@ -139,6 +143,15 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   useEffect(() => {
     setActiveBookId(currentBookId)
   }, [currentBookId])
+
+  // ⌘L (Focus scripture reference bar) — opens this picker; the open-effect above already
+  // focuses the search field, so opening here reproduces the old "focus the ref bar" behavior.
+  useEffect(() => {
+    if (!focusEvent) return
+    function onFocusEvent() { setOpen(true) }
+    window.addEventListener(focusEvent, onFocusEvent)
+    return () => window.removeEventListener(focusEvent, onFocusEvent)
+  }, [focusEvent])
 
   useEffect(() => {
     if (!open) return
@@ -252,7 +265,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             size="sm"
             selected={open}
             onClick={() => setOpen((o) => !o)}
-            title={triggerTitle}
+            tooltip={triggerTitle}
             className={triggerClassName}
           >
             {triggerLabel}
@@ -266,12 +279,15 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         selected={open}
         onClick={() => setOpen((o) => !o)}
         className={segmented ? 'rounded-none' : undefined}
-        iconTrailing
-        icon={ChevronDown}
       >
-        <span className="font-medium whitespace-nowrap">{currentBook?.name ?? bookName(currentBookId)}</span>
+        {/* Segmented (main toolbar) trigger reads as a title, not a plain button label —
+            text-subhead font-semibold text-text-primary, matching TitleControl's own trigger
+            typography so the two read as the same kind of control. */}
+        <span className={cx('whitespace-nowrap', segmented ? 'text-subhead font-semibold text-text-primary' : 'font-medium')}>
+          {currentBook?.name ?? bookName(currentBookId)}
+        </span>
         {currentBook && isHermasBook(currentBook.id) ? (
-          <span className="text-text-muted text-caption2 whitespace-nowrap">
+          <span className="text-meta whitespace-nowrap">
             {(() => {
               const hid = currentBook.id as HermasBookId
               const sec = getHermasSection(hid, currentChapter, hermasVariantForTextId(currentTextId))
@@ -282,14 +298,14 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             })()}
           </span>
         ) : currentBook && hasPrologueChapter(currentBook.id) && currentChapter === 0 ? (
-          <span className="text-text-muted text-caption2 whitespace-nowrap">Prologue</span>
+          <span className="text-meta whitespace-nowrap">Prologue</span>
         ) : (
-          <span className="text-text-muted text-caption2">{currentChapter}</span>
+          <span className="text-meta">{currentChapter}</span>
         )}
+        {/* Translation — a small static chip, not plain muted text, so it reads as a
+            distinct piece of metadata rather than part of the title run. */}
         {currentEdition && currentEdition.translations.length > 1 && currentTransLabel && (
-          <span className="text-text-muted text-caption2 whitespace-nowrap border-l border-separator pl-1.5 ml-0.5">
-            {currentTransLabel}
-          </span>
+          <Chip static size="sm" className="flex-shrink-0">{currentTransLabel}</Chip>
         )}
         {/* LXX chip — the picker otherwise gives no visual cue at a glance that you're
             reading the Septuagint rather than KJVA, only distinguishable by actually reading
@@ -297,6 +313,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         {currentTextId === 'lxx' && (
           <RefChip variant="lxx" size="xs" className="flex-shrink-0">LXX</RefChip>
         )}
+        <ChevronDown size={12} strokeWidth={2} className="text-text-muted -mr-0.5 flex-shrink-0" />
       </Button>
       )}
 

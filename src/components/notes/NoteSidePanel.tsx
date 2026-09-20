@@ -1,11 +1,10 @@
 import { useMemo } from 'react'
-import { List, Link2, ChevronRight, Folder, PanelRight, Pin } from 'lucide-react'
+import { List, Link2, ChevronRight, Folder, PanelRight, PanelRightClose } from 'lucide-react'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
-import FloatingHoverPanel from '@/components/shell/FloatingHoverPanel'
 import DailyNoteEditsSection from './DailyNoteEditsSection'
 import { dailyNoteDateKey } from '@/lib/noteUtils'
-import { SectionLabel, IconButton, ListRow, Chip } from '@/components/ui'
+import { SectionLabel, SectionHeader, IconButton, ListRow, Divider, cx } from '@/components/ui'
 
 // ── Heading parsing ────────────────────────────────────────────────────────────
 
@@ -47,8 +46,10 @@ interface Props {
   folderPath?: string[]
 }
 
-const EXPANDED_WIDTH = 320
-const EXPANDED_HEIGHT = 440
+// Attached-inspector width band — same 260-420 clamp as the Scripture side panel
+// (BiblePanel.tsx's `panelSize`); this panel has no drag handle of its own yet, so
+// it sits at a fixed width inside that band rather than exposing a resizer.
+const PANEL_WIDTH = 320
 
 export default function NoteSidePanel({ content, noteTitle, noteId, noteType, tabId, allNotes, onNoteClick, onOpenNewTab, onOpenInFloatingTab, folderPath = [] }: Props) {
   const headings = useMemo(() => parseHeadings(content), [content])
@@ -72,49 +73,29 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
 
   const pinned    = useAppStore((s) => s.noteSidePanelPinned)
   const setPinned = useAppStore((s) => s.setNoteSidePanelPinned)
-  const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
-  const focusMode = tabId != null && noteFocusModeTabId === tabId
 
   function scrollToHeading(text: string) {
     window.dispatchEvent(new CustomEvent('berean:scrollToHeading', { detail: { headingText: text } }))
   }
 
+  // Collapsed: a thin attached rail (still `material-inspector` — hairline-left, no radius/
+  // blur/shadow) with just the toggle. Replaces the old hover-to-expand floating pill —
+  // this is now a real dock, so it either takes its width or it doesn't.
+  if (!pinned) {
+    return (
+      <div className="flex-shrink-0 h-full w-7 material-inspector flex flex-col items-center pt-2">
+        <IconButton icon={PanelRight} label="Show outline & backlinks" size={24} onClick={() => setPinned(true)} />
+      </div>
+    )
+  }
+
   return (
-    <FloatingHoverPanel
-      // Focus mode narrows the editor's own content column, so the gap between
-      // visible text and the scrollbar at its right edge is much tighter — a
-      // narrower, delayed-open hover zone here means a cursor passing through
-      // on its way to the scrollbar doesn't trigger this panel before it
-      // arrives. Outside Focus mode there's plenty of clearance, so this keeps
-      // its original instant, easy-to-land-on size.
-      anchorWidthClass={focusMode ? 'w-3' : 'w-8'}
-      openDelayMs={focusMode ? 200 : 0}
-      expandedWidth={EXPANDED_WIDTH}
-      expandedHeight={EXPANDED_HEIGHT}
-      pinned={pinned}
-      collapsedContent={
-        <div className="relative flex items-center justify-center w-full h-full">
-          <PanelRight size={12} className="text-text-muted" />
-          {pinned && <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 rounded-full bg-accent border border-separator" />}
-        </div>
-      }
-      cornerBadge={
-        // Pin button — fills solid accent when pinned, otherwise a plain
-        // outline, so pinned state reads clearly at a glance. Rendered in
-        // FloatingHoverPanel's OUTER (unclipped) layer so it can float
-        // partly outside the card's own rounded corner without being cropped.
-        <IconButton
-          icon={Pin}
-          label={pinned ? 'Unpin — hide when not hovered' : 'Pin — keep this open'}
-          size={20}
-          active={pinned}
-          filled={pinned}
-          onClick={() => setPinned(!pinned)}
-          className="absolute -top-2 -right-2 z-10 shadow-1"
-        />
-      }
-    >
-      <div className="overflow-y-auto flex-1 px-2.5 py-3 flex flex-col gap-2.5 text-caption">
+    <div className="flex-shrink-0 h-full material-inspector overflow-y-auto flex flex-col" style={{ width: PANEL_WIDTH }}>
+      <div className="flex-shrink-0 flex items-center justify-between px-2.5 h-9 border-b border-separator-subtle">
+        <SectionLabel>Outline</SectionLabel>
+        <IconButton icon={PanelRightClose} label="Hide outline & backlinks" size={24} onClick={() => setPinned(false)} />
+      </div>
+      <div className="flex-1 overflow-y-auto px-1.5 py-2 flex flex-col gap-3 text-caption">
         {dailyDateKey && onOpenNewTab && onOpenInFloatingTab && (
           <DailyNoteEditsSection
             dateKey={dailyDateKey}
@@ -126,41 +107,37 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
           />
         )}
         {folderPath.length > 0 && (
-          <div className="rounded-menu control-glass overflow-hidden">
-            <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
-              <Folder size={9} />
-              Folder
-            </SectionLabel>
-            <div className="px-2.5 pb-2">
-              <span className="inline-flex items-center gap-1 flex-wrap rounded-control bg-surface-4 px-2.5 py-1 text-caption2 normal-case tracking-normal text-text-secondary">
-                {folderPath.map((seg, i) => (
-                  <span key={i} className="flex items-center gap-1">
-                    {i > 0 && <ChevronRight size={8} className="text-text-muted" />}
-                    <span className="truncate max-w-[110px]">{seg}</span>
-                  </span>
-                ))}
-              </span>
+          <div>
+            <SectionHeader flush className="px-1">
+              <span className="inline-flex items-center gap-1.5"><Folder size={9} /> Folder</span>
+            </SectionHeader>
+            <div className="px-1 flex items-center gap-1 flex-wrap text-caption2 text-text-secondary">
+              {folderPath.map((seg, i) => (
+                <span key={i} className="flex items-center gap-1">
+                  {i > 0 && <ChevronRight size={8} className="text-text-muted" />}
+                  <span className="truncate max-w-[110px]">{seg}</span>
+                </span>
+              ))}
             </div>
           </div>
         )}
 
         {headings.length > 0 && (
-          <div className="rounded-menu control-glass overflow-hidden">
-            <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
-              <List size={9} />
-              Contents
-              <span className="ml-auto rounded-control bg-surface-4 px-1.5 py-0 text-caption2 normal-case tracking-normal font-medium text-text-secondary">{headings.length}</span>
-            </SectionLabel>
-            <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
+          <div>
+            <SectionHeader flush count={headings.length} className="px-1">
+              <span className="inline-flex items-center gap-1.5"><List size={9} /> Contents</span>
+            </SectionHeader>
+            <div className="flex flex-col gap-0.5">
               {headings.map((h, i) => (
                 <ListRow
                   key={i}
+                  flush
                   dense
-                  indent={6 + (h.level - 1) * 10}
+                  indent={8 + (h.level - 1) * 10}
                   onClick={() => scrollToHeading(h.text)}
                   leading={<span className="w-[3px] h-[3px] rounded-[1px] bg-text-muted" />}
-                  title={<span style={{ fontWeight: h.level === 1 ? 600 : 400, opacity: h.level >= 4 ? 0.65 : 1 }}>{h.text}</span>}
-                  titleClassName="!text-caption2"
+                  title={<span className={cx(h.level === 1 ? 'font-semibold' : 'font-normal', h.level >= 4 && 'text-text-tertiary')}>{h.text}</span>}
+                  titleSize="caption"
                   buttonProps={{ title: h.text }}
                 />
               ))}
@@ -169,21 +146,20 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
         )}
 
         {backlinks.length > 0 && (
-          <div className="rounded-menu control-glass overflow-hidden">
-            <SectionLabel className="flex items-center gap-1.5 px-2.5 py-1.5">
-              <Link2 size={9} />
-              Backlinks
-              <span className="ml-auto rounded-control bg-surface-4 px-1.5 py-0 text-caption2 normal-case tracking-normal font-medium text-text-secondary">{backlinks.length}</span>
-            </SectionLabel>
-            <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
+          <div>
+            <SectionHeader flush count={backlinks.length} className="px-1">
+              <span className="inline-flex items-center gap-1.5"><Link2 size={9} /> Backlinks</span>
+            </SectionHeader>
+            <div className="flex flex-col gap-0.5">
               {backlinks.map((note) => (
                 <ListRow
                   key={note.id}
+                  flush
                   dense
                   onClick={() => onNoteClick(note)}
                   leading={<span className="w-[3px] h-[3px] rounded-full bg-text-muted" />}
                   title={note.title || 'Untitled'}
-                  titleClassName="!text-caption2"
+                  titleSize="caption"
                   buttonProps={{ title: note.title || 'Untitled' }}
                 />
               ))}
@@ -192,12 +168,13 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
         )}
 
         {!hasContent && folderPath.length === 0 && (
-          <div className="rounded-menu border border-dashed border-separator px-2.5 py-3 text-text-muted opacity-60 leading-snug">
+          <div className="px-1">
             <SectionLabel className="mb-1">Contents</SectionLabel>
-            <div className="text-caption2">No headings yet</div>
+            <Divider className="mb-2" />
+            <div className="text-caption2 text-text-tertiary">No headings yet</div>
           </div>
         )}
       </div>
-    </FloatingHoverPanel>
+    </div>
   )
 }

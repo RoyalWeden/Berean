@@ -200,6 +200,8 @@ const HistoryItem = memo(function HistoryItem({
   onDelete,
   noteTitles,
   videoTitles,
+  active,
+  rowRef,
 }: {
   visits: HistoryEntry[]   // 1+ visits to the same target; visits[0] is the most recent
   onNavigate: (e: HistoryEntry) => void
@@ -208,6 +210,9 @@ const HistoryItem = memo(function HistoryItem({
   noteTitles: Map<string, string>
   /** Current video id → title, same reasoning as noteTitles. */
   videoTitles: Map<string, string>
+  /** Keyboard-active row (↑/↓ + Enter) — neutral "current" selection, not a persisted state. */
+  active?: boolean
+  rowRef?: (el: HTMLDivElement | null) => void
 }) {
   const [open, setOpen] = useState(false)
   const entry = visits[0]
@@ -236,12 +241,13 @@ const HistoryItem = memo(function HistoryItem({
   }
 
   return (
-    <div>
+    <div ref={rowRef}>
       <ListRow
         leading={<span className={TYPE_COLOR[entry.type]}><EntryIcon type={entry.type} /></span>}
         title={displayTitle}
         meta={<>{entry.translation && `${entry.translation.toUpperCase()} · `}{formatTime(entry.timestamp)}</>}
         onClick={() => onNavigate(entry)}
+        selected={active}
         trailingAlways
         trailing={(
           <>
@@ -558,27 +564,60 @@ export default function HistoryModal() {
   const visibleGroups = showAllFlat ? visitGroups : visitGroups.slice(0, FLAT_LIST_CAP)
   const hiddenCount = visitGroups.length - visibleGroups.length
 
+  // ── Keyboard ↑/↓ + Enter over the flat visit-group list ──
+  const [activeIdx, setActiveIdx] = useState(0)
+  useEffect(() => { setActiveIdx(0) }, [visibleGroups.length, deferredTab, deferredSearch, deferredDate])
+  const rowRefs = useRef<Array<HTMLDivElement | null>>([])
+  useEffect(() => {
+    rowRefs.current[activeIdx]?.scrollIntoView({ block: 'nearest' })
+  }, [activeIdx])
+
+  // Trigger rect (rail/toolbar History button) → animation origin, so the sheet grows from
+  // wherever it was opened, not always dead-centre.
+  const historyTriggerRect = useAppStore((s) => s.historyTriggerRect)
+  const transformOrigin = useMemo(() => {
+    if (!historyTriggerRect || typeof window === 'undefined') return 'center'
+    const cx = historyTriggerRect.x + historyTriggerRect.w / 2
+    const pct = Math.max(0, Math.min(100, (cx / window.innerWidth) * 100))
+    return `${pct}% top`
+  }, [historyTriggerRect, historyOpen])
+
   return (
     <Dialog.Root open={historyOpen} onOpenChange={(open) => !open && closeHistory()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-critical bg-black/20 animate-fade-in" />
+        <Dialog.Overlay className="fixed inset-0 z-critical scrim-light animate-fade-in" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-[8vh] -translate-x-1/2 z-critical w-full max-w-[520px] material-elevated rounded-sheet flex flex-col overflow-hidden outline-none animate-radix-popup-in"
-          style={{ maxHeight: '78vh' }}
+          className="fixed left-1/2 top-[8vh] -translate-x-1/2 z-critical w-full max-w-[520px] outline-none"
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, visibleGroups.length - 1)) }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)) }
+            else if (e.key === 'Enter') {
+              const g = visibleGroups[activeIdx]
+              if (g) { e.preventDefault(); navigate(g.visits[0]) }
+            }
+          }}
+        >
+        {/* Pop animation lives on this INNER wrapper, never on Dialog.Content — Content carries
+            the centring `-translate-x-1/2` above, and a CSS animation touching `transform` on
+            the same element would fight that translate for its duration (see Sheet.tsx's
+            identical comment). transformOrigin follows the trigger that opened History. */}
+        <div
+          className="material-elevated rounded-sheet flex flex-col overflow-hidden animate-radix-popup-in"
+          style={{ maxHeight: '78vh', transformOrigin }}
         >
         {/* ── Header ── */}
-        <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-shrink-0">
+        <Toolbar size="md" edge="auto" material="none" className="pt-1">
           <Clock size={13} className="text-text-muted flex-shrink-0" />
           <Dialog.Title className="text-title3 font-semibold text-text-primary">History</Dialog.Title>
           <span
-            className="text-caption2 text-text-muted flex-1 text-right"
+            className="text-meta flex-1 text-right"
             title={`Showing ${filtered.length} of ${history.length} entries${history.length >= 500 ? ' (history keeps the most recent 500)' : ''}`}
           >
             {filtersActive || hideRoutineReading ? `${filtered.length} of ${history.length}` : `${history.length} entries`}
           </span>
           <IconButton icon={X} label="Close" size={24} onClick={closeHistory} tooltip={false} />
-        </div>
+        </Toolbar>
 
         {/* ── Tabs + search + sort + filter — one toolbar row ── */}
         <Toolbar size="md" material="none" edge="bottom">
@@ -689,20 +728,20 @@ export default function HistoryModal() {
           }}
         >
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-2 text-text-muted">
-              <Clock size={26} className="opacity-25" />
-              <span className="text-subhead opacity-50">
+            <div className="flex flex-col items-center justify-center py-14 gap-2 text-text-quaternary">
+              <Clock size={26} />
+              <span className="text-subhead text-text-tertiary">
                 {history.length === 0 ? 'No history yet' : searchQuery ? `No results for "${searchQuery}"` : 'No matches for current filters'}
               </span>
               {history.length === 0 && (
-                <span className="text-footnote opacity-35 text-center max-w-[260px]">
+                <span className="text-footnote text-center max-w-[260px]">
                   Open scripture, notes, or lexicon entries to start tracking
                 </span>
               )}
             </div>
           ) : (
             <div className="py-1">
-              {visibleGroups.map((g) => (
+              {visibleGroups.map((g, i) => (
                 <Fragment key={g.key}>
                   {g.dayLabelText && (
                     <Toolbar sticky size="sm" edge="none">
@@ -715,6 +754,8 @@ export default function HistoryModal() {
                     onDelete={deleteEntry}
                     noteTitles={noteTitles}
                     videoTitles={videoTitles}
+                    active={i === activeIdx}
+                    rowRef={(el) => { rowRefs.current[i] = el }}
                   />
                 </Fragment>
               ))}
@@ -730,12 +771,13 @@ export default function HistoryModal() {
         {/* ── Footer ── */}
         {history.length > 0 && (
           <div className="px-4 py-2 border-t border-separator flex-shrink-0 flex items-center justify-end gap-1">
-            <Trash2 size={10} className="text-text-muted opacity-50" />
-            <span className="text-caption2 text-text-muted opacity-50">
+            <Trash2 size={10} className="text-text-tertiary" />
+            <span className="text-meta">
               Clear history in Settings → Danger
             </span>
           </div>
         )}
+        </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

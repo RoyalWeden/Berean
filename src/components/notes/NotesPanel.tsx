@@ -1758,67 +1758,67 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         {restoringSpecificNote ? (
           <div className="flex-1" />
         ) : editing ? (
-          // `relative` here (not a flex-row split with NoteSidePanel as a sibling
-          // taking its own docked width) — NoteSidePanel is now a floating
-          // trigger pill + portaled card, positioned against THIS wrapper, same
-          // treatment as ScriptureSearchView's "jump to book" rail. The editor
-          // gets the full width always; the panel only ever overlays on top of
-          // it, never resizes it.
-          <div className="flex-1 overflow-hidden flex flex-col relative">
-            {/* Idiom header strip — shown when editing an idiom note */}
-            {activeNote.type === 'idiom' && (
-              <IdiomHeader
-                note={activeNote}
-                onUpdate={async (updates) => {
-                  await window.notes.updateNote(activeNote.id, updates)
-                  const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
-                  setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
-                  setActiveNote(patched)
-                  window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
-                }}
-              />
-            )}
-            <NoteEditor
-              content={activeNote.content}
-              noteId={activeNote.id}
-              tabId={notesTabId ?? undefined}
-              onChange={handleContentChange}
-              lastSavedAt={lastAutosaveAt}
-              onFocusRef={(fn) => { editorFocusRef.current = fn }}
-              onCommandsRef={(cmds) => { editorCommandsRef.current = cmds }}
-              onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
-              onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
-              initialScrollTop={restoredScrollTop}
-              initialCursorPos={restoredCursorPos}
-              autoFocus={autoFocusEditor}
-              mode={editorMode}
-              typingLook={noteTypingLook}
-              notes={notes}
-              onWikilinkClick={handleWikilinkClick}
-              onVerseRefClick={handleVerseRefClick}
-              onLexiconRefClick={handleLexiconRefClick}
-              findQuery={findBarVisible ? localFindQuery : ''}
-              // Term/Aliases/Meaning/Explanation/Compare/References already live in
-              // IdiomHeader above — this body is genuinely optional scratch space, so it
-              // gets a real visible placeholder explaining that (rather than sitting
-              // blank with no explanation) and loses the persistent formatting toolbar,
-              // which was adding a wall of buttons over an area with no stated purpose.
-              placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : noteEditorPlaceholder(activeNote)}
-              hideFormattingToolbar={activeNote.type === 'idiom'}
-              importSource={
-                activeNote.tags?.includes('biblegateway') ? 'biblegateway'
-                : activeNote.tags?.includes('esword') ? 'esword'
-                : undefined
-              }
-              importedAt={
-                (activeNote.tags?.includes('biblegateway') || activeNote.tags?.includes('esword'))
-                  ? activeNote.importedAt
+          // Column for the editor + idiom header, and — as a real flex sibling, not an
+          // overlay — the attached outline/backlinks inspector (NoteSidePanel). The
+          // inspector only takes its own width while pinned open; collapsed it's a thin
+          // dock rail, same "attached pane" treatment as the Scripture side panel.
+          <div className="flex-1 overflow-hidden flex min-h-0">
+            <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+              {/* Idiom header strip — shown when editing an idiom note */}
+              {activeNote.type === 'idiom' && (
+                <IdiomHeader
+                  note={activeNote}
+                  onUpdate={async (updates) => {
+                    await window.notes.updateNote(activeNote.id, updates)
+                    const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
+                    setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
+                    setActiveNote(patched)
+                    window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
+                  }}
+                />
+              )}
+              <NoteEditor
+                content={activeNote.content}
+                noteId={activeNote.id}
+                tabId={notesTabId ?? undefined}
+                onChange={handleContentChange}
+                lastSavedAt={lastAutosaveAt}
+                onFocusRef={(fn) => { editorFocusRef.current = fn }}
+                onCommandsRef={(cmds) => { editorCommandsRef.current = cmds }}
+                onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
+                onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
+                initialScrollTop={restoredScrollTop}
+                initialCursorPos={restoredCursorPos}
+                autoFocus={autoFocusEditor}
+                mode={editorMode}
+                typingLook={noteTypingLook}
+                notes={notes}
+                onWikilinkClick={handleWikilinkClick}
+                onVerseRefClick={handleVerseRefClick}
+                onLexiconRefClick={handleLexiconRefClick}
+                findQuery={findBarVisible ? localFindQuery : ''}
+                // Term/Aliases/Meaning/Explanation/Compare/References already live in
+                // IdiomHeader above — this body is genuinely optional scratch space, so it
+                // gets a real visible placeholder explaining that (rather than sitting
+                // blank with no explanation) and loses the persistent formatting toolbar,
+                // which was adding a wall of buttons over an area with no stated purpose.
+                placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : noteEditorPlaceholder(activeNote)}
+                hideFormattingToolbar={activeNote.type === 'idiom'}
+                importSource={
+                  activeNote.tags?.includes('biblegateway') ? 'biblegateway'
+                  : activeNote.tags?.includes('esword') ? 'esword'
                   : undefined
-              }
-            />
-            {/* Stays visible in Focus mode too — it's a floating trigger pill the user
-                summons on demand (outline/folder path/backlinks stay tucked away until
-                clicked), not persistent chrome Focus mode needs to clear away. */}
+                }
+                importedAt={
+                  (activeNote.tags?.includes('biblegateway') || activeNote.tags?.includes('esword'))
+                    ? activeNote.importedAt
+                    : undefined
+                }
+              />
+            </div>
+            {/* Stays visible in Focus mode too — same reasoning as before: outline/folder
+                path/backlinks stay tucked away (collapsed to a thin rail) until the user
+                pins it open, so it's not persistent chrome Focus mode needs to clear away. */}
             <NoteSidePanel
               content={activeNote.content}
               noteTitle={activeNote.title || 'Untitled'}

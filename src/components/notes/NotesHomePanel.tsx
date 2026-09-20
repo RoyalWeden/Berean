@@ -6,7 +6,7 @@ import { noteStatusMeta } from '@/lib/noteStatus'
 import NoteEditor from './pm/NoteEditorPM'
 import type { FindMode } from './pm/findHighlight'
 import { folderPathFor } from './NotesFolderView'
-import { Button, IconButton, SectionLabel, EmptyState, ListRow, Toolbar, Chip } from '@/components/ui'
+import { Button, IconButton, SectionHeader, EmptyState, ListRow, ControlGroup, Chip } from '@/components/ui'
 
 // ── Small local helpers ───────────────────────────────────────────────────────
 
@@ -46,6 +46,7 @@ function NoteRow({ note, onPreview, onOpen }: { note: Note; onPreview: (n: Note)
   const meta = noteStatusMeta(note.status)
   return (
     <ListRow
+      flush
       leading={<FileText size={13} />}
       title={note.title?.trim() || 'Untitled'}
       meta={<span className="inline-flex items-center gap-1">
@@ -148,8 +149,10 @@ export default function NotesHomePanel({
             <Button variant="primary" size="sm" icon={ExternalLink} iconTrailing onClick={() => onOpen(note)}>
               Open in editor
             </Button>
-            <IconButton icon={Printer} label="Print / export PDF" size={28} onClick={() => onPrint(note)} />
-            <IconButton icon={ExternalLink} label="Open in new tab" size={28} onClick={() => onOpenNewTab(note)} />
+            <ControlGroup>
+              <IconButton icon={Printer} label="Print / export PDF" size={28} onClick={() => onPrint(note)} />
+              <IconButton icon={ExternalLink} label="Open in new tab" size={28} onClick={() => onOpenNewTab(note)} />
+            </ControlGroup>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption2 text-text-muted">
             <span>Edited {timeAgo(note.updatedAt)}</span>
@@ -166,8 +169,10 @@ export default function NotesHomePanel({
               </span>
               <span className="max-w-[40%] truncate text-text-secondary">“{q}”</span>
               <span>in this note</span>
-              <IconButton icon={ChevronUp} label="Previous match" size={20} disabled={matchCount === 0} onClick={() => stepMatch(-1)} />
-              <IconButton icon={ChevronDown} label="Next match" size={20} disabled={matchCount === 0} onClick={() => stepMatch(1)} />
+              <ControlGroup>
+                <IconButton icon={ChevronUp} label="Previous match" size={20} disabled={matchCount === 0} onClick={() => stepMatch(-1)} />
+                <IconButton icon={ChevronDown} label="Next match" size={20} disabled={matchCount === 0} onClick={() => stepMatch(1)} />
+              </ControlGroup>
             </div>
           )}
         </div>
@@ -212,13 +217,13 @@ export default function NotesHomePanel({
             ? <EmptyState compact title="No notes in this folder yet." />
             : (
               <>
-                <SectionLabel className="px-2 pt-3 pb-1">Recently edited</SectionLabel>
+                <SectionHeader className="pt-3">Recently edited</SectionHeader>
                 {fRecent.map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
               </>
             )}
           {fTags.length > 0 && (
             <>
-              <SectionLabel className="px-2 pt-3 pb-1">Tags in this folder</SectionLabel>
+              <SectionHeader className="pt-3">Tags in this folder</SectionHeader>
               <div className="flex flex-wrap gap-1 px-2 py-1">
                 {fTags.map((t) => (
                   <Chip key={t} static size="sm">#{t}</Chip>
@@ -237,17 +242,21 @@ export default function NotesHomePanel({
       <div className="flex-1 overflow-y-auto px-3 py-2">
         {inProgress.length > 0 && (
           <>
-            <SectionLabel className="px-2 pt-3 pb-1"><span className="inline-flex items-center gap-1"><Clock size={10} className="text-info" /> In progress · {inProgress.length}</span></SectionLabel>
+            <SectionHeader className="pt-3" count={inProgress.length}>
+              <span className="inline-flex items-center gap-1"><Clock size={10} className="text-info" /> In progress</span>
+            </SectionHeader>
             {inProgress.slice(0, 6).map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
           </>
         )}
         {pinned.length > 0 && (
           <>
-            <SectionLabel className="px-2 pt-3 pb-1"><span className="inline-flex items-center gap-1"><Pin size={10} /> Pinned</span></SectionLabel>
+            <SectionHeader className="pt-3">
+              <span className="inline-flex items-center gap-1"><Pin size={10} /> Pinned</span>
+            </SectionHeader>
             {pinned.slice(0, 6).map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
           </>
         )}
-        <SectionLabel className="px-2 pt-3 pb-1">Recently edited</SectionLabel>
+        <SectionHeader className="pt-3">Recently edited</SectionHeader>
         {recent.length === 0
           ? <EmptyState compact title="No notes yet — create one to get started." />
           : recent.map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}

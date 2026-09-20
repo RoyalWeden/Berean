@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
 import type { EditorView } from 'prosemirror-view'
 import { Fragment } from 'prosemirror-model'
 import { deleteTable } from 'prosemirror-tables'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
-  List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
-  Table2, Minus, BookOpen, Image as ImageIcon, Heading1, Heading2, Heading3, Rows3, Columns3, Trash2,
+  List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease,
+  Table2, Minus, BookOpen, Image as ImageIcon, Rows3, Columns3, Trash2,
   Square, X, Maximize2, Focus as FocusIcon,
 } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
@@ -19,16 +18,12 @@ import { VersePickerPopup } from './AutocompletePopups'
 import { getTranslationForBook, bookChapterVerseLabel } from '@/lib/parseRef'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
-import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
+import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
 import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
-// Same styled-keycap hover hint the rest of the app uses (ShellHeader, Ribbon, Settings…)
-// — this toolbar was one of the last places still on plain native `title="Bold (⌘B)"`
-// tooltips, which render in the OS's own delayed grey box with the shortcut as run-together
-// parenthesised text instead of real keycaps.
-import { HintTooltip } from '@/components/shell/HintTooltip'
-import { IconButton, Button, Divider, MenuItem, MenuSeparator, TextField } from '@/components/ui'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
+import { Toolbar as Bar, ControlGroup, OverflowGroup, IconButton, Button, MenuSurface, MenuItem, MenuSeparator, ColorSwatchRow, TextField, cx } from '@/components/ui'
 
 // The code-block button takes its glyph from the shared block-type config rather than picking
 // one locally (see blockTypeIcons.ts). The "Text type" dropdown TRIGGER used to do the same
@@ -74,12 +69,12 @@ type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link' | 'verse'
 // toggling Focus mode). Shares all command logic with the bubble via editorCommands.ts —
 // this file owns only its own dropdown-open UI state, same split as SelectionToolbar.tsx.
 //
-// Dropdowns are portaled to document.body with a fixed position computed from the trigger
-// button's own rect, NOT position:absolute inside this row — the row itself needs
-// overflow-x-auto so a narrow panel doesn't force its buttons off-screen, but CSS couples
-// overflow-x:auto to overflow-y:auto/hidden on the same box, which silently clipped any
-// absolutely-positioned dropdown child that extended below the row (the dropdowns rendered
-// into the DOM but were invisible — looked exactly like "clicking the button does nothing").
+// A floating M3 `material-elevated` capsule (the TRANSIENT layer — it's not docked chrome,
+// it hovers over the content). `ControlGroup`s of square 24px IconButtons carry the actual
+// commands; `OverflowGroup` folds whole trailing groups into a "…" popover instead of ever
+// scrolling the bar sideways. Every dropdown is a `MenuSurface`/`MenuItem`/`ColorSwatchRow`
+// panel anchored to its trigger's own rect via `MenuPositioner` (viewport-clamped, grows from
+// the trigger like every other menu in the app).
 export default function Toolbar({
   view, tabId, inTable,
 }: { view: EditorView | null; tabId?: string; inTable?: boolean }) {
@@ -98,9 +93,8 @@ export default function Toolbar({
   const toggleNoteFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
   const toggleFocusMode = () => { if (tabId != null) toggleNoteFocusMode(tabId) }
   // In Focus mode the capsule fades to fully hidden and reveals only when the
-  // cursor comes near its own docked position. Outside Focus mode `revealed`
-  // stays true and the bar is just dimmed at rest (via CSS :hover below), not
-  // hidden. TopBar itself has no reveal mechanism at all in Focus mode (per the
+  // cursor comes near its own docked position. Outside Focus mode it's always fully
+  // legible — TopBar itself has no reveal mechanism at all in Focus mode (per the
   // user's request, only this floating bar should show) — its own window
   // min/max/close controls are rendered inside this capsule instead, below.
   const { ref: rootRef, revealed } = useProximityReveal<HTMLDivElement>(focusMode)
@@ -206,270 +200,248 @@ export default function Toolbar({
     editorView.focus()
   }
 
-  // Kept for the two controls below that can't be plain IconButtons: the dash-list glyph
-  // (a text character, not a lucide icon) and the Focus-mode toggle (a `motion.button` with
-  // its own whileHover/whileTap spring, which IconButton's own button element can't host).
-  const iconBtn = 'p-1.5 cursor-pointer transition-colors rounded-control flex-shrink-0'
-  const active = 'bg-accent-muted text-accent'
-  const inactive = 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
-  const cls = (isActive: boolean) => `${iconBtn} ${isActive ? active : inactive}`
-  const sep = <Divider orientation="vertical" className="mx-0.5" />
-
   // Any dropdown open (portaled to document.body) counts as "in use" even if the
   // cursor has moved off the capsule itself to reach the dropdown — otherwise the
   // capsule would dim/fade out from under an open dropdown mid-interaction.
   const inUse = hovering || openDropdown !== 'none'
   const opacityCls = focusMode
     ? (revealed || inUse ? 'opacity-100' : 'opacity-0 pointer-events-none')
-    : (inUse ? 'opacity-100' : 'opacity-65')
+    : 'opacity-100'
 
   return (
     <div
       ref={rootRef}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
-      className={`
-        absolute top-2 left-1/2 -translate-x-1/2 z-raised max-w-[calc(100%-1.5rem)]
-        flex items-center gap-0.5 px-2 py-1 rounded-control
-        material-control
-        flex-shrink-0 overflow-x-auto overflow-y-hidden transition-opacity duration-200 ${opacityCls}
-      `}
+      className={cx(
+        'absolute top-2 left-1/2 -translate-x-1/2 z-raised max-w-[calc(100%-1.5rem)]',
+        'flex-shrink-0 transition-opacity duration-200', opacityCls,
+      )}
     >
-      {/* Focus mode hides the native traffic lights (see the `setButtonsVisible` effect
-          above — they're window-frame chrome, not DOM, and can't just be relocated) and
-          replaces them with real close/minimize/maximize buttons on the LEFT of this bar,
-          styled like actual macOS traffic lights (not the toolbar's own icon-button style)
-          since that's the convention this is standing in for. */}
-      {focusMode && isMac && (
-        <>
-          {/* `group` lives on this wrapper (not the individual buttons) so hovering
-              ANY one of the three dots reveals all three glyphs at once, matching
-              real macOS traffic-light behavior. */}
-          <div className="group flex items-center gap-2.5 mr-1 ml-0.5 flex-shrink-0">
-            <IconButton
-              icon={X}
-              label="Close"
-              tooltip={false}
-              size={20}
-              strokeWidth={3.5}
-              onMouseDown={() => window.windowControls?.close()}
-              className="!w-3 !h-3 rounded-full bg-[#FF5F57] hover:brightness-90 active:brightness-75 transition-[filter]"
-              iconClassName="!w-[7px] !h-[7px] opacity-0 group-hover:opacity-100 text-[#4d0000]/70"
+      <Bar size="sm" edge="none" material="none" itemVariant="ghost" className="material-elevated rounded-menu">
+        <OverflowGroup gap={6} label="More formatting">
+          {/* Focus mode hides the native traffic lights (see the `setButtonsVisible` effect
+              above — they're window-frame chrome, not DOM, and can't just be relocated) and
+              replaces them with real close/minimize/maximize buttons on the LEFT of this bar,
+              styled like actual macOS traffic lights (not the toolbar's own icon-button style)
+              since that's the convention this is standing in for. Left OUTSIDE any ControlGroup
+              deliberately — their circular, hardcoded-hex look is the one documented exception
+              to the square/flat grouped-control recipe, and grouping would fight it. */}
+          {focusMode && isMac && (
+            <div className="group flex items-center gap-2.5 flex-shrink-0">
+              <IconButton
+                icon={X}
+                label="Close"
+                tooltip={false}
+                size={20}
+                strokeWidth={3.5}
+                onMouseDown={() => window.windowControls?.close()}
+                className="!w-3 !h-3 rounded-full bg-[#FF5F57] hover:brightness-90 active:brightness-75 transition-[filter]"
+                iconClassName="!w-[7px] !h-[7px] opacity-0 group-hover:opacity-100 text-[#4d0000]/70"
+              />
+              <IconButton
+                icon={Minus}
+                label="Minimize"
+                tooltip={false}
+                size={20}
+                strokeWidth={3.5}
+                onMouseDown={() => window.windowControls?.minimize()}
+                className="!w-3 !h-3 rounded-full bg-[#FFBD2E] hover:brightness-90 active:brightness-75 transition-[filter]"
+                iconClassName="!w-2 !h-2 opacity-0 group-hover:opacity-100 text-[#5a3d00]/70"
+              />
+              <IconButton
+                icon={Maximize2}
+                label={isMaximized ? 'Restore' : 'Maximize'}
+                tooltip={false}
+                size={20}
+                strokeWidth={3.5}
+                onMouseDown={() => window.windowControls?.maximize()}
+                className="!w-3 !h-3 rounded-full bg-[#28C840] hover:brightness-90 active:brightness-75 transition-[filter]"
+                iconClassName="!w-1.5 !h-1.5 opacity-0 group-hover:opacity-100 text-[#003d0a]/70"
+              />
+            </div>
+          )}
+
+          {/* Style — current block type + the Thread insert action. */}
+          <ControlGroup>
+            <Button
+              variant="menu"
+              size="sm"
+              icon={currentBlockTypeMeta(editorView).icon}
+              selected={openDropdown === 'type'}
+              onMouseDown={(e) => openDropdownAt('type', e)}
+              tooltip="Text type"
             />
+            <IconButton icon={ThreadIcon} label="Thread" size={24} onMouseDown={() => cmds.wrapInThread()} />
+          </ControlGroup>
+
+          {/* Inline marks */}
+          <ControlGroup>
+            <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
+            <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
+            <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
+            {/* No shortcut — strikethrough has no binding in keymap.ts, unlike the three marks
+                around it, so it gets a label-only hint rather than an invented combo. */}
+            <IconButton icon={Strikethrough} label="Strikethrough" size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
+          </ControlGroup>
+
+          {/* Annotate & reference */}
+          <ControlGroup>
+            <IconButton
+              icon={Highlighter}
+              label="Highlight"
+              tooltip={{ shortcut: '⌘⇧H' }}
+              size={24}
+              active={openDropdown === 'highlight' || isMarkActive('highlight')}
+              onMouseDown={(e) => openDropdownAt('highlight', e)}
+            />
+            <IconButton
+              icon={Link2}
+              label="Link"
+              size={24}
+              active={openDropdown === 'link' || isMarkActive('link')}
+              onMouseDown={openLinkDropdownAt}
+            />
+            <IconButton icon={Code} label="Code" tooltip={{ shortcut: '⌘`' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
+          </ControlGroup>
+
+          {/* Lists & quote */}
+          <ControlGroup>
+            <Button
+              variant="menu"
+              size="sm"
+              icon={List}
+              selected={openDropdown === 'list'}
+              onMouseDown={(e) => openDropdownAt('list', e)}
+              tooltip="List type"
+            />
+            <IconButton icon={Quote} label="Blockquote" size={24} onMouseDown={cmds.toggleBlockquote} />
+            <IconButton icon={IndentDecrease} label="Outdent" tooltip={{ shortcut: '⇧Tab' }} size={24} onMouseDown={cmds.outdent} />
+            <IconButton icon={IndentIncrease} label="Indent" tooltip={{ shortcut: 'Tab' }} size={24} onMouseDown={cmds.indent} />
+          </ControlGroup>
+
+          {/* Insert */}
+          <ControlGroup>
+            {/* Reuses insertBlockNode (slashCommands.ts) rather than the raw
+                `replaceSelectionWith` this used before — replaceSelectionWith doesn't split the
+                enclosing paragraph the way a block-level table needs, so inserting mid-paragraph
+                silently produced a malformed/uneditable result. insertBlockNode already handles
+                this correctly (same helper the working /table slash command uses). */}
+            <IconButton
+              icon={Table2}
+              label="Table"
+              size={24}
+              onMouseDown={() => {
+                const { from, to } = editorView.state.selection
+                insertBlockNode(editorView, from, to, buildEmptyTable())
+              }}
+            />
+            {/* Table row/column management — only shown with the cursor inside an existing
+                table; addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops
+                outside one, but a button doing nothing reads as broken, so it's hidden rather
+                than left enabled. */}
+            {inTable && (
+              <IconButton icon={Rows3} label="Table row/column" size={24} active={openDropdown === 'table'} onMouseDown={(e) => openDropdownAt('table', e)} />
+            )}
+            <IconButton icon={CodeBlockIcon} label="Code block" size={24} onMouseDown={cmds.toggleCodeBlock} />
             <IconButton
               icon={Minus}
-              label="Minimize"
-              tooltip={false}
-              size={20}
-              strokeWidth={3.5}
-              onMouseDown={() => window.windowControls?.minimize()}
-              className="!w-3 !h-3 rounded-full bg-[#FFBD2E] hover:brightness-90 active:brightness-75 transition-[filter]"
-              iconClassName="!w-2 !h-2 opacity-0 group-hover:opacity-100 text-[#5a3d00]/70"
+              label="Divider"
+              size={24}
+              onMouseDown={() => {
+                const { from, to } = editorView.state.selection
+                insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
+              }}
             />
+            {/* Verse blocks are plain paragraph text auto-detected by blockDecorations.ts, not a
+                node this toolbar inserts directly (see slashCommands.ts's startVerseBlock — same
+                reasoning) — this button opens the book/chapter/verse picker below. */}
+            <IconButton icon={BookOpen} label="Insert a scripture verse" size={24} active={openDropdown === 'verse'} onMouseDown={(e) => openDropdownAt('verse', e)} />
+            <IconButton icon={ImageIcon} label="Insert image" size={24} onMouseDown={() => pickAndInsertImage(editorView)} />
+          </ControlGroup>
+
+          {/* Focus mode + (Windows only) window controls */}
+          <ControlGroup>
             <IconButton
-              icon={Maximize2}
-              label={isMaximized ? 'Restore' : 'Maximize'}
-              tooltip={false}
-              size={20}
-              strokeWidth={3.5}
-              onMouseDown={() => window.windowControls?.maximize()}
-              className="!w-3 !h-3 rounded-full bg-[#28C840] hover:brightness-90 active:brightness-75 transition-[filter]"
-              iconClassName="!w-1.5 !h-1.5 opacity-0 group-hover:opacity-100 text-[#003d0a]/70"
+              icon={FocusIcon}
+              label={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}
+              size={24}
+              active={focusMode}
+              onMouseDown={() => toggleFocusMode()}
             />
-          </div>
-          {sep}
-        </>
-      )}
+          </ControlGroup>
 
-      {/* Text type */}
-      <HintTooltip label="Text type">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={currentBlockTypeMeta(editorView).icon}
-          selected={openDropdown === 'type'}
-          onMouseDown={(e) => openDropdownAt('type', e)}
-          className="px-2"
-        >
-          <ChevronDown size={10} />
-        </Button>
-      </HintTooltip>
+          {/* Windows: standard convention is minimize/maximize/close on the RIGHT, matching
+              the frameless title bar's own WindowControls.tsx (Fluent-ish hover, red close)
+              rather than the Mac traffic-light treatment above. */}
+          {focusMode && !isMac && (
+            <ControlGroup>
+              <IconButton icon={Minus} label="Minimize" size={24} onMouseDown={() => window.windowControls?.minimize()} />
+              <IconButton icon={Square} label={isMaximized ? 'Restore' : 'Maximize'} size={24} onMouseDown={() => window.windowControls?.maximize()} />
+              <IconButton icon={X} label="Close" size={24} danger onMouseDown={() => window.windowControls?.close()} />
+            </ControlGroup>
+          )}
+        </OverflowGroup>
+      </Bar>
 
-      {/* Thread — its own standalone button, not a "Text type" dropdown entry: a thread isn't
-          a text-type variant the way a heading level is (it's a whole collapsible container
-          with entries of its own), so it reads better as a distinct insert action, the same
-          way Table/Image/Divider each get their own button below rather than living inside
-          that dropdown. */}
-      <IconButton icon={ThreadIcon} label="Thread" size={24} onMouseDown={() => cmds.wrapInThread()} />
-      {sep}
-
-      <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
-      <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
-      <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
-      {/* No shortcut — strikethrough has no binding in keymap.ts, unlike the four marks
-          around it, so it gets a label-only hint rather than an invented combo. */}
-      <IconButton icon={Strikethrough} label="Strikethrough" size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
-      <IconButton icon={Code} label="Code" tooltip={{ shortcut: '⌘`' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
-
-      <IconButton
-        icon={Highlighter}
-        label="Highlight"
-        tooltip={{ shortcut: '⌘⇧H' }}
-        size={24}
-        active={openDropdown === 'highlight' || isMarkActive('highlight')}
-        onMouseDown={(e) => openDropdownAt('highlight', e)}
-      />
-
-      {sep}
-      <IconButton
-        icon={Link2}
-        label="Link"
-        size={24}
-        active={openDropdown === 'link' || isMarkActive('link')}
-        onMouseDown={openLinkDropdownAt}
-      />
-      {sep}
-
-      <IconButton icon={List} label="List type" size={24} active={openDropdown === 'list'} onMouseDown={(e) => openDropdownAt('list', e)} />
-      <IconButton icon={Quote} label="Blockquote" size={24} onMouseDown={cmds.toggleBlockquote} />
-      {/* Code blocks had no button on either toolbar — the only way to make one was the
-          /code slash command, which isn't discoverable from the toolbar the rest of the
-          block types live on. */}
-      <IconButton icon={CodeBlockIcon} label="Code block" size={24} onMouseDown={cmds.toggleCodeBlock} />
-      <IconButton icon={IndentDecrease} label="Outdent" tooltip={{ shortcut: '⇧Tab' }} size={24} onMouseDown={cmds.outdent} />
-      <IconButton icon={IndentIncrease} label="Indent" tooltip={{ shortcut: 'Tab' }} size={24} onMouseDown={cmds.indent} />
-
-      {sep}
-      {/* Insert table: reuses insertBlockNode (slashCommands.ts) rather than the raw
-          `replaceSelectionWith` this used before — replaceSelectionWith doesn't split the
-          enclosing paragraph the way a block-level table needs, so inserting mid-paragraph
-          silently produced a malformed/uneditable result. insertBlockNode already handles
-          this correctly (same helper the working /table slash command uses). */}
-      <IconButton
-        icon={Table2}
-        label="Table"
-        size={24}
-        onMouseDown={() => {
-          const { from, to } = editorView.state.selection
-          insertBlockNode(editorView, from, to, buildEmptyTable())
-        }}
-      />
-      {/* Table row/column management — only shown with the cursor inside an existing table;
-          addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops outside one, but
-          a button doing nothing reads as broken, so it's hidden rather than left enabled. */}
-      {inTable && (
-        <IconButton icon={Rows3} label="Table row/column" size={24} active={openDropdown === 'table'} onMouseDown={(e) => openDropdownAt('table', e)} />
-      )}
-      <IconButton
-        icon={Minus}
-        label="Divider"
-        size={24}
-        onMouseDown={() => {
-          const { from, to } = editorView.state.selection
-          insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
-        }}
-      />
-      {/* Verse blocks are plain paragraph text auto-detected by blockDecorations.ts, not a
-          node this toolbar inserts directly (see slashCommands.ts's startVerseBlock — same
-          reasoning) — this button just makes sure the detection setting is on and focuses
-          the editor so the user can type a reference. */}
-      <IconButton icon={BookOpen} label="Insert a scripture verse" size={24} active={openDropdown === 'verse'} onMouseDown={(e) => openDropdownAt('verse', e)} />
-      <IconButton icon={ImageIcon} label="Insert image" size={24} onMouseDown={() => pickAndInsertImage(editorView)} />
-
-      {sep}
-      {/* `isolate` + `willChange` give this button its own compositing layer —
-          without it, animating `rotate` on a child of the capsule's own
-          `backdrop-blur-md` background triggers a Chromium repaint glitch where
-          a stray solid-color box flashes at the blurred container's corner
-          during the transform. */}
-      <HintTooltip label={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}>
-        <motion.button
-          onMouseDown={() => toggleFocusMode()}
-          whileHover={{ rotate: 90, scale: 1.12 }}
-          whileTap={{ scale: 0.8, rotate: 90 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-          className={`${cls(focusMode)} isolate`}
-          style={{ willChange: 'transform' }}
-        >
-          <FocusIcon size={14} />
-        </motion.button>
-      </HintTooltip>
-
-      {/* Windows: standard convention is minimize/maximize/close on the RIGHT, styled
-          like the frameless title bar's own WindowControls.tsx (Fluent-ish hover, red
-          close) rather than the Mac traffic-light treatment above. */}
-      {focusMode && !isMac && (
-        <>
-          {sep}
-          <IconButton icon={Minus} label="Minimize" size={24} onMouseDown={() => window.windowControls?.minimize()} />
-          <IconButton icon={Square} label={isMaximized ? 'Restore' : 'Maximize'} size={24} onMouseDown={() => window.windowControls?.maximize()} />
-          <IconButton icon={X} label="Close" size={24} danger onMouseDown={() => window.windowControls?.close()} />
-        </>
-      )}
-
-      {/* ── Dropdowns — portaled, see the file-level comment above for why ── */}
+      {/* ── Dropdowns — portaled, anchored to their trigger's own rect via MenuPositioner ── */}
       {openDropdown !== 'none' && dropdownPos && createPortal(
-        <div
-          ref={dropdownRef}
-          style={{ position: 'fixed', left: dropdownPos.left, top: dropdownPos.top, zIndex: 'var(--z-popover)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
+        <>
           {openDropdown === 'type' && (
-            <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex items-center gap-0.5">
-              {/* Icons + labels from the shared block-type config (src/lib/blockTypeIcons.ts)
-                  — these were plain-text "H1".."H6"/"¶" labels, a third icon vocabulary on
-                  top of the block menu's and slash menu's Lucide glyphs for the same levels. */}
-              {TEXT_TYPE_LEVELS.map(({ level, meta }) => (
-                <IconButton
-                  key={level}
-                  icon={meta.icon}
-                  label={meta.label}
-                  size={24}
-                  onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
-                />
-              ))}
-            </div>
+            <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}>
+              <MenuSurface className="min-w-[180px]">
+                {TEXT_TYPE_LEVELS.map(({ level, meta }) => (
+                  <MenuItem
+                    key={level}
+                    icon={meta.icon}
+                    label={meta.label}
+                    onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
+                  />
+                ))}
+              </MenuSurface>
+            </MenuPositioner>
           )}
 
           {openDropdown === 'list' && (
-            <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex items-center gap-0.5">
-              <IconButton icon={List} label="Bullet list" size={24} onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
-              <Button variant="ghost" size="sm" title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className="!w-6 !h-6 !p-0 font-mono">–</Button>
-              <IconButton icon={ListOrdered} label="Numbered list" size={24} onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
-              <IconButton icon={CheckSquare} label="Task list" size={24} onMouseDown={toggleTaskList} />
-            </div>
+            <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}>
+              <MenuSurface className="min-w-[160px]">
+                <MenuItem icon={List} label="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
+                <MenuItem label="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} />
+                <MenuItem icon={ListOrdered} label="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
+                <MenuItem icon={CheckSquare} label="Task list" onMouseDown={toggleTaskList} />
+              </MenuSurface>
+            </MenuPositioner>
           )}
 
           {openDropdown === 'highlight' && (
-            <div className="pm-toolbar-solid material-popover rounded-menu p-2 w-[168px]">
-              <div className="grid grid-cols-5 gap-1.5 mb-1.5">
-                {HIGHLIGHT_COLOR_IDS.map((id) => (
-                  <Button
-                    key={id}
-                    variant="ghost"
-                    title={HIGHLIGHT_LABELS[id]}
-                    aria-label={HIGHLIGHT_LABELS[id]}
-                    onMouseDown={() => applyHighlight(id)}
-                    className="!w-6 !h-6 !p-0 rounded-full hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
-                    style={{ backgroundColor: highlightDotColor(id) }}
-                  />
-                ))}
-              </div>
-              <MenuItem icon={Ban} label="Remove highlight" onMouseDown={removeHighlight} />
-            </div>
+            <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}>
+              <MenuSurface className="p-2 w-[184px]">
+                <ColorSwatchRow
+                  size={16}
+                  allowNone
+                  value={null}
+                  swatches={HIGHLIGHT_COLOR_IDS.map((id) => ({ id, rgb: `var(--highlight-${id})`, label: HIGHLIGHT_LABELS[id] }))}
+                  onChange={(id) => (id ? applyHighlight(id) : removeHighlight())}
+                />
+              </MenuSurface>
+            </MenuPositioner>
           )}
 
           {openDropdown === 'table' && (
-            <div className="pm-toolbar-solid material-popover rounded-menu p-1 flex flex-col gap-0.5 min-w-[160px]">
-              <MenuItem icon={Rows3} label="Add row below" onMouseDown={() => { run(addRowAfter); setOpenDropdown('none') }} />
-              <MenuItem icon={Rows3} label="Delete row" onMouseDown={() => { run(deleteRow); setOpenDropdown('none') }} />
-              <MenuItem icon={Columns3} label="Delete column" onMouseDown={() => { run(deleteColumn); setOpenDropdown('none') }} />
-              <MenuSeparator className="my-0.5" />
-              <MenuItem icon={Trash2} label="Delete table" danger onMouseDown={() => { run(deleteTable); setOpenDropdown('none') }} />
-            </div>
+            <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}>
+              <MenuSurface className="min-w-[170px]">
+                <MenuItem icon={Rows3} label="Add row below" onMouseDown={() => { run(addRowAfter); setOpenDropdown('none') }} />
+                <MenuItem icon={Rows3} label="Delete row" onMouseDown={() => { run(deleteRow); setOpenDropdown('none') }} />
+                <MenuItem icon={Columns3} label="Delete column" onMouseDown={() => { run(deleteColumn); setOpenDropdown('none') }} />
+                <MenuSeparator />
+                <MenuItem icon={Trash2} label="Delete table" danger onMouseDown={() => { run(deleteTable); setOpenDropdown('none') }} />
+              </MenuSurface>
+            </MenuPositioner>
           )}
 
           {openDropdown === 'link' && (
-            <div className="pm-toolbar-solid material-popover rounded-menu p-1.5 flex items-center gap-1 w-[240px]">
+            <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}
+              className="material-popover rounded-menu animate-menu-in p-1.5 flex items-center gap-1 w-[240px]">
               <TextField
                 ref={linkInputRef}
                 size="sm"
@@ -483,7 +455,7 @@ export default function Toolbar({
                 wrapperClassName="flex-1 min-w-0"
               />
               <Button variant="ghost" size="sm" onMouseDown={submitLink}>Apply</Button>
-            </div>
+            </MenuPositioner>
           )}
 
           {openDropdown === 'verse' && (
@@ -493,7 +465,7 @@ export default function Toolbar({
               onDismiss={() => setOpenDropdown('none')}
             />
           )}
-        </div>,
+        </>,
         document.body
       )}
     </div>

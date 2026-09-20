@@ -43,6 +43,7 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
       setVisible((prev) => (prev === n ? prev : n))
     }
     compute()
+    if (typeof ResizeObserver === 'undefined') return  // jsdom / tests: measure once
     const ro = new ResizeObserver(compute)
     ro.observe(root); ro.observe(m)
     return () => ro.disconnect()

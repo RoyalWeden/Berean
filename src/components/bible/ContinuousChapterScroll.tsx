@@ -272,15 +272,15 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
             style={{
               top: presenterBand.top,
               height: presenterBand.height,
-              border: `2px solid ${viewerPaused ? 'rgba(251,191,36,0.85)' : 'rgb(var(--color-accent))'}`,
-              background: viewerPaused ? 'rgba(251,191,36,0.07)' : 'rgb(var(--color-accent) / 0.06)',
+              border: `2px solid ${viewerPaused ? 'rgb(var(--highlight-amber) / 0.85)' : 'rgb(var(--color-accent))'}`,
+              background: viewerPaused ? 'rgb(var(--highlight-amber) / 0.07)' : 'rgb(var(--color-accent) / 0.06)',
               borderRadius: 6,
             }}
           >
             <span
               className="absolute top-0.5 right-1 px-1.5 text-micro font-semibold uppercase tracking-wide rounded text-white"
               style={{
-                background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
+                background: viewerPaused ? 'rgb(var(--highlight-amber) / 0.95)' : 'rgb(var(--color-accent))',
               }}
             >
               {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
