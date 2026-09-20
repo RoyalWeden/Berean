@@ -35,7 +35,7 @@ export interface SegmentedControlProps<T extends string> {
 
 const SIZE = {
   sm: { seg: 'h-[22px] px-2 text-caption2 gap-1', icon: 12 },
-  md: { seg: 'h-[26px] px-2.5 text-caption gap-1.5', icon: 14 },
+  md: { seg: 'h-6 px-2.5 text-footnote gap-1.5', icon: 14 },  // 24px segment in a 28px track = Button sm / Select sm row
 }
 
 /**

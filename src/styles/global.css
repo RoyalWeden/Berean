@@ -186,8 +186,8 @@
   --z-overlay: 100;
   --z-modal: 200;
   --z-critical: 300;
-  --z-menu: 400;
-  --z-popover: 450;
+  --z-popover: 400;
+  --z-menu: 450;   /* a Select/context menu opened from INSIDE a popover must beat the popover */
 
   /* Motion */
   --motion-fast: 100ms;

@@ -987,8 +987,20 @@ export default function NoteEditorPM({
   // different ref, or off any ref) can't land after the fact and show stale content under the
   // wrong ref, or resurrect the popup after handleRefHoverEnd already dismissed it.
   async function handleVerseRefHoverStart(ref: ParsedRef & { forcedTranslation?: string }, rect: DOMRect) {
-    if (!ref.verse) return
     const seq = ++refHoverSeqRef.current
+    // Chapter-only ref ("Revelation 6", "2 Peter 1"): preview the chapter's opening verses.
+    if (!ref.verse) {
+      const refLabel = `${bookChapterVerseLabel(ref.bookId, ref.chapter)}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
+      setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: '', loading: true })
+      const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
+      const verses = await window.bible.queryChapter(ref.bookId, ref.chapter, tid).catch(() => null)
+      if (seq !== refHoverSeqRef.current) return
+      const text = Array.isArray(verses) && verses.length
+        ? verses.slice(0, 3).map((v) => `${v.verse_num} ${wrVerseText(v, tid)}`).join('  ') + (verses.length > 3 ? ' …' : '')
+        : ''
+      setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text, loading: false })
+      return
+    }
     // A range ref ("Deuteronomy 18:15-19") carries endVerse — fold it into both the label
     // ("18:15-19", not just "18:15") and the fetched text (every verse in the range, not
     // only the start verse), same-chapter ranges only (endChapter ranges aren't produced by

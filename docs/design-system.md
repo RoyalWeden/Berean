@@ -132,8 +132,9 @@ are being migrated OFF (grep gate).
 shadow alpha via `--shadow-strength`.
 
 ### Layering
-`z-raised` 10 · `z-overlay` 100 · `z-modal` 200 · `z-critical` 300 · `z-menu` 400 · `z-popover` 450
-(menus/popovers spawn from inside modals and critical windows, so they sit above both).
+`z-raised` 10 · `z-overlay` 100 · `z-modal` 200 · `z-critical` 300 · `z-popover` 400 · `z-menu` 450
+(menus/popovers spawn from inside modals and critical windows, so they sit above both; a menu
+opened from inside a popover — a Select in the Filters popover — sits above the popover).
 
 ### Motion
 CSS: `duration-fast/base/slow` (100/150/220ms) + `duration-popover/panel/workspace` (160/240/280),

@@ -1614,7 +1614,8 @@ export default function BibleRightPanel({
         // the verse is a given inside a verse-scoped list, so no per-row verse chip.
         titleSize="footnote"
         titleClassName="font-medium text-text-primary"
-        title={note.title || 'Untitled'}
+        // Tinted like the Cross Refs tab's reference chips when the title IS a reference.
+        title={note.verseRef ? <RefChip size="md" mono={false} className="w-fit">{note.title || formatRef(note.verseRef)}</RefChip> : (note.title || 'Untitled')}
         subtitle={
           <span className="block">
             <span

@@ -358,8 +358,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [tagMembers, setTagMembers] = useState<import('@/types').VerseTagMember[]>([])
   // Per-member verse text for the no-query "browse tagged verses" view, keyed by memberId.
   const [tagMemberVerses, setTagMemberVerses] = useState<Record<string, Array<{ verse: number; text: string }>>>({})
-  const [tagFilterMenuOpen, setTagFilterMenuOpen] = useState(false)
-  const tagFilterBtnRef = useRef<HTMLButtonElement>(null)
   // Drop tag ids that no longer exist (deleted from Tag Manager).
   useEffect(() => {
     if (selectedTagIds.length === 0) return
@@ -1130,34 +1128,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   return (
     <div className="flex flex-col h-full bg-surface-3">
-      {/* ── Shared TopBar slot: mode + word-mode pills, then the scope pill. ── */}
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel}>
-        <SegmentedControl
-          size="sm"
-          value={searchMode}
-          onChange={(m) => { setSearchMode(m); if (query.trim().length >= 2) runForMode(query) }}
-          options={[
-            { value: 'auto', label: 'All' },
-            { value: 'text', label: 'Text' },
-            { value: 'strongs', label: "Strong's" },
-            { value: 'crossref', label: 'Cross-ref' },
-          ]}
-        />
-
-        {/* Word mode — permanent inline pills, text mode only (never in a modal/dropdown) */}
-        {effectiveMode(query) === 'text' && (
-          <SegmentedControl
-            size="sm"
-            value={wordMode}
-            onChange={handleWordModeChange}
-            options={[
-              { value: 'all', label: 'All words' },
-              { value: 'any', label: 'Any word' },
-              { value: 'phrase', label: 'Phrase' },
-            ]}
-          />
-        )}
-
+      {/* ── Shared TopBar actions zone (right-aligned): scope · mode · word mode. All three share
+          one control size/type (md segments = 28px, footnote) with the sort/filter controls. ── */}
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
         {/* Scope trigger — a single compact summary button, not the full chip row. The shared
             TopBar slot is one non-wrapping `overflow-hidden` row (TopBar.tsx) already carrying
             the controls above; a multi-chip list here risked silently clipping off-screen with
@@ -1177,7 +1150,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               variant="secondary" size="sm" selected={isFiltered}
               icon={BookOpen}
               onClick={() => openScopePalette()}
-              title="Scope: edition, testament, and books"
+              tooltip="Scope: edition, testament, and books"
               className="min-w-0"
             >
               <span className="truncate max-w-[160px]">{scopeSummary}</span>
@@ -1186,22 +1159,34 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           )
         })()}
 
+        <SegmentedControl
+          size="md"
+          value={searchMode}
+          onChange={(m) => { setSearchMode(m); if (query.trim().length >= 2) runForMode(query) }}
+          options={[
+            { value: 'auto', label: 'All' },
+            { value: 'text', label: 'Text' },
+            { value: 'strongs', label: "Strong's" },
+            { value: 'crossref', label: 'Cross-ref' },
+          ]}
+        />
+
+        {/* Word mode — permanent inline pills, text mode only (never in a modal/dropdown) */}
+        {effectiveMode(query) === 'text' && (
+          <SegmentedControl
+            size="md"
+            value={wordMode}
+            onChange={handleWordModeChange}
+            options={[
+              { value: 'all', label: 'All words' },
+              { value: 'any', label: 'Any word' },
+              { value: 'phrase', label: 'Phrase' },
+            ]}
+          />
+        )}
+
       </TabHeaderPortal>
 
-      {tagFilterMenuOpen && tagFilterBtnRef.current && (
-        <TagFilterMenu
-          anchorRect={tagFilterBtnRef.current.getBoundingClientRect()}
-          triggerRef={tagFilterBtnRef}
-          tags={verseTags}
-          selectedIds={selectedTagIds}
-          matchAll={tagMatchAll}
-          onToggle={(id) => setSelectedTagIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-          onClear={() => setSelectedTagIds([])}
-          onSetMatchAll={setTagMatchAll}
-          onManage={() => { openTagsGraph(); setTagFilterMenuOpen(false) }}
-          onClose={() => setTagFilterMenuOpen(false)}
-        />
-      )}
 
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
@@ -1240,58 +1225,83 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             </ControlGroup>
 
             {/* Secondary filters (result length, verse tags) sit behind ONE "Filters" popover
-                (§45 density): the bar keeps mode / word-match / scope / sort visible. The
-                badge counts non-default filters so nothing is hidden silently. */}
+                (§45 density): the bar keeps scope / mode / word-match / sort visible. The tag
+                list lives INSIDE the popover (checkbox rows — the popover stays open while you
+                pick several); the trigger names the chosen tags (first two, then "+N"). */}
+            {(() => {
+              const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
+              const tagSummary = names.length === 0 ? '' : names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+              const activeCount = (contextMode !== 'default' ? 1 : 0) + (selectedTagIds.length > 0 ? 1 : 0)
+              return (
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="menu" size="sm" icon={SlidersHorizontal}
-                  selected={contextMode !== 'default' || selectedTagIds.length > 0}
-                  badge={(contextMode !== 'default' ? 1 : 0) + (selectedTagIds.length > 0 ? 1 : 0) > 0 ? { variant: 'count', children: (contextMode !== 'default' ? 1 : 0) + (selectedTagIds.length > 0 ? 1 : 0), label: 'Active filters' } : undefined}
+                  selected={activeCount > 0}
+                  badge={contextMode !== 'default' ? { variant: 'dot', label: 'Result length changed' } : undefined}
                   tooltip="Result length and verse-tag filters"
+                  className="max-w-[240px]"
                 >
-                  Filters
+                  <span className="truncate">{tagSummary || 'Filters'}</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverSurface align="end" innerClassName="p-3 w-[260px] flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
+              <PopoverSurface align="end" innerClassName="p-2 w-[260px] flex flex-col gap-2">
+                <div className="flex flex-col gap-1 px-1">
                   <SectionLabel>Result length</SectionLabel>
-            <Select
-              variant="ghost" size="sm"
-              aria-label="Result length"
-              value={contextMode}
-              onChange={setContextMode}
-              options={[
-                { value: 'default', label: 'Compact', icon: AlignJustify },
-                { value: 'full', label: 'Full verse', icon: Rows },
-                { value: 'plusMinus1', label: '±1 verse' },
-                { value: 'plusMinus2', label: '±2 verses' },
-              ]}
-            />
-
+                  <Select
+                    variant="field" size="sm"
+                    aria-label="Result length"
+                    value={contextMode}
+                    onChange={setContextMode}
+                    className="w-full"
+                    options={[
+                      { value: 'default', label: 'Compact', icon: AlignJustify },
+                      { value: 'full', label: 'Full verse', icon: Rows },
+                      { value: 'plusMinus1', label: '±1 verse' },
+                      { value: 'plusMinus2', label: '±2 verses' },
+                    ]}
+                  />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <SectionLabel>Verse tags</SectionLabel>
-            {(() => {
-              const on = selectedTagIds.length > 0
-              const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
-              const summary = !on ? 'Any tag' : names.length === 1 ? names[0] : `${names.length} tags${tagMatchAll ? ' · all' : ''}`
-              return (
-                <Button
-                  ref={tagFilterBtnRef}
-                  variant="secondary" size="sm" selected={on}
-                  icon={Tag}
-                  onClick={() => setTagFilterMenuOpen((v) => !v)}
-                  tooltip="Filter results by verse tag"
-                >
-                  <span className="truncate max-w-[140px]">{summary}</span>
-                  <ChevronDown size={9} className="flex-shrink-0" />
-                </Button>
-              )
-            })()}
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between px-1">
+                    <SectionLabel>Verse tags</SectionLabel>
+                    {selectedTagIds.length > 0 && (
+                      <Button variant="ghost" size="xs" onClick={() => setSelectedTagIds([])}>Clear</Button>
+                    )}
+                  </div>
+                  <div className="max-h-[220px] overflow-y-auto overscroll-contain">
+                    {verseTags.length === 0 && <EmptyState compact title="No tags yet." />}
+                    {verseTags.map((t) => {
+                      const on = selectedTagIds.includes(t.id)
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={on}
+                          onClick={() => setSelectedTagIds((prev) => prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}
+                          className="focus-ring w-full flex items-center gap-2 h-7 px-2 rounded-card text-left text-footnote text-text-primary hover:bg-lift-2 active:bg-lift-3 transition-colors"
+                        >
+                          <Checkbox checked={on} onChange={() => {}} tabIndex={-1} className="pointer-events-none" />
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
+                          <span className="truncate flex-1">{t.name}</span>
+                          <span className="text-meta">{t.verseCount + t.chapterCount}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {selectedTagIds.length > 1 && (
+                    <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-footnote text-text-secondary border-t border-separator">
+                      <span>Match all selected tags</span>
+                      <Switch checked={tagMatchAll} onCheckedChange={() => setTagMatchAll(!tagMatchAll)} />
+                    </div>
+                  )}
+                  <Button variant="ghost" size="xs" icon={Settings2} className="self-start" onClick={() => openTagsGraph()}>Manage tags…</Button>
                 </div>
               </PopoverSurface>
             </Popover>
+              )
+            })()}
           </>
         )}
       </div>
@@ -1492,10 +1502,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                           t.id,
                           textId === t.id,
                           () => selectTranslation(t.id),
-                          <>
-                            <Badge variant="dot" tone={t.id === 'kjva' ? 'warning' : 'info'} label={fullEditionLabel(t.id, t.label)} />
-                            {fullEditionLabel(t.id, t.label)}
-                          </>,
+                          fullEditionLabel(t.id, t.label),
                           true,
                           editionNav.getItemProps((showAllEditionsOption ? 1 : 0) + i)
                         ))}
@@ -2030,90 +2037,3 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 }
 
 /** Small popover under the "Tags" scope pill — pick which verse tags filter the results. */
-function TagFilterMenu({
-  anchorRect, triggerRef, tags, selectedIds, matchAll, onToggle, onClear, onSetMatchAll, onManage, onClose,
-}: {
-  anchorRect: DOMRect
-  /** The pill that opens this menu — a mousedown on it must NOT trigger the outside-click
-   *  close, or the button's own toggle handler would immediately reopen (net: never closes). */
-  triggerRef?: React.RefObject<HTMLElement | null>
-  tags: import('@/types').VerseTag[]
-  selectedIds: string[]
-  matchAll: boolean
-  onToggle: (id: string) => void
-  onClear: () => void
-  onSetMatchAll: (v: boolean) => void
-  onManage: () => void
-  onClose: () => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ x: number; y: number }>({ x: anchorRect.left, y: anchorRect.bottom + 6 })
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    const pad = 8
-    let x = anchorRect.left
-    let y = anchorRect.bottom + 6
-    if (x + width + pad > window.innerWidth) x = Math.max(pad, window.innerWidth - width - pad)
-    if (y + height + pad > window.innerHeight) y = Math.max(pad, anchorRect.top - height - 6)
-    setPos({ x, y })
-  }, [anchorRect])
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (ref.current && ref.current.contains(t)) return
-      if (triggerRef?.current && triggerRef.current.contains(t)) return // let the pill's own onClick toggle it
-      onClose()
-    }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
-    const t = setTimeout(() => {
-      window.addEventListener('mousedown', onDown)
-      window.addEventListener('keydown', onKey, true)
-    }, 0)
-    return () => { clearTimeout(t); window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey, true) }
-  }, [onClose, triggerRef])
-  return createPortal(
-    <div
-      ref={ref}
-      className="fixed z-menu w-[230px] material-popover rounded-menu overflow-hidden flex flex-col"
-      style={{ left: pos.x, top: pos.y }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between px-3 pt-2 pb-1 text-caption font-semibold text-text-secondary">
-        <span>Filter by tag</span>
-        {selectedIds.length > 0 && (
-          <Button variant="ghost" size="sm" className="h-auto px-1 text-caption2" onClick={onClear}>Clear</Button>
-        )}
-      </div>
-      <div className="max-h-[240px] overflow-y-auto px-1.5 pb-1">
-        {tags.length === 0 && <EmptyState compact title="No tags yet." />}
-        {tags.map((t) => {
-          const on = selectedIds.includes(t.id)
-          return (
-            <MenuItem
-              key={t.id}
-              onClick={() => onToggle(t.id)}
-              label={
-                <span className="flex items-center gap-2 min-w-0 flex-1">
-                  <Checkbox checked={on} onChange={() => {}} tabIndex={-1} className="pointer-events-none" />
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
-                  <span className="truncate flex-1">{t.name}</span>
-                  <span className="text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>
-                </span>
-              }
-            />
-          )
-        })}
-      </div>
-      {selectedIds.length > 1 && (
-        <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-caption text-text-secondary border-t border-separator">
-          <span>Match all selected tags</span>
-          <Switch checked={matchAll} onCheckedChange={() => onSetMatchAll(!matchAll)} />
-        </div>
-      )}
-      <MenuItem icon={Settings2} label="Manage tags…" onClick={onManage} />
-    </div>,
-    document.body,
-  )
-}
