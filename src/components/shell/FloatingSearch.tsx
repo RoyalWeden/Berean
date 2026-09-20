@@ -16,7 +16,7 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import { IconButton, SectionLabel, SectionHeader, SearchField, SegmentedControl, RefChip, Chip, ListRow, Toolbar, Button } from '@/components/ui'
+import { IconButton, SectionLabel, SectionHeader, SearchField, SegmentedControl, RefChip, Chip, ListRow, Toolbar, ToolbarSpacer, Button } from '@/components/ui'
 
 /** Spotlight-style group heading for each result kind — the order matches how `results` is
  *  actually built/ranked below; groups are inserted around already-ordered runs (never
@@ -1487,7 +1487,7 @@ export default function FloatingSearch() {
               {isTagMode && verseTags.length === 0 && (
                 <span className="text-meta whitespace-nowrap">No verse tags yet</span>
               )}
-              <div className="flex-1" />
+              <ToolbarSpacer />
               <Button variant="ghost" size="sm" onClick={openAdvancedScriptureSearch}>
                 <ShortcutKeys keys="⇧↵" />
                 {selectedTags.length > 0

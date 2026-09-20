@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'rea
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
-import { IconButton, RefChip, ControlGroup, ScrollContainer } from '@/components/ui'
+import { IconButton, RefChip, ControlGroup, ScrollContainer, Tooltip } from '@/components/ui'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch, isLxxTranslation } from '@/lib/translationChapterMap'
@@ -787,11 +787,12 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
             />
           </ScrollContainer>
           {colIdx < columns.length - 1 && (
-            <div
-              onMouseDown={(e) => startColumnResize(colIdx, e)}
-              title="Drag to resize columns"
-              className="flex-shrink-0 w-1 cursor-col-resize bg-surface-4 hover:bg-accent/60 transition-colors"
-            />
+            <Tooltip label="Drag to resize columns">
+              <div
+                onMouseDown={(e) => startColumnResize(colIdx, e)}
+                className="flex-shrink-0 w-1 cursor-col-resize bg-surface-4 hover:bg-accent/60 transition-colors"
+              />
+            </Tooltip>
           )}
          </Fragment>
         )

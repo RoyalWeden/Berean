@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
 import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, NotepadText, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { IconButton, Button, Toolbar, TextArea } from '@/components/ui'
+import { IconButton, Button, Toolbar, TextArea, CardButton } from '@/components/ui'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -108,9 +108,9 @@ function StrongsCard({ card }: { card: AiLookupStrongsCard }) {
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   return (
-    <button
+    <CardButton
       onClick={() => { ensureTab('lexicon'); openLexiconEntry(card.strongsNum); setActiveSpace('lexicon') }}
-      className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-3 py-2.5 transition-colors cursor-pointer"
+      density="comfortable"
     >
       <div className="flex items-center gap-1.5 mb-1">
         <BookOpenText size={12} className="flex-shrink-0 text-accent" />
@@ -131,7 +131,7 @@ function StrongsCard({ card }: { card: AiLookupStrongsCard }) {
       <p className="text-caption2 text-text-muted mt-1">
         {card.occurrenceCount} occurrence{card.occurrenceCount === 1 ? '' : 's'} in Scripture · click for full entry
       </p>
-    </button>
+    </CardButton>
   )
 }
 
@@ -142,9 +142,9 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   return (
-    <button
+    <CardButton
       onClick={() => { ensureTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
-      className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-2.5 py-2 transition-colors cursor-pointer"
+      density="compact"
     >
       <div className="flex items-center gap-1.5 mb-0.5">
         <NotepadText size={11} className="flex-shrink-0 text-text-muted" />
@@ -156,7 +156,7 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
         )}
       </div>
       {note.snippet && <p className="text-caption text-text-secondary leading-snug line-clamp-2">{note.snippet}</p>}
-    </button>
+    </CardButton>
   )
 }
 
@@ -171,21 +171,26 @@ function VideoCard({ video }: { video: AiLookupVideoResult }) {
   // exactly like before this feature existed.
   const startSeconds = video.startMs != null ? Math.floor(video.startMs / 1000) : 0
   return (
-    <button
+    <CardButton
       onClick={() => { openYouTubeVideoInNewTab(video.videoId, startSeconds); setActiveSpace('youtube') }}
-      className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
+      density="compact"
     >
-      {video.thumbnailUrl
-        ? <img src={video.thumbnailUrl} alt="" className="w-14 h-9 rounded object-cover flex-shrink-0" />
-        : <Youtube size={20} className="flex-shrink-0 text-text-muted" />}
-      <div className="min-w-0">
-        <p className="text-caption font-semibold text-text-primary leading-snug line-clamp-2">{video.title}</p>
-        <p className="text-caption2 text-text-muted truncate">
-          {video.channelName}{video.startMs != null ? ` — at ${formatTimestamp(startSeconds)}` : ''}
-        </p>
-        {video.snippet && <p className="text-caption2 text-text-secondary leading-snug line-clamp-2 mt-0.5">"{video.snippet}"</p>}
+      {/* CardButton's own layout is `items-start`; this card wants the thumbnail vertically
+          centered against the text block, so that row lives inside the content slot instead of
+          relying on the button's own alignment. */}
+      <div className="flex items-center gap-2">
+        {video.thumbnailUrl
+          ? <img src={video.thumbnailUrl} alt="" className="w-14 h-9 rounded object-cover flex-shrink-0" />
+          : <Youtube size={20} className="flex-shrink-0 text-text-muted" />}
+        <div className="min-w-0">
+          <p className="text-caption font-semibold text-text-primary leading-snug line-clamp-2">{video.title}</p>
+          <p className="text-caption2 text-text-muted truncate">
+            {video.channelName}{video.startMs != null ? ` — at ${formatTimestamp(startSeconds)}` : ''}
+          </p>
+          {video.snippet && <p className="text-caption2 text-text-secondary leading-snug line-clamp-2 mt-0.5">"{video.snippet}"</p>}
+        </div>
       </div>
-    </button>
+    </CardButton>
   )
 }
 
@@ -775,13 +780,13 @@ export default function AiLookupPanel() {
                       const crOpen = crossRefsOpen[crKey] ?? false
                       return (
                         <div key={ri}>
-                          <button
+                          <CardButton
                             onClick={() => navigateToResult(r, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                             onContextMenu={(e) => verseCopy.open(e, {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
                             })}
-                            className="w-full text-left rounded-card bg-surface-elevated hover:bg-surface-hover px-2.5 py-2 transition-colors cursor-pointer"
+                            density="compact"
                           >
                             <div className="flex items-center gap-1.5 mb-0.5">
                               <span className="text-caption font-semibold text-text-primary">
@@ -796,7 +801,7 @@ export default function AiLookupPanel() {
                               />
                             </p>
                             {r.commentary && <p className="text-caption text-accent mt-1 leading-snug">{r.commentary}</p>}
-                          </button>
+                          </CardButton>
                           {nested.length > 0 && (
                             <>
                               <Button
@@ -852,14 +857,20 @@ export default function AiLookupPanel() {
                       <div className="pt-1 border-t border-separator space-y-1.5">
                         {m.relatedNote && <p className="text-caption2 text-text-muted italic">{m.relatedNote}</p>}
                         {m.related!.map((r, ri) => (
-                          <button
+                          <CardButton
                             key={ri}
                             onClick={() => navigateToResult(r, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                             onContextMenu={(e) => verseCopy.open(e, {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
                             })}
-                            className="w-full text-left rounded-card bg-surface-elevated/70 hover:bg-surface-hover px-2.5 py-1.5 transition-colors cursor-pointer"
+                            // surface="plain" (no rest fill of its own) + the muted /70 elevated
+                            // tint via className — CardButton's own `elevated` surface is full
+                            // opacity, and this row wants the softer "secondary" look, so the
+                            // fill has to come from here rather than fight the primitive's.
+                            surface="plain"
+                            className="bg-surface-elevated/70"
+                            density="compact"
                           >
                             <span className="text-caption2 font-semibold text-text-secondary">
                               {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
@@ -867,7 +878,7 @@ export default function AiLookupPanel() {
                             <p className="text-caption2 text-text-muted leading-snug mt-0.5">
                               {activeWordReplacerRules.length > 0 ? applyWordReplacer(r.text, activeWordReplacerRules) : r.text}
                             </p>
-                          </button>
+                          </CardButton>
                         ))}
                       </div>
                     )}
