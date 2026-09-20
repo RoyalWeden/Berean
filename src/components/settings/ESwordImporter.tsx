@@ -181,7 +181,7 @@ export default function ESwordImporter() {
         )}
         {pct !== null && (
           <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
-            <div className="h-full rounded-control bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+            <div className="h-full rounded-control bg-accent transition-[width] duration-300" style={{ width: `${pct}%` }} />
           </div>
         )}
       </div>
@@ -292,7 +292,7 @@ export default function ESwordImporter() {
           <span className="text-footnote font-medium text-text-secondary">Saving notes…</span>
         </div>
         <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
-          <div className="h-full rounded-control bg-accent transition-all duration-300" style={{ width: `${p}%` }} />
+          <div className="h-full rounded-control bg-accent transition-[width] duration-300" style={{ width: `${p}%` }} />
         </div>
         <p className="text-caption2 text-text-muted">{eSwordDone} / {eSwordTotal}</p>
       </div>

@@ -2,6 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { X } from 'lucide-react'
 import { cx } from './cx'
+import { Tooltip } from './Tooltip'
 
 export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   children: ReactNode
@@ -18,6 +19,9 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   static?: boolean
   /** filter (default) — rounded-rect toggle in a filter row · token — removable capsule (tags, aliases) · badge — static capsule label. */
   kind?: 'filter' | 'token' | 'badge'
+  /** Tooltip text (+ optional shortcut) — replaces `title=`, which would otherwise fall through
+   *  to a native browser tooltip. Same contract as Button/IconButton. */
+  tooltip?: string | { label: string; shortcut?: string; side?: 'top' | 'bottom' | 'left' | 'right' }
 }
 
 const SIZE = { sm: 'h-5 px-2 text-caption2 gap-1', md: 'h-6 px-2.5 text-caption gap-1.5' }
@@ -25,7 +29,7 @@ const SIZE = { sm: 'h-5 px-2 text-caption2 gap-1', md: 'h-6 px-2.5 text-caption 
 /** Chip: filter toggles (rounded rectangle — Apple's small-control shape), tokens and badges (capsule).
  *  Rest = interactive glass; selected = accent tint. Never a disclosure or a sort toggle. */
 export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
-  { children, size = 'sm', selected, icon: Icon, count, tint, onRemove, static: isStatic, kind, className, type = 'button', ...rest }, ref,
+  { children, size = 'sm', selected, icon: Icon, count, tint, onRemove, static: isStatic, kind, tooltip, className, type = 'button', ...rest }, ref,
 ) {
   const chipRole = kind ?? (onRemove || tint ? 'token' : isStatic ? 'badge' : 'filter')
   const look = tint
@@ -54,12 +58,16 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       )}
     </>
   )
-  if (isStatic) return <span className={cls} style={look.style}>{body}</span>
-  return (
-    <button ref={ref} type={type} aria-pressed={selected !== undefined ? selected : undefined}
-      className={cx(cls, 'focus-ring cursor-pointer disabled:opacity-40 disabled:pointer-events-none')} style={look.style} {...rest}>
-      {body}
-    </button>
-  )
+  const el = isStatic
+    ? <span className={cls} style={look.style}>{body}</span>
+    : (
+      <button ref={ref} type={type} aria-pressed={selected !== undefined ? selected : undefined}
+        className={cx(cls, 'focus-ring cursor-pointer disabled:opacity-40 disabled:pointer-events-none')} style={look.style} {...rest}>
+        {body}
+      </button>
+    )
+  if (!tooltip) return el
+  const t = typeof tooltip === 'string' ? { label: tooltip } : tooltip
+  return <Tooltip label={t.label} shortcut={t.shortcut} side={t.side}>{el}</Tooltip>
 })
 export default Chip

@@ -584,7 +584,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   <Button
                     variant="ghost"
                     size="sm"
-                    title="Click to set custom zoom (50%–250%)"
+                    tooltip="Click to set custom zoom (50%–250%)"
                     onClick={() => { setZoomInputVal(String(Math.round(scale * 100))); setZoomEditing(true); setTimeout(() => zoomInputRef.current?.select(), 10) }}
                     className="tabular-nums w-12"
                   >
@@ -601,7 +601,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   variant="ghost"
                   size="sm"
                   selected={userZoom === null}
-                  title="Fit to width"
+                  tooltip="Fit to width"
                   onClick={() => {
                     // Recalculate from the live container size so the displayed % is always accurate.
                     const el = previewWrapRef.current

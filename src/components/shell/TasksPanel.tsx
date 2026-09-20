@@ -782,7 +782,7 @@ export default function TasksPanel() {
 
       {/* Global progress bar */}
       <div className="h-0.5 bg-lift-2 flex-shrink-0">
-        <div className="h-full bg-accent transition-all duration-500"
+        <div className="h-full bg-accent transition-[width] duration-500"
           style={{ width: `${(doneCount / TOTAL) * 100}%` }} />
       </div>
 
@@ -825,7 +825,7 @@ export default function TasksPanel() {
                 </div>
                 <div className="h-0.5 rounded-control bg-lift-2 overflow-hidden">
                   <div
-                    className="h-full rounded-control transition-all duration-500"
+                    className="h-full rounded-control transition-[width,background-color] duration-500"
                     style={{
                       width: `${(sectionDone / sectionTotal) * 100}%`,
                       background: allSectionDone ? 'rgb(var(--color-accent))' : 'rgba(var(--color-accent), 0.6)',

@@ -157,7 +157,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
           <SectionLabel className="mb-1">Sessions</SectionLabel>
           <div className="flex flex-wrap gap-1">
             {thread.sessions.map((s) => (
-              <Chip key={s.id} size="md" onClick={() => onOpenSession(s.id)} title="Show this session on the map">{s.name}</Chip>
+              <Chip key={s.id} size="md" onClick={() => onOpenSession(s.id)} tooltip="Show this session on the map">{s.name}</Chip>
             ))}
           </div>
         </div>

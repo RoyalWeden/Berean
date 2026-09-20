@@ -102,7 +102,7 @@ function EmojiButton({ entry, onPick }: { entry: EmojiEntry; onPick: (emoji: str
     <Button
       variant="ghost"
       onClick={() => onPick(entry.char)}
-      title={entry.name}
+      tooltip={entry.name}
       className="!h-7 !w-7 !p-0 rounded-card text-body leading-none"
     >
       {entry.char}

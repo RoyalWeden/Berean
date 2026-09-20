@@ -321,7 +321,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               variant="secondary" size="sm" icon={Plus}
               onClick={addCurrentChapterToQueue}
               disabled={!activeState?.bookId}
-              title="Add the chapter you're currently viewing"
+              tooltip="Add the chapter you're currently viewing"
               className="flex-1"
             >
               Add current
@@ -330,7 +330,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               variant="primary" size="sm" icon={Play}
               onClick={playFromQueueStart}
               disabled={playbackQueue.length === 0}
-              title="Play queue from the start"
+              tooltip="Play queue from the start"
             >
               Play
             </Button>
