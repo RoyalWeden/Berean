@@ -169,7 +169,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
 
   const currentTabId  = activeTabId
   const currentTabNav = currentTabId ? (tabNavStacks[currentTabId] ?? null) : null
-  const navStackType = currentTabNav?.stack[0]?.type
+  const navStackType = currentTab?.type ?? currentTabNav?.stack[0]?.type
   const navSupportsHome = navStackType === 'note' || navStackType === 'lexicon' || navStackType === 'youtube'
   const canNavBack    = currentTabNav ? currentTabNav.idx > (navSupportsHome ? -1 : 0) : false
   const canNavForward = currentTabNav ? currentTabNav.idx < currentTabNav.stack.length - 1 : false

@@ -3104,23 +3104,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           ordinary chapter history. Restored as an explicit pill instead, matching how
           LexiconPanel already solves the exact same problem for its own tab. */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
-        {tabState.noteBack && (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={ArrowLeft}
-            onClick={() => {
-              if (!tabState.noteBack) return
-              requestOpenNote(tabState.noteBack.noteId)
-              ensureTab('note')
-              if (activeTab) updateTabState('scripture', activeTab.id, { noteBack: null })
-            }}
-            tooltip={`Back to "${tabState.noteBack.title}"`}
-            className="flex-shrink-0 max-w-[120px] text-accent hover:text-accent"
-          >
-            <span className="truncate">{tabState.noteBack.title}</span>
-          </Button>
-        )}
         {/* Prev chapter / book+chapter+edition picker / next chapter — ONE grouped control
             (shared border, hairline dividers between segments) rather than three separate
             floating buttons. Kept in the context zone in both reading and compare mode — the

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { Note, Book } from '@/types'
@@ -30,7 +31,7 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 export function StrongsSuggestPopup({
   num, x, y, onInsert, onDismiss,
 }: { num: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
-  return (
+  return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
       className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-menu-in">
       <span className="text-caption2 font-mono font-semibold text-accent">{num}</span>
@@ -39,14 +40,15 @@ export function StrongsSuggestPopup({
         <ShortcutKeys keys="↵" className="ml-0.5" />
       </Button>
       <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
-    </MenuPositioner>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
 export function VerseSuggestPopup({
   refText, x, y, onInsert, onDismiss,
 }: { refText: string; x: number; y: number; onInsert: () => void; onDismiss: () => void }) {
-  return (
+  return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
       className="flex items-center gap-2 px-2.5 py-1.5 material-popover rounded-menu animate-menu-in">
       <span className="text-caption2 font-mono font-semibold text-accent">{refText}</span>
@@ -55,7 +57,8 @@ export function VerseSuggestPopup({
         <ShortcutKeys keys="↵" className="ml-0.5" />
       </Button>
       <IconButton icon={X} label="Dismiss (Esc)" size={20} variant="ghost" onMouseDown={onDismiss} />
-    </MenuPositioner>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -64,7 +67,7 @@ export function WikilinkPopup({
 }: { notes: Note[]; x: number; y: number; activeIdx: number; onHoverIdx: (i: number) => void; onInsert: (note: Note) => void }) {
   if (notes.length === 0) return null
   const active = notes[activeIdx] ?? notes[0]
-  return (
+  return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
       className="flex material-popover rounded-menu overflow-hidden animate-menu-in">
       <MenuSurface className="w-56 max-h-64 overflow-y-auto flex-shrink-0" dense role="listbox">
@@ -99,7 +102,8 @@ export function WikilinkPopup({
           </p>
         </div>
       )}
-    </MenuPositioner>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -113,14 +117,15 @@ export function WikilinkPopup({
 export function RefHoverPreview({
   x, y, refLabel, text, loading,
 }: { x: number; y: number; refLabel: string; text: string; loading: boolean }) {
-  return (
+  return createPortal(
     <MenuPositioner x={x} y={y}
       className="max-w-xs px-3 py-2 material-popover rounded-menu pointer-events-none animate-menu-in">
-      <p className="text-caption2 font-mono font-semibold text-accent mb-1">{refLabel}</p>
+      <p className="text-caption2 font-semibold text-accent mb-1">{refLabel}</p>
       <p className="text-caption text-text-secondary leading-relaxed line-clamp-6">
         {loading ? 'Loading…' : (text || 'Not found')}
       </p>
-    </MenuPositioner>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -167,7 +172,7 @@ export function VersePickerPopup({
   // Radix's separate Popover/collision system would fork that mechanism in two (COMMON.md
   // implementation-safety rule 9), so this adopts PopoverSurface's material/metrics contract
   // without its positioning engine.
-  return (
+  return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
       className="pm-toolbar-solid material-popover rounded-menu p-2 flex flex-col gap-1.5 w-[220px] animate-menu-in">
       <CompactMetrics>
@@ -205,7 +210,8 @@ export function VersePickerPopup({
           </Button>
         </div>
       </CompactMetrics>
-    </MenuPositioner>
+    </MenuPositioner>,
+    document.body,
   )
 }
 
@@ -219,7 +225,7 @@ export function SlashCommandPopup({
     if (!g) { g = { group: cmd.group, items: [] }; groups.push(g) }
     g.items.push({ cmd, idx })
   })
-  return (
+  return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}>
       <MenuSurface className="w-64 max-h-80 overflow-y-auto" role="listbox">
         {groups.map(({ group, items }) => (
@@ -246,6 +252,7 @@ export function SlashCommandPopup({
           </div>
         ))}
       </MenuSurface>
-    </MenuPositioner>
+    </MenuPositioner>,
+    document.body,
   )
 }

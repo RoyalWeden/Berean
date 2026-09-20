@@ -15,6 +15,9 @@ import { InPositionedMenuContext } from '@/lib/usePositionedMenu'
 /** When true, every MenuItem reserves the leading check column so labels align in menus that mix
  *  radio items and plain items. Set on MenuSurface via `inset`. */
 const MenuInsetContext = createContext(false)
+/** When true, every MenuItem in the section reserves the icon column (Apple 26/27: icons form one
+ *  column per section) — items without an icon get a spacer so labels align. */
+const MenuIconColumnContext = createContext(false)
 
 export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { dense?: boolean; inset?: boolean; autoFocus?: boolean }>(
   function MenuSurface({ className, children, dense, inset = false, autoFocus, onKeyDown, ...rest }, ref) {
@@ -90,6 +93,7 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
   { icon: Icon, label, shortcut, trailing, danger, active, disabled, description, className, ...rest }, ref,
 ) {
   const inset = useContext(MenuInsetContext)
+  const iconColumn = useContext(MenuIconColumnContext)
   return (
     <button
       ref={ref}
@@ -113,7 +117,9 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
       {(active !== undefined || inset) && (
         <Check size={12} strokeWidth={2.25} className={cx('flex-shrink-0 -ml-0.5', active ? 'text-accent group-hover/mi:text-white group-focus-visible/mi:text-white' : 'opacity-0')} />
       )}
-      {Icon && <Icon size={14} strokeWidth={1.75} className={cx('flex-shrink-0', danger ? '' : 'text-text-muted group-hover/mi:text-white/85 group-focus-visible/mi:text-white/85')} />}
+      {Icon
+        ? <Icon size={14} strokeWidth={1.75} className={cx('flex-shrink-0', danger ? '' : 'text-text-muted group-hover/mi:text-white/85 group-focus-visible/mi:text-white/85')} />
+        : iconColumn ? <span aria-hidden className="w-3.5 flex-shrink-0" /> : null}
       <span className="flex-1 min-w-0">
         <span className="block truncate">{label}</span>
         {description && <span className="block truncate text-caption2 text-text-muted group-hover/mi:text-white/75 group-focus-visible/mi:text-white/75">{description}</span>}
@@ -131,13 +137,17 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
  * in the group carries an icon (or a check state), every item in the group reserves the column.
  */
 export function MenuGroup({ children, label, className }: { children: ReactNode; label?: ReactNode; className?: string }) {
-  const hasIcon = Children.toArray(children).some((c) => isValidElement(c) && (((c.props as MenuItemProps).icon) || (c.props as MenuItemProps).active !== undefined))
+  const kids = Children.toArray(children).filter(isValidElement) as React.ReactElement<MenuItemProps>[]
+  const hasIcon = kids.some((c) => !!c.props.icon)
+  const hasCheck = kids.some((c) => c.props.active !== undefined)
   return (
-    <MenuInsetContext.Provider value={hasIcon}>
-      <div role="group" className={className}>
-        {label && <MenuLabel>{label}</MenuLabel>}
-        {children}
-      </div>
+    <MenuInsetContext.Provider value={hasCheck}>
+      <MenuIconColumnContext.Provider value={hasIcon}>
+        <div role="group" className={className}>
+          {label && <MenuLabel>{label}</MenuLabel>}
+          {children}
+        </div>
+      </MenuIconColumnContext.Provider>
     </MenuInsetContext.Provider>
   )
 }

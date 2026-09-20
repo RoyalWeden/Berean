@@ -535,7 +535,7 @@ function RefLabel({ bookId, chapter, verse, endVerse }: { bookId: string; chapte
   } else {
     label = bookChapterVerseLabel(bookId, chapter, verse)
   }
-  return <span className="font-mono text-accent group-hover:underline">{label}</span>
+  return <span className="text-accent group-hover:underline">{label}</span>
 }
 
 // Re-export NoteVerseRef as UserNoteRef for local use
@@ -1609,28 +1609,23 @@ export default function BibleRightPanel({
             style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
           />
         }
+        // Same type roles as the Cross Refs tab's rows: title = the reference size (RefChip md),
+        // preview = the verse-text size (footnote, secondary), meta = created/modified only —
+        // the verse is a given inside a verse-scoped list, so no per-row verse chip.
+        titleSize="footnote"
+        titleClassName="font-medium text-text-primary"
         title={note.title || 'Untitled'}
         subtitle={
           <span className="block">
-            {/* An inline `style` beats any class-based `white-space` rule (including
-                ListRow's own default `truncate`), so expandAll can reliably force
-                multi-line wrapping here without fighting the row's own utility classes. */}
             <span
               style={{ whiteSpace: expandAll ? 'pre-wrap' : undefined }}
-              className={`block leading-relaxed ${expandAll ? 'break-words' : 'truncate'}`}
+              className={`block text-footnote text-text-secondary leading-relaxed ${expandAll ? 'break-words' : 'truncate'}`}
             >
               {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
             </span>
-            <span className="flex items-center gap-1.5 mt-1">
-              {note.verseRef && (
-                <RefChip size="xs" className="w-fit flex-shrink-0">
-                  {formatRef(note.verseRef)}
-                </RefChip>
-              )}
-              <span className="min-w-0 flex-1 truncate whitespace-nowrap text-right text-meta">
-                created {timeAgo(note.createdAt)}
-                {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
-              </span>
+            <span className="block mt-1 text-meta truncate">
+              created {timeAgo(note.createdAt)}
+              {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
             </span>
           </span>
         }

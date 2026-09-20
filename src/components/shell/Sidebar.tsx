@@ -572,7 +572,7 @@ export default function Sidebar() {
             </PopoverTrigger>
             <PopoverSurface
               side="bottom" align="start" sideOffset={4}
-              innerClassName="min-w-[260px] p-1"
+              innerClassName="min-w-[200px] p-1"
               // The rename/icon/delete submenu is portaled separately (to document.body,
               // outside this Popover's content), so Radix's own outside-interaction dismissal
               // would otherwise treat clicks inside it as "outside" and auto-close this

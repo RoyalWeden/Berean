@@ -7,8 +7,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2, Link2Off,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease,
   Table2, Minus, BookOpen, Image as ImageIcon, Rows3, Columns3, Trash2, Plus,
-  Square, X, Maximize2, Focus as FocusIcon,
-} from 'lucide-react'
+  Square, X, Maximize2, Focus as FocusIcon, ListMinus } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
 import { createEditorCommands } from './editorCommands'
@@ -279,9 +278,7 @@ export default function Toolbar({
             </div>
           )}
 
-          {/* Group 1 — Text: current block type + the Thread insert action. Grouped by editing
-              task, not widget type (packet §39); never folds — always available regardless of
-              pane width. */}
+          {/* Group 1 — Text: current block type. (Thread lives in the Insert menu.) Never folds. */}
           <OverflowSection priority="never">
             <ControlGroup>
               <Button
@@ -292,7 +289,6 @@ export default function Toolbar({
                 onMouseDown={(e) => openDropdownAt('type', e)}
                 tooltip="Text type"
               />
-              <IconButton icon={ThreadIcon} label="Thread" size={24} onMouseDown={() => cmds.wrapInThread()} />
             </ControlGroup>
           </OverflowSection>
 
@@ -446,7 +442,7 @@ export default function Toolbar({
             <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}>
               <MenuSurface className="min-w-[160px]">
                 <MenuItem icon={List} label="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} />
-                <MenuItem label="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} />
+                <MenuItem icon={ListMinus} label="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} />
                 <MenuItem icon={ListOrdered} label="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} />
                 <MenuItem icon={CheckSquare} label="Task list" onMouseDown={toggleTaskList} />
               </MenuSurface>
@@ -491,6 +487,7 @@ export default function Toolbar({
                     mid-paragraph silently produced a malformed/uneditable result.
                     insertBlockNode already handles this correctly (same helper the working
                     /table slash command uses). */}
+                <MenuItem icon={ThreadIcon} label="Thread" onMouseDown={() => { cmds.wrapInThread(); setOpenDropdown('none') }} />
                 <MenuItem
                   icon={Table2}
                   label="Table"

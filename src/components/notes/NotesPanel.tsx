@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -447,6 +447,36 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // that a single click opens the editor as before (see homePanelVisible).
   const [previewNoteId, setPreviewNoteId] = useState<string | null>(null)
   const [previewFolderId, setPreviewFolderId] = useState<string | null>(null)
+
+  // ── Per-tab home-view isolation ──────────────────────────────────────────
+  // This panel is one shared instance for every Notes tab. On a tab switch, snapshot the
+  // OUTGOING tab's home UI state into its NoteTabState.homeView (the local state still holds
+  // the outgoing tab's values at that moment) and restore the INCOMING tab's snapshot — or the
+  // defaults for a brand-new tab — so tabs never bleed search/filters/preview into each other.
+  // useLayoutEffect so the swap lands before paint (no flash of the other tab's list).
+  const homeSnapshotRef = useRef({ noteSearch, noteSearchWordMode, noteFilter, statusFilter, noteSort, viewMode, expandAll, previewNoteId, previewFolderId })
+  homeSnapshotRef.current = { noteSearch, noteSearchWordMode, noteFilter, statusFilter, noteSort, viewMode, expandAll, previewNoteId, previewFolderId }
+  const prevHomeTabRef = useRef<string | null>(notesTabId)
+  useLayoutEffect(() => {
+    const prev = prevHomeTabRef.current
+    if (prev === notesTabId) return
+    prevHomeTabRef.current = notesTabId
+    const st = useAppStore.getState()
+    if (prev && st.tabs.notes.some((t) => t.id === prev)) {
+      st.updateTabState('notes', prev, { homeView: { ...homeSnapshotRef.current } })
+    }
+    const next = (st.tabs.notes.find((t) => t.id === notesTabId)?.state as NoteTabState | undefined)?.homeView
+    setNoteSearch(next?.noteSearch ?? '')
+    setNoteSearchWordMode(next?.noteSearchWordMode ?? 'all')
+    setNoteFilter((next?.noteFilter as NoteFilter | undefined) ?? 'all')
+    setStatusFilter((next?.statusFilter as StatusFilter | undefined) ?? 'all')
+    setNoteSort((next?.noteSort as NoteSort | undefined) ?? 'modified')
+    setViewMode(next?.viewMode ?? cachedNotesViewMode ?? 'list')
+    setExpandAll(next?.expandAll ?? false)
+    setPreviewNoteId(next?.previewNoteId ?? null)
+    setPreviewFolderId(next?.previewFolderId ?? null)
+    setSelectMode(false); setSelectedIds([]); setSelectedFolderIds([])
+  }, [notesTabId])
   // Seed from the window width (pane is never wider than the window) so the panel shows on the
   // very first frame for a normal-sized window, before the ResizeObserver's first callback.
   const [homeWrapWidth, setHomeWrapWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
@@ -1165,13 +1195,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const parts = (target.verseRef ?? '').split('.')
     const hasRef = parts.length >= 2 && parts[0] && parts[1]
 
+    // Back (⌘[) in the Scripture tab returns to this note — recorded as a cross-tab nav entry.
+    fresh.pushTabNav(scriptureTabId, { type: 'note', title: target.title || 'Untitled', noteId: target.id })
     const stateUpdate: Record<string, unknown> = {
       rightPanelOpen: true,
       rightPanelTab: 'notes',
       rightPanelNoteId: target.id,
       scrollPosition: 0,
-      // Back button in scripture toolbar → returns to this note as a note tab
-      noteBack: { noteId: target.id, title: target.title || 'Untitled' },
+      noteBack: null,
     }
 
     if (hasRef) {
@@ -1203,10 +1234,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const scriptureTabId = fresh.activeTabId['scripture']
     if (!scriptureTabId) return
     const translation = (getTranslationForBook(parsed.bookId) ?? fresh.defaultBibleTranslation).toUpperCase()
+    if (activeNote) fresh.pushTabNav(scriptureTabId, { type: 'note', title: activeNote.title || 'Untitled', noteId: activeNote.id })
     fresh.updateTabState('scripture', scriptureTabId, {
       bookId: parsed.bookId, chapter: parsed.chapter,
       targetVerse: parsed.verse, scrollPosition: 0, translation,
-      noteBack: activeNote ? { noteId: activeNote.id, title: activeNote.title || 'Untitled' } : null,
+      noteBack: null,
     })
     fresh.setActiveSpace('scripture')
   }
@@ -1342,7 +1374,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       ref.forcedTranslation ??
       getTranslationForBook(ref.bookId) ??
       fresh.defaultBibleTranslation
-    const noteBack = activeNote ? { noteId: activeNote.id, title: activeNote.title || 'Untitled' } : null
+    if (activeNote) fresh.pushTabNav(scriptureTabId, { type: 'note', title: activeNote.title || 'Untitled', noteId: activeNote.id })
     fresh.updateTabState('scripture', scriptureTabId, {
       bookId: ref.bookId,
       chapter: ref.chapter,
@@ -1350,7 +1382,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       targetVerse: ref.verse,
       endVerse: ref.endVerse,
       scrollPosition: 0,
-      noteBack,
+      noteBack: null,
       translation: translationOverride.toUpperCase(),
     })
     // Tier 2 — a wikilink/verse-ref inside a note is soft-inferred (the reason is the note's

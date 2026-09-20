@@ -48,10 +48,11 @@ export default function ZoomMenuRow() {
           if (e.key === 'Escape') { e.preventDefault(); setDraft(null); (e.target as HTMLInputElement).blur() }
         }}
         size="sm"
-        className="w-14 text-center"
+        className="h-6 w-11 px-1 text-center tabular-nums"
+        wrapperClassName="w-11 flex-shrink-0"
       />
       <IconButton icon={Plus} label="Zoom in" tooltip={false} size={24} onClick={() => adjust(1)} />
-      <Button variant="ghost" size="sm" className="flex-shrink-0" onClick={() => reset()} aria-label="Reset to 100% (⌘0)">
+      <Button variant="ghost" size="xs" className="flex-shrink-0" onClick={() => reset()} aria-label="Reset to 100% (⌘0)">
         Reset
       </Button>
     </div>

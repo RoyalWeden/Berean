@@ -1460,7 +1460,9 @@ export const useAppStore = create<AppState>()(
         // Note/Lexicon/YouTube tabs can go one step further back than usual, to idx -1 —
         // the list/search/browse view, with nothing open. Other tab types (Bible,
         // Search, PDF) have no equivalent "nothing open" state, so they stop at 0.
-        const stackType = tabStack.stack[0]?.type
+        // Keyed on the TAB's type (a Bible tab's stack may start with a cross-tab 'note'
+        // entry — "came here from note X" — which must not turn it into a notes tab).
+        const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
         const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
         if (tabStack.idx <= (supportsHome ? -1 : 0)) return
         // Remember where the reader is in the entry we're leaving, so Cmd+] forward restores it.
@@ -1492,7 +1494,14 @@ export const useAppStore = create<AppState>()(
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
         } else if (entry.noteId) {
-          set({ pendingNoteId: entry.noteId })
+          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
+          else {
+            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
+            // to that note in the Notes space (the pill that used to do this is gone).
+            get().requestOpenNote(entry.noteId)
+            get().ensureTab('note')
+            get().setActiveSpace('notes')
+          }
         } else if (entry.videoId) {
           set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
         } else if (entry.pdfId && entry.page) {
@@ -1525,7 +1534,14 @@ export const useAppStore = create<AppState>()(
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
         } else if (entry.noteId) {
-          set({ pendingNoteId: entry.noteId })
+          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
+          else {
+            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
+            // to that note in the Notes space (the pill that used to do this is gone).
+            get().requestOpenNote(entry.noteId)
+            get().ensureTab('note')
+            get().setActiveSpace('notes')
+          }
         } else if (entry.videoId) {
           set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
         } else if (entry.pdfId && entry.page) {
@@ -2541,9 +2557,11 @@ export const useAppStore = create<AppState>()(
         recordLexiconConnection(strongsNum, depth ?? 'click')
         if (!get().isNavJumping) {
           const tabId = get().activeTabId['lexicon']
+          // Opened from a note: the note becomes the previous history entry of the lexicon tab.
+          if (tabId && fromNote) get().pushTabNav(tabId, { type: 'note', title: fromNote.title, noteId: fromNote.noteId })
           if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: lexTitle })
         }
-        set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: fromNote ?? null })
+        set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: null })
       },
       clearLexiconEntry: () => set({ pendingLexiconEntry: null }),
       requestLexiconSearch: (term) => set({ pendingLexiconSearch: term }),

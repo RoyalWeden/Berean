@@ -98,6 +98,10 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
   }
   if (translationOverride) newTranslation = translationOverride
 
+  // Navigating from a note: record the note as the previous history entry of THIS Scripture
+  // tab so ⌘[ / the Back button returns to it (cross-tab entry, handled by navTabBack).
+  if (noteBack) fresh.pushTabNav(tabId, { type: 'note', title: noteBack.title, noteId: noteBack.noteId })
+
   fresh.updateTabState('scripture', tabId, {
     bookId, chapter, targetVerse: verse,
     endVerse: endVerse ?? undefined,
@@ -110,7 +114,7 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
     // it, or the "← back to note" pill in the reference bar keeps pointing at a note
     // that's no longer where the user actually came from (e.g. clicking an unrelated
     // cross-reference in the side panel left the old note's pill sitting there).
-    noteBack: noteBack ?? null,
+    noteBack: null,
   })
   s.setActiveSpace('scripture')
 

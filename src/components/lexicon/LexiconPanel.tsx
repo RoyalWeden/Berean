@@ -502,11 +502,6 @@ function EntryView({
            reaches the search view (idx -1) directly via the global nav stack.
            Two zones: context (entry identity) and actions (grouped controls). */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="context">
-        {noteBack && onNoteBack && (
-          <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onNoteBack} tooltip={`Back to "${noteBack.title}"`} className="max-w-[120px] flex-shrink-0">
-            <span className="truncate">{noteBack.title}</span>
-          </Button>
-        )}
         <LexiconEntryHeader strongsNum={entry.strongsNum} lemma={entry.lemma} />
       </TabHeaderPortal>
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">

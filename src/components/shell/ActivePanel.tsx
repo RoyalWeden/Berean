@@ -74,7 +74,7 @@ export default function ActivePanel() {
   // scroll-position tick in ANY space, a Strong's toggle, a panel resize) does
   // NOT re-render ActivePanel, and therefore doesn't re-render every mounted
   // panel underneath it. Each panel subscribes to what it actually needs itself.
-  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab } = useAppStore(
+  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab, lexiconTabId, searchTabId } = useAppStore(
     useShallow((s) => {
       const scriptureTab = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture) ?? null
       const notesTab = s.tabs.notes.find((t) => t.id === s.activeTabId.notes) ?? null
@@ -86,6 +86,8 @@ export default function ActivePanel() {
         hasNotesTab:   s.tabs.notes.some((t) => t.id === s.activeTabId.notes),
         hasLexiconTab: s.tabs.lexicon.some((t) => t.id === s.activeTabId.lexicon),
         hasSearchTab:  s.tabs.search.some((t) => t.id === s.activeTabId.search),
+        lexiconTabId:  s.activeTabId.lexicon,
+        searchTabId:   s.activeTabId.search,
         hasYouTubeTab: s.tabs.youtube.some((t) => t.id === s.activeTabId.youtube),
       }
     })
@@ -138,15 +140,20 @@ export default function ActivePanel() {
           </Layer>
         )}
 
+        {/* Lexicon and Search panels are keyed by TAB id: both read their tab's persisted state
+            in lazy `useState` initialisers (query, language, scroll) on the assumption that a
+            tab switch is a fresh mount. Without the key, one shared instance carried the previous
+            tab's search/query/results into a brand-new tab ("stuff I never entered"). Notes keeps
+            its single in-place instance (its own tab-switch resync + per-tab home snapshot). */}
         {hasLexiconTab && (
           <Layer visible={activeSpace === 'lexicon'}>
-            <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>
+            <ErrorBoundary label="Lexicon panel error"><LexiconPanel key={lexiconTabId ?? 'lexicon'} /></ErrorBoundary>
           </Layer>
         )}
 
         {hasSearchTab && (
           <Layer visible={activeSpace === 'search'}>
-            <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>
+            <ErrorBoundary label="Search error"><SearchTab key={searchTabId ?? 'search'} /></ErrorBoundary>
           </Layer>
         )}
 
