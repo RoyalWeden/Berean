@@ -627,7 +627,7 @@ export default function Sidebar() {
               dense
               radius="capsule"
               className="flex-1"
-              buttonClassName="control-field bg-field hover:bg-control-hover h-[34px] px-3.5 text-subhead"
+              buttonClassName="control-field bg-field hover:bg-control-hover h-9 px-4 text-subhead"
               leading={<Search size={14} className="text-text-muted" />}
               onClick={() => openSearch('current')}
               title={

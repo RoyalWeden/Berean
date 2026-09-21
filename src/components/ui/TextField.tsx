@@ -30,8 +30,8 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 const SIZE = { sm: { box: 'h-7 text-footnote', pad: 'px-2.5', icon: 12 }, md: { box: 'h-8 text-subhead', pad: 'px-3', icon: 14 } }
-/** The one bar box (CONTROL_H_BAR = 34) — fields line up with the buttons beside them. */
-const BAR = { box: 'h-[34px] text-subhead', pad: 'px-3.5', icon: 14 }
+/** The one bar box (CONTROL_H_BAR = 36) — fields line up with the buttons beside them. */
+const BAR = { box: 'h-9 text-subhead', pad: 'px-4', icon: 15 }
 
 /** Text field (rounded rectangle) with optional leading icon and trailing slot; SearchField is the capsule variant. */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(

@@ -66,8 +66,8 @@ const LINK_BOX: Record<ButtonSize, string> = {
   md: 'h-auto px-0 text-subhead gap-2',
   lg: 'h-auto px-0 text-subhead gap-2',
 }
-/** The one bar box (CONTROL_H_BAR = 34). Used for every Button inside a Toolbar / bar row. */
-const BAR: { box: string; icon: number; radius: string } = { box: 'h-[34px] px-3.5 text-subhead gap-2', icon: 16, radius: 'rounded-control-md' }
+/** The one bar box (CONTROL_H_BAR = 36). Used for every Button inside a Toolbar / bar row. */
+const BAR: { box: string; icon: number; radius: string } = { box: 'h-9 px-4 text-subhead gap-2', icon: 16, radius: 'rounded-control-md' }
 const SIZE: Record<ButtonSize, { box: string; icon: number; radius: string }> = {
   xs: { box: 'h-6 px-2 text-caption gap-1', icon: 12, radius: 'rounded-control-sm' },
   sm: { box: 'h-7 px-2.5 text-footnote gap-1.5', icon: 14, radius: 'rounded-control-md' },

@@ -37,10 +37,10 @@ export interface SegmentedControlProps<T extends string> {
 const SIZE = {
   sm: { seg: 'h-[22px] px-2 text-caption2 gap-1', icon: 12 },
   md: { seg: 'h-6 px-2.5 text-footnote gap-1.5', icon: 14 },  // 24px segment in a 28px track = Button sm / Select sm row
-  /** Bar size: a 30px segment + the track's 2px padding each side = the 34px track
+  /** Bar size: a 32px segment + the track's 2px padding each side = the 36px track
    *  (CONTROL_H_BAR), so a segmented control
    *  lines up with the IconButtons and grouped pills beside it in the same toolbar. */
-  bar: { seg: 'h-[30px] px-3.5 text-subhead gap-1.5', icon: 15 },
+  bar: { seg: 'h-8 px-4 text-subhead gap-1.5', icon: 15 },
 }
 
 /**

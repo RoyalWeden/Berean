@@ -31,7 +31,7 @@ are **rounded rectangles**, large/extra-large are **capsules**):
 - Concentric rule applies only where an inner surface shares a corner with its container (inner =
   outer − inset): window 20 → corner surface 12 · group 10 → item 7 · menu 14 → row 8 · segmented
   track 8 → thumb 7 · card 8 → chip 4. Elsewhere every element uses its ROLE radius.
-- Heights (single authority): window toolbar 44 · sub-toolbars 36 · **bar controls 32** (one
+- Heights (single authority): all toolbars 44 (macOS 27 uniform toolbars) · **bar controls 36** (one
   height for every control in a bar, via `BarMetrics` — see below) · compact contexts (inspector,
   popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 · list rows 36 (28
   dense) · menu rows 28 · calendar cells 22. A segmented control's TRACK is the 32px control; its

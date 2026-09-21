@@ -34,8 +34,8 @@ export interface SelectProps<T extends string> {
 }
 
 const SIZE = { sm: 'h-7 px-2.5 text-footnote gap-1.5', md: 'h-8 px-3 text-subhead gap-2' }
-/** The one bar box (CONTROL_H_BAR = 34) — a pop-up button lines up with the controls beside it. */
-const BAR = 'h-[34px] px-3.5 text-subhead gap-2'
+/** The one bar box (CONTROL_H_BAR = 36) — a pop-up button lines up with the controls beside it. */
+const BAR = 'h-9 px-4 text-subhead gap-2'
 
 /**
  * Custom select — a rounded-rectangle trigger (Apple's pop-up button shape) opening a `MenuSurface` listbox, so no OS-chrome

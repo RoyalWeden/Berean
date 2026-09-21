@@ -34,4 +34,4 @@ export function resolveSize(size: ControlSize, compact: boolean): ControlSize {
 }
 
 /** The one bar-control height. Every primitive's BAR box is built to match it; tune here. */
-export const CONTROL_H_BAR = 34
+export const CONTROL_H_BAR = 36
