@@ -8,9 +8,10 @@ export interface ControlGroupProps extends HTMLAttributes<HTMLDivElement> {
   variant?: ControlSurface
   /** Hairline dividers between children (default true). */
   dividers?: boolean
-  /** 'row' (default) — 10px rounded rectangle, the macOS grouped-toolbar-control shape.
-   *  'capsule' — for a group of text buttons / a picker that reads better as one pill. */
-  radius?: 'row' | 'capsule'
+  /** 'capsule' (default) — the macOS 26/27 grouped-toolbar shape: a cluster of items reads as
+   *  ONE pill with hairline dividers. 'row' — a 10px rounded rectangle, for a group that sits in
+   *  a list/row context rather than a bar. */
+  radius?: 'capsule' | 'row'
   align?: 'center' | 'stretch'
 }
 
@@ -21,7 +22,7 @@ export interface ControlGroupProps extends HTMLAttributes<HTMLDivElement> {
  * render flat inside it. For mutually-exclusive selection use SegmentedControl instead.
  */
 export const ControlGroup = forwardRef<HTMLDivElement, ControlGroupProps>(function ControlGroup(
-  { variant, dividers = true, radius = 'row', align = 'center', className, children, ...rest }, ref,
+  { variant, dividers = true, radius = 'capsule', align = 'center', className, children, ...rest }, ref,
 ) {
   const surface = useControlSurface(variant)
   return (
@@ -35,7 +36,7 @@ export const ControlGroup = forwardRef<HTMLDivElement, ControlGroupProps>(functi
               'control-group no-drag inline-flex flex-shrink-0 overflow-hidden isolate',
               align === 'stretch' ? 'items-stretch' : 'items-center',
               radius === 'capsule' ? 'rounded-control' : 'rounded-row',
-              surface === 'glass' ? 'control-glass' : 'bg-transparent hover:bg-lift-1 transition-colors duration-base',
+              surface === 'glass' ? 'control-glass-inset' : 'bg-transparent hover:bg-lift-1 transition-colors duration-base',
               dividers && '[&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-separator-subtle',
               className,
             )}

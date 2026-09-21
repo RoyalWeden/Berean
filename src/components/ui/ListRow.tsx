@@ -45,6 +45,11 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
    *  inner control's semantics. Symmetric with `trailing`, which already renders outside. This
    *  is also how macOS outline views behave — the disclosure triangle is a separate hit target
    *  beside the row, not part of it. */
+  /** 'row' (default) 10px · 'capsule' for a row that is really a field-shaped control (the
+   *  sidebar's search/location bar). A `rounded-*` in `buttonClassName` cannot express this:
+   *  `cx()` is not tailwind-merge, so it would collide with the row's own radius rather than
+   *  win. */
+  radius?: 'row' | 'capsule'
   leadingAction?: ReactNode
   buttonProps?: Record<string, unknown>
   /** Title type role. Defaults to footnote (dense) / subhead — set explicitly instead of
@@ -64,7 +69,7 @@ export interface ListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'titl
  * handlers passed via ...rest.
  */
 export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow(
-  { leading, leadingAction, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, titleClamp, buttonProps, titleSize, flush, inset, ...rest }, ref,
+  { leading, leadingAction, radius, title, subtitle, meta, trailing, trailingAlways, selected, current, bar, dense, indent, disabled, onClick, onDoubleClick, href, className, buttonClassName, titleClassName, subtitleClassName, titleClamp, buttonProps, titleSize, flush, inset, ...rest }, ref,
 ) {
   const size = titleSize ?? (dense ? 'footnote' : 'subhead')
   return (
@@ -72,7 +77,7 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
       ref={ref}
       className={cx(
         'group/row relative flex items-stretch min-w-0 select-none',
-        flush ? 'rounded-none' : inset ? 'rounded-control-md' : 'rounded-row',
+        radius === 'capsule' ? 'rounded-control' : flush ? 'rounded-none' : inset ? 'rounded-control-md' : 'rounded-row',
         'transition-colors duration-fast',
         current ? 'bg-accent-muted' : selected ? 'bg-surface-selected' : 'hover:bg-lift-2',
         'has-[button:active]:bg-lift-3',
@@ -98,7 +103,7 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
           'aria-current': current ? 'true' : undefined,
           className: cx(
             'focus-ring flex-1 min-w-0 flex items-center gap-2 text-left cursor-pointer outline-none',
-            flush ? 'rounded-none' : inset ? 'rounded-control-md' : 'rounded-row',
+            radius === 'capsule' ? 'rounded-control' : flush ? 'rounded-none' : inset ? 'rounded-control-md' : 'rounded-row',
             dense ? 'h-7' : 'min-h-9 py-1.5',
             flush ? 'px-3' : dense ? 'px-2' : 'px-2.5',
             leadingAction && 'pl-1.5',

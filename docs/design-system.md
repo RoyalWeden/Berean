@@ -31,9 +31,16 @@ are **rounded rectangles**, large/extra-large are **capsules**):
 - Concentric rule applies only where an inner surface shares a corner with its container (inner =
   outer − inset): window 20 → corner surface 12 · group 10 → item 7 · menu 14 → row 8 · segmented
   track 8 → thumb 7 · card 8 → chip 4. Elsewhere every element uses its ROLE radius.
-- Heights (single authority): window toolbar 44 · sub-toolbars 36 · toolbar items 28 · compact
-  contexts (inspector, popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 ·
-  list rows 36 (28 dense) · menu rows 28 · calendar cells 22.
+- Heights (single authority): window toolbar 44 · sub-toolbars 36 · **bar controls 32** (one
+  height for every control in a bar, via `BarMetrics` — see below) · compact contexts (inspector,
+  popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 · list rows 36 (28
+  dense) · menu rows 28 · calendar cells 22. A segmented control's TRACK is the 32px control; its
+  segments are inset at 28.
+- **`BarMetrics`** (pass 5) is the mirror of `CompactMetrics`: inside a `Toolbar` — and the
+  sidebar's search row, which is a bar without being a `Toolbar` — every sized primitive steps one
+  size UP (Button sm→md, IconButton 24→28→32, fields and segmented tracks to 32), so a bar renders
+  ONE control height regardless of which size each call site asked for. It crosses `TabHeaderPortal`
+  alongside the control surface. Dense contexts still step DOWN; a control is never both.
 
 ## Tokens
 

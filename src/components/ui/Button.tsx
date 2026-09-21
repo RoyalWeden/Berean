@@ -5,7 +5,7 @@ import { cx } from './cx'
 import { Tooltip } from './Tooltip'
 import { Badge, type BadgeProps } from './Badge'
 import { useControlSurface, useInControlGroup, type ControlSurface } from './surface'
-import { resolveSize, useCompactMetrics, type ControlSize } from './metrics'
+import { resolveSize, useBarMetrics, useCompactMetrics, type ControlSize } from './metrics'
 
 /**
  * primary     — accent fill, capsule (the one default action on a surface; Apple: default button)
@@ -78,7 +78,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const compact = useCompactMetrics()
-  const s = SIZE[resolveSize(size, compact)]
+  const bar = useBarMetrics()
+  const s = SIZE[resolveSize(size, compact, bar)]
   const ctxSurface = useControlSurface(surface)
   const inGroup = useInControlGroup()
   const v: ButtonVariant = variant ?? (tint === 'primary' ? 'primary' : tint === 'secondary' ? 'prominent' : ctxSurface === 'glass' ? 'secondary' : 'ghost')
@@ -132,7 +133,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         'transition-[background-color,color,filter,transform,box-shadow] duration-base ease-mac cursor-pointer',
         inGroup ? 'rounded-none' : isLink ? 'rounded-control-sm' : cx(capsule ? 'rounded-control' : s.radius, 'active:scale-[0.98]'),
         'disabled:opacity-40 disabled:pointer-events-none',
-        isLink ? LINK_BOX[resolveSize(size, compact)] : s.box,
+        isLink ? LINK_BOX[resolveSize(size, compact, bar)] : s.box,
         look, className,
       )}
       {...rest}

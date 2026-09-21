@@ -14,4 +14,23 @@ export function CompactMetrics({ children, value = true }: { children: ReactNode
 
 export type ControlSize = 'xs' | 'sm' | 'md' | 'lg'
 const DOWN: Record<ControlSize, ControlSize> = { xs: 'xs', sm: 'xs', md: 'sm', lg: 'md' }
-export function resolveSize(size: ControlSize, compact: boolean): ControlSize { return compact ? DOWN[size] : size }
+
+/**
+ * Bar metrics — the mirror of CompactMetrics. Inside a `Toolbar` (and the sidebar's search row)
+ * every sized primitive steps one size UP, so a bar renders ONE control height no matter which
+ * size each call site asked for: Button sm→md, IconButton 24→28→32. macOS 26/27 toolbars are
+ * roomier than the 28px controls Berean inherited, and mixed 24/28/30/32 heights in one bar read
+ * as misalignment rather than hierarchy. Dense contexts (inspector, popovers, menus) still step
+ * DOWN via CompactMetrics, so this does not inflate them — a control cannot be both.
+ */
+export const BarMetricsContext = createContext(false)
+export function useBarMetrics(): boolean { return useContext(BarMetricsContext) }
+export function BarMetrics({ children, value = true }: { children: ReactNode; value?: boolean }) {
+  return <BarMetricsContext.Provider value={value}>{children}</BarMetricsContext.Provider>
+}
+const UP: Record<ControlSize, ControlSize> = { xs: 'sm', sm: 'md', md: 'md', lg: 'lg' }
+
+export function resolveSize(size: ControlSize, compact: boolean, bar = false): ControlSize {
+  if (compact) return DOWN[size]
+  return bar ? UP[size] : size
+}

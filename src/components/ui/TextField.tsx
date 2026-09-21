@@ -2,6 +2,7 @@ import { forwardRef, type InputHTMLAttributes, type ReactNode, type TextareaHTML
 import { Search, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
+import { useBarMetrics } from './metrics'
 
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   size?: 'sm' | 'md'
@@ -29,12 +30,15 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 const SIZE = { sm: { box: 'h-7 text-footnote', pad: 'px-2.5', icon: 12 }, md: { box: 'h-8 text-subhead', pad: 'px-3', icon: 14 } }
+/** In a bar every field renders at the one 32px control height (see metrics.tsx). */
+const BAR_UP = { sm: 'md', md: 'md' } as const
 
 /** Text field (rounded rectangle) with optional leading icon and trailing slot; SearchField is the capsule variant. */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
   { size = 'sm', icon: Icon, trailing, bare, bareUnderline = true, invalid, capsule = false, padding = 'default', className, wrapperClassName, ...rest }, ref,
 ) {
-  const s = SIZE[size]
+  const bar = useBarMetrics()
+  const s = SIZE[bar ? BAR_UP[size] : size]
   return (
     <div className={cx('relative flex items-center min-w-0', wrapperClassName)}>
       {Icon && <Icon size={s.icon} strokeWidth={1.75} className="absolute left-2.5 text-text-muted pointer-events-none" />}

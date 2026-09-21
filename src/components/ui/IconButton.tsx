@@ -5,7 +5,7 @@ import { cx } from './cx'
 import { Tooltip } from './Tooltip'
 import { ControlShapeContext, useControlSurface, useInControlGroup, type ControlShape, type ControlSurface } from './surface'
 import { Badge, type BadgeProps } from './Badge'
-import { useCompactMetrics } from './metrics'
+import { useBarMetrics, useCompactMetrics } from './metrics'
 
 export type IconButtonSize = 20 | 24 | 28 | 32
 
@@ -17,6 +17,8 @@ const SIZE: Record<IconButtonSize, { box: string; icon: number; radius: string }
   32: { box: 'w-8 h-8', icon: 18, radius: 'rounded-control-md' },
 }
 const DOWN: Record<IconButtonSize, IconButtonSize> = { 20: 20, 24: 20, 28: 24, 32: 28 }
+/** Bar metrics step UP so one toolbar renders one control height (see metrics.tsx). */
+const UP: Record<IconButtonSize, IconButtonSize> = { 20: 28, 24: 32, 28: 32, 32: 32 }
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: LucideIcon
@@ -59,7 +61,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   ref,
 ) {
   const compact = useCompactMetrics()
-  const s = SIZE[compact ? DOWN[size] : size]
+  const bar = useBarMetrics()
+  const s = SIZE[compact ? DOWN[size] : bar ? UP[size] : size]
   const surface = useControlSurface(variant)
   const inGroup = useInControlGroup()
   const ctxShape = useContext(ControlShapeContext)

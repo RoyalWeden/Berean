@@ -9,7 +9,7 @@ export { OverflowGroup, OverflowSection, type OverflowGroupProps, type OverflowI
 export { TitleControl, type TitleControlProps } from './TitleControl'
 export { AlertSheet, type AlertSheetProps } from './AlertSheet'
 export { Badge, type BadgeProps } from './Badge'
-export { CompactMetrics, CompactMetricsContext, useCompactMetrics, type ControlSize } from './metrics'
+export { CompactMetrics, CompactMetricsContext, useCompactMetrics, BarMetrics, BarMetricsContext, useBarMetrics, type ControlSize } from './metrics'
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button'
 export { IconButton, type IconButtonProps, type IconButtonSize } from './IconButton'
 export { SegmentedControl, type SegmentedControlProps, type SegmentOption } from './SegmentedControl'

@@ -160,9 +160,9 @@
 
   /* Radii — macOS 27 scale. Concentric rule: inner = outer − inset. Window = 20pt. */
   --radius-chip: 4px;      /* marks, ref chips, tags, keycaps */
-  --radius-control-sm: 6px;/* 24px controls (compact contexts) — rounded rectangle */
-  --radius-compact: 7px;   /* = --radius-control-md: 28–32px controls, segments, sidebar rows, icon buttons */
-  --radius-control-md: 7px;
+  --radius-control-sm: 8px;/* 24px controls (compact contexts) — rounded rectangle */
+  --radius-compact: 10px;  /* = --radius-control-md: 28–32px controls, segments, sidebar rows, icon buttons */
+  --radius-control-md: 10px;
   --radius-card: 8px;      /* inline cards, code blocks, verse-embed blocks, segmented tracks, menu rows */
   --radius-row: 10px;      /* sidebar / list / tab rows, calendar cells */
   --radius-menu: 14px;     /* menus, popovers, inset side panels */
@@ -1858,6 +1858,10 @@ html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
   background: var(--control-bg);
   border: 1px solid var(--control-border);
   box-shadow: var(--control-highlight), 0 1px 2px -1px rgb(0 0 0 / calc(0.25 * var(--shadow-strength)));
+}
+.control-glass-inset {
+  background: var(--control-bg);
+  box-shadow: inset 0 0 0 1px var(--control-border), var(--control-highlight), 0 1px 2px -1px rgb(0 0 0 / calc(0.25 * var(--shadow-strength)));
 }
 .control-field {
   background: var(--control-field-bg);

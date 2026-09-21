@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef, type HTMLAttributes, type RefObject } from 'react'
 import { cx } from './cx'
 import { ControlSurfaceContext, type ControlSurface } from './surface'
+import { BarMetrics } from './metrics'
 import { useScrollEdge } from '@/lib/useScrollEdge'
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
@@ -49,6 +50,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
   const scrolled = auto ? (scrolledProp ?? observed) : false
   return (
     <ControlSurfaceContext.Provider value={itemVariant}>
+      <BarMetrics>
       <div
         ref={inner}
         data-scroll-edge={auto ? edgeSide : undefined}
@@ -66,6 +68,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
       >
         {children}
       </div>
+      </BarMetrics>
     </ControlSurfaceContext.Provider>
   )
 })
