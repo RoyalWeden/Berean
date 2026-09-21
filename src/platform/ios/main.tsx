@@ -5,7 +5,7 @@ import { initIosServices } from './services'
 import { installIosBridge } from './bridge'
 import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { installIosDeepLinks } from './deepLinks'
-import { IosBoot } from './IosBoot'
+import MobileApp from '../../mobile/MobileApp'
 import '../../styles/global.css'
 
 /**
@@ -15,8 +15,8 @@ import '../../styles/global.css'
  *  1. open berean.db + bundled DBs through the BereanSQLite plugin and run the shared migrations;
  *  2. install the `window.<namespace>` bridge objects the renderer already calls, backed by the
  *     shared services in-process (src/platform/ios/bridge.ts);
- *  3. render the mobile shell (Phase 10+). Until the shell lands, `IosBoot` renders the Phase 2/4
- *     self-test screen so the whole native stack is exercised by a real page, not a placeholder.
+ *  3. render the mobile shell (src/mobile/MobileApp.tsx). The Phase 2/4 self-test screen
+ *     (`IosBoot`) stays reachable under More → Diagnostics.
  */
 document.documentElement.dataset.window = 'main'
 document.documentElement.dataset.platform = 'ios'
@@ -32,7 +32,7 @@ async function boot() {
     root.render(
       <React.StrictMode>
         <MotionConfig reducedMotion="user">
-          <IosBoot />
+          <MobileApp />
         </MotionConfig>
       </React.StrictMode>,
     )

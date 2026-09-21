@@ -123,6 +123,9 @@ const HISTORY_TABS: { key: HistoryTabKey; label: string; icon: typeof BookOpen |
 
 // ── navigation ─────────────────────────────────────────────────────────────────
 
+/** Reopens a history entry (exported for the phone's History page, which shares this exactly). */
+export function useHistoryNavigate() { return useNavigate() }
+
 function useNavigate() {
   const store = useAppStore.getState
 

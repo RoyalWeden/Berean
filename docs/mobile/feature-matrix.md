@@ -16,9 +16,9 @@ reason) · **Shared**: what is reused unchanged · **iPhone impl.**: what is new
 
 | Feature | Desktop | iPhone req. | Shared | iPhone impl. | Offline | iCloud | Status | Limitation |
 |---|---|---|---|---|---|---|---|---|
-| Spaces (Scripture / Notes / Lexicon / YouTube / Search) | `Sidebar.tsx` | REQUIRED-ADAPTED | `SpaceId`, store | `SpaceBar` (bottom) | ✔ | — | NOT STARTED | |
-| Tabs per space (open, close, pin, reorder, move between spaces, duplicate, MRU, auto-close) | `TabBar.tsx`, store actions | REQUIRED-ADAPTED (Arc-like) | store, `tabsService` | `TabPill` + `TabGrid` (swipe up), swipe pill to switch, long-press menu | ✔ | ✔ sync fields (R055) | NOT STARTED | drag-reorder → long-press-drag in grid |
-| Sessions (Arc-style tab groups: create, rename, icon, switch, reorder, archive, tab filter) | `Sidebar.tsx` | REQUIRED-ADAPTED | store, `sessionsService` | `SessionSwitcher` sheet | ✔ | ✔ | NOT STARTED | |
+| Spaces (Scripture / Notes / Lexicon / YouTube / Search) | `Sidebar.tsx` | REQUIRED-ADAPTED | `SpaceId`, store | `src/mobile/tabs/SpaceBar.tsx` (bottom bar: Scripture, Notes, Search, More → Lexicon/YouTube/Tags/History/PDFs/Settings) | ✔ | — | IMPLEMENTING (Phase 10: bar + More page done) | |
+| Tabs per space (open, close, pin, reorder, move between spaces, duplicate, MRU, auto-close) | `TabBar.tsx`, store actions | REQUIRED-ADAPTED (Arc-like) | store, `tabsService` | `TabPill` (tap → grid, swipe → adjacent tab, +), `TabGrid` (cards, ×, long-press actions) | ✔ | ✔ sync fields (R055) | IMPLEMENTING (Phase 10: pill, grid, swipe, close, rename, close others; reorder/move/duplicate: Phase 15) | drag-reorder → long-press-drag in grid |
+| Sessions (Arc-style tab groups: create, rename, icon, switch, reorder, archive, tab filter) | `Sidebar.tsx` | REQUIRED-ADAPTED | store, `sessionsService` | `SessionSwitcher` sheet from the tab grid | ✔ | ✔ | IMPLEMENTING (Phase 10: switch/create/rename/delete; icon/reorder/archive/filter: Phase 15) | |
 | Archived tab groups | store `archivedGroups` | REQUIRED-ADAPTED | `archived_groups` table | Archive page | ✔ | ✔ | NOT STARTED | |
 | Saved Workspaces (layout + tab snapshot) | `WorkspacesSection.tsx` | REQUIRED-ADAPTED | `workspacesService` | Workspaces page (apply tab set) | ✔ | ✔ | NOT STARTED | mosaic layout not applied on phone (documented) |
 | Tab back/forward history (`tabNavStacks`, ⌘[ ⌘]) | store | REQUIRED-ADAPTED | store | edge-swipe back pops in-tab history; toolbar back | ✔ | LOCAL | NOT STARTED | |
@@ -39,10 +39,10 @@ reason) · **Shared**: what is reused unchanged · **iPhone impl.**: what is new
 
 | Feature | Desktop | iPhone req. | Shared | iPhone impl. | Offline | iCloud | Status | Limitation |
 |---|---|---|---|---|---|---|---|---|
-| All 18 translations / editions + `kjv` | `bibleTexts.ts`, `bible:*` | REQUIRED | `bibleService`, `TRANSLATIONS/EDITIONS` | bundled DBs | ✔ | never | NOT STARTED | |
-| Reference bar parsing (all forms in `parseRef.ts`, RCL/Hermas forms) | `parseRef.ts`, `multiBookSearch.ts` | REQUIRED | same | `ReferencePicker` sheet with typed entry | ✔ | — | NOT STARTED | |
-| Book/chapter picker (searchable, by testament) | `BookChapterPicker.tsx` | REQUIRED-ADAPTED | book lists | grid sheet | ✔ | — | NOT STARTED | |
-| Prev/next chapter | `BiblePanel.tsx` | REQUIRED | `bibleNav.ts` | horizontal swipe pager + buttons (R077) | ✔ | — | NOT STARTED | |
+| All 18 translations / editions + `kjv` | `bibleTexts.ts`, `bible:*` | REQUIRED | `bibleService`, `TRANSLATIONS/EDITIONS` | bundled DBs | ✔ | never | IMPLEMENTING (Phase 10: translation sheet on the reader; edition grouping: Phase 11) | |
+| Reference bar parsing (all forms in `parseRef.ts`, RCL/Hermas forms) | `parseRef.ts`, `multiBookSearch.ts` | REQUIRED | same | `ReferencePicker` sheet with typed entry | ✔ | — | IMPLEMENTING (Phase 10: typed reference in the Go-to sheet uses parseRef) | |
+| Book/chapter picker (searchable, by testament) | `BookChapterPicker.tsx` | REQUIRED-ADAPTED | book lists | `src/mobile/reader/ReferencePicker.tsx` in a sheet | ✔ | — | IMPLEMENTING (Phase 10: book grid by testament → chapter grid → verse grid) | |
+| Prev/next chapter | `BiblePanel.tsx` | REQUIRED | `bibleNav.ts` | `ReaderPage` pager (framer-motion drag, direction lock, 28 % / velocity threshold) | ✔ | — | IMPLEMENTING (Phase 10: horizontal pager with prev/next pages, book boundaries; buttons + continuous mode: Phase 11) | |
 | Pull-past-end rubber-band nav | `useChapterPullNav.ts` | REQUIRED-ADAPTED | physics module | kept as vertical over-scroll option alongside swipe | ✔ | — | NOT STARTED | |
 | Continuous chapter scroll | `ContinuousChapterScroll.tsx` | REQUIRED | same component | reader mode toggle | ✔ | — | NOT STARTED | |
 | Go-to-verse by typing digits | `App.tsx` | REQUIRED-ADAPTED | — | verse number field in reference sheet | ✔ | — | NOT STARTED | |
@@ -58,9 +58,9 @@ reason) · **Shared**: what is reused unchanged · **iPhone impl.**: what is new
 | `VerseCopyMenu` (lists outside reader) | `VerseCopyMenu.tsx` | REQUIRED | — | long-press on any verse row | ✔ | — | NOT STARTED | |
 | Highlights (15 colours, word/char ranges, remove, row tint, dot) | `highlights:*`, `VerseRow` | REQUIRED | `highlightsService`, render | same render; sheet/toolbar entry | ✔ | ✔ | NOT STARTED | |
 | Verse tags (pick popover, chapter tags, inline pills, manager, graph, edges) | `verseTags:*`, `tagGraph:*`, `src/components/tags` | REQUIRED | services, `TagGraphCanvas` | `TagPickerSheet`, Tags page, graph with pinch/pan | ✔ | ✔ | NOT STARTED | |
-| Strong's inline chips (italic/red-letter/particle styling, phrase grouping), per-tab toggle | `StrongsInline.tsx` | REQUIRED | same | toolbar toggle | ✔ | ✔ (`showStrongs` tab field) | NOT STARTED | |
-| Strong's tooltip (hover) | `StrongsTooltip.tsx` | REQUIRED-ADAPTED | gloss fetch | tap chip → collapsed Strong's sheet (gloss) | ✔ | — | NOT STARTED | hover → tap |
-| Strong's click → lexicon in panel; context menu: Open · Open in new tab · Open floating · Copy Strong's · Copy reference | `StrongsContextMenu.tsx` | REQUIRED-ADAPTED | `LexiconPanel` entry view | sheet drag-up → full entry; long-press chip → actions | ✔ | — | NOT STARTED | floating hidden |
+| Strong's inline chips (italic/red-letter/particle styling, phrase grouping), per-tab toggle | `StrongsInline.tsx` | REQUIRED | same | toolbar toggle | ✔ | ✔ (`showStrongs` tab field) | IMPLEMENTING (Phase 10: header toggle writes the tab's `showStrongs`) | |
+| Strong's tooltip (hover) | `StrongsTooltip.tsx` | REQUIRED-ADAPTED | gloss fetch | tap chip → collapsed Strong's sheet (gloss) | ✔ | — | IMPLEMENTING (Phase 10: tap chip → `StrongsSheet` collapsed = lemma/transliteration/gloss) | hover → tap |
+| Strong's click → lexicon in panel; context menu: Open · Open in new tab · Open floating · Copy Strong's · Copy reference | `StrongsContextMenu.tsx` | REQUIRED-ADAPTED | `LexiconPanel` entry view | sheet drag-up → full entry; long-press chip → actions | ✔ | — | IMPLEMENTING (Phase 10: sheet drag-up → definition, derivation, related, occurrences → navigate; "Open in Lexicon"; long-press actions: Phase 12) | floating hidden |
 | Chapter-wide Strong's echo highlight | store `chapterEchoStrongsNum` | REQUIRED | same | same while sheet open | ✔ | — | NOT STARTED | |
 | Psalm superscriptions | `psalmSuperscription.ts` | REQUIRED | same | same | ✔ | — | NOT STARTED | |
 | LXX supply brackets / annotations hide per text | `annotationFilters.ts` | REQUIRED | same | reader options sheet | ✔ | ✔ (`hiddenAnnotations`) | NOT STARTED | KJV italics still pending data re-seed (pre-existing) |

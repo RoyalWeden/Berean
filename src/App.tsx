@@ -35,6 +35,8 @@ import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
 import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
 import { openDeepLink } from '@/lib/deepLinkTarget'
+import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
+import { applyFontFamilies } from '@/lib/fontFamilies'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
@@ -635,32 +637,9 @@ export default function App() {
     })
   }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
 
-  // Sync per-section font families
+  // Sync per-section font families (shared with the mobile shell — src/lib/fontFamilies.ts)
   useEffect(() => {
-    // The real OS UI font, not a web font — 'system' previously silently mapped to Inter
-    // for the UI font specifically (this constant), while scripture/notes used 'inherit'
-    // for the same choice. Both now resolve to the same native stack.
-    const NATIVE_FONT_STACK = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
-    const fontMap: Record<string, string> = {
-      system:     NATIVE_FONT_STACK,
-      serif:      'Georgia, "Times New Roman", Times, serif',
-      sansserif:  'Inter, ui-sans-serif, system-ui, sans-serif',
-      mono:       '"JetBrains Mono", "Fira Code", "Menlo", monospace',
-      garamond:   '"EB Garamond", Garamond, Georgia, serif',
-      palatino:   '"Palatino Linotype", Palatino, "Book Antiqua", serif',
-      merriweather: '"Merriweather", Georgia, serif',
-      lora:       '"Lora", Georgia, serif',
-      crimson:    '"Crimson Text", Georgia, serif',
-      sourceserif: '"Source Serif 4", Georgia, serif',
-      nunito:     '"Nunito", Inter, sans-serif',
-    }
-    document.documentElement.style.setProperty('--font-scripture', fontMap[scriptureFontFamily] ?? 'inherit')
-    document.documentElement.style.setProperty('--font-notes', fontMap[notesFontFamily] ?? 'inherit')
-    // UI font — applied to body so all chrome (sidebar, settings, tabs) inherits it;
-    // scripture and notes sections override it with their own vars.
-    const uiFont = uiFontFamily === 'system' ? NATIVE_FONT_STACK : (fontMap[uiFontFamily] ?? 'inherit')
-    document.body.style.fontFamily = uiFont
-    document.documentElement.style.setProperty('--font-ui', uiFont)
+    applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily })
   }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
 
   // ── On mount: load history, settings, check onboarding, vault reconcile ──
@@ -670,32 +649,8 @@ export default function App() {
       useAppStore.getState().setHistory(entries)
     }).catch(() => {})
 
-    // 2. Load settings from SQLite and hydrate the store
-    window.settings?.getAll().then((all) => {
-      const s = useAppStore.getState()
-      if (typeof all.theme === 'string' && ['dark','light','system'].includes(all.theme as string))
-        s.setTheme(all.theme as 'dark' | 'light' | 'system')
-      if (typeof all.themePreset === 'string') s.setThemePreset(all.themePreset)
-      if (typeof all.fontSize === 'number') s.setBibleFontSize(all.fontSize)
-      if (typeof all.lineHeight === 'string') s.setBibleLineHeight(all.lineHeight as 'compact' | 'comfortable' | 'spacious')
-      if (typeof all.defaultTranslation === 'string') s.setDefaultBibleTranslation(all.defaultTranslation)
-      if (typeof all.hermasTranslation === 'string') s.setHermasTranslation(all.hermasTranslation)
-      if (typeof all.scriptureFontFamily === 'string') s.setScriptureFontFamily(all.scriptureFontFamily)
-      if (typeof all.notesFontFamily === 'string') s.setNotesFontFamily(all.notesFontFamily)
-      if (typeof all.uiFontFamily === 'string') s.setUiFontFamily(all.uiFontFamily)
-      if (typeof all.autoPiP === 'boolean') s.setAutoPiP(all.autoPiP)
-      if (typeof all.noteVerseRefsEnabled === 'boolean') s.setNoteVerseRefsEnabled(all.noteVerseRefsEnabled)
-      if (typeof all.noteLexiconRefsEnabled === 'boolean') s.setNoteLexiconRefsEnabled(all.noteLexiconRefsEnabled)
-      if (typeof all.defaultScriptureLayout === 'string') s.setDefaultScriptureLayout(all.defaultScriptureLayout as import('@/types').ScriptureLayout)
-      if (typeof all.noteTransformLayout === 'string') s.setNoteTransformLayout(all.noteTransformLayout as 'right' | 'bottom' | 'left')
-      if (typeof all.crossRefSource === 'string') s.setCrossRefSource(all.crossRefSource as 'tske' | 'classic' | 'notes')
-      if (typeof all.autoCloseTabsAfter === 'number') s.setAutoCloseTabsAfter(all.autoCloseTabsAfter)
-      if (typeof all.wordReplacerEnabled === 'boolean') s.setWordReplacerEnabled(all.wordReplacerEnabled)
-      if (typeof all.noteScriptureBlock === 'boolean') s.setNoteScriptureBlock(all.noteScriptureBlock)
-      if (typeof all.sidePanelScriptureBlock === 'boolean') s.setSidePanelScriptureBlock(all.sidePanelScriptureBlock)
-      if (typeof all.noteScriptureBlockThreshold === 'number') s.setNoteScriptureBlockThreshold(all.noteScriptureBlockThreshold)
-      if (typeof all.autoEmDash === 'boolean') s.setAutoEmDash(all.autoEmDash)
-    }).catch(() => {})
+    // 2. Load settings from SQLite and hydrate the store (mapping shared with the mobile shell)
+    window.settings?.getAll().then((all) => hydrateSettingsIntoStore(all)).catch(() => {})
 
     // 3. Check onboarding status
     window.settings?.get('onboardingCompleted').then((completed) => {
@@ -720,82 +675,11 @@ export default function App() {
       useAppStore.getState().bumpNoteToken()
     })
 
-    // 5. Subscribe to store settings changes → debounce-write to SQLite
-    const DEBOUNCE = 800
-    let timer: ReturnType<typeof setTimeout> | undefined
-    // Previously the debounce's ONLY way to end early was `clearTimeout` — on unmount (app
-    // quit, including the auto-updater's quitAndInstall) or the window actually closing, that
-    // just CANCELLED the pending write outright rather than performing it, so a settings change
-    // (e.g. toggling noteScriptureBlock off) made within 800ms of quitting/restarting was
-    // silently lost — the next launch reloaded whatever was persisted BEFORE that change. Now a
-    // pending write is tracked so it can be flushed immediately instead of dropped, both on this
-    // effect's own cleanup and on the window's `beforeunload` (covers a plain quit, which doesn't
-    // necessarily unmount React first).
-    let pendingFlush: (() => void) | null = null
-    function flushPendingSettings() {
-      if (!pendingFlush) return
-      clearTimeout(timer)
-      pendingFlush()
-      pendingFlush = null
-    }
-    const unsub = useAppStore.subscribe((state, prev) => {
-      const changed =
-        state.theme !== prev.theme ||
-        state.themePreset !== prev.themePreset ||
-        state.bibleFontSize !== prev.bibleFontSize ||
-        state.bibleLineHeight !== prev.bibleLineHeight ||
-        state.defaultBibleTranslation !== prev.defaultBibleTranslation ||
-        state.hermasTranslation !== prev.hermasTranslation ||
-        state.scriptureFontFamily !== prev.scriptureFontFamily ||
-        state.notesFontFamily !== prev.notesFontFamily ||
-        state.uiFontFamily !== prev.uiFontFamily ||
-        state.autoPiP !== prev.autoPiP ||
-        state.noteVerseRefsEnabled !== prev.noteVerseRefsEnabled ||
-        state.noteLexiconRefsEnabled !== prev.noteLexiconRefsEnabled ||
-        state.defaultScriptureLayout !== prev.defaultScriptureLayout ||
-        state.noteTransformLayout !== prev.noteTransformLayout ||
-        state.crossRefSource !== prev.crossRefSource ||
-        state.autoCloseTabsAfter !== prev.autoCloseTabsAfter ||
-        state.wordReplacerEnabled !== prev.wordReplacerEnabled ||
-        state.noteScriptureBlock !== prev.noteScriptureBlock ||
-        state.sidePanelScriptureBlock !== prev.sidePanelScriptureBlock ||
-        state.noteScriptureBlockThreshold !== prev.noteScriptureBlockThreshold ||
-        state.autoEmDash !== prev.autoEmDash
-      if (!changed) return
-      clearTimeout(timer)
-      const writeNow = () => {
-        const s = useAppStore.getState()
-        const pairs: [string, unknown][] = [
-          ['theme', s.theme], ['themePreset', s.themePreset],
-          ['fontSize', s.bibleFontSize], ['lineHeight', s.bibleLineHeight],
-          ['defaultTranslation', s.defaultBibleTranslation],
-          ['hermasTranslation', s.hermasTranslation],
-          ['scriptureFontFamily', s.scriptureFontFamily],
-          ['notesFontFamily', s.notesFontFamily], ['uiFontFamily', s.uiFontFamily],
-          ['autoPiP', s.autoPiP],
-          ['noteVerseRefsEnabled', s.noteVerseRefsEnabled],
-          ['noteLexiconRefsEnabled', s.noteLexiconRefsEnabled],
-          ['defaultScriptureLayout', s.defaultScriptureLayout],
-          ['noteTransformLayout', s.noteTransformLayout],
-          ['crossRefSource', s.crossRefSource],
-          ['autoCloseTabsAfter', s.autoCloseTabsAfter],
-          ['wordReplacerEnabled', s.wordReplacerEnabled],
-          ['noteScriptureBlock', s.noteScriptureBlock],
-          ['sidePanelScriptureBlock', s.sidePanelScriptureBlock],
-          ['noteScriptureBlockThreshold', s.noteScriptureBlockThreshold],
-          ['autoEmDash', s.autoEmDash],
-        ]
-        pairs.forEach(([k, v]) => window.settings?.set(k, v).catch(() => {}))
-        pendingFlush = null
-      }
-      pendingFlush = writeNow
-      timer = setTimeout(writeNow, DEBOUNCE)
-    })
-    window.addEventListener('beforeunload', flushPendingSettings)
+    // 5. Subscribe to store settings changes → debounce-write to SQLite, flushing a pending
+    //    write on unmount / beforeunload instead of dropping it (src/lib/settingsBridge.ts).
+    const disposeSettingsPersist = persistSettingsFromStore()
     return () => {
-      flushPendingSettings()
-      window.removeEventListener('beforeunload', flushPendingSettings)
-      unsub()
+      disposeSettingsPersist()
       disposeVaultChange?.()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
