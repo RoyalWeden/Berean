@@ -22,25 +22,36 @@
 
 Geometry rules (pass 4 — Apple's control-shape rule [WWDC25, official]: mini/small/medium controls
 are **rounded rectangles**, large/extra-large are **capsules**):
-- Rounded rectangle: `Button xs` (`rounded-control-sm` 6) · `Button sm|md`, `IconButton`, `Chip
+- Rounded rectangle: `Button xs` (`rounded-control-sm` 8) · `Button sm|md`, `IconButton`, `Chip
   kind="filter"`, `Select`, `TextField`, segments, sidebar rows, verse badge, calendar cells
-  (`rounded-control-md` 7) · segmented **track** and menu rows (`rounded-card` 8).
+  (`rounded-control-md` 10) · menu rows (`rounded-card` 8).
 - Capsule (`rounded-control`): `SearchField`, `Button lg`, `Button primary|prominent`, `Chip
-  kind="token|badge"`, `Badge`, `Switch`, progress bars, floating pills (rail handle, presenter pill).
-- Grouped controls share one container (`ControlGroup`, `rounded-row` 10) with flat 7px items.
+  kind="token|badge"`, `Badge`, `Switch`, progress bars, floating pills (rail handle, presenter pill),
+  **every `ControlGroup`**, and a segmented **track** inside a bar.
+- Grouped controls share one capsule container (`ControlGroup`) with flat items. The container uses
+  `.control-glass-inset` — `.control-glass` paints a real 1px border, which makes an auto-height
+  group render 2px TALLER than the items inside it.
 - Concentric rule applies only where an inner surface shares a corner with its container (inner =
-  outer − inset): window 20 → corner surface 12 · group 10 → item 7 · menu 14 → row 8 · segmented
-  track 8 → thumb 7 · card 8 → chip 4. Elsewhere every element uses its ROLE radius.
+  outer − inset): window 20 → corner surface 12 · menu 14 → row 8 · card 8 → chip 4. A capsule
+  container (`ControlGroup`, a bar's segmented track) has no corner to be concentric with, so its
+  items render flat and its thumb takes the container's own capsule. Elsewhere every element uses its ROLE radius.
 - Heights (single authority): all toolbars 44 (macOS 27 uniform toolbars) · **bar controls 36** (one
   height for every control in a bar, via `BarMetrics` — see below) · compact contexts (inspector,
   popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 · list rows 36 (28
-  dense) · menu rows 28 · calendar cells 22. A segmented control's TRACK is the 32px control; its
-  segments are inset at 28.
-- **`BarMetrics`** (pass 5) is the mirror of `CompactMetrics`: inside a `Toolbar` — and the
-  sidebar's search row, which is a bar without being a `Toolbar` — every sized primitive steps one
-  size UP (Button sm→md, IconButton 24→28→32, fields and segmented tracks to 32), so a bar renders
-  ONE control height regardless of which size each call site asked for. It crosses `TabHeaderPortal`
-  alongside the control surface. Dense contexts still step DOWN; a control is never both.
+  dense) · menu rows 28 · calendar cells 22. A segmented control's TRACK is the 36px control; its
+  segments are inset at 32.
+- **`BarMetrics`** (pass 5) is the mirror of `CompactMetrics`: inside a `Toolbar` — and any row
+  that is a bar without being a `Toolbar` (the sidebar search row, the Lexicon search row, the
+  Scripture-search filter row, which opt in explicitly) — every sized primitive renders its own BAR
+  box (`CONTROL_H_BAR` = 36) instead of the size its call site asked for, so a bar shows ONE control
+  height. Consumed by `Button`, `IconButton`, `SegmentedControl`, `TextField` and `Select`. It
+  crosses `TabHeaderPortal` alongside the control surface — React context follows the React tree,
+  not the DOM tree, so portaled panel controls need both re-provided. Dense contexts still step
+  DOWN via `CompactMetrics`; a control is never both, and compact wins.
+- **A lone bar item is a circle.** A standalone icon control in a bar resolves to `round`: Apple's
+  grouping model makes it its own "group of one", and a group of one holding a single square icon
+  reads as a circle (More, the inspector and sidebar toggles, the sidebar `+`). Only items that
+  actually share a `ControlGroup` container render flat/square inside its capsule.
 
 ## Tokens
 
