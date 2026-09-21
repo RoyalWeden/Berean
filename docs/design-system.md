@@ -426,4 +426,20 @@ as badges (section labels use `SectionLabel`).
   tooltip can still explain why); accepted raw controls (grid cells, verse-level reader controls,
   composite controls, ProseMirror node views, the pre-CSS crash overlay). YouTube/media poster
   `group-hover:scale-105` stays — a media-card affordance on an `<img>`, not a control.
+- 2026-09-20 — Pass 5 running-app QA found the pass's headline defect, which no amount of code
+  reading had surfaced: **exactly one `ControlGroup` in the app was drawing its glass container.**
+  `Toolbar` publishes `ControlSurfaceContext='glass'`, but every panel's toolbar content is
+  portaled in through `TabHeaderPortal`, and React context follows the React tree rather than the
+  DOM tree — so portaled groups never saw that provider and fell back to the `ghost` default,
+  rendering their hairline dividers floating in the bar with no container. Only ShellHeader's own
+  leading nav cluster (a direct `Toolbar` child) looked right. `TabHeaderPortal` now re-provides
+  'glass' inside the portal. The floating notes-editor toolbar is unaffected and stays flat — it
+  sets `itemVariant="ghost"` deliberately, because it already floats on its own glass surface and
+  boxing each button there would be glass-on-glass.
+  Also: `ColorSwatchRow` itself carried `hover:scale-110`; swatches now hold their geometry and
+  respond with brightness. All 82 off-scale Lucide sizes (11/13/15/7/26 — `DisclosureRow` among
+  them) normalized to the 12/14/16/18/20/24 scale. Every `transition-all` is now an explicit
+  property list. `Chip` gained the `tooltip` prop it was missing, and the last `title=` attributes
+  on primitives became real tooltips.
+  Verification note: `npm test` is `vitest` in WATCH mode and never exits — use `npx vitest run`.
 
