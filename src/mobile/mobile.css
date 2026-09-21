@@ -205,3 +205,11 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-note-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mobile-note-meta { padding: 6px 16px 0; font-size: 13px; color: rgb(var(--color-accent)); font-weight: 600; }
 .mobile-note-editor .mobile-pm { flex: 1; min-height: 0; }
+
+/* ── search ───────────────────────────────────────────────────────────── */
+.mobile-search-clear { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 16px; background: none; color: rgb(var(--color-text-muted)); }
+.mobile-search-scope { display: flex; justify-content: center; padding: 0 12px 8px; }
+.mobile-search-scope .mobile-segmented { width: 100%; }
+.mobile-search-scope .mobile-segmented button { flex: 1; min-height: 34px; }
+.mobile-search-snippet mark { background: rgb(var(--color-accent) / 0.25); color: inherit; border-radius: 3px; }
+.mobile-search-filters { padding: 0 16px 16px; }

@@ -22,7 +22,7 @@ reason) · **Shared**: what is reused unchanged · **iPhone impl.**: what is new
 | Archived tab groups | store `archivedGroups` | REQUIRED-ADAPTED | `archived_groups` table | Archive page | ✔ | ✔ | NOT STARTED | |
 | Saved Workspaces (layout + tab snapshot) | `WorkspacesSection.tsx` | REQUIRED-ADAPTED | `workspacesService` | Workspaces page (apply tab set) | ✔ | ✔ | NOT STARTED | mosaic layout not applied on phone (documented) |
 | Tab back/forward history (`tabNavStacks`, ⌘[ ⌘]) | store | REQUIRED-ADAPTED | store | edge-swipe back pops in-tab history; toolbar back | ✔ | LOCAL | NOT STARTED | |
-| Floating search ⌘K/⌘T (refs, Strong's, keywords, notes, YouTube, commands, recent) | `FloatingSearch.tsx` (1514) | REQUIRED-ADAPTED | result providers | `SearchPage` top bar + Spotlight (R093) | ✔ (YouTube part cached) | — | NOT STARTED | |
+| Floating search ⌘K/⌘T (refs, Strong's, keywords, notes, YouTube, commands, recent) | `FloatingSearch.tsx` (1514) | REQUIRED-ADAPTED | result providers | `src/mobile/search/SearchPage.tsx` | ✔ (YouTube part cached) | — | IMPLEMENTING (Phase 14: `SearchPage` covers refs, Strong's, keywords, notes, lexicon, recent; YouTube channels + commands: later) | |
 | History modal (navigation history, grouped by day/session) | `HistoryModal.tsx` | REQUIRED-ADAPTED | `historyService` | History page | ✔ | LOCAL | NOT STARTED | |
 | Onboarding wizard | `Onboarding.tsx` | REQUIRED-ADAPTED | store flags | Mobile onboarding pages | ✔ | — | NOT STARTED | |
 | Hints / first-use tips | `localStorage` keys | REQUIRED-ADAPTED | — | same keys | ✔ | — | NOT STARTED | |
@@ -75,11 +75,11 @@ reason) · **Shared**: what is reused unchanged · **iPhone impl.**: what is new
 
 | Feature | Desktop | iPhone req. | Shared | iPhone impl. | Offline | iCloud | Status | Limitation |
 |---|---|---|---|---|---|---|---|---|
-| Advanced Scripture Search: all/any/phrase, testament, book multi-select + 10 presets, tag filter AND/OR, sort, edition selector, `lxx:` prefixes, virtualized anchored results | `ScriptureSearchView.tsx` | REQUIRED | search state + row renderer | `SearchPage` + `FilterSheet` | ✔ | ✔ (tab search fields) | NOT STARTED | |
+| Advanced Scripture Search: all/any/phrase, testament, book multi-select + 10 presets, tag filter AND/OR, sort, edition selector, `lxx:` prefixes, virtualized anchored results | `ScriptureSearchView.tsx` | REQUIRED | search state + row renderer | `src/lib/scriptureSearch.ts` + `SearchPage` | ✔ | ✔ (tab search fields) | IMPLEMENTING (Phase 14: shared algorithm `src/lib/scriptureSearch.ts` — variants, phrase post-filter, scoping, Strong's bridge; filter sheet: match mode / text / book groups; tag filter + virtualised list pending) | |
 | Strong's number & multi-Strong's queries | `strongsSearch.ts` | REQUIRED | same | same | ✔ | — | NOT STARTED | |
-| Space Search tab (simpler, number-word expansion) | `SearchTab.tsx` | REQUIRED | same | merged into `SearchPage` modes | ✔ | — | NOT STARTED | |
-| Lexicon search (H/G/all) | `LexiconPanel` SearchView | REQUIRED | same | Lexicon page | ✔ | — | NOT STARTED | |
-| Notes search (all/any/phrase, FTS5) | `notes:search` | REQUIRED | `notesService` | Notes page search | ✔ | — | NOT STARTED | |
+| Space Search tab (simpler, number-word expansion) | `SearchTab.tsx` | REQUIRED | same | merged into `SearchPage` modes | ✔ | — | IMPLEMENTING (Phase 14: superseded on the phone by `SearchPage`) | |
+| Lexicon search (H/G/all) | `LexiconPanel` SearchView | REQUIRED | same | Lexicon page | ✔ | — | IMPLEMENTED (Phase 14: Lexicon scope → Strong's sheet) | |
+| Notes search (all/any/phrase, FTS5) | `notes:search` | REQUIRED | `notesService` | Notes page search | ✔ | — | IMPLEMENTED (Phase 14: Notes scope) | |
 | YouTube video + transcript search | `youtube:searchVideos/searchTranscripts` | REQUIRED (cached DB) | service | same | ✔ (cached index) | LOCAL | NOT STARTED | |
 | Recent queries | store | REQUIRED | store | same | ✔ | LOCAL | NOT STARTED | |
 | Open all results in Compare (small sets) | search | REQUIRED-ADAPTED | — | Compare page | ✔ | — | NOT STARTED | |

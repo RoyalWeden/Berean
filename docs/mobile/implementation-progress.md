@@ -33,7 +33,7 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 | 11 | Mobile Bible reading (pager, pinch, reference picker, reader options) | device perf baseline recorded | **IMPLEMENTED (simulator)** 2026-09-21 — pager, pinch, Go-to, translation sheet, reader options sheet (size/line height/theme/verse numbers/font/continuous scroll), prev/next actions; device perf baseline: Phase 21 |
 | 12 | Scripture interactions: long-press menu, selection, highlights, tags, Strong's sheet, cross refs, notes-for-verse | device manual acceptance | **IMPLEMENTED (simulator)** 2026-09-21 — `VerseInteractionContext` (touch mode inside VerseRow), long-press → `VerseActionSheet` (context-adaptive: selection vs verse), `SelectionBar`, `VerseNotesSheet`, `CrossRefsSheet` (TSKe/classic), `TagPickerSheet`, Strong's sheet; verified by synthesized long-press/taps on the simulator |
 | 13 | Mobile ProseMirror notes (editor, home, folders, versions, refs, daily) | PM touch tests + device | **IMPLEMENTING** 2026-09-21 — native `NotesHomePage` (search, filters, folders, pinned, daily, trash), `NoteEditorPage` (shared PM editor, autosave/snapshots, title, edit/view, actions: pin, status, folder, versions+restore, copy, share, trash), `TrashPage`; wikilinks/verse refs/Strong's refs wired; verified on the simulator (create, type, title, daily note). Remaining: icons/colours/tags, folder CRUD, board/calendar pages (hosted meanwhile), image insert from Photos, keyboard toolbar on device |
-| 14 | Search (page, filters, parity) | parity tests + perf | NOT STARTED |
+| 14 | Search (page, filters, parity) | parity tests + perf | **IMPLEMENTING** 2026-09-21 — `src/lib/scriptureSearch.ts` (the desktop algorithm as a shared function, 5 tests) + `SearchPage` (scripture/notes/lexicon scopes, filter sheet, grouped results with highlighted snippets, recent queries, reference jump, Strong's queries, `pendingSearchQuery`); verified on the simulator ("remember the sabbath" → 10 verses in 7 books across texts → tap lands on Exo 20:8). Pending: tag filter, virtualised long lists, perf baseline on device |
 | 15 | Tabs & workspace UX (grid, switcher, archive, workspaces page) | tests + device | NOT STARTED |
 | 16 | Audio (Read Aloud spike → implementation, audio session, lock-screen) | device | NOT STARTED |
 | 17 | YouTube / PiP (`BereanWebView`) | device; restrictions documented | NOT STARTED |
@@ -203,6 +203,12 @@ Populated as phases land; currently the design-time list in the matrix.
 - `NotesSpace` in `MobileApp`: `requestOpenNote` (verse sheet "Add note", history, deep links) pushes the editor.
 - Verified on the simulator with real pointer/keyboard events: new note → typed text saved and previewed in the list; title edit persisted; daily note created from the calendar button. (The earlier "inputs don't focus" scare was my tap coordinates hitting the status bar.)
 
+## Phase 14 — Search — IMPLEMENTING (2026-09-21)
+
+- `src/lib/scriptureSearch.ts`: `runScriptureSearch` (word-replacer variants as separate queries merged + deduped, phrase-mode exact post-filter ignoring , ;, book scope pushed into the query, "all texts" fan-out, KJVA word-replacer → Strong's bridge via lexicon occurrences), `runStrongsSearch`, `groupHitsByBook`. Tests in `src/lib/__tests__/scriptureSearch.test.ts`. ScriptureSearchView keeps its own copy for now (identical steps; consolidating it is a desktop-side refactor for Phase 20).
+- `src/mobile/search/SearchPage.tsx`: scope segmented control (Scripture / Notes / Lexicon), debounced search, results grouped by book with `applyFindHighlight` snippets and the text label when searching all texts, tap → reader with the landed-verse highlight (`targetVerseQuery` / `targetVerseStrongsWords`), typed reference → jump, recent queries (`recentSearchQueries`), filter sheet (match mode, text, canonical book groups), `openSearchTab` compatibility through `pendingSearchQuery`.
+- Reader: tab title / history / per-tab back stack now update on chapter change exactly as the desktop BiblePanel does (a search landing on Exodus 20 renames the tab and records history).
+
 ## Developer decisions Q3 / Q5 — done (2026-09-21)
 
 - **Q3 youtube_seed.db:** audit in `audit/youtube-seed.md`; decision D-007; `scripts/data/split-youtube-seed.mjs` (5 s) produces `data/youtube_index.db` (7.0 MB, bundled — `bundled-dbs.txt`) + 61 per-channel packs (0.2–41 MB, 222 MB total, gitignored) + `manifest.json` (sha256 per pack; copied into the bundle as `youtube_transcripts.manifest.json`). `youtubeIndexMerge.ts` (`mergeYoutubeIndex` at iOS boot, `mergeTranscriptPack` for downloads) with tests; `youtubeService.getTranscriptStatus` now checks real segment presence; `getTranscriptAvailability()` per channel for the Phase 17 download UI. Desktop unchanged (`extraResources` filter narrowed so the packs never ship in the desktop app). Still to build in Phase 17: the native resumable/cancellable download + verify + merge flow and its UI.
@@ -224,4 +230,5 @@ None.
 - 2026-09-21 — Compaction (§8) done; commit 8191f47. Q3 youtube seed split + Q5 deep-link router done; commit 60316d6.
 - 2026-09-21 — Phase 10 mobile shell boots on the simulator (173 files / 4117 tests); commit 17abf99.
 - 2026-09-21 — Phases 11–12 reader options + scripture interaction sheets on the simulator; commit 1921d54.
-- 2026-09-21 — Phase 13 native notes home/editor/trash on the simulator.
+- 2026-09-21 — Phase 13 native notes home/editor/trash on the simulator; commit 2994562.
+- 2026-09-21 — Phase 14 shared search algorithm + SearchPage (174 files / 4122 tests).

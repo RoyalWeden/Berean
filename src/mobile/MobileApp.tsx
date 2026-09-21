@@ -11,7 +11,6 @@ import { setIosDeepLinkTarget } from '@/platform/ios/deepLinks'
 import BiblePanel from '@/components/bible/BiblePanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
-import SearchTab from '@/components/search/SearchTab'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { SheetHost, useSheets } from './primitives/Sheet'
@@ -26,6 +25,7 @@ import { ReaderPage } from './reader/ReaderPage'
 import { SettingsPage } from './settings/SettingsPage'
 import { NotesHomePage } from './notes/NotesHomePage'
 import { NoteEditorPage } from './notes/NoteEditorPage'
+import { SearchPage } from './search/SearchPage'
 import './mobile.css'
 
 /**
@@ -80,6 +80,7 @@ function SpaceRoot({ space }: { space: SpaceId }) {
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0] ?? null
   useEffect(() => { if (!active && space === 'scripture') ensureTab('bible') }, [active, space, ensureTab])
   if (space === 'notes') return <ErrorBoundary label="notes error"><NotesSpace /></ErrorBoundary>
+  if (space === 'search') return <ErrorBoundary label="search error"><SearchPage /></ErrorBoundary>
   if (!active) return <EmptySpace space={space} />
   return <ErrorBoundary label={`${space} error`}><TabPage tab={active} /></ErrorBoundary>
 }
@@ -105,8 +106,7 @@ function TabPage({ tab }: { tab: Tab }) {
   const inner =
     tab.spaceId === 'scripture' ? <BiblePanel floating /> :
     tab.spaceId === 'lexicon' ? <LexiconPanel floating /> :
-    tab.spaceId === 'youtube' ? <YouTubeTab floating /> :
-    <SearchTab floating />
+    <YouTubeTab floating />
   return <div className="mobile-hosted-panel">{inner}</div>
 }
 

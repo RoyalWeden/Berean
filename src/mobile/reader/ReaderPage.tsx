@@ -7,6 +7,7 @@ import ChapterView from '@/components/bible/ChapterView'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { navigateToVerse } from '@/lib/verseNavigation'
+import { isHermasBook, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
 import { Page, IconTap } from '../primitives/Page'
 import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
@@ -51,6 +52,24 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       : bookIndex >= 0 && bookIndex < books.length - 1 ? { bookId: books[bookIndex + 1].id, chapter: 1 } : null
     return { prev, next }
   }, [state.bookId, state.chapter, chapterCount, bookIndex, books])
+
+  // Tab title + history + per-tab back stack on every chapter change — the same contract the
+  // desktop BiblePanel keeps (its title effect), so tabs, history and sync see identical data.
+  const renameTab = useAppStore((s) => s.renameTab)
+  useEffect(() => {
+    if (!book) return
+    const title = state.endChapter && state.endChapter > state.chapter
+      ? `${book.name} ${state.chapter}–${state.endChapter}`
+      : isHermasBook(state.bookId)
+        ? `Hermas ${getHermasShortLabel(state.bookId, state.chapter, hermasVariantForTextId(textId))}`
+        : `${book.name} ${state.chapter}`
+    if (tab.title !== title) renameTab('scripture', tab.id, title)
+    const historyTitle = state.targetVerse && !(state.endChapter && state.endChapter > state.chapter) ? `${title}:${state.targetVerse}` : title
+    const s = useAppStore.getState()
+    s.addHistoryEntry({ type: 'bible', title: historyTitle, bookId: state.bookId, chapter: state.chapter, verse: state.targetVerse, translation: textId })
+    s.pushTabNav(tab.id, { type: 'bible', title: historyTitle, bookId: state.bookId, chapter: state.chapter, verse: state.targetVerse, translation: textId.toUpperCase() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.bookId, state.chapter, state.endChapter, book?.id, tab.id])
 
   const goTo = useCallback((bookId: string, chapter: number, verse?: number) => {
     navigateToVerse({ bookId, chapter, verse, origin: { kind: 'sequential-nav' } })
