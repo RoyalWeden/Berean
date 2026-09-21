@@ -17,8 +17,9 @@ const SIZE: Record<IconButtonSize, { box: string; icon: number; radius: string }
   32: { box: 'w-8 h-8', icon: 18, radius: 'rounded-control-md' },
 }
 const DOWN: Record<IconButtonSize, IconButtonSize> = { 20: 20, 24: 20, 28: 24, 32: 28 }
-/** Bar metrics step UP so one toolbar renders one control height (see metrics.tsx). */
-const UP: Record<IconButtonSize, IconButtonSize> = { 20: 28, 24: 32, 28: 32, 32: 32 }
+/** The one bar box (CONTROL_H_BAR = 34): every IconButton in a bar renders at this size, so a
+ *  toolbar shows one control height whatever size each call site asked for (see metrics.tsx). */
+const BAR = { box: 'w-[34px] h-[34px]', icon: 17, radius: 'rounded-control-md' }
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: LucideIcon
@@ -62,7 +63,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 ) {
   const compact = useCompactMetrics()
   const bar = useBarMetrics()
-  const s = SIZE[compact ? DOWN[size] : bar ? UP[size] : size]
+  const s = compact ? SIZE[DOWN[size]] : bar ? BAR : SIZE[size]
   const surface = useControlSurface(variant)
   const inGroup = useInControlGroup()
   const ctxShape = useContext(ControlShapeContext)

@@ -66,6 +66,8 @@ const LINK_BOX: Record<ButtonSize, string> = {
   md: 'h-auto px-0 text-subhead gap-2',
   lg: 'h-auto px-0 text-subhead gap-2',
 }
+/** The one bar box (CONTROL_H_BAR = 34). Used for every Button inside a Toolbar / bar row. */
+const BAR: { box: string; icon: number; radius: string } = { box: 'h-[34px] px-3.5 text-subhead gap-2', icon: 16, radius: 'rounded-control-md' }
 const SIZE: Record<ButtonSize, { box: string; icon: number; radius: string }> = {
   xs: { box: 'h-6 px-2 text-caption gap-1', icon: 12, radius: 'rounded-control-sm' },
   sm: { box: 'h-7 px-2.5 text-footnote gap-1.5', icon: 14, radius: 'rounded-control-md' },
@@ -79,7 +81,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const compact = useCompactMetrics()
   const bar = useBarMetrics()
-  const s = SIZE[resolveSize(size, compact, bar)]
+  const s = !compact && bar ? BAR : SIZE[resolveSize(size, compact)]
   const ctxSurface = useControlSurface(surface)
   const inGroup = useInControlGroup()
   const v: ButtonVariant = variant ?? (tint === 'primary' ? 'primary' : tint === 'secondary' ? 'prominent' : ctxSurface === 'glass' ? 'secondary' : 'ghost')
@@ -133,7 +135,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         'transition-[background-color,color,filter,transform,box-shadow] duration-base ease-mac cursor-pointer',
         inGroup ? 'rounded-none' : isLink ? 'rounded-control-sm' : cx(capsule ? 'rounded-control' : s.radius, 'active:scale-[0.98]'),
         'disabled:opacity-40 disabled:pointer-events-none',
-        isLink ? LINK_BOX[resolveSize(size, compact, bar)] : s.box,
+        isLink ? LINK_BOX[resolveSize(size, compact)] : s.box,
         look, className,
       )}
       {...rest}

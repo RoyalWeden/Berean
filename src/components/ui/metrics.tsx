@@ -16,21 +16,22 @@ export type ControlSize = 'xs' | 'sm' | 'md' | 'lg'
 const DOWN: Record<ControlSize, ControlSize> = { xs: 'xs', sm: 'xs', md: 'sm', lg: 'md' }
 
 /**
- * Bar metrics — the mirror of CompactMetrics. Inside a `Toolbar` (and the sidebar's search row)
- * every sized primitive steps one size UP, so a bar renders ONE control height no matter which
- * size each call site asked for: Button sm→md, IconButton 24→28→32. macOS 26/27 toolbars are
- * roomier than the 28px controls Berean inherited, and mixed 24/28/30/32 heights in one bar read
- * as misalignment rather than hierarchy. Dense contexts (inspector, popovers, menus) still step
- * DOWN via CompactMetrics, so this does not inflate them — a control cannot be both.
+ * Bar metrics — the mirror of CompactMetrics. Inside a `Toolbar` (and the sidebar's search row,
+ * a bar that is not a `Toolbar`) every sized primitive renders its own BAR box instead of the box
+ * its call site asked for, so a bar shows ONE control height regardless of the sizes scattered
+ * across call sites. macOS 27 ("uniform toolbars") is roomier than the 28px controls Berean
+ * inherited; `CONTROL_H_BAR` is that one height, and each primitive's BAR entry is built from it.
+ * Dense contexts (inspector, popovers, menus) still step DOWN via CompactMetrics — a control is
+ * never both, and CompactMetrics wins.
  */
 export const BarMetricsContext = createContext(false)
 export function useBarMetrics(): boolean { return useContext(BarMetricsContext) }
 export function BarMetrics({ children, value = true }: { children: ReactNode; value?: boolean }) {
   return <BarMetricsContext.Provider value={value}>{children}</BarMetricsContext.Provider>
 }
-const UP: Record<ControlSize, ControlSize> = { xs: 'sm', sm: 'md', md: 'md', lg: 'lg' }
-
-export function resolveSize(size: ControlSize, compact: boolean, bar = false): ControlSize {
-  if (compact) return DOWN[size]
-  return bar ? UP[size] : size
+export function resolveSize(size: ControlSize, compact: boolean): ControlSize {
+  return compact ? DOWN[size] : size
 }
+
+/** The one bar-control height. Every primitive's BAR box is built to match it; tune here. */
+export const CONTROL_H_BAR = 34

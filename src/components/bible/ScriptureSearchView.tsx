@@ -22,7 +22,7 @@ import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
   Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
-  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel,
+  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics,
 } from '@/components/ui'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
@@ -1190,7 +1190,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
-      <div className="flex items-center gap-2 px-4 py-2 material-bar flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
+      {/* Hand-rolled bar (it wraps, so it is not a fixed-height Toolbar) — but it IS a bar, so
+          BarMetrics gives its scope trigger, mode segments and filter controls the one bar
+          control height instead of their own 28px call-site sizes. */}
+      <BarMetrics>
+      <div className="flex items-center gap-2 px-4 py-1.5 material-bar flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
         <SearchField
           ref={inputRef}
           bare
@@ -1305,6 +1309,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           </>
         )}
       </div>
+      </BarMetrics>
 
       {/* ── Scope modal — tabbed: Bible Edition / Canon Books / Other Books, triggered from the
            compact scope button in the shared TopBar above.

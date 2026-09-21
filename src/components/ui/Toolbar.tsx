@@ -5,7 +5,8 @@ import { BarMetrics } from './metrics'
 import { useScrollEdge } from '@/lib/useScrollEdge'
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
-  /** 'sm' 36px (list headers, sub-toolbars) · 'md' 44px (window toolbar, panel headers). */
+  /** 'sm' 40px (list headers, sub-toolbars) · 'md' 44px (window toolbar, panel headers).
+   *  Both hold the one 34px bar control (CONTROL_H_BAR) with even margins. */
   size?: 'sm' | 'md'
   /** Which edge touches scrolling content.
    *  'auto' (default) — seamless at rest; hairline + soft shadow appear only once the content
@@ -58,7 +59,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
         data-scrolled={scrolled || undefined}
         className={cx(
           'flex items-center gap-2 flex-shrink-0 min-w-0 px-3',
-          size === 'md' ? 'h-11' : 'h-9',
+          size === 'md' ? 'h-11' : 'h-10',
           material === 'bar' && 'material-bar', material === 'sidebar' && 'material-sidebar',
           edge === 'bottom' && 'border-b border-separator', edge === 'top' && 'border-t border-separator',
           sticky && 'sticky top-0 z-raised',

@@ -62,6 +62,11 @@ const booksCache = new Map<string, Book[]>()
 // see Phase 2's plan to extend animation to these same layouts) can't drift apart.
 const BOTTOM_PANEL_HEIGHT_LAYOUTS = new Set<ScriptureLayout>(['panel-bottom', 'notes-bottom', 'compare-notes', 'split-bottom'])
 
+/** Default width of the Scripture side panel (cross refs / lexicon / notes). Must stay inside
+ *  the 260–420 resize clamp used throughout this file. Only applies to tabs that have not
+ *  been resized — an existing tab keeps its persisted `rightPanelWidth`. */
+const DEFAULT_RIGHT_PANEL_WIDTH = 320
+
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
   // ActivePanel now keeps this panel mounted while another space is on screen (so a
   // switch back is a display flip, not a teardown of the whole verse tree + refetch).
@@ -371,7 +376,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   // Right panel state — initialized from persisted tab state
   const [rightPanelOpen, setRightPanelOpen] = useState(() => tabState.rightPanelOpen ?? false)
-  const [rightPanelWidth, setRightPanelWidth] = useState(() => tabState.rightPanelWidth ?? 280)
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => tabState.rightPanelWidth ?? DEFAULT_RIGHT_PANEL_WIDTH)
   const [bottomPanelHeight, setBottomPanelHeight] = useState(() => tabState.bottomPanelHeight ?? 240)
   const [rightPanelTab, setRightPanelTab] = useState<'notes' | 'lexicon' | 'crossrefs'>(() => tabState.rightPanelTab ?? 'notes')
   // Persisted right-panel content (survives collapse/expand)
@@ -443,7 +448,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     prevBibleTabIdForResetRef.current = activeTabId
     setChapterRevealed(!needsRestoreNow())
     setRightPanelOpen(tabState.rightPanelOpen ?? false)
-    setRightPanelWidth(tabState.rightPanelWidth ?? 280)
+    setRightPanelWidth(tabState.rightPanelWidth ?? DEFAULT_RIGHT_PANEL_WIDTH)
     setBottomPanelHeight(tabState.bottomPanelHeight ?? 240)
     setRightPanelTab(tabState.rightPanelTab ?? 'notes')
     setRightPanelNoteId(tabState.rightPanelNoteId ?? null)

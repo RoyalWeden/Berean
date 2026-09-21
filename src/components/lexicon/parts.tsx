@@ -15,6 +15,7 @@ export function LangBadge({ num, className }: { num: string; className?: string 
   return (
     <Badge
       variant="text"
+      size="md"
       tone={isHebrew ? 'warning' : 'info'}
       className={cx('normal-case tracking-normal', isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info', className)}
     >
@@ -32,9 +33,18 @@ export function LexiconEntryHeader({
       {/* Plain text, not a tinted RefChip — this is the entry's own identity (like a document
           title), not a scannable cross-reference among many; a small colored pill read as
           "highlighted" rather than as the heading it is. */}
-      <span className="text-subhead font-mono font-semibold text-text-primary flex-shrink-0">{strongsNum}</span>
+      {/* The app's UI font, not mono: this is the entry's title, and a monospaced run read as a
+          code token sitting next to prose rather than as the heading it is. */}
+      <span className="text-title2 font-semibold text-text-primary flex-shrink-0">{strongsNum}</span>
       <LangBadge num={strongsNum} />
-      {lemma && <span className="text-body font-medium text-text-primary font-lemma truncate" dir="rtl">{lemma}</span>}
+      {/* Only Hebrew is right-to-left — Greek lemmas were being marked rtl too, which reorders
+          their punctuation. */}
+      {lemma && (
+        <span
+          className="text-title2 font-medium text-text-primary font-lemma truncate"
+          dir={strongsNum.toUpperCase().startsWith('H') ? 'rtl' : 'ltr'}
+        >{lemma}</span>
+      )}
       {actions && <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">{actions}</div>}
     </div>
   )
