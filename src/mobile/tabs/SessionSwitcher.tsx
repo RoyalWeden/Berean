@@ -3,6 +3,7 @@ import { Plus, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { haptic } from '../primitives/haptics'
 import { Row, ListSection } from '../primitives/Page'
+import { SESSION_ICONS } from '@/components/shell/Sidebar'
 
 /** Workspaces (sessions) on the phone (R072): switch, create, rename, delete — same store actions as the desktop sidebar. */
 export function SessionSwitcher({ close, onActions }: { close: () => void; onActions: (sessionId: string) => void }) {
@@ -18,7 +19,7 @@ export function SessionSwitcher({ close, onActions }: { close: () => void; onAct
       <ListSection title="Workspaces">
         {sessions.map((s) => (
           <Row key={s.id}
-            leading={<span className="mobile-session-icon" aria-hidden>{s.icon ?? '◻︎'}</span>}
+            leading={(() => { const I = (SESSION_ICONS.find((i) => i.name === s.icon) ?? SESSION_ICONS[0]).Icon; return <I size={18} aria-hidden /> })()}
             title={s.name}
             subtitle={`${total(s)} tab${total(s) === 1 ? '' : 's'}`}
             right={s.id === currentId ? <Check size={18} aria-label="Current" /> : undefined}

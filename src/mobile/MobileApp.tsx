@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library } from 'lucide-react'
+import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { applyThemeToDocument } from '@/lib/applyTheme'
@@ -21,6 +21,9 @@ import { SpaceBar, destinationForSpace, type MobileDestination } from './tabs/Sp
 import { TabPill } from './tabs/TabPill'
 import { TabGrid } from './tabs/TabGrid'
 import { SessionSwitcher } from './tabs/SessionSwitcher'
+import { WorkspacesPage } from './tabs/WorkspacesPage'
+import { ArchivePage } from './tabs/ArchivePage'
+import { SESSION_ICONS } from '@/components/shell/Sidebar'
 import { ReaderPage } from './reader/ReaderPage'
 import { SettingsPage } from './settings/SettingsPage'
 import { NotesHomePage } from './notes/NotesHomePage'
@@ -134,6 +137,8 @@ function SpaceTabRow({ space }: { space: SpaceId }) {
       const session = s.sessions.find((x) => x.id === id)
       actions('session-actions', session?.name, [
         { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Workspace name', session?.name ?? ''); if (n?.trim()) s.renameSession(id, n.trim()) } },
+        { id: 'icon', label: 'Icon…', onSelect: () => actions('session-icon', 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, onSelect: () => s.setSessionIcon(id, i.name) }))) },
+        { id: 'archive-all', label: 'Archive all tabs in this workspace', onSelect: () => s.archiveAllTabs(session?.name) },
         { id: 'delete', label: 'Delete workspace', destructive: true, disabled: s.sessions.length <= 1, onSelect: () => { if (confirm(`Delete "${session?.name}" and close its tabs?`)) s.deleteSession(id) } },
       ])
     }} />
@@ -143,8 +148,15 @@ function SpaceTabRow({ space }: { space: SpaceId }) {
       const s = useAppStore.getState()
       const t = s.tabs[space].find((x) => x.id === tabId)
       if (!t) return
+      const idx = s.tabs[space].findIndex((x) => x.id === tabId)
+      const others = s.sessions.filter((x) => x.id !== s.currentSessionId)
       actions('tab-actions', t.title, [
         { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Tab name', t.title); if (n?.trim()) s.renameTab(space, tabId, n.trim()) } },
+        { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { s.addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
+        { id: 'up', label: 'Move up', disabled: idx <= 0, onSelect: () => s.reorderTabs(space, idx, idx - 1) },
+        { id: 'down', label: 'Move down', disabled: idx < 0 || idx >= s.tabs[space].length - 1, onSelect: () => s.reorderTabs(space, idx, idx + 1) },
+        { id: 'move', label: 'Move to workspace…', disabled: others.length === 0, onSelect: () => actions('tab-move', 'Move to', others.map((x) => ({ id: x.id, label: `${x.icon ? '' : ''}${x.name}`, onSelect: () => s.moveTabToSession(space, tabId, x.id) }))) },
+        { id: 'archive', label: 'Archive tab', onSelect: () => s.archiveTab(space, tabId) },
         { id: 'close-others', label: 'Close other tabs', onSelect: () => { for (const o of s.tabs[space]) if (o.id !== tabId && !o.isPinned) s.closeTab(space, o.id) } },
         { id: 'close', label: 'Close tab', destructive: true, onSelect: () => s.closeTab(space, tabId) },
       ])
@@ -166,6 +178,8 @@ function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
         <Row leading={<Tags size={20} aria-hidden />} title="Verse tags" subtitle="Tag manager and graph" chevron onClick={() => { useAppStore.getState().openTagsGraph(); onOpenSpace('notes') }} />
         <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, recap — phone page in a later phase; data already syncs" />
         <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={() => nav.push('history', <HistoryPage onBack={nav.pop} />)} />
+        <Row leading={<Layers size={20} aria-hidden />} title="Workspaces" subtitle="Saved tab sets" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
+        <Row leading={<Archive size={20} aria-hidden />} title="Archived tabs" chevron onClick={() => nav.push('archive', <ArchivePage onBack={nav.pop} />)} />
         <Row leading={<Library size={20} aria-hidden />} title="PDF library" chevron onClick={() => nav.push('pdfs', <PdfLibraryPage onBack={nav.pop} onOpen={() => onOpenSpace('scripture')} />)} />
       </ListSection>
       <ListSection>

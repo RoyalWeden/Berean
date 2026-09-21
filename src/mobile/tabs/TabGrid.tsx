@@ -5,6 +5,7 @@ import type { SpaceId } from '@/types'
 import { haptic } from '../primitives/haptics'
 import { tabTitle } from './TabPill'
 import { useLongPress } from '../primitives/useLongPress'
+import { SESSION_ICONS } from '@/components/shell/Sidebar'
 
 /**
  * Tab grid for one space (R071): every open tab as a card; tap → switch, × → close, long-press →
@@ -20,7 +21,7 @@ export function TabGrid({ space, close, onOpenSessions, onTabActions }: { space:
     <div className="mobile-tab-grid">
       <div className="mobile-tab-grid-head">
         <button type="button" className="mobile-chip" onClick={onOpenSessions} aria-label="Switch workspace">
-          <Layers size={16} aria-hidden /> {session?.icon ? `${session.icon} ` : ''}{session?.name ?? 'Workspace'}
+          {(() => { const I = (SESSION_ICONS.find((i) => i.name === session?.icon) ?? { Icon: Layers }).Icon; return <I size={16} aria-hidden /> })()} {session?.name ?? 'Workspace'}
         </button>
         <span className="mobile-muted">{tabs.length} tab{tabs.length === 1 ? '' : 's'}</span>
       </div>

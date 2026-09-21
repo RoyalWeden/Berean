@@ -213,3 +213,14 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-search-scope .mobile-segmented button { flex: 1; min-height: 34px; }
 .mobile-search-snippet mark { background: rgb(var(--color-accent) / 0.25); color: inherit; border-radius: 3px; }
 .mobile-search-filters { padding: 0 16px 16px; }
+
+/* Chrome is not selectable text: a long-press on a tab card, action row, bar or list row must
+   never raise iOS's text-selection handles. Inputs keep their own selection; reader/editor
+   content is untouched. */
+.mobile-space-bar, .mobile-tab-pill-row, .mobile-tab-grid, .mobile-action-list, .mobile-list-group,
+.mobile-selection-bar, .mobile-sheet-grabber-area, .mobile-verse-actions-head, .mobile-verse-actions-section,
+.mobile-book-grid, .mobile-grid-numbers, .mobile-chip-row, .mobile-segmented, .mobile-stepper, .mobile-page-title,
+.mobile-icon-tap, .mobile-title-button, .mobile-back, .mobile-crossrefs-head, .mobile-strongs-head {
+  -webkit-user-select: none; user-select: none;
+}
+.mobile-title-input, .mobile-search-input, .mobile-input { -webkit-user-select: text; user-select: text; }
