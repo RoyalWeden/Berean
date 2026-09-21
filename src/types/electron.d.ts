@@ -380,6 +380,9 @@ interface AppAPI {
   onTrackpadSwipeBegin?: (cb: () => void) => void
   onTrackpadSwipeEnd?: (cb: () => void) => void
   onMenuAction: (cb: (action: string, payload?: unknown) => void) => void
+  /** berean:// links opened from outside the app (src/lib/deepLinks.ts routes them). */
+  onDeepLink?: (cb: (url: string) => void) => void
+  takePendingDeepLinks?: () => Promise<string[]>
   // Native File/View/Go/Help menu items — see src/lib/commands.ts's command ids.
   onAppCommand?: (cb: (id: string) => void) => void
   onWindowActive?: (cb: (active: boolean) => void) => void

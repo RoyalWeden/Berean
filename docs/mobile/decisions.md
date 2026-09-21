@@ -173,3 +173,31 @@ Format: **decision · date · reason · alternatives considered · consequences 
 - **Alternatives considered:** Sync the whole localStorage blob as one record (LWW wipes the other
   device's tabs — violates the merge requirement); keep tabs local-only (violates R008).
 - **Affected requirements:** R008, R009, R056–R059.
+
+## D-007 — youtube_seed.db is split: a small bundled index + per-channel transcript packs downloaded on demand
+
+- **Date:** 2026-09-21 (developer decision Q3 received 2026-09-21; audit in `audit/youtube-seed.md`)
+- **Decision:** The desktop seed (`data/youtube_seed.db`, 196 MB) stays exactly as it is for the
+  desktop build (`mergeYouTubeSeed`, `SEED_VERSION`). For the iPhone the same seed is split by
+  `scripts/data/split-youtube-seed.mjs` into (a) `data/youtube_index.db` (~7 MB, bundled: the
+  11,097 video rows, 62 channel sync rows and the 5,977 transcript *metadata* rows — so the app
+  knows offline which videos have transcripts and how long they are) and (b) one transcript pack
+  per channel under `data/youtube_transcripts/<handle>.db` (the `youtube_transcript_segments`
+  rows for that channel; 62 packs, 0.2–19 MB each, ~190 MB total) plus `manifest.json`
+  (`format`, `seedVersion`, per-pack `bytes` + `sha256` + counts). Packs are published as release
+  assets and downloaded on the phone only for the channels the user chooses (Phase 17):
+  resumable (URLSession download task with resume data), versioned (manifest `seedVersion`),
+  integrity-checked (sha256 before merge), cancellable, stored in the app container (excluded from
+  backup, never in the iCloud journal). A downloaded pack is merged into `berean.db` through the
+  same tables and FTS triggers desktop uses, so `getTranscript` / `searchTranscripts` /
+  `getTranscriptStatus` are unchanged on both platforms; transcript search results simply cover the
+  channels downloaded so far (shown in the UI).
+- **Reason:** 96 % of the seed is transcript segments (2.7 M rows, 189 MB); bundling it would
+  double the app download for data most users never open, while the index is what the YouTube
+  space needs to render lists offline. Per-channel packs match how the feature is used (a user
+  follows a handful of channels) and give a natural, honest download UI.
+- **Alternatives considered:** Bundle the full seed on iOS (app > 400 MB with the Bible DBs);
+  drop transcripts on iOS (removes a desktop feature — not allowed); stream transcripts from an
+  online API (the desktop feature is offline by design and transcript fetching is dev-only).
+- **Affected requirements:** R026, R066, R143; feature-matrix rows "YouTube transcripts" and
+  "Transcript search".

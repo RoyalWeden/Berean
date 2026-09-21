@@ -165,6 +165,13 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('berean:menuAction')
     ipcRenderer.on('berean:menuAction', (_, action, payload) => cb(action, payload))
   },
+  // Deep links (berean://…): main queues URLs that arrive before the renderer is ready;
+  // the renderer drains them once on mount, then listens.
+  onDeepLink: (cb: (url: string) => void) => {
+    ipcRenderer.removeAllListeners('app:deepLink')
+    ipcRenderer.on('app:deepLink', (_, url: string) => cb(url))
+  },
+  takePendingDeepLinks: () => ipcRenderer.invoke('app:takePendingDeepLinks'),
   // Native File/View/Go/Help menu items (electron/main.ts's buildAppMenu) — sends a
   // src/lib/commands.ts command id, looked up and run by the renderer.
   onAppCommand: (cb: (id: string) => void) => {

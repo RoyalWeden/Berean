@@ -173,6 +173,11 @@ Q1 iCloud transport: proceed with per-device journals in the iCloud Drive contai
 
 Populated as phases land; currently the design-time list in the matrix.
 
+## Developer decisions Q3 / Q5 — done (2026-09-21)
+
+- **Q3 youtube_seed.db:** audit in `audit/youtube-seed.md`; decision D-007; `scripts/data/split-youtube-seed.mjs` (5 s) produces `data/youtube_index.db` (7.0 MB, bundled — `bundled-dbs.txt`) + 61 per-channel packs (0.2–41 MB, 222 MB total, gitignored) + `manifest.json` (sha256 per pack; copied into the bundle as `youtube_transcripts.manifest.json`). `youtubeIndexMerge.ts` (`mergeYoutubeIndex` at iOS boot, `mergeTranscriptPack` for downloads) with tests; `youtubeService.getTranscriptStatus` now checks real segment presence; `getTranscriptAvailability()` per channel for the Phase 17 download UI. Desktop unchanged (`extraResources` filter narrowed so the packs never ship in the desktop app). Still to build in Phase 17: the native resumable/cancellable download + verify + merge flow and its UI.
+- **Q5 deep links:** `src/lib/deepLinks.ts` (parse/format/route, tests), desktop target over the store, Electron protocol registration + `open-url`/argv delivery + pending queue, iOS `CFBundleURLTypes` + `appUrlOpen` queue until the shell registers a target; `berean-pdf://` links in notes now navigate (they were inert before — fixed bug).
+
 ## Blockers
 
 None.
@@ -185,4 +190,5 @@ None.
 - 2026-09-21 — Phase 6 engine gate met (167 files / 4086 tests).
 - 2026-09-21 — Phase 7 desktop half: FsSyncStore + Electron sync host + iCloud settings section + renderer refresh (169 files / 4091 tests); commit 899d843.
 - 2026-09-21 — Phase 7 iOS half: BereanCloud plugin, CloudSyncStore, iOS sync host, entitlements/container wiring; simulator 13/13; commit 80436b6.
-- 2026-09-21 — Phases 8–9 engine gate: v45/v46, remaining entities, dependents/vanished capture, causal capture (170 files / 4100 tests).
+- 2026-09-21 — Phases 8–9 engine gate: v45/v46, remaining entities, dependents/vanished capture, causal capture (170 files / 4100 tests); commit 1828f84.
+- 2026-09-21 — Compaction (§8) done; commit 8191f47. Q3 youtube seed split + Q5 deep-link router done.

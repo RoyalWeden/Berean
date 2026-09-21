@@ -98,12 +98,22 @@ All set `DEVELOPER_DIR` themselves. None of them touch the desktop build.
 
 ## 6. Deep links & universal links
 
-- Custom scheme `berean://` is registered in `Info.plist` (`CFBundleURLTypes`) — works with no
-  server. Routes: `berean://open?ref=John%203:16`, `berean://note/<id>`, `berean://session/<id>`,
-  `berean://search?q=…`, `berean://strongs/H7225`.
+- Custom schemes `berean://` and `berean-pdf://` (the legacy form PDF "Copy link" writes into
+  notes) are registered in `Info.plist` (`CFBundleURLTypes`) and, on desktop, in
+  electron-builder's `protocols` + `app.setAsDefaultProtocolClient` (packaged builds only, so a
+  dev build never steals the scheme from the installed app; set `BEREAN_REGISTER_PROTOCOL=1` to
+  opt in). One router, `src/lib/deepLinks.ts` (`parseDeepLink` / `routeDeepLink` /
+  `formatDeepLink`), serves every transport: Electron `open-url` + second-instance argv →
+  `app:deepLink` → `App.tsx`; iOS `@capacitor/app` `appUrlOpen` / `getLaunchUrl` →
+  `src/platform/ios/deepLinks.ts` (queues until the mobile shell registers its target); links
+  clicked inside a note (`NoteEditorPM` `onLinkClick`).
+  Routes: `berean://verse/<book>/<chapter>[/<verse>[-<end>]][?text=]`, `berean://open?ref=John%203:16`,
+  `berean://note/<id>`, `berean://lexicon/H7225`, `berean://video/<id>[?t=]`, `berean://pdf/<id>[/<page>]`,
+  `berean://search?q=…`, `berean://trail/<id>`. Unknown or malformed links are ignored (never guessed).
 - Universal links (`https://sitgmeat.com/berean/…` or any domain you control) need an
   `apple-app-site-association` file hosted at that domain and the Associated Domains capability.
-  Optional; documented, not assumed.
+  Optional; documented, not assumed. `parseDeepLink` already accepts the `https://<host>/berean/<route>`
+  form, so enabling them is entitlement + AASA only.
 
 ## 7. App Store readiness checklist
 

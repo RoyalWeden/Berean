@@ -3,6 +3,7 @@ import { createServices, type Services } from '../services'
 import { runMigrations } from '../db/bereanMigrations'
 import { CapacitorSqliteAdapter } from './capacitorSqliteAdapter'
 import { BereanSQLite } from './plugins'
+import { mergeYoutubeIndex } from '../services/youtubeIndexMerge'
 import type { DatabaseAdapter } from '../db/DatabaseAdapter'
 
 /**
@@ -93,6 +94,16 @@ export async function initIosServices(): Promise<Services> {
     }
     _ctx = ctx
     _services = createServices(ctx)
+    // YouTube index (D-007): videos + channel rows + transcript metadata, merged once per seed
+    // version like desktop's mergeYouTubeSeed. Missing on a build without the generated file —
+    // the YouTube space then simply starts empty, never fails to boot.
+    try {
+      const info = await BereanSQLite.fileInfo({ path: bundlePath('youtube_index.db') })
+      if (info.exists) {
+        const r = await mergeYoutubeIndex(userDb, bundlePath('youtube_index.db'))
+        if (r.merged) console.log(`[ios-services] youtube index merged (seed v${r.seedVersion})`)
+      } else console.warn('[ios-services] youtube_index.db not bundled — run scripts/data/split-youtube-seed.mjs')
+    } catch (err) { console.warn('[ios-services] youtube index merge failed', err) }
     return _services
   })()
   return _initPromise

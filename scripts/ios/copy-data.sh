@@ -28,4 +28,9 @@ for f in "$DEST"/*.db; do
   b="$(basename "$f")"
   grep -qx "$b" "$LIST" || { rm -f "$f"; echo "removed stale $b"; }
 done
+# Transcript pack manifest (D-007): lets the app list downloadable channel packs offline.
+# Optional — a build without it just shows "no transcript packs in this build".
+if [ -f "$SRC/youtube_transcripts/manifest.json" ]; then
+  cp -L "$SRC/youtube_transcripts/manifest.json" "$DEST/youtube_transcripts.manifest.json"
+fi
 [ "$missing" -eq 0 ] || exit 1

@@ -45,6 +45,7 @@ import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { computeCaretScrollDelta } from '@/lib/caretScroll'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { useAppStore } from '@/store'
+import { openDeepLink } from '@/lib/deepLinkTarget'
 import type { Note } from '@/types'
 import { VerseCopyMenu, type VerseCopyTarget } from '@/components/bible/VerseCopyMenu'
 import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexicon/StrongsContextMenu'
@@ -447,6 +448,9 @@ export default function NoteEditorPM({
           // "click an inline reference and it acts" model as wikilinks/verse
           // refs above, in both edit and view mode. Only external schemes.
           onLinkClick: (href) => {
+            // Berean links (berean://…, and the berean-pdf:// links PDF "Copy link" writes)
+            // navigate inside the app; everything else external.
+            if (openDeepLink(href)) return
             if (/^(https?:|mailto:)/i.test(href)) window.app.openExternal(href)
           },
           onWikilinkHoverStart: (title, rect) => hoverHandlersRef.current.onWikilinkHoverStart(title, rect),

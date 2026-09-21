@@ -254,9 +254,28 @@ export function createYoutubeService(ctx: ServiceContext) {
     return rows.map((r) => ({ startMs: r.start_ms, durMs: r.dur_ms, text: r.text }))
   }
 
+  /** Videos whose transcript segments are present locally. Checks the segments themselves (not
+   *  the metadata's segment_count) because on iOS the bundled index carries metadata for every
+   *  transcript while the segments arrive per channel pack (D-007); on desktop both agree. */
   async function getTranscriptStatus(): Promise<string[]> {
-    const rows = await db().all<{ video_id: string }>('SELECT video_id FROM youtube_transcripts WHERE segment_count > 0')
+    const rows = await db().all<{ video_id: string }>(`
+      SELECT t.video_id FROM youtube_transcripts t
+      WHERE t.segment_count > 0 AND EXISTS (SELECT 1 FROM youtube_transcript_segments s WHERE s.video_id = t.video_id)
+    `)
     return rows.map((r) => r.video_id)
+  }
+
+  /** Per channel: how many transcripts exist in the index and how many are downloaded — drives
+   *  the on-demand transcript pack UI (Phase 17). */
+  async function getTranscriptAvailability(): Promise<Array<{ channelHandle: string; channelName: string; available: number; downloaded: number }>> {
+    return db().all(`
+      SELECT v.channel_handle AS channelHandle, MAX(v.channel_name) AS channelName,
+             COUNT(*) AS available,
+             SUM(CASE WHEN EXISTS (SELECT 1 FROM youtube_transcript_segments s WHERE s.video_id = t.video_id) THEN 1 ELSE 0 END) AS downloaded
+      FROM youtube_transcripts t JOIN youtube_videos v ON v.video_id = t.video_id
+      WHERE t.segment_count > 0 AND t.error IS NULL
+      GROUP BY v.channel_handle ORDER BY v.channel_handle
+    `)
   }
 
   /** Full-text search over stored transcript captions (FTS5). Returns one row per matching
@@ -370,7 +389,7 @@ export function createYoutubeService(ctx: ServiceContext) {
 
   return {
     loadAll, toggleStar, savePosition, getPosition, getWatchHistory, removeFromHistory,
-    clearWatchHistory, clearAll, applyUserRow, getTranscript, getTranscriptStatus, searchTranscripts,
+    clearWatchHistory, clearAll, applyUserRow, getTranscript, getTranscriptStatus, getTranscriptAvailability, searchTranscripts,
   }
 }
 

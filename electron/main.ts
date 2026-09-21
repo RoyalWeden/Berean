@@ -1225,6 +1225,40 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
   log.info(`app window created (${appWindows.size} open), loading renderer...`)
 }
 
+// ── Deep links (berean://…; src/lib/deepLinks.ts is the single router) ────────────────────
+// macOS delivers URLs through `open-url` (possibly before any window exists); Windows/Linux pass
+// them as argv of a second instance. Either way the URL is queued until a window can take it,
+// then sent to the focused window, which parses + routes it in the renderer.
+const DEEP_LINK_SCHEMES = ['berean', 'berean-pdf']
+let pendingDeepLinks: string[] = []
+function deliverDeepLinks(): void {
+  if (pendingDeepLinks.length === 0) return
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+  if (!win || win.isDestroyed() || win.webContents.isLoading()) return
+  const urls = pendingDeepLinks; pendingDeepLinks = []
+  if (win.isMinimized()) win.restore()
+  win.focus()
+  for (const u of urls) win.webContents.send('app:deepLink', u)
+}
+function queueDeepLink(url: string): void {
+  if (!DEEP_LINK_SCHEMES.some((sch) => url.toLowerCase().startsWith(`${sch}:`))) return
+  log.info('[deep-link]', url)
+  pendingDeepLinks.push(url)
+  deliverDeepLinks()
+}
+function deepLinkInArgv(argv: string[]): string | undefined {
+  return argv.find((a) => DEEP_LINK_SCHEMES.some((sch) => a.toLowerCase().startsWith(`${sch}:`)))
+}
+app.on('open-url', (event, url) => { event.preventDefault(); queueDeepLink(url) })
+if (!is.dev || process.env.BEREAN_REGISTER_PROTOCOL) {
+  // Dev builds would otherwise hijack the scheme from the installed app.
+  for (const sch of DEEP_LINK_SCHEMES) app.setAsDefaultProtocolClient(sch)
+}
+const argvLink = deepLinkInArgv(process.argv)
+if (argvLink) pendingDeepLinks.push(argvLink)
+app.on('second-instance', (_e, argv) => { const u = deepLinkInArgv(argv); if (u) queueDeepLink(u); else deliverDeepLinks() })
+ipcMain.handle('app:takePendingDeepLinks', () => { const urls = pendingDeepLinks; pendingDeepLinks = []; return urls })
+
 app.whenReady().then(async () => {
   earlyLog('app.whenReady fired')
   log.info('app.whenReady fired')

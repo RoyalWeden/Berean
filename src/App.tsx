@@ -34,6 +34,7 @@ import '@/lib/knownTagsBridge'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
 import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
+import { openDeepLink } from '@/lib/deepLinkTarget'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
@@ -402,6 +403,12 @@ export default function App() {
     // window would never refresh another window's Scripture notes side panels.
     window.notes.onChanged?.(() => { bumpNoteToken() })
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Deep links (berean://…) from the OS: drain anything that arrived before mount, then listen.
+  useEffect(() => {
+    window.app?.takePendingDeepLinks?.().then((urls) => { for (const u of urls) openDeepLink(u) }).catch(() => {})
+    window.app?.onDeepLink?.((url) => { openDeepLink(url) })
   }, [])
 
   useEffect(() => {

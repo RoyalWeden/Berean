@@ -4,6 +4,7 @@ import { MotionConfig } from 'framer-motion'
 import { initIosServices } from './services'
 import { installIosBridge } from './bridge'
 import { installIosSyncBridge, initIosSyncHost } from './syncHost'
+import { installIosDeepLinks } from './deepLinks'
 import { IosBoot } from './IosBoot'
 import '../../styles/global.css'
 
@@ -27,6 +28,7 @@ async function boot() {
     installIosBridge(services)
     installIosSyncBridge()
     void initIosSyncHost()   // starts only if the user enabled iCloud sync; never blocks boot
+    void installIosDeepLinks()   // berean:// URLs queue until the mobile shell registers its target
     root.render(
       <React.StrictMode>
         <MotionConfig reducedMotion="user">

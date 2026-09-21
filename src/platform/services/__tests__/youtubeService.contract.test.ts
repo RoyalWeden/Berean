@@ -155,8 +155,10 @@ describe('youtubeService', () => {
       expect(await svc.getTranscript('missing')).toEqual([])
     })
 
-    it('only lists videos with segment_count > 0', async () => {
+    it('only lists videos whose segments are actually present (metadata alone is not enough — D-007)', async () => {
       await seedTranscript(db, 'has-segments', 3)
+      await seedSegment(db, 'has-segments', 0, 'shalom')
+      await seedTranscript(db, 'metadata-only', 3)                      // index says 3 segments, pack not downloaded
       await seedTranscript(db, 'no-transcript', 0, 'no transcript available')
       expect(await svc.getTranscriptStatus()).toEqual(['has-segments'])
     })
