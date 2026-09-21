@@ -122,6 +122,45 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.19] - 2026-09-20
+
+### Look & feel — controls and buttons
+
+- Every control in a toolbar, panel header or search row is now the same
+  height, and all of them are taller and more generously rounded, matching the
+  uniform toolbars of macOS 27. Sub-toolbars grew to match the window toolbar,
+  so bars no longer step up and down across the app.
+- Related toolbar controls share one capsule container with hairline dividers
+  between them, while a standalone action — More, the inspector toggle, the
+  sidebar toggle, the new-tab button — is a circle, the way a lone toolbar item
+  looks on macOS. Previously most of these groups drew no container at all, so
+  their dividers floated in the bar with nothing around them.
+- Segmented controls, toggles, tabs, search fields and pop-up buttons each keep
+  their own distinct shape rather than all becoming the same pill.
+- Icons throughout the app were resized onto one scale, so they sit evenly next
+  to each other and next to text.
+- Hover and press responses are quieter: no more controls jumping in size on
+  hover, and transitions animate only what actually changes.
+- Tooltips on icon-only controls now use Berean's own styled tooltip instead of
+  the browser's, so they match the rest of the app and can show shortcuts.
+
+### Scripture
+
+- The side panel (cross references, lexicon, notes) opens slightly wider by
+  default.
+
+### Lexicon
+
+- Entry headings are larger and set in the app's own typeface — a Strong's
+  number read as a code snippet next to the word it names. Greek lemmas are no
+  longer laid out right-to-left.
+
+### Notes
+
+- Fixed folder rows in the folder view: the expand/collapse triangle and the
+  selection checkbox were nested inside the row's own button, which made them
+  unreliable to click and inconsistent for keyboard and accessibility tools.
+
 ## [0.6.18] - 2026-09-20
 
 ### Look & feel — macOS 27 design system
