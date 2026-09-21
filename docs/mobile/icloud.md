@@ -44,10 +44,25 @@ iCloud ubiquity container  iCloud.com.berean.app        (developer configures th
   the container in this account, or by the Mac app itself — both are tested in Phase 21; a
   user-chosen fallback folder inside iCloud Drive is supported via Settings for the case
   where the container folder does not appear on the Mac).
-- iOS path: `FileManager.default.url(forUbiquityContainerIdentifier: nil)!/Documents/sync/v1/`
-  via the `BereanCloud` plugin (`NSFileCoordinator` for every read/write,
-  `NSMetadataQuery` for change notifications, `startDownloadingUbiquitousItem` for
-  not-yet-local files, `isUbiquitousItemDownloading…` keys for status).
+- iOS path: `FileManager.default.url(forUbiquityContainerIdentifier:)/Documents/sync/v1/`
+  via the `BereanCloud` plugin (`ios/App/BereanNative/Sources/BereanNative/BereanCloudPlugin.swift`,
+  JS face `src/platform/ios/cloudSyncStore.ts`): `NSFileCoordinator` for every read/write
+  (`.forReplacing` + atomic `Data.write` / `.forDeleting`), `NSMetadataQuery`
+  (`NSMetadataQueryUbiquitousDocumentsScope`, path-prefix predicate, 1.5 s batching) → `change`
+  events with the changed relative paths, `startDownloadingUbiquitousItem` for a `.name.icloud`
+  placeholder or a non-`.current` download status (throttled to once a minute per file, `read`
+  answers `downloading: true` meanwhile), paths relative to `sync/v1` and validated (no `..`, no
+  absolute, no placeholder names). The container id is the `BEREAN_ICLOUD_CONTAINER` build setting
+  (`ios/App/Berean.xcconfig`, overridable in `Signing.xcconfig`), which fills `App.entitlements`,
+  the Info.plist key `BereanICloudContainer` (read by the plugin) and — through the
+  "Finalize Info.plist" build phase, because build settings do not expand inside plist *keys* —
+  the `NSUbiquitousContainers` dictionary that makes the container a visible "Berean" folder in
+  iCloud Drive, i.e. the folder the Mac reads.
+- Hosts: `electron/sync/host.ts` (main process) and `src/platform/ios/syncHost.ts` (in the
+  WebView) run the same `SyncEngine` with the same settings keys (`icloudSyncEnabled`), the same
+  device-id rule and the same triggers (start, container change, 60 s interval, foreground /
+  wake, push on background / quit); both expose `window.sync` (`src/types/electron.d.ts`
+  `SyncAPI`) so Settings → iCloud and the App.tsx refresh hook are shared code.
 
 ## 3. Operation log format
 

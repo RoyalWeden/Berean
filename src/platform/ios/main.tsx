@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { MotionConfig } from 'framer-motion'
 import { initIosServices } from './services'
 import { installIosBridge } from './bridge'
+import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { IosBoot } from './IosBoot'
 import '../../styles/global.css'
 
@@ -24,6 +25,8 @@ async function boot() {
   try {
     const services = await initIosServices()
     installIosBridge(services)
+    installIosSyncBridge()
+    void initIosSyncHost()   // starts only if the user enabled iCloud sync; never blocks boot
     root.render(
       <React.StrictMode>
         <MotionConfig reducedMotion="user">

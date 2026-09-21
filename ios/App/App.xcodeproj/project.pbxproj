@@ -97,6 +97,7 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				BE4EA00000000000000000D1 /* Copy Bundled Databases */,
+				BE4EA00000000000000000D2 /* Finalize Info.plist */,
 			);
 			buildRules = (
 			);
@@ -166,6 +167,22 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		BE4EA00000000000000000D2 /* Finalize Info.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Finalize Info.plist";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/../../scripts/ios/finalize-info-plist.sh\"\n";
+		};
 		BE4EA00000000000000000D1 /* Copy Bundled Databases */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

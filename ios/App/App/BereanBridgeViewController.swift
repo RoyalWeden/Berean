@@ -9,6 +9,9 @@ import BereanNative
 class BereanBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(BereanSQLitePlugin())
-        NSLog("[Berean] native plugins registered: BereanSQLite=%@", bridge?.plugin(withName: "BereanSQLite") == nil ? "missing" : "ok")
+        bridge?.registerPluginInstance(BereanCloudPlugin())
+        NSLog("[Berean] native plugins registered: BereanSQLite=%@ BereanCloud=%@",
+              bridge?.plugin(withName: "BereanSQLite") == nil ? "missing" : "ok",
+              bridge?.plugin(withName: "BereanCloud") == nil ? "missing" : "ok")
     }
 }

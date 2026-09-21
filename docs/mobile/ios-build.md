@@ -25,9 +25,17 @@ Create `ios/App/Signing.xcconfig` (gitignored) from `ios/App/Signing.xcconfig.ex
 ```
 DEVELOPMENT_TEAM = <your team id>
 BEREAN_TEAM_ID = <your team id>
-BEREAN_BUNDLE_ID = com.berean.app        # or your own; the iCloud container id (Phase 6) is derived from it
+BEREAN_BUNDLE_ID = com.berean.app        # or your own
+BEREAN_ICLOUD_CONTAINER = iCloud.com.berean.app   # the iCloud Drive container on your App ID (must match the Mac app's Settings → iCloud container id)
 CODE_SIGN_STYLE = Automatic
 ```
+
+`BEREAN_ICLOUD_CONTAINER` feeds `ios/App/App/App.entitlements` (committed, generic — it only
+references the build setting), the Info.plist key `BereanICloudContainer` and, via the
+"Finalize Info.plist" build phase (`scripts/ios/finalize-info-plist.sh`), the
+`NSUbiquitousContainers` entry that makes the container show up as a "Berean" folder in iCloud
+Drive on the Mac. The Electron app's default container id (`iCloud.com.berean.app`, Settings →
+iCloud) must be the same string, or the two apps will look at different folders.
 
 `ios/App/Berean.xcconfig` (committed) holds the defaults and includes `Signing.xcconfig` last, so
 anything you put there overrides the committed values; `Version.xcconfig` is generated from
@@ -102,7 +110,7 @@ All set `DEVELOPER_DIR` themselves. None of them touch the desktop build.
 | Item | Status | Notes |
 |---|---|---|
 | Bundle identifier | developer | §2 |
-| Entitlements: iCloud Documents container, App Groups, audio background mode | Phase 6 / 16 / 18 (not yet in repo) | `App.entitlements` |
+| Entitlements: iCloud Documents container (done, Phase 7), App Groups, audio background mode | iCloud ✔ (`App.entitlements`, id from `BEREAN_ICLOUD_CONTAINER`); App Groups / audio: Phase 16 / 18 | `App.entitlements` |
 | `PrivacyInfo.xcprivacy` | Phase 22 (not yet in repo) | declares UserDefaults + file-timestamp API reasons; no tracking |
 | Permission strings | Phase 13/18 (not yet in repo) | `NSLocationWhenInUseUsageDescription` (daily-note sunrise — same text as desktop), `NSPhotoLibraryUsageDescription` (insert image into note) |
 | Export compliance | developer answers in ASC | App uses only Apple-provided TLS/HTTPS and SQLite — "exempt" (`ITSAppUsesNonExemptEncryption = NO`, to be set in Info.plist in Phase 22) |

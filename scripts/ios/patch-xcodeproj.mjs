@@ -11,7 +11,9 @@
  *     Capacitor's debug.xcconfig, Version.xcconfig and the developer's gitignored Signing.xcconfig);
  *  4. target-level settings that must come from the xcconfigs instead of being hard-coded
  *     (bundle id, team, deployment target, version numbers, device family);
- *  5. a "Copy Bundled Databases" run-script build phase (scripts/ios/copy-data.sh).
+ *  5. a "Copy Bundled Databases" run-script build phase (scripts/ios/copy-data.sh);
+ *  6. a "Finalize Info.plist" run-script build phase (scripts/ios/finalize-info-plist.sh) that keys
+ *     NSUbiquitousContainers by the BEREAN_ICLOUD_CONTAINER build setting.
  *
  * Run: node scripts/ios/patch-xcodeproj.mjs   (also invoked by `npm run ios:sync`)
  */
@@ -32,6 +34,7 @@ const ID = {
   debugXcconfig: 'BE4EA00000000000000000C1',
   releaseXcconfig: 'BE4EA00000000000000000C2',
   copyDataPhase: 'BE4EA00000000000000000D1',
+  finalizePlistPhase: 'BE4EA00000000000000000D2',
 }
 const TARGET_ID = '504EC3031FED79650016851F'
 const APP_GROUP_ID = '504EC3061FED79650016851F'
@@ -117,6 +120,15 @@ if (!s.includes(ID.copyDataPhase)) {
     replaceOnce('/* Begin PBXSourcesBuildPhase section */', `/* Begin PBXShellScriptBuildPhase section */\n${phase}/* End PBXShellScriptBuildPhase section */\n\n/* Begin PBXSourcesBuildPhase section */`)
   }
   replaceOnce(`\t\t\t\t${RESOURCES_PHASE_ID} /* Resources */,\n`, `\t\t\t\t${RESOURCES_PHASE_ID} /* Resources */,\n\t\t\t\t${ID.copyDataPhase} /* Copy Bundled Databases */,\n`)
+}
+
+// 6. Finalize Info.plist run-script phase (after Copy Bundled Databases) --------------------------
+if (!s.includes(ID.finalizePlistPhase)) {
+  // Declaring the built Info.plist as an input makes Xcode's build system run this phase AFTER
+  // ProcessInfoPlistFile (which otherwise runs last and would overwrite the edit).
+  const phase = `\t\t${ID.finalizePlistPhase} /* Finalize Info.plist */ = {\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t\t"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",\n\t\t\t);\n\t\t\tname = "Finalize Info.plist";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/bash;\n\t\t\tshellScript = "\\"$SRCROOT/../../scripts/ios/finalize-info-plist.sh\\"\\n";\n\t\t};\n`
+  insertAfter('/* Begin PBXShellScriptBuildPhase section */\n', phase)
+  replaceOnce(`\t\t\t\t${ID.copyDataPhase} /* Copy Bundled Databases */,\n`, `\t\t\t\t${ID.copyDataPhase} /* Copy Bundled Databases */,\n\t\t\t\t${ID.finalizePlistPhase} /* Finalize Info.plist */,\n`)
 }
 
 if (s !== before) {

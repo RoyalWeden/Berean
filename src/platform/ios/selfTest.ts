@@ -1,5 +1,5 @@
 import { currentSchemaVersion, BEREAN_SCHEMA_VERSION } from '../db/bereanMigrations'
-import { BereanSQLite } from './plugins'
+import { BereanSQLite, BereanCloud } from './plugins'
 import { iosServiceContext, iosServices, TEXT_FILES } from './services'
 
 /**
@@ -177,6 +177,16 @@ export function selfTestChecks(): Check[] {
         const row = await db.get<{ value: string }>("SELECT value FROM settings WHERE key = '__tx'")
         expect(row?.value === '"before"', `value after rollback: ${row?.value}`)
         return 'rolled back'
+      },
+    },
+    {
+      name: 'BereanCloud plugin answers (iCloud container status)',
+      run: async () => {
+        // Availability depends on the account signed in on this device/simulator; the check is
+        // that the native plugin is registered and reports a well-formed status either way.
+        const st = await BereanCloud.status()
+        expect(typeof st.available === 'boolean' && typeof st.signedIn === 'boolean', `malformed status ${JSON.stringify(st)}`)
+        return st.available ? `available (${st.containerId}) as "${st.deviceName}"` : `unavailable: ${st.reason}`
       },
     },
   ]

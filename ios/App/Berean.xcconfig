@@ -4,6 +4,10 @@
 
 BEREAN_BUNDLE_ID = com.berean.app
 BEREAN_TEAM_ID =
+// iCloud Drive container that holds the sync journal (docs/mobile/icloud.md). Must exist on the
+// developer's App ID; override in Signing.xcconfig together with BEREAN_BUNDLE_ID.
+BEREAN_ICLOUD_CONTAINER = iCloud.com.berean.app
+CODE_SIGN_ENTITLEMENTS = App/App.entitlements
 IPHONEOS_DEPLOYMENT_TARGET = 17.0
 TARGETED_DEVICE_FAMILY = 1
 SWIFT_VERSION = 5.0

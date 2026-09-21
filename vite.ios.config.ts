@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { existsSync, renameSync } from 'fs'
+import { existsSync, renameSync, readFileSync } from 'fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { buildIosCSP } from './src/platform/ios/csp'
@@ -22,6 +22,7 @@ export default defineConfig(({ command }) => ({
   cacheDir: resolve(__dirname, '.vite-ios'),
   define: {
     'import.meta.env.VITE_PLATFORM': JSON.stringify('ios'),
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify((JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string }).version),
   },
   build: {
     outDir: resolve(__dirname, 'out/ios'),
