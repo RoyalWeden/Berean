@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { TextField, Button, IconButton } from '@/components/ui'
+import { buildWorkspaceState, parseWorkspaceState } from '@/lib/workspaceSnapshot'
 
 export default function WorkspacesSection() {
   const panelLayout = useAppStore((s) => s.panelLayout)
@@ -10,6 +11,7 @@ export default function WorkspacesSection() {
   const savedWorkspaces = useAppStore((s) => s.savedWorkspaces)
   const setSavedWorkspaces = useAppStore((s) => s.setSavedWorkspaces)
   const updatePanelLayout = useAppStore((s) => s.updatePanelLayout)
+  const openWorkspaceSession = useAppStore((s) => s.openWorkspaceSession)
 
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -25,7 +27,13 @@ export default function WorkspacesSection() {
     setSaving(true)
     try {
       const layoutJson = JSON.stringify(panelLayout)
-      const stateJson = JSON.stringify({ tabs, activeTabId })
+      // v2 snapshot: tabs, active tabs, unified display order, session icon (src/lib/workspaceSnapshot.ts)
+      const st = useAppStore.getState()
+      const stateJson = JSON.stringify(buildWorkspaceState({
+        tabs, activeTabId,
+        displayOrder: st.sessionDisplayOrders[st.currentSessionId],
+        icon: st.sessions.find((x) => x.id === st.currentSessionId)?.icon,
+      }))
       const ws = await window.workspaces.save(newName.trim(), layoutJson, stateJson)
       setSavedWorkspaces([ws, ...savedWorkspaces])
       setNewName('')
@@ -37,6 +45,9 @@ export default function WorkspacesSection() {
   async function loadWorkspace(id: string) {
     const ws = await window.workspaces.load(id).catch(() => null)
     if (!ws) return
+    // Tabs first (opens/switches to the workspace's session), then the panel layout. Old
+    // records (NULL or v1 state_json) still load: parseWorkspaceState never throws.
+    openWorkspaceSession({ id: ws.id, name: ws.name }, parseWorkspaceState(ws.state_json))
     try {
       const layout = JSON.parse(ws.layout_json)
       updatePanelLayout(layout)
@@ -109,7 +120,7 @@ export default function WorkspacesSection() {
               <span className="text-caption2 text-text-muted flex-shrink-0">
                 {new Date(ws.created_at).toLocaleDateString()}
               </span>
-              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} tooltip="Load this workspace" className="flex-shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} tooltip="Open this workspace (its tabs and layout) as a session" className="flex-shrink-0">
                 Load
               </Button>
               <Button

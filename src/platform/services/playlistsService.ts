@@ -63,16 +63,20 @@ export function createPlaylistsService(ctx: ServiceContext) {
   async function save(name: string, items: PlaylistItemInput[], existingId?: string): Promise<Playlist> {
     const now = ctx.now()
     const id = existingId ?? ctx.uuid()
+    let createdAt = now
     await db().transaction(async (tx) => {
       if (existingId) {
         await tx.run('UPDATE playlists SET name = ?, updated_at = ? WHERE id = ?', [name, now, id])
+        // Report the row's real creation time, not `now` (K9).
+        const row = await tx.get<{ created_at: number }>('SELECT created_at FROM playlists WHERE id = ?', [id])
+        if (row) createdAt = row.created_at
       } else {
         await tx.run('INSERT INTO playlists (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)', [id, name, now, now])
       }
       await writeItems(tx, id, items)
     })
     ctx.events.emit('data:changed', { entity: 'playlist', id, op: 'upsert' })
-    return { id, name, createdAt: now, updatedAt: now, items: items.map((it, i) => ({ id: '', position: i, ...it, startVerse: it.startVerse ?? 1, endVerse: it.endVerse ?? null })) }
+    return { id, name, createdAt, updatedAt: now, items: items.map((it, i) => ({ id: '', position: i, ...it, startVerse: it.startVerse ?? 1, endVerse: it.endVerse ?? null })) }
   }
 
   async function rename(id: string, name: string): Promise<{ success: true }> {

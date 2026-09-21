@@ -138,12 +138,20 @@ describe('lexiconService (real strongs_hebrew.db/strongs_greek.db/kjva.db, skipp
     expect(related.every((r) => r.strongsNum !== 'G2316')).toBe(true)
   })
 
-  // Surprising but verified against the real data: strongs_hebrew.db's `derivation` text uses
-  // bare numbers ("from the same as 24") with no "H" prefix, while getRelated's LIKE pattern
-  // always searches for the prefixed form ("%H24%"). So getRelated never matches anything for a
-  // Hebrew number — this asserts the actual (buggy) current behaviour, not the intended one.
-  run('getRelated: Hebrew derivation text has no "H" prefix, so it never matches (current behaviour)', async () => {
-    expect(await svc!.getRelated('H7225')).toEqual([])
+  // strongs_hebrew.db's `derivation` text cites bare numbers ("from the same as 24") with no "H"
+  // prefix; the service matches the bare number as a whole token (K7 fix). H7218 (rosh, "head")
+  // is cited by H7225 (reshith) among others; the whole-token check must not let "72180" or
+  // "17218" through.
+  run('getRelated: Hebrew derivations cite bare numbers and are matched as whole tokens', async () => {
+    const related = await svc!.getRelated('H7218')
+    expect(related.length).toBeGreaterThan(0)
+    expect(related.length).toBeLessThanOrEqual(12)
+    expect(related.some((r) => r.strongsNum === 'H7225')).toBe(true)
+    expect(related.every((r) => r.strongsNum !== 'H7218')).toBe(true)
+    // a small number must not match every derivation containing that digit
+    const six = await svc!.getRelated('H6')
+    expect(six.length).toBeLessThanOrEqual(12)
+    expect(six.some((r) => r.strongsNum === 'H9')).toBe(true)   // "from 6 ; Compare 10 ."
   })
 
   run('search: lang "H" finds by gloss, lang "all" finds by strongs_id across both lexicons', async () => {

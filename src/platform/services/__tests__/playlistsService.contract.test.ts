@@ -52,11 +52,8 @@ describe('playlistsService', () => {
     expect(row.updatedAt).toBe(1_700_000_050_000)
     expect(row.items.map((i) => i.bookId)).toEqual(['EXO'])
 
-    // NOTE (playlistsService.ts:75): save()'s return value always stamps createdAt = now, even on
-    // an overwrite — so `second.createdAt` (1_700_000_050_000) disagrees with what's actually
-    // stored in the DB row (1_700_000_000_000, asserted above). A caller trusting the return
-    // value directly for createdAt gets the wrong answer on an existingId save.
-    expect(second.createdAt).toBe(1_700_000_050_000)
+    // K9 fix: the overwrite's return value reports the row's real created_at, not `now`.
+    expect(second.createdAt).toBe(1_700_000_000_000)
   })
 
   it('list orders by updated_at DESC', async () => {

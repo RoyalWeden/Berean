@@ -24,7 +24,7 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 | 1/3 | Platform architecture, shared services, `DatabaseAdapter`, migrations moved | typecheck + all existing tests green + contract tests + desktop build | **GATE MET** 2026-09-21 (16 services, 14 contract-test files; one cleanup item open: aiLookup async conversion to drop the `@deprecated` sync helpers) |
 | 2 | iOS/Capacitor foundation (project, plugins skeleton, build scripts, signing docs) | simulator build succeeds; app boots to renderer | **GATE MET** 2026-09-21 (BUILD SUCCEEDED; boots to the self-test screen) |
 | 4 | Bundled DB installation + offline operation on iOS | in-app parity self-test passes on simulator + device | TESTING — simulator 12/12 ✔; physical iPhone pending (needs Signing.xcconfig + a paired device) |
-| 5 | Shared data model: sessions/tabs/archived groups to SQLite; legacy import; partialize fixes | store tests green; import test; desktop behaviour unchanged | IMPLEMENTING — v43 tables, `sessionsService` (+IPC/bridge), `tabFields` split, `fractional`, `hlc` done; store mirror + legacy import next |
+| 5 | Shared data model: sessions/tabs/archived groups to SQLite; legacy import; partialize fixes; workspace restore | store tests green; import test; desktop behaviour unchanged | **GATE MET** 2026-09-21 (mirror + legacy import + hydration, 12 settings persisted, workspace load restores tabs/order/state/layout with v0/v1/v2 compatibility; 165 files / 4071 tests) |
 | 6 | iCloud persistence & sync architecture (HLC, journal, merge, engine, stores) | unit + two-device integration tests | NOT STARTED |
 | 7 | iCloud sync: notes / highlights / verse tags (+ folders, versions, edges) | scenario tests S1–S6 + first device run | NOT STARTED |
 | 8 | iCloud sync: tabs | S7–S9 | NOT STARTED |
@@ -70,7 +70,19 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 
 **Gate check:** implementation ✔ · tests ✔ · desktop valid ✔ · docs ✔ · ledger ✔.
 
-## Phase 2 — iOS/Capacitor foundation — IMPLEMENTING
+## Phase 5 — Shared data model — GATE MET (2026-09-21)
+
+**Done**
+- `src/store/tabPersistence.ts` (pure: `buildSnapshot`, `hydrateFromRows`, `assignOrderKeys` — reuses fractional keys so only moved rows change) and `src/store/tabPersistenceRuntime.ts` (`installTabPersistence`: legacy import from the localStorage-restored store when the tables are empty, hydration from SQLite afterwards with this window's session/active tab preserved, debounced snapshot diffs on every tab/session change, `applyExternalSessions()` hook for the sync engine that adopts structure from rows but keeps this device's newer local view state). Installed from `App.tsx` after `initPerWindowViewState`; independent windows opt out; silent when `window.sessions` is absent.
+- `window.sessions` namespace (preload + `electron/ipc/sessions.ts` + iOS bridge + `electron.d.ts`).
+- K1 fixed: the 12 settings missing from `partialize` are persisted; `src/store/__tests__/persistedSettings.test.ts` statically guards every simple setter against the allow-list.
+- Q4/K-workspaces fixed: `src/lib/workspaceSnapshot.ts` (v2 `{ v, tabs, activeTabId, displayOrder, icon }`, tolerant parser for v1 and pre-v9 NULL rows), `openWorkspaceSession` store action (opens the saved snapshot as a session `ws:<id>`, switches if already open, remaps ids that are still open elsewhere, never disturbs the current session), Settings → Workspaces saves v2 and loads tabs + layout. Tests: `src/store/__tests__/workspaceRestore.test.ts` (save → close → reopen: tabs, per-space order, display order, per-tab state, active tabs, layout; no duplicate on re-open; legacy v1/NULL/garbage; iPhone-compatible plain JSON).
+- K7 fixed (Hebrew related words), K8 (NULL title counts as untitled), K9 (playlist overwrite reports real `created_at`) — each with an updated contract test.
+- `src/platform/sync/{hlc,fractional,tabFields}.ts` with tests.
+
+**Gate check:** implementation ✔ · tests ✔ (165 files / 4071 tests) · desktop typecheck + build ✔ · iOS simulator build + self-test 12/12 ✔ · docs ✔.
+
+## Phase 2 — iOS/Capacitor foundation — GATE MET
 
 **Done (2026-09-21)**
 - Capacitor 8.5.2 + official plugins added as devDependencies (installed into the shared `node_modules` from the main checkout with `--no-save`; worktree lockfile updated with `--package-lock-only`, per CLAUDE.md's no-`npm install`-in-worktree rule).
@@ -82,6 +94,10 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 - **Self-test 12/12 on the simulator** (timings, cold): berean.db v43 / 47 tables (3 ms) · 23 bundled DBs, 150 MB (12 ms) · Genesis 1 (4 ms) · every text lists books (33 ms) · FTS5 phrase + "love" 526 hits (36 ms) · H7225 entry + 49 occurrences (107 ms) · GEN 1:1 62 refs + 3 TSKe groups (130 ms) · notes create→update→FTS→trash→purge (6 ms) · highlights (1 ms) · verse tags · settings · transaction rollback.
 
 **Gate check:** simulator build ✔ · boots to renderer ✔ · docs ✔.
+
+## Decisions received 2026-09-21 (now authoritative)
+
+Q1 iCloud transport: proceed with per-device journals in the iCloud Drive container, transport-abstracted, validate technically before locking. Q2 bookmarks: preserve the existing model (verse tags); no new system (D-005 confirmed). Q3 youtube_seed.db: audit and split (bundled index + on-demand, resumable, versioned, integrity-checked transcript download); nothing removed. Q4 workspaces: fixed (Phase 5). Q5 deep links: `berean://` first, routing kept abstract for Universal Links later. Q6 commits: checkpoint commits on `feature/ios-app` authorised, no push. Known bugs found during migration are to be fixed, not preserved (K7–K9 done).
 
 ## Decisions needed from the developer (non-blocking unless marked)
 
@@ -98,15 +114,15 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 
 | # | Issue | Plan |
 |---|---|---|
-| K1 | 11 Settings toggles are not in `partialize` and silently reset on restart: `printIncludeLinkedNotes`, `defaultNoteEditorMode`, `confirmNoteDelete`, `noteSpellCheck`, `autoCopyOnHighlight`, `noteHeadingDivider`, `noteBulletStyle`, `showVerseNumbers`, `showRedLetters`, `continuousChapterScroll`, `continuousDailyScroll`, `crossRefSource` (audit C) | Fix in Phase 5 when `partialize` is touched (add the keys; one-line each; test) |
+| K1 | 12 Settings toggles were not in `partialize` and silently reset on restart | **FIXED** (Phase 5) + static guard test |
 | K2 | `Tab.isPinned` has no UI that sets it (dead field) | Keep the field (harmless, synced); no mobile UI for it unless asked |
 | K3 | Two overlapping cross-window tab-sync mechanisms (`broadcastTabState` and `crossWindowSync.ts`) | Leave both as-is (desktop-only); the device-sync merge borrows `crossWindowSync.mergeTabSets`' policy |
 | K4 | `dailyNoteLocation` is in the cross-window shared list — correct for one machine, wrong across devices | LOCAL in device sync (already classified) |
 | K5 | `lxx.db` (24 MB) is bundled on desktop but never opened | Not shipped on iOS; desktop untouched |
 | K6 | Three different bundled-data path strategies | Unified in Phase 1/3 (R026) |
-| K7 | `lexicon.getRelated` never returns Hebrew results: `strongs_hebrew.db.derivation` stores bare numbers ("from the same as 24") but the query matches `LIKE '%H24%'`; Greek works because its derivation text carries the `G` prefix (`src/platform/services/lexiconService.ts` `getRelated`; asserted as-is in `lexiconService.contract.test.ts`) | Real user-facing bug on desktop (Related words always empty for Hebrew). Fix is a one-line prefix strip for `H`; needs the developer's OK since it changes desktop output |
-| K8 | `notes.create({})` without a title stores SQL `NULL`, while the "untitled" search special case matches only `title = ''` — omitted-title notes are invisible to that search path (`notesService.ts` create/untitledNoteRows) | Low impact; normalise to `''` on create when the developer agrees |
-| K9 | `playlists.save(name, items, existingId)` returns `createdAt: now` even on an overwrite although the row keeps its original `created_at` (`playlistsService.ts`) | Cosmetic (return value only); trivial fix when touched next |
+| K7 | `lexicon.getRelated` never returns Hebrew results: `strongs_hebrew.db.derivation` stores bare numbers ("from the same as 24") but the query matches `LIKE '%H24%'`; Greek works because its derivation text carries the `G` prefix (`src/platform/services/lexiconService.ts` `getRelated`; asserted as-is in `lexiconService.contract.test.ts`) | **FIXED** (Phase 5): bare-number whole-token match for Hebrew; contract test asserts H7218 → H7225 |
+| K8 | `notes.create({})` without a title stores SQL `NULL`, while the "untitled" search special case matches only `title = ''` — omitted-title notes are invisible to that search path (`notesService.ts` create/untitledNoteRows) | **FIXED** (Phase 5): untitled search matches NULL titles too |
+| K9 | `playlists.save(name, items, existingId)` returns `createdAt: now` even on an overwrite although the row keeps its original `created_at` (`playlistsService.ts`) | **FIXED** (Phase 5) |
 
 ## Known limitations (iPhone) — see `feature-matrix.md` §10
 
@@ -120,3 +136,4 @@ None.
 
 - 2026-09-20 — Phase 0 complete.
 - 2026-09-21 — Phase 1/3 gate met (161 files / 4058 tests); Phase 2 gate met (simulator build + boot); Phase 4 simulator half (12/12 self-test); Phase 5 data model started (v43, sessionsService, tabFields, fractional, hlc).
+- 2026-09-21 — checkpoint commit 8af0cc8; developer decisions Q1–Q6 received; Phase 5 gate met (store mirror, legacy import, settings persistence, workspace restore, K7–K9).

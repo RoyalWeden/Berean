@@ -469,7 +469,8 @@ export function createNotesService(ctx: ServiceContext) {
     return cleanNotesWords(query).some((w) => w.toLowerCase() === 'untitled')
   }
   async function untitledNoteRows(limit: number): Promise<NoteRow[]> {
-    return db().all<NoteRow>(`SELECT * FROM notes WHERE title = '' AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?`, [limit])
+    // A note created without a title stores NULL; treat it as untitled too (K8).
+    return db().all<NoteRow>(`SELECT * FROM notes WHERE (title = '' OR title IS NULL) AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?`, [limit])
   }
 
   async function search(query: string, limit = 20, mode: NotesWordMode = 'all') {

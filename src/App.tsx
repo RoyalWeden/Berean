@@ -33,6 +33,7 @@ import { applyThemeToDocument } from '@/lib/applyTheme'
 import '@/lib/knownTagsBridge'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
+import { installTabPersistence } from '@/store/tabPersistenceRuntime'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
@@ -82,8 +83,11 @@ export default function App() {
   useEffect(() => {
     if (IS_INDEPENDENT_WINDOW) return
     const teardownView = initPerWindowViewState()
+    // Sessions/tabs ⇄ SQLite mirror (docs/mobile/decisions.md D-006): hydrates from the durable
+    // rows after the per-window view is restored, then keeps them written as tabs change.
+    const teardownTabs = installTabPersistence()
     const teardownSync = initCrossWindowSync()
-    return () => { teardownSync(); teardownView() }
+    return () => { teardownSync(); teardownTabs(); teardownView() }
   }, [])
   // Answers Study Trail's "what chapter is actually open right now" request (used to seed a
   // new session's first node from the currently-active tab) — see electron/main.ts's

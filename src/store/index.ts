@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { workspaceSessionId } from '@/lib/workspaceSnapshot'
 import type { SpaceId, Tab, TabState, TabType, TagsTabState, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
@@ -171,6 +172,8 @@ export interface Session {
   activeTabId: Record<SpaceId, string | null>
   tabFilter?: TabType | 'all'   // session-specific tab type filter
 }
+
+const SPACES_ALL: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
 
 const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   bible: 'scripture',
@@ -691,6 +694,11 @@ export interface AppState {
   renameSession: (id: string, name: string) => void
   setSessionIcon: (id: string, icon: string) => void
   deleteSession: (id: string) => void
+  /** Open a saved workspace (Settings → Workspaces, deep links, the iPhone workspaces page) as a
+   *  session: switches to it if it is already open, otherwise creates it from the saved snapshot —
+   *  tabs, per-space order, unified display order, active tabs — and switches. Never touches the
+   *  session the user is currently on. See src/lib/workspaceSnapshot.ts. */
+  openWorkspaceSession: (workspace: { id: string; name: string }, snapshot: import('@/lib/workspaceSnapshot').ParsedWorkspaceState) => void
   moveTabToSession: (spaceId: SpaceId, tabId: string, targetSessionId: string) => void
   reorderTabDisplay: (sessionId: string, fromId: string, toId: string, before: boolean) => void
 
@@ -1915,6 +1923,55 @@ export const useAppStore = create<AppState>()(
         } else {
           set({ sessions: remaining })
         }
+      },
+
+      openWorkspaceSession: (workspace, snapshot) => {
+        const state = get()
+        const sessionId = workspaceSessionId(workspace.id)
+        if (state.sessions.some((s) => s.id === sessionId)) {
+          get().switchSession(sessionId)
+          return
+        }
+        const currentSession: Session = {
+          id: state.currentSessionId,
+          name: state.sessions.find(s => s.id === state.currentSessionId)?.name ?? 'Session 1',
+          icon: state.sessions.find(s => s.id === state.currentSessionId)?.icon,
+          tabs: state.tabs,
+          activeTabId: state.activeTabId,
+        }
+        // A tab id may already be open in another session (the workspace was saved from it);
+        // tabs are per-session rows, so give the restored copies fresh ids to keep them distinct.
+        const idMap = new Map<string, string>()
+        const openIds = new Set(state.sessions.flatMap((s) => SPACES_ALL.flatMap((sp) => (s.tabs[sp] ?? []).map((t) => t.id))).concat(SPACES_ALL.flatMap((sp) => state.tabs[sp].map((t) => t.id))))
+        const remap = (id: string | null | undefined): string | null => (id ? (idMap.get(id) ?? id) : null)
+        const tabs: Record<SpaceId, Tab[]> = { scripture: [], notes: [], lexicon: [], youtube: [], search: [] }
+        for (const sp of SPACES_ALL) {
+          tabs[sp] = snapshot.tabs[sp].map((t) => {
+            if (!openIds.has(t.id) && !idMap.has(t.id)) return t
+            const fresh = `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+            idMap.set(t.id, fresh)
+            return { ...t, id: fresh }
+          })
+        }
+        const activeTabId = { scripture: null, notes: null, lexicon: null, youtube: null, search: null } as Record<SpaceId, string | null>
+        for (const sp of SPACES_ALL) activeTabId[sp] = remap(snapshot.activeTabId[sp]) ?? tabs[sp][0]?.id ?? null
+        const newSession: Session = {
+          id: sessionId,
+          name: workspace.name,
+          tabs,
+          activeTabId,
+          ...(snapshot.icon ? { icon: snapshot.icon } : {}),
+        }
+        const updatedSessions = state.sessions.length === 0
+          ? [currentSession, newSession]
+          : [...state.sessions.map(s => s.id === state.currentSessionId ? currentSession : s), newSession]
+        set({
+          sessions: updatedSessions,
+          currentSessionId: sessionId,
+          tabs,
+          activeTabId,
+          sessionDisplayOrders: { ...state.sessionDisplayOrders, [sessionId]: snapshot.displayOrder.map((id) => idMap.get(id) ?? id) },
+        })
       },
 
       reorderTabDisplay: (sessionId, fromId, toId, before) => {
@@ -3159,6 +3216,21 @@ export const useAppStore = create<AppState>()(
         queuePopoverOpen: state.queuePopoverOpen,
         queuePopoverPos: state.queuePopoverPos,
         reasonPromptPopoverPos: state.reasonPromptPopoverPos,
+        // Settings that had a setter + default but were missing from this allow-list, so they
+        // silently reset to their defaults on every restart (found by the iPhone-migration audit,
+        // docs/mobile/implementation-progress.md K1). All device-local preferences.
+        printIncludeLinkedNotes: state.printIncludeLinkedNotes,
+        defaultNoteEditorMode: state.defaultNoteEditorMode,
+        confirmNoteDelete: state.confirmNoteDelete,
+        noteSpellCheck: state.noteSpellCheck,
+        autoCopyOnHighlight: state.autoCopyOnHighlight,
+        noteHeadingDivider: state.noteHeadingDivider,
+        noteBulletStyle: state.noteBulletStyle,
+        showVerseNumbers: state.showVerseNumbers,
+        showRedLetters: state.showRedLetters,
+        continuousChapterScroll: state.continuousChapterScroll,
+        continuousDailyScroll: state.continuousDailyScroll,
+        crossRefSource: state.crossRefSource,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })

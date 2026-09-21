@@ -131,7 +131,7 @@ Format: **decision · date · reason · alternatives considered · consequences 
 
 ## D-005 — "Bookmarks" in the brief map to Berean's existing verse-tag system; no new bookmark feature is invented
 
-- **Date:** 2026-09-20 — **pending developer confirmation** (see `implementation-progress.md` §Decisions needed)
+- **Date:** 2026-09-20 — **confirmed by the developer 2026-09-21** ("do not create a second bookmark system; preserve the existing model; PDF page bookmarks stay tied to the PDF data model")
 - **Decision (provisional):** The repository has no scripture bookmark feature (the only
   "bookmarks" are per-PDF page bookmarks in `localStorage`, `src/components/pdf/PDFViewer.tsx:45`).
   The brief's bookmark requirements (identity + target, synced) are satisfied by **verse tags**
@@ -142,8 +142,17 @@ Format: **decision · date · reason · alternatives considered · consequences 
 - **Reason:** The brief says the desktop feature model is the source of truth and forbids inventing
   a new feature taxonomy. Adding a parallel "bookmark" concept next to verse tags would be exactly
   that.
-- **Alternatives considered:** Add a first-class Bookmarks feature to both platforms (needs a
-  product decision — offered to the developer).
+- **Inventory (verified 2026-09-21 by grep over `src/` and `electron/`):** no scripture bookmark
+  entity, table, IPC channel or UI exists. Bookmark-like mechanisms that DO exist: verse tags
+  (`verse_tags`/`verse_tag_members`/`verse_tag_verse`, tag manager, tag picker, `#tag` filters in
+  search — the user's way of saving/collecting scripture), pinned notes (`notes.pinned`), pinned
+  tabs (`Tab.isPinned`, typed but no UI sets it), PDF page bookmarks (`localStorage`
+  `berean:pdfBookmarks:<pdfId>`), and navigation history. **Disposition:** verse tags are the
+  bookmark-equivalent synchronised data (R054); pinned notes sync with notes; PDF page bookmarks
+  move into the PDF data model (`pdf_bookmarks` table, Phase 9/44) so they sync alongside PDF
+  highlights; no new Bookmarks feature.
+- **Alternatives considered:** Add a first-class Bookmarks feature to both platforms — rejected by
+  the developer.
 - **Affected requirements:** R007, R043.
 
 ## D-006 — Berean "Sessions" are the synced workspace unit; DB "Workspaces" are synced saved snapshots

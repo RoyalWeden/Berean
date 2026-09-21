@@ -281,19 +281,29 @@ export function createLexiconService(ctx: ServiceContext) {
   }
 
   /** Strong's numbers with a matching derivation reference — "related words" list. */
+  // Entries whose `derivation` text cites this number. The two lexicons cite differently:
+  // strongs_greek.db writes "from G1537 (ἐκ)", so the prefixed id can be matched directly, but
+  // strongs_hebrew.db writes bare numbers — "from the same as 24", "from 6 ; Compare 10" — so the
+  // Hebrew lookup matches the bare number and then re-checks it as a whole token in JS (a plain
+  // LIKE '%6%' would also hit 16, 60, 1600…). Before this the Hebrew branch searched for the
+  // prefixed form and always came back empty (docs/mobile/implementation-progress.md K7).
   async function getRelated(strongsNum: string) {
     const num = strongsNum.trim().toUpperCase()
-    const q = `%${num}%`
-    const sql = `SELECT strongs_id, word, transliteration, short_def FROM entries WHERE derivation LIKE ? AND strongs_id != ? LIMIT 12`
-    type Row = Pick<DbEntry, 'strongs_id' | 'word' | 'transliteration' | 'short_def'>
+    const sql = `SELECT strongs_id, word, transliteration, short_def, derivation FROM entries WHERE derivation LIKE ? AND strongs_id != ? LIMIT ?`
+    type Row = Pick<DbEntry, 'strongs_id' | 'word' | 'transliteration' | 'short_def'> & { derivation: string | null }
     const results: Row[] = []
     try {
       if (num.startsWith('H')) {
-        const db = await ctx.lexiconDb('H')
-        results.push(...await db.all<Row>(sql, [q, num]))
+        const bare = num.slice(1).replace(/^0+(?=\d)/, '')
+        if (bare) {
+          const db = await ctx.lexiconDb('H')
+          const wholeNumber = new RegExp(`(^|[^0-9])${bare}(?![0-9])`)
+          const candidates = await db.all<Row>(sql, [`%${bare}%`, num, 400])
+          results.push(...candidates.filter((r) => r.derivation && wholeNumber.test(r.derivation)).slice(0, 12))
+        }
       } else if (num.startsWith('G')) {
         const db = await ctx.lexiconDb('G')
-        results.push(...await db.all<Row>(sql, [q, num]))
+        results.push(...await db.all<Row>(sql, [`%${num}%`, num, 12]))
       }
     } catch { /* ignore */ }
     return results.map((r) => ({
