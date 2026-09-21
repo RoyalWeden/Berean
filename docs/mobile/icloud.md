@@ -238,13 +238,31 @@ other device; *how far it was scrolled and how wide a pane was* is device presen
   to a local outbox (`sync_outbox`) and flushes when the container becomes available. Settings
   show the state plainly.
 
-## 8. Compaction
+## 8. Compaction — implemented (`engine.compact` / `pruneCompacted` / `applySnapshot`)
 
-When a device's journal exceeds 5 MB or 5,000 ops, it writes `snapshot-<seq>.json` containing
-the current state of every record *it has ever written* (its own ops only) and deletes its
-journal files ≤ that seq **only after** every other known device's manifest reports
-`applied[thisDevice] ≥ seq` (or that device has been silent for 90 days, in which case it will
-bootstrap from the snapshot anyway). A device never touches another device's folder.
+When a device's *live* journal (files newer than its last snapshot) exceeds 5 MB or 5,000 ops
+(`COMPACT_AFTER_BYTES` / `COMPACT_AFTER_OPS` in `journal.ts`; checked after every push), it
+writes `snapshot-<seq>.json` — `{ format, device, seq, schema, writtenAt, records[] }` where
+`records` is the current state of every record this device is the **current writer of**
+(`sync_record_meta.device = me`): upserts with the HLC each record carries, and tombstones. The
+manifest gains `snapshot: { name, seq, records, bytes }`; the previous snapshot file is removed
+once the new one is written.
+
+Journal files ≤ `snapshot.seq` are deleted **only after** every other known device's manifest
+reports `applied[thisDevice] ≥ snapshot.seq`, or that device has been silent for 90 days
+(`COMPACT_SILENT_MS` — it will bootstrap from the snapshot). "Known" = has a folder in the
+container, which every transport creates the first time the device comes online, so a device that
+has only pulled so far still blocks pruning. A device never touches another device's folder.
+
+**Bootstrap:** when a device's cursor for another device is below that device's `snapshot.seq`
+and the journal file containing `cursor + 1` is no longer listed (pruned, or the reader is new),
+the reader applies the snapshot's records through the normal merge rules (LWW by each record's
+own HLC, tombstones, note conflict copies) without per-record `sync_applied` rows, then records
+`(device, snapshot.seq)` once and continues with the journal from `snapshot.seq + 1`. The pass
+is idempotent, so an interruption simply re-runs it. Tested: cases V (thresholds, write, guarded
+prune, continued journal), W (new device bootstraps from snapshot + journal; its own newer data
+untouched; tombstone honoured; re-run is a no-op), X (silent device unblocks pruning and later
+bootstraps). Settings → iCloud shows the journal size and the last compaction point.
 
 ## 9. Failure handling
 

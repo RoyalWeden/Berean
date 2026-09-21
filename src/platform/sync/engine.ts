@@ -1,9 +1,10 @@
 import type { DatabaseAdapter } from '../db/DatabaseAdapter'
 import { defaultUuid, type ServiceEvents, type ServiceLogger, type DataChange } from '../services/context'
 import { HybridLogicalClock, compareHlc, formatHlc, parseHlc } from './hlc'
-import { chunkForFiles, decodeJournal, parseJournalFileName } from './journal'
+import { chunkForFiles, decodeJournal, parseJournalFileName, snapshotFileName, COMPACT_AFTER_BYTES, COMPACT_AFTER_OPS, COMPACT_SILENT_MS } from './journal'
 import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter, type EntityRecord } from './entities'
-import type { DeviceManifest, JournalFileInfo, SyncOp, SyncStatusSnapshot, SyncStore } from './types'
+import type { DeviceManifest, JournalFileInfo, SnapshotFile, SnapshotRecord, SyncOp, SyncStatusSnapshot, SyncStore } from './types'
+import { SYNC_FORMAT_VERSION } from './types'
 
 /**
  * The sync engine (docs/mobile/icloud.md). Transport-agnostic: it only talks to `SyncStore`.
@@ -55,6 +56,7 @@ const STATE = {
   lastPullAt: 'last_pull_at',
   adopted: 'adopted',
   enabled: 'enabled',
+  snapshot: 'own_snapshot',
 } as const
 
 export class SyncEngine {
@@ -69,6 +71,7 @@ export class SyncEngine {
   private readonly uuid: () => string
   private ownSeq = 0
   private ownFiles: JournalFileInfo[] = []
+  private ownSnapshot: DeviceManifest['snapshot'] | null = null
   private lastError: string | null = null
   private lastPushAt: number | null = null
   private lastPullAt: number | null = null
@@ -100,6 +103,7 @@ export class SyncEngine {
     const engine = new SyncEngine(opts, deviceId, clock)
     engine.ownSeq = Number((await get(STATE.ownSeq)) ?? 0)
     try { engine.ownFiles = JSON.parse((await get(STATE.ownFiles)) ?? '[]') } catch { engine.ownFiles = [] }
+    try { engine.ownSnapshot = JSON.parse((await get(STATE.snapshot)) ?? 'null') } catch { engine.ownSnapshot = null }
     engine.lastPushAt = numOrNull(await get(STATE.lastPushAt))
     engine.lastPullAt = numOrNull(await get(STATE.lastPullAt))
     return engine
@@ -263,7 +267,11 @@ export class SyncEngine {
   async push(): Promise<number> {
     await this.captureQueue
     const rows = await this.db.all<OutboxRow>('SELECT seq, entity, key, op_json FROM sync_outbox ORDER BY seq ASC')
-    if (rows.length === 0) return 0
+    if (rows.length === 0) {
+      // Nothing new — but journal files waiting on other devices' acknowledgement may be prunable now.
+      try { await this.pruneCompacted() } catch (err) { this.opts.log.warn('[sync] prune failed', err) }
+      return 0
+    }
     const status = await this.store.status()
     if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; return 0 }
     const ops: SyncOp[] = rows.map((r, i) => ({ ...(JSON.parse(r.op_json) as Omit<SyncOp, 'seq' | 'device'>), seq: this.ownSeq + i + 1, device: this.deviceId }))
@@ -281,6 +289,7 @@ export class SyncEngine {
       this.lastPushAt = this.now()
       await this.setState(STATE.lastPushAt, String(this.lastPushAt))
       this.lastError = null
+      try { await this.compact() } catch (err) { this.opts.log.warn('[sync] compaction failed', err) }
       return ops.length
     } catch (err) {
       this.lastError = `push: ${err instanceof Error ? err.message : String(err)}`
@@ -294,8 +303,106 @@ export class SyncEngine {
     for (const r of await this.db.all<{ device: string; seq: number }>('SELECT device, MAX(seq) AS seq FROM sync_applied GROUP BY device')) applied[r.device] = r.seq
     await this.store.writeOwnManifest({
       device: this.deviceId, name: this.opts.deviceName, platform: this.opts.platform, appVersion: this.opts.appVersion, schema: this.opts.schema,
-      seq: this.ownSeq, files: this.ownFiles, applied, updatedAt: this.now(),
+      seq: this.ownSeq, files: this.ownFiles, applied, ...(this.ownSnapshot ? { snapshot: this.ownSnapshot } : {}), updatedAt: this.now(),
     })
+  }
+
+  // ── compaction (docs/mobile/icloud.md §8) ─────────────────────────────────────────────────
+
+  /** Live journal = files newer than the last snapshot. */
+  private liveJournal(): { ops: number; bytes: number } {
+    const since = this.ownSnapshot?.seq ?? 0
+    let ops = 0, bytes = 0
+    for (const f of this.ownFiles) if (f.seqTo > since) { ops += f.seqTo - Math.max(f.seqFrom, since + 1) + 1; bytes += f.bytes ?? 0 }
+    return { ops, bytes }
+  }
+
+  /**
+   * Write `snapshot-<ownSeq>.json` with the current state of every record this device is the
+   * current writer of (upserts with their HLCs and tombstones), once the live journal is past
+   * the thresholds. The snapshot is what a device that missed (or lost) journal files ≤ ownSeq
+   * bootstraps from; journal files are only removed later by `pruneCompacted`.
+   */
+  async compact(force = false): Promise<boolean> {
+    const live = this.liveJournal()
+    if (!force && live.ops < COMPACT_AFTER_OPS && live.bytes < COMPACT_AFTER_BYTES) return false
+    if (this.ownSnapshot && this.ownSnapshot.seq >= this.ownSeq) return false
+    const records: SnapshotRecord[] = []
+    const metas = await this.db.all<{ entity: string; key: string; hlc: string; deleted: number }>('SELECT entity, key, hlc, deleted FROM sync_record_meta WHERE device = ? ORDER BY entity, key', [this.deviceId])
+    for (const m of metas) {
+      if (m.deleted) { records.push({ entity: m.entity, key: m.key, hlc: m.hlc, op: 'delete' }); continue }
+      const adapter = this.entities.get(m.entity)
+      if (!adapter) continue
+      const rec = await adapter.read(this.db, m.key)
+      if (!rec) continue
+      records.push(rec.deleted ? { entity: m.entity, key: m.key, hlc: m.hlc, op: 'delete', fields: rec.fields } : { entity: m.entity, key: m.key, hlc: m.hlc, op: 'upsert', fields: rec.fields })
+    }
+    const file: SnapshotFile = { format: SYNC_FORMAT_VERSION, device: this.deviceId, seq: this.ownSeq, schema: this.opts.schema, writtenAt: this.now(), records }
+    const name = snapshotFileName(this.ownSeq)
+    const content = JSON.stringify(file)
+    await this.store.writeOwnFile(name, content)
+    const previous = this.ownSnapshot
+    this.ownSnapshot = { name, seq: this.ownSeq, records: records.length, bytes: content.length }
+    await this.setState(STATE.snapshot, JSON.stringify(this.ownSnapshot))
+    await this.writeManifest()
+    if (previous && previous.name !== name) await this.store.deleteOwnFile(previous.name).catch(() => {})
+    this.opts.log.info(`[sync] compacted: snapshot ${name} (${records.length} records)`)
+    await this.pruneCompacted()
+    return true
+  }
+
+  /**
+   * Remove journal files ≤ the snapshot seq once every other known device's manifest reports
+   * `applied[me] ≥ snapshot.seq` — or has been silent for 90 days (it will bootstrap from the
+   * snapshot). A device never touches another device's folder.
+   */
+  async pruneCompacted(): Promise<number> {
+    if (!this.ownSnapshot) return 0
+    const prunable = this.ownFiles.filter((f) => f.seqTo <= this.ownSnapshot!.seq)
+    if (prunable.length === 0) return 0
+    for (const device of await this.store.listDevices()) {
+      if (device === this.deviceId) continue
+      let m: DeviceManifest | null
+      try { m = await this.store.readManifest(device) } catch { return 0 }
+      if (!m) return 0   // not downloaded yet: assume it still needs the files
+      if ((m.applied[this.deviceId] ?? 0) >= this.ownSnapshot.seq) continue
+      if (this.now() - m.updatedAt > COMPACT_SILENT_MS) continue
+      return 0
+    }
+    for (const f of prunable) await this.store.deleteOwnFile(f.name)
+    this.ownFiles = this.ownFiles.filter((f) => f.seqTo > this.ownSnapshot!.seq)
+    await this.setState(STATE.ownFiles, JSON.stringify(this.ownFiles))
+    await this.writeManifest()
+    this.opts.log.info(`[sync] pruned ${prunable.length} journal file(s) ≤ ${this.ownSnapshot.seq}`)
+    return prunable.length
+  }
+
+  /**
+   * Bootstrap from another device's snapshot when its journal no longer reaches back to what we
+   * have applied (new device, reinstall, or files pruned after compaction). Records are applied
+   * under the normal merge rules — LWW by the HLC each record carried — so nothing newer on this
+   * device is overwritten, and the pass is idempotent (rerun-safe if interrupted).
+   */
+  private async applySnapshot(device: string, manifest: DeviceManifest, touched: Set<string>): Promise<number> {
+    const snap = manifest.snapshot!
+    let text: string | null
+    try { text = await this.store.readFile(device, snap.name) } catch (err) { this.opts.log.warn(`[sync] cannot read ${device}/${snap.name}`, err); return 0 }
+    if (text === null) return 0
+    let file: SnapshotFile
+    try { file = JSON.parse(text) as SnapshotFile } catch { this.unreadable++; return 0 }
+    if (!file || file.device !== device || !Array.isArray(file.records)) { this.unreadable++; return 0 }
+    let applied = 0
+    for (const r of file.records) {
+      if (!r || typeof r.entity !== 'string' || typeof r.key !== 'string' || typeof r.hlc !== 'string') { this.unreadable++; continue }
+      const op: SyncOp = { id: `${device}-snapshot-${snap.seq}-${r.entity}-${r.key}`, seq: snap.seq, hlc: r.hlc, device, entity: r.entity, key: r.key, op: r.op, ...(r.fields ? { fields: r.fields } : {}), schema: file.schema }
+      try { await this.applyOne(op, touched, { recordApplied: false }); applied++ } catch (err) {
+        this.opts.log.error(`[sync] snapshot apply failed ${r.entity}/${r.key} from ${device}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    // Everything ≤ snap.seq is now represented; the journal continues from snap.seq + 1.
+    await this.db.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [device, snap.seq])
+    this.opts.log.info(`[sync] bootstrapped from ${device}/${snap.name}: ${applied} records`)
+    return applied
   }
 
   // ── pull ──────────────────────────────────────────────────────────────────────────────────
@@ -307,15 +414,24 @@ export class SyncEngine {
     let pending: SyncOp[] = []
     this.unreadable = 0
     const newer: string[] = []
+    const touchedBySnapshot = new Set<string>()
+    let snapshotApplied = 0
     for (const device of await this.store.listDevices()) {
       if (device === this.deviceId) continue
       let manifest: DeviceManifest | null
       try { manifest = await this.store.readManifest(device) } catch { continue }
       if (!manifest) continue
       if (manifest.schema > this.opts.schema) { newer.push(device); continue }
-      const cursor = (await this.db.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM sync_applied WHERE device = ?', [device]))?.seq ?? 0
-      const failed = new Map((await this.db.all<{ seq: number; attempts: number }>('SELECT seq, attempts FROM sync_failed WHERE device = ?', [device])).map((r) => [r.seq, r.attempts]))
+      let cursor = (await this.db.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM sync_applied WHERE device = ?', [device]))?.seq ?? 0
       const files = [...manifest.files].map((f) => parseJournalFileName(f.name) ?? f).sort((a, b) => a.seqFrom - b.seqFrom)
+      if (manifest.snapshot && cursor < manifest.snapshot.seq && !files.some((f) => f.seqFrom <= cursor + 1 && f.seqTo >= cursor + 1)) {
+        // The journal no longer reaches back to where we are (compacted, or we are new): bootstrap.
+        const n = await this.applySnapshot(device, manifest, touchedBySnapshot)
+        if (n === 0 && !(await this.db.get('SELECT 1 FROM sync_applied WHERE device = ? AND seq = ?', [device, manifest.snapshot.seq]))) continue   // snapshot not readable yet
+        snapshotApplied += n
+        cursor = Math.max(cursor, manifest.snapshot.seq)
+      }
+      const failed = new Map((await this.db.all<{ seq: number; attempts: number }>('SELECT seq, attempts FROM sync_failed WHERE device = ?', [device])).map((r) => [r.seq, r.attempts]))
       let expected = cursor + 1
       for (const f of files) {
         if (f.seqTo < expected && ![...failed.keys()].some((s) => s >= f.seqFrom && s <= f.seqTo)) continue
@@ -339,8 +455,8 @@ export class SyncEngine {
     if (newer.length) this.lastError = `Update Berean to sync with: ${newer.join(', ')}`
     // Global order: HLC, then device + seq as a deterministic tiebreak.
     pending.sort((a, b) => compareHlc(a.hlc, b.hlc) || (a.device < b.device ? -1 : a.device > b.device ? 1 : a.seq - b.seq))
-    const touched = new Set<string>()
-    let applied = 0
+    const touched = touchedBySnapshot
+    let applied = snapshotApplied
     for (const op of pending) {
       const already = await this.db.get('SELECT 1 FROM sync_applied WHERE device = ? AND seq = ?', [op.device, op.seq])
       if (already) continue
@@ -365,13 +481,14 @@ export class SyncEngine {
   }
 
   /** Apply one remote op under the merge rules. Runs in its own transaction. */
-  private async applyOne(op: SyncOp, touched: Set<string>): Promise<void> {
+  private async applyOne(op: SyncOp, touched: Set<string>, o: { recordApplied?: boolean } = {}): Promise<void> {
     const adapter = this.entities.get(op.entity)
+    const recordApplied = o.recordApplied !== false
     this.clock.receive(op.hlc)
     await this.db.transaction(async (tx) => {
       if (!adapter) {
         // Unknown entity (a newer build's data) — remember we saw it so it is not retried forever.
-        await tx.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [op.device, op.seq])
+        if (recordApplied) await tx.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [op.device, op.seq])
         return
       }
       const meta = await tx.get<MetaRow>('SELECT hlc, device, deleted FROM sync_record_meta WHERE entity = ? AND key = ?', [op.entity, op.key])
@@ -409,8 +526,10 @@ export class SyncEngine {
           this.emitRemote(op.entity, op.key, 'upsert')
         }
       }
-      await tx.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [op.device, op.seq])
-      await tx.run('DELETE FROM sync_failed WHERE device = ? AND seq = ?', [op.device, op.seq])
+      if (recordApplied) {
+        await tx.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [op.device, op.seq])
+        await tx.run('DELETE FROM sync_failed WHERE device = ? AND seq = ?', [op.device, op.seq])
+      }
     })
   }
 
@@ -443,12 +562,13 @@ export class SyncEngine {
         const m = await this.store.readManifest(d).catch(() => null)
         if (!m) continue
         const applied = (await this.db.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM sync_applied WHERE device = ?', [d]))?.seq ?? 0
-        devices.push({ device: d, name: m.name, platform: m.platform, seq: m.seq, applied: d === this.deviceId ? m.seq : applied })
+        devices.push({ device: d, name: m.name, platform: m.platform, seq: m.seq, applied: d === this.deviceId ? m.seq : applied, lastSeenAt: m.updatedAt })
       }
     } catch { /* transport unavailable */ }
     return {
       enabled: true, deviceId: this.deviceId, transport: await this.store.status(), pendingOutbox: pending,
       lastPushAt: this.lastPushAt, lastPullAt: this.lastPullAt, lastError: this.lastError, devices, unreadable: this.unreadable,
+      journal: { files: this.ownFiles.length, bytes: this.ownFiles.reduce((n, f) => n + (f.bytes ?? 0), 0) + (this.ownSnapshot?.bytes ?? 0), snapshotSeq: this.ownSnapshot?.seq ?? null },
     }
   }
 

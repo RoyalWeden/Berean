@@ -81,7 +81,11 @@ export class MemorySyncStore implements SyncStore {
   async status(): Promise<SyncStoreStatus> {
     // iCloud Drive is "available" offline too — writes land locally. Only a missing container
     // (signed out) makes it unavailable; tests toggle that with `containerMissing`.
-    return this.containerMissing ? { available: false, reason: 'iCloud Drive not available (signed out)' } : { available: true }
+    if (this.containerMissing) return { available: false, reason: 'iCloud Drive not available (signed out)' }
+    // Like the real transports (mkdir of the own folder), coming online makes the device known
+    // to others even before its first push — so compaction on other devices waits for it.
+    if (this.online) this.cloud.folder(this.deviceId)
+    return { available: true }
   }
   containerMissing = false
 
@@ -90,7 +94,7 @@ export class MemorySyncStore implements SyncStore {
   }
 
   async listDevices(): Promise<string[]> {
-    const ids = new Set<string>([...this.source().manifests.keys(), this.deviceId])
+    const ids = new Set<string>([...this.source().manifests.keys(), ...this.source().folders.keys(), this.deviceId])
     return [...ids]
   }
   async readManifest(device: string): Promise<DeviceManifest | null> {

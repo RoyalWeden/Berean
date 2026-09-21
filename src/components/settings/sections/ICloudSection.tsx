@@ -94,6 +94,7 @@ export default function ICloudSection() {
             <dt className="text-text-muted">Last push / pull</dt><dd className="text-text-secondary">{fmt(status.lastPushAt)} / {fmt(status.lastPullAt)}</dd>
             <dt className="text-text-muted">This device</dt><dd className="text-text-secondary font-mono">{status.deviceId}</dd>
             {status.unreadable > 0 && (<><dt className="text-text-muted">Unreadable entries</dt><dd className="text-danger">{status.unreadable}</dd></>)}
+            {status.journal && (<><dt className="text-text-muted">This device's journal</dt><dd className="text-text-secondary">{status.journal.files} file{status.journal.files === 1 ? '' : 's'}, {(status.journal.bytes / 1024).toFixed(0)} KB{status.journal.snapshotSeq != null ? ` · compacted at change #${status.journal.snapshotSeq}` : ''}</dd></>)}
             {status.lastError && (<><dt className="text-text-muted">Last error</dt><dd className="text-danger">{status.lastError}</dd></>)}
           </dl>
           {status.devices.length > 0 && (
@@ -101,7 +102,7 @@ export default function ICloudSection() {
               <p className="text-caption text-text-muted mb-1">Devices</p>
               <ul className="text-caption text-text-secondary space-y-0.5">
                 {status.devices.map((d) => (
-                  <li key={d.device}>{d.name} <span className="text-text-muted">({d.platform})</span> — {d.applied}/{d.seq} changes applied{d.device === status.deviceId ? ' (this device)' : ''}</li>
+                  <li key={d.device}>{d.name} <span className="text-text-muted">({d.platform})</span> — {d.applied}/{d.seq} changes applied{d.device === status.deviceId ? ' (this device)' : d.lastSeenAt ? ` · last seen ${new Date(d.lastSeenAt).toLocaleString()}` : ''}</li>
                 ))}
               </ul>
             </div>

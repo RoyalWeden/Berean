@@ -9,6 +9,16 @@ import type { SyncOp, JournalFileInfo } from './types'
  */
 export const JOURNAL_MAX_OPS = 500
 export const JOURNAL_MAX_BYTES = 256 * 1024
+/** Compaction thresholds (docs/mobile/icloud.md §8): snapshot once the live journal exceeds
+ *  either, prune journal files only once every other device has applied past the snapshot. */
+export const COMPACT_AFTER_OPS = 5000
+export const COMPACT_AFTER_BYTES = 5 * 1024 * 1024
+/** A device silent this long is assumed to bootstrap from the snapshot instead. */
+export const COMPACT_SILENT_MS = 90 * 24 * 60 * 60 * 1000
+
+export function snapshotFileName(seq: number): string {
+  return `snapshot-${String(seq).padStart(9, '0')}.json`
+}
 
 export function journalFileName(seqFrom: number, seqTo: number): string {
   return `journal-${String(seqFrom).padStart(9, '0')}-${String(seqTo).padStart(9, '0')}.jsonl`
@@ -75,7 +85,7 @@ export function chunkForFiles(ops: SyncOp[]): Array<{ info: JournalFileInfo; con
   const flush = () => {
     if (batch.length === 0) return
     const content = encodeJournal(batch)
-    out.push({ info: { name: journalFileName(batch[0].seq, batch[batch.length - 1].seq), seqFrom: batch[0].seq, seqTo: batch[batch.length - 1].seq }, content })
+    out.push({ info: { name: journalFileName(batch[0].seq, batch[batch.length - 1].seq), seqFrom: batch[0].seq, seqTo: batch[batch.length - 1].seq, bytes: content.length }, content })
     batch = []
     bytes = 0
   }

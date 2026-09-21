@@ -422,6 +422,83 @@ describe('sync engine — Phase 9 entities', () => {
   })
 })
 
+describe('sync engine — compaction (icloud.md §8)', () => {
+  const macFiles = () => [...cloud.folder('mac').keys()].filter((k) => k !== 'manifest.json').map((k) => `mac/${k}`).concat(cloud.manifests.has('mac') ? ['mac/manifest.json'] : []).sort()
+
+  it('V: a snapshot is written; journal files are pruned only once every other device has applied past it', async () => {
+    await phone.engine.sync()   // the phone has come online once (its folder exists) but applied nothing yet
+    const ids: string[] = []
+    for (let i = 0; i < 3; i++) { tick(); ids.push((await mac.services.notes.create({ type: 'general', title: `N${i}`, content: `c${i}` })).note!.id) }
+    await mac.engine.sync()
+    expect(macFiles()).toEqual(['mac/journal-000000001-000000003.jsonl', 'mac/manifest.json'])
+    // thresholds not reached → no compaction on its own
+    expect(await mac.engine.compact()).toBe(false)
+    // forced (as if 5,000 ops had accumulated): snapshot appears, journal stays (phone has not applied)
+    expect(await mac.engine.compact(true)).toBe(true)
+    expect(macFiles()).toEqual(['mac/journal-000000001-000000003.jsonl', 'mac/manifest.json', 'mac/snapshot-000000003.json'])
+    expect(cloud.manifests.get('mac')?.snapshot).toMatchObject({ seq: 3, records: 3 })
+    await mac.engine.sync()   // nothing to push → prune attempted → still blocked by the phone
+    expect(macFiles()).toContain('mac/journal-000000001-000000003.jsonl')
+    // the phone catches up and publishes applied[mac] = 3 → the next mac pass prunes
+    await phone.engine.sync()
+    expect(await noteTitles(phone)).toEqual(['N0', 'N1', 'N2'])
+    await mac.engine.sync()
+    expect(macFiles()).toEqual(['mac/manifest.json', 'mac/snapshot-000000003.json'])
+    expect(cloud.manifests.get('mac')?.files).toEqual([])
+    // later edits continue in new journal files after the snapshot
+    tick(); await mac.services.notes.update(ids[0], { content: 'edited after snapshot' })
+    await syncAll(mac, phone)
+    expect(macFiles()).toEqual(['mac/journal-000000004-000000004.jsonl', 'mac/manifest.json', 'mac/snapshot-000000003.json'])
+    expect((await noteById(phone, ids[0]))!.content).toBe('edited after snapshot')
+    expect((await mac.engine.status()).journal).toMatchObject({ files: 1, snapshotSeq: 3 })
+  })
+
+  it('W: a new device (or reinstall) bootstraps from the snapshot, then follows the journal; nothing newer is overwritten', async () => {
+    const a = (await mac.services.notes.create({ type: 'general', title: 'Kept', content: 'from snapshot' })).note!.id
+    tick(); const b = (await mac.services.notes.create({ type: 'general', title: 'Trashed later', content: 'x' })).note!.id
+    tick(); await mac.services.highlights.toggle({ bookId: 'GEN', chapter: 1, verseNum: 1, color: 'yellow', textId: 'kjva' })
+    tick(); await mac.services.notes.delete(b); tick(); await mac.services.notes.purgeTrashItem(b)   // tombstone in the snapshot (create+trash+purge coalesce into one delete op)
+    await mac.engine.sync()
+    await phone.engine.sync()                                   // phone applied everything → prune allowed
+    expect(await mac.engine.compact(true)).toBe(true)
+    await mac.engine.sync()
+    expect(macFiles()).toEqual(['mac/manifest.json', 'mac/snapshot-000000003.json'])
+    expect(cloud.manifests.get('mac')?.snapshot).toMatchObject({ seq: 3, records: 3 })
+    tick(); await mac.services.notes.update(a, { content: 'journal after snapshot' })
+    await mac.engine.sync()
+    // third device joins with its own newer edit of a note that also exists in the snapshot
+    const ipad = await makeDevice('ipad', 'ios')
+    tick(); await ipad.services.notes.create({ type: 'general', title: 'Kept', content: 'ipad copy' })
+    await ipad.engine.sync(); await ipad.engine.sync()
+    expect((await noteById(ipad, a))!.content).toBe('journal after snapshot')     // snapshot then journal
+    expect(await noteById(ipad, b)).toBeNull()                                    // tombstone honoured
+    expect(Object.keys(await ipad.services.highlights.getChapter('GEN', 1, 'kjva'))).toEqual(['1'])
+    expect((await noteTitles(ipad)).filter((t) => t === 'Kept').length).toBe(2)   // its own note untouched
+    expect((await ipad.engine.status()).devices.map((d) => d.name).sort()).toEqual(['ipad', 'mac', 'phone'])
+    expect((await ipad.engine.status()).lastError ?? null).toBeNull()
+    // re-running the bootstrap is a no-op
+    const before = await ipad.db.all('SELECT * FROM notes ORDER BY id')
+    await ipad.engine.sync()
+    expect(await ipad.db.all('SELECT * FROM notes ORDER BY id')).toEqual(before)
+  })
+
+  it('X: a device silent for 90 days no longer blocks pruning', async () => {
+    tick(); await mac.services.notes.create({ type: 'general', title: 'A', content: 'a' })
+    await mac.engine.sync()
+    await phone.engine.sync()                                    // phone's manifest: applied[mac] = 1, updatedAt = now
+    tick(); await mac.services.notes.create({ type: 'general', title: 'B', content: 'b' })
+    await mac.engine.sync()
+    expect(await mac.engine.compact(true)).toBe(true)
+    expect(macFiles()).toContain('mac/journal-000000002-000000002.jsonl')   // phone only applied up to 1
+    clock += 91 * 24 * 60 * 60 * 1000
+    await mac.engine.sync()
+    expect(macFiles()).toEqual(['mac/manifest.json', 'mac/snapshot-000000002.json'])
+    // the silent phone comes back: it bootstraps from the snapshot and is complete again
+    await phone.engine.sync()
+    expect(await noteTitles(phone)).toEqual(['A', 'B'])
+  })
+})
+
 declare module '../stores/memorySyncStore' {
   interface MemoryCloud { readManifestSeq(device: string): Promise<number> }
 }

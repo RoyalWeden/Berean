@@ -46,6 +46,9 @@ export interface DeviceManifest {
   files: JournalFileInfo[]
   /** For every OTHER device: the highest seq this device has applied (drives compaction). */
   applied: Record<string, number>
+  /** Latest compaction snapshot (docs/mobile/icloud.md §8): the state of every record this
+   *  device is the current writer of, as of `seq`. Journal files ≤ `seq` may be gone. */
+  snapshot?: { name: string; seq: number; records: number; bytes: number }
   updatedAt: number
 }
 
@@ -53,6 +56,25 @@ export interface JournalFileInfo {
   name: string
   seqFrom: number
   seqTo: number
+  /** Encoded size; absent in manifests written before compaction existed. */
+  bytes?: number
+}
+
+/** `snapshot-<seq>.json` — one device's compacted history. */
+export interface SnapshotFile {
+  format: number
+  device: string
+  seq: number
+  schema: number
+  writtenAt: number
+  records: SnapshotRecord[]
+}
+export interface SnapshotRecord {
+  entity: string
+  key: string
+  hlc: string
+  op: SyncOpKind
+  fields?: Record<string, unknown>
 }
 
 export interface SyncStoreStatus {
@@ -87,8 +109,10 @@ export interface SyncStatusSnapshot {
   lastPushAt: number | null
   lastPullAt: number | null
   lastError: string | null
-  devices: Array<{ device: string; name: string; platform: string; seq: number; applied: number }>
+  devices: Array<{ device: string; name: string; platform: string; seq: number; applied: number; lastSeenAt?: number }>
   unreadable: number
+  /** Own journal: files + bytes currently in the container, and the last compaction (if any). */
+  journal?: { files: number; bytes: number; snapshotSeq: number | null }
 }
 
 export const SYNC_FORMAT_VERSION = 1
