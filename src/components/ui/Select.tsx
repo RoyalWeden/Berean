@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
+import { useBarMetrics } from './metrics'
 import { MenuSurface, MenuItem, MenuLabel } from './Menu'
 import { MenuPositioner, dispatchCloseContextMenus, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 
@@ -33,6 +34,8 @@ export interface SelectProps<T extends string> {
 }
 
 const SIZE = { sm: 'h-7 px-2.5 text-footnote gap-1.5', md: 'h-8 px-3 text-subhead gap-2' }
+/** The one bar box (CONTROL_H_BAR = 34) — a pop-up button lines up with the controls beside it. */
+const BAR = 'h-[34px] px-3.5 text-subhead gap-2'
 
 /**
  * Custom select — a rounded-rectangle trigger (Apple's pop-up button shape) opening a `MenuSurface` listbox, so no OS-chrome
@@ -42,6 +45,7 @@ const SIZE = { sm: 'h-7 px-2.5 text-footnote gap-1.5', md: 'h-8 px-3 text-subhea
 export function Select<T extends string>({
   value, options, onChange, size = 'sm', variant = 'field', placeholder, disabled, className, menuClassName, align = 'left', 'aria-label': ariaLabel,
 }: SelectProps<T>) {
+  const bar = useBarMetrics()
   const id = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -97,7 +101,7 @@ export function Select<T extends string>({
         className={cx(
           'no-drag focus-ring inline-flex items-center rounded-control-md select-none whitespace-nowrap cursor-pointer max-w-full',
           'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
-          SIZE[size],
+          bar ? BAR : SIZE[size],
           variant === 'field'
             ? 'control-field bg-field text-text-primary pr-1 hover:bg-surface-1/75 active:bg-surface-1 aria-expanded:bg-surface-1 aria-expanded:shadow-focus'
             : 'text-text-secondary hover:text-text-primary hover:bg-control-hover active:bg-control-pressed aria-expanded:bg-control-pressed',
