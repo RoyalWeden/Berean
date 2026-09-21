@@ -134,6 +134,23 @@ Applied identically on every device when replaying another device's journal:
    **Tag names are unique** (schema constraint): two devices creating "Covenant" while apart both
    keep their tag; the later-created one (by `created_at`, then id) is renamed "Covenant (2)" on
    every device deterministically, and the user can merge them in the Tag Manager (case F).
+   **Cascades without events:** the app deletes or rewrites some rows together with a parent
+   without emitting events for them (a purged note's versions, a deleted verse tag's members and
+   edges, a deleted PDF's highlights and bookmarks, a deleted trail session's nodes and
+   connections, a deleted folder's notes moved to the root, a merged trail's re-parented nodes).
+   Each entity adapter declares these as `dependents`; after any delete or bulk event the engine
+   re-captures the dependents (hash-guarded, so only rows that actually changed produce ops) and
+   tombstones every record it had journaled that no longer exists (`captureVanished`). Tested:
+   cases Q, R, S.
+   **Aggregates:** playlists carry their items; trail sessions carry their paused intervals and
+   tag ids (`trail_tag_members` has a composite key and is rewritten per session). A membership
+   whose tag has not arrived yet is parked in `sync_state` and re-established when the tag lands.
+5b. **Capture is causal within a device:** the HLC and the record snapshot are taken at event
+   time (synchronously in the `data:changed` handler), not when the serialised capture runs, so
+   an op never carries an HLC that predates a record it references (a session tagged after its
+   pause event would otherwise apply before the tag on the other device). A direct event for a
+   record whose synced fields did not change but whose op is still unpushed moves that op's HLC
+   forward to the event time. Bulk/dependent re-captures use the triggering event's HLC.
    `verse_tag_verse` (the expanded verse index) is derived locally from each member's `ranges`.
    Playlists sync as one record including their items (the app rewrites all items on save).
 6. **Ordering fields** use fractional indexing (`order_key` string, `src/platform/sync/fractional.ts`):
@@ -163,12 +180,12 @@ Applied identically on every device when replaying another device's journal:
 | `archived_groups` (new table) | **SYNC** | today `archivedGroups` in localStorage |
 | `workspaces` | **SYNC** | `layout_json` is desktop presentation — synced but iOS ignores it; `state_json` (tabs snapshot) applied |
 | `playlists`, `playlist_items` | **SYNC** | |
-| `ai_chats` | **SYNC** | small JSON |
-| `pdfs`, `pdf_highlights`, `pdf_bookmarks` (new) | **SYNC metadata** | the PDF bytes are **not** journaled; a device lacking the file shows "Import this PDF on this device" (file hash matched on import) |
-| `trail_*` (study trail: sessions, nodes, connections, notes, tags, collapse) | **SYNC** except `trail_collapse` (LOCAL) and `trail_embeddings` (LOCAL, derived) | |
+| `ai_chats` | **SYNC** ✔ | small JSON (`ai_chat` entity) |
+| `pdfs`, `pdf_highlights`, `pdf_bookmarks` (v46) | **SYNC metadata** ✔ | the PDF bytes are **not** journaled. `pdfs.file_hash` (SHA-256, v46) lets the other device attach the same file on import instead of duplicating the row; until then the platform's `pdf.list/get` report `fileMissing` (desktop: "file not on this device — import it to read" in the picker, and a plain message in the viewer). Bookmarks moved from localStorage to `pdf_bookmarks` (one-time import on first open) |
+| `trail_*` (study trail: sessions, nodes, connections, notes, tags) | **SYNC** ✔ except `trail_collapse` (LOCAL) and `trail_embeddings` (LOCAL, derived) | `trail_session` is an aggregate (row + paused intervals + tag ids); `trail_node`, `trail_connection`, `trail_note`, `trail_tag` are records. `resumeSession` was rewritten without `UPDATE … ORDER BY … LIMIT` (needs `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`, absent on iOS/system SQLite) |
 | `history` | **LOCAL** | device navigation history (brief: reading position stays local) |
 | `settings` | **LOCAL** | |
-| `youtube_videos`, `youtube_sync`, `youtube_transcripts*` | **LOCAL** (cache/seed) | `youtube_videos.is_starred`, `youtube_watch_history` (positions) → **SYNC** as a small `youtube_user` entity |
+| `youtube_videos`, `youtube_sync`, `youtube_transcripts*` | **LOCAL** (cache/seed) | `youtube_user` (v45) ✔ = stars + resume positions; the service writes it alongside `youtube_videos.is_starred` / `youtube_watch_history`, a remote row is mirrored back into them, and a star for a video not fetched yet is applied when the video arrives (`upsertVideos`, `mergeYouTubeSeed`). Stars survive "clear video cache" |
 | `note_heading_collapse`, `note_thread_collapse` | **LOCAL** | UI fold state |
 | `sync_state`, `sync_applied`, `sync_outbox` (new) | **LOCAL** | sync bookkeeping |
 | zustand `berean-app-state` (display prefs, print prefs, TTS prefs, MRU, nav stacks…) | **LOCAL** | settings stay local per brief |

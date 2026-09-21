@@ -92,7 +92,7 @@ export default function PdfPicker({ anchor, onClose }: Props) {
           <ListRow key={p.id}
             leading={<FileText size={14} />}
             title={p.title}
-            subtitle={`${p.pageCount ? `${p.pageCount} pages · ` : ''}${(p.fileSize / 1024 / 1024).toFixed(1)} MB`}
+            subtitle={`${p.pageCount ? `${p.pageCount} pages · ` : ''}${(p.fileSize / 1024 / 1024).toFixed(1)} MB${p.fileMissing ? ' · file not on this device — import it to read' : ''}`}
             onClick={() => { openPdf(p.id, p.title); onClose() }}
             trailing={
               <IconButton icon={Trash2} label="Delete" size={20} danger tooltip={false} onClick={(e) => handleDelete(e, p.id)} />

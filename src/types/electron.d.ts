@@ -1,4 +1,4 @@
-import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight,
+import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight, PdfBookmark,
   VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult,
   TagGraphData, TagEdge, TagEdgeArrows } from './index'
 
@@ -121,6 +121,11 @@ interface PdfAPI {
   }) => Promise<{ success: boolean; id: string }>
   highlightsRemove: (id: string) => Promise<{ success: boolean }>
   highlightsSetNote: (id: string, note: string) => Promise<{ success: boolean }>
+  bookmarksList: (pdfId: string) => Promise<PdfBookmark[]>
+  bookmarksAdd: (pdfId: string, page: number, label: string) => Promise<PdfBookmark>
+  bookmarksRemove: (id: string) => Promise<{ success: boolean }>
+  /** One-time import of the pre-v46 localStorage bookmark list (no-op if the PDF already has bookmarks). */
+  bookmarksImport: (pdfId: string, entries: Array<{ page: number; label: string; createdAt?: number }>) => Promise<{ imported: number }>
 }
 
 interface YouTubeVideoEntry {

@@ -18,7 +18,7 @@ import PdfPicker from './PdfPicker'
 import { IconButton, Button, ControlGroup, SearchField, SegmentedControl, SectionLabel, Divider, ListRow, ColorSwatchRow, OverflowGroup, OverflowSection } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import type { PdfTabState, PdfHighlight } from '@/types'
+import type { PdfTabState, PdfHighlight, PdfBookmark } from '@/types'
 
 const HL_COLORS = ['yellow', 'green', 'blue', 'pink', 'orange', 'purple'] as const
 // "r g b" triples matching hlColor()'s rgba() map (PdfPage.tsx) — ColorSwatchRow wants a plain
@@ -42,7 +42,7 @@ interface SelToolbar {
 interface FindMatch { page: number; index: number }
 
 interface TocItem { title: string; page: number | null; depth: number }
-interface Bookmark { page: number; label: string; createdAt: number }
+type Bookmark = PdfBookmark
 // Shape of a raw pdf.js outline node (typed loosely; pdf.js types are permissive)
 interface RawOutlineNode { title: string; dest: string | unknown[] | null; items?: RawOutlineNode[] }
 
@@ -90,25 +90,34 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
   const [toc, setToc] = useState<TocItem[]>([])
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
 
+  // Bookmarks live in the database since v46 (they sync with the PDF's highlights). The
+  // pre-v46 localStorage list is imported the first time each PDF is opened and then left in
+  // place, read-only, as a safety net for one release.
   const bookmarkKey = pdfId ? `berean:pdfBookmarks:${pdfId}` : ''
-  function loadBookmarks() {
-    if (!bookmarkKey) return
-    try { setBookmarks(JSON.parse(localStorage.getItem(bookmarkKey) ?? '[]')) } catch { setBookmarks([]) }
+  async function loadBookmarks() {
+    if (!pdfId) return
+    try {
+      let legacy: Array<{ page: number; label: string; createdAt?: number }> = []
+      try { legacy = JSON.parse(localStorage.getItem(bookmarkKey) ?? '[]') } catch { legacy = [] }
+      if (legacy.length) await window.pdf.bookmarksImport(pdfId, legacy)
+      setBookmarks(await window.pdf.bookmarksList(pdfId))
+    } catch { setBookmarks([]) }
   }
-  function addBookmark() {
-    if (!bookmarkKey) return
+  async function addBookmark() {
+    if (!pdfId) return
     const label = prompt('Bookmark label:', `Page ${currentPage}`)
     if (label === null) return
-    const next = [...bookmarks, { page: currentPage, label: label || `Page ${currentPage}`, createdAt: Date.now() }]
-      .sort((a, b) => a.page - b.page)
-    setBookmarks(next)
-    localStorage.setItem(bookmarkKey, JSON.stringify(next))
+    try {
+      await window.pdf.bookmarksAdd(pdfId, currentPage, label || `Page ${currentPage}`)
+      setBookmarks(await window.pdf.bookmarksList(pdfId))
+    } catch { /* keep the list as is */ }
     setPanelOpen(true)
   }
-  function removeBookmark(idx: number) {
-    const next = bookmarks.filter((_, i) => i !== idx)
-    setBookmarks(next)
-    localStorage.setItem(bookmarkKey, JSON.stringify(next))
+  async function removeBookmark(idx: number) {
+    const b = bookmarks[idx]
+    if (!b || !pdfId) return
+    setBookmarks(bookmarks.filter((_, i) => i !== idx))
+    try { await window.pdf.bookmarksRemove(b.id); setBookmarks(await window.pdf.bookmarksList(pdfId)) } catch { /* optimistic removal stands */ }
   }
 
   // ── Load document ────────────────────────────────────────────────────────────
@@ -118,7 +127,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
     setDoc(null); setLoadError(null); setNumPages(0)
     window.pdf.readBytes(pdfId)
       .then((bytes) => {
-        if (!bytes) throw new Error('Could not read PDF file')
+        if (!bytes) throw new Error('This PDF was imported on another device. Use Import PDF and choose the same file to read it here — your highlights and bookmarks are already waiting.')
         return loadPdfFromBytes(bytes)
       })
       .then((d) => {
@@ -168,7 +177,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
       await walk(outline as RawOutlineNode[], 0)
       setToc(items)
     }).catch(() => { setToc([]) })
-    loadBookmarks()
+    void loadBookmarks()
   }, [doc, pdfId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // External "go to page" event (from note links / openPdf reuse)
@@ -537,7 +546,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
       <div className="flex-1 flex flex-row overflow-hidden">
         {/* Pages scroll area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto min-w-0" onMouseUp={onMouseUp} style={{ contain: 'paint' }}>
-          {loadError && <div className="p-6 text-center text-subhead text-destructive">Failed to load PDF: {loadError}</div>}
+          {loadError && <div className="p-6 text-center text-subhead text-destructive">{loadError.startsWith("This PDF was imported") ? loadError : `Failed to load PDF: ${loadError}`}</div>}
           {!doc && !loadError && <div className="p-6 text-center text-subhead text-text-muted">Loading PDF…</div>}
           {doc && Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div key={page} className="relative">
@@ -578,7 +587,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
                   </div>
                   {bookmarks.length === 0 && <div className="px-2 py-1 text-caption text-text-muted italic">No bookmarks</div>}
                   {bookmarks.map((b, i) => (
-                    <ListRow key={i} dense
+                    <ListRow key={b.id} dense
                       leading={<BookmarkIcon size={12} className="text-accent" />}
                       title={b.label}
                       meta={`p.${b.page}`}

@@ -205,8 +205,8 @@ function upsertVideos(videos: VideoEntry[]): number {
   // is_starred: never overwritten (user preference). duration/description: keep existing if new value is absent.
   const insert = db.prepare(`
     INSERT INTO youtube_videos
-      (video_id, title, published, channel_name, channel_handle, thumbnail_url, type, is_live_now, duration_seconds, description, fetched_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (video_id, title, published, channel_name, channel_handle, thumbnail_url, type, is_live_now, duration_seconds, description, fetched_at, is_starred)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_starred FROM youtube_user WHERE video_id = ?1), 0))
     ON CONFLICT(video_id) DO UPDATE SET
       title            = excluded.title,
       published        = excluded.published,

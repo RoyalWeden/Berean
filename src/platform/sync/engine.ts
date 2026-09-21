@@ -2,7 +2,7 @@ import type { DatabaseAdapter } from '../db/DatabaseAdapter'
 import { defaultUuid, type ServiceEvents, type ServiceLogger, type DataChange } from '../services/context'
 import { HybridLogicalClock, compareHlc, formatHlc, parseHlc } from './hlc'
 import { chunkForFiles, decodeJournal, parseJournalFileName } from './journal'
-import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter } from './entities'
+import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter, type EntityRecord } from './entities'
 import type { DeviceManifest, JournalFileInfo, SyncOp, SyncStatusSnapshot, SyncStore } from './types'
 
 /**
@@ -128,25 +128,50 @@ export class SyncEngine {
 
   private onLocalChange(c: DataChange): Promise<void> {
     if (c.remote || !SYNCED_ENTITY_KINDS.has(c.entity)) return Promise.resolve()
+    const adapter = this.entities.get(c.entity)!
+    // The HLC and the record snapshot are taken NOW, at event time, not when the queued capture
+    // runs: captures are serialised behind each other, so a late read would see later mutations
+    // (a session tagged after its pause event) and give the op an HLC that predates records it
+    // references. Event-time capture keeps ops causal within a device.
+    const hlc = this.clock.tick()
+    const direct = c.op !== 'bulk' && c.id ? { id: c.id, rec: adapter.read(this.db, c.id).catch(() => undefined) } : null
     const run = async () => {
-      if (c.op === 'bulk' || !c.id) {
-        // A bulk change (reorder, emptyTrash…) — re-capture every live key of the entity. Cheap for
-        // the entity sizes involved and keeps the outbox precise.
-        const adapter = this.entities.get(c.entity)!
-        for (const key of await adapter.listKeys(this.db)) await this.captureRecord(c.entity, key)
-        if (c.entity === 'note') await this.capturePurgedNotes()
-        return
+      if (!direct) {
+        // A bulk change (reorder, emptyTrash, merge…) — re-capture every live key of the entity.
+        // Cheap for the entity sizes involved and keeps the outbox precise.
+        await this.recaptureAll(c.entity, hlc)
+      } else {
+        await this.captureRecord(c.entity, direct.id, { hlc, rec: await direct.rec, direct: true })
       }
-      await this.captureRecord(c.entity, c.id)
+      if (c.op !== 'upsert' || !c.id) {
+        // A delete or bulk change can take other rows with it without their own events (a purged
+        // note's versions, a deleted tag's members, a deleted trail session's nodes and
+        // connections, a deleted folder's notes moved to the root): find what vanished or changed.
+        await this.captureVanished(c.entity, hlc)
+        for (const dep of adapter.dependents ?? []) await this.recaptureAll(dep, hlc)
+      }
     }
     this.captureQueue = this.captureQueue.then(run, run).catch((err) => this.opts.log.error('[sync] capture failed', err))
     return this.captureQueue
   }
 
-  /** Notes are purged (hard-deleted) in bulk by emptyTrash; find records we know about that vanished. */
-  private async capturePurgedNotes(): Promise<void> {
-    const known = await this.db.all<{ key: string }>(`SELECT m.key FROM sync_record_meta m WHERE m.entity = 'note' AND m.deleted = 0 AND NOT EXISTS (SELECT 1 FROM notes n WHERE n.id = m.key)`)
-    for (const r of known) await this.captureRecord('note', r.key)
+  /** Re-read every live record of an entity (only records whose synced fields changed produce ops)
+   *  and tombstone the ones that are gone. */
+  private async recaptureAll(entity: string, hlc: string): Promise<void> {
+    const adapter = this.entities.get(entity)
+    if (!adapter) return
+    for (const key of await adapter.listKeys(this.db)) await this.captureRecord(entity, key, { hlc })
+    await this.captureVanished(entity, hlc)
+  }
+
+  /** Records we told other devices about that no longer exist locally (hard-deleted) → delete ops. */
+  private async captureVanished(entity: string, hlc: string): Promise<void> {
+    const adapter = this.entities.get(entity)
+    if (!adapter) return
+    const known = await this.db.all<{ key: string }>('SELECT key FROM sync_record_meta WHERE entity = ? AND deleted = 0', [entity])
+    if (known.length === 0) return
+    const live = new Set(await adapter.listKeys(this.db))
+    for (const r of known) if (!live.has(r.key)) await this.captureRecord(entity, r.key, { hlc })
   }
 
   /**
@@ -154,21 +179,32 @@ export class SyncEngine {
    * op for the same record). Also advances the record's meta to this change's HLC so a remote op
    * arriving later can tell whether it diverged from what we had.
    */
-  async captureRecord(entity: string, key: string): Promise<void> {
+  async captureRecord(entity: string, key: string, at?: { hlc: string; rec?: EntityRecord | undefined; direct?: boolean }): Promise<void> {
     const adapter = this.entities.get(entity)
     if (!adapter) return
-    const rec = await adapter.read(this.db, key)
+    const rec = at && 'rec' in at ? at.rec : await adapter.read(this.db, key)
     const meta = await this.db.get<MetaRow>('SELECT hlc, device, deleted, hash FROM sync_record_meta WHERE entity = ? AND key = ?', [entity, key])
     const op: SyncOp['op'] = !rec || rec.deleted ? 'delete' : 'upsert'
     // Nothing to tell other devices about a record they never knew or already saw deleted.
     if (op === 'delete' && (!meta || meta.deleted)) return
-    // A bulk re-capture (reorder, emptyTrash…) touches every record; only records whose synced
-    // fields actually changed produce an op, so untouched records keep their HLC (no spurious
-    // conflicts on other devices).
     const hash = op === 'upsert' ? hashFields(rec!.fields) : null
-    if (op === 'upsert' && meta && !meta.deleted && meta.hash === hash) return
-    const hlc = this.clock.tick()
+    const hlc = at?.hlc ?? this.clock.tick()
     const pending = await this.db.get<OutboxRow>('SELECT seq, entity, key, op_json FROM sync_outbox WHERE entity = ? AND key = ? ORDER BY seq DESC LIMIT 1', [entity, key])
+    if (op === 'upsert' && meta && !meta.deleted && meta.hash === hash) {
+      // Unchanged synced fields. A bulk re-capture (reorder, emptyTrash…) touches every record;
+      // untouched records keep their HLC (no spurious conflicts on other devices). A direct event
+      // for this record whose op is still in the outbox does move that op forward to the event's
+      // time — an earlier capture may have read state that this later event produced.
+      if (at?.direct && pending && compareHlc(hlc, meta.hlc) > 0) {
+        const prev = JSON.parse(pending.op_json) as SyncOp
+        await this.db.transaction(async (tx) => {
+          await tx.run('UPDATE sync_outbox SET op_json = ? WHERE seq = ?', [JSON.stringify({ ...prev, hlc }), pending.seq])
+          await tx.run('UPDATE sync_record_meta SET hlc = ? WHERE entity = ? AND key = ?', [hlc, entity, key])
+          await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.hlc, this.clock.latest()])
+        })
+      }
+      return
+    }
     // Coalescing keeps the EARLIEST base so the other side still sees the true divergence point.
     const base = pending ? (JSON.parse(pending.op_json) as Partial<SyncOp>).base : meta?.hlc
     // Tombstone rows (sessions/tabs) carry their deleted_at so the receiver records the same time.

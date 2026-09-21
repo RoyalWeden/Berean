@@ -1,4 +1,5 @@
 import type { DatabaseAdapter } from './DatabaseAdapter'
+import { hasColumn } from './DatabaseAdapter'
 
 /**
  * The berean.db (user data) migration history, shared by desktop and iOS.
@@ -1135,6 +1136,62 @@ export const BEREAN_MIGRATIONS: Migration[] = [
         );
       `)
       console.log('[berean-db] v44: sync_state / sync_outbox / sync_record_meta / sync_applied / sync_failed')
+    }
+  },
+  {
+    // v45 (Phase 9, docs/mobile/database.md §3): youtube_user — the synced subset of the YouTube
+    // data (stars + resume positions) as its own small table. youtube_videos / youtube_watch_history
+    // keep working exactly as before (they are the cache the UI reads); youtubeService writes both,
+    // and a remote change lands here first and is mirrored into them. Backfilled from the
+    // existing rows so nothing the user starred or watched is lost.
+    version: 45,
+    up: async (db) => {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS youtube_user (
+          video_id         TEXT PRIMARY KEY,
+          is_starred       INTEGER NOT NULL DEFAULT 0,
+          position_seconds REAL NOT NULL DEFAULT 0,
+          last_watched     TEXT,
+          title            TEXT NOT NULL DEFAULT '',
+          channel_name     TEXT NOT NULL DEFAULT '',
+          thumbnail_url    TEXT NOT NULL DEFAULT '',
+          updated_at       INTEGER NOT NULL
+        );
+      `)
+      const now = Date.now()
+      await db.run(`
+        INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)
+        SELECT h.video_id, COALESCE(v.is_starred, 0), h.position_seconds, h.last_watched, h.title, h.channel_name, h.thumbnail_url, ?
+        FROM youtube_watch_history h LEFT JOIN youtube_videos v ON v.video_id = h.video_id
+      `, [now])
+      await db.run(`
+        INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)
+        SELECT video_id, 1, 0, NULL, title, channel_name, thumbnail_url, ? FROM youtube_videos WHERE is_starred = 1
+      `, [now])
+      console.log('[berean-db] v45: youtube_user (synced stars + resume positions)')
+    }
+  },
+  {
+    // v46 (Phase 9): PDF page bookmarks move from localStorage (`berean:pdfBookmarks:<id>`) into
+    // the database so they sync with the PDF's metadata and highlights (the renderer imports the
+    // localStorage list the first time it opens each PDF); `pdfs.file_hash` (SHA-256 of the
+    // bytes) lets a device that receives PDF metadata from iCloud attach the same file when the
+    // user imports it there, instead of creating a duplicate.
+    version: 46,
+    up: async (db) => {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS pdf_bookmarks (
+          id         TEXT PRIMARY KEY,
+          pdf_id     TEXT NOT NULL,
+          page       INTEGER NOT NULL,
+          label      TEXT NOT NULL DEFAULT '',
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pdf_bookmarks_pdf ON pdf_bookmarks(pdf_id, page);
+      `)
+      if (!(await hasColumn(db, 'pdfs', 'file_hash'))) await db.exec('ALTER TABLE pdfs ADD COLUMN file_hash TEXT')
+      console.log('[berean-db] v46: pdf_bookmarks + pdfs.file_hash')
     }
   }
 ]

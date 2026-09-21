@@ -225,6 +225,19 @@ export interface PdfDoc {
   pageCount: number
   fileSize: number
   importedAt: number
+  /** SHA-256 of the file (v46) — lets another device attach the same file to synced metadata. */
+  fileHash?: string | null
+  /** True when the metadata arrived via iCloud sync and the file has not been imported on this
+   *  device yet (set by the platform's list/get, which is what knows where files live). */
+  fileMissing?: boolean
+}
+
+export interface PdfBookmark {
+  id: string
+  pdfId: string
+  page: number
+  label: string
+  createdAt: number
 }
 
 export interface PdfHighlight {

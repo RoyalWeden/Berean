@@ -12,6 +12,7 @@ const EXPECTED_TABLES = [
   'trail_tag_members', 'tag_edges', 'schema_version',
   'sessions', 'tabs', 'archived_groups', 'session_local_state',
   'sync_state', 'sync_outbox', 'sync_record_meta', 'sync_applied', 'sync_failed',
+  'youtube_user', 'pdf_bookmarks',
 ]
 
 async function tableNames(db: ReturnType<typeof memoryDb>): Promise<string[]> {
@@ -24,7 +25,7 @@ describe('bereanMigrations (shared runner)', () => {
     const versions = BEREAN_MIGRATIONS.map((m) => m.version)
     expect(versions[0]).toBe(1)
     expect(versions).not.toContain(18)
-    expect(BEREAN_SCHEMA_VERSION).toBe(44)
+    expect(BEREAN_SCHEMA_VERSION).toBe(46)
     // strictly increasing
     for (let i = 1; i < versions.length; i++) expect(versions[i]).toBeGreaterThan(versions[i - 1])
   })
@@ -33,7 +34,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     const applied = await runMigrations(db)
     expect(applied.length).toBe(BEREAN_MIGRATIONS.length)
-    expect(await currentSchemaVersion(db)).toBe(44)
+    expect(await currentSchemaVersion(db)).toBe(46)
     const names = await tableNames(db)
     for (const t of EXPECTED_TABLES) expect(names, `missing table ${t}`).toContain(t)
     // v1 seeded defaults are present and JSON-encoded
@@ -49,11 +50,28 @@ describe('bereanMigrations (shared runner)', () => {
     expect(await db.all("SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?", ['beginning'])).toHaveLength(1)
   })
 
+  it('v45 backfills youtube_user from stars and watch history; v46 adds pdf_bookmarks + pdfs.file_hash', async () => {
+    const db = memoryDb()
+    await runMigrations(db, BEREAN_MIGRATIONS.filter((m) => m.version <= 44))
+    await db.run("INSERT INTO youtube_videos (video_id, title, published, channel_name, channel_handle, thumbnail_url, type, fetched_at, is_starred) VALUES ('v1', 'Starred', '', 'Ch', '@ch', '', 'video', '', 1), ('v2', 'Plain', '', 'Ch', '@ch', '', 'video', '', 0)")
+    await db.run("INSERT INTO youtube_watch_history (video_id, position_seconds, last_watched, title, channel_name, thumbnail_url) VALUES ('v2', 42.5, '2026-01-01T00:00:00Z', 'Plain', 'Ch', 't'), ('v3', 7, '2026-01-02T00:00:00Z', 'Gone', 'Ch', '')")
+    await db.run("INSERT INTO pdfs (id, title, filename, imported_at) VALUES ('p1', 'Doc', 'p1.pdf', 1)")
+    await runMigrations(db)
+    const rows = await db.all<{ video_id: string; is_starred: number; position_seconds: number; last_watched: string | null }>('SELECT video_id, is_starred, position_seconds, last_watched FROM youtube_user ORDER BY video_id')
+    expect(rows).toEqual([
+      { video_id: 'v1', is_starred: 1, position_seconds: 0, last_watched: null },
+      { video_id: 'v2', is_starred: 0, position_seconds: 42.5, last_watched: '2026-01-01T00:00:00Z' },
+      { video_id: 'v3', is_starred: 0, position_seconds: 7, last_watched: '2026-01-02T00:00:00Z' },
+    ])
+    expect((await db.all<{ name: string }>('PRAGMA table_info(pdfs)')).map((c) => c.name)).toContain('file_hash')
+    expect((await db.all<{ name: string }>('PRAGMA table_info(pdf_bookmarks)')).map((c) => c.name)).toEqual(['id', 'pdf_id', 'page', 'label', 'created_at', 'updated_at'])
+  })
+
   it('is idempotent: a second run applies nothing', async () => {
     const db = memoryDb()
     await runMigrations(db)
     expect(await runMigrations(db)).toEqual([])
-    expect(await currentSchemaVersion(db)).toBe(44)
+    expect(await currentSchemaVersion(db)).toBe(46)
   })
 
   it('upgrades a database left at an intermediate version', async () => {
@@ -64,7 +82,7 @@ describe('bereanMigrations (shared runner)', () => {
     await db.run("INSERT INTO notes (id, title, content, created_at, updated_at, tags) VALUES ('n1', 'Old', 'kept', 1, 1, '[]')")
     const applied = await runMigrations(db)
     expect(applied[0]).toBe(21)
-    expect(await currentSchemaVersion(db)).toBe(44)
+    expect(await currentSchemaVersion(db)).toBe(46)
     expect(await db.get('SELECT title FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Old' })
   })
 

@@ -133,6 +133,10 @@ contextBridge.exposeInMainWorld('pdf', {
   highlightsAdd: (data: unknown) => ipcRenderer.invoke('pdf:highlights:add', data),
   highlightsRemove: (id: string) => ipcRenderer.invoke('pdf:highlights:remove', id),
   highlightsSetNote: (id: string, note: string) => ipcRenderer.invoke('pdf:highlights:setNote', id, note),
+  bookmarksList: (pdfId: string) => ipcRenderer.invoke('pdf:bookmarks:list', pdfId),
+  bookmarksAdd: (pdfId: string, page: number, label: string) => ipcRenderer.invoke('pdf:bookmarks:add', pdfId, page, label),
+  bookmarksRemove: (id: string) => ipcRenderer.invoke('pdf:bookmarks:remove', id),
+  bookmarksImport: (pdfId: string, entries: unknown[]) => ipcRenderer.invoke('pdf:bookmarks:import', pdfId, entries),
 })
 
 contextBridge.exposeInMainWorld('app', {

@@ -27,8 +27,8 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 | 5 | Shared data model: sessions/tabs/archived groups to SQLite; legacy import; partialize fixes; workspace restore | store tests green; import test; desktop behaviour unchanged | **GATE MET** 2026-09-21 (mirror + legacy import + hydration, 12 settings persisted, workspace load restores tabs/order/state/layout with v0/v1/v2 compatibility; 165 files / 4071 tests) |
 | 6 | iCloud persistence & sync architecture (HLC, journal, merge, engine, stores) | unit + two-device integration tests | **GATE MET (engine)** 2026-09-21 — transport-abstracted engine + entity adapters + in-memory transport; cases A–O green; real transports (fs / BereanCloud) are Phase 7 |
 | 7 | iCloud sync: notes / highlights / verse tags (+ folders, versions, edges) — real transports + hosts + settings UI | scenario tests S1–S6 + first device run | **GATE MET (code + simulator)** 2026-09-21 — desktop `FsSyncStore` + sync host + Settings → iCloud; iOS `BereanCloud` plugin + `CloudSyncStore` + in-WebView host + `window.sync`; iCloud entitlement/container wiring; two-device tests over both transports green; simulator self-test 13/13. First real Mac↔iPhone run is Phase 21 (needs signing + iCloud account) |
-| 8 | iCloud sync: tabs | S7–S9 | NOT STARTED |
-| 9 | iCloud sync: sessions & workspaces (+ playlists, trail, chats, pdf metadata, youtube_user) | S10–S15 | NOT STARTED |
+| 8 | iCloud sync: tabs | S7–S9 | **GATE MET** 2026-09-21 — `tab` entity (sync fields only, `local_state_json` excluded, tombstones), K/L union + order tests, fs/cloud transport tests, `applyExternalSessions` on remote apply |
+| 9 | iCloud sync: sessions & workspaces (+ playlists, trail, chats, pdf metadata, youtube_user) | S10–S15 | **GATE MET (engine)** 2026-09-21 — sessions/archived groups/workspaces/playlists (Phase 6) + `ai_chat`, `pdf`/`pdf_highlight`/`pdf_bookmark` (v46), `youtube_user` (v45), `trail_session` aggregate + `trail_node`/`trail_connection`/`trail_note`/`trail_tag`; dependents + vanished-record capture; event-time causal capture; cases P–U green. Compaction (§8): next |
 | 10 | Mobile navigation shell (primitives, stack, sheets, space bar, tab pill) | primitive tests; boots on device | NOT STARTED |
 | 11 | Mobile Bible reading (pager, pinch, reference picker, reader options) | device perf baseline recorded | NOT STARTED |
 | 12 | Scripture interactions: long-press menu, selection, highlights, tags, Strong's sheet, cross refs, notes-for-verse | device manual acceptance | NOT STARTED |
@@ -100,7 +100,19 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 
 **Gate check:** implementation ✔ · tests ✔ · desktop typecheck + build ✔ · simulator ✔ · docs ✔ (`icloud.md` §2, `ios-build.md` §2/§7).
 **Deferred to Phase 21 (needs the developer's signing + iCloud account):** the first real Mac ↔ iPhone pass, container visibility on the Mac (`NSUbiquitousContainerIsDocumentScopePublic`), `testing.md` §5 matrix.
-**Not yet:** journal compaction (§8), entity coverage for Phases 8–9 extras (trail, pdf metadata, youtube_user, ai chats).
+**Not yet:** journal compaction (§8).
+
+## Phase 8–9 — Tabs, sessions, workspaces and the remaining entities — GATE MET (engine) (2026-09-21)
+
+**Done**
+- Migrations v45 (`youtube_user`, backfilled) and v46 (`pdf_bookmarks`, `pdfs.file_hash`); `BEREAN_SCHEMA_VERSION = 46`; migration tests extended.
+- Entities: `ai_chat`, `pdf` (metadata; dependents highlights/bookmarks), `pdf_highlight`, `pdf_bookmark`, `youtube_user` (`video_id` key; mirrored into `youtube_videos.is_starred` + `youtube_watch_history` on apply), `trail_session` (aggregate: row + paused intervals + tag ids, deferred memberships), `trail_node` (dependent connections), `trail_connection`, `trail_note`, `trail_tag` (dependent sessions). `verse_tag` now declares its member/edge dependents and clears the derived `verse_tag_verse` on a remote delete; `note` → versions, `note_folder` → folders + notes.
+- Engine: `dependents` + generalised `captureVanished` (replaces the notes-only purge scan); event-time HLC + snapshot capture (causal ops within a device); direct events move an unpushed op's HLC forward; bulk/dependent re-captures use the triggering event's HLC.
+- Services: `youtubeService` writes `youtube_user` alongside the UI tables (`toggleStar`, `savePosition`, `removeFromHistory`, `clearWatchHistory`; `clearAll` keeps stars), `mirrorYoutubeUserRow`; desktop `upsertVideos` + `mergeYouTubeSeed` re-apply synced stars. `pdfService`: `findByHash`, `attachFile`, bookmarks CRUD + one-time localStorage import; desktop `pdf:import` hashes the file and attaches to synced metadata instead of duplicating; `pdf:list/get` add `fileMissing`; picker + viewer show it. `studyTrailService.resumeSession` made portable (no `UPDATE … LIMIT`).
+- Tests: engine.integration P (YouTube stars/positions incl. unfetched video + clear history), Q (PDF metadata/highlights/bookmarks, hash attach, cascade delete), R (trail session with pause/resume, nodes, connection, tag, note; tag delete and session delete cascades), S (AI chats; verse-tag delete cascades members + derived index; folder delete moves notes to root); 170 files / 4100 tests.
+
+**Gate check:** implementation ✔ · tests ✔ · desktop typecheck + build ✔ · docs ✔ (`icloud.md` §4/§5, `database.md` §3).
+**Not yet:** journal compaction (§8); "refresh on remote apply" for open YouTube / PDF / AI-chat panels (they re-read on open; notes, trail, highlights, tags, sessions and workspaces refresh live).
 
 ## Phase 5 — Shared data model — GATE MET (2026-09-21)
 
@@ -171,4 +183,5 @@ None.
 - 2026-09-21 — checkpoint commit 8af0cc8; developer decisions Q1–Q6 received; Phase 5 gate met (store mirror, legacy import, settings persistence, workspace restore, K7–K9); commit 0cb6a28.
 - 2026-09-21 — Phase 6 engine gate met (167 files / 4086 tests).
 - 2026-09-21 — Phase 7 desktop half: FsSyncStore + Electron sync host + iCloud settings section + renderer refresh (169 files / 4091 tests); commit 899d843.
-- 2026-09-21 — Phase 7 iOS half: BereanCloud plugin, CloudSyncStore, iOS sync host, entitlements/container wiring; simulator 13/13.
+- 2026-09-21 — Phase 7 iOS half: BereanCloud plugin, CloudSyncStore, iOS sync host, entitlements/container wiring; simulator 13/13; commit 80436b6.
+- 2026-09-21 — Phases 8–9 engine gate: v45/v46, remaining entities, dependents/vanished capture, causal capture (170 files / 4100 tests).

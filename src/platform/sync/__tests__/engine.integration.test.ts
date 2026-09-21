@@ -316,6 +316,112 @@ describe('sync engine — two devices', () => {
   })
 })
 
+describe('sync engine — Phase 9 entities', () => {
+  it('P: YouTube stars and resume positions sync and are mirrored into the tables the UI reads', async () => {
+    for (const d of [mac, phone]) await d.db.run("INSERT INTO youtube_videos (video_id, title, published, channel_name, channel_handle, thumbnail_url, type, fetched_at) VALUES ('v1', 'Torah portion', '', 'Ch', '@ch', 't1', 'video', '')")
+    await mac.services.youtube.toggleStar('v1')
+    tick(); await mac.services.youtube.savePosition('v1', 754, { title: 'Torah portion', channelName: 'Ch', thumbnailUrl: 't1' })
+    // a video the phone has never fetched: the star must still arrive and be applied later
+    await mac.db.run("INSERT INTO youtube_videos (video_id, title, published, channel_name, channel_handle, thumbnail_url, type, fetched_at) VALUES ('v2', 'Later', '', 'Ch', '@ch', '', 'video', '')")
+    tick(); await mac.services.youtube.toggleStar('v2')
+    await syncAll(mac, phone)
+    expect((await phone.services.youtube.loadAll()).find((v) => v.videoId === 'v1')?.isStarred).toBe(true)
+    expect(await phone.services.youtube.getPosition('v1')).toBe(754)
+    expect((await phone.services.youtube.getWatchHistory()).map((h) => h.videoId)).toEqual(['v1'])
+    expect(await phone.db.get('SELECT is_starred FROM youtube_user WHERE video_id = ?', ['v2'])).toEqual({ is_starred: 1 })
+    // the phone clears its history; the mac's star survives, its position is gone on both
+    tick(); await phone.services.youtube.clearWatchHistory()
+    await syncAll(phone, mac)
+    expect(await mac.services.youtube.getPosition('v1')).toBe(0)
+    expect((await mac.services.youtube.loadAll()).find((v) => v.videoId === 'v1')?.isStarred).toBe(true)
+    // unstar on the phone → gone on the mac
+    tick(); await phone.services.youtube.toggleStar('v1')
+    await syncAll(phone, mac)
+    expect((await mac.services.youtube.loadAll()).find((v) => v.videoId === 'v1')?.isStarred).toBe(false)
+    expect(await mac.db.get('SELECT 1 AS x FROM youtube_user WHERE video_id = ?', ['v1'])).toBeUndefined()
+  })
+
+  it('Q: PDF metadata, highlights and bookmarks sync; the bytes never do, and the file attaches by hash', async () => {
+    const pdf = await mac.services.pdf.insert({ id: 'pdf-1', title: 'Jubilees', filename: 'pdf-1.pdf', fileSize: 1234, importedAt: clock, fileHash: 'abc' })
+    tick(); await mac.services.pdf.highlightsAdd({ pdfId: pdf.id, page: 3, rects: [{ x: 0, y: 0, w: 1, h: 0.1 }], color: 'yellow', text: 'Sabbath' })
+    tick(); const bm = await mac.services.pdf.bookmarksAdd(pdf.id, 7, 'Feast of Weeks')
+    await syncAll(mac, phone)
+    expect((await phone.services.pdf.list()).map((p) => ({ id: p.id, title: p.title, fileHash: p.fileHash }))).toEqual([{ id: 'pdf-1', title: 'Jubilees', fileHash: 'abc' }])
+    expect((await phone.services.pdf.highlightsList('pdf-1')).map((h) => h.text)).toEqual(['Sabbath'])
+    expect((await phone.services.pdf.bookmarksList('pdf-1')).map((b) => [b.page, b.label])).toEqual([[7, 'Feast of Weeks']])
+    // the phone "imports" the same file: matched by hash, no duplicate row
+    expect((await phone.services.pdf.findByHash('abc'))?.id).toBe('pdf-1')
+    await phone.services.pdf.attachFile('pdf-1', 'pdf-1.pdf', 1234, 'abc')
+    expect((await phone.services.pdf.list()).length).toBe(1)
+    // remove the bookmark on the phone, rename on the mac → both converge
+    tick(); await phone.services.pdf.bookmarksRemove(bm.id)
+    tick(); await mac.services.pdf.rename('pdf-1', 'Book of Jubilees')
+    await syncAll(phone, mac)
+    expect((await mac.services.pdf.bookmarksList('pdf-1')).length).toBe(0)
+    expect((await phone.services.pdf.get('pdf-1'))?.title).toBe('Book of Jubilees')
+    // deleting the PDF on the mac removes its highlights on the phone too (cascade without events)
+    tick(); await mac.services.pdf.deleteRow('pdf-1')
+    await syncAll(mac, phone)
+    expect(await phone.services.pdf.list()).toEqual([])
+    expect(await phone.services.pdf.highlightsList('pdf-1')).toEqual([])
+  })
+
+  it('R: study trail — sessions with pauses and tags, nodes, connections; deleting a session clears its nodes everywhere', async () => {
+    const t = mac.services.studyTrail
+    const s1 = await t.startSession('Evening study')
+    tick(); const n1 = await t.addNode({ trailSessionId: s1.id, bookId: 'GEN', chapter: 1, orderIndex: 0, anchorStartedAt: clock })
+    tick(); await t.pauseSession(s1.id)
+    tick(); await t.resumeSession(s1.id)
+    tick(); const n2 = await t.addNode({ trailSessionId: s1.id, bookId: 'EXO', chapter: 20, orderIndex: 1, anchorStartedAt: clock })
+    tick(); await t.addConnection({ trailSessionId: s1.id, fromNodeId: n1.id, toKind: 'chapter', toBookId: 'EXO', toChapter: 20, clarityTier: 1, reasonText: 'Sabbath' })
+    tick(); const tag = await t.createTag('Sabbath', 'green')
+    tick(); await t.setSessionTags(s1.id, [tag.id])
+    tick(); await t.createNote({ trailSessionId: s1.id, kind: 'annotation', body: 'remember', anchorNodeId: n2.id } as Parameters<typeof t.createNote>[0])
+    await syncAll(mac, phone)
+    const remote = await phone.services.studyTrail.getSession(s1.id)
+    expect(remote?.session.name).toBe('Evening study')
+    expect(remote?.nodes.map((n) => [n.bookId, n.chapter])).toEqual([['GEN', 1], ['EXO', 20]])
+    expect(remote?.connections.map((c) => c.reasonText)).toEqual(['Sabbath'])
+    expect(remote?.pausedIntervals.length).toBe(1)
+    expect(remote?.pausedIntervals[0].resumedAt).toBeDefined()
+    expect((await phone.services.studyTrail.listTags()).map((x) => x.name)).toEqual(['Sabbath'])
+    expect(await phone.db.all('SELECT tag_id FROM trail_tag_members WHERE trail_session_id = ?', [s1.id])).toEqual([{ tag_id: tag.id }])
+    expect((await phone.services.studyTrail.listNotes(s1.id)).map((n) => n.body)).toEqual(['remember'])
+    // phone deletes the tag → membership disappears on the mac; mac deletes the session → nodes/connections vanish on the phone
+    tick(); await phone.services.studyTrail.deleteTag(tag.id)
+    tick(); await t.deleteSession(s1.id)
+    await syncAll(phone, mac)
+    expect(await mac.db.all('SELECT tag_id FROM trail_tag_members')).toEqual([])
+    expect(await phone.services.studyTrail.getSession(s1.id)).toBeNull()
+    expect(await phone.db.all('SELECT id FROM trail_nodes')).toEqual([])
+    expect(await phone.db.all('SELECT id FROM trail_connections')).toEqual([])
+    expect((await phone.engine.status()).pendingOutbox).toBe(0)
+  })
+
+  it('S: AI chats sync as records; verse-tag delete cascades to members and the derived index; folder delete moves notes to the root', async () => {
+    const chat = await mac.services.aiChats.saveChat({ title: 'Grace study', messages: [{ role: 'user', content: 'What is G5485?' }] as Parameters<typeof mac.services.aiChats.saveChat>[0]['messages'] })
+    const folder = await mac.services.notes.folderCreate('Torah', null)
+    const n = await mac.services.notes.create({ type: 'general', title: 'In folder', content: 'x' })
+    await mac.services.notes.setFolder(n.note!.id, folder.id)
+    await mac.services.verseTags.addMembers({ newTagNames: ['Creation'], ranges: [{ bookId: 'GEN', chapter: 1, spans: [{ s: 1, e: 5 }] }], label: 'Gen 1:1-5' })
+    await syncAll(mac, phone)
+    expect((await phone.services.aiChats.listChats()).map((c) => c.title)).toEqual(['Grace study'])
+    expect((await phone.services.notes.getOne(n.note!.id))?.folderId).toBe(folder.id)
+    const tagId = (await phone.services.verseTags.list())[0].id
+    expect((await phone.db.all('SELECT verse FROM verse_tag_verse WHERE tag_id = ? ORDER BY verse', [tagId])).length).toBe(5)
+    // deletions on the mac
+    tick(); await mac.services.aiChats.deleteChat(chat.id)
+    tick(); await mac.services.notes.folderDelete(folder.id)
+    tick(); await mac.services.verseTags.delete(tagId, true)
+    await syncAll(mac, phone)
+    expect(await phone.services.aiChats.listChats()).toEqual([])
+    expect((await phone.services.notes.getOne(n.note!.id))?.folderId ?? null).toBeNull()
+    expect(await phone.services.verseTags.list()).toEqual([])
+    expect(await phone.db.all('SELECT * FROM verse_tag_members')).toEqual([])
+    expect(await phone.db.all('SELECT * FROM verse_tag_verse')).toEqual([])
+  })
+})
+
 declare module '../stores/memorySyncStore' {
   interface MemoryCloud { readManifestSeq(device: string): Promise<number> }
 }

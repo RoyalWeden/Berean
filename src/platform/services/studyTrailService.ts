@@ -238,11 +238,17 @@ export function createStudyTrailService(ctx: ServiceContext, getServices: () => 
   async function resumeSession(trailSessionId: string) {
     const now = ctx.now()
     await db().run(`UPDATE trail_sessions SET status = 'live', updated_at = ? WHERE id = ?`, [now, trailSessionId])
-    // Close the most recent open paused interval for this session, if any.
+    // Close the most recent open paused interval for this session, if any. Written with a
+    // subquery rather than `UPDATE … ORDER BY … LIMIT 1`: that form needs SQLite built with
+    // SQLITE_ENABLE_UPDATE_DELETE_LIMIT (better-sqlite3 has it; Apple's system SQLite on iOS and
+    // Node's built-in one do not).
     await db().run(`
       UPDATE trail_paused_intervals SET resumed_at = ?
-      WHERE trail_session_id = ? AND resumed_at IS NULL
-      ORDER BY paused_at DESC LIMIT 1
+      WHERE id = (
+        SELECT id FROM trail_paused_intervals
+        WHERE trail_session_id = ? AND resumed_at IS NULL
+        ORDER BY paused_at DESC LIMIT 1
+      )
     `, [now, trailSessionId])
     ctx.events.emit('data:changed', { entity: 'trail_session', id: trailSessionId, op: 'upsert', scope: trailSessionId })
     return { success: true }

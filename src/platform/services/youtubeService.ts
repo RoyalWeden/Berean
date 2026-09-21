@@ -1,4 +1,5 @@
 import type { ServiceContext } from './context'
+import type { DatabaseAdapter } from '../db/DatabaseAdapter'
 
 /**
  * YouTube library — DB-backed subset extracted verbatim from electron/ipc/youtube.ts (Phase
@@ -78,6 +79,37 @@ const HANDLE_RENAMES: Record<string, string> = {
   '@michaelfollowsyah': '@michael4yeshua',
 }
 
+/**
+ * Copies the synced youtube_user row for `videoId` into youtube_videos.is_starred and
+ * youtube_watch_history (the tables the UI reads); a missing youtube_user row clears both. Used
+ * by the service after a remote change and by the sync entity adapter (src/platform/sync/entities.ts).
+ * Stars for videos this device has not fetched yet are applied when the videos arrive
+ * (electron/ipc/youtube.ts upsertVideos, mergeYouTubeSeed).
+ */
+export async function mirrorYoutubeUserRow(db: DatabaseAdapter, videoId: string): Promise<void> {
+  const u = await db.get<{ is_starred: number; position_seconds: number; last_watched: string | null; title: string; channel_name: string; thumbnail_url: string }>('SELECT * FROM youtube_user WHERE video_id = ?', [videoId])
+  if (!u) {
+    await db.run('DELETE FROM youtube_watch_history WHERE video_id = ?', [videoId])
+    await db.run('UPDATE youtube_videos SET is_starred = 0 WHERE video_id = ?', [videoId])
+    return
+  }
+  await db.run('UPDATE youtube_videos SET is_starred = ? WHERE video_id = ?', [u.is_starred ? 1 : 0, videoId])
+  if (u.last_watched) {
+    await db.run(`
+      INSERT INTO youtube_watch_history (video_id, position_seconds, last_watched, title, channel_name, thumbnail_url)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(video_id) DO UPDATE SET
+        position_seconds = excluded.position_seconds,
+        last_watched     = excluded.last_watched,
+        title            = CASE WHEN excluded.title != '' THEN excluded.title ELSE title END,
+        channel_name     = CASE WHEN excluded.channel_name != '' THEN excluded.channel_name ELSE channel_name END,
+        thumbnail_url    = CASE WHEN excluded.thumbnail_url != '' THEN excluded.thumbnail_url ELSE thumbnail_url END
+    `, [videoId, u.position_seconds, u.last_watched, u.title, u.channel_name, u.thumbnail_url])
+  } else {
+    await db.run('DELETE FROM youtube_watch_history WHERE video_id = ?', [videoId])
+  }
+}
+
 export function createYoutubeService(ctx: ServiceContext) {
   const db = () => ctx.userDb
 
@@ -112,15 +144,32 @@ export function createYoutubeService(ctx: ServiceContext) {
     }))
   }
 
+  // ── user data (stars + resume positions) ─────────────────────────────────────────────
+  // youtube_videos.is_starred and youtube_watch_history are what the UI reads (unchanged); the
+  // synced copy is youtube_user (v45), written alongside them here and mirrored back by
+  // `applyUserRow` when a change arrives from another device.
+
   async function toggleStar(videoId: string): Promise<{ isStarred: boolean }> {
-    const row = await db().get<{ is_starred: number }>('SELECT is_starred FROM youtube_videos WHERE video_id = ?', [videoId])
+    const row = await db().get<{ is_starred: number; title: string; channel_name: string; thumbnail_url: string }>('SELECT is_starred, title, channel_name, thumbnail_url FROM youtube_videos WHERE video_id = ?', [videoId])
     const newVal = row ? (row.is_starred ? 0 : 1) : 0
     await db().run('UPDATE youtube_videos SET is_starred = ? WHERE video_id = ?', [newVal, videoId])
+    await db().run(`
+      INSERT INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)
+      VALUES (?, ?, 0, NULL, ?, ?, ?, ?)
+      ON CONFLICT(video_id) DO UPDATE SET
+        is_starred = excluded.is_starred,
+        title = CASE WHEN excluded.title != '' THEN excluded.title ELSE title END,
+        channel_name = CASE WHEN excluded.channel_name != '' THEN excluded.channel_name ELSE channel_name END,
+        thumbnail_url = CASE WHEN excluded.thumbnail_url != '' THEN excluded.thumbnail_url ELSE thumbnail_url END,
+        updated_at = excluded.updated_at
+    `, [videoId, newVal, row?.title ?? '', row?.channel_name ?? '', row?.thumbnail_url ?? '', ctx.now()])
+    await pruneUserRow(videoId)
     ctx.events.emit('data:changed', { entity: 'youtube_user', id: videoId, op: 'upsert' })
     return { isStarred: Boolean(newVal) }
   }
 
   async function savePosition(videoId: string, seconds: number, meta: { title: string; channelName: string; thumbnailUrl: string }): Promise<void> {
+    const lastWatched = new Date(ctx.now()).toISOString()
     await db().run(`
       INSERT INTO youtube_watch_history (video_id, position_seconds, last_watched, title, channel_name, thumbnail_url)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -130,7 +179,18 @@ export function createYoutubeService(ctx: ServiceContext) {
         title            = CASE WHEN excluded.title != '' THEN excluded.title ELSE title END,
         channel_name     = CASE WHEN excluded.channel_name != '' THEN excluded.channel_name ELSE channel_name END,
         thumbnail_url    = CASE WHEN excluded.thumbnail_url != '' THEN excluded.thumbnail_url ELSE thumbnail_url END
-    `, [videoId, seconds, new Date(ctx.now()).toISOString(), meta.title, meta.channelName, meta.thumbnailUrl])
+    `, [videoId, seconds, lastWatched, meta.title, meta.channelName, meta.thumbnailUrl])
+    await db().run(`
+      INSERT INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)
+      VALUES (?, COALESCE((SELECT is_starred FROM youtube_videos WHERE video_id = ?), 0), ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(video_id) DO UPDATE SET
+        position_seconds = excluded.position_seconds,
+        last_watched     = excluded.last_watched,
+        title            = CASE WHEN excluded.title != '' THEN excluded.title ELSE title END,
+        channel_name     = CASE WHEN excluded.channel_name != '' THEN excluded.channel_name ELSE channel_name END,
+        thumbnail_url    = CASE WHEN excluded.thumbnail_url != '' THEN excluded.thumbnail_url ELSE thumbnail_url END,
+        updated_at       = excluded.updated_at
+    `, [videoId, videoId, seconds, lastWatched, meta.title, meta.channelName, meta.thumbnailUrl, ctx.now()])
     ctx.events.emit('data:changed', { entity: 'youtube_user', id: videoId, op: 'upsert' })
   }
 
@@ -151,16 +211,28 @@ export function createYoutubeService(ctx: ServiceContext) {
     }))
   }
 
+  /** A youtube_user row with nothing left in it (not starred, no position) is removed. */
+  async function pruneUserRow(videoId: string): Promise<void> {
+    await db().run('DELETE FROM youtube_user WHERE video_id = ? AND is_starred = 0 AND last_watched IS NULL', [videoId])
+  }
+
   async function removeFromHistory(videoId: string): Promise<void> {
     await db().run('DELETE FROM youtube_watch_history WHERE video_id = ?', [videoId])
-    ctx.events.emit('data:changed', { entity: 'youtube_user', id: videoId, op: 'delete' })
+    await db().run('UPDATE youtube_user SET position_seconds = 0, last_watched = NULL, updated_at = ? WHERE video_id = ?', [ctx.now(), videoId])
+    await pruneUserRow(videoId)
+    const still = await db().get('SELECT 1 FROM youtube_user WHERE video_id = ?', [videoId])
+    ctx.events.emit('data:changed', { entity: 'youtube_user', id: videoId, op: still ? 'upsert' : 'delete' })
   }
 
   async function clearWatchHistory(): Promise<void> {
     await db().run('DELETE FROM youtube_watch_history')
+    await db().run('UPDATE youtube_user SET position_seconds = 0, last_watched = NULL, updated_at = ?', [ctx.now()])
+    await db().run('DELETE FROM youtube_user WHERE is_starred = 0 AND last_watched IS NULL')
     ctx.events.emit('data:changed', { entity: 'youtube_user', op: 'bulk' })
   }
 
+  /** Clears the fetched video cache. Stars survive in youtube_user and are re-applied when the
+   *  videos are fetched again (electron/ipc/youtube.ts upsertVideos, mergeYouTubeSeed). */
   async function clearAll(): Promise<void> {
     await db().run('DELETE FROM youtube_videos')
     await db().run('DELETE FROM youtube_sync')
@@ -168,7 +240,12 @@ export function createYoutubeService(ctx: ServiceContext) {
     ctx.events.emit('data:changed', { entity: 'youtube_user', op: 'bulk' })
   }
 
-  /** Returns the stored transcript segments for a video (empty array if none). */
+  /** Mirror a youtube_user row (as applied by sync from another device) into the tables the UI
+   *  reads. */
+  async function applyUserRow(videoId: string): Promise<void> {
+    await mirrorYoutubeUserRow(db(), videoId)
+  }
+
   async function getTranscript(videoId: string): Promise<TranscriptSegment[]> {
     const rows = await db().all<{ start_ms: number; dur_ms: number; text: string }>(
       'SELECT start_ms, dur_ms, text FROM youtube_transcript_segments WHERE video_id = ? ORDER BY start_ms ASC',
@@ -293,7 +370,7 @@ export function createYoutubeService(ctx: ServiceContext) {
 
   return {
     loadAll, toggleStar, savePosition, getPosition, getWatchHistory, removeFromHistory,
-    clearWatchHistory, clearAll, getTranscript, getTranscriptStatus, searchTranscripts,
+    clearWatchHistory, clearAll, applyUserRow, getTranscript, getTranscriptStatus, searchTranscripts,
   }
 }
 

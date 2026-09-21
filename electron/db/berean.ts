@@ -40,6 +40,12 @@ export function mergeYouTubeSeed(db: DB): void {
         FROM seed.youtube_videos
       `).run()
 
+      // Stars synced from another device (youtube_user, v45) win over the seed's is_starred.
+      db.prepare(`
+        UPDATE youtube_videos SET is_starred = (SELECT u.is_starred FROM youtube_user u WHERE u.video_id = youtube_videos.video_id)
+        WHERE video_id IN (SELECT video_id FROM youtube_user)
+      `).run()
+
       db.prepare(`
         INSERT OR IGNORE INTO youtube_sync (channel_handle, last_full_sync, last_refresh)
         SELECT channel_handle, last_full_sync, last_refresh FROM seed.youtube_sync

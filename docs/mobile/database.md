@@ -82,9 +82,9 @@ container-relative) — JS never sees absolute device paths.
 |---|---|
 | v43 | `sessions`, `tabs`, `archived_groups` tables (D-006); `tabs` carries `sync_state_json` + `local_state_json`; one-time import of `berean-app-state.sessions/tabs/archivedGroups` from localStorage is done by the renderer's `sessionsService.importLegacy()` on first run (localStorage is not reachable from the migration), then the localStorage copy is retained read-only for one release as a safety net |
 | v44 | Sync bookkeeping only — `sync_state`, `sync_outbox`, `sync_record_meta` (per-record HLC/device/tombstone/hash), `sync_applied`, `sync_failed`. **No column was added to any synced table**: per-record versions and tombstones live in `sync_record_meta`, so the existing list queries and desktop code are untouched (docs/mobile/icloud.md §4) |
-| v45 | `pdf_bookmarks (id, pdf_id, page, label, created_at, updated_at, deleted_at)` replacing the `localStorage` list (imported on first PDF open) |
+| v45 | `youtube_user (video_id PK, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)` — the synced subset of the YouTube data, backfilled from `youtube_videos.is_starred` + `youtube_watch_history`; the service keeps writing those two (the UI reads them) and mirrors a remote row back into them |
+| v46 | `pdf_bookmarks (id, pdf_id, page, label, created_at, updated_at)` replacing the `localStorage` list (imported on first PDF open, the localStorage copy left read-only for one release) + `pdfs.file_hash` (SHA-256) for attaching the same file on another device |
 | (dropped) | `notes.conflict_pending` is not needed: conflict copies are `note_versions` rows of kind `conflict`, and the badge (Phase 13) queries for them |
-| v47 | `youtube_user (video_id PK, is_starred, position_seconds, last_watched, updated_at)` view of the synced subset (desktop keeps writing `youtube_videos.is_starred`/`youtube_watch_history` and the service mirrors both ways) |
 
 Every new column is nullable or defaulted, so an older desktop build opening a newer DB (the
 user downgrades) still works — SQLite ignores unknown columns for the queries it runs.
