@@ -12,6 +12,10 @@ import BiblePanel from '@/components/bible/BiblePanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
+import { ActivePanelContext } from '@/components/shell/ActivePanelContext'
+import { lazy, Suspense } from 'react'
+const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
+const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { SheetHost, useSheets } from './primitives/Sheet'
 import { useActionSheet } from './primitives/ActionSheet'
@@ -51,22 +55,23 @@ export default function MobileApp() {
 function Shell() {
   const activeSpace = useAppStore((s) => s.activeSpace)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const [moreSpace, setMoreSpace] = useState<SpaceId | 'more'>('more')
   const destination: MobileDestination = destinationForSpace(activeSpace)
   const onSelect = (d: MobileDestination) => {
-    if (d === 'more') { setMoreSpace('more'); setActiveSpace(moreSpace === 'more' ? activeSpace : moreSpace); setMoreVisible(true); return }
+    if (d === 'more') { setMoreVisible(true); return }
     setMoreVisible(false)
     setActiveSpace(d)
   }
   const [moreVisible, setMoreVisible] = useState(false)
-  const showMore = destination === 'more' || moreVisible
+  // The More page shows only when explicitly opened; a More-hosted space (Lexicon, YouTube)
+  // renders its own root while the bar keeps "More" highlighted.
+  const showMore = moreVisible
   useEffect(() => { setIosDeepLinkTarget(storeDeepLinkTarget); return () => setIosDeepLinkTarget(null) }, [])
 
   return (
     <div className="mobile-root">
       <main className="mobile-main">
         {showMore
-          ? <NavigationStack rootKey="more" root={<MorePage onOpenSpace={(sp) => { setMoreSpace(sp); setActiveSpace(sp); setMoreVisible(false) }} />} />
+          ? <NavigationStack rootKey="more" root={<MorePage onOpenSpace={(sp) => { setActiveSpace(sp); setMoreVisible(false) }} />} />
           : <NavigationStack key={activeSpace} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
       </main>
       {!showMore && <SpaceTabRow space={activeSpace} />}
@@ -94,23 +99,31 @@ function NotesSpace() {
   const nav = useNavigation()
   const pendingNoteId = useAppStore((s) => s.pendingNoteId)
   const clearPendingNote = useAppStore((s) => s.clearPendingNote)
+  const tabs = useAppStore((s) => s.tabs.notes)
+  const activeId = useAppStore((s) => s.activeTabId.notes)
+  const active = tabs.find((t) => t.id === activeId)
   useEffect(() => {
     if (!pendingNoteId) return
     const id = pendingNoteId
     clearPendingNote()
     nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={nav.pop} />)
   }, [pendingNoteId, clearPendingNote, nav])
+  // The tags graph lives in the notes space as a 'tags' tab; it is hosted until its phone page lands.
+  if (active?.type === 'tags') return <ActivePanelContext.Provider value="tags"><div className="mobile-hosted-panel"><Suspense fallback={null}><TagsGraphPanel /></Suspense></div></ActivePanelContext.Provider>
   return <NotesHomePage />
 }
 
 function TabPage({ tab }: { tab: Tab }) {
   if (tab.spaceId === 'scripture' && tab.type === 'bible') return <ReaderPage tab={tab} />
   // Interim hosts (documented in feature-matrix.md): the desktop panel's content, full width.
+  // ActivePanelContext tells the hosted panel it IS the visible one (desktop's ActivePanel
+  // keeps several mounted and hides the rest; here exactly one is mounted).
   const inner =
+    tab.spaceId === 'scripture' && tab.type === 'pdf' ? <Suspense fallback={null}><PDFViewer /></Suspense> :
     tab.spaceId === 'scripture' ? <BiblePanel floating /> :
     tab.spaceId === 'lexicon' ? <LexiconPanel floating /> :
     <YouTubeTab floating />
-  return <div className="mobile-hosted-panel">{inner}</div>
+  return <ActivePanelContext.Provider value={tab.type}><div className="mobile-hosted-panel">{inner}</div></ActivePanelContext.Provider>
 }
 
 function EmptySpace({ space }: { space: SpaceId }) {

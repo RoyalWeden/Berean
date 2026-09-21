@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { MotionConfig } from 'framer-motion'
 import { initIosServices } from './services'
 import { installIosBridge } from './bridge'
+import { installIosBridgeExtras } from './bridgeExtras'
 import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { installIosDeepLinks } from './deepLinks'
 import MobileApp from '../../mobile/MobileApp'
@@ -26,6 +27,7 @@ async function boot() {
   try {
     const services = await initIosServices()
     installIosBridge(services)
+    installIosBridgeExtras(services, import.meta.env.VITE_APP_VERSION ?? '0')
     installIosSyncBridge()
     void initIosSyncHost()   // starts only if the user enabled iCloud sync; never blocks boot
     void installIosDeepLinks()   // berean:// URLs queue until the mobile shell registers its target
