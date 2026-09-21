@@ -1,6 +1,5 @@
 import { memo, type CSSProperties, type ReactNode } from 'react'
 import StrongsTooltip from './StrongsTooltip'
-import { Tooltip } from '@/components/ui'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 
@@ -198,15 +197,23 @@ function StrongsInline({
         <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
       ))
     : wordNode
+  // Deliberate `title=` exception to the "controls use the Tooltip primitive" rule, on both
+  // performance and UX grounds. This is the per-WORD fallback path: it renders once for every
+  // word of every untagged text (Brenton LXX, Enoch, Jubilees, KJV without Strong's), so a
+  // chapter like Psalm 119 is ~2,400 instances. `Tooltip` mounts its own Radix
+  // Provider + Root + Portal per instance (it is self-contained by design so it works anywhere),
+  // which is the right trade for a toolbar button and the wrong one several thousand times over
+  // in the app's hottest render path. A React tooltip here would also fire continuously as the
+  // pointer crosses body text while reading, where the native one waits for a deliberate hover.
+  // The dashed underline is the real affordance; this is just the explanation behind it.
   return (
-    <Tooltip label="Click to search Strong's lexicon">
-      <span
-        className="mr-[0.25em] cursor-pointer border-b border-dashed border-text-muted hover:border-accent hover:text-accent transition-colors"
-        onClick={() => onWordClick?.(word.replace(/[^a-zA-Z]/g, '').toLowerCase())}
-      >
-        {wContent}
-      </span>
-    </Tooltip>
+    <span
+      className="mr-[0.25em] cursor-pointer border-b border-dashed border-text-muted hover:border-accent hover:text-accent transition-colors"
+      title="Click to search Strong's lexicon"
+      onClick={() => onWordClick?.(word.replace(/[^a-zA-Z]/g, '').toLowerCase())}
+    >
+      {wContent}
+    </span>
   )
 }
 
