@@ -9,7 +9,6 @@ import { installTabPersistence, applyExternalSessions } from '@/store/tabPersist
 import { storeDeepLinkTarget } from '@/lib/deepLinkTarget'
 import { setIosDeepLinkTarget } from '@/platform/ios/deepLinks'
 import BiblePanel from '@/components/bible/BiblePanel'
-import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
 import SearchTab from '@/components/search/SearchTab'
@@ -25,6 +24,8 @@ import { TabGrid } from './tabs/TabGrid'
 import { SessionSwitcher } from './tabs/SessionSwitcher'
 import { ReaderPage } from './reader/ReaderPage'
 import { SettingsPage } from './settings/SettingsPage'
+import { NotesHomePage } from './notes/NotesHomePage'
+import { NoteEditorPage } from './notes/NoteEditorPage'
 import './mobile.css'
 
 /**
@@ -78,8 +79,24 @@ function SpaceRoot({ space }: { space: SpaceId }) {
   const ensureTab = useAppStore((s) => s.ensureTab)
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0] ?? null
   useEffect(() => { if (!active && space === 'scripture') ensureTab('bible') }, [active, space, ensureTab])
+  if (space === 'notes') return <ErrorBoundary label="notes error"><NotesSpace /></ErrorBoundary>
   if (!active) return <EmptySpace space={space} />
   return <ErrorBoundary label={`${space} error`}><TabPage tab={active} /></ErrorBoundary>
+}
+
+/** Notes space: native home page; a `requestOpenNote` from anywhere (verse sheet, history, deep
+ *  link, wikilink) pushes the editor for that note. */
+function NotesSpace() {
+  const nav = useNavigation()
+  const pendingNoteId = useAppStore((s) => s.pendingNoteId)
+  const clearPendingNote = useAppStore((s) => s.clearPendingNote)
+  useEffect(() => {
+    if (!pendingNoteId) return
+    const id = pendingNoteId
+    clearPendingNote()
+    nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={nav.pop} />)
+  }, [pendingNoteId, clearPendingNote, nav])
+  return <NotesHomePage />
 }
 
 function TabPage({ tab }: { tab: Tab }) {
@@ -87,7 +104,6 @@ function TabPage({ tab }: { tab: Tab }) {
   // Interim hosts (documented in feature-matrix.md): the desktop panel's content, full width.
   const inner =
     tab.spaceId === 'scripture' ? <BiblePanel floating /> :
-    tab.spaceId === 'notes' ? <NotesPanel floating /> :
     tab.spaceId === 'lexicon' ? <LexiconPanel floating /> :
     tab.spaceId === 'youtube' ? <YouTubeTab floating /> :
     <SearchTab floating />

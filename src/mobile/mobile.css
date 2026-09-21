@@ -193,3 +193,15 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-option-row small { font-size: 12px; color: rgb(var(--color-text-muted)); }
 .mobile-option-label { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
 .mobile-chip.is-on { background: rgb(var(--color-accent)); color: white; }
+
+/* ── notes ────────────────────────────────────────────────────────────── */
+.mobile-search-row { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 0 12px; height: 38px; border-radius: 12px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-muted)); }
+.mobile-search-input { flex: 1; min-width: 0; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: 16px; outline: none; }
+.mobile-chip-row-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 8px 16px 2px; scrollbar-width: none; }
+.mobile-chip-row-scroll::-webkit-scrollbar { display: none; }
+.mobile-chip-row-scroll .mobile-chip { flex: none; }
+.mobile-note-icon { font-size: 18px; width: 24px; text-align: center; }
+.mobile-title-input { width: 100%; max-width: 56vw; border: 0; background: none; color: inherit; font: inherit; font-size: 17px; font-weight: 600; text-align: center; outline: none; }
+.mobile-note-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mobile-note-meta { padding: 6px 16px 0; font-size: 13px; color: rgb(var(--color-accent)); font-weight: 600; }
+.mobile-note-editor .mobile-pm { flex: 1; min-height: 0; }

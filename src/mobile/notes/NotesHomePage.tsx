@@ -1,0 +1,137 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { Plus, CalendarDays, Folder, Pin, Trash2, Search, LayoutPanelLeft } from 'lucide-react'
+import type { Note, NoteFolder } from '@/types'
+import { useAppStore } from '@/store'
+import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { stripMarkdownFormatting } from '@/lib/notePreviewText'
+import { NOTE_STATUSES } from '@/lib/noteStatus'
+import { Page, IconTap, ListSection, Row } from '../primitives/Page'
+import { useNavigation } from '../navigation/NavigationStack'
+import { haptic } from '../primitives/haptics'
+import { NoteEditorPage } from './NoteEditorPage'
+import { TrashPage } from './TrashPage'
+import NotesPanel from '@/components/notes/NotesPanel'
+
+type Filter = 'all' | 'scripture' | 'topic' | 'daily' | 'video' | 'pinned'
+
+/**
+ * Notes home for the phone (Phase 13, R084/R085): search, type filters, pinned, folders and the
+ * recent list — the same `window.notes` data as the desktop NotesHomePanel. Tap → the native
+ * editor page. The desktop panel (board / calendar / folder views) stays reachable under
+ * "All views" until each has a phone page.
+ */
+export function NotesHomePage() {
+  const nav = useNavigation()
+  const noteToken = useAppStore((s) => s.noteChangeToken)
+  const [notes, setNotes] = useState<Note[]>([])
+  const [folders, setFolders] = useState<NoteFolder[]>([])
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<Note[] | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
+  const [folderId, setFolderId] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.notes.getNotes(500, 0).then(setNotes).catch(() => setNotes([]))
+    window.notes.getFolders().then(setFolders).catch(() => setFolders([]))
+  }, [noteToken])
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) { setResults(null); return }
+    let alive = true
+    const t = setTimeout(() => { window.notes.searchNotes(q, 100).then((r) => { if (alive) setResults(r) }).catch(() => {}) }, 200)
+    return () => { alive = false; clearTimeout(t) }
+  }, [query, noteToken])
+
+  const user = notes   // every note (verse and daily notes included — they are first-class on the phone)
+  const pinned = useMemo(() => user.filter((n) => n.pinned), [user])
+  const list = useMemo(() => {
+    const base = results ?? user
+    return base.filter((n) => {
+      if (folderId && n.folderId !== folderId) return false
+      switch (filter) {
+        case 'scripture': return n.type === 'verse'
+        case 'topic': return n.type === 'general' || n.type === 'topic'
+        case 'daily': return n.type === 'daily'
+        case 'video': return n.type === 'video' || (n.tags ?? []).includes('video')
+        case 'pinned': return !!n.pinned
+        default: return true
+      }
+    }).sort((a, b) => b.updatedAt - a.updatedAt)
+  }, [results, user, filter, folderId])
+
+  const open = (note: Note) => nav.push(`note-${note.id}`, <NoteEditorPage noteId={note.id} onBack={nav.pop} />)
+  const create = async (data: Partial<Note>) => {
+    const r = await window.notes.createNote({ type: 'general', title: '', content: '', ...data })
+    if (r.success && r.note) { useAppStore.getState().bumpNoteToken(); void haptic.success(); open(r.note) }
+  }
+  const openDaily = async () => {
+    const title = dailyNoteTitle(dailyNoteToday())
+    const existing = notes.find((n) => n.title === title && n.type === 'daily')
+      ?? (await window.notes.searchNotes(title, 5).catch(() => [] as Note[])).find((n) => n.title === title && n.type === 'daily')
+    if (existing) open(existing)
+    else await create({ title, type: 'daily' })
+  }
+
+  return (
+    <Page
+      title="Notes"
+      left={<IconTap icon={CalendarDays} label="Today's daily note" onClick={() => void openDaily()} />}
+      right={<><IconTap icon={LayoutPanelLeft} label="All views (desktop layout)" onClick={() => nav.push('notes-desktop', <DesktopNotesPage onBack={nav.pop} />)} /><IconTap icon={Plus} label="New note" onClick={() => void create({})} /></>}
+      headerBelow={
+        <div className="mobile-search-row">
+          <Search size={16} aria-hidden />
+          <input className="mobile-search-input" type="search" placeholder="Search notes…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search notes" />
+        </div>
+      }
+    >
+      <div className="mobile-chip-row mobile-chip-row-scroll" role="tablist" aria-label="Filter">
+        {([['all', 'All'], ['scripture', 'Scripture'], ['topic', 'Topic'], ['daily', 'Daily'], ['video', 'Video'], ['pinned', 'Pinned']] as Array<[Filter, string]>).map(([f, label]) => (
+          <button key={f} type="button" role="tab" aria-selected={filter === f} className={`mobile-chip${filter === f ? ' is-on' : ''}`} onClick={() => setFilter(f)}>{label}</button>
+        ))}
+      </div>
+      {folders.length > 0 && (
+        <div className="mobile-chip-row mobile-chip-row-scroll" aria-label="Folders">
+          <button type="button" className={`mobile-chip${folderId === null ? ' is-on' : ''}`} onClick={() => setFolderId(null)}><Folder size={14} aria-hidden /> All folders</button>
+          {folders.map((f) => (
+            <button key={f.id} type="button" className={`mobile-chip${folderId === f.id ? ' is-on' : ''}`} onClick={() => setFolderId(folderId === f.id ? null : f.id)}><Folder size={14} aria-hidden /> {f.name}</button>
+          ))}
+        </div>
+      )}
+      {!results && filter === 'all' && !folderId && pinned.length > 0 && (
+        <ListSection title="Pinned">
+          {pinned.map((n) => <NoteRow key={n.id} note={n} onOpen={open} />)}
+        </ListSection>
+      )}
+      <ListSection title={results ? `${list.length} result${list.length === 1 ? '' : 's'}` : 'Recent'}>
+        {list.length === 0 && <div className="mobile-empty">{results ? 'No matches.' : 'No notes yet — tap + to write one, or long-press a verse.'}</div>}
+        {list.slice(0, 300).map((n) => <NoteRow key={n.id} note={n} onOpen={open} />)}
+      </ListSection>
+      <ListSection>
+        <Row leading={<Trash2 size={18} aria-hidden />} title="Trash" chevron onClick={() => nav.push('trash', <TrashPage onBack={nav.pop} />)} />
+      </ListSection>
+    </Page>
+  )
+}
+
+export function NoteRow({ note, onOpen }: { note: Note; onOpen: (n: Note) => void }) {
+  const status = note.status ? NOTE_STATUSES.find((s) => s.id === note.status) : null
+  const preview = stripMarkdownFormatting(note.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 100)
+  return (
+    <Row
+      leading={<span className="mobile-note-icon" aria-hidden>{note.icon ?? (note.type === 'verse' ? '📖' : note.type === 'daily' ? '📅' : '📝')}</span>}
+      title={<>{note.pinned && <Pin size={12} aria-label="Pinned" />} {note.title || 'Untitled'}</>}
+      subtitle={<>{note.verseRef ? `${note.verseRef.replace(/\./g, ' ')} · ` : ''}{status ? `${status.label} · ` : ''}{preview || new Date(note.updatedAt).toLocaleDateString()}</>}
+      chevron
+      onClick={() => onOpen(note)}
+    />
+  )
+}
+
+/** The complete desktop notes panel, hosted, for views without a phone page yet. */
+function DesktopNotesPage({ onBack }: { onBack: () => void }) {
+  return (
+    <Page title="All views" onBack={onBack} noScroll>
+      <div className="mobile-hosted-panel" style={{ paddingTop: 0 }}><NotesPanel floating /></div>
+    </Page>
+  )
+}
