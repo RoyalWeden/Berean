@@ -582,14 +582,12 @@ export default function NotesFolderView({
         selected={activeNoteId === note.id}
         titleSize="footnote"
         buttonProps={{ 'data-roving': '' }}
-        leading={<>
-          {selectMode && (
-            <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <Checkbox checked={isSelected} onChange={() => onToggleSelectNote?.(note.id)} />
-            </span>
-          )}
-          <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
-        </>}
+        leadingAction={selectMode ? (
+          <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Checkbox checked={isSelected} onChange={() => onToggleSelectNote?.(note.id)} />
+          </span>
+        ) : undefined}
+        leading={<NotepadText size={12} className="flex-shrink-0 text-text-muted" />}
         title={isRenaming ? (
           <TextField
             ref={noteRenameRef}
@@ -720,7 +718,7 @@ export default function NotesFolderView({
           current={isSelected || dragOverId === folder.id}
           titleSize="footnote"
           buttonProps={{ 'data-roving': '' }}
-          leading={<>
+          leadingAction={<>
             {selectMode && (
               <span className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <Checkbox checked={isSelected} onChange={() => onToggleSelectFolder?.(folder.id)} />
@@ -735,8 +733,8 @@ export default function NotesFolderView({
               iconClassName={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
               onClick={(e) => { e.stopPropagation(); toggle(folder.id) }}
             />
-            {isOpen ? <FolderOpen size={14} className="flex-shrink-0 text-accent" /> : <Folder size={14} className="flex-shrink-0 text-accent" />}
           </>}
+          leading={isOpen ? <FolderOpen size={14} className="flex-shrink-0 text-accent" /> : <Folder size={14} className="flex-shrink-0 text-accent" />}
           title={isRenaming ? (
             <TextField
               ref={renameRef}
