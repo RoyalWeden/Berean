@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useContext, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, NotepadText, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2, Tag as TagIcon } from 'lucide-react'
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
@@ -24,6 +24,7 @@ import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import { VerseInteractionContext, type VerseActionContext } from './verseInteraction'
 import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
@@ -621,7 +622,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     setPopoverOpen(false)
   }
 
-  async function addVerseNote() {
+  async function addVerseNote(): Promise<string | null> {
     const verseRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
     // Title carries the LXX marker so it reads as Septuagint; the note is keyed to its translation.
     const title = `${bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)}${lxxSuffix}`
@@ -631,7 +632,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       bumpNoteToken()
       bumpVerseNoteToken()
       openNoteInBiblePanel(result.note.id)
+      return result.note.id
     }
+    return null
   }
 
   function openVerseNotes() {
@@ -782,25 +785,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
 
   const MENU_W = 200
 
-  const handleVerseMouseUp = useCallback((e: React.MouseEvent) => {
-    // Right-click (button 2) is handled by onContextMenu; skip selection toolbar for it
-    // to prevent a second menu appearing when right-clicking over selected text.
-    if (e.button === 2) return
+  /** The current DOM selection mapped to verse.text character offsets, or null when there is
+   *  no selection inside this verse. Shared by the desktop selection toolbar and the touch
+   *  action sheet. */
+  const computeSelectionRange = useCallback((): { startChar: number; endChar: number; rawStart: number; rawEnd: number; dispText: string } | null => {
     const sel = window.getSelection()
-    if (!sel || sel.isCollapsed || !verseTextRef.current) {
-      setSelToolbar(null)
-      return
-    }
-    if (!verseTextRef.current.contains(sel.anchorNode)) {
-      setSelToolbar(null)
-      return
-    }
-    if (!verseTextRef.current.contains(sel.focusNode)) {
-      setSelToolbar(null)
-      return
-    }
+    if (!sel || sel.isCollapsed || !verseTextRef.current) return null
+    if (!verseTextRef.current.contains(sel.anchorNode)) return null
+    if (!verseTextRef.current.contains(sel.focusNode)) return null
     const range = sel.getRangeAt(0)
-
     // Offsets are measured against the rendered (display) text, which may differ from
     // verse.text when the word replacer / annotation hiding is active. Map them back to
     // verse.text positions so the stored char-offset highlight aligns with the selection.
@@ -809,6 +802,19 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     const dispText = renderedDisplayTextRef.current
     const startChar = rawStart < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawStart)
     const endChar = rawEnd < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawEnd)
+    return { startChar, endChar, rawStart, rawEnd, dispText }
+  }, [verse.text])
+
+  const handleVerseMouseUp = useCallback((e: React.MouseEvent) => {
+    // Right-click (button 2) is handled by onContextMenu; skip selection toolbar for it
+    // to prevent a second menu appearing when right-clicking over selected text.
+    if (e.button === 2) return
+    const computed = computeSelectionRange()
+    if (!computed) {
+      setSelToolbar(null)
+      return
+    }
+    const { startChar, endChar, rawStart, rawEnd, dispText } = computed
 
     // ── TEMP DIAGNOSTIC — Revelation/Recognitions-of-Clement highlight investigation ──
     // Flip HIGHLIGHT_OFFSET_DEBUG to false (or delete this block) once the repro is confirmed;
@@ -960,16 +966,24 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     const sc = selToolbar?.startChar ?? 0
     const ec = selToolbar?.endChar ?? 0
     setSelToolbar(null)
+    await clearRangeHighlights(sc, ec)
+  }
+
+  async function clearRangeHighlights(sc: number, ec: number) {
     window.getSelection()?.removeAllRanges()
     await removeOverlappingHighlights(sc, ec)
     bumpHighlightToken()
   }
 
   async function applySelectionHighlight(color: HighlightColor) {
-    window.getSelection()?.removeAllRanges()
     const sc = selToolbar?.startChar ?? 0
     const ec = selToolbar?.endChar ?? 0
     setSelToolbar(null)
+    await applyRangeHighlight(sc, ec, color)
+  }
+
+  async function applyRangeHighlight(sc: number, ec: number, color: HighlightColor) {
+    window.getSelection()?.removeAllRanges()
     // Check if selection exactly matches an existing highlight with the same color (toggle off)
     const exactMatch = highlights.find(h =>
       h.startChar === sc && h.endChar === ec && h.color === color
@@ -996,6 +1010,53 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     }
     bumpHighlightToken()
   }
+
+  // ── Touch presentation (iPhone): long-press → the shell's action sheet, built from the same
+  //    functions the desktop popover and selection toolbar call (see verseInteraction.ts).
+  const interaction = useContext(VerseInteractionContext)
+  const isTouch = interaction.interaction === 'touch'
+  const requestTouchActions = useCallback(() => {
+    if (!interaction.onRequestActions) return
+    const computed = computeSelectionRange()
+    const selection = computed && computed.startChar >= 0 && computed.endChar > computed.startChar
+      ? { startChar: computed.startChar, endChar: computed.endChar, text: window.getSelection()?.toString() ?? '' }
+      : null
+    const ctx: VerseActionContext = {
+      verse, textId: textId ?? 'kjva',
+      verseRef: `${verse.book_id}.${verse.chapter}.${verse.verse_num}`,
+      label: verseRef,
+      activeHighlight,
+      selection,
+      copyVerse, copyReference, addVerseNote, playAudioFromHere,
+      highlightVerse: applyHighlight,
+      removeVerseHighlight: removeHighlight,
+      highlightRange: applyRangeHighlight,
+      clearRangeHighlights,
+      tagRanges: (scope) => {
+        const ranges = scope === 'chapter' ? chapterRanges(verse.book_id, verse.chapter) : selectionToRanges([{ bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num }])
+        return { ranges, label: rangesLabel(ranges), kind: scope === 'chapter' ? 'chapter' : 'verses' }
+      },
+    }
+    interaction.onRequestActions(ctx)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interaction, computeSelectionRange, verse, textId, activeHighlight, verseRef])
+  const touchPress = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ x: 0, y: 0, timer: null, fired: false })
+  const touchHandlers = isTouch ? {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      const t = touchPress.current
+      t.x = e.clientX; t.y = e.clientY; t.fired = false
+      if (t.timer) clearTimeout(t.timer)
+      t.timer = setTimeout(() => { t.timer = null; t.fired = true; requestTouchActions() }, 450)
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const t = touchPress.current
+      if (t.timer && (Math.abs(e.clientX - t.x) > 8 || Math.abs(e.clientY - t.y) > 8)) { clearTimeout(t.timer); t.timer = null }
+    },
+    onPointerUp: () => { const t = touchPress.current; if (t.timer) { clearTimeout(t.timer); t.timer = null } },
+    onPointerCancel: () => { const t = touchPress.current; if (t.timer) { clearTimeout(t.timer); t.timer = null } },
+    onClickCapture: (e: React.MouseEvent) => { if (touchPress.current.fired) { e.stopPropagation(); e.preventDefault(); touchPress.current.fired = false } },
+  } : {}
 
   // Find-bar: does this verse contain the query? Memoized on the actual inputs so ChapterView
   // passing the same findQuery/findWordMode to every VerseRow doesn't force this string work
@@ -1499,6 +1560,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       data-verse={verse.verse_num}
       className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'}`}
       style={rowStyle}
+      {...touchHandlers}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
            superscription row); right-clicking the text still opens the popover in that case */}
@@ -1508,7 +1570,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             e.stopPropagation()
             toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
           }}
-          onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
+          onContextMenu={(e) => { e.preventDefault(); if (isTouch) requestTouchActions(); else openPopover(e) }}
           // Keyboard verse model (§8.4): only while a badge is focused. Enter toggles selection,
           // ⇧↑/↓ extends (handled by the chapter root via data attributes), Shift+F10 opens the
           // verse menu. Space / Page keys / Home / End are NOT bound — they stay native scroll keys.
@@ -1571,8 +1633,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       <div
         ref={verseTextRef}
         data-verse-text="true"
-        onMouseUp={handleVerseMouseUp}
-        onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
+        onMouseUp={isTouch ? undefined : handleVerseMouseUp}
+        onContextMenu={(e) => { e.preventDefault(); if (isTouch) requestTouchActions(); else openPopover(e) }}
         className="flex-1 min-w-0 text-text-primary transition-[line-height] duration-200"
         // Verse-text line spacing follows the user's own compact/comfortable/spacious setting
         // (--line-height-comfortable). The Strong's numbers are absolute overlays in the leading

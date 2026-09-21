@@ -22,7 +22,7 @@ const HIGHLIGHT_SWATCHES: Swatch[] = HIGHLIGHT_COLORS.map((c) => ({ id: c.id, rg
  * verse is selected; everything else applies to every selected verse.
  */
 
-function sortSelection(sel: SelectedVerseRef[]): SelectedVerseRef[] {
+export function sortSelection(sel: SelectedVerseRef[]): SelectedVerseRef[] {
   return [...sel].sort((a, b) =>
     a.textId.localeCompare(b.textId) ||
     a.bookId.localeCompare(b.bookId) ||
@@ -35,7 +35,7 @@ const lxxSuffix = (textId: string) => (textId === 'lxx' ? ' LXX' : '')
 
 /** "Genesis 1:3, 5-7" style label when every ref shares one book+chapter+text, else a
  *  comma-joined list of full refs. */
-function refLabel(sel: SelectedVerseRef[]): string {
+export function refLabel(sel: SelectedVerseRef[]): string {
   const first = sel[0]
   const sameChapter = sel.every(
     (r) => r.textId === first.textId && r.bookId === first.bookId && r.chapter === first.chapter,
@@ -57,7 +57,7 @@ function refLabel(sel: SelectedVerseRef[]): string {
     .join(', ')
 }
 
-async function fetchVerse(r: SelectedVerseRef) {
+export async function fetchVerse(r: SelectedVerseRef) {
   const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse, r.textId)
   return v ? { ...r, text: v.text, textTagged: v.text_tagged ?? null } : null
 }

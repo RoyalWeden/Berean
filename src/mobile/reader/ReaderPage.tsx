@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { BookOpen, Hash, MoreHorizontal, Languages } from 'lucide-react'
+import { BookOpen, Hash, MoreHorizontal, Languages, ChevronLeft, ChevronRight, ALargeSmall } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
 import ChapterView from '@/components/bible/ChapterView'
@@ -12,8 +12,16 @@ import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
+import { VerseActionSheet } from '../study/VerseActionSheet'
+import { VerseNotesSheet } from '../study/VerseNotesSheet'
+import { CrossRefsSheet } from '../study/CrossRefsSheet'
+import { TagPickerSheet } from '../study/TagPickerSheet'
+import { SelectionBar } from '../study/SelectionBar'
+import { VerseInteractionContext, type VerseActionContext, type VerseInteraction } from '@/components/bible/verseInteraction'
 import { ReferencePicker } from './ReferencePicker'
 import { usePinchFontSize } from './usePinchFontSize'
+import { ReaderOptionsSheet } from './ReaderOptionsSheet'
+import ContinuousChapterScroll from '@/components/bible/ContinuousChapterScroll'
 
 /**
  * Scripture reader (R070/R077/R078): the active Bible tab of the scripture space rendered as a
@@ -76,6 +84,44 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={num} api={api} /> })
   }, [sheets])
 
+  // ── verse long-press → action sheet → notes / cross refs / tag sheets ───────────────────
+  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
+  const openNoteInNotesSpace = useCallback((noteId: string) => {
+    setActiveSpace('notes')
+    useAppStore.getState().ensureTab('note')
+    requestOpenNote(noteId)
+  }, [setActiveSpace, requestOpenNote])
+  const openVerseNotes = useCallback((ctx: VerseActionContext) => {
+    sheets.open({ id: 'verse-notes', detents: [0.5, 0.92], render: (api) => (
+      <VerseNotesSheet verseRef={ctx.verseRef} textId={ctx.textId} label={ctx.label} api={api}
+        onOpenNote={openNoteInNotesSpace}
+        onNewNote={() => { void ctx.addVerseNote().then((id) => { if (id) openNoteInNotesSpace(id) }) }} />
+    ) })
+  }, [sheets, openNoteInNotesSpace])
+  const openCrossRefs = useCallback((ctx: VerseActionContext) => {
+    sheets.open({ id: 'crossrefs', detents: [0.55, 0.92], render: (api) => (
+      <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verse={ctx.verse.verse_num} textId={ctx.textId} label={ctx.label} api={api} />
+    ) })
+  }, [sheets])
+  const openTagPicker = useCallback((ctx: VerseActionContext, scope: 'verse' | 'chapter') => {
+    const { ranges, label, kind } = ctx.tagRanges(scope)
+    sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={label} kind={kind} api={api} /> })
+  }, [sheets])
+  const verseInteraction = useMemo<VerseInteraction>(() => ({
+    interaction: 'touch',
+    onRequestActions: (ctx) => {
+      void haptic.medium()
+      sheets.open({ id: 'verse-actions', detents: [0.62, 0.92], render: (api) => (
+        <VerseActionSheet ctx={ctx} api={api}
+          onShowNotes={() => openVerseNotes(ctx)}
+          onShowCrossRefs={() => openCrossRefs(ctx)}
+          onTag={(scope) => openTagPicker(ctx, scope)}
+          onNoteCreated={openNoteInNotesSpace} />
+      ) })
+    },
+  }), [sheets, openVerseNotes, openCrossRefs, openTagPicker, openNoteInNotesSpace])
+
   const openReference = () => {
     sheets.open({
       id: 'reference', title: 'Go to', detents: [0.92], initialDetent: 0,
@@ -88,11 +134,16 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       onSelect: () => { updateTabState('scripture', tab.id, { translation: t.id.toUpperCase() }) },
     })))
   }
+  const openOptions = () => sheets.open({ id: 'reader-options', title: 'Reading', detents: [0.72, 0.92], render: () => <ReaderOptionsSheet /> })
   const openMore = () => {
     actions('reader-more', undefined, [
       { id: 'strongs', label: state.showStrongs ? "Hide Strong's numbers" : "Show Strong's numbers", icon: Hash, onSelect: () => updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs }) },
+      { id: 'options', label: 'Reading options (text size, font, continuous scroll)…', icon: ALargeSmall, onSelect: openOptions },
+      { id: 'prev', label: neighbours.prev ? `Previous chapter (${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter})` : 'Previous chapter', icon: ChevronLeft, disabled: !neighbours.prev, onSelect: () => neighbours.prev && goTo(neighbours.prev.bookId, neighbours.prev.chapter) },
+      { id: 'next', label: neighbours.next ? `Next chapter (${bookName(neighbours.next.bookId)} ${neighbours.next.chapter})` : 'Next chapter', icon: ChevronRight, disabled: !neighbours.next, onSelect: () => neighbours.next && goTo(neighbours.next.bookId, neighbours.next.chapter) },
     ])
   }
+  const continuous = useAppStore((s) => s.continuousChapterScroll)
 
   const title = `${bookName(state.bookId)} ${state.chapter}`
   return (
@@ -100,9 +151,22 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       noScroll
       title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Choose passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
       left={<IconTap icon={Languages} label={`Translation: ${textId.toUpperCase()}`} onClick={openTranslation} />}
-      right={<><IconTap icon={Hash} label="Strong's numbers" active={state.showStrongs} onClick={() => updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs })} /><IconTap icon={MoreHorizontal} label="More" onClick={openMore} /></>}
+      right={<><IconTap icon={ALargeSmall} label="Reading options" onClick={openOptions} /><IconTap icon={MoreHorizontal} label="More" onClick={openMore} /></>}
     >
+      <VerseInteractionContext.Provider value={verseInteraction}>
       <div className="mobile-reader" {...pinch.handlers}>
+        {continuous ? (
+          <div className="mobile-reader-pane" style={{ width }}>
+            <ContinuousChapterScroll
+              key={`${state.bookId}-${textId}`}
+              bookId={state.bookId} chapter={state.chapter} totalChapters={chapterCount}
+              showStrongs={state.showStrongs} textId={textId}
+              targetVerse={state.targetVerse} onTargetVerseConsumed={() => updateTabState('scripture', tab.id, { targetVerse: undefined })}
+              onStrongsClick={openStrongs}
+              onChapterChange={(ch) => { if (ch !== state.chapter) updateTabState('scripture', tab.id, { chapter: ch }) }}
+            />
+          </div>
+        ) : (
         <motion.div
           className="mobile-reader-track"
           style={{ x, width: width * 3, left: -width }}
@@ -117,8 +181,11 @@ export function ReaderPage({ tab }: { tab: Tab }) {
             onStrongsClick={openStrongs} tabId={tab.id} />
           <ReaderPane key={neighbours.next ? `${neighbours.next.bookId}-${neighbours.next.chapter}` : 'none-next'} width={width} target={neighbours.next} textId={textId} showStrongs={state.showStrongs} preview />
         </motion.div>
+        )}
         {pinch.badge && <div className="mobile-pinch-badge" aria-live="polite">{pinch.badge}</div>}
+        <SelectionBar tabId={tab.id} onOpenNote={openNoteInNotesSpace} />
       </div>
+      </VerseInteractionContext.Provider>
     </Page>
   )
 }
