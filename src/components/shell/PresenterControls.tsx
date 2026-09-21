@@ -177,7 +177,7 @@ export default function PresenterControls() {
           icon={RefreshCw}
           onClick={() => { pushCurrentToViewer(); window.app.requestViewerVisibleRegion?.() }}
           className="w-full"
-          title="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
+          tooltip="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
         >
           Re-sync now
         </Button>

@@ -122,7 +122,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
                       icon={BookOpen}
                       // Same rule as the map: a plain click never moves the main window.
                       onClick={(e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef({ kind: 'chapter', bookId: c.bookId, chapter: c.chapter }, e.shiftKey) }}
-                      title="Cmd-click to open in the main window"
+                      tooltip="Cmd-click to open in the main window"
                     >{c.label}</Chip>
                   )
                 })}

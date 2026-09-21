@@ -1888,7 +1888,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     if (e.metaKey || e.ctrlKey) window.app.openExternal(`https://www.youtube.com/${activeVideo?.channelHandle}`)
                     else if (activeVideo) handleBackAndFilter(activeVideo.channelHandle)
                   }}
-                  title="Filter by channel (⌘+click to open in browser)"
+                  tooltip="Filter by channel (⌘+click to open in browser)"
                   className="max-w-[60%]"
                 >
                   <span className="truncate">{activeVideo?.channelName ?? ''}</span>
@@ -2289,7 +2289,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               ref={transcriptBtnRef}
               variant="ghost" size="sm" icon={Captions} iconTrailing={false} selected={showTranscriptMenu || fetchingTranscripts}
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
-              title="Transcript tools (dev only)"
+              tooltip="Transcript tools (dev only)"
             >
               {fetchingTranscripts && progress
                 ? `${progress.done}/${progress.total}`

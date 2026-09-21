@@ -33,7 +33,7 @@ export default function NoteLookDropdown({ value, onChange }: { value: string; o
           size="sm"
           icon={ChevronDown}
           iconTrailing
-          title="Note look while typing"
+          tooltip="Note look while typing"
           className={open ? 'bg-surface-hover text-text-primary' : ''}
         >
           <Type size={12} />
