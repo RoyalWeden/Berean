@@ -25,7 +25,7 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 | 2 | iOS/Capacitor foundation (project, plugins skeleton, build scripts, signing docs) | simulator build succeeds; app boots to renderer | **GATE MET** 2026-09-21 (BUILD SUCCEEDED; boots to the self-test screen) |
 | 4 | Bundled DB installation + offline operation on iOS | in-app parity self-test passes on simulator + device | TESTING — simulator 12/12 ✔; physical iPhone pending (needs Signing.xcconfig + a paired device) |
 | 5 | Shared data model: sessions/tabs/archived groups to SQLite; legacy import; partialize fixes; workspace restore | store tests green; import test; desktop behaviour unchanged | **GATE MET** 2026-09-21 (mirror + legacy import + hydration, 12 settings persisted, workspace load restores tabs/order/state/layout with v0/v1/v2 compatibility; 165 files / 4071 tests) |
-| 6 | iCloud persistence & sync architecture (HLC, journal, merge, engine, stores) | unit + two-device integration tests | NOT STARTED |
+| 6 | iCloud persistence & sync architecture (HLC, journal, merge, engine, stores) | unit + two-device integration tests | **GATE MET (engine)** 2026-09-21 — transport-abstracted engine + entity adapters + in-memory transport; cases A–O green; real transports (fs / BereanCloud) are Phase 7 |
 | 7 | iCloud sync: notes / highlights / verse tags (+ folders, versions, edges) | scenario tests S1–S6 + first device run | NOT STARTED |
 | 8 | iCloud sync: tabs | S7–S9 | NOT STARTED |
 | 9 | iCloud sync: sessions & workspaces (+ playlists, trail, chats, pdf metadata, youtube_user) | S10–S15 | NOT STARTED |
@@ -69,6 +69,17 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 **Open**: aiLookup async conversion so the `@deprecated` sync helpers in bible/lexicon/crossrefs/youtube can be deleted (desktop-only cleanup; no behaviour impact).
 
 **Gate check:** implementation ✔ · tests ✔ · desktop valid ✔ · docs ✔ · ledger ✔.
+
+## Phase 6 — Sync engine — GATE MET (2026-09-21)
+
+**Done**
+- `src/platform/sync/types.ts` (`SyncOp`, `DeviceManifest`, `SyncStore` transport interface), `journal.ts` (JSONL encode/decode tolerant of truncation/garbage, file naming, size-based rotation), `entities.ts` (schema-discovered table adapters + special adapters: tombstone tables, `tabs.local_state_json` excluded, verse-tag unique-name resolution, member → `verse_tag_verse` rebuild, playlists as aggregates), `engine.ts` (capture with HLC + `base` + field hash, coalescing outbox, push/pull, LWW + tombstones + note conflict copies, per-device seq contiguity with gap stop, `sync_failed` bounded retries, schema-newer guard, adoption of pre-sync data, status snapshot), `stores/memorySyncStore.ts` (offline queueing, eviction, corruption, write faults).
+- Migration v44 (bookkeeping tables only; no synced table changed).
+- Tests: `engine.integration.test.ts` — two real devices (real services, real schema): A/B propagation + idempotence, C/D offline both ways, E concurrent note edits → deterministic winner + identical conflict copy on both, F concurrent tag creation (unique-name rule), G/H purge/trash vs later edit, J evicted file gap, K/L tab reorder + session rename/close union, M restart mid-push, N truncated journal, O corrupt line + spoofed device, adoption, newer-schema guard + transport unavailable queueing; `journal.test.ts`; earlier `hlc`/`fractional`/`tabFields`.
+- Docs: `icloud.md` §4 rewritten to the implemented rules; `database.md` v44 corrected.
+
+**Gate check:** implementation ✔ · tests ✔ (167 files / 4086) · desktop typecheck + build ✔ · docs ✔.
+**Not yet:** iCloud Drive transports and the host wiring (Electron main process, iOS), sync settings UI, compaction — Phase 7.
 
 ## Phase 5 — Shared data model — GATE MET (2026-09-21)
 
@@ -136,4 +147,5 @@ None.
 
 - 2026-09-20 — Phase 0 complete.
 - 2026-09-21 — Phase 1/3 gate met (161 files / 4058 tests); Phase 2 gate met (simulator build + boot); Phase 4 simulator half (12/12 self-test); Phase 5 data model started (v43, sessionsService, tabFields, fractional, hlc).
-- 2026-09-21 — checkpoint commit 8af0cc8; developer decisions Q1–Q6 received; Phase 5 gate met (store mirror, legacy import, settings persistence, workspace restore, K7–K9).
+- 2026-09-21 — checkpoint commit 8af0cc8; developer decisions Q1–Q6 received; Phase 5 gate met (store mirror, legacy import, settings persistence, workspace restore, K7–K9); commit 0cb6a28.
+- 2026-09-21 — Phase 6 engine gate met (167 files / 4086 tests).

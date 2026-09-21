@@ -11,6 +11,7 @@ const EXPECTED_TABLES = [
   'verse_tag_members', 'verse_tag_verse', 'trail_collapse', 'trail_notes', 'trail_tags',
   'trail_tag_members', 'tag_edges', 'schema_version',
   'sessions', 'tabs', 'archived_groups', 'session_local_state',
+  'sync_state', 'sync_outbox', 'sync_record_meta', 'sync_applied', 'sync_failed',
 ]
 
 async function tableNames(db: ReturnType<typeof memoryDb>): Promise<string[]> {
@@ -23,7 +24,7 @@ describe('bereanMigrations (shared runner)', () => {
     const versions = BEREAN_MIGRATIONS.map((m) => m.version)
     expect(versions[0]).toBe(1)
     expect(versions).not.toContain(18)
-    expect(BEREAN_SCHEMA_VERSION).toBe(43)
+    expect(BEREAN_SCHEMA_VERSION).toBe(44)
     // strictly increasing
     for (let i = 1; i < versions.length; i++) expect(versions[i]).toBeGreaterThan(versions[i - 1])
   })
@@ -32,7 +33,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     const applied = await runMigrations(db)
     expect(applied.length).toBe(BEREAN_MIGRATIONS.length)
-    expect(await currentSchemaVersion(db)).toBe(43)
+    expect(await currentSchemaVersion(db)).toBe(44)
     const names = await tableNames(db)
     for (const t of EXPECTED_TABLES) expect(names, `missing table ${t}`).toContain(t)
     // v1 seeded defaults are present and JSON-encoded
@@ -52,7 +53,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     await runMigrations(db)
     expect(await runMigrations(db)).toEqual([])
-    expect(await currentSchemaVersion(db)).toBe(43)
+    expect(await currentSchemaVersion(db)).toBe(44)
   })
 
   it('upgrades a database left at an intermediate version', async () => {
@@ -63,7 +64,7 @@ describe('bereanMigrations (shared runner)', () => {
     await db.run("INSERT INTO notes (id, title, content, created_at, updated_at, tags) VALUES ('n1', 'Old', 'kept', 1, 1, '[]')")
     const applied = await runMigrations(db)
     expect(applied[0]).toBe(21)
-    expect(await currentSchemaVersion(db)).toBe(43)
+    expect(await currentSchemaVersion(db)).toBe(44)
     expect(await db.get('SELECT title FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Old' })
   })
 

@@ -1086,6 +1086,56 @@ export const BEREAN_MIGRATIONS: Migration[] = [
       `)
       console.log('[berean-db] v43: sessions / tabs / archived_groups / session_local_state (iPhone sync model)')
     }
+  },
+  {
+    // Sync engine bookkeeping (docs/mobile/icloud.md; src/platform/sync/engine.ts). All device-local:
+    //   sync_state       key/value: device id, HLC watermark, own journal seq, own file list, enabled…
+    //   sync_outbox      local changes captured but not yet written to the journal (survives a crash)
+    //   sync_record_meta per synced record: the HLC/device of the last applied change and whether
+    //                    it is a tombstone — this is what makes merges deterministic and keeps a
+    //                    stale upsert from resurrecting a deleted record, without adding columns
+    //                    to every synced table
+    //   sync_applied     (device, seq) pairs already applied → duplicate delivery is a no-op
+    //   sync_failed      ops that failed to apply (retried, bounded) so one bad op never blocks the rest
+    version: 44,
+    up: async (db) => {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS sync_state (
+          key   TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sync_outbox (
+          seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity     TEXT NOT NULL,
+          key        TEXT NOT NULL,
+          op_json    TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_sync_outbox_record ON sync_outbox(entity, key);
+        CREATE TABLE IF NOT EXISTS sync_record_meta (
+          entity  TEXT NOT NULL,
+          key     TEXT NOT NULL,
+          hlc     TEXT NOT NULL,
+          device  TEXT NOT NULL,
+          deleted INTEGER NOT NULL DEFAULT 0,
+          hash    TEXT,
+          PRIMARY KEY (entity, key)
+        );
+        CREATE TABLE IF NOT EXISTS sync_applied (
+          device TEXT NOT NULL,
+          seq    INTEGER NOT NULL,
+          PRIMARY KEY (device, seq)
+        );
+        CREATE TABLE IF NOT EXISTS sync_failed (
+          device   TEXT NOT NULL,
+          seq      INTEGER NOT NULL,
+          error    TEXT,
+          attempts INTEGER NOT NULL DEFAULT 1,
+          PRIMARY KEY (device, seq)
+        );
+      `)
+      console.log('[berean-db] v44: sync_state / sync_outbox / sync_record_meta / sync_applied / sync_failed')
+    }
   }
 ]
 

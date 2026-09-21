@@ -81,9 +81,9 @@ container-relative) — JS never sees absolute device paths.
 | Version | Purpose |
 |---|---|
 | v43 | `sessions`, `tabs`, `archived_groups` tables (D-006); `tabs` carries `sync_state_json` + `local_state_json`; one-time import of `berean-app-state.sessions/tabs/archivedGroups` from localStorage is done by the renderer's `sessionsService.importLegacy()` on first run (localStorage is not reachable from the migration), then the localStorage copy is retained read-only for one release as a safety net |
-| v44 | Sync bookkeeping: `sync_state (key, value)`, `sync_applied (device_id, seq, PRIMARY KEY)`, `sync_outbox (seq INTEGER PK, entity, id, op, hlc, base, fields_json, created_at)`; `updated_at` added where a synced table lacks it (`highlights`, `note_folders`, `verse_tags`, `verse_tag_members`, `pdfs`, `pdf_highlights`, `workspaces`); `deleted_at` added where a tombstone is needed for merge (`highlights`, `note_folders`, `verse_tags`, `verse_tag_members`, `workspaces`, `playlists`, `playlist_items`, `trail_sessions`, `trail_nodes`, `trail_connections`, `trail_notes`, `trail_tags`, `tag_edges`, `pdfs`, `pdf_highlights`, `sessions`, `tabs`, `archived_groups`) — rows with `deleted_at` are filtered by the existing list queries (each query gains `AND deleted_at IS NULL`, verified by tests) |
+| v44 | Sync bookkeeping only — `sync_state`, `sync_outbox`, `sync_record_meta` (per-record HLC/device/tombstone/hash), `sync_applied`, `sync_failed`. **No column was added to any synced table**: per-record versions and tombstones live in `sync_record_meta`, so the existing list queries and desktop code are untouched (docs/mobile/icloud.md §4) |
 | v45 | `pdf_bookmarks (id, pdf_id, page, label, created_at, updated_at, deleted_at)` replacing the `localStorage` list (imported on first PDF open) |
-| v46 | `notes.conflict_pending INTEGER DEFAULT 0`; `note_versions.device_name TEXT` |
+| (dropped) | `notes.conflict_pending` is not needed: conflict copies are `note_versions` rows of kind `conflict`, and the badge (Phase 13) queries for them |
 | v47 | `youtube_user (video_id PK, is_starred, position_seconds, last_watched, updated_at)` view of the synced subset (desktop keeps writing `youtube_videos.is_starred`/`youtube_watch_history` and the service mirrors both ways) |
 
 Every new column is nullable or defaulted, so an older desktop build opening a newer DB (the

@@ -1,6 +1,6 @@
 # Berean iPhone — iCloud Synchronisation Design
 
-Status: **design complete, implementation not started** (Phases 6–9). Decision record: `decisions.md` D-004, D-006.
+Status: **engine implemented and integration-tested with an in-memory transport (Phase 6, 2026-09-21)**; iCloud Drive transports (Electron fs, iOS BereanCloud) and device runs are Phases 7–9/21. Decision record: `decisions.md` D-004, D-006. Code: `src/platform/sync/{types,journal,entities,engine,hlc,fractional,tabFields}.ts`, tests in `src/platform/sync/__tests__/`.
 Requirements: R050–R066.
 
 ---
@@ -77,35 +77,50 @@ never need partial reads).
 - Ops for the same record within a 3-second window are coalesced before flush (so typing in a
   note produces one op per pause, not one per keystroke).
 
-## 4. Merge rules (shared TypeScript: `src/platform/sync/merge.ts`)
+## 4. Merge rules (shared TypeScript: `src/platform/sync/engine.ts` + `entities.ts`)
+
+Bookkeeping (migration v44, all device-local): `sync_record_meta(entity, key, hlc, device,
+deleted, hash)` holds every synced record's current HLC, the device that produced it, whether it
+is a tombstone, and a hash of its synced fields; `sync_applied(device, seq)` records what has been
+applied; `sync_outbox` holds captured-but-unpushed ops; `sync_failed` holds ops that threw while
+applying (retried up to 5 times, never blocking the rest). No synced table needed new columns.
 
 Applied identically on every device when replaying another device's journal:
 
-1. **Ordering:** ops are applied in HLC order across all devices (the reader merges the per-device
-   streams by `hlc`; each device's own stream is already ordered by `seq`).
-2. **Record-level LWW by HLC** for `upsert` vs `upsert` on *metadata* fields (title, colour, tags,
-   folder, pinned, status, icon, ranges…): the op with the greater `hlc` wins the whole field set
-   it carries. Because full records are carried, this is field-set replacement, which matches how
-   the app writes (every save writes the whole row).
+1. **Ordering:** ops are applied in HLC order across all devices (tie-break device id, then seq);
+   each device's own stream is read in `seq` order and stops at the first file that is not
+   available locally yet (never skips a gap).
+2. **Record-level LWW by HLC** for `upsert` vs `upsert`: the op with the greater `hlc` wins the
+   whole field set it carries. Because full records are carried, this is field-set replacement,
+   which matches how the app writes (every save writes the whole row). Capture hashes the synced
+   fields, so a bulk re-capture (reorder, empty trash) only journals records that actually changed.
 3. **Delete vs upsert:** a tombstone wins over any op with a smaller `hlc` and loses to any op with
    a greater `hlc` (an edit after a delete resurrects the record — the user clearly wanted it).
    Trash semantics are preserved: `notes.deleted_at` is a *soft* delete field on the record, so
    "move to trash" is an `upsert` with `deleted_at` set, and only "purge" is a `delete` op.
-4. **Note content conflict preservation (R058):** for `entity = note`, if an incoming `upsert` has
-   `base` ≠ the local record's current `hlc` **and** the local record was itself modified locally
-   since that base (i.e. both sides edited concurrently), then:
-   - the op with the greater `hlc` becomes the note's content;
-   - the losing content is written to `note_versions` with `kind = 'conflict'` and a title
-     `"Conflict from <deviceName> — <date>"`;
-   - the note gets `conflict_pending = 1`, shown as a badge in the note list and version history
-     on both platforms until the user opens the version history once.
-   Nothing is ever discarded.
+   Sessions/tabs/archived groups keep their tombstone rows; other entities are hard-deleted and the
+   tombstone lives in `sync_record_meta`.
+4. **Note content conflict preservation (R058):** every note op carries `base` = the record's HLC
+   the writer last had. When an incoming note `upsert` arrives and `base` ≠ the local record's
+   current HLC, both sides changed the note since they last agreed. Then:
+   - the op with the greater `hlc` becomes the note's content (on both devices);
+   - if the two contents differ, the losing content is written to `note_versions` with
+     `kind = 'conflict'` and the deterministic id `conflict-<losing hlc>` — both devices create
+     the identical row, and repeated syncs never duplicate it;
+   - the version history shows the conflict copy for one-click restore (badge: Phase 13).
+   Adopted pre-sync copies that differ (the same note id imported on two devices via the vault)
+   get the same treatment. Nothing is ever discarded. Tested: cases E, H and adoption.
 5. **Set-typed entities (sessions ↔ tabs, folders ↔ notes, tags ↔ members):** membership is a
    property of the child (`tabs.session_id`, `notes.folder_id`, `verse_tag_members.tag_id`), so
    moving a tab between sessions is an `upsert` on the tab; deleting a session tombstones the
    session and each of its tabs (explicit ops, so a concurrently *moved* tab with a greater `hlc`
    survives in its new session). Union semantics fall out naturally:
-   *Mac: {Tab 1, Tab 2}* + *iPhone: {Tab 1, Tab 3}* → *{Tab 1, Tab 2, Tab 3}*.
+   *Mac: {Tab 1, Tab 2}* + *iPhone: {Tab 1, Tab 3}* → *{Tab 1, Tab 2, Tab 3}* (tested: case K/L).
+   **Tag names are unique** (schema constraint): two devices creating "Covenant" while apart both
+   keep their tag; the later-created one (by `created_at`, then id) is renamed "Covenant (2)" on
+   every device deterministically, and the user can merge them in the Tag Manager (case F).
+   `verse_tag_verse` (the expanded verse index) is derived locally from each member's `ranges`.
+   Playlists sync as one record including their items (the app rewrites all items on save).
 6. **Ordering fields** use fractional indexing (`order_key` string, `src/platform/sync/fractional.ts`):
    reordering writes only the moved record; concurrent reorders converge deterministically
    (ties broken by id). Applies to `tabs.order_key`, `sessions.order_key`, `verse_tags.order_key`,
