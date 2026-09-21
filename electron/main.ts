@@ -64,7 +64,8 @@ if (is.dev) {
     }
   } catch { /* will be caught if file not yet created */ }
 }
-import { getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
+import { initBereanDb, getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
+import { initDesktopServices } from './servicesHost'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
@@ -85,6 +86,7 @@ import { registerHistoryHandlers } from './ipc/history'
 import { registerStudyTrailHandlers } from './ipc/studyTrail'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
 import { registerPlaylistsHandlers } from './ipc/playlists'
+import { registerSessionsHandlers } from './ipc/sessions'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
 import { registerTTSAudioCacheHandlers } from './ipc/ttsAudioCache'
 import { registerTTSModelScheme, registerTTSModelProtocolHandler } from './ttsModelProtocol'
@@ -1271,9 +1273,13 @@ app.whenReady().then(async () => {
 
   // Open app DB and run migrations before registering IPC handlers
   try {
-    getBereanDb()
+    await initBereanDb()
     earlyLog('berean.db opened OK')
     log.info('berean.db opened')
+    // Shared services (src/platform/services) over the just-opened DB — the thin IPC handlers
+    // registered below delegate to these. See docs/mobile/architecture.md §3.
+    initDesktopServices()
+    log.info('shared services initialised')
     // NOTE: mergeYouTubeSeed is intentionally NOT run here. On a fresh install /
     // seed-version bump it attaches a 196MB seed DB and runs bulk inserts
     // synchronously, which would block first paint. It's deferred until after
@@ -1372,6 +1378,7 @@ app.whenReady().then(async () => {
   registerStudyTrailHandlers(ipcMain)
   registerWorkspacesHandlers(ipcMain)
   registerPlaylistsHandlers(ipcMain)
+  registerSessionsHandlers(ipcMain)
 
   // Core app IPC
   // Diagnostic: renderer can call this to verify handler registration at runtime

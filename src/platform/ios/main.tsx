@@ -1,0 +1,46 @@
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { MotionConfig } from 'framer-motion'
+import { initIosServices } from './services'
+import { installIosBridge } from './bridge'
+import { IosBoot } from './IosBoot'
+import '../../styles/global.css'
+
+/**
+ * iPhone renderer entry (built by vite.ios.config.ts into out/ios, loaded by Capacitor). The
+ * desktop entry src/main.tsx is untouched; this file is its Capacitor counterpart:
+ *
+ *  1. open berean.db + bundled DBs through the BereanSQLite plugin and run the shared migrations;
+ *  2. install the `window.<namespace>` bridge objects the renderer already calls, backed by the
+ *     shared services in-process (src/platform/ios/bridge.ts);
+ *  3. render the mobile shell (Phase 10+). Until the shell lands, `IosBoot` renders the Phase 2/4
+ *     self-test screen so the whole native stack is exercised by a real page, not a placeholder.
+ */
+document.documentElement.dataset.window = 'main'
+document.documentElement.dataset.platform = 'ios'
+
+async function boot() {
+  const root = ReactDOM.createRoot(document.getElementById('root')!)
+  try {
+    const services = await initIosServices()
+    installIosBridge(services)
+    root.render(
+      <React.StrictMode>
+        <MotionConfig reducedMotion="user">
+          <IosBoot />
+        </MotionConfig>
+      </React.StrictMode>,
+    )
+  } catch (err) {
+    const headers = (window as unknown as { Capacitor?: { PluginHeaders?: Array<{ name: string }> } }).Capacitor?.PluginHeaders?.map((h) => h.name).join(', ')
+    const message = `${err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)}\n\nNative plugins seen by JS: ${headers ?? '(none)'}`
+    console.error('[ios-boot] failed', message)
+    root.render(
+      <pre style={{ padding: 24, whiteSpace: 'pre-wrap', color: '#f87171', fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>
+        {`Berean failed to start\n\n${message}`}
+      </pre>,
+    )
+  }
+}
+
+void boot()

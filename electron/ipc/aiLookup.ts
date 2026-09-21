@@ -1,6 +1,6 @@
 import type { IpcMain } from 'electron'
-import { randomUUID } from 'crypto'
 import { getBereanDb } from '../db/berean'
+import { services } from '../services'
 import { queryVerse, searchVerses } from './bible'
 import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse, getIncomingCrossRefsForVerse, getIncomingTskeForVerse, searchTskeHeadingsByKeywords } from './crossrefs'
@@ -3564,14 +3564,6 @@ export async function runLookup(
   }
 }
 
-interface StoredChat {
-  id: string
-  title: string
-  messages: string // JSON
-  created_at: string
-  updated_at: string
-}
-
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -3600,37 +3592,16 @@ export function registerAiLookupHandlers(ipcMain: IpcMain): void {
       (status) => event.sender.send('ailookup:progress', status),
       (partial) => event.sender.send('ailookup:partial', partial)))
 
-  ipcMain.handle('ailookup:listChats', () => {
-    const rows = getBereanDb()
-      .prepare('SELECT id, title, created_at, updated_at FROM ai_chats ORDER BY updated_at DESC')
-      .all() as Array<{ id: string; title: string; created_at: string; updated_at: string }>
-    return rows
-  })
+  ipcMain.handle('ailookup:listChats', () => services().aiChats.listChats())
 
-  ipcMain.handle('ailookup:getChat', (_e, id: string) => {
-    const row = getBereanDb().prepare('SELECT * FROM ai_chats WHERE id = ?').get(id) as StoredChat | undefined
-    if (!row) return null
-    return { id: row.id, title: row.title, messages: JSON.parse(row.messages) as ChatMessage[], createdAt: row.created_at, updatedAt: row.updated_at }
-  })
+  ipcMain.handle('ailookup:getChat', (_e, id: string) => services().aiChats.getChat(id))
 
-  ipcMain.handle('ailookup:saveChat', (_e, chat: { id?: string; title: string; messages: ChatMessage[] }) => {
-    const db = getBereanDb()
-    const now = new Date().toISOString()
-    if (chat.id) {
-      db.prepare('UPDATE ai_chats SET title = ?, messages = ?, updated_at = ? WHERE id = ?')
-        .run(chat.title, JSON.stringify(chat.messages), now, chat.id)
-      return { id: chat.id }
-    }
-    const id = randomUUID()
-    db.prepare('INSERT INTO ai_chats (id, title, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-      .run(id, chat.title, JSON.stringify(chat.messages), now, now)
-    return { id }
-  })
+  // ChatMessage (this file's local shape) and the shared service's AiChatMessage are the same
+  // JSON on the wire; the cast bridges the two declarations without touching this file's types.
+  ipcMain.handle('ailookup:saveChat', (_e, chat: { id?: string; title: string; messages: ChatMessage[] }) =>
+    services().aiChats.saveChat(chat as unknown as Parameters<ReturnType<typeof services>['aiChats']['saveChat']>[0]))
 
-  ipcMain.handle('ailookup:deleteChat', (_e, id: string) => {
-    getBereanDb().prepare('DELETE FROM ai_chats WHERE id = ?').run(id)
-    return { success: true }
-  })
+  ipcMain.handle('ailookup:deleteChat', (_e, id: string) => services().aiChats.deleteChat(id))
 }
 
 // Exported for potential reuse (e.g. a future "explain this verse" entry point

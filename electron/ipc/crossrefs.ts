@@ -5,6 +5,7 @@ import { existsSync } from 'fs'
 import Database from 'better-sqlite3'
 import { getTextDb } from '../db/bible'
 import { toCanonicalChapters } from '@/lib/translationChapterMap'
+import { services } from '../services'
 
 type DB = InstanceType<typeof Database>
 let db: DB | null = null
@@ -43,17 +44,6 @@ function openTskeDb(): DB | null {
   }
   tskeDb = new (Database as any)(p, { readonly: true }) as DB
   return tskeDb
-}
-
-// Scripture cross-references parsed from Charles Taylor's Shepherd-of-Hermas footnotes.
-// They live in hermas_taylor.db (the Taylor text DB) because they are keyed to Taylor's
-// own versification, and so must only be shown when the Taylor translation is active.
-let hermasTaylorDb: DB | null | undefined
-function openHermasTaylorDb(): DB | null {
-  if (hermasTaylorDb !== undefined) return hermasTaylorDb
-  const p = dataPath('hermas_taylor.db')
-  hermasTaylorDb = existsSync(p) ? (new (Database as any)(p, { readonly: true }) as DB) : null
-  return hermasTaylorDb
 }
 
 // Cache compiled statements per DB instance so the per-chapter/per-verse refs
@@ -105,7 +95,11 @@ function fetchVerseTexts(tuples: Array<[string, number, number]>): Map<string, s
 // Plain-function versions of the two per-verse lookups below, exported so other
 // main-process modules (electron/ipc/aiLookup.ts) can reuse the exact same
 // cross_references.db / tske_refs.db access + text-resolution logic instead of
-// re-implementing it. The IPC handlers further down just call these.
+// re-implementing it. The IPC handlers further down delegate to the shared crossrefsService
+// instead (src/platform/services/crossrefsService.ts).
+/** @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts until it goes async.
+ *  The async equivalent is src/platform/services/crossrefsService.ts (internal helper backing
+ *  `getForVerse`). */
 export function getCrossRefsForVerse(bookId: string, chapter: number, verse: number) {
   try {
     const database = openDb()
@@ -134,6 +128,9 @@ export function getCrossRefsForVerse(bookId: string, chapter: number, verse: num
   }
 }
 
+/** @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts until it goes async.
+ *  The async equivalent is src/platform/services/crossrefsService.ts (internal helper backing
+ *  `getTSKeForVerse`). */
 export function getTskeForVerse(bookId: string, chapter: number, verse: number) {
   try {
     const database = openTskeDb()
@@ -190,6 +187,8 @@ export function getTskeForVerse(bookId: string, chapter: number, verse: number) 
 // column (the FROM side of a row is always a single verse), so these are slightly simpler than
 // their outgoing counterparts. Added for aiLookup.ts's reverse quote-lookup ("what verses quote
 // Psalm 2:7" / "what quotes Psalm 2").
+/** @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts's reverse quote-lookup
+ *  (no async equivalent exists yet — no shared-service channel calls this direction). */
 export function getIncomingCrossRefsForVerse(bookId: string, chapter: number, verse: number) {
   try {
     const database = openDb()
@@ -218,6 +217,8 @@ export function getIncomingCrossRefsForVerse(bookId: string, chapter: number, ve
   }
 }
 
+/** @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts's reverse quote-lookup
+ *  (no async equivalent exists yet — no shared-service channel calls this direction). */
 export function getIncomingTskeForVerse(bookId: string, chapter: number, verse: number) {
   try {
     const database = openTskeDb()
@@ -290,6 +291,9 @@ export interface TskeHeadingHit {
 // Reciprocal rows (is_reciprocal = 1) never carry a heading — see getTskeForVerse's own grouping
 // (`r.is_reciprocal ? null : heading`) — excluded at the SQL level so the LIKE scan doesn't waste
 // time over rows that can never match.
+/** @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts until it goes async
+ *  (no shared-service channel calls this — TSKE heading search is an aiLookup-only retrieval
+ *  source, not something the reader UI's IPC channels expose). */
 export function searchTskeHeadingsByKeywords(keywords: string[], limitPerKeyword = 60): TskeHeadingHit[] {
   const database = openTskeDb()
   if (!database || keywords.length === 0) return []
@@ -327,152 +331,22 @@ export function searchTskeHeadingsByKeywords(keywords: string[], limitPerKeyword
   return out
 }
 
+/**
+ * Thin IPC layer (Phase 1/3): every channel delegates to the shared crossrefsService
+ * (src/platform/services/crossrefsService.ts), which carries the SQL that used to live here. The
+ * synchronous exports above are retained ONLY for electron/ipc/aiLookup.ts until its async
+ * conversion lands; they are not used by any handler.
+ */
 export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('crossrefs:status', () => {
-    const hasData = existsSync(dataPath('cross_references.db'))
-    return { hasData, loading: false, error: !hasData }
-  })
-
-  // `textId` (default 'kjva') is the translation currently on screen for `bookId`/`chapter`.
-  // cross_references.db is keyed to KJV chapter numbers, so a chapter viewed in LXX numbering
-  // must be translated to its KJV-equivalent chapter(s) before querying — `toCanonicalChapters`
-  // is a no-op for every book/text this doesn't apply to (see translationChapterMap.ts). An LXX
-  // merge chapter (e.g. Psalm 9 = KJV 9+10) maps to TWO KJV chapters, so the query spans both via
-  // `from_ch IN (...)` and results from both are grouped together by verse number — see that
-  // module's comment on why grouping key collisions there are an accepted simplification.
-  ipcMain.handle('crossrefs:getForChapter', (_e, bookId: string, chapter: number, textId = 'kjva') => {
-    try {
-      const database = openDb()
-      if (!database) return { verseRefs: [], error: true }
-
-      const chapters = toCanonicalChapters(bookId, chapter, textId)
-      const placeholders = chapters.map(() => '?').join(',')
-      const rows = prep(database,
-        `SELECT from_vs, to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch IN (${placeholders}) ORDER BY from_vs ASC, votes DESC`
-      ).all(bookId.toUpperCase(), ...chapters) as Array<{
-        from_vs: number; to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null; votes: number
-      }>
-
-      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
-
-      // Group by source verse
-      const grouped = new Map<number, Array<{ bookId: string; chapter: number; verse: number; endVerse: number | null; votes: number; text: string }>>()
-      for (const r of rows) {
-        if (!grouped.has(r.from_vs)) grouped.set(r.from_vs, [])
-        const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
-        grouped.get(r.from_vs)!.push({ bookId: r.to_book, chapter: r.to_ch, verse: r.to_vs, endVerse: r.to_vs_end ?? null, votes: r.votes, text })
-      }
-
-      const verseRefs = Array.from(grouped.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([verseNum, refs]) => ({ verseNum, refs }))
-
-      return { verseRefs, error: false }
-    } catch (e) {
-      return { verseRefs: [], error: true }
-    }
-  })
-
-  ipcMain.handle('crossrefs:getTSKeForChapter', (_e, bookId: string, chapter: number, textId = 'kjva') => {
-    try {
-      const database = openTskeDb()
-      if (!database) return { verseRefs: [], error: true }
-
-      const chapters = toCanonicalChapters(bookId, chapter, textId)
-      const placeholders = chapters.map(() => '?').join(',')
-      const rows = prep(database,
-        `SELECT from_vs, heading, is_reciprocal, to_book, to_ch, to_vs, to_vs_end, sort_order, context
-         FROM tske_refs
-         WHERE from_book = ? AND from_ch IN (${placeholders})
-         ORDER BY from_vs ASC, is_reciprocal ASC, rowid ASC`
-      ).all(bookId.toUpperCase(), ...chapters) as Array<{
-        from_vs: number; heading: string | null; is_reciprocal: number
-        to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null
-        sort_order: number; context: string | null
-      }>
-
-      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
-
-      // Group by source verse, then by heading within each verse
-      const byVerse = new Map<number, Map<string, { heading: string | null; isReciprocal: boolean; refs: any[] }>>()
-      for (const r of rows) {
-        if (!byVerse.has(r.from_vs)) byVerse.set(r.from_vs, new Map())
-        const verseMap = byVerse.get(r.from_vs)!
-        const key = r.is_reciprocal ? '__RECIPROCAL__' : (r.heading ?? '__NONE__')
-        if (!verseMap.has(key)) verseMap.set(key, { heading: r.is_reciprocal ? null : decodeTskeText(r.heading), isReciprocal: r.is_reciprocal === 1, refs: [] })
-        const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
-        verseMap.get(key)!.refs.push({ bookId: r.to_book, chapter: r.to_ch, verse: r.to_vs, endVerse: r.to_vs_end ?? null, text, context: decodeTskeText(r.context ?? null) })
-      }
-
-      const verseRefs = Array.from(byVerse.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([verseNum, groupMap]) => ({ verseNum, groups: Array.from(groupMap.values()) }))
-
-      return { verseRefs, error: false }
-    } catch (e) {
-      return { verseRefs: [], error: true }
-    }
-  })
-
-  // Taylor Hermas footnote cross-references for a chapter (chapter-level: from_verse = 0).
-  ipcMain.handle('crossrefs:getHermasTaylorChapter', (_e, bookId: string, chapter: number) => {
-    try {
-      const database = openHermasTaylorDb()
-      if (!database) return { refs: [], error: true }
-      const rows = prep(database,
-        'SELECT to_book, to_chapter, to_verse, raw FROM crossrefs WHERE from_book = ? AND from_chapter = ? ORDER BY id ASC'
-      ).all(bookId.toUpperCase(), chapter) as Array<{
-        to_book: string; to_chapter: number; to_verse: number; raw: string
-      }>
-      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_chapter, r.to_verse] as [string, number, number]))
-      const refs = rows.map((r) => ({
-        bookId: r.to_book, chapter: r.to_chapter, verse: r.to_verse, raw: r.raw,
-        text: texts.get(`${r.to_book}|${r.to_chapter}|${r.to_verse}`) ?? '',
-      }))
-      return { refs, error: false }
-    } catch {
-      return { refs: [], error: true }
-    }
-  })
-
-  // `textId` (default 'kjva') maps the on-screen chapter to its KJV-equivalent chapter(s) —
-  // see the getForChapter/getTSKeForChapter comment above. For a merge chapter (two KJV
-  // chapters), verse numbers are queried as-is against each candidate chapter and the
-  // (usually mutually-exclusive) hits are unioned/de-duped; this is the same accepted
-  // simplification as the chapter-level handlers, since verse-level splits are not tracked.
-  ipcMain.handle('crossrefs:getForVerse', (_e, bookId: string, chapter: number, verse: number, textId = 'kjva') => {
-    const chapters = toCanonicalChapters(bookId, chapter, textId)
-    if (chapters.length === 1) return getCrossRefsForVerse(bookId, chapters[0], verse)
-
-    const results = chapters.map((ch) => getCrossRefsForVerse(bookId, ch, verse))
-    const seen = new Set<string>()
-    const refs: ReturnType<typeof getCrossRefsForVerse>['refs'] = []
-    for (const res of results) {
-      for (const r of res.refs) {
-        const key = `${r.bookId}|${r.chapter}|${r.verse}|${r.endVerse ?? ''}`
-        if (!seen.has(key)) { seen.add(key); refs.push(r) }
-      }
-    }
-    return { refs, loading: false, error: results.every((r) => r.error) }
-  })
-
-  ipcMain.handle('crossrefs:getTSKeForVerse', (_e, bookId: string, chapter: number, verse: number, textId = 'kjva') => {
-    const chapters = toCanonicalChapters(bookId, chapter, textId)
-    if (chapters.length === 1) return getTskeForVerse(bookId, chapters[0], verse)
-
-    const results = chapters.map((ch) => getTskeForVerse(bookId, ch, verse))
-    const groupMap = new Map<string, { heading: string | null; isReciprocal: boolean; refs: ReturnType<typeof getTskeForVerse>['groups'][number]['refs'] }>()
-    for (const res of results) {
-      for (const g of res.groups) {
-        const key = g.isReciprocal ? '__RECIPROCAL__' : (g.heading ?? '__NONE__')
-        if (!groupMap.has(key)) groupMap.set(key, { heading: g.heading, isReciprocal: g.isReciprocal, refs: [] })
-        const target = groupMap.get(key)!
-        for (const r of g.refs) {
-          const rKey = `${r.bookId}|${r.chapter}|${r.verse}|${r.endVerse ?? ''}`
-          if (!target.refs.some((x) => `${x.bookId}|${x.chapter}|${x.verse}|${x.endVerse ?? ''}` === rKey)) target.refs.push(r)
-        }
-      }
-    }
-    return { groups: Array.from(groupMap.values()), loading: false, error: results.every((r) => r.error) }
-  })
+  ipcMain.handle('crossrefs:status', () => services().crossrefs.status())
+  ipcMain.handle('crossrefs:getForChapter', (_e, bookId: string, chapter: number, textId = 'kjva') =>
+    services().crossrefs.getForChapter(bookId, chapter, textId))
+  ipcMain.handle('crossrefs:getTSKeForChapter', (_e, bookId: string, chapter: number, textId = 'kjva') =>
+    services().crossrefs.getTSKeForChapter(bookId, chapter, textId))
+  ipcMain.handle('crossrefs:getHermasTaylorChapter', (_e, bookId: string, chapter: number) =>
+    services().crossrefs.getHermasTaylorChapter(bookId, chapter))
+  ipcMain.handle('crossrefs:getForVerse', (_e, bookId: string, chapter: number, verse: number, textId = 'kjva') =>
+    services().crossrefs.getForVerse(bookId, chapter, verse, textId))
+  ipcMain.handle('crossrefs:getTSKeForVerse', (_e, bookId: string, chapter: number, verse: number, textId = 'kjva') =>
+    services().crossrefs.getTSKeForVerse(bookId, chapter, verse, textId))
 }

@@ -1,0 +1,112 @@
+# Berean iPhone — Build, Signing, Devices, TestFlight
+
+Requirements: R015, R016, R120–R124. Kept current as the iOS project evolves.
+
+---
+
+## 1. Environment (verified 2026-09-21)
+
+| Tool | Found | Requirement |
+|---|---|---|
+| Xcode | 26.6 (17F113) at `/Applications/Xcode.app` | Capacitor 8 needs Xcode ≥ 26.0 ✔ |
+| iOS SDK | 26.5 (`iphoneos`, `iphonesimulator`) | ✔ |
+| Swift | 6.3.3 | ✔ |
+| Node / npm | 24.14.0 / 11.9.0 | ✔ |
+| `xcode-select` | points at **CommandLineTools** — `xcodebuild` fails unless `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` is exported. All `npm run ios:*` scripts set it; to fix globally: `sudo xcode-select -s /Applications/Xcode.app` | developer action (optional) |
+| Simulator runtimes | iOS 26.5 (23F77) installed 2026-09-21 via `xcodebuild -downloadPlatform iOS` (8.5 GB; the first attempt failed with a network error — just re-run it) | ✔ |
+| Paired devices | none (`xcrun devicectl list devices`) | plug in / pair the iPhone in Xcode → Window → Devices and Simulators |
+| Code-signing identities | `Apple Distribution` and `Developer ID Application` identities present for your team; **no `Apple Development` identity** | Xcode creates one automatically once you sign in (Xcode → Settings → Accounts) and enable *Automatically manage signing* |
+| CocoaPods | not installed | not required (Capacitor 8 uses Swift Package Manager) |
+
+## 2. Developer must configure (never committed)
+
+Create `ios/App/Signing.xcconfig` (gitignored) from `ios/App/Signing.xcconfig.example`:
+
+```
+DEVELOPMENT_TEAM = <your team id>
+BEREAN_TEAM_ID = <your team id>
+BEREAN_BUNDLE_ID = com.berean.app        # or your own; the iCloud container id (Phase 6) is derived from it
+CODE_SIGN_STYLE = Automatic
+```
+
+`ios/App/Berean.xcconfig` (committed) holds the defaults and includes `Signing.xcconfig` last, so
+anything you put there overrides the committed values; `Version.xcconfig` is generated from
+`package.json` by `scripts/ios/version.mjs`.
+
+Then, once, in the Apple Developer portal / Xcode:
+
+1. **App ID** for the bundle identifier with capabilities: iCloud (iCloud Documents), App Groups,
+   Background Modes (audio), Associated Domains (only if you want universal links — see §6).
+2. **iCloud container** `iCloud.com.berean.app` (Xcode → Signing & Capabilities → iCloud → +).
+3. **App Group** `group.com.berean.app` on both the app and the Share Extension targets.
+4. Sign in to Xcode with the developer account; tick *Automatically manage signing* on the `App`
+   and `ShareExtension` targets. Xcode will mint the `Apple Development` certificate and
+   provisioning profiles.
+5. **App Store Connect**: create the app record (name "Berean", bundle id, SKU, primary category
+   *Reference*), fill in the privacy nutrition labels (see §7), export compliance (§7).
+
+Nothing in the repository contains your team id, certificates or profiles.
+
+## 3. Everyday commands
+
+| Command | What it does |
+|---|---|
+| `npm run ios:sync` | `vite build -c vite.ios.config.ts` (renderer → `out/ios`), `scripts/ios/version.mjs`, `cap sync ios` (copies `out/ios` → `ios/App/App/public`, updates plugins), `scripts/ios/patch-xcodeproj.mjs` (idempotent project wiring) |
+| `npm run ios:open` | opens `ios/App/App.xcodeproj` in Xcode |
+| `npm run ios:build` | command-line simulator build (no signing needed) — `scripts/ios/build.sh simulator` |
+| `npm run ios:run` | boots an iPhone simulator, installs and launches (`scripts/ios/run.sh [name]`) |
+| `npm run ios:device` | Debug build for a connected iPhone (needs `Signing.xcconfig`) |
+| `npm run ios:archive` | Release archive for TestFlight/App Store (upload is a manual Xcode Organizer step) |
+| `npm run ios:dev` | Vite dev server for the iOS bundle (live reload on device via `cap run ios --livereload --port 5183`) |
+| `npm run ios:test` | runs the BereanNative XCTest suite on a simulator |
+| `npm run ios:bump-build` | increments `CURRENT_PROJECT_VERSION` in `Version.xcconfig` |
+
+Worktree note: `cap sync` writes plugin package paths into `ios/App/CapApp-SPM/Package.swift`
+relative to the real `node_modules` (a symlink into the main checkout in worktrees). After
+merging to `main`, run `npm run ios:sync` once so the paths point at `main`'s own `node_modules`.
+
+All set `DEVELOPER_DIR` themselves. None of them touch the desktop build.
+
+## 4. Running on your iPhone
+
+1. Connect the iPhone by cable (first time), trust the computer, enable Developer Mode on the
+   phone (Settings → Privacy & Security → Developer Mode) — iOS 16+.
+2. `npm run ios:open` → select the device in the run destination → ⌘R. Or `npm run ios:device`.
+3. Debugging the WebView: Safari → Develop → *your iPhone* → Berean. Console logs from the
+   renderer appear there; native logs in Xcode's console.
+4. Wireless debugging: Xcode → Devices → *Connect via network*.
+
+## 5. TestFlight
+
+1. Bump `version` in `package.json`; `npm run ios:sync` regenerates `Version.xcconfig`
+   (`MARKETING_VERSION`), and `npm run ios:bump-build` increments the build number
+   (`CURRENT_PROJECT_VERSION`) — TestFlight needs a higher build number per upload.
+2. Xcode → Product → Archive (scheme `App`, destination *Any iOS Device*).
+3. Organizer → Distribute → App Store Connect → Upload (Xcode-managed signing).
+4. App Store Connect → TestFlight → add internal testers. First upload requires the export
+   compliance answer (§7).
+
+**This project never uploads for you.** Archiving/uploading is a manual Xcode step by design (R139).
+
+## 6. Deep links & universal links
+
+- Custom scheme `berean://` is registered in `Info.plist` (`CFBundleURLTypes`) — works with no
+  server. Routes: `berean://open?ref=John%203:16`, `berean://note/<id>`, `berean://session/<id>`,
+  `berean://search?q=…`, `berean://strongs/H7225`.
+- Universal links (`https://sitgmeat.com/berean/…` or any domain you control) need an
+  `apple-app-site-association` file hosted at that domain and the Associated Domains capability.
+  Optional; documented, not assumed.
+
+## 7. App Store readiness checklist
+
+| Item | Status | Notes |
+|---|---|---|
+| Bundle identifier | developer | §2 |
+| Entitlements: iCloud Documents container, App Groups, audio background mode | Phase 6 / 16 / 18 (not yet in repo) | `App.entitlements` |
+| `PrivacyInfo.xcprivacy` | Phase 22 (not yet in repo) | declares UserDefaults + file-timestamp API reasons; no tracking |
+| Permission strings | Phase 13/18 (not yet in repo) | `NSLocationWhenInUseUsageDescription` (daily-note sunrise — same text as desktop), `NSPhotoLibraryUsageDescription` (insert image into note) |
+| Export compliance | developer answers in ASC | App uses only Apple-provided TLS/HTTPS and SQLite — "exempt" (`ITSAppUsesNonExemptEncryption = NO`, to be set in Info.plist in Phase 22) |
+| Privacy nutrition labels | developer | Data not collected; iCloud data is the user's own |
+| YouTube | documented | Embedded via WKWebView per YouTube ToS; PiP behaviour documented in `feature-matrix.md` |
+| App icon 1024 px, launch screen | Phase 22 (Capacitor placeholder icon today) | from `assets/` |
+| Age rating, category | developer | Reference |

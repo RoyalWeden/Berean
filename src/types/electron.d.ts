@@ -312,6 +312,22 @@ export interface PlaylistItemInput {
   textId: string
 }
 
+/** Sessions/tabs persistence rows (docs/mobile/decisions.md D-006). Row shapes live in
+ *  src/platform/services/sessionsService.ts; this API is consumed only by src/store/tabPersistence.ts. */
+interface SessionsAPI {
+  hasAny: () => Promise<boolean>
+  listSessions: () => Promise<import('../platform/services/sessionsService').SessionRow[]>
+  listTabs: (sessionId?: string) => Promise<import('../platform/services/sessionsService').TabRow[]>
+  listArchivedGroups: () => Promise<import('../platform/services/sessionsService').ArchivedGroupRow[]>
+  getLocalState: (sessionId: string) => Promise<Record<string, string | null>>
+  setLocalState: (sessionId: string, activeTab: Record<string, string | null>) => Promise<void>
+  applySnapshot: (snap: import('../platform/services/sessionsService').SessionsSnapshot) => Promise<import('../platform/services/sessionsService').SnapshotDiff>
+  upsertSession: (s: import('../platform/services/sessionsService').SessionUpsert) => Promise<void>
+  upsertTab: (t: import('../platform/services/sessionsService').TabUpsert) => Promise<void>
+  deleteSession: (id: string) => Promise<void>
+  deleteTab: (id: string) => Promise<void>
+}
+
 interface PlaylistsAPI {
   list: () => Promise<SavedPlaylist[]>
   save: (name: string, items: PlaylistItemInput[], existingId?: string) => Promise<SavedPlaylist>
@@ -811,6 +827,7 @@ declare global {
     studyTrail: StudyTrailAPI
     workspaces: WorkspacesAPI
     playlists: PlaylistsAPI
+    sessions: SessionsAPI
     ttsModel: TTSModelAPI
     ttsAudioCache: TTSAudioCacheAPI
     viewer: {

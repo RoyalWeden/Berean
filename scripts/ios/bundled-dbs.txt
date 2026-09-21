@@ -1,0 +1,27 @@
+# Bundled read-only databases copied into the iOS app bundle (App.app/data/) by copy-data.sh.
+# One filename per line; must exist under <repo>/data. See docs/mobile/database.md §1.
+# Deliberately NOT included: lxx.db (orphan, no runtime reference), youtube_seed.db (187 MB —
+# pending decision Q3 in docs/mobile/implementation-progress.md), verse_embeddings.db (desktop AI).
+kjva.db
+kjv.db
+lxx_brenton.db
+enoch.db
+jubilees.db
+apoc_elijah.db
+recog_clement.db
+hermas.db
+hermas_taylor.db
+asc_isaiah.db
+ep_barnabas.db
+t12p.db
+gad.db
+t_job.db
+1clement.db
+apoc_abraham.db
+didache_hoole.db
+t_jacob.db
+2baruch.db
+strongs_hebrew.db
+strongs_greek.db
+cross_references.db
+tske_refs.db

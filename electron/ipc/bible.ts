@@ -1,6 +1,7 @@
 import type { IpcMain } from 'electron'
 import { getTextDb } from '../db/bible'
 import { numberTokenAlternates } from './numberWords'
+import { services } from '../services'
 
 // Cache compiled statements per text-DB instance so hot handlers (chapter/verse
 // navigation, keystroke-driven search) don't re-compile identical SQL each call.
@@ -181,75 +182,20 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
   }
 }
 
+/**
+ * Thin IPC layer (Phase 1/3): every channel delegates to the shared bibleService
+ * (src/platform/services/bibleService.ts), which carries the SQL that used to live here. The
+ * synchronous `queryVerse`/`searchVerses` exports above are retained ONLY for
+ * electron/ipc/aiLookup.ts until its async conversion lands; they are not used by any handler.
+ */
 export function registerBibleHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('bible:getBooks', (_event, textId = 'kjva') => {
-    const db = getTextDb(textId)
-    if (!db) return []
-    const orderBy = hasSortOrderCol(db, textId)
-      ? 'ORDER BY COALESCE(sort_order, 9999), rowid'
-      : 'ORDER BY rowid'
-    const books = prep(db,
-      `SELECT id, name, short_name, testament, chapters_count FROM books ${orderBy}`
-    ).all() as Array<{ id: string; name: string; short_name: string; testament: string; chapters_count: number }>
-    // LXX (and some other texts) store chapters_count = 0; compute from verses table. A single
-    // GROUP BY covers every book in one query — an earlier version ran one MAX(chapter) query
-    // PER book needing a fallback, which for a ~80-book text like LXX meant 80+ synchronous
-    // better-sqlite3 calls blocking Electron's single main-process thread on every call, stalling
-    // any other tab's IPC requests queued behind it (most visible as a hang opening Advanced
-    // Scripture Search, since it fetches getBooks for all 14 texts on mount).
-    if (books.some((b) => b.chapters_count === 0)) {
-      const maxChapters = getMaxChaptersByBook(db, textId)
-      return books.map((b) => b.chapters_count === 0 ? { ...b, chapters_count: maxChapters.get(b.id) ?? 1 } : b)
-    }
-    return books
-  })
-
-  ipcMain.handle('bible:queryChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
-    const db = getTextDb(textId)
-    if (!db) return []
-    const withTagged = hasTaggedCol(db, textId)
-    const withTitle = hasTitleCol(db, textId)
-    const cols = ['book_id', 'chapter', 'verse_num', 'text']
-    if (withTagged) cols.push('text_tagged')
-    if (withTitle) cols.push('title')
-    const sql = `SELECT ${cols.join(', ')} FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num`
-    return prep(db, sql).all(bookId, chapter)
-  })
-
+  ipcMain.handle('bible:getBooks', (_event, textId = 'kjva') => services().bible.getBooks(textId))
+  ipcMain.handle('bible:queryChapter', (_event, bookId: string, chapter: number, textId = 'kjva') =>
+    services().bible.queryChapter(bookId, chapter, textId))
   ipcMain.handle('bible:queryVerse', (_event, bookId: string, chapter: number, verseNum: number, textId = 'kjva') =>
-    queryVerse(bookId, chapter, verseNum, textId))
-
-  // Batch verse-text fetch (Tag graph node inspector, and future callers). Groups the refs by
-  // (bookId, chapter) so it runs one `verse_num IN (...)` query per chapter instead of N
-  // single-verse round-trips. Returns a map keyed `${bookId}.${chapter}.${verse}`.
-  ipcMain.handle('bible:queryVerses', (_event, refs: Array<{ bookId: string; chapter: number; verse: number }>, textId = 'kjva') => {
-    const out: Record<string, { text: string; title?: string }> = {}
-    const db = getTextDb(textId)
-    if (!db || !Array.isArray(refs) || refs.length === 0) return out
-    const capped = refs.slice(0, 500)
-    const withTitle = hasTitleCol(db, textId)
-    const titleCol = withTitle ? ', title' : ''
-    // group verse numbers by book+chapter
-    const byChapter = new Map<string, { bookId: string; chapter: number; verses: Set<number> }>()
-    for (const r of capped) {
-      if (!r || typeof r.bookId !== 'string' || !Number.isFinite(r.chapter) || !Number.isFinite(r.verse)) continue
-      const k = `${r.bookId}|${r.chapter}`
-      let g = byChapter.get(k)
-      if (!g) { g = { bookId: r.bookId, chapter: r.chapter, verses: new Set() }; byChapter.set(k, g) }
-      g.verses.add(r.verse)
-    }
-    for (const g of byChapter.values()) {
-      const nums = [...g.verses]
-      const placeholders = nums.map(() => '?').join(',')
-      const rows = prep(db, `SELECT verse_num, text${titleCol} FROM verses WHERE book_id = ? AND chapter = ? AND verse_num IN (${placeholders})`)
-        .all(g.bookId, g.chapter, ...nums) as Array<{ verse_num: number; text: string; title?: string }>
-      for (const row of rows) {
-        out[`${g.bookId}.${g.chapter}.${row.verse_num}`] = row.title ? { text: row.text, title: row.title } : { text: row.text }
-      }
-    }
-    return out
-  })
-
+    services().bible.queryVerse(bookId, chapter, verseNum, textId))
+  ipcMain.handle('bible:queryVerses', (_event, refs: Array<{ bookId: string; chapter: number; verse: number }>, textId = 'kjva') =>
+    services().bible.queryVerses(refs, textId))
   ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva', wordMode: WordMode = 'all', bookIds?: string[]) =>
-    searchVerses(query, textId, wordMode, bookIds))
+    services().bible.searchText(query, textId, wordMode, bookIds))
 }

@@ -1,0 +1,122 @@
+# Berean iPhone — Implementation Progress
+
+Living status document. Updated at every phase gate and whenever a decision, blocker or known
+issue appears. Requirement statuses live in `requirements.md`; this file is the narrative.
+
+Branch: `feature/ios-app` · Worktree: `/Users/roywe/Berean-ios` · Base: `main` @ `7aa70d4` (0.6.19)
+
+---
+
+## Phase plan (adjusted after the audit)
+
+The brief's 22 phases are kept, with two adjustments the audit forced:
+
+- **Phase 1 and Phase 3 are merged in practice** — the service extraction (Phase 1) *is* the
+  database abstraction (Phase 3); there is no useful intermediate state. They are tracked as one
+  gate ("Phase 1/3").
+- **Phase 5 (shared data model) precedes Phase 2 (Capacitor foundation) work on tabs**, because
+  tabs/sessions must leave localStorage before anything mobile touches them. Capacitor project
+  scaffolding (Phase 2) itself is independent and is done right after Phase 1/3.
+
+| Phase | Name | Gate | Status |
+|---|---|---|---|
+| 0 | Repository audit & migration specification | audit reports + all docs in this folder + ledger | **COMPLETE** (2026-09-20) |
+| 1/3 | Platform architecture, shared services, `DatabaseAdapter`, migrations moved | typecheck + all existing tests green + contract tests + desktop build | **GATE MET** 2026-09-21 (16 services, 14 contract-test files; one cleanup item open: aiLookup async conversion to drop the `@deprecated` sync helpers) |
+| 2 | iOS/Capacitor foundation (project, plugins skeleton, build scripts, signing docs) | simulator build succeeds; app boots to renderer | **GATE MET** 2026-09-21 (BUILD SUCCEEDED; boots to the self-test screen) |
+| 4 | Bundled DB installation + offline operation on iOS | in-app parity self-test passes on simulator + device | TESTING — simulator 12/12 ✔; physical iPhone pending (needs Signing.xcconfig + a paired device) |
+| 5 | Shared data model: sessions/tabs/archived groups to SQLite; legacy import; partialize fixes | store tests green; import test; desktop behaviour unchanged | IMPLEMENTING — v43 tables, `sessionsService` (+IPC/bridge), `tabFields` split, `fractional`, `hlc` done; store mirror + legacy import next |
+| 6 | iCloud persistence & sync architecture (HLC, journal, merge, engine, stores) | unit + two-device integration tests | NOT STARTED |
+| 7 | iCloud sync: notes / highlights / verse tags (+ folders, versions, edges) | scenario tests S1–S6 + first device run | NOT STARTED |
+| 8 | iCloud sync: tabs | S7–S9 | NOT STARTED |
+| 9 | iCloud sync: sessions & workspaces (+ playlists, trail, chats, pdf metadata, youtube_user) | S10–S15 | NOT STARTED |
+| 10 | Mobile navigation shell (primitives, stack, sheets, space bar, tab pill) | primitive tests; boots on device | NOT STARTED |
+| 11 | Mobile Bible reading (pager, pinch, reference picker, reader options) | device perf baseline recorded | NOT STARTED |
+| 12 | Scripture interactions: long-press menu, selection, highlights, tags, Strong's sheet, cross refs, notes-for-verse | device manual acceptance | NOT STARTED |
+| 13 | Mobile ProseMirror notes (editor, home, folders, versions, refs, daily) | PM touch tests + device | NOT STARTED |
+| 14 | Search (page, filters, parity) | parity tests + perf | NOT STARTED |
+| 15 | Tabs & workspace UX (grid, switcher, archive, workspaces page) | tests + device | NOT STARTED |
+| 16 | Audio (Read Aloud spike → implementation, audio session, lock-screen) | device | NOT STARTED |
+| 17 | YouTube / PiP (`BereanWebView`) | device; restrictions documented | NOT STARTED |
+| 18 | Native integrations (Share Sheet in/out, deep links, Share Extension, Spotlight, App Intents, haptics, print) | device | NOT STARTED |
+| 19 | Performance & accessibility | targets met; VoiceOver pass | NOT STARTED |
+| 20 | Desktop regression audit | full desktop checklist | NOT STARTED |
+| 21 | Physical-device testing incl. iCloud matrix | `testing.md` §5 filled | NOT STARTED |
+| 22 | TestFlight / App Store preparation | checklist in `ios-build.md` §7 | NOT STARTED |
+
+## Phase 0 — Repository audit & migration specification — COMPLETE
+
+**Done**
+- Worktree `Berean-ios` on `feature/ios-app`, `npm run setup:worktree` run (DB symlinks, node_modules, youtube-key).
+- Three audit reports: `audit/data-and-platform.md` (243 IPC channels catalogued and classified; 30 user-data tables; 26 bundled DB schemas; every localStorage key; persist config; build/packaging), `audit/feature-inventory.md` (complete UI feature trace), `audit/notes-store-media-tests.md` (store field-by-field classification, ProseMirror, audio, YouTube, tests).
+- Desktop baseline recorded: typecheck clean; vitest 141 files / 3894 tests passing.
+- Environment verified: Xcode 26.6, iOS SDK 26.5, Swift 6.3, Node 24; no simulator runtime installed; no paired iPhone yet; Apple Distribution + Developer ID identities present, no Apple Development identity yet.
+- Documents written: README, requirements (ledger R001–R143), architecture, feature-matrix, icloud, database, decisions (D-001–D-006), testing, ios-build, this file.
+- Verified by hand (not just reported): FTS5 in Apple's SQLite (`pragma compile_options` → `ENABLE_FTS5`); `lxx.db` has no runtime reference; `kjv.db` is reachable via textId `kjv`; bookmarks do not exist as a scripture feature; tabs/sessions live in localStorage not SQLite; `window.*` is the only platform boundary in the renderer.
+
+**Gate check:** audit complete ✔ · docs ✔ · ledger ✔ · decisions logged ✔ · desktop untouched ✔ (no source change in Phase 0).
+
+## Phase 1/3 — Shared services & DatabaseAdapter — IMPLEMENTING
+
+**Done (2026-09-21)**
+- `src/platform/db/DatabaseAdapter.ts` (interface), `electron/db/adapters/syncSqliteAdapter.ts` (better-sqlite3 in Electron / `node:sqlite` in vitest — the repo's better-sqlite3 binary is Electron-ABI and cannot load under plain Node), `electron/db/adapters/nodeSqliteAdapter.ts` (test driver).
+- `src/platform/db/bereanMigrations.ts`: all 42 migrations moved verbatim, async runner; `electron/db/berean.ts` now `initBereanDb()` (awaited in `main.ts`) → identical schema to the developer's real 496 MB dev database verified object-by-object (80 objects, identical SQL). Snapshot: `docs/mobile/audit/schema-v42.sql` (`scripts/dump-user-schema.ts`).
+- Services extracted (SQL verbatim) with thin IPC delegates: bible, lexicon, crossrefs, highlights, settings, history, workspaces, playlists, verseTags, tagGraph, notes (vault trash mirror stays in `electron/ipc/notes.ts`), studyTrail, pdf (rows; file IO stays in Electron). `electron/services.ts` (registry, no electron import so IPC modules stay testable) + `electron/servicesHost.ts` (desktop context, cross-window `data:changed` → `notes:changed`/`studyTrail:dataChanged` broadcast with `AsyncLocalStorage` sender tracking).
+- Sync helpers used by desktop-only `aiLookup.ts` are kept in the electron files as `@deprecated` (bible: `queryVerse`/`searchVerses`; lexicon: 4; crossrefs: 5; youtube: 2) until the aiLookup async conversion lane.
+- Tests: adapter (6), migrations (7), bible/highlights/settings/history contract tests; `electron/__tests__/ipcParity.test.ts` (every preload channel has a main handler). Full suite green at each step (last: 144 files / 3916 tests; desktop `npm run build` OK).
+
+- youtube DB subset (`youtubeService`, `is.dev` guards preserved in `electron/ipc/youtube.ts`) and `aiChatsService` landed; contract tests for every service (14 files). Totals: **161 test files / 4058 tests**, typecheck clean, `npm run build` OK.
+
+**Open**: aiLookup async conversion so the `@deprecated` sync helpers in bible/lexicon/crossrefs/youtube can be deleted (desktop-only cleanup; no behaviour impact).
+
+**Gate check:** implementation ✔ · tests ✔ · desktop valid ✔ · docs ✔ · ledger ✔.
+
+## Phase 2 — iOS/Capacitor foundation — IMPLEMENTING
+
+**Done (2026-09-21)**
+- Capacitor 8.5.2 + official plugins added as devDependencies (installed into the shared `node_modules` from the main checkout with `--no-save`; worktree lockfile updated with `--package-lock-only`, per CLAUDE.md's no-`npm install`-in-worktree rule).
+- `vite.ios.config.ts` (separate entry `src/index.ios.html` → `src/platform/ios/main.tsx`; desktop `src/main.tsx` untouched), `capacitor.config.ts`, `src/platform/ios/csp.ts`.
+- `ios/` project (`cap add ios`, SPM), local Swift package `ios/App/BereanNative` (`SQLiteConnection.swift`, `BereanSQLitePlugin.swift`, XCTests), `BereanBridgeViewController` registration, xcconfig layering (`Berean.xcconfig` + `Version.xcconfig` + gitignored `Signing.xcconfig`), `scripts/ios/patch-xcodeproj.mjs` (idempotent pbxproj wiring incl. the "Copy Bundled Databases" phase), `scripts/ios/{bundled-dbs.txt,copy-data.sh,build.sh,run.sh,test.sh,version.mjs}`, `npm run ios:*` scripts.
+- JS runtime: `src/platform/ios/{plugins,capacitorSqliteAdapter,services,bridge,selfTest,IosBoot}.ts(x)` — the same shared services over the plugin; `window.*` bridge typed against `src/types/electron.d.ts` (drift fails typecheck); an in-app self-test (12 checks incl. FTS5, Strong's, cross refs, notes CRUD, transaction rollback) is the app's first screen until the mobile shell lands.
+- Build: `vite build -c vite.ios.config.ts` OK; `cap sync ios` OK; iOS 26.5 platform installed from this session (Q6; 8.5 GB, second attempt after a network failure); `xcodebuild … -destination 'generic/platform=iOS Simulator'` **BUILD SUCCEEDED**; installed and launched on an iPhone 17 Pro simulator.
+- Found and fixed: Capacitor 8's `SceneDelegate.swift` instantiates `CAPBridgeViewController()` in code, so the storyboard's custom class is ignored — the root controller is now `BereanBridgeViewController()` there (this is where local plugins get registered).
+- **Self-test 12/12 on the simulator** (timings, cold): berean.db v43 / 47 tables (3 ms) · 23 bundled DBs, 150 MB (12 ms) · Genesis 1 (4 ms) · every text lists books (33 ms) · FTS5 phrase + "love" 526 hits (36 ms) · H7225 entry + 49 occurrences (107 ms) · GEN 1:1 62 refs + 3 TSKe groups (130 ms) · notes create→update→FTS→trash→purge (6 ms) · highlights (1 ms) · verse tags · settings · transaction rollback.
+
+**Gate check:** simulator build ✔ · boots to renderer ✔ · docs ✔.
+
+## Decisions needed from the developer (non-blocking unless marked)
+
+| # | Question | Recommendation | Blocks |
+|---|---|---|---|
+| Q1 | **iCloud transport** — accept D-004 (iCloud Drive ubiquity-container journals, zero native code on the Mac) over native CloudKit (which would need a signed native Node addon in Electron plus iCloud entitlements on Developer-ID builds)? | Accept D-004. Revisit only if device testing shows iCloud Drive latency/reliability unacceptable. | Phases 6–9 (design is done; implementation starts after Phase 5 regardless — the engine is transport-agnostic and the transport can be swapped) |
+| Q2 | **"Bookmarks"** — the repo has no scripture bookmark feature. Treat the brief's bookmark requirements as satisfied by verse tags (+ pinned tabs, PDF page bookmarks moved to DB), or add a new first-class Bookmarks feature on both platforms? | Verse tags (D-005). | R043 only |
+| Q3 | **`youtube_seed.db` on iPhone** — it is 187 MB (video index + transcripts) and is merged into `berean.db` on first run, so bundling it costs ~190 MB download + ~190 MB in the data container. Options: (a) bundle as on desktop; (b) bundle only the video index (no transcripts, ~10 MB) and let iOS fetch the feed live; (c) ship transcripts as a separate on-demand download from GitHub Releases like the TTS voice pack. | (c) — keeps the app small, keeps the dev-only fetch guard, transcripts remain read-only on iOS. | Phase 4 packaging choice; everything else proceeds |
+| Q4 | **Workspace "Load" today only restores the panel layout, not the saved tabs** (`WorkspacesSection.tsx:35-42` ignores `state_json`). For sync the brief wants workspaces to carry tabs. Fix desktop Load to also restore the tab snapshot (as the Save side already stores it)? | Yes, fix on desktop as part of Phase 9 (small, and makes the feature whole). | none |
+| Q5 | **Universal links** — do you want `https://<your domain>/…` links to open Berean (needs a hosted `apple-app-site-association` on a domain you control, e.g. sitgmeat.com)? `berean://` works regardless. | Custom scheme first; universal links when a domain is chosen. | none |
+| Q6 | **Simulator runtime download** (~8 GB, `xcodebuild -downloadPlatform iOS`) — OK to run it from this session when Phase 2 starts? | Yes. | Phase 2 simulator testing |
+
+## Known issues found during the audit (pre-existing, desktop)
+
+| # | Issue | Plan |
+|---|---|---|
+| K1 | 11 Settings toggles are not in `partialize` and silently reset on restart: `printIncludeLinkedNotes`, `defaultNoteEditorMode`, `confirmNoteDelete`, `noteSpellCheck`, `autoCopyOnHighlight`, `noteHeadingDivider`, `noteBulletStyle`, `showVerseNumbers`, `showRedLetters`, `continuousChapterScroll`, `continuousDailyScroll`, `crossRefSource` (audit C) | Fix in Phase 5 when `partialize` is touched (add the keys; one-line each; test) |
+| K2 | `Tab.isPinned` has no UI that sets it (dead field) | Keep the field (harmless, synced); no mobile UI for it unless asked |
+| K3 | Two overlapping cross-window tab-sync mechanisms (`broadcastTabState` and `crossWindowSync.ts`) | Leave both as-is (desktop-only); the device-sync merge borrows `crossWindowSync.mergeTabSets`' policy |
+| K4 | `dailyNoteLocation` is in the cross-window shared list — correct for one machine, wrong across devices | LOCAL in device sync (already classified) |
+| K5 | `lxx.db` (24 MB) is bundled on desktop but never opened | Not shipped on iOS; desktop untouched |
+| K6 | Three different bundled-data path strategies | Unified in Phase 1/3 (R026) |
+| K7 | `lexicon.getRelated` never returns Hebrew results: `strongs_hebrew.db.derivation` stores bare numbers ("from the same as 24") but the query matches `LIKE '%H24%'`; Greek works because its derivation text carries the `G` prefix (`src/platform/services/lexiconService.ts` `getRelated`; asserted as-is in `lexiconService.contract.test.ts`) | Real user-facing bug on desktop (Related words always empty for Hebrew). Fix is a one-line prefix strip for `H`; needs the developer's OK since it changes desktop output |
+| K8 | `notes.create({})` without a title stores SQL `NULL`, while the "untitled" search special case matches only `title = ''` — omitted-title notes are invisible to that search path (`notesService.ts` create/untitledNoteRows) | Low impact; normalise to `''` on create when the developer agrees |
+| K9 | `playlists.save(name, items, existingId)` returns `createdAt: now` even on an overwrite although the row keeps its original `created_at` (`playlistsService.ts`) | Cosmetic (return value only); trivial fix when touched next |
+
+## Known limitations (iPhone) — see `feature-matrix.md` §10
+
+Populated as phases land; currently the design-time list in the matrix.
+
+## Blockers
+
+None.
+
+## Change log
+
+- 2026-09-20 — Phase 0 complete.
+- 2026-09-21 — Phase 1/3 gate met (161 files / 4058 tests); Phase 2 gate met (simulator build + boot); Phase 4 simulator half (12/12 self-test); Phase 5 data model started (v43, sessionsService, tabFields, fractional, hlc).

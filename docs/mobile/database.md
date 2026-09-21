@@ -1,0 +1,125 @@
+# Berean iPhone — Database Strategy
+
+Requirements: R004, R017, R020–R026. Decisions: D-002, D-003. Detailed schema inventory (all 30
+tables, every column, every migration) is in `audit/data-and-platform.md` §2–§3; this document
+records the *strategy* and the schema changes the migration adds.
+
+---
+
+## 1. Two kinds of database
+
+| Kind | Files | Writable? | Ships how | Syncs? |
+|---|---|---|---|---|
+| **Bundled content** | `kjva.db`, `kjv.db`, `lxx_brenton.db`, 16 small pseudepigrapha/patristic DBs, `strongs_hebrew.db`, `strongs_greek.db`, `cross_references.db`, `tske_refs.db` (~175 MB) | No | Desktop: `extraResources/data` (electron-builder). iOS: Xcode "Copy Bundle Resources" folder reference `data/` → `App.app/data/` | Never |
+| **User data** | `berean.db` (+ `-wal`, `-shm`) | Yes | Created on first launch by the shared migration runner | Entity-level via the iCloud journal (`icloud.md`) |
+
+Not shipped on iOS: `lxx.db` (orphan — no runtime reference; confirmed by grep in Phase 0),
+`youtube_seed.db` (187 MB, see D-007 pending decision in `implementation-progress.md`),
+`verse_embeddings.db` (desktop AI lookup only, not even shipped on desktop today).
+
+`afterPack.js` today rewrites the bundled DBs' journal mode to `DELETE` because a read-only
+Resources dir cannot host `-wal/-shm`. On iOS we open them with `?mode=ro&immutable=1`, so no
+journal file is ever needed regardless of the header's journal mode; the same files work for both.
+
+## 2. Access path
+
+```
+renderer  →  window.bible.queryChapter(...)            (unchanged call sites)
+          →  [electron]  ipcRenderer.invoke → ipcMain.handle → bibleService.queryChapter(ctx, …)
+          →  [ios]       bridge.bible.queryChapter     → bibleService.queryChapter(ctx, …)
+bibleService  →  ctx.textDb('kjva')  →  DatabaseAdapter.all(sql, params)
+          →  [electron]  betterSqliteAdapter  →  better-sqlite3 (sync, readonly: true)
+          →  [ios]       capacitorSqliteAdapter → BereanSQLite plugin → sqlite3_open_v2(READONLY)
+```
+
+### DatabaseAdapter (shared interface)
+
+```ts
+export interface DatabaseAdapter {
+  all<T = Record<string, unknown>>(sql: string, params?: SqlParams): Promise<T[]>
+  get<T = Record<string, unknown>>(sql: string, params?: SqlParams): Promise<T | undefined>
+  run(sql: string, params?: SqlParams): Promise<{ changes: number; lastInsertRowid: number }>
+  exec(sql: string): Promise<void>                              // multi-statement, no params
+  transaction<T>(fn: (tx: DatabaseAdapter) => Promise<T>): Promise<T>
+  attach(filePath: string, alias: string): Promise<void>
+  detach(alias: string): Promise<void>
+  close(): Promise<void>
+  readonly kind: 'better-sqlite3' | 'capacitor' | 'memory'
+}
+type SqlParams = ReadonlyArray<string | number | bigint | null | Uint8Array> | Record<string, unknown>
+```
+
+Conventions preserved from the existing code: positional `?` params; `Date.now()` integer
+timestamps; `crypto.randomUUID()` ids; `INSERT OR IGNORE`/`OR REPLACE`; FTS5 `MATCH` with the
+existing query builders; `PRAGMA foreign_keys = ON` at open.
+
+### Transactions
+
+- better-sqlite3's `db.transaction(fn)()` requires a synchronous `fn`. The adapter implements
+  `transaction()` as `BEGIN IMMEDIATE` … `COMMIT`/`ROLLBACK` around the awaited callback, guarded
+  by an in-process async mutex so two IPC handlers cannot interleave statements inside one
+  transaction. Callbacks must only await adapter calls (documented in the interface; a debug
+  assertion checks that no other macrotask runs between statements in dev).
+- The iOS plugin exposes `batch(statements)` executed inside one native transaction; the adapter
+  uses it for the common "list of writes" case and falls back to `BEGIN/COMMIT` otherwise.
+- Nested `transaction()` calls become `SAVEPOINT`s on both adapters.
+
+### ATTACH
+
+Used today only by `mergeYouTubeSeed` and by cross-DB queries in `crossrefs.ts`/`lexicon.ts`
+(verify in Phase 1; the audit notes `crossrefs.ts` opens its own `Database`). Both adapters
+support `attach(path, alias)`; on iOS the path is resolved by the plugin (bundle-relative or
+container-relative) — JS never sees absolute device paths.
+
+## 3. Migration history
+
+- Existing v1–v42 move from `electron/db/berean.ts` to `src/platform/db/bereanMigrations.ts`
+  **without changing a single SQL statement** (the v18 skip is preserved). `electron/db/berean.ts`
+  keeps `getBereanDb()` but calls the shared runner; `mergeYouTubeSeed` stays desktop-only.
+- New migrations added by this project (each additive, each tested for fresh install and upgrade):
+
+| Version | Purpose |
+|---|---|
+| v43 | `sessions`, `tabs`, `archived_groups` tables (D-006); `tabs` carries `sync_state_json` + `local_state_json`; one-time import of `berean-app-state.sessions/tabs/archivedGroups` from localStorage is done by the renderer's `sessionsService.importLegacy()` on first run (localStorage is not reachable from the migration), then the localStorage copy is retained read-only for one release as a safety net |
+| v44 | Sync bookkeeping: `sync_state (key, value)`, `sync_applied (device_id, seq, PRIMARY KEY)`, `sync_outbox (seq INTEGER PK, entity, id, op, hlc, base, fields_json, created_at)`; `updated_at` added where a synced table lacks it (`highlights`, `note_folders`, `verse_tags`, `verse_tag_members`, `pdfs`, `pdf_highlights`, `workspaces`); `deleted_at` added where a tombstone is needed for merge (`highlights`, `note_folders`, `verse_tags`, `verse_tag_members`, `workspaces`, `playlists`, `playlist_items`, `trail_sessions`, `trail_nodes`, `trail_connections`, `trail_notes`, `trail_tags`, `tag_edges`, `pdfs`, `pdf_highlights`, `sessions`, `tabs`, `archived_groups`) — rows with `deleted_at` are filtered by the existing list queries (each query gains `AND deleted_at IS NULL`, verified by tests) |
+| v45 | `pdf_bookmarks (id, pdf_id, page, label, created_at, updated_at, deleted_at)` replacing the `localStorage` list (imported on first PDF open) |
+| v46 | `notes.conflict_pending INTEGER DEFAULT 0`; `note_versions.device_name TEXT` |
+| v47 | `youtube_user (video_id PK, is_starred, position_seconds, last_watched, updated_at)` view of the synced subset (desktop keeps writing `youtube_videos.is_starred`/`youtube_watch_history` and the service mirrors both ways) |
+
+Every new column is nullable or defaulted, so an older desktop build opening a newer DB (the
+user downgrades) still works — SQLite ignores unknown columns for the queries it runs.
+
+## 4. iOS storage layout
+
+```
+<App sandbox>/Library/Application Support/Berean/
+├── berean.db, berean.db-wal, berean.db-shm      (NSFileProtectionCompleteUntilFirstUserAuthentication; excluded from backup)
+├── pdfs/<id>.pdf
+├── tts-cache/…                                  (purgeable; excluded from backup)
+└── tts-model/…                                  (purgeable; excluded from backup)
+<App bundle>/data/*.db                           (read-only, immutable)
+<Ubiquity container>/Documents/sync/v1/…         (iCloud)
+```
+
+## 5. Safety procedures (R025)
+
+1. Before touching `electron/db/berean.ts`, the v42 schema is snapshotted to
+   `docs/mobile/audit/schema-v42.sql` (`sqlite3 berean.db .schema`) — done in Phase 1.
+2. Migration tests run against: (a) empty DB, (b) a v42 DB with representative rows generated by
+   the existing IPC code paths, (c) the developer's real `berean.db` **copy** (never the live file;
+   the test copies it to the scratch dir first) — the last one is opt-in via
+   `BEREAN_REAL_DB=/path` and is run by the developer, not CI.
+3. The migration runner keeps wrapping each migration in its own transaction, so a failure leaves
+   the DB at the previous version, as today.
+4. No migration ever `DROP`s a table or column. Renames are done as add-column + backfill.
+5. Corrupt/incomplete DB on iOS: `PRAGMA quick_check` at open; on failure the file is moved aside
+   (`berean.db.corrupt-<ts>`), a fresh DB is created, and the iCloud journal restores the data —
+   the user is told what happened.
+
+## 6. Performance notes for iOS
+
+- `PRAGMA mmap_size = 268435456` and `cache_size = -8000` on the read-only text DBs (measured in
+  Phase 11; fallback to defaults if memory pressure is observed).
+- Prepared-statement caching lives in the Swift plugin (LRU of 64 statements per connection).
+- Chapter queries are already indexed (`idx_verses_ref`); FTS5 queries return within the existing
+  `LIMIT`s. Baselines are recorded in `testing.md` §Performance once measured on device.

@@ -534,6 +534,21 @@ contextBridge.exposeInMainWorld('workspaces', {
   rename: (id: string, name: string) => ipcRenderer.invoke('workspaces:rename', id, name),
 })
 
+// Sessions/tabs persistence rows (iPhone migration, D-006) — consumed by src/store/tabPersistence.ts.
+contextBridge.exposeInMainWorld('sessions', {
+  hasAny: () => ipcRenderer.invoke('sessions:hasAny'),
+  listSessions: () => ipcRenderer.invoke('sessions:listSessions'),
+  listTabs: (sessionId?: string) => ipcRenderer.invoke('sessions:listTabs', sessionId),
+  listArchivedGroups: () => ipcRenderer.invoke('sessions:listArchivedGroups'),
+  getLocalState: (sessionId: string) => ipcRenderer.invoke('sessions:getLocalState', sessionId),
+  setLocalState: (sessionId: string, activeTab: unknown) => ipcRenderer.invoke('sessions:setLocalState', sessionId, activeTab),
+  applySnapshot: (snap: unknown) => ipcRenderer.invoke('sessions:applySnapshot', snap),
+  upsertSession: (s: unknown) => ipcRenderer.invoke('sessions:upsertSession', s),
+  upsertTab: (t: unknown) => ipcRenderer.invoke('sessions:upsertTab', t),
+  deleteSession: (id: string) => ipcRenderer.invoke('sessions:deleteSession', id),
+  deleteTab: (id: string) => ipcRenderer.invoke('sessions:deleteTab', id),
+})
+
 contextBridge.exposeInMainWorld('playlists', {
   list: () => ipcRenderer.invoke('playlists:list'),
   save: (name: string, items: unknown[], existingId?: string) =>

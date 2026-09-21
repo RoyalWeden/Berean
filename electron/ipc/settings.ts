@@ -1,25 +1,13 @@
 import type { IpcMain } from 'electron'
-import { getBereanDb } from '../db/berean'
+import { services } from '../services'
 
+/**
+ * Thin IPC layer (Phase 1/3): delegates to the shared settingsService
+ * (src/platform/services/settingsService.ts). main.ts still reads/writes window-bounds keys
+ * through the raw better-sqlite3 handle; those are desktop-window-only and unaffected.
+ */
 export function registerSettingsHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('settings:get', (_event, key: string) => {
-    const row = getBereanDb()
-      .prepare('SELECT value FROM settings WHERE key = ?')
-      .get(key) as { value: string } | undefined
-    return row ? JSON.parse(row.value) : null
-  })
-
-  ipcMain.handle('settings:set', (_event, key: string, value: unknown) => {
-    getBereanDb()
-      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
-      .run(key, JSON.stringify(value))
-    return { success: true }
-  })
-
-  ipcMain.handle('settings:getAll', () => {
-    const rows = getBereanDb()
-      .prepare('SELECT key, value FROM settings')
-      .all() as Array<{ key: string; value: string }>
-    return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]))
-  })
+  ipcMain.handle('settings:get', (_event, key: string) => services().settings.get(key))
+  ipcMain.handle('settings:set', (_event, key: string, value: unknown) => services().settings.set(key, value))
+  ipcMain.handle('settings:getAll', () => services().settings.getAll())
 }

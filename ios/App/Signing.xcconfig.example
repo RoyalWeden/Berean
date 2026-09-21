@@ -1,0 +1,5 @@
+// Copy to Signing.xcconfig (gitignored) and fill in — see docs/mobile/ios-build.md §2.
+DEVELOPMENT_TEAM = ABCDE12345
+BEREAN_BUNDLE_ID = com.yourname.berean
+BEREAN_TEAM_ID = ABCDE12345
+CODE_SIGN_STYLE = Automatic
