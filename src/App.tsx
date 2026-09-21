@@ -33,7 +33,7 @@ import { applyThemeToDocument } from '@/lib/applyTheme'
 import '@/lib/knownTagsBridge'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
-import { installTabPersistence } from '@/store/tabPersistenceRuntime'
+import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
@@ -402,6 +402,18 @@ export default function App() {
     // window would never refresh another window's Scripture notes side panels.
     window.notes.onChanged?.(() => { bumpNoteToken() })
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    // iCloud sync (docs/mobile/icloud.md): after the sync host applies changes from another
+    // device, refresh whatever those entities feed. Notes already arrive via notes:changed above.
+    return window.sync?.onApplied?.((entities) => {
+      const s = useAppStore.getState()
+      if (entities.includes('highlight')) s.bumpHighlightToken()
+      if (entities.some((e) => e === 'verse_tag' || e === 'verse_tag_member' || e === 'tag_edge')) void s.refreshVerseTags()
+      if (entities.some((e) => e === 'session' || e === 'tab' || e === 'archived_group')) void applyExternalSessions()
+      if (entities.includes('workspace')) window.workspaces.list().then((ws) => s.setSavedWorkspaces(ws)).catch(() => {})
+    })
   }, [])
 
   useEffect(() => {

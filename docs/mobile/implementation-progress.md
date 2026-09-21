@@ -26,7 +26,7 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 | 4 | Bundled DB installation + offline operation on iOS | in-app parity self-test passes on simulator + device | TESTING — simulator 12/12 ✔; physical iPhone pending (needs Signing.xcconfig + a paired device) |
 | 5 | Shared data model: sessions/tabs/archived groups to SQLite; legacy import; partialize fixes; workspace restore | store tests green; import test; desktop behaviour unchanged | **GATE MET** 2026-09-21 (mirror + legacy import + hydration, 12 settings persisted, workspace load restores tabs/order/state/layout with v0/v1/v2 compatibility; 165 files / 4071 tests) |
 | 6 | iCloud persistence & sync architecture (HLC, journal, merge, engine, stores) | unit + two-device integration tests | **GATE MET (engine)** 2026-09-21 — transport-abstracted engine + entity adapters + in-memory transport; cases A–O green; real transports (fs / BereanCloud) are Phase 7 |
-| 7 | iCloud sync: notes / highlights / verse tags (+ folders, versions, edges) | scenario tests S1–S6 + first device run | NOT STARTED |
+| 7 | iCloud sync: notes / highlights / verse tags (+ folders, versions, edges) — real transports + hosts + settings UI | scenario tests S1–S6 + first device run | **DESKTOP HALF DONE** 2026-09-21 — `FsSyncStore` (iCloud Drive folder, atomic writes, `.icloud` placeholder handling), Electron sync host (`sync:*` IPC, status/applied broadcasts), Settings → iCloud section, renderer refresh on remote apply; fs two-device test green. iOS transport (`BereanCloud`) + iOS host: IN PROGRESS |
 | 8 | iCloud sync: tabs | S7–S9 | NOT STARTED |
 | 9 | iCloud sync: sessions & workspaces (+ playlists, trail, chats, pdf metadata, youtube_user) | S10–S15 | NOT STARTED |
 | 10 | Mobile navigation shell (primitives, stack, sheets, space bar, tab pill) | primitive tests; boots on device | NOT STARTED |
@@ -80,6 +80,19 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 
 **Gate check:** implementation ✔ · tests ✔ (167 files / 4086) · desktop typecheck + build ✔ · docs ✔.
 **Not yet:** iCloud Drive transports and the host wiring (Electron main process, iOS), sync settings UI, compaction — Phase 7.
+
+## Phase 7 — Transports, hosts, settings UI — DESKTOP HALF DONE (2026-09-21)
+
+**Done (desktop)**
+- `electron/sync/fsSyncStore.ts` — `SyncStore` over a plain folder (the iCloud Drive container's `Documents/sync/v1` by default, or any folder the user picks). Atomic `tmp + rename` writes, `.icloud` placeholders reported as "not yet downloaded" (returns `null`, kicks `brctl download`), recursive `fs.watch` → `onChange`, `ubiquityContainerPath(containerId)` resolves `~/Library/Mobile Documents/<id with . → ~>`.
+- `electron/sync/host.ts` — `initSyncHost()`: reads `icloudSyncEnabled` / `icloudSyncFolder` / `icloudContainerId` from settings, stable per-install `deviceId` (random 16 hex, stored in `sync_state`), opens the engine, syncs on start / on folder change (debounced) / every 60 s / on `sync:syncNow`, broadcasts `sync:status` and `sync:applied` to all windows, stops cleanly on quit. IPC: `sync:getStatus`, `getConfig`, `syncNow`, `enable`, `disable`, `chooseFolder`, `useDefaultFolder`.
+- Preload `window.sync` (optional in `electron.d.ts` so the renderer works on builds without it) and `src/App.tsx` refresh hook: remote applies bump the highlight token, refresh verse tags, re-hydrate sessions/tabs (`applyExternalSessions`) and reload saved workspaces.
+- `src/components/settings/sections/ICloudSection.tsx` — enable/disable, folder (default container or custom), device list with last-seen, pending outbox / last error, "Sync now". Vault section relabelled "Vault" to avoid two "Sync" entries.
+- `electron/servicesHost.ts` — `data:changed` events with `remote: true` are broadcast to every window (previously only to the origin window's siblings).
+- Tests: `electron/sync/__tests__/fsSyncStore.test.ts` (4) and `fsSync.integration.test.ts` (two engines over one real folder: notes / tags / tabs propagate, `local_state_json` never crosses, concurrent note edits → identical winner + conflict copy on both, manifests list both devices).
+
+**In progress (iOS)**: `BereanCloud` Swift plugin (ubiquity container URL, `NSFileCoordinator` reads/writes, `NSMetadataQuery` change notifications, `startDownloadingUbiquitousItem`), `src/platform/ios/cloudSyncStore.ts`, iOS sync host + `window.sync` in the iOS bridge, iCloud entitlement + container id in `ios-build.md`.
+**Not yet:** journal compaction (§8), entity coverage for Phases 8–9 extras (trail, pdf metadata, youtube_user, ai chats).
 
 ## Phase 5 — Shared data model — GATE MET (2026-09-21)
 
@@ -149,3 +162,4 @@ None.
 - 2026-09-21 — Phase 1/3 gate met (161 files / 4058 tests); Phase 2 gate met (simulator build + boot); Phase 4 simulator half (12/12 self-test); Phase 5 data model started (v43, sessionsService, tabFields, fractional, hlc).
 - 2026-09-21 — checkpoint commit 8af0cc8; developer decisions Q1–Q6 received; Phase 5 gate met (store mirror, legacy import, settings persistence, workspace restore, K7–K9); commit 0cb6a28.
 - 2026-09-21 — Phase 6 engine gate met (167 files / 4086 tests).
+- 2026-09-21 — Phase 7 desktop half: FsSyncStore + Electron sync host + iCloud settings section + renderer refresh (169 files / 4091 tests).

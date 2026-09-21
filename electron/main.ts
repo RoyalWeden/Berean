@@ -66,6 +66,7 @@ if (is.dev) {
 }
 import { initBereanDb, getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
 import { initDesktopServices } from './servicesHost'
+import { initSyncHost } from './sync/host'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
@@ -1280,6 +1281,8 @@ app.whenReady().then(async () => {
     // registered below delegate to these. See docs/mobile/architecture.md §3.
     initDesktopServices()
     log.info('shared services initialised')
+    // iCloud sync engine (docs/mobile/icloud.md) — no-op until enabled in Settings → iCloud.
+    initSyncHost().catch((err) => log.error('[sync] host init failed', err))
     // NOTE: mergeYouTubeSeed is intentionally NOT run here. On a fresh install /
     // seed-version bump it attaches a 196MB seed DB and runs bulk inserts
     // synchronously, which would block first paint. It's deferred until after

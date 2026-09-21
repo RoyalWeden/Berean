@@ -549,6 +549,27 @@ contextBridge.exposeInMainWorld('sessions', {
   deleteTab: (id: string) => ipcRenderer.invoke('sessions:deleteTab', id),
 })
 
+// iCloud sync (docs/mobile/icloud.md) — status/config/actions + push events from the sync host.
+contextBridge.exposeInMainWorld('sync', {
+  getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+  getConfig: () => ipcRenderer.invoke('sync:getConfig'),
+  syncNow: () => ipcRenderer.invoke('sync:syncNow'),
+  enable: () => ipcRenderer.invoke('sync:enable'),
+  disable: () => ipcRenderer.invoke('sync:disable'),
+  chooseFolder: () => ipcRenderer.invoke('sync:chooseFolder'),
+  useDefaultFolder: () => ipcRenderer.invoke('sync:useDefaultFolder'),
+  onStatus: (cb: (status: unknown) => void) => {
+    const handler = (_e: unknown, status: unknown) => cb(status)
+    ipcRenderer.on('sync:status', handler)
+    return () => ipcRenderer.removeListener('sync:status', handler)
+  },
+  onApplied: (cb: (entities: string[]) => void) => {
+    const handler = (_e: unknown, entities: string[]) => cb(entities)
+    ipcRenderer.on('sync:applied', handler)
+    return () => ipcRenderer.removeListener('sync:applied', handler)
+  },
+})
+
 contextBridge.exposeInMainWorld('playlists', {
   list: () => ipcRenderer.invoke('playlists:list'),
   save: (name: string, items: unknown[], existingId?: string) =>

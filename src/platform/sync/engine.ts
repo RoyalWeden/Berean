@@ -1,5 +1,5 @@
 import type { DatabaseAdapter } from '../db/DatabaseAdapter'
-import type { ServiceEvents, ServiceLogger, DataChange } from '../services/context'
+import { defaultUuid, type ServiceEvents, type ServiceLogger, type DataChange } from '../services/context'
 import { HybridLogicalClock, compareHlc, formatHlc, parseHlc } from './hlc'
 import { chunkForFiles, decodeJournal, parseJournalFileName } from './journal'
 import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter } from './entities'
@@ -85,7 +85,7 @@ export class SyncEngine {
     this.deviceId = deviceId
     this.clock = clock
     this.now = opts.now ?? (() => Date.now())
-    this.uuid = opts.uuid ?? (() => (globalThis.crypto as Crypto).randomUUID())
+    this.uuid = opts.uuid ?? defaultUuid
   }
 
   /** Load bookkeeping (device id, clock, own seq/files) and return a ready engine. */

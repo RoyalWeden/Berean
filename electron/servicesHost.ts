@@ -97,7 +97,6 @@ export function initDesktopServices(): Services {
  */
 function installCrossWindowChangeBroadcast(ctx: ServiceContext): void {
   ctx.events.on('data:changed', (change) => {
-    if (change.remote) return
     const channel =
       change.entity === 'note' || change.entity === 'note_folder' || change.entity === 'note_version'
         ? 'notes:changed'
@@ -105,7 +104,8 @@ function installCrossWindowChangeBroadcast(ctx: ServiceContext): void {
           ? 'studyTrail:dataChanged'
           : null
     if (!channel) return
-    const senderId = currentSender()
+    // A change applied from another device (sync) has no originating window: every window refreshes.
+    const senderId = change.remote ? null : currentSender()
     for (const win of BrowserWindow.getAllWindows()) {
       if (win.isDestroyed()) continue
       if (senderId !== null && win.webContents.id === senderId) continue

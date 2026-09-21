@@ -328,6 +328,28 @@ interface SessionsAPI {
   deleteTab: (id: string) => Promise<void>
 }
 
+/** iCloud sync (docs/mobile/icloud.md). Absent on platforms without a sync host. */
+export interface SyncConfig {
+  enabled: boolean
+  folder: string
+  folderOverride: string | null
+  containerId: string
+  containerExists: boolean
+  running: boolean
+}
+interface SyncAPI {
+  getStatus: () => Promise<import('../platform/sync/types').SyncStatusSnapshot | null>
+  getConfig: () => Promise<SyncConfig>
+  syncNow: () => Promise<import('../platform/sync/types').SyncStatusSnapshot | null>
+  enable: () => Promise<{ ok: boolean; reason?: string }>
+  disable: () => Promise<{ ok: boolean }>
+  chooseFolder: () => Promise<{ canceled?: boolean; folder?: string }>
+  useDefaultFolder: () => Promise<{ ok: boolean }>
+  onStatus: (cb: (status: import('../platform/sync/types').SyncStatusSnapshot | null) => void) => () => void
+  /** Entities touched by the last pull (e.g. 'note', 'tab', 'session', 'highlight'). */
+  onApplied: (cb: (entities: string[]) => void) => () => void
+}
+
 interface PlaylistsAPI {
   list: () => Promise<SavedPlaylist[]>
   save: (name: string, items: PlaylistItemInput[], existingId?: string) => Promise<SavedPlaylist>
@@ -828,6 +850,7 @@ declare global {
     workspaces: WorkspacesAPI
     playlists: PlaylistsAPI
     sessions: SessionsAPI
+    sync?: SyncAPI
     ttsModel: TTSModelAPI
     ttsAudioCache: TTSAudioCacheAPI
     viewer: {

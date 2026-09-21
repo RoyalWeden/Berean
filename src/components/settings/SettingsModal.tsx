@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag,
-} from 'lucide-react'
+  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag, Cloud } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import type { ScriptureLayout } from '@/types'
@@ -14,6 +13,7 @@ import SectionAnchorChips from './SectionAnchorChips'
 import YtLayoutSetting from './sections/YtLayoutSetting'
 import WordReplacerSection from './sections/WordReplacerSection'
 import AudioSection from './sections/AudioSection'
+import ICloudSection from './sections/ICloudSection'
 import HistorySection from './sections/HistorySection'
 import UpdatesSection from './sections/UpdatesSection'
 import PrintExportSection from './sections/PrintExportSection'
@@ -149,7 +149,7 @@ const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
 
 
-type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
+type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'icloud' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -442,7 +442,8 @@ export default function SettingsModal() {
     { id: 'appearance', label: 'Appearance', icon: Palette,   keywords: ['theme', 'font', 'color', 'dark', 'light', 'preset', 'typography', 'ui'] },
     { id: 'reading',    label: 'Reading',    icon: BookOpen,  keywords: ['strongs', 'inline', 'verse', 'zoom', 'layout', 'line height', 'scripture', 'bible', 'translation', 'red letter', 'hermas'] },
     { id: 'notes',      label: 'Notes',      icon: NotepadText,  keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'print', 'export', 'pdf', 'margin', 'daily', 'tags', 'verse tags'] },
-    { id: 'vault',      label: 'Sync',       icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
+    { id: 'vault',      label: 'Vault',      icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'folder', 'path', 'markdown'] },
+    { id: 'icloud',     label: 'iCloud',     icon: Cloud, keywords: ['sync', 'icloud', 'iphone', 'devices', 'notes', 'highlights', 'tabs', 'sessions', 'workspaces'] },
     { id: 'youtube',    label: 'YouTube',    icon: Youtube,   keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions', 'layout'] },
     { id: 'audio',      label: 'Audio',      icon: Volume2,   keywords: ['audio', 'read aloud', 'tts', 'text to speech', 'voice', 'speak', 'speech', 'listen', 'narration'] },
     { id: 'shortcuts',  label: 'Shortcuts',  icon: Keyboard,  keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
@@ -1382,6 +1383,8 @@ export default function SettingsModal() {
                   </div>
                 </>
               )}
+
+              {section === 'icloud' && <ICloudSection />}
 
               {section === 'youtube' && (
                 <>
