@@ -187,7 +187,7 @@ export default function FindBar({
       {showAdvancedSearch && (
         <div className="px-3 py-1 border-t border-separator flex items-center justify-between">
           <span className="text-caption2 text-text-muted">Find in page</span>
-          <Button variant="ghost" size="sm" className="!text-accent hover:!text-accent-raised" onClick={handleAdvancedSearch}>
+          <Button variant="link" size="sm" onClick={handleAdvancedSearch}>
             Advanced scripture search →
           </Button>
         </div>

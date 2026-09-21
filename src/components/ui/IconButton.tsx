@@ -5,7 +5,7 @@ import { cx } from './cx'
 import { Tooltip } from './Tooltip'
 import { ControlShapeContext, useControlSurface, useInControlGroup, type ControlShape, type ControlSurface } from './surface'
 import { Badge, type BadgeProps } from './Badge'
-import { useCompactMetrics } from './metrics'
+import { useBarMetrics, useCompactMetrics } from './metrics'
 
 export type IconButtonSize = 20 | 24 | 28 | 32
 
@@ -17,6 +17,9 @@ const SIZE: Record<IconButtonSize, { box: string; icon: number; radius: string }
   32: { box: 'w-8 h-8', icon: 18, radius: 'rounded-control-md' },
 }
 const DOWN: Record<IconButtonSize, IconButtonSize> = { 20: 20, 24: 20, 28: 24, 32: 28 }
+/** The one bar box (CONTROL_H_BAR = 36): every IconButton in a bar renders at this size, so a
+ *  toolbar shows one control height whatever size each call site asked for (see metrics.tsx). */
+const BAR = { box: 'w-9 h-9', icon: 18, radius: 'rounded-control-md' }
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: LucideIcon
@@ -26,8 +29,9 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   /** 'glass' = visible control at rest (toolbars); 'ghost' = transparent at rest (inline row actions).
    *  Defaults to the surrounding `Toolbar`'s material, else 'ghost'. */
   variant?: ControlSurface
-  /** 'square' (rounded square, --radius-compact) or 'round' (capsule). Defaults: square for glass
-   *  controls and anything inside a ControlGroup/Toolbar; round for ghost buttons elsewhere. */
+  /** 'square' (rounded square, --radius-compact) or 'round' (capsule — a circle on a square box).
+   *  Defaults: ROUND for a standalone icon control in a bar (its own group of one) and for ghost
+   *  buttons; square inside a ControlGroup, where the group owns the container. */
   shape?: ControlShape
   /** Accent-tinted "this mode is on" state (rail space, Strong's toggle, filter). */
   active?: boolean
@@ -59,11 +63,16 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   ref,
 ) {
   const compact = useCompactMetrics()
-  const s = SIZE[compact ? DOWN[size] : size]
+  const bar = useBarMetrics()
+  const s = compact ? SIZE[DOWN[size]] : bar ? BAR : SIZE[size]
   const surface = useControlSurface(variant)
   const inGroup = useInControlGroup()
   const ctxShape = useContext(ControlShapeContext)
-  const resolvedShape: ControlShape = shape ?? ctxShape ?? (surface === 'glass' ? 'square' : 'round')
+  // A standalone icon control in a bar is a CIRCLE. Apple's grouping model makes a lone toolbar
+  // item its own "group of one", and a group of one with a single square icon reads as a circle;
+  // only items that actually share a ControlGroup's container render flat inside it.
+  const resolvedShape: ControlShape = shape ?? ctxShape
+    ?? (bar && !inGroup ? 'round' : surface === 'glass' ? 'square' : 'round')
   const isOff = disabled || loading
   let state: string
   if (inGroup) {

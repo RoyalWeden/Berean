@@ -1,10 +1,12 @@
 import { forwardRef, useImperativeHandle, useRef, type HTMLAttributes, type RefObject } from 'react'
 import { cx } from './cx'
 import { ControlSurfaceContext, type ControlSurface } from './surface'
+import { BarMetrics } from './metrics'
 import { useScrollEdge } from '@/lib/useScrollEdge'
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
-  /** 'sm' 36px (list headers, sub-toolbars) · 'md' 44px (window toolbar, panel headers). */
+  /** 'sm' 44px (list headers, sub-toolbars) · 'md' 44px (window toolbar, panel headers).
+   *  macOS 27 makes toolbars uniform; both hold the one 36px bar control (CONTROL_H_BAR). */
   size?: 'sm' | 'md'
   /** Which edge touches scrolling content.
    *  'auto' (default) — seamless at rest; hairline + soft shadow appear only once the content
@@ -49,6 +51,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
   const scrolled = auto ? (scrolledProp ?? observed) : false
   return (
     <ControlSurfaceContext.Provider value={itemVariant}>
+      <BarMetrics>
       <div
         ref={inner}
         data-scroll-edge={auto ? edgeSide : undefined}
@@ -56,7 +59,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
         data-scrolled={scrolled || undefined}
         className={cx(
           'flex items-center gap-2 flex-shrink-0 min-w-0 px-3',
-          size === 'md' ? 'h-11' : 'h-9',
+          size === 'md' ? 'h-11' : 'h-11',
           material === 'bar' && 'material-bar', material === 'sidebar' && 'material-sidebar',
           edge === 'bottom' && 'border-b border-separator', edge === 'top' && 'border-t border-separator',
           sticky && 'sticky top-0 z-raised',
@@ -66,6 +69,7 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
       >
         {children}
       </div>
+      </BarMetrics>
     </ControlSurfaceContext.Provider>
   )
 })

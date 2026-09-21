@@ -47,10 +47,10 @@ function NoteRow({ note, onPreview, onOpen }: { note: Note; onPreview: (n: Note)
   return (
     <ListRow
       flush
-      leading={<FileText size={13} />}
+      leading={<FileText size={14} />}
       title={note.title?.trim() || 'Untitled'}
       meta={<span className="inline-flex items-center gap-1">
-        {meta && <meta.icon size={11} style={{ color: meta.color }} />}
+        {meta && <meta.icon size={12} style={{ color: meta.color }} />}
         {timeAgo(note.updatedAt)}
       </span>}
       onClick={() => onPreview(note)}

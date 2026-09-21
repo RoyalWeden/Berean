@@ -478,7 +478,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                     </>}
                   >
                     <span className="inline-flex items-center gap-1.5 normal-case tracking-normal text-footnote font-semibold text-text-secondary">
-                      <BookOpen size={11} className="text-text-muted" />
+                      <BookOpen size={12} className="text-text-muted" />
                       {group.bookName}
                     </span>
                   </SectionHeader>
@@ -499,7 +499,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                     }
                     title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(r.text, query)}</span>}
                     titleClamp={3}
-                    trailing={<ChevronRight size={11} className="text-text-muted" />}
+                    trailing={<ChevronRight size={12} className="text-text-muted" />}
                   />
                 ))}
               </div>

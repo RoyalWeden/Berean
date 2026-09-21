@@ -31,9 +31,16 @@ are **rounded rectangles**, large/extra-large are **capsules**):
 - Concentric rule applies only where an inner surface shares a corner with its container (inner =
   outer − inset): window 20 → corner surface 12 · group 10 → item 7 · menu 14 → row 8 · segmented
   track 8 → thumb 7 · card 8 → chip 4. Elsewhere every element uses its ROLE radius.
-- Heights (single authority): window toolbar 44 · sub-toolbars 36 · toolbar items 28 · compact
-  contexts (inspector, popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 ·
-  list rows 36 (28 dense) · menu rows 28 · calendar cells 22.
+- Heights (single authority): all toolbars 44 (macOS 27 uniform toolbars) · **bar controls 36** (one
+  height for every control in a bar, via `BarMetrics` — see below) · compact contexts (inspector,
+  popover, floating editor toolbar → `CompactMetrics`) 24 · sidebar rows 28 · list rows 36 (28
+  dense) · menu rows 28 · calendar cells 22. A segmented control's TRACK is the 32px control; its
+  segments are inset at 28.
+- **`BarMetrics`** (pass 5) is the mirror of `CompactMetrics`: inside a `Toolbar` — and the
+  sidebar's search row, which is a bar without being a `Toolbar` — every sized primitive steps one
+  size UP (Button sm→md, IconButton 24→28→32, fields and segmented tracks to 32), so a bar renders
+  ONE control height regardless of which size each call site asked for. It crosses `TabHeaderPortal`
+  alongside the control surface. Dense contexts still step DOWN; a control is never both.
 
 ## Tokens
 
@@ -187,6 +194,8 @@ uppercase recipe.
 | `TextField` / `SearchField` | capsule inputs; `SearchField` has clear + Esc |
 | `Select` | custom listbox — never a native `<select>` |
 | `Tooltip` | label + optional shortcut keycaps |
+| `ToolbarSpacer` | the named group boundary between two logical toolbar groups: `flexible` (absorbs slack) / `fixed` (a deliberate gap) — replaces bare `<div className="flex-1" />` so a bar's grouping is legible in the markup |
+| `CardButton` | content-layer action card: a block of rich content that is itself one button (AI-lookup results, search result rows, video cards). `surface elevated\|glass\|plain`, `icon`, `chevron`, `focused`, `selected`, `density`. Never glass by default, never scales on press |
 | `Toolbar` | M1 bar row; `edge="auto"` scroll-edge; children default to glass controls; `gap-2` between groups |
 | `ListRow` | the one list/tree/sidebar row: leading · title/subtitle · meta · trailing; `selected`/`current`/`dense`/`flush`/`titleSize` |
 | `Sheet` | dialog shell: `size alert\|sm\|md\|lg\|xl`, `scrim modal\|light`, `onDefaultAction`, `layout split` |
@@ -207,6 +216,64 @@ uppercase recipe.
 | Sort direction | `IconButton` |
 | Disclosure | `DisclosureRow` |
 | Verse / Strong's reference | `RefChip` (clickable = navigates; never a badge) |
+
+### Control taxonomy (pass 5 — every control classified before it is styled)
+
+The rule this pass enforces: **classify first, style second.** A control's visual treatment is
+decided by its semantic role, never by what looks tidy next to it. Shape is *not* shared across
+roles — uniformity of appearance is a failure mode, consistency of design language is the goal.
+What every role DOES share: tokens, typography, icon sizing, interaction states, focus, spacing,
+motion, accessibility.
+
+| Role | Primitive | Shape | Resting surface |
+|---|---|---|---|
+| Push / action button (labelled) | `Button variant="secondary\|ghost"` | rounded rect (`sm\|md`) | glass in a bar, ghost in content |
+| Default action on a surface | `Button variant="primary"` | capsule | accent fill |
+| Important but not default | `Button variant="prominent"` | capsule | accent-muted glass |
+| Destructive | `Button variant="destructive"` (fill) or `ghost danger` (quiet) | per variant | destructive fill / text-until-hover |
+| Icon-only control | `IconButton` | square in bars/groups, round standalone | glass in a bar, ghost in a row |
+| Toolbar item | `IconButton`/`Button` inside `Toolbar` | as above | **glass, shared per group** (see below) |
+| Grouped controls | `ControlGroup` owns the container; children render flat | `rounded-row` 10 → items 7 | one glass container |
+| Group boundary | `ToolbarSpacer` (`flexible\|fixed`) | — | none (spacing, not a divider) |
+| Mutually-exclusive choice (≤4) | `SegmentedControl` | track 8, thumb 7 | glass track + raised thumb |
+| Mutually-exclusive choice (>4) | `Select` | rounded rect | field |
+| On/off setting | `Switch` | capsule | — (never a capsule button) |
+| Menu / pop-up trigger | `Button variant="menu"` (trailing ▾) or `Select` | rounded rect | glass |
+| Toolbar title + picker | `TitleControl` | one `ControlGroup` | glass |
+| Overflow / More | `OverflowGroup` + `OverflowSection` | — | one primitive, never per-workspace |
+| Search | `SearchField` | capsule | `control-field` |
+| Text entry | `TextField` / `TextArea` | rounded rect | `control-field` |
+| Document / panel tab | `TabStrip` | per variant | — (navigation, not a button) |
+| Sidebar navigation row | `ListRow` | inset 7 | `surface-selected` when current |
+| List / tree row | `ListRow` | inset 7 | hover only |
+| Menu row | `MenuItem` | `rounded-card` 8 | accent fill on hover (NSMenu) |
+| Disclosure | `DisclosureRow` | row | — |
+| Filter toggle | `Chip kind="filter"` | rounded rect | glass |
+| Removable token | `Chip kind="token"` | capsule | glass |
+| Static status | `Badge` / `Chip kind="badge"` | capsule | — (**never clickable**) |
+| Verse / Strong's reference | `RefChip` | capsule | — (clickable = navigates) |
+| Selectable choice card | `OptionCard` | `rounded-card` 8 | glass; **radio semantics** |
+| Rich content that IS a button | `CardButton` | `rounded-card` 8 | `surface-elevated`; content layer, never glass |
+| Confirm dialog | `AlertSheet` | sheet 20 | `material-sheet` |
+| Window / titlebar | native traffic lights; `WindowControls` on Windows | — | never styled as content buttons |
+
+**Toolbar items share glass per logical group.** Apple's rule for the new design (WWDC25, *Build a
+SwiftUI/AppKit app with the new design* — official): on the macOS window toolbar, toolbar items are
+automatically grouped and are "given a glass background effect that is **shared with other items in
+the same logical grouping**"; a `ToolbarSpacer` is what splits items into separate groups. So the
+earlier reading that macOS toolbar items carry *no* bezel describes pre-macOS-26 AppKit and does not
+apply here. In Berean this means: related adjacent toolbar controls belong in ONE `ControlGroup`
+(back/forward, ‹ title ›, undo/redo, a view pair); a genuinely standalone action (sidebar toggle,
+inspector toggle) is its own group of one and keeps its own glass; and unrelated neighbours are
+separated by a `ToolbarSpacer`, not by giving each its own pill. Grouping is semantic — proximity
+alone is never a reason to group.
+
+**Where Berean deliberately differs from a consumer Apple app.** Study controls keep their labels
+and their density: Strong's toggles, translation pickers, scope/mode/word-mode selectors, tag
+filters, cross-reference and morphology controls stay explicit rather than collapsing into icons or
+progressive disclosure. Semantic colour stays on study meaning (tags, highlight pigments, graph node
+types, note status, trail palette, presenter state) while the chrome layer stays neutral — native
+structure, Berean meaning.
 
 ## Consistency matrix (verified in code, pass 2 — 2026-09-18)
 | Component | Typography | Material | Border | Radius | Hover | Press | Selected | Focus | Dark/Light |
@@ -344,3 +411,42 @@ as badges (section labels use `SectionLabel`).
   rows are `ListRow` (keyboard reachable, single selection color); `Sheet layout="split"` hosts
   Settings. Gate: zero legacy `text-xs/sm`, `font-bold`, `hover:bg-surface-N`, `rounded-shell`,
   4-digit z-indexes; raw controls only per the accepted list above.
+- 2026-09-20 — Pass 5 (control & button system): **toolbar glass belongs to the GROUP, not the
+  item.** Apple's new-design rule is official (WWDC25, *Build a SwiftUI/AppKit app with the new
+  design*): macOS window-toolbar items are auto-grouped and share one glass background per logical
+  grouping, split by a `ToolbarSpacer`. The competing reading — "toolbar items have no bezel" —
+  describes pre-macOS-26 AppKit and is NOT the target; Berean's `ControlGroup` already was the
+  correct container, so this pass moved adjacent related toolbar controls into it rather than
+  leaving each with its own pill. Standalone actions (sidebar/inspector toggle) remain their own
+  group of one. Grouping is semantic: proximity is never a reason to group.
+  New primitives: `CardButton` (the content-layer action card — `Button` is for labelled actions and
+  `OptionCard` is a radio, so neither covered "this whole card opens something"; the recipe had been
+  hand-copied across AI lookup / Scripture search / YouTube) and `ToolbarSpacer` (the other half of
+  the grouping API). A full **control taxonomy** now precedes the consistency matrix: every role maps
+  to exactly one primitive, and shape is decided by role, not by tidiness — uniform appearance is a
+  failure mode, consistent design language is the goal.
+  Intentionally unchanged: `SearchField` (already the restrained Mac search field — capsule,
+  `control-field`, leading icon, NSSearchField-style filled clear button, Escape-clears,
+  `role="searchbox"`); `Switch`, `SegmentedControl`, `TabStrip` (correct distinct primitives — a
+  toggle must not become a capsule button, a tab must not become a segment); the `disabled:opacity-40`
+  recipe (matches macOS's own disabled control dimming, and `IconButton` keeps pointer events so its
+  tooltip can still explain why); accepted raw controls (grid cells, verse-level reader controls,
+  composite controls, ProseMirror node views, the pre-CSS crash overlay). YouTube/media poster
+  `group-hover:scale-105` stays — a media-card affordance on an `<img>`, not a control.
+- 2026-09-20 — Pass 5 running-app QA found the pass's headline defect, which no amount of code
+  reading had surfaced: **exactly one `ControlGroup` in the app was drawing its glass container.**
+  `Toolbar` publishes `ControlSurfaceContext='glass'`, but every panel's toolbar content is
+  portaled in through `TabHeaderPortal`, and React context follows the React tree rather than the
+  DOM tree — so portaled groups never saw that provider and fell back to the `ghost` default,
+  rendering their hairline dividers floating in the bar with no container. Only ShellHeader's own
+  leading nav cluster (a direct `Toolbar` child) looked right. `TabHeaderPortal` now re-provides
+  'glass' inside the portal. The floating notes-editor toolbar is unaffected and stays flat — it
+  sets `itemVariant="ghost"` deliberately, because it already floats on its own glass surface and
+  boxing each button there would be glass-on-glass.
+  Also: `ColorSwatchRow` itself carried `hover:scale-110`; swatches now hold their geometry and
+  respond with brightness. All 82 off-scale Lucide sizes (11/13/15/7/26 — `DisclosureRow` among
+  them) normalized to the 12/14/16/18/20/24 scale. Every `transition-all` is now an explicit
+  property list. `Chip` gained the `tooltip` prop it was missing, and the last `title=` attributes
+  on primitives became real tooltips.
+  Verification note: `npm test` is `vitest` in WATCH mode and never exits — use `npx vitest run`.
+

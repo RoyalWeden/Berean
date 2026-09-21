@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom'
 import * as RadixTooltip from '@radix-ui/react-tooltip'
 import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2 } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import { MenuSurface, MenuItem, MenuSeparator, EmptyState, RefChip, SectionLabel } from '@/components/ui'
+import { MenuSurface, MenuItem, MenuSeparator, EmptyState, RefChip, SectionLabel, Tooltip } from '@/components/ui'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
@@ -323,7 +323,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded-control-md material-control px-2 py-0.5 text-caption text-text-secondary hover:text-text-primary transition-colors cursor-pointer select-none"
       >
-        <Link2 size={11} strokeWidth={2} className="text-text-muted" />
+        <Link2 size={12} strokeWidth={2} className="text-text-muted" />
         <span>{label}</span>
         <ChevronDown size={12} className={`text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -353,7 +353,7 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
   if (!note) return null
   return (
     <div className="mb-4 flex items-start gap-1.5 text-caption text-text-quaternary">
-      <BookOpen size={11} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
+      <BookOpen size={12} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
       <span>{note}</span>
     </div>
   )
@@ -1270,12 +1270,11 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
                   ? `vv.${missingBefore[0]}-${missingBefore[missingBefore.length - 1]}`
                   : `vv.${missingBefore.join(', ')}`
               return (
-                <p
-                  className="px-3 py-0.5 text-caption2 text-text-quaternary select-none"
-                  title="Present in the KJV but not in this Septuagint text"
-                >
-                  — {label} not in LXX —
-                </p>
+                <Tooltip label="Present in the KJV but not in this Septuagint text">
+                  <p className="px-3 py-0.5 text-caption2 text-text-quaternary select-none">
+                    — {label} not in LXX —
+                  </p>
+                </Tooltip>
               )
             })()}
             {verse.title && (
@@ -1354,17 +1353,18 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
                     onClick={() => highlightRange(c.id)}
                     title={`Highlight ${c.label}`}
                     style={{ backgroundColor: c.dot }}
-                    className="w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0"
+                    className="w-4 h-4 rounded-full cursor-pointer transition-[filter,box-shadow] duration-fast hover:brightness-110 hover:ring-1 hover:ring-hairline flex-shrink-0"
                   />
                 ))}
                 {row === 2 && selectionHasHighlights() && (
-                  <button
-                    onClick={clearRangeHighlights}
-                    title="Clear highlights from selection"
-                    className="ml-auto text-text-muted hover:text-destructive cursor-pointer"
-                  >
-                    <X size={11} />
-                  </button>
+                  <Tooltip label="Clear highlights from selection">
+                    <button
+                      onClick={clearRangeHighlights}
+                      className="ml-auto text-text-muted hover:text-destructive cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  </Tooltip>
                 )}
               </div>
             ))}

@@ -21,8 +21,8 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
-  Badge, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
-  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel,
+  Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
+  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics,
 } from '@/components/ui'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
@@ -1190,7 +1190,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
-      <div className="flex items-center gap-2 px-4 py-2 material-bar flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
+      {/* Hand-rolled bar (it wraps, so it is not a fixed-height Toolbar) — but it IS a bar, so
+          BarMetrics gives its scope trigger, mode segments and filter controls the one bar
+          control height instead of their own 28px call-site sizes. */}
+      <BarMetrics>
+      <div className="flex items-center gap-2 px-4 py-1.5 material-bar flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
         <SearchField
           ref={inputRef}
           bare
@@ -1305,6 +1309,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           </>
         )}
       </div>
+      </BarMetrics>
 
       {/* ── Scope modal — tabbed: Bible Edition / Canon Books / Other Books, triggered from the
            compact scope button in the shared TopBar above.
@@ -1627,7 +1632,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     leading={<span className="font-mono text-caption text-accent w-24 flex-shrink-0">{ref}</span>}
                     title={r.text ? <span className="whitespace-normal">{r.text}</span> : undefined}
                     subtitle={`${'●'.repeat(strength)}${'○'.repeat(5 - strength)}`}
-                    trailing={<ChevronRight size={11} className="text-text-muted" />}
+                    trailing={<ChevronRight size={12} className="text-text-muted" />}
                   />
                 )
               })}
@@ -1774,115 +1779,126 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       className="absolute top-0 left-0 w-full"
                       style={{ transform: `translateY(${virtualRow.start}px)` }}
                     >
-                      <button
+                      <CardButton
                         onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))}
                         onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                        className={`focus-ring w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer group ${row.indexInGroup > 0 ? 'border-t border-separator-subtle' : ''} ${isFocused ? 'bg-surface-selected' : 'hover:bg-lift-2'}`}
+                        surface="plain"
+                        focused={isFocused}
+                        padding="none"
+                        className={`group px-4 py-2.5 ${row.indexInGroup > 0 ? 'border-t border-separator-subtle' : ''}`}
                       >
-                        <RefChip size="lg" mono={false} className="w-16 flex-shrink-0 justify-center py-1">
-                          {r.chapter}:{r.verse_num}
-                        </RefChip>
-                        {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {
-                          const span = contextMode === 'plusMinus1' ? 1 : 2
-                          const chapterVerses = getContextVerses(r)
-                          if (!chapterVerses) {
-                            return <span className="flex-1 text-subhead text-text-muted italic pt-0.5">Loading context…</span>
-                          }
-                          const lo = r.verse_num - span
-                          const hi = r.verse_num + span
-                          const contextRows = chapterVerses
-                            .filter((v) => v.verse_num >= lo && v.verse_num <= hi)
-                            .sort((a, b) => a.verse_num - b.verse_num)
-                          return (
-                            <span className="flex-1 flex flex-col gap-0.5 pt-0.5">
-                              {contextRows.map((v) => {
-                                const isMatch = v.verse_num === r.verse_num
-                                const vText = wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(v.text, wordReplacerRules) : v.text
-                                // Ranges are computed against v.text (pre-replacer) — see
-                                // highlightWithAnnotations' doc comment for why this is an
-                                // approximation, not exact, when the word replacer is on.
-                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId, vText)
-                                return (
-                                  <span key={v.verse_num} className={`text-subhead leading-relaxed ${isMatch ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
-                                    <span className="font-mono text-meta mr-1">{v.verse_num}</span>
-                                    {isMatch && effectiveMode(query) === 'strongs'
-                                      ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
-                                      : isMatch
-                                        ? highlightWithAnnotations(vText, vAnnRanges, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
-                                        : highlightWithAnnotations(vText, vAnnRanges, '', wordMode)}
-                                  </span>
-                                )
-                              })}
-                            </span>
-                          )
-                        })() : (
-                          // line-clamp-2 (the earlier default) rarely differed visually from full text
-                          // for typical one-sentence verse snippets, which made the toggle feel like it
-                          // "did nothing" — clamping to a single line makes the two modes clearly
-                          // different at a glance.
-                          <span className={`flex-1 text-subhead text-text-primary leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
-                            {(() => {
-                              const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
-                                ? applyWordReplacer(r.text, wordReplacerRules)
-                                : r.text
-                              if (effectiveMode(query) === 'strongs') {
-                                // rawText here too (not r.text) — Strong's results were skipping the
-                                // word replacer entirely, so a search for "G5485" still showed "Jesus"
-                                // even with the Yeshua replacer rule on. Word indices from
-                                // getOccurrences are positional and replacer rules are (in practice)
-                                // single-word swaps, so alignment holds.
-                                // extraWords: a combined query like "G5485 god" has a plain-word part
-                                // too (parseMultiStrongsQuery's `.words`) — that needs highlighting
-                                // alongside the Strong's-indexed word(s), not just the latter alone.
-                                const parsed = parseMultiStrongsQuery(query)
-                                const rawIndices = strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? []
-                                const extraWords = parsed?.words ?? []
-                                // Strong's results had NO snippet/windowing at all — unlike "all words"
-                                // below, line-clamp-1 clipped from character 0 regardless of where the
-                                // tagged word actually landed, so a match late in a long verse (e.g.
-                                // 3 Maccabees 6:36, 1 Peter 2:20) was clipped away entirely with the
-                                // highlight never visible. getWordWindow (already used elsewhere for this
-                                // same purpose) trims to a word window around the match and remaps its
-                                // indices — reused here instead of inventing a second windowing scheme.
-                                // extraWords aren't remapped (splitStrongsHighlight matches them by text,
-                                // not index) — they still highlight correctly as long as they land inside
-                                // the window the Strong's match determined.
-                                if (!showContext) {
-                                  const win = getWordWindow(rawText, rawIndices)
-                                  if (win) return highlightStrongs(win.windowText, win.windowMatchIndices, extraWords)
+                        {/* CardButton stacks its children in one block, but this row is a
+                            two-column layout (fixed-width ref chip | flexible verse text), so it
+                            needs its own flex context inside the card. */}
+                        <span className="flex items-start gap-3 min-w-0">
+                          <RefChip size="lg" mono={false} className="w-16 flex-shrink-0 justify-center py-1">
+                            {r.chapter}:{r.verse_num}
+                          </RefChip>
+                          {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {
+                            const span = contextMode === 'plusMinus1' ? 1 : 2
+                            const chapterVerses = getContextVerses(r)
+                            if (!chapterVerses) {
+                              return <span className="flex-1 text-subhead text-text-muted italic pt-0.5">Loading context…</span>
+                            }
+                            const lo = r.verse_num - span
+                            const hi = r.verse_num + span
+                            const contextRows = chapterVerses
+                              .filter((v) => v.verse_num >= lo && v.verse_num <= hi)
+                              .sort((a, b) => a.verse_num - b.verse_num)
+                            return (
+                              <span className="flex-1 flex flex-col gap-0.5 pt-0.5">
+                                {contextRows.map((v) => {
+                                  const isMatch = v.verse_num === r.verse_num
+                                  const vText = wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(v.text, wordReplacerRules) : v.text
+                                  // Ranges are computed against v.text (pre-replacer) — see
+                                  // highlightWithAnnotations' doc comment for why this is an
+                                  // approximation, not exact, when the word replacer is on.
+                                  const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId, vText)
+                                  return (
+                                    <span key={v.verse_num} className={`text-subhead leading-relaxed ${isMatch ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
+                                      <span className="font-mono text-meta mr-1">{v.verse_num}</span>
+                                      {isMatch && effectiveMode(query) === 'strongs'
+                                        ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
+                                        : isMatch
+                                          ? highlightWithAnnotations(vText, vAnnRanges, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
+                                          : highlightWithAnnotations(vText, vAnnRanges, '', wordMode)}
+                                    </span>
+                                  )
+                                })}
+                              </span>
+                            )
+                          })() : (
+                            // line-clamp-2 (the earlier default) rarely differed visually from full text
+                            // for typical one-sentence verse snippets, which made the toggle feel like it
+                            // "did nothing" — clamping to a single line makes the two modes clearly
+                            // different at a glance.
+                            <span className={`flex-1 text-subhead text-text-primary leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
+                              {(() => {
+                                const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
+                                  ? applyWordReplacer(r.text, wordReplacerRules)
+                                  : r.text
+                                if (effectiveMode(query) === 'strongs') {
+                                  // rawText here too (not r.text) — Strong's results were skipping the
+                                  // word replacer entirely, so a search for "G5485" still showed "Jesus"
+                                  // even with the Yeshua replacer rule on. Word indices from
+                                  // getOccurrences are positional and replacer rules are (in practice)
+                                  // single-word swaps, so alignment holds.
+                                  // extraWords: a combined query like "G5485 god" has a plain-word part
+                                  // too (parseMultiStrongsQuery's `.words`) — that needs highlighting
+                                  // alongside the Strong's-indexed word(s), not just the latter alone.
+                                  const parsed = parseMultiStrongsQuery(query)
+                                  const rawIndices = strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? []
+                                  const extraWords = parsed?.words ?? []
+                                  // Strong's results had NO snippet/windowing at all — unlike "all words"
+                                  // below, line-clamp-1 clipped from character 0 regardless of where the
+                                  // tagged word actually landed, so a match late in a long verse (e.g.
+                                  // 3 Maccabees 6:36, 1 Peter 2:20) was clipped away entirely with the
+                                  // highlight never visible. getWordWindow (already used elsewhere for this
+                                  // same purpose) trims to a word window around the match and remaps its
+                                  // indices — reused here instead of inventing a second windowing scheme.
+                                  // extraWords aren't remapped (splitStrongsHighlight matches them by text,
+                                  // not index) — they still highlight correctly as long as they land inside
+                                  // the window the Strong's match determined.
+                                  if (!showContext) {
+                                    const win = getWordWindow(rawText, rawIndices)
+                                    if (win) return highlightStrongs(win.windowText, win.windowMatchIndices, extraWords)
+                                  }
+                                  return highlightStrongs(rawText, rawIndices, extraWords)
                                 }
-                                return highlightStrongs(rawText, rawIndices, extraWords)
-                              }
-                              // Only "all words" mode needs the dynamic-start snippet — "any word" only
-                              // needs one match visible (line-clamp already lands on it often enough),
-                              // and "phrase" highlights a single contiguous span CSS clamping already handles.
-                              const snippet: Snippet = !showContext && wordMode === 'all'
-                                ? buildAllWordsSnippet(rawText, query)
-                                : { text: rawText, sliceStart: 0, sliceEnd: rawText.length, prefixLen: 0 }
-                              // The highlight query goes through the SAME word-replacer transform as the
-                              // text it's matched against — text shows "Yeshua" (replaced), so a query of
-                              // literal "jesus" needs to become "Yeshua" too, or it never matches the
-                              // (now-replaced) displayed text at all. Applying the identical transform to
-                              // both sides keeps them in sync regardless of which wording the user typed.
-                              const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
-                                ? applyWordReplacer(query, wordReplacerRules)
-                                : query
-                              // Annotation ranges are computed against the FULL (unwindowed) rawText, then
-                              // remapped into the snippet's own coordinate space (remapRangesToSnippet) —
-                              // this used to fall back to plain highlight() with no ranges at all whenever
-                              // the snippet was truncated, which is the common case (the default view has
-                              // context mode off), silently dropping red-letter/italic markup from nearly
-                              // every result.
-                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId, rawText)
-                              const snippetRanges = snippet.sliceStart === 0 && snippet.sliceEnd === rawText.length
-                                ? annRanges
-                                : remapRangesToSnippet(annRanges, snippet)
-                              return highlightWithAnnotations(snippet.text, snippetRanges, highlightQuery, wordMode)
-                            })()}
-                          </span>
-                        )}
-                        <ChevronRight size={13} className="flex-shrink-0 mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                                // Only "all words" mode needs the dynamic-start snippet — "any word" only
+                                // needs one match visible (line-clamp already lands on it often enough),
+                                // and "phrase" highlights a single contiguous span CSS clamping already handles.
+                                const snippet: Snippet = !showContext && wordMode === 'all'
+                                  ? buildAllWordsSnippet(rawText, query)
+                                  : { text: rawText, sliceStart: 0, sliceEnd: rawText.length, prefixLen: 0 }
+                                // The highlight query goes through the SAME word-replacer transform as the
+                                // text it's matched against — text shows "Yeshua" (replaced), so a query of
+                                // literal "jesus" needs to become "Yeshua" too, or it never matches the
+                                // (now-replaced) displayed text at all. Applying the identical transform to
+                                // both sides keeps them in sync regardless of which wording the user typed.
+                                const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
+                                  ? applyWordReplacer(query, wordReplacerRules)
+                                  : query
+                                // Annotation ranges are computed against the FULL (unwindowed) rawText, then
+                                // remapped into the snippet's own coordinate space (remapRangesToSnippet) —
+                                // this used to fall back to plain highlight() with no ranges at all whenever
+                                // the snippet was truncated, which is the common case (the default view has
+                                // context mode off), silently dropping red-letter/italic markup from nearly
+                                // every result.
+                                const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId, rawText)
+                                const snippetRanges = snippet.sliceStart === 0 && snippet.sliceEnd === rawText.length
+                                  ? annRanges
+                                  : remapRangesToSnippet(annRanges, snippet)
+                                return highlightWithAnnotations(snippet.text, snippetRanges, highlightQuery, wordMode)
+                              })()}
+                            </span>
+                          )}
+                          {/* Disclosure stays hover-only here, unlike CardButton's built-in
+                              `chevron`: this is a dense virtualized result list, and one chevron
+                              visible per row at rest reads as noise rather than affordance. */}
+                          <ChevronRight size={12} className="flex-shrink-0 mt-1 text-text-quaternary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </span>
+                      </CardButton>
                     </div>
                   )
                 })}

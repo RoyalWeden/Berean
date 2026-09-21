@@ -1836,7 +1836,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       <button
                         key={rec.videoId}
                         onClick={() => { setVideoEnded(false); setActiveVideoId(rec.videoId) }}
-                        className="text-left group rounded-card overflow-hidden bg-surface-elevated border border-border hover:border-accent/50 transition-all cursor-pointer"
+                        className="text-left group rounded-card overflow-hidden bg-surface-elevated border border-border hover:border-accent/50 transition-[border-color] duration-base ease-mac cursor-pointer"
                       >
                         <div className="relative w-full aspect-video bg-surface-4">
                           {(() => {
@@ -1888,7 +1888,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     if (e.metaKey || e.ctrlKey) window.app.openExternal(`https://www.youtube.com/${activeVideo?.channelHandle}`)
                     else if (activeVideo) handleBackAndFilter(activeVideo.channelHandle)
                   }}
-                  title="Filter by channel (⌘+click to open in browser)"
+                  tooltip="Filter by channel (⌘+click to open in browser)"
                   className="max-w-[60%]"
                 >
                   <span className="truncate">{activeVideo?.channelName ?? ''}</span>
@@ -1985,7 +1985,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                               }
                             }}
                           >
-                            <Clock size={7} />{fmtSecs(n.timestamp)}
+                            <Clock size={8} />{fmtSecs(n.timestamp)}
                           </RefChip>
                         }
                         title={n.noteTitle}
@@ -2289,7 +2289,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               ref={transcriptBtnRef}
               variant="ghost" size="sm" icon={Captions} iconTrailing={false} selected={showTranscriptMenu || fetchingTranscripts}
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
-              title="Transcript tools (dev only)"
+              tooltip="Transcript tools (dev only)"
             >
               {fetchingTranscripts && progress
                 ? `${progress.done}/${progress.total}`
@@ -2339,7 +2339,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         <span className="tabular-nums flex-shrink-0">{progress.done}/{progress.total}</span>
                       </div>
                       <div className="h-1 rounded-full bg-surface-4 overflow-hidden">
-                        <div className="h-full bg-success transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
+                        <div className="h-full bg-success transition-[width] duration-base ease-mac" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
                       </div>
                     </div>
                   )}
@@ -2494,7 +2494,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       e.preventDefault()
                       setVideoMenu({ video, x: e.clientX, y: e.clientY })
                     }}
-                    className="text-left group rounded-card overflow-hidden bg-surface-2 border border-separator hover:border-accent/50 hover:bg-surface-hover transition-all cursor-pointer relative"
+                    className="text-left group rounded-card overflow-hidden bg-surface-2 border border-separator hover:border-accent/50 hover:bg-surface-hover transition-[border-color,background-color] duration-base ease-mac cursor-pointer relative"
                   >
                     {/* Thumbnail */}
                     <div className="relative w-full aspect-video bg-surface-4 overflow-hidden">
@@ -2627,7 +2627,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     />
                     {video.isStarred && (
                       <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center group-hover:hidden">
-                        <Star size={11} className="text-warning fill-warning" />
+                        <Star size={12} className="text-warning fill-warning" />
                       </div>
                     )}
                   </div>

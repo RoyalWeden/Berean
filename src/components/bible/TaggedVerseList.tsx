@@ -71,7 +71,7 @@ export default function TaggedVerseList({
                   )}
                 </span>
               }
-              trailing={<ChevronRight size={13} className="text-text-muted" />}
+              trailing={<ChevronRight size={14} className="text-text-muted" />}
             />
 
             <div className="px-3 pb-2 pt-0.5 flex flex-col gap-0.5">

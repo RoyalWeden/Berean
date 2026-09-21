@@ -172,7 +172,7 @@ export default function BibleGatewayImporter() {
               variant="ghost"
               size="sm"
               onClick={() => window.bgImport.debugOpen()}
-              title="Open a visible BibleGateway window and run intense DOM logging — check the Electron console for output"
+              tooltip="Open a visible BibleGateway window and run intense DOM logging — check the Electron console for output"
               className="ml-auto"
             >
               Debug
@@ -208,7 +208,7 @@ export default function BibleGatewayImporter() {
           <div className="space-y-1">
             <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
               <div
-                className="h-full rounded-control bg-accent transition-all duration-300"
+                className="h-full rounded-control bg-accent transition-[width] duration-300"
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -331,7 +331,7 @@ export default function BibleGatewayImporter() {
           <span className="text-footnote font-medium text-text-secondary">Saving notes…</span>
         </div>
         <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
-          <div className="h-full rounded-control bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-control bg-accent transition-[width] duration-300" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-caption2 text-text-muted">{bgImportDone} / {bgImportTotal}</p>
       </div>
@@ -343,7 +343,7 @@ export default function BibleGatewayImporter() {
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <CheckCircle2 size={15} className="text-success flex-shrink-0" />
+          <CheckCircle2 size={16} className="text-success flex-shrink-0" />
           <span className="text-footnote font-medium text-text-primary">Import complete</span>
         </div>
         <p className="text-caption text-text-muted leading-relaxed">{bgImportMessage}</p>
@@ -356,7 +356,7 @@ export default function BibleGatewayImporter() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <XCircle size={15} className="text-destructive flex-shrink-0" />
+        <XCircle size={16} className="text-destructive flex-shrink-0" />
         <span className="text-footnote font-medium text-text-primary">Import failed</span>
       </div>
       <p className="text-caption text-text-muted leading-relaxed">

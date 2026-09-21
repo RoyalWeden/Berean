@@ -44,7 +44,7 @@ export default function CircularPlayButton({ fraction, isPaused, finished, onTog
         />
       </svg>
       {finished ? (
-        <CheckCircle2 size={15} />
+        <CheckCircle2 size={16} />
       ) : isPaused ? (
         <Play size={14} className="translate-x-[1px]" />
       ) : (

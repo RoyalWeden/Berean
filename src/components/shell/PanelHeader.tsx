@@ -1,6 +1,6 @@
 import { useCallback, type ReactNode } from 'react'
 import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
-import { Toolbar } from '@/components/ui'
+import { Toolbar, ToolbarSpacer } from '@/components/ui'
 
 /**
  * Shared header chrome for every tab-panel type (Bible, Notes, Lexicon,
@@ -57,7 +57,7 @@ export default function PanelHeader({
     >
       <Toolbar size="md" edge="none" material="none">
         <div className="flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
-        <div className="flex-1" />
+        <ToolbarSpacer />
         <div ref={actionsRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
       </Toolbar>
     </div>

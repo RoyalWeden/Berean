@@ -12,7 +12,7 @@ import { getAllNotes } from '@/lib/notesCache'
 import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
 import { cachedLexiconTitle } from '@/lib/lexiconTitle'
 import { TRAFFIC_LIGHT_INSET, HEADER_HEIGHT } from '@/lib/windowChrome'
-import { IconButton, Button, ControlGroup, Toolbar, MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
+import { IconButton, Button, ControlGroup, Toolbar, MenuSurface, MenuItem, MenuSeparator, MenuLabel, Tooltip } from '@/components/ui'
 import { publishActionsSlot } from './TopBarSlotContext'
 import WindowControls from './WindowControls'
 import type { TabNavEntry } from '@/types'
@@ -401,19 +401,18 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                bar styling matches UpdatesSection.tsx's own downloading state (surface-4 track,
                accent fill). ── */}
           {updateStatus.status === 'downloading' && (
-            <div
-              className="relative flex items-center gap-1.5 px-1 flex-shrink-0"
-              title={`Downloading update… ${updateStatus.percent ?? 0}%`}
-            >
-              <Download size={12} className="flex-shrink-0 text-text-tertiary" />
-              <span className="text-meta">Downloading… {updateStatus.percent ?? 0}%</span>
-              <div className="w-10 h-0.5 rounded-full bg-separator overflow-hidden flex-shrink-0">
-                <div
-                  className="h-full bg-accent transition-all duration-300"
-                  style={{ width: `${updateStatus.percent ?? 0}%` }}
-                />
+            <Tooltip label={`Downloading update… ${updateStatus.percent ?? 0}%`}>
+              <div className="relative flex items-center gap-1.5 px-1 flex-shrink-0">
+                <Download size={12} className="flex-shrink-0 text-text-tertiary" />
+                <span className="text-meta">Downloading… {updateStatus.percent ?? 0}%</span>
+                <div className="w-10 h-0.5 rounded-full bg-separator overflow-hidden flex-shrink-0">
+                  <div
+                    className="h-full bg-accent transition-[width] duration-300"
+                    style={{ width: `${updateStatus.percent ?? 0}%` }}
+                  />
+                </div>
               </div>
-            </div>
+            </Tooltip>
           )}
 
           {/* ── Update available/ready — a persistent top-bar action, not just the small dot

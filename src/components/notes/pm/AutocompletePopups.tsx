@@ -241,7 +241,7 @@ export function SlashCommandPopup({
                   buttonProps={{ role: 'option', 'aria-selected': idx === activeIdx, onMouseDown: () => onSelect(cmd) }}
                   leading={
                     <span className="w-6 h-6 flex-shrink-0 rounded-card flex items-center justify-center bg-lift-1">
-                      {Icon && <Icon size={13} />}
+                      {Icon && <Icon size={14} />}
                     </span>
                   }
                   title={cmd.label}

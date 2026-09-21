@@ -233,7 +233,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
       >
         <div className="flex items-center gap-1.5 text-footnote font-medium text-text-primary">
           <GripHorizontal size={12} className="text-text-muted" />
-          <ListMusic size={13} /> Playlist queue
+          <ListMusic size={14} /> Playlist queue
         </div>
         <IconButton icon={X} label="Close" size={20} onClick={onClose} />
       </div>
@@ -273,7 +273,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
                 wrapperClassName="flex-1 min-w-0"
                 className="h-auto p-0 text-caption"
               />
-              <CornerDownLeft size={11} className="text-text-muted flex-shrink-0" />
+              <CornerDownLeft size={12} className="text-text-muted flex-shrink-0" />
             </div>
             {refError && (
               <p className="px-1 pt-1 text-caption2 text-destructive">Couldn't recognize that reference.</p>
@@ -321,7 +321,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               variant="secondary" size="sm" icon={Plus}
               onClick={addCurrentChapterToQueue}
               disabled={!activeState?.bookId}
-              title="Add the chapter you're currently viewing"
+              tooltip="Add the chapter you're currently viewing"
               className="flex-1"
             >
               Add current
@@ -330,7 +330,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               variant="primary" size="sm" icon={Play}
               onClick={playFromQueueStart}
               disabled={playbackQueue.length === 0}
-              title="Play queue from the start"
+              tooltip="Play queue from the start"
             >
               Play
             </Button>
@@ -378,7 +378,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
               current={pl.id === playbackQueueSourcePlaylistId}
               onClick={() => loadPlaylist(pl, true)}
               buttonProps={{ title: `Play "${pl.name}"` }}
-              leading={<Play size={11} className="opacity-0 group-hover/row:opacity-100 transition-opacity" />}
+              leading={<Play size={12} className="opacity-0 group-hover/row:opacity-100 transition-opacity" />}
               title={<>{pl.name} <span className="text-text-muted">({pl.items.length})</span></>}
               trailing={
                 <>

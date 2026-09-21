@@ -48,7 +48,7 @@ export default function TrailMapHeader({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <GripVertical
-          size={13}
+          size={14}
           onMouseDown={onDragStart}
           className="flex-shrink-0 text-text-quaternary"
           style={{ cursor: 'grab' }}

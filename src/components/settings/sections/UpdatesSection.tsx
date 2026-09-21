@@ -176,7 +176,7 @@ export default function UpdatesSection() {
             </p>
             <div className="h-1.5 bg-lift-2 rounded-control overflow-hidden">
               <div
-                className="h-full bg-accent rounded-control transition-all duration-300"
+                className="h-full bg-accent rounded-control transition-[width] duration-300"
                 style={{ width: `${updateStatus.percent ?? 0}%` }}
               />
             </div>

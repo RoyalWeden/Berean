@@ -151,7 +151,7 @@ export default function PresenterControls() {
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-separator">
         <div onMouseDown={startDrag} className="flex items-center gap-1.5 flex-1 cursor-grab active:cursor-grabbing">
           <GripVertical size={12} className="text-text-muted" />
-          <MonitorPlay size={13} className="text-accent" />
+          <MonitorPlay size={14} className="text-accent" />
           <span className="text-caption font-semibold text-text-primary">Presenter</span>
           {presenterRange && !viewerPaused && <span className="text-meta">v.{presenterRange.first}{presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}</span>}
           {viewerPaused ? <Badge variant="text" tone="warning">Paused</Badge> : <Badge variant="live" tone="accent" label="Live" />}
@@ -162,11 +162,11 @@ export default function PresenterControls() {
 
       {/* Toggles */}
       <div className="p-1.5 space-y-0.5">
-        <ToggleRow icon={<Eye size={15} />} label="Show output" on={!blank} onClick={toggleBlank} />
-        <ToggleRow icon={<Cast size={15} />} label="Live sync" on={!viewerPaused} onClick={toggleSync} />
-        <ToggleRow icon={<MousePointer2 size={15} />} label="Laser pointer" on={laserEnabled} onClick={toggleLaser} />
-        <ToggleRow icon={<Highlighter size={15} />} label="Selection mirror" on={selectionMirror} onClick={toggleSelection} />
-        <ToggleRow icon={<PanelRight size={15} />} label="Side panel" on={sidePanelEnabled} onClick={() => setSidePanelEnabled(!sidePanelEnabled)} />
+        <ToggleRow icon={<Eye size={16} />} label="Show output" on={!blank} onClick={toggleBlank} />
+        <ToggleRow icon={<Cast size={16} />} label="Live sync" on={!viewerPaused} onClick={toggleSync} />
+        <ToggleRow icon={<MousePointer2 size={16} />} label="Laser pointer" on={laserEnabled} onClick={toggleLaser} />
+        <ToggleRow icon={<Highlighter size={16} />} label="Selection mirror" on={selectionMirror} onClick={toggleSelection} />
+        <ToggleRow icon={<PanelRight size={16} />} label="Side panel" on={sidePanelEnabled} onClick={() => setSidePanelEnabled(!sidePanelEnabled)} />
       </div>
 
       {/* Action */}
@@ -177,7 +177,7 @@ export default function PresenterControls() {
           icon={RefreshCw}
           onClick={() => { pushCurrentToViewer(); window.app.requestViewerVisibleRegion?.() }}
           className="w-full"
-          title="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
+          tooltip="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
         >
           Re-sync now
         </Button>

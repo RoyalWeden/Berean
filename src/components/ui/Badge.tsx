@@ -2,6 +2,11 @@ import type { HTMLAttributes, ReactNode } from 'react'
 import { cx } from './cx'
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
+  /** 'sm' (default) — the status marker that rides on a control. 'md' — a label sitting beside
+   *  a heading, where the 9px marker size reads as a stray tag rather than part of the title.
+   *  A `text-*` in `className` cannot do this: `cx()` is not tailwind-merge, so it would
+   *  collide with the size recipe rather than win. */
+  size?: 'sm' | 'md'
   /** count — small numeric pill · dot — 6px status dot · live — pulsing accent dot ("on presenter") · text — short uppercase label */
   variant?: 'count' | 'dot' | 'live' | 'text'
   tone?: 'accent' | 'neutral' | 'warning' | 'destructive' | 'success' | 'info'
@@ -27,7 +32,7 @@ const TONE_DOT: Record<NonNullable<BadgeProps['tone']>, string> = {
  * text labels. Replaces raw `rounded-full` spans and RefChip-used-as-badge. Never clickable;
  * put it inside a Button/IconButton via their `badge` prop or beside a label.
  */
-export function Badge({ variant = 'count', tone = 'accent', children, label, className, ...rest }: BadgeProps) {
+export function Badge({ variant = 'count', tone = 'accent', size = 'sm', children, label, className, ...rest }: BadgeProps) {
   if (variant === 'dot' || variant === 'live') {
     return (
       <span
@@ -44,7 +49,9 @@ export function Badge({ variant = 'count', tone = 'accent', children, label, cla
       aria-label={label}
       className={cx(
         'inline-flex items-center justify-center rounded-control leading-none select-none flex-shrink-0 tabular-nums',
-        variant === 'count' ? 'min-w-[16px] h-4 px-1 text-micro font-semibold' : 'h-4 px-1.5 text-micro font-semibold uppercase tracking-wide',
+        size === 'md'
+          ? (variant === 'count' ? 'min-w-[20px] h-5 px-1.5 text-caption font-semibold' : 'h-5 px-2 text-caption font-medium uppercase tracking-wide')
+          : (variant === 'count' ? 'min-w-[16px] h-4 px-1 text-micro font-semibold' : 'h-4 px-1.5 text-micro font-semibold uppercase tracking-wide'),
         TONE_BG[tone], className,
       )}
       {...rest}

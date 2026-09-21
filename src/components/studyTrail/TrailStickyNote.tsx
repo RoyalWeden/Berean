@@ -245,7 +245,7 @@ export function TrailAnnotation({ note, onChanged, resolveAnchor, zoom = 1 }: {
           position: 'absolute', right: 2, bottom: 2, cursor: 'nwse-resize',
           color: 'rgb(var(--color-text-muted))', opacity: 0.5, lineHeight: 0,
         }}
-      ><GripHorizontal size={13} /></div>
+      ><GripHorizontal size={14} /></div>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { CalendarClock, Clock, ArrowUpDown, ExternalLink, Monitor, PanelRightOpen } from 'lucide-react'
 import type { Note } from '@/types'
 import { usePositionedMenu, MenuPositioner } from '@/lib/usePositionedMenu'
-import { SectionLabel, MenuSurface, MenuItem } from '@/components/ui'
+import { SectionLabel, MenuSurface, MenuItem, Button, ListRow } from '@/components/ui'
 
 type SortMode = 'recency' | 'changes'
 type SortDir = 'desc' | 'asc'
@@ -90,39 +90,37 @@ export default function DailyNoteEditsSection({ dateKey, dailyNoteId, allNotes, 
       </SectionLabel>
       <div className="flex items-center gap-1 px-2.5 pb-1.5">
         {([['recency', 'Recent', Clock], ['changes', 'Changes', ArrowUpDown]] as const).map(([mode, label, Icon]) => (
-          <button
+          <Button
             key={mode}
+            variant="ghost"
+            size="xs"
+            icon={Icon}
+            selected={sortMode === mode}
             onClick={() => cycleSort(mode)}
-            title={sortMode === mode ? (sortDir === 'desc' ? `${label}: newest/most first` : `${label}: oldest/least first`) : `Sort by ${label.toLowerCase()}`}
-            className={`flex items-center gap-1 text-micro px-1.5 py-0.5 rounded-control cursor-pointer transition-colors ${
-              sortMode === mode
-                ? 'bg-accent-muted text-accent font-semibold'
-                : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
-            }`}
+            tooltip={sortMode === mode ? (sortDir === 'desc' ? `${label}: newest/most first` : `${label}: oldest/least first`) : `Sort by ${label.toLowerCase()}`}
           >
-            <Icon size={9} />
             {label}
             {sortMode === mode && <span className="leading-none">{sortDir === 'desc' ? '↓' : '↑'}</span>}
-          </button>
+          </Button>
         ))}
       </div>
       <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
         {sorted.map(({ note, delta }) => (
-          <button
+          <ListRow
             key={note.id}
+            dense
+            titleSize="caption"
             onClick={() => onSelect(note)}
             onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ note, x: e.clientX, y: e.clientY }) }}
-            className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-row text-caption2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer truncate leading-snug"
+            leading={<span className="w-[3px] h-[3px] rounded-full bg-text-muted" />}
             title={note.title || 'Untitled'}
-          >
-            <span className="w-[3px] h-[3px] rounded-full bg-text-muted flex-shrink-0" />
-            <span className="flex-1 truncate">{note.title || 'Untitled'}</span>
-            {delta !== 0 && (
-              <span className={`flex-shrink-0 text-micro font-mono ${delta > 0 ? 'text-success' : 'text-destructive'}`}>
+            meta={delta !== 0 && (
+              <span className={`font-mono ${delta > 0 ? 'text-success' : 'text-destructive'}`}>
                 {delta > 0 ? '+' : ''}{delta}
               </span>
             )}
-          </button>
+            buttonProps={{ title: note.title || 'Untitled' }}
+          />
         ))}
       </div>
       {ctxMenu && createPortal(

@@ -820,7 +820,7 @@ function NodeBlock({
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
           fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em',
         }}>
-          <Clock size={11} style={{ flexShrink: 0, opacity: 0.85 }} />
+          <Clock size={12} style={{ flexShrink: 0, opacity: 0.85 }} />
           <span style={{ flexShrink: 0 }}>{boundaryLabel}</span>
           <span style={{ flex: 1, height: 2, background: 'rgb(var(--color-surface-4))' }} />
         </div>

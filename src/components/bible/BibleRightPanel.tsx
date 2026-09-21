@@ -1032,7 +1032,7 @@ function UserNotesChapterView({
                           return n
                         })}
                       />
-                      <NotepadText size={11} className="flex-shrink-0 text-text-muted" />
+                      <NotepadText size={12} className="flex-shrink-0 text-text-muted" />
                       <Button
                         variant="ghost" size="sm"
                         className="flex-1 h-auto py-0 px-0 justify-start font-medium text-text-secondary hover:text-text-primary min-w-0"

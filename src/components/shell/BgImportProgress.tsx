@@ -45,22 +45,22 @@ export default function BgImportProgress() {
       >
         {/* Header row */}
         <div className="flex items-center gap-2">
-          <BookOpen size={13} className="text-accent flex-shrink-0" />
+          <BookOpen size={14} className="text-accent flex-shrink-0" />
           <span className="flex-1 text-footnote font-semibold text-text-primary leading-tight truncate">
             {phaseLabel[bgImportPhase] ?? 'BibleGateway import'}
           </span>
 
           {isRunning && (
-            <Loader2 size={13} className="animate-spin text-accent flex-shrink-0" />
+            <Loader2 size={14} className="animate-spin text-accent flex-shrink-0" />
           )}
           {isReview && (
-            <CheckCircle2 size={13} className="text-warning flex-shrink-0" />
+            <CheckCircle2 size={14} className="text-warning flex-shrink-0" />
           )}
           {isDone && (
-            <CheckCircle2 size={13} className="text-success flex-shrink-0" />
+            <CheckCircle2 size={14} className="text-success flex-shrink-0" />
           )}
           {isError && (
-            <XCircle size={13} className="text-destructive flex-shrink-0" />
+            <XCircle size={14} className="text-destructive flex-shrink-0" />
           )}
 
           {/* Dismiss (only when done, error, or review) */}
@@ -80,7 +80,7 @@ export default function BgImportProgress() {
           <div className="space-y-1">
             <div className="h-1 rounded-full bg-surface-4 overflow-hidden">
               <div
-                className="h-full rounded-full bg-accent transition-all duration-300"
+                className="h-full rounded-full bg-accent transition-[width] duration-300"
                 style={{ width: `${pct}%` }}
               />
             </div>

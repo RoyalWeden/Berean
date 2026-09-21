@@ -262,7 +262,12 @@ const HistoryItem = memo(function HistoryItem({
             )}
             {/* Session = informational label (Badge text), never a reference chip. */}
             {entry.sessionName && <Badge variant="text" tone="neutral" className="max-w-[72px] truncate normal-case tracking-normal">{entry.sessionName}</Badge>}
-            {/* Repeat visits: a count badge + a disclosure button (not a Chip — chips are filters/tokens). */}
+            {/* Repeat visits: a count badge + a disclosure button (not a Chip — chips are filters/tokens).
+                Accepted raw-button exception: this is a compact inline pill living inside a ListRow's
+                trailing slot, not a full-width group header, so `DisclosureRow` (leading chevron,
+                mandatory `title`, block-level row) doesn't fit; `IconButton` doesn't fit either since
+                the trigger's content is a count Badge + chevron, not a single icon. Keeps its own
+                focus-ring + hover/pressed recipe. */}
             {repeated && (
               <button
                 type="button"
@@ -272,7 +277,7 @@ const HistoryItem = memo(function HistoryItem({
                 className="focus-ring inline-flex items-center gap-1 h-5 px-1 rounded-control-sm text-text-secondary hover:bg-lift-2 active:bg-lift-3 transition-colors"
               >
                 <Badge variant="count" tone="neutral">{visits.length}</Badge>
-                <ChevronDown size={11} strokeWidth={2} className={cx('transition-transform duration-base', open && 'rotate-180')} />
+                <ChevronDown size={12} strokeWidth={2} className={cx('transition-transform duration-base', open && 'rotate-180')} />
               </button>
             )}
             <IconButton
@@ -610,7 +615,7 @@ export default function HistoryModal() {
         >
         {/* ── Header ── */}
         <Toolbar size="md" edge="auto" material="none" className="pt-1">
-          <Clock size={13} className="text-text-muted flex-shrink-0" />
+          <Clock size={14} className="text-text-muted flex-shrink-0" />
           <Dialog.Title className="text-title3 font-semibold text-text-primary">History</Dialog.Title>
           <span
             className="text-meta flex-1 text-right"
@@ -731,7 +736,7 @@ export default function HistoryModal() {
         >
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2 text-text-quaternary">
-              <Clock size={26} />
+              <Clock size={24} />
               <span className="text-subhead text-text-tertiary">
                 {history.length === 0 ? 'No history yet' : searchQuery ? `No results for "${searchQuery}"` : 'No matches for current filters'}
               </span>

@@ -77,6 +77,13 @@ export default function VoicePicker({ voices, value, onChange, compact, iconOnly
         {iconOnly ? (
           <IconButton icon={Mic2} label={selected ? `Voice: ${selected.name}` : 'Choose a voice'} size={24} className="flex-shrink-0" />
         ) : (
+          // Accepted raw-button exception: this opens the search + locale-grouped MenuItem
+          // listbox built below (Popover/PopoverTrigger/PopoverSurface/SearchField/MenuItem —
+          // all primitives), not a plain option list, so `Select` doesn't fit — it has no search
+          // field, no locale grouping beyond a flat `group` label, and its `SelectOption<T
+          // extends string>` value type can't express this picker's nullable "System default"
+          // option. The trigger already matches Select's own `control-field` recipe (rest/hover/
+          // active/aria-expanded) plus `focus-ring`, so it stays visually identical to a real one.
           <button
             type="button"
             className={`no-drag focus-ring flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-control-md control-field bg-field text-text-primary outline-none cursor-pointer hover:bg-surface-1/75 active:bg-surface-1 aria-expanded:bg-surface-1 aria-expanded:shadow-focus transition-colors duration-base ease-mac ${compact ? 'text-caption px-2.5 h-7' : 'text-subhead px-3 h-8'}`}

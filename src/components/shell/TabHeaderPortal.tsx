@@ -2,6 +2,7 @@ import { useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import PanelHeader, { subscribeFloatingActionsSlot, getFloatingActionsSlot } from './PanelHeader'
 import { useTopBarSlots } from './TopBarSlotContext'
+import { BarMetrics, ControlSurfaceContext } from '@/components/ui'
 
 /**
  * Drop-in replacement for PanelHeader at each of the tab-panel call sites.
@@ -42,7 +43,20 @@ export default function TabHeaderPortal({
   // forward, so it belongs with them in the cluster that never reflows — see the comment at its
   // new home in ShellHeader.tsx. Floating windows keep their own PanelHeader and have no shared
   // top bar, so they simply have no Home affordance now; their nav is per-window anyway.
-  const content = <>{children}</>
+  // Re-establish the toolbar's resting surface INSIDE the portal. `Toolbar` publishes
+  // `ControlSurfaceContext = 'glass'` so every control in a bar is a visible glass control at
+  // rest (macOS 26/27: toolbar items get a glass background, shared per logical group). React
+  // context follows the React tree, not the DOM tree — portaled panel content is rendered in the
+  // PANEL's tree, so it never saw that provider and silently fell back to the 'ghost' default.
+  // The result was that exactly ONE ControlGroup in the whole app (ShellHeader's own leading nav
+  // cluster, a direct Toolbar child) drew its glass container, while every portaled group
+  // rendered its dividers floating with no container around them. Both portal destinations are
+  // bars, so both re-provide 'glass' here.
+  // BarMetrics for the same reason as the surface below: both destinations are bars, and
+  // without it portaled controls render at their own 24/28px sizes beside 32px direct children.
+  const content = (
+    <ControlSurfaceContext.Provider value="glass"><BarMetrics>{children}</BarMetrics></ControlSurfaceContext.Provider>
+  )
 
   // Both hooks are read unconditionally (regardless of `zone`/`floating`) so their call order
   // never varies across renders — only which one's value actually gets used below depends on

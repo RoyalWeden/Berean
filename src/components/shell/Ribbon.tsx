@@ -208,7 +208,7 @@ export default function Ribbon() {
           {archivedGroups.map(group => (
             <ListRow
               key={group.id}
-              leading={<Archive size={11} />}
+              leading={<Archive size={12} />}
               title={group.label}
               subtitle={`${group.tabs.length} tab${group.tabs.length !== 1 ? 's' : ''} · ${new Date(group.archivedAt).toLocaleDateString()}`}
               className="mx-1"

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { RefChip, SectionHeader, ListRow, Badge, cx } from '@/components/ui'
+import { RefChip, SectionHeader, ListRow, Badge, CardButton, cx } from '@/components/ui'
 
 /**
  * Shared lexicon-entry building blocks — used by BibleRightPanel's side-panel lexicon
@@ -15,6 +15,7 @@ export function LangBadge({ num, className }: { num: string; className?: string 
   return (
     <Badge
       variant="text"
+      size="md"
       tone={isHebrew ? 'warning' : 'info'}
       className={cx('normal-case tracking-normal', isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info', className)}
     >
@@ -32,9 +33,18 @@ export function LexiconEntryHeader({
       {/* Plain text, not a tinted RefChip — this is the entry's own identity (like a document
           title), not a scannable cross-reference among many; a small colored pill read as
           "highlighted" rather than as the heading it is. */}
-      <span className="text-subhead font-mono font-semibold text-text-primary flex-shrink-0">{strongsNum}</span>
+      {/* The app's UI font, not mono: this is the entry's title, and a monospaced run read as a
+          code token sitting next to prose rather than as the heading it is. */}
+      <span className="text-title2 font-semibold text-text-primary flex-shrink-0">{strongsNum}</span>
       <LangBadge num={strongsNum} />
-      {lemma && <span className="text-body font-medium text-text-primary font-lemma truncate" dir="rtl">{lemma}</span>}
+      {/* Only Hebrew is right-to-left — Greek lemmas were being marked rtl too, which reorders
+          their punctuation. */}
+      {lemma && (
+        <span
+          className="text-title2 font-medium text-text-primary font-lemma truncate"
+          dir={strongsNum.toUpperCase().startsWith('H') ? 'rtl' : 'ltr'}
+        >{lemma}</span>
+      )}
       {actions && <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">{actions}</div>}
     </div>
   )
@@ -44,9 +54,10 @@ export function LexiconEntryHeader({
 export const LexiconSectionLabel = SectionHeader
 
 /** One verse occurrence: ref chip + badges on their own line, verse text wrapped to up to 3
- *  lines below (a real <button>, not a fixed-height ListRow — a verse quote needs room to
- *  breathe, not a single truncated line). Ref and text share the app's system font (`RefChip
- *  mono={false}`) so the row reads as one paragraph rather than a code-like tag next to prose. */
+ *  lines below (`CardButton surface="plain"` — a block of rich content that is itself one
+ *  button — not a fixed-height ListRow, since a verse quote needs room to breathe, not a single
+ *  truncated line). Ref and text share the app's system font (`RefChip mono={false}`) so the row
+ *  reads as one paragraph rather than a code-like tag next to prose. */
 export function OccurrenceRow({
   refLabel, badges, text, onClick, onContextMenu, className,
 }: {
@@ -59,22 +70,21 @@ export function OccurrenceRow({
   className?: string
 }) {
   return (
-    <button
-      type="button"
+    <CardButton
+      surface="plain"
+      density="compact"
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={cx(
-        'focus-ring w-full text-left flex flex-col gap-1 rounded-card px-2.5 py-2 cursor-pointer',
-        'hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast',
-        className,
-      )}
+      className={className}
     >
-      <span className="flex items-center gap-1 flex-wrap">
-        <RefChip size="md" mono={false}>{refLabel}</RefChip>
-        {badges}
+      <span className="flex flex-col gap-1">
+        <span className="flex items-center gap-1 flex-wrap">
+          <RefChip size="md" mono={false}>{refLabel}</RefChip>
+          {badges}
+        </span>
+        <span className="block text-footnote text-text-secondary leading-relaxed line-clamp-3">{text}</span>
       </span>
-      <span className="block text-footnote text-text-secondary leading-relaxed line-clamp-3">{text}</span>
-    </button>
+    </CardButton>
   )
 }
 

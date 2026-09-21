@@ -16,7 +16,7 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
-import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext, OverflowGroup, OverflowSection } from '@/components/ui'
+import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext, OverflowGroup, OverflowSection, BarMetrics } from '@/components/ui'
 import { LexiconEntryHeader, OccurrenceRow as OccurrenceRowUI, DerivedTermRow } from './parts'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
@@ -1031,7 +1031,10 @@ function SearchView({
         </OverflowGroup>
       </TabHeaderPortal>
 
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-separator">
+      {/* A search row IS a bar, so it takes BarMetrics and renders the one 34px control height —
+          without it this field sat at 28 beside the 34px controls in the header above it. */}
+      <BarMetrics>
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-separator">
         <SearchField
           ref={inputRef}
           size="sm"
@@ -1044,6 +1047,7 @@ function SearchView({
           wrapperClassName="flex-1"
         />
       </div>
+      </BarMetrics>
 
       <div
         ref={resultsScrollRef}

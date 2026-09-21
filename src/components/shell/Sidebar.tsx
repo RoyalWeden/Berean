@@ -14,7 +14,7 @@ import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { IconButton, ListRow, ControlGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField } from '@/components/ui'
+import { IconButton, ListRow, ControlGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField, Tooltip, BarMetrics } from '@/components/ui'
 import { useRovingNav } from '@/lib/useRovingNav'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
@@ -562,7 +562,7 @@ export default function Sidebar() {
                     {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
                   </span>
                 }
-                trailing={<ChevronsUpDown size={11} className="text-text-tertiary" />}
+                trailing={<ChevronsUpDown size={12} className="text-text-tertiary" />}
                 trailingAlways
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -617,12 +617,17 @@ export default function Sidebar() {
              history, archive, settings, and collapse now live in the shared TopBar
              above the sidebar+content row, not here. ── */}
         <div className="px-2 pt-1 pb-1 flex-shrink-0">
+          {/* BarMetrics: this row is a bar even though it is not a `Toolbar`, so its field and
+              its + button step up to the one 32px control height the toolbars use (see
+              metrics.tsx) instead of rendering 28 beside 24. */}
+          <BarMetrics>
           <div className="no-drag flex items-center gap-1">
             {/* Location bar — shows breadcrumb, click to search in current tab */}
             <ListRow
               dense
-              className="flex-1 rounded-control"
-              buttonClassName="control-field bg-field hover:bg-control-hover rounded-control h-7 px-2.5 text-footnote"
+              radius="capsule"
+              className="flex-1"
+              buttonClassName="control-field bg-field hover:bg-control-hover h-9 px-4 text-subhead"
               leading={<Search size={14} className="text-text-muted" />}
               onClick={() => openSearch('current')}
               title={
@@ -658,6 +663,7 @@ export default function Sidebar() {
               onClick={() => openSearch('new')}
             />
           </div>
+          </BarMetrics>
         </div>
 
         {/* ── New-tab tile row — one icon button per space, always visible
@@ -857,7 +863,7 @@ export default function Sidebar() {
           <MenuSurface className="w-56 max-h-[70vh] flex flex-col">
             {/* Filter input — sticky at top */}
             <div className="flex items-center gap-1.5 pb-1.5 border-b border-separator flex-shrink-0">
-              <Search size={11} className="text-text-muted flex-shrink-0" />
+              <Search size={12} className="text-text-muted flex-shrink-0" />
               <TextField
                 autoFocus
                 bare
@@ -1005,13 +1011,14 @@ export default function Sidebar() {
         itself (not the inner aside) so it stays pinned to the right edge regardless of the
         collapse/expand width animation. */}
     {!sidebarCollapsed && (
-      <div
-        onMouseDown={handleSidebarResizeMouseDown}
-        title="Drag to resize"
-        className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-raised no-drag"
-      >
-        <div className="w-px h-full mx-auto bg-transparent group-hover:bg-accent/40 transition-colors" />
-      </div>
+      <Tooltip label="Drag to resize">
+        <div
+          onMouseDown={handleSidebarResizeMouseDown}
+          className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-raised no-drag"
+        >
+          <div className="w-px h-full mx-auto bg-transparent group-hover:bg-accent/40 transition-colors" />
+        </div>
+      </Tooltip>
     )}
     </motion.div>
   )

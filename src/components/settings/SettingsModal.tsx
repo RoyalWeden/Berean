@@ -505,7 +505,7 @@ export default function SettingsModal() {
         <ListRow
           key={n.id}
           dense
-          leading={<n.icon size={13} className="flex-shrink-0" />}
+          leading={<n.icon size={14} className="flex-shrink-0" />}
           title={n.label}
           current={section === n.id}
           onClick={() => { changeSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}
@@ -1166,7 +1166,7 @@ export default function SettingsModal() {
                       <div className="mt-2">
                         <div className="h-1.5 rounded-control bg-lift-2 overflow-hidden">
                           <div
-                            className="h-full bg-accent transition-all"
+                            className="h-full bg-accent transition-[width]"
                             style={{ width: migrationState.total > 0 ? `${(migrationState.done / migrationState.total) * 100}%` : '2%' }}
                           />
                         </div>

@@ -579,7 +579,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
                   {bookmarks.length === 0 && <div className="px-2 py-1 text-caption text-text-muted italic">No bookmarks</div>}
                   {bookmarks.map((b, i) => (
                     <ListRow key={i} dense
-                      leading={<BookmarkIcon size={11} className="text-accent" />}
+                      leading={<BookmarkIcon size={12} className="text-accent" />}
                       title={b.label}
                       meta={`p.${b.page}`}
                       onClick={() => scrollToPage(b.page)}

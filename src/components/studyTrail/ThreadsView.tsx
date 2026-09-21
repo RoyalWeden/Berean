@@ -79,7 +79,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
           <span className="flex items-center gap-2">
             {/* Same caret direction as everywhere else on the map — see CARET_COLLAPSED_ROTATE. */}
             <ChevronDown size={16} className="flex-shrink-0 opacity-50" style={{ transform: open ? undefined : CARET_COLLAPSED_ROTATE, transition: 'transform 120ms' }} />
-            {tagged ? <Tag size={15} className="flex-shrink-0" style={{ color: accent }} /> : <Waypoints size={15} className="flex-shrink-0 opacity-70" />}
+            {tagged ? <Tag size={16} className="flex-shrink-0" style={{ color: accent }} /> : <Waypoints size={16} className="flex-shrink-0 opacity-70" />}
           </span>
         }
         title={thread.label}
@@ -122,7 +122,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
                       icon={BookOpen}
                       // Same rule as the map: a plain click never moves the main window.
                       onClick={(e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef({ kind: 'chapter', bookId: c.bookId, chapter: c.chapter }, e.shiftKey) }}
-                      title="Cmd-click to open in the main window"
+                      tooltip="Cmd-click to open in the main window"
                     >{c.label}</Chip>
                   )
                 })}
@@ -157,7 +157,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
           <SectionLabel className="mb-1">Sessions</SectionLabel>
           <div className="flex flex-wrap gap-1">
             {thread.sessions.map((s) => (
-              <Chip key={s.id} size="md" onClick={() => onOpenSession(s.id)} title="Show this session on the map">{s.name}</Chip>
+              <Chip key={s.id} size="md" onClick={() => onOpenSession(s.id)} tooltip="Show this session on the map">{s.name}</Chip>
             ))}
           </div>
         </div>

@@ -247,7 +247,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
           than the box resizing to fit it. */}
       {!expanded && (
         <div className="flex items-center gap-2 px-3 py-2">
-          <MessageSquarePlus size={13} className="text-accent flex-shrink-0" />
+          <MessageSquarePlus size={14} className="text-accent flex-shrink-0" />
           <span className="flex-1 min-w-0 text-footnote font-semibold leading-snug text-text-primary">
             {question}
           </span>
@@ -269,7 +269,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
             instead of everything reading in the same flat muted grey. */}
         {expanded && (
           <div className="flex items-center gap-1.5 mb-2">
-            <MessageSquarePlus size={13} className="text-accent flex-shrink-0" />
+            <MessageSquarePlus size={14} className="text-accent flex-shrink-0" />
             <span className="flex-1 min-w-0 text-footnote font-semibold text-text-primary">
               {question}
             </span>

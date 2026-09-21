@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
 import { Tooltip } from './Tooltip'
+import { useBarMetrics } from './metrics'
 import { SPRING_SNAPPY } from '@/lib/motion'
 
 export interface SegmentOption<T extends string> {
@@ -36,6 +37,10 @@ export interface SegmentedControlProps<T extends string> {
 const SIZE = {
   sm: { seg: 'h-[22px] px-2 text-caption2 gap-1', icon: 12 },
   md: { seg: 'h-6 px-2.5 text-footnote gap-1.5', icon: 14 },  // 24px segment in a 28px track = Button sm / Select sm row
+  /** Bar size: a 32px segment + the track's 2px padding each side = the 36px track
+   *  (CONTROL_H_BAR), so a segmented control
+   *  lines up with the IconButtons and grouped pills beside it in the same toolbar. */
+  bar: { seg: 'h-8 px-4 text-subhead gap-1.5', icon: 15 },
 }
 
 /**
@@ -48,7 +53,8 @@ export function SegmentedControl<T extends string>({
   value, options, onChange, size = 'sm', fill, variant = 'segmented', className, 'aria-label': ariaLabel, disabled,
 }: SegmentedControlProps<T>) {
   const layoutId = useId()
-  const s = SIZE[size]
+  const bar = useBarMetrics()
+  const s = SIZE[bar ? 'bar' : size]
   const inspector = variant === 'inspector'
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const fwd = e.key === 'ArrowRight' || e.key === 'ArrowDown'
@@ -73,7 +79,7 @@ export function SegmentedControl<T extends string>({
       onKeyDown={onKeyDown}
       className={cx(
         'no-drag inline-flex items-stretch flex-shrink-0',
-        inspector ? 'gap-0.5' : 'p-0.5 rounded-card bg-control shadow-[inset_0_0_0_1px_var(--control-border)]',
+        inspector ? 'gap-0.5' : cx('p-0.5 bg-control shadow-[inset_0_0_0_1px_var(--control-border)]', bar ? 'rounded-control' : 'rounded-card'),
         fill && 'flex w-full', disabled && 'opacity-40 pointer-events-none', className,
       )}
     >
@@ -92,7 +98,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => !on && onChange(v)}
             className={cx(
               'focus-ring relative inline-flex items-center justify-center font-medium select-none whitespace-nowrap cursor-pointer',
-              'rounded-control-md',
+              bar ? 'rounded-control' : 'rounded-control-md',
               'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
               s.seg, fill && 'flex-1',
               on ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-lift-1 active:bg-lift-3',
@@ -102,7 +108,7 @@ export function SegmentedControl<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={SPRING_SNAPPY}
-                className={cx('absolute inset-0 rounded-control-md bg-control-selected', !inspector && 'border border-hairline shadow-1')}
+                className={cx('absolute inset-0 bg-control-selected', bar ? 'rounded-control' : 'rounded-control-md', !inspector && 'border border-hairline shadow-1')}
                 aria-hidden
               />
             )}

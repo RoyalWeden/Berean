@@ -257,7 +257,7 @@ export default function NotesList({
                   />
                 ) : (
                   <span className="flex items-center gap-1 w-full min-w-0">
-                    <NoteIcon icon={note.icon} size={13} />
+                    <NoteIcon icon={note.icon} size={14} />
                     <span className="text-subhead font-medium text-text-primary truncate">
                       {findQuery ? applyFindHighlight(note.title || 'Untitled', findQuery) : (note.title || 'Untitled')}
                     </span>

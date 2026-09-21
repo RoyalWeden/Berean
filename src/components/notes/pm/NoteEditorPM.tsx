@@ -13,6 +13,7 @@ import { bereanInputRules } from './inputRules'
 import { bereanPastePlugin, reclosePastedWrapperBlock } from './pastePlugin'
 import { createRefDecorationsPlugin, createRefClickPlugin, refDecorationsKey } from './refDecorations'
 import { resolveTagColor } from '@/lib/tagPalette'
+import { MenuItem } from '@/components/ui'
 import { createPlaceholderPlugin } from './placeholderPlugin'
 import {
   createAutocompletePlugin, replaceRangeWithText, replaceRangeWithBlock, replaceRangeWithWikilink,
@@ -1252,25 +1253,27 @@ export default function NoteEditorPM({
           onMouseDown={(e) => e.preventDefault()}
         >
           {filteredTags.map((t, i) => (
-            <button
+            <MenuItem
               key={t.id}
               onMouseEnter={() => setTagIdx(i)}
               onClick={() => void chooseTag(i)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-footnote text-left cursor-pointer ${i === tagIdx ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-text-primary`}
-            >
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
-              <span className="truncate">{t.name}</span>
-              <span className="ml-auto text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>
-            </button>
+              className={i === tagIdx ? 'bg-accent text-white' : undefined}
+              label={
+                <span className="inline-flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
+                  <span className="truncate">{t.name}</span>
+                </span>
+              }
+              trailing={<span className="text-caption2 text-text-muted">{t.verseCount + t.chapterCount}</span>}
+            />
           ))}
           {tagQ && !tagExactExists && (
-            <button
+            <MenuItem
               onMouseEnter={() => setTagIdx(filteredTags.length)}
               onClick={() => void chooseTag(filteredTags.length)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-card text-footnote text-left cursor-pointer ${tagIdx === filteredTags.length ? 'bg-surface-selected' : 'hover:bg-surface-hover'} text-accent`}
-            >
-              + Create “{tagTrigger.query.trim()}”
-            </button>
+              className={tagIdx === filteredTags.length ? 'bg-accent text-white' : 'text-accent'}
+              label={`+ Create “${tagTrigger.query.trim()}”`}
+            />
           )}
         </div>,
         document.body,

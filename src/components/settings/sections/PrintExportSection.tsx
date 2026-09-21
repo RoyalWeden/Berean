@@ -116,7 +116,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
             }
             title={currentTheme.label}
             subtitle={currentTheme.desc}
-            trailing={<ChevronDown size={13} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
+            trailing={<ChevronDown size={14} className={`flex-shrink-0 text-text-muted transition-transform ${themeOpen ? 'rotate-180' : ''}`} />}
             trailingAlways
           />
 
@@ -251,7 +251,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
       </div>
 
       <p className="text-caption2 text-text-muted flex items-center gap-1.5">
-        <Eye size={11} className="text-accent flex-shrink-0" />
+        <Eye size={12} className="text-accent flex-shrink-0" />
         These settings are the defaults. You can also adjust them per-note in the print preview (the Print / Export buttons in the notes editor).
       </p>
     </div>

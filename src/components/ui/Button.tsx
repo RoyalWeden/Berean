@@ -5,7 +5,7 @@ import { cx } from './cx'
 import { Tooltip } from './Tooltip'
 import { Badge, type BadgeProps } from './Badge'
 import { useControlSurface, useInControlGroup, type ControlSurface } from './surface'
-import { resolveSize, useCompactMetrics, type ControlSize } from './metrics'
+import { resolveSize, useBarMetrics, useCompactMetrics, type ControlSize } from './metrics'
 
 /**
  * primary     — accent fill, capsule (the one default action on a surface; Apple: default button)
@@ -13,12 +13,17 @@ import { resolveSize, useCompactMetrics, type ControlSize } from './metrics'
  * secondary   — interactive glass, visible at rest on any bar (rounded rectangle)
  * ghost       — text until hovered (rounded rectangle)
  * menu        — secondary/ghost with a trailing ▾ (dropdown trigger)
+ * link        — borderless accent text, underline on hover: a quiet navigational action that
+ *               leads somewhere else ("Advanced scripture search", a cross-ref that opens a tab).
+ *               macOS's borderless accent button; no fill, no bezel, no press scale (scaling a
+ *               run of text reads as a web animation). Replaces hand-rolled
+ *               `text-accent group-hover:underline` spans and `!text-accent` overrides.
  * destructive / success / warning — filled status buttons
  *
  * Shape follows Apple's rule: xs/sm/md are rounded rectangles; lg, primary and prominent are
  * capsules. `shape` overrides for concentric nesting.
  */
-export type ButtonVariant = 'primary' | 'prominent' | 'secondary' | 'ghost' | 'menu' | 'destructive' | 'success' | 'warning'
+export type ButtonVariant = 'primary' | 'prominent' | 'secondary' | 'ghost' | 'link' | 'menu' | 'destructive' | 'success' | 'warning'
 export type ButtonSize = ControlSize
 export type ButtonTint = 'none' | 'secondary' | 'primary'
 
@@ -52,6 +57,17 @@ const FILLED: Record<'primary' | 'destructive' | 'success' | 'warning', string> 
   success: 'bg-success text-white shadow-control hover:brightness-110 active:brightness-90',
   warning: 'bg-warning text-white shadow-control hover:brightness-110 active:brightness-90',
 }
+/** `link` has no control box: it is a run of text, so it takes the size's type scale and gap but
+ *  no height or horizontal inset (explicit strings, not a regex over SIZE — Tailwind only
+ *  generates classes it can see literally in the source). */
+const LINK_BOX: Record<ButtonSize, string> = {
+  xs: 'h-auto px-0 text-caption gap-1',
+  sm: 'h-auto px-0 text-footnote gap-1.5',
+  md: 'h-auto px-0 text-subhead gap-2',
+  lg: 'h-auto px-0 text-subhead gap-2',
+}
+/** The one bar box (CONTROL_H_BAR = 36). Used for every Button inside a Toolbar / bar row. */
+const BAR: { box: string; icon: number; radius: string } = { box: 'h-9 px-4 text-subhead gap-2', icon: 16, radius: 'rounded-control-md' }
 const SIZE: Record<ButtonSize, { box: string; icon: number; radius: string }> = {
   xs: { box: 'h-6 px-2 text-caption gap-1', icon: 12, radius: 'rounded-control-sm' },
   sm: { box: 'h-7 px-2.5 text-footnote gap-1.5', icon: 14, radius: 'rounded-control-md' },
@@ -64,11 +80,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const compact = useCompactMetrics()
-  const s = SIZE[resolveSize(size, compact)]
+  const bar = useBarMetrics()
+  const s = !compact && bar ? BAR : SIZE[resolveSize(size, compact)]
   const ctxSurface = useControlSurface(surface)
   const inGroup = useInControlGroup()
   const v: ButtonVariant = variant ?? (tint === 'primary' ? 'primary' : tint === 'secondary' ? 'prominent' : ctxSurface === 'glass' ? 'secondary' : 'ghost')
   const capsule = shape ? shape === 'capsule' : (v === 'primary' || v === 'prominent' || size === 'lg')
+  const isLink = v === 'link'
   const iconEl = loading
     ? <Loader2 size={s.icon} className="animate-spin" />
     : Icon ? <Icon size={s.icon} strokeWidth={selected ? 2 : 1.75} /> : null
@@ -87,6 +105,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         : 'text-text-secondary hover:text-text-primary hover:bg-control-hover active:bg-control-pressed'
   } else if (v === 'prominent') {
     look = 'control-glass bg-accent-muted text-accent border-accent/25 hover:bg-accent-hover active:bg-accent-active'
+  } else if (isLink) {
+    look = danger
+      ? 'text-destructive hover:underline decoration-1 underline-offset-2 active:opacity-70'
+      : 'text-accent hover:underline decoration-1 underline-offset-2 active:opacity-70'
   } else if (v === 'ghost' && danger) {
     look = 'text-text-muted hover:text-destructive hover:bg-destructive/12 active:bg-destructive/20'
   } else if (v === 'ghost') {
@@ -111,9 +133,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cx(
         'no-drag focus-ring relative inline-flex items-center justify-center flex-shrink-0 font-medium select-none whitespace-nowrap',
         'transition-[background-color,color,filter,transform,box-shadow] duration-base ease-mac cursor-pointer',
-        inGroup ? 'rounded-none' : cx(capsule ? 'rounded-control' : s.radius, 'active:scale-[0.98]'),
+        inGroup ? 'rounded-none' : isLink ? 'rounded-control-sm' : cx(capsule ? 'rounded-control' : s.radius, 'active:scale-[0.98]'),
         'disabled:opacity-40 disabled:pointer-events-none',
-        s.box, look, className,
+        isLink ? LINK_BOX[resolveSize(size, compact)] : s.box,
+        look, className,
       )}
       {...rest}
     >
