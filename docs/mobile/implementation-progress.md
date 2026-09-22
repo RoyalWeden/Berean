@@ -35,7 +35,7 @@ The brief's 22 phases are kept, with two adjustments the audit forced:
 | 13 | Mobile ProseMirror notes (editor, home, folders, versions, refs, daily) | PM touch tests + device | **IMPLEMENTING** 2026-09-21 — native `NotesHomePage` (search, filters, folders, pinned, daily, trash), `NoteEditorPage` (shared PM editor, autosave/snapshots, title, edit/view, actions: pin, status, folder, versions+restore, copy, share, trash), `TrashPage`; wikilinks/verse refs/Strong's refs wired; verified on the simulator (create, type, title, daily note). Remaining: icons/colours/tags, folder CRUD, board/calendar pages (hosted meanwhile), image insert from Photos, keyboard toolbar on device |
 | 14 | Search (page, filters, parity) | parity tests + perf | **IMPLEMENTING** 2026-09-21 — `src/lib/scriptureSearch.ts` (the desktop algorithm as a shared function, 5 tests) + `SearchPage` (scripture/notes/lexicon scopes, filter sheet, grouped results with highlighted snippets, recent queries, reference jump, Strong's queries, `pendingSearchQuery`); verified on the simulator ("remember the sabbath" → 10 verses in 7 books across texts → tap lands on Exo 20:8). Pending: tag filter, virtualised long lists, perf baseline on device |
 | 15 | Tabs & workspace UX (grid, switcher, archive, workspaces page) | tests + device | **IMPLEMENTING** 2026-09-21 — tab actions: rename, duplicate, move up/down (`reorderTabs`), move to workspace (`moveTabToSession`), archive, close others, close; session actions: rename, icon (`SESSION_ICONS`), archive all, delete; `WorkspacesPage` (save current as v2 snapshot, open as session, rename, delete); `ArchivePage` (restore/discard); chrome made non-selectable so long-presses never raise text handles. Pending: drag-to-reorder in the grid, session reorder, tab filter |
-| 16 | Audio (Read Aloud spike → implementation, audio session, lock-screen) | device | NOT STARTED |
+| 16 | Audio (Read Aloud spike → implementation, audio session, lock-screen) | device | **IMPLEMENTING** 2026-09-21 — finding: desktop has no Web Speech path any more (Kokoro-only, inert before the pack downloads), so the phone gets `NativeSpeechBackend` (`AVSpeechSynthesizer`) behind the shared `TTSBackend` seam; `BereanAudio` plugin (session, Now Playing, remote commands); `AudioBar` + player sheet; `useTTSPlayback` mounted in the shell. Simulator: Exodus 20 read aloud with verse + word highlight. Pending on device: background continuation, lock-screen card/commands, queue + playlists pages |
 | 17 | YouTube / PiP (`BereanWebView`) | device; restrictions documented | NOT STARTED |
 | 18 | Native integrations (Share Sheet in/out, deep links, Share Extension, Spotlight, App Intents, haptics, print) | device | NOT STARTED |
 | 19 | Performance & accessibility | targets met; VoiceOver pass | NOT STARTED |
@@ -171,7 +171,9 @@ Q1 iCloud transport: proceed with per-device journals in the iCloud Drive contai
 
 ## Known limitations (iPhone) — see `feature-matrix.md` §10
 
-Populated as phases land; currently the design-time list in the matrix.
+- **Read Aloud voices** — system voices via `AVSpeechSynthesizer`, not Kokoro (Phase 16; spike for Kokoro-in-WKWebView scheduled with the device work in Phase 21).
+- **AI Lookup** — desktop-only (local Ollama model); `window.aiLookup` reports unavailable on the phone.
+- **YouTube channel fetching / video search** — network layer not yet ported (Phase 17); the bundled index and starred/positions/transcripts work offline.
 
 ## Phase 10 — Mobile navigation shell — GATE MET (simulator) (2026-09-21)
 
@@ -209,6 +211,14 @@ Populated as phases land; currently the design-time list in the matrix.
 - `src/mobile/search/SearchPage.tsx`: scope segmented control (Scripture / Notes / Lexicon), debounced search, results grouped by book with `applyFindHighlight` snippets and the text label when searching all texts, tap → reader with the landed-verse highlight (`targetVerseQuery` / `targetVerseStrongsWords`), typed reference → jump, recent queries (`recentSearchQueries`), filter sheet (match mode, text, canonical book groups), `openSearchTab` compatibility through `pendingSearchQuery`.
 - Reader: tab title / history / per-tab back stack now update on chapter change exactly as the desktop BiblePanel does (a search landing on Exodus 20 renames the tab and records history).
 
+## Phase 16 — Read Aloud — IMPLEMENTING (2026-09-21)
+
+- `ios/App/BereanNative/Sources/BereanNative/BereanSpeechPlugin.swift` — `voices`, `speak` (one utterance per verse, rate mapped onto `AVSpeechUtteranceDefaultSpeechRate`), `pause`/`resume`/`stop`/`status`; delegate → `start` / `boundary` / `end` / `cancel` events.
+- `src/lib/tts/nativeSpeechBackend.ts` — `NativeSpeechBackend implements TTSBackend` (generation counter drops stale events after stop/skip; boundary char offsets → `SpokenWord`; rate/voice changes restart the current verse; preview), `createNativeVoiceProvider` (English first, Enhanced/Premium tiers). Activated in `src/platform/ios/main.tsx` via `setActiveTTSBackend`. Tests: `nativeSpeechBackend.test.ts` (3).
+- `BereanAudioPlugin.swift` — `.playback`/`.spokenAudio` session, `MPNowPlayingInfoCenter`, `MPRemoteCommandCenter` (play/pause/toggle/next/previous/stop → `command` events); `Info.plist` `UIBackgroundModes: audio`; `src/mobile/audio/useIosAudioSession.ts` keeps them in step with `audioPlayback`.
+- `src/mobile/audio/AudioBar.tsx` — bar above the tab pill (ref, prev/play-pause/next/stop) and the player sheet (chapter progress, verse grid seek via `seekToVerse`, speed, auto-advance, voices). `MobileApp` mounts `useTTSPlayback()` like `App.tsx`.
+- Verified on the simulator: "Play from here" on Exodus 20 → the bar shows Exodus 20:4 after ~12 s with the current word highlighted (native `boundary` events).
+
 ## Bridge completeness (Phase 4/10 follow-up, 2026-09-21)
 
 `src/platform/ios/bridgeExtras.ts` installs the namespaces the first bridge left out, so every hosted desktop panel runs on the phone: `app` (real: `openExternal` → SFSafariViewController, `getVersion`, `isDev`, `openStudyTrailWindow` → event for the future trail page; the multi-window / menu / updater members resolve harmlessly and log once), `studyTrail` (one-to-one with the preload, `onDataChanged` from `data:changed`), `youtube` (DB subset; `refresh`/`fullSync`/`searchVideos`/`fetchDescription` reject with "Phase 17" until the network layer is ported; dev-only transcript fetch stays dev-only), `pdf` (rows from the service, bytes under `Library/Berean/pdfs/` via `@capacitor/filesystem`, import through a file input with SHA-256 matching to synced metadata, `fileMissing`), `aiLookup` (unavailable: local Ollama model is desktop-only). `bridgeSurface.test.ts` fails if a renderer namespace is neither installed nor listed desktop-only. The shell provides `ActivePanelContext` to hosted panels (tags graph, PDF viewer, YouTube, Lexicon) and the More-hosted spaces (Lexicon, YouTube) now render their own roots (they were stuck on the More page). Verified on the simulator: YouTube feed from the bundled index, Lexicon panel, tags graph.
@@ -236,4 +246,5 @@ None.
 - 2026-09-21 — Phases 11–12 reader options + scripture interaction sheets on the simulator; commit 1921d54.
 - 2026-09-21 — Phase 13 native notes home/editor/trash on the simulator; commit 2994562.
 - 2026-09-21 — Phase 14 shared search algorithm + SearchPage (174 files / 4122 tests); commit 51b82bd.
-- 2026-09-21 — Phase 15 tab/session actions, Workspaces + Archive pages.
+- 2026-09-21 — Phase 15 tab/session actions, Workspaces + Archive pages; commit b5e0dd8. Bridge completeness; commit 0109263.
+- 2026-09-21 — Phase 16 Read Aloud via native speech backend + audio session on the simulator.

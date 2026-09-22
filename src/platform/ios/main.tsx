@@ -6,6 +6,9 @@ import { installIosBridge } from './bridge'
 import { installIosBridgeExtras } from './bridgeExtras'
 import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { installIosDeepLinks } from './deepLinks'
+import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
+import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/nativeSpeechBackend'
+import { BereanSpeech } from './plugins'
 import MobileApp from '../../mobile/MobileApp'
 import '../../styles/global.css'
 
@@ -31,6 +34,8 @@ async function boot() {
     installIosSyncBridge()
     void initIosSyncHost()   // starts only if the user enabled iCloud sync; never blocks boot
     void installIosDeepLinks()   // berean:// URLs queue until the mobile shell registers its target
+    // Read Aloud: the system speech synthesiser implements the shared TTSBackend on the phone.
+    setActiveTTSBackend(new NativeSpeechBackend(BereanSpeech), createNativeVoiceProvider(BereanSpeech))
     root.render(
       <React.StrictMode>
         <MotionConfig reducedMotion="user">

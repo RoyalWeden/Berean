@@ -42,3 +42,26 @@ export interface BereanCloudPlugin {
 }
 
 export const BereanCloud = registerPlugin<BereanCloudPlugin>('BereanCloud')
+
+/** Audio session + lock-screen controls for Read Aloud (BereanAudioPlugin.swift). */
+export interface BereanAudioPlugin {
+  activateSession(): Promise<void>
+  deactivateSession(): Promise<void>
+  setNowPlaying(info: { title: string; artist?: string; album?: string; duration?: number; position?: number; isPlaying: boolean; rate?: number }): Promise<void>
+  clearNowPlaying(): Promise<void>
+  addListener(event: 'command', cb: (e: { command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'stop' }) => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanAudio = registerPlugin<BereanAudioPlugin>('BereanAudio')
+
+/** System speech voices for Read Aloud (BereanSpeechPlugin.swift). */
+export interface BereanSpeechPlugin {
+  voices(): Promise<{ voices: Array<{ id: string; name: string; lang: string; quality: 'Default' | 'Enhanced' | 'Premium' }> }>
+  speak(opts: { id: string; text: string; voice?: string | null; lang?: string; rate?: number }): Promise<void>
+  pause(): Promise<void>
+  resume(): Promise<void>
+  stop(): Promise<void>
+  status(): Promise<{ speaking: boolean; paused: boolean }>
+  addListener(event: 'start' | 'end' | 'cancel', cb: (e: { id: string }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'boundary', cb: (e: { id: string; charIndex: number; charLength: number }) => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanSpeech = registerPlugin<BereanSpeechPlugin>('BereanSpeech')

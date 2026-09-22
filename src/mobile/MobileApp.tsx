@@ -33,6 +33,8 @@ import { SettingsPage } from './settings/SettingsPage'
 import { NotesHomePage } from './notes/NotesHomePage'
 import { NoteEditorPage } from './notes/NoteEditorPage'
 import { SearchPage } from './search/SearchPage'
+import { AudioBar } from './audio/AudioBar'
+import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import './mobile.css'
 
 /**
@@ -45,6 +47,7 @@ import './mobile.css'
 export default function MobileApp() {
   useAppearance()
   useBoot()
+  useTTSPlayback()   // Read Aloud engine driver — the same hook App.tsx mounts
   return (
     <SheetHost>
       <Shell />
@@ -74,6 +77,7 @@ function Shell() {
           ? <NavigationStack rootKey="more" root={<MorePage onOpenSpace={(sp) => { setActiveSpace(sp); setMoreVisible(false) }} />} />
           : <NavigationStack key={activeSpace} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
       </main>
+      <AudioBar />
       {!showMore && <SpaceTabRow space={activeSpace} />}
       <SpaceBar current={showMore ? 'more' : destination} onSelect={onSelect} />
     </div>
