@@ -1,0 +1,38 @@
+/* Settings-only styles (Lane A). Reuses the same CSS custom properties as mobile.css
+   (rgb(var(--color-*))) — do not restyle shared content components here, only the
+   mobile-native controls this settings surface introduces on top of mobile.css's
+   mobile-row / mobile-list-section / mobile-toggle / mobile-segmented / mobile-stepper base. */
+
+.settings-field-hint { padding: 6px 14px 12px; font-size: 13px; line-height: 1.4; color: rgb(var(--color-text-muted)); }
+.settings-section-note { padding: 4px 16px 10px; font-size: 13px; line-height: 1.4; color: rgb(var(--color-text-muted)); }
+
+/* ── option grid (font choice, print theme, bullet style) ───────────────── */
+.settings-option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 16px 4px; }
+.settings-option-card { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 12px; background: rgb(var(--color-surface-2)); border: 1.5px solid transparent; text-align: left; color: inherit; font: inherit; }
+.settings-option-card.is-selected { border-color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.1); }
+.settings-option-card-title { font-size: 15px; font-weight: 600; }
+.settings-option-card-desc { font-size: 12px; color: rgb(var(--color-text-muted)); line-height: 1.35; }
+
+/* ── disclosure ("Advanced") ─────────────────────────────────────────────── */
+.settings-disclosure { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 10px 16px; background: none; border: 0; color: rgb(var(--color-text-secondary)); font: inherit; font-size: 14px; font-weight: 600; }
+.settings-disclosure svg { transition: transform 0.2s ease; color: rgb(var(--color-text-muted)); }
+.settings-disclosure.is-open svg { transform: rotate(180deg); }
+.settings-advanced-body { padding: 0 16px 12px; }
+
+/* ── danger zone ──────────────────────────────────────────────────────────── */
+.settings-danger-card { margin: 0 16px 12px; border-radius: 14px; overflow: hidden; border: 1px solid rgb(220 70 70 / 0.35); }
+.settings-danger-head { padding: 12px 14px; background: rgb(220 70 70 / 0.1); }
+.settings-danger-title { margin: 0; font-size: 15px; font-weight: 700; color: rgb(220 70 70); }
+.settings-danger-desc { margin: 3px 0 0; font-size: 13px; color: rgb(var(--color-text-muted)); line-height: 1.4; }
+.settings-danger-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: rgb(var(--color-surface-2)); }
+.settings-danger-btn { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 0; background: rgb(220 70 70 / 0.14); color: rgb(220 70 70); font: inherit; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.settings-danger-btn:disabled { opacity: 0.5; }
+
+/* ── inline number stepper (auto-advance pause, TTS rate) ────────────────── */
+.settings-rate-row { display: flex; align-items: center; gap: 10px; }
+.settings-rate-row button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font-size: 17px; line-height: 1; }
+.settings-rate-row button:disabled { opacity: 0.4; }
+.settings-rate-row span { min-width: 48px; text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* ── voice list ───────────────────────────────────────────────────────────── */
+.settings-voice-tier { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11px; font-weight: 600; background: rgb(var(--color-accent) / 0.15); color: rgb(var(--color-accent)); }

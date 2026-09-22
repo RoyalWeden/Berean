@@ -75,6 +75,19 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
   const origin = consumeSelectionInto(args.origin)
   const s = useAppStore.getState()
   s.ensureTab('bible')
+  // The active Scripture tab may be a PDF / tags-graph tab: a verse must land in a Bible tab
+  // (the most recently used one, else a new one), never be written into that tab's state.
+  {
+    const st = useAppStore.getState()
+    const active = st.tabs['scripture'].find((t) => t.id === st.activeTabId['scripture'])
+    if (active && active.type !== 'bible') {
+      const isBible = (id: string) => st.tabs['scripture'].some((t) => t.id === id && t.type === 'bible')
+      const mru = st.tabMRUList.find((m) => m.spaceId === 'scripture' && isBible(m.tabId))
+      const target = mru ? st.tabs['scripture'].find((t) => t.id === mru.tabId) : st.tabs['scripture'].find((t) => t.type === 'bible')
+      if (target) st.setActiveTab('scripture', target.id)
+      else st.createTab('bible')
+    }
+  }
   const fresh = useAppStore.getState()
   const tabId = fresh.activeTabId['scripture']
   if (!tabId) return

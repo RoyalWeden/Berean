@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, CalendarDays, Folder, Pin, Trash2, Search, LayoutPanelLeft } from 'lucide-react'
+import { Plus, CalendarDays, Folder, FolderPlus, Pin, Trash2, Search, LayoutPanelLeft } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { ensureDailyNoteLocation } from '@/platform/ios/location'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { Page, IconTap, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
+import { useActionSheet } from '../primitives/ActionSheet'
+import { useLongPress } from '../primitives/useLongPress'
 import { NoteEditorPage } from './NoteEditorPage'
 import { TrashPage } from './TrashPage'
 import NotesPanel from '@/components/notes/NotesPanel'
@@ -42,6 +45,30 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     return () => { alive = false; clearTimeout(t) }
   }, [query, noteToken])
 
+  // Folder management (same `window.notes.*Folder` calls as the desktop folder view): "+" chip →
+  // new folder; long-press a folder chip → rename / new subfolder / delete (empty) / delete with
+  // notes (confirmed). Nested folders are flattened into "Parent / Child" chips.
+  const actions = useActionSheet()
+  const refresh = () => useAppStore.getState().bumpNoteToken()
+  const folderLabel = (f: NoteFolder): string => { const p = f.parentId ? folders.find((x) => x.id === f.parentId) : null; return p ? `${folderLabel(p)} / ${f.name}` : f.name }
+  const newFolder = async (parentId: string | null = null) => {
+    const name = prompt(parentId ? 'New subfolder name' : 'New folder name')?.trim()
+    if (!name) return
+    const r = await window.notes.createFolder(name, parentId).catch(() => null)
+    if (r?.success) { void haptic.success(); refresh() }
+  }
+  const folderActions = (f: NoteFolder) => {
+    const count = notes.filter((n) => n.folderId === f.id).length
+    const children = folders.filter((x) => x.parentId === f.id).length
+    actions(`folder-${f.id}`, folderLabel(f), [
+      { id: 'rename', label: 'Rename…', onSelect: () => { const name = prompt('Folder name', f.name)?.trim(); if (name && name !== f.name) window.notes.renameFolder(f.id, name).then(refresh).catch(() => {}) } },
+      { id: 'sub', label: 'New subfolder…', onSelect: () => { void newFolder(f.id) } },
+      ...(count === 0 && children === 0
+        ? [{ id: 'delete', label: 'Delete folder', destructive: true, onSelect: () => { window.notes.deleteFolder(f.id).then(() => { if (folderId === f.id) setFolderId(null); refresh() }).catch(() => {}) } }]
+        : [{ id: 'delete-deep', label: `Delete folder and its ${count} note${count === 1 ? '' : 's'}${children ? ' + subfolders' : ''}`, destructive: true, onSelect: () => { if (confirm(`Delete "${f.name}" and everything in it? Notes go to Trash.`)) window.notes.deleteFolderDeep(f.id).then(() => { if (folderId === f.id) setFolderId(null); refresh() }).catch(() => {}) } }]),
+    ])
+  }
+
   const user = notes   // every note (verse and daily notes included — they are first-class on the phone)
   const pinned = useMemo(() => user.filter((n) => n.pinned), [user])
   const list = useMemo(() => {
@@ -65,6 +92,8 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     if (r.success && r.note) { useAppStore.getState().bumpNoteToken(); void haptic.success(); open(r.note) }
   }
   const openDaily = async () => {
+    // Sunrise day boundary needs a location fix; the first daily-note open is where iOS asks.
+    await ensureDailyNoteLocation({ prompt: true })
     const title = dailyNoteTitle(dailyNoteToday())
     const existing = notes.find((n) => n.title === title && n.type === 'daily')
       ?? (await window.notes.searchNotes(title, 5).catch(() => [] as Note[])).find((n) => n.title === title && n.type === 'daily')
@@ -94,14 +123,13 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
           <button key={f} type="button" role="tab" aria-selected={filter === f} className={`mobile-chip${filter === f ? ' is-on' : ''}`} onClick={() => setFilter(f)}>{label}</button>
         ))}
       </div>
-      {folders.length > 0 && (
-        <div className="mobile-chip-row mobile-chip-row-scroll" aria-label="Folders">
-          <button type="button" className={`mobile-chip${folderId === null ? ' is-on' : ''}`} onClick={() => setFolderId(null)}><Folder size={14} aria-hidden /> All folders</button>
-          {folders.map((f) => (
-            <button key={f.id} type="button" className={`mobile-chip${folderId === f.id ? ' is-on' : ''}`} onClick={() => setFolderId(folderId === f.id ? null : f.id)}><Folder size={14} aria-hidden /> {f.name}</button>
-          ))}
-        </div>
-      )}
+      <div className="mobile-chip-row mobile-chip-row-scroll" aria-label="Folders">
+        {folders.length > 0 && <button type="button" className={`mobile-chip${folderId === null ? ' is-on' : ''}`} onClick={() => setFolderId(null)}><Folder size={14} aria-hidden /> All folders</button>}
+        {folders.map((f) => (
+          <FolderChip key={f.id} label={folderLabel(f)} active={folderId === f.id} onTap={() => setFolderId(folderId === f.id ? null : f.id)} onLongPress={() => folderActions(f)} />
+        ))}
+        <button type="button" className="mobile-chip" aria-label="New folder" onClick={() => { void newFolder(null) }}><FolderPlus size={14} aria-hidden /> {folders.length ? '' : 'New folder'}</button>
+      </div>
       {!results && filter === 'all' && !folderId && pinned.length > 0 && (
         <ListSection title="Pinned">
           {pinned.map((n) => <NoteRow key={n.id} note={n} onOpen={open} />)}
@@ -139,4 +167,10 @@ function DesktopNotesPage({ onBack }: { onBack: () => void }) {
       <div className="mobile-hosted-panel" style={{ paddingTop: 0 }}><NotesPanel floating /></div>
     </Page>
   )
+}
+
+/** A folder filter chip: tap filters, long-press opens the folder's actions. */
+function FolderChip({ label, active, onTap, onLongPress }: { label: string; active: boolean; onTap: () => void; onLongPress: () => void }) {
+  const lp = useLongPress(() => { void haptic.medium(); onLongPress() })
+  return <button type="button" className={`mobile-chip${active ? ' is-on' : ''}`} {...lp} onClick={onTap}><Folder size={14} aria-hidden /> {label}</button>
 }

@@ -13,6 +13,7 @@ import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
 import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
+import { EMOJI_CATEGORIES, ALL_EMOJI } from '@/lib/emojiList'
 
 const SAVE_DEBOUNCE_MS = 500
 const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
@@ -123,6 +124,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
         { id: 'none', label: 'No status', onSelect: () => persist({ status: null }) },
         ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label, onSelect: () => persist({ status: s.id }) })),
       ]) },
+      { id: 'icon', label: n.icon ? `Icon (${n.icon})…` : 'Icon…', onSelect: () => sheets.open({ id: 'note-icon', title: 'Note icon', detents: [0.7, 0.92], render: (api) => <IconPicker current={n.icon ?? null} onPick={(emoji) => { persist({ icon: emoji }); void haptic.light(); api.close() }} /> }) },
       { id: 'folder', label: 'Move to folder…', onSelect: () => sheets.open({ id: 'note-folder', title: 'Folder', detents: [0.6, 0.92], render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...n, folderId: id }; setNote(latest.current); bumpNoteToken(); api.close() }) }} /> }) },
       { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { latest.current = { ...(latest.current ?? n), content }; setNote(latest.current); bumpNoteToken() }} />) },
       ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
@@ -139,7 +141,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     <Page
       noScroll
       onBack={onBack}
-      title={<input className="mobile-title-input" value={note.title} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: e.target.value })} />}
+      title={<span className="mobile-title-wrap">{note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}<input className="mobile-title-input" value={note.title} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: e.target.value })} /></span>}
       right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /><IconTap icon={MoreHorizontal} label="Note actions" onClick={openActions} /></>}
     >
       {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
@@ -199,4 +201,25 @@ async function shareNote(n: Note): Promise<void> {
   } catch {
     try { await navigator.clipboard.writeText(text) } catch { /* ignore */ }
   }
+}
+
+/** The desktop NoteIconPicker's emoji set (src/lib/emojiList.ts) as a sheet: search + categories. */
+function IconPicker({ current, onPick }: { current: string | null; onPick: (emoji: string | null) => void }) {
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const matches = q ? ALL_EMOJI.filter((e) => e.keywords.some((k) => k.includes(q)) || e.char === q).slice(0, 80) : null
+  return (
+    <div className="mobile-icon-picker">
+      <input className="mobile-search-input" type="search" placeholder="Search emoji" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search emoji" />
+      {current && <button type="button" className="mobile-link-button" onClick={() => onPick(null)}>Remove icon {current}</button>}
+      {matches ? (
+        <div className="mobile-emoji-grid">{matches.map((e) => <button key={e.char} type="button" aria-label={e.keywords[0] ?? e.char} onClick={() => onPick(e.char)}>{e.char}</button>)}</div>
+      ) : EMOJI_CATEGORIES.map((c) => (
+        <div key={c.label}>
+          <div className="mobile-option-label">{c.label}</div>
+          <div className="mobile-emoji-grid">{c.emoji.map((e) => <button key={e.char} type="button" aria-label={e.keywords[0] ?? e.char} onClick={() => onPick(e.char)}>{e.char}</button>)}</div>
+        </div>
+      ))}
+    </div>
+  )
 }

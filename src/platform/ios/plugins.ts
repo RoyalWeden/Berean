@@ -111,6 +111,13 @@ export interface BereanSpotlightPlugin {
 }
 export const BereanSpotlight = registerPlugin<BereanSpotlightPlugin>('BereanSpotlight')
 
+/** Power / thermal awareness (BereanPowerPlugin.swift): Low Power Mode or serious/critical thermal state → 'throttled'. */
+export interface BereanPowerPlugin {
+  getResourceMode(): Promise<{ mode: 'normal' | 'throttled'; lowPowerMode: boolean; thermalState: number }>
+  addListener(event: 'change', cb: (e: { mode: 'normal' | 'throttled' }) => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanPower = registerPlugin<BereanPowerPlugin>('BereanPower')
+
 /** App Group inbox filled by the Share Extension (BereanShareInboxPlugin.swift). */
 export interface ShareInboxItem { kind: 'text' | 'url' | 'pdf'; text?: string; url?: string; file?: string; name?: string; receivedAt?: number }
 export interface BereanShareInboxPlugin {

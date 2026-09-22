@@ -12,6 +12,7 @@ import { IconButton, Button, ControlGroup, OverflowGroup, OverflowSection, Searc
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
 import TouchYouTubePlayer from './TouchYouTubePlayer'
+import { capabilities } from '@/lib/platformCapabilities'
 import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
 import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
 import type { ParsedRef } from '@/lib/parseRef'
@@ -376,7 +377,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const touchPlayerEnded = useCallback(() => setVideoEnded(true), [])
   const touchPlayerPosition = useCallback((seconds: number) => { touchPosRef.current = seconds }, [])
   useEffect(() => {
-    if (window.__berean_platform !== 'ios' || !activeVideoId) return
+    if (!capabilities.nativeVideoPlayer || !activeVideoId) return
     const id = activeVideoId
     const save = () => {
       const pos = touchPosRef.current
@@ -1466,7 +1467,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     if (!activeVideoId) return
     try {
       let secs = 0
-      if (mode === 'timestamp' && window.__berean_platform === 'ios') {
+      if (mode === 'timestamp' && capabilities.nativeVideoPlayer) {
         secs = Math.floor(touchPosRef.current) // native player position (TouchYouTubePlayer)
       } else if (mode === 'timestamp' && webviewRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1795,7 +1796,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           {/* iPhone: no <webview> in WKWebView — a plain IFrame embed reports state to this
               window instead (TouchYouTubePlayer). webviewRef stays null, so every Electron-only
               effect below (polls, executeJavaScript, PiP) no-ops. */}
-          {playerSrc && window.__berean_platform === 'ios' && activeVideoId && (
+          {playerSrc && capabilities.nativeVideoPlayer && activeVideoId && (
             <TouchYouTubePlayer
               videoId={activeVideoId}
               startTime={touchStartTime}
@@ -1805,7 +1806,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               onEmbedBlocked={touchPlayerBlocked}
             />
           )}
-          {playerSrc && window.__berean_platform !== 'ios' && (
+          {playerSrc && !capabilities.nativeVideoPlayer && (
             <webview
               ref={webviewRef}
               src={playerSrc}

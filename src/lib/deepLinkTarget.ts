@@ -32,6 +32,10 @@ export const storeDeepLinkTarget: DeepLinkTarget = {
   openSearch: (query) => useAppStore.getState().openSearchTab(query),
   openTrail: (trailSessionId) => { void window.app?.openStudyTrailWindow?.(trailSessionId) },
   openDaily: () => { useAppStore.getState().requestDailyNote() },
+  openSession: (sessionId) => {
+    const s = useAppStore.getState()
+    if (s.sessions.some((x) => x.id === sessionId)) s.switchSession(sessionId)
+  },
   openWorkspace: (name) => {
     const s = useAppStore.getState()
     const open = (list: Array<{ id: string; name: string }>) => {

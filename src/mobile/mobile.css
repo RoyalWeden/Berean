@@ -247,3 +247,18 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-field-hint { font-size: 12px; color: rgb(var(--color-text-muted)); margin: 6px 0 2px; line-height: 1.4; }
 .mobile-thumb { width: 56px; height: 36px; object-fit: cover; border-radius: 6px; background: rgb(var(--color-surface-4)); flex-shrink: 0; }
 .mobile-row-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+
+/* Note icon picker (editor "Icon…") + icon beside the title */
+.mobile-title-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mobile-icon-picker { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 24px; }
+.mobile-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; }
+.mobile-emoji-grid button { height: 44px; font-size: 26px; background: none; border: 0; border-radius: 10px; }
+.mobile-emoji-grid button:active { background: rgb(var(--color-surface-3)); }
+
+/* R102: iOS "Increase Contrast" → stronger separators and secondary text on the phone shell. */
+@media (prefers-contrast: more) {
+  .mobile-root { --contrast-boost: 1; }
+  .mobile-list-section-title, .mobile-muted, .mobile-field-hint, .mobile-row-group { color: rgb(var(--color-text-secondary)); }
+  .mobile-chip, .mobile-input, .mobile-onboarding-option, .mobile-emoji-grid button { border: 1px solid rgb(var(--color-text-muted) / 0.6); }
+  .mobile-page-header, .mobile-space-bar, .mobile-tab-row { border-color: rgb(var(--color-text-muted) / 0.6); }
+}

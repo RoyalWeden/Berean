@@ -65,7 +65,7 @@ function fmtDayHeading(ms: number): string {
 
 export default function EverythingView({
   sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom,
-  headerCollapsed, onToggleHeaderCollapsed, headerPos, onHeaderDragStart,
+  headerCollapsed, onToggleHeaderCollapsed, headerPos, onHeaderDragStart, hideHeader, emptyHint,
 }: {
   sessions: TrailSession[]
   zoom?: number
@@ -77,6 +77,10 @@ export default function EverythingView({
   onToggleHeaderCollapsed: () => void
   headerPos: TrailHeaderPos | null
   onHeaderDragStart: (e: React.MouseEvent) => void
+  /** Touch hosts (iPhone) draw their own page title + filter; skip the draggable map header. */
+  hideHeader?: boolean
+  /** Empty-state wording for hosts without the desktop session rail. */
+  emptyHint?: string
 }) {
   const headerSide = pickControlSide(layoutRoom, CTRL_W.header)
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
@@ -187,7 +191,7 @@ export default function EverythingView({
     // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
     // one that actually scrolls (see MapView.tsx's own comment on this).
     <div data-trail-map-viewport style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <TrailMapHeader
+      {!hideHeader && <TrailMapHeader
         side={headerSide}
         collapsed={headerCollapsed}
         onToggleCollapsed={onToggleHeaderCollapsed}
@@ -197,9 +201,9 @@ export default function EverythingView({
         filterValue={filter}
         onFilterChange={setFilter}
         statsLine={<>{sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total</>}
-      />
+      />}
       {mergedNodes.length === 0 ? (
-        <div className="text-footnote text-text-muted">No sessions yet — start one from the rail on the left.</div>
+        <div className="text-footnote text-text-muted">{emptyHint ?? 'No sessions yet — start one from the rail on the left.'}</div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
           {/* Older sessions load on demand rather than all at once. Deliberately a button and not

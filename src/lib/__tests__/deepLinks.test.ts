@@ -14,6 +14,7 @@ const target = (): DeepLinkTarget & { calls: string[] } => {
     openTrail: (id) => calls.push(`trail:${id}`),
     openDaily: () => calls.push('daily'),
     openWorkspace: (n) => calls.push(`workspace:${n}`),
+    openSession: (id) => calls.push(`session:${id}`),
   }
 }
 
@@ -35,6 +36,7 @@ describe('deep links (berean://)', () => {
     expect(parseDeepLink('berean://daily')).toEqual({ kind: 'daily' })
     expect(parseDeepLink('berean://workspace?name=Study%20Mode')).toEqual({ kind: 'workspace', name: 'Study Mode' })
     expect(parseDeepLink('berean://open?ref=Psa%2023&play=1')).toEqual({ kind: 'verse', bookId: 'PSA', chapter: 23, play: true })
+    expect(parseDeepLink('berean://session/s-42')).toEqual({ kind: 'session', sessionId: 's-42' })
   })
 
   it('rejects what it does not understand instead of guessing', () => {
@@ -58,6 +60,7 @@ describe('deep links (berean://)', () => {
       { kind: 'trail', trailSessionId: 't' },
       { kind: 'daily' },
       { kind: 'workspace', name: 'Compare Mode' },
+      { kind: 'session', sessionId: 'default' },
       { kind: 'verse', bookId: 'EXO', chapter: 20, verse: 8, play: true },
     ] as const
     for (const r of routes) expect(parseDeepLink(formatDeepLink(r)), formatDeepLink(r)).toEqual(r)
@@ -70,7 +73,8 @@ describe('deep links (berean://)', () => {
     expect(handleDeepLink('berean-pdf://p1/4', t)).toBe(true)
     expect(handleDeepLink('berean://video/v?t=3', t)).toBe(true)
     expect(handleDeepLink('https://youtube.com/watch?v=1', t)).toBe(false)
-    expect(t.calls).toEqual(['verse:GEN/1/1-:lxx', 'pdf:p1/4', 'video:v@3'])
+    expect(handleDeepLink('berean://session/s1', t)).toBe(true)
+    expect(t.calls).toEqual(['verse:GEN/1/1-:lxx', 'pdf:p1/4', 'video:v@3', 'session:s1'])
     const spy = vi.fn()
     handleDeepLink('berean://search?q=x', { ...t, openSearch: spy })
     expect(spy).toHaveBeenCalledWith('x')

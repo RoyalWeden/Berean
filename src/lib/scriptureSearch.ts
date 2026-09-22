@@ -2,7 +2,9 @@ import type { WordReplacerRule } from '@/store'
 import { getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
+import { bookOrder } from '@/lib/parseRef'
 import type { WordMode } from '@/lib/scriptureHighlight'
+import type { VerseTagMember } from '@/types'
 
 /**
  * The scripture full-text search algorithm as a plain function — the same steps
@@ -93,9 +95,88 @@ export async function runStrongsSearch(query: string): Promise<ScriptureHit[] | 
   return found.map((o) => ({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, textId: 'kjva', strongsWords: o.matchWordIndices }))
 }
 
-/** Group hits by book in canonical order of appearance. */
-export function groupHitsByBook(hits: ScriptureHit[]): Array<{ bookId: string; hits: ScriptureHit[] }> {
+// ── Verse-tag filter ──────────────────────────────────────────────────────────
+// The same narrowing ScriptureSearchView applies (its `passesTagFilter`): a hit survives when
+// the verse — or its whole chapter — belongs to a selected tag; with `matchAll` every selected
+// tag must contain it (AND), otherwise any one (OR). Keys are translation-agnostic, so a tag
+// placed while reading the LXX still narrows KJV results.
+
+export type VerseTagFilter = (bookId: string, chapter: number, verse: number) => boolean
+
+export function buildVerseTagFilter(members: VerseTagMember[], tagIds: string[], matchAll: boolean): VerseTagFilter {
+  if (tagIds.length === 0) return () => true
+  const perTag = new Map<string, { verses: Set<string>; chapters: Set<string> }>()
+  for (const id of tagIds) perTag.set(id, { verses: new Set(), chapters: new Set() })
+  for (const m of members) {
+    const e = perTag.get(m.tagId)
+    if (!e) continue
+    for (const v of m.verses) e.verses.add(`${v.bookId}:${v.chapter}:${v.verse}`)
+    for (const c of m.wholeChapters) e.chapters.add(`${c.bookId}:${c.chapter}`)
+  }
+  const entries = [...perTag.values()]
+  return (bookId, chapter, verse) => {
+    const vKey = `${bookId}:${chapter}:${verse}`
+    const cKey = `${bookId}:${chapter}`
+    const hit = (e: { verses: Set<string>; chapters: Set<string> }) => e.verses.has(vKey) || e.chapters.has(cKey)
+    return matchAll ? entries.every(hit) : entries.some(hit)
+  }
+}
+
+/** Hits restricted to the selected verse tags (no-op for an empty selection). */
+export function filterHitsByVerseTags(hits: ScriptureHit[], members: VerseTagMember[], tagIds: string[], matchAll: boolean): ScriptureHit[] {
+  if (tagIds.length === 0) return hits
+  const passes = buildVerseTagFilter(members, tagIds, matchAll)
+  return hits.filter((h) => passes(h.book_id, h.chapter, h.verse_num))
+}
+
+// ── Grouping + sort ───────────────────────────────────────────────────────────
+
+/** Desktop's two sort modes: FTS rank ("best match first") or canonical book order. */
+export type SearchSortMode = 'relevance' | 'bookOrder'
+export type SearchSortDirection = 'asc' | 'desc'
+export interface GroupHitsOptions {
+  sort?: SearchSortMode
+  /** Relevance reads best-first as 'desc'; book order reads Genesis→Revelation as 'asc' —
+   *  the other value reverses both the group order and the verses inside each group,
+   *  exactly as ScriptureSearchView's sortDirection does. */
+  direction?: SearchSortDirection
+}
+
+export interface HitGroup { bookId: string; hits: ScriptureHit[] }
+
+/**
+ * Group hits by book. Without options: groups in order of first appearance, verses in
+ * chapter/verse order (the original phone presentation). With `sort`:
+ *  - 'relevance' — groups in order of first appearance, verses kept in FTS rank order;
+ *  - 'bookOrder' — groups in canonical order, verses in chapter/verse order.
+ */
+export function groupHitsByBook(hits: ScriptureHit[], options?: GroupHitsOptions): HitGroup[] {
   const groups = new Map<string, ScriptureHit[]>()
   for (const h of hits) { const arr = groups.get(h.book_id) ?? []; arr.push(h); groups.set(h.book_id, arr) }
-  return [...groups.entries()].map(([bookId, hs]) => ({ bookId, hits: hs.sort((a, b) => a.chapter - b.chapter || a.verse_num - b.verse_num) }))
+  const byVerse = (a: ScriptureHit, b: ScriptureHit) => a.chapter - b.chapter || a.verse_num - b.verse_num
+  const sort = options?.sort
+  let out: HitGroup[] = [...groups.entries()].map(([bookId, hs]) => ({ bookId, hits: sort === 'relevance' ? hs : [...hs].sort(byVerse) }))
+  if (sort === 'bookOrder') out.sort((a, b) => bookOrder(a.bookId) - bookOrder(b.bookId))
+  const reversed = (sort === 'relevance' && options?.direction === 'asc') || (sort === 'bookOrder' && options?.direction === 'desc')
+  if (reversed) out = out.reverse().map((g) => ({ bookId: g.bookId, hits: [...g.hits].reverse() }))
+  return out
+}
+
+/**
+ * The first `limit` rows of a grouped result list, keeping the groups intact — the phone
+ * renders long result sets incrementally (a chunk at a time as the user scrolls) so a
+ * several-thousand-hit search never mounts every row at once. `total` is the full hit count.
+ */
+export function takeGroupRows(groups: HitGroup[], limit: number): { groups: HitGroup[]; shown: number; total: number } {
+  const total = groups.reduce((n, g) => n + g.hits.length, 0)
+  const out: HitGroup[] = []
+  let shown = 0
+  for (const g of groups) {
+    if (shown >= limit) break
+    const room = limit - shown
+    const hits = g.hits.length <= room ? g.hits : g.hits.slice(0, room)
+    out.push({ bookId: g.bookId, hits })
+    shown += hits.length
+  }
+  return { groups: out, shown, total }
 }

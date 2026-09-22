@@ -20,6 +20,7 @@ import { parseRef, bookName, resolveBookToken, type ParsedRef } from '@/lib/pars
  *   berean://trail/<trailSessionId>
  *   berean://daily                        (today's daily note — App Intents)
  *   berean://workspace?name=<name>        (open a saved workspace by name — App Intents)
+ *   berean://session/<sessionId>          (switch to a tab session — Spotlight)
  *   …&play=1 on a verse/open link starts Read Aloud at that passage
  */
 export type DeepLinkRoute =
@@ -32,6 +33,7 @@ export type DeepLinkRoute =
   | { kind: 'trail'; trailSessionId: string }
   | { kind: 'daily' }
   | { kind: 'workspace'; name: string }
+  | { kind: 'session'; sessionId: string }
   /** `berean://share` — the Share Extension left items in the inbox; the platform drains it. */
   | { kind: 'share' }
 
@@ -111,6 +113,7 @@ export function parseDeepLink(href: string): DeepLinkRoute | null {
     case 'daily': return { kind: 'daily' }
     case 'share': return { kind: 'share' }
     case 'workspace': { const name = (q.get('name') ?? rest.join(' ')).trim(); return name ? { kind: 'workspace', name } : null }
+    case 'session': return rest[0] ? { kind: 'session', sessionId: rest[0] } : null
     default: return null
   }
 }
@@ -132,6 +135,7 @@ export function formatDeepLink(route: DeepLinkRoute): string {
     case 'daily': return `${DEEP_LINK_SCHEME}://daily`
     case 'share': return `${DEEP_LINK_SCHEME}://share`
     case 'workspace': return `${DEEP_LINK_SCHEME}://workspace?name=${e(route.name)}`
+    case 'session': return `${DEEP_LINK_SCHEME}://session/${e(route.sessionId)}`
   }
 }
 
@@ -148,6 +152,7 @@ export function describeDeepLink(route: DeepLinkRoute): string {
     case 'daily': return "today's daily note"
     case 'share': return 'shared items'
     case 'workspace': return `workspace "${route.name}"`
+    case 'session': return 'tab session'
   }
 }
 
@@ -166,6 +171,7 @@ export interface DeepLinkTarget {
   openTrail: (trailSessionId: string) => void
   openDaily: () => void
   openWorkspace: (name: string) => void
+  openSession: (sessionId: string) => void
   /** Platform hook for `berean://share` (iOS drains the Share Extension inbox). */
   openShareInbox?: () => void
 }
@@ -181,6 +187,7 @@ export function routeDeepLink(route: DeepLinkRoute, target: DeepLinkTarget): voi
     case 'trail': target.openTrail(route.trailSessionId); break
     case 'daily': target.openDaily(); break
     case 'workspace': target.openWorkspace(route.name); break
+    case 'session': target.openSession(route.sessionId); break
     case 'share': target.openShareInbox?.(); break
   }
 }

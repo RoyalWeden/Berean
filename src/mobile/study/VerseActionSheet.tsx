@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
-import { Copy, Hash, NotepadText, GitFork, Volume2, Tag as TagIcon, Highlighter, Eraser, Share2 } from 'lucide-react'
-import type { HighlightColor } from '@/types'
+import { Copy, Hash, NotepadText, GitFork, Volume2, Tag as TagIcon, Highlighter, Eraser, Share2, Columns2 } from 'lucide-react'
+import type { HighlightColor, BibleTabState } from '@/types'
+import { useAppStore } from '@/store'
+import { makeCompareTab } from '../reader/compareState'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { VerseActionContext } from '@/components/bible/verseInteraction'
 import type { SheetApi } from '../primitives/Sheet'
@@ -69,6 +71,13 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
         <button type="button" className="mobile-action-row" onClick={run(onShowNotes)}><NotepadText size={20} aria-hidden /><span>Show notes for this verse</span></button>
         <button type="button" className="mobile-action-row" onClick={run(onShowCrossRefs)}><GitFork size={20} aria-hidden /><span>Cross references</span></button>
         <button type="button" className="mobile-action-row" onClick={run(ctx.playAudioFromHere)}><Volume2 size={20} aria-hidden /><span>Play audio from here</span></button>
+        <button type="button" className="mobile-action-row" onClick={run(() => {
+          // "Compare this verse" (R088): a new compare tab beside the reader tab, at this verse.
+          const s = useAppStore.getState()
+          const active = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture)
+          const base: BibleTabState = active?.type === 'bible' ? (active.state as BibleTabState) : { bookId: ctx.verse.book_id, chapter: ctx.verse.chapter, translation: ctx.textId.toUpperCase(), showStrongs: false, scrollPosition: 0 }
+          s.addTab(makeCompareTab({ ...base, bookId: ctx.verse.book_id, chapter: ctx.verse.chapter }, ctx.verse.verse_num))
+        })}><Columns2 size={20} aria-hidden /><span>Compare translations</span></button>
         <button type="button" className="mobile-action-row" onClick={run(() => onTag('verse'))}><TagIcon size={20} aria-hidden /><span>Tag verse…</span></button>
         <button type="button" className="mobile-action-row" onClick={run(() => onTag('chapter'))}><TagIcon size={20} aria-hidden /><span>Tag whole chapter…</span></button>
       </div>

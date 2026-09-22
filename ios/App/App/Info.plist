@@ -49,6 +49,15 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Permission strings (R122). Location is used once per launch, only to compute local sunrise
+	     for the daily-note day boundary (src/lib/dailyNoteUtils.ts); nothing is stored or sent. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Berean uses your location only to work out local sunrise, so a daily note begins at dawn rather than midnight. Your location never leaves the device.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Lets you insert a photo from your library into a note.</string>
+	<!-- Export compliance: only Apple-provided TLS and SQLite; no custom cryptography. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>BereanAppGroup</key>
 	<string>$(BEREAN_APP_GROUP)</string>
 	<key>BereanICloudContainer</key>

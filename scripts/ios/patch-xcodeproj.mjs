@@ -15,7 +15,8 @@
  *  6. a "Finalize Info.plist" run-script build phase (scripts/ios/finalize-info-plist.sh) that keys
  *     NSUbiquitousContainers by the BEREAN_ICLOUD_CONTAINER build setting;
  *  7. App/BereanIntents.swift (App Intents) in the App target;
- *  8. the ShareExtension target (ios/App/ShareExtension) embedded in the App target.
+ *  8. the ShareExtension target (ios/App/ShareExtension) embedded in the App target;
+ *  9. App/PrivacyInfo.xcprivacy in the App target's resources.
  *
  * Run: node scripts/ios/patch-xcodeproj.mjs   (also invoked by `npm run ios:sync`)
  */
@@ -57,6 +58,9 @@ const ID = {
   shareEmbedBuildFile: 'BE4EA0000000000000000F15',
   shareDependency: 'BE4EA0000000000000000F16',
   shareContainerProxy: 'BE4EA0000000000000000F17',
+  // Privacy manifest (step 9)
+  privacyFileRef: 'BE4EA0000000000000000F18',
+  privacyBuildFile: 'BE4EA0000000000000000F19',
 }
 const TARGET_ID = '504EC3031FED79650016851F'
 const APP_GROUP_ID = '504EC3061FED79650016851F'
@@ -238,6 +242,20 @@ if (!s.includes(ID.shareTarget)) {
     `\t\t\t\t504EC3021FED79650016851F /* Resources */,\n\t\t\t\t${ID.shareEmbedPhase} /* Embed Foundation Extensions */,\n\t\t\t\t${ID.copyDataPhase} /* Copy Bundled Databases */,\n`)
   replaceOnce(`\t\t\t\t${ID.finalizePlistPhase} /* Finalize Info.plist */,\n\t\t\t);\n\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n\t\t\tname = App;`,
     `\t\t\t\t${ID.finalizePlistPhase} /* Finalize Info.plist */,\n\t\t\t);\n\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t\t${ID.shareDependency} /* PBXTargetDependency */,\n\t\t\t);\n\t\t\tname = App;`)
+}
+
+// 9. Privacy manifest (App/PrivacyInfo.xcprivacy) in Copy Bundle Resources -------------------------
+if (!s.includes(ID.privacyFileRef)) {
+  insertAfter('/* Begin PBXFileReference section */\n',
+    `\t\t${ID.privacyFileRef} /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };\n`)
+  insertAfter('/* Begin PBXBuildFile section */\n',
+    `\t\t${ID.privacyBuildFile} /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ${ID.privacyFileRef} /* PrivacyInfo.xcprivacy */; };\n`)
+  const grp = s.indexOf(`${APP_GROUP_ID} /* App */ = {`)
+  const ch = s.indexOf('children = (\n', grp)
+  s = s.slice(0, ch + 'children = (\n'.length) + `\t\t\t\t${ID.privacyFileRef} /* PrivacyInfo.xcprivacy */,\n` + s.slice(ch + 'children = (\n'.length)
+  const res = s.indexOf('504EC3021FED79650016851F /* Resources */ = {')
+  const f = s.indexOf('files = (\n', res)
+  s = s.slice(0, f + 'files = (\n'.length) + `\t\t\t\t${ID.privacyBuildFile} /* PrivacyInfo.xcprivacy in Resources */,\n` + s.slice(f + 'files = (\n'.length)
 }
 
 if (s !== before) {

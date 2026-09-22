@@ -1,0 +1,33 @@
+/* Study Trail phone pages (R042). Reuses mobile.css tokens; only trail-specific bits live here. */
+.m-trail-segment { display: flex; justify-content: center; padding: 0 16px 8px; }
+.m-trail-segment .mobile-segmented { width: 100%; }
+.m-trail-segment .mobile-segmented button { flex: 1; }
+/* Hosts the desktop MapView / EverythingView (their root is `overflow:auto; flex:1`) and the
+   Threads / Search lists. Wide canvases scroll sideways; nothing is clipped. */
+.m-trail-host { display: flex; flex-direction: column; height: 100%; min-height: 0; --trail-row-max: 300px; }
+.m-trail-host > * { flex: 1; min-height: 0; }
+.m-trail-host[data-trail-view='map'], .m-trail-host[data-trail-view='everything'] { -webkit-user-select: none; user-select: none; }
+.m-trail-status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: rgb(var(--color-text-muted)); }
+.m-trail-status.is-live { background: rgb(var(--color-accent)); }
+.m-trail-status.is-paused { background: rgb(var(--color-text-muted)); box-shadow: inset 0 0 0 2px rgb(var(--color-surface-2)); }
+.m-trail-live-icon { color: rgb(var(--color-accent)); }
+/* sticky notes sheet */
+.m-trail-notes { display: flex; flex-direction: column; gap: 10px; padding: 8px 16px 24px; }
+.m-trail-notes-actions { display: flex; gap: 8px; }
+.m-trail-note { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--m-radius); background: rgb(var(--color-surface-2)); }
+.m-trail-note.is-section { border-left: 3px solid rgb(var(--color-accent)); }
+.m-trail-note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m-trail-note-kind { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.m-trail-note-tools { display: inline-flex; gap: 2px; }
+.m-trail-note-title { font-weight: 600; }
+.m-trail-note-text { white-space: pre-wrap; font-size: 15px; line-height: 1.4; }
+.m-trail-note-body { min-height: 96px; padding: 10px 14px; resize: vertical; }
+.m-trail-note-row { display: flex; gap: 8px; }
+/* tags sheet */
+.m-trail-tags { display: flex; flex-direction: column; gap: 12px; padding: 8px 16px 24px; }
+.m-trail-tags-new { display: flex; gap: 8px; }
+.m-trail-tags-new .mobile-input { flex: 1; min-width: 0; }
+.m-trail-tag-row { padding-right: 6px; }
+.m-trail-tag-toggle { flex: 1; display: flex; align-items: center; gap: 12px; min-height: 44px; border: 0; background: none; color: inherit; font: inherit; text-align: left; padding: 0; }
+.m-trail-tag-swatch { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.m-trail-tag-check { color: rgb(var(--color-accent)); margin-left: auto; }

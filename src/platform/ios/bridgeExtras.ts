@@ -1,7 +1,7 @@
 import { Browser } from '@capacitor/browser'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { createYoutubeFetchService, type FetchProgress } from '../services/youtubeFetchService'
-import { BereanPrint } from './plugins'
+import { BereanPrint, BereanPower } from './plugins'
 import type { Services } from '../services'
 import { iosServiceContext } from './services'
 import type { UpdateStatus } from '../../types/electron'
@@ -95,8 +95,8 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
     onNativeThemeChanged: noop('onNativeThemeChanged'),
     getAccentColor: async () => null,
     onAccentColorChanged: noop('onAccentColorChanged'),
-    getResourceMode: async () => 'normal',
-    onResourceModeChanged: noop('onResourceModeChanged'),
+    getResourceMode: async () => (await BereanPower.getResourceMode()).mode,
+    onResourceModeChanged: (cb: (mode: 'normal' | 'throttled') => void) => { void BereanPower.addListener('change', (e) => cb(e.mode)) },
     onUpdateStatus: (cb: (status: UpdateStatus) => void) => { cb({ status: 'mas' } as UpdateStatus) },
     openViewerWindow: async () => false, closeViewerWindow: async () => false, isViewerWindowOpen: async () => false,
     openStudyTrailWindow: async () => { window.dispatchEvent(new CustomEvent('berean:openStudyTrailPage')); return true },

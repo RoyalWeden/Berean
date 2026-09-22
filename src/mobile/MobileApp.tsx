@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
@@ -6,13 +6,16 @@ import { applyThemeToDocument } from '@/lib/applyTheme'
 import { applyFontFamilies } from '@/lib/fontFamilies'
 import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
 import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
+import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import { storeDeepLinkTarget } from '@/lib/deepLinkTarget'
 import { setIosDeepLinkTarget } from '@/platform/ios/deepLinks'
 import { drainShareInbox } from '@/platform/ios/shareInbox'
+import { ensureDailyNoteLocation } from '@/platform/ios/location'
 import BiblePanel from '@/components/bible/BiblePanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
+import StudyTrailArrivalPrompt from '@/components/studyTrail/StudyTrailArrivalPrompt'
 import { ActivePanelContext } from '@/components/shell/ActivePanelContext'
 import { lazy, Suspense } from 'react'
 const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
@@ -36,6 +39,9 @@ import { NoteEditorPage } from './notes/NoteEditorPage'
 import { SearchPage } from './search/SearchPage'
 import { AudioBar } from './audio/AudioBar'
 import { TranscriptPacksPage } from './youtube/TranscriptPacksPage'
+import { StudyTrailPage, useOpenStudyTrailPageEvent } from './trail'
+import { ComparePage } from './reader/ComparePage'
+import { OnboardingFlow, useOnboardingGate } from './onboarding'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import { Keyboard } from '@capacitor/keyboard'
 import './mobile.css'
@@ -51,9 +57,11 @@ export default function MobileApp() {
   useAppearance()
   useBoot()
   useTTSPlayback()   // Read Aloud engine driver — the same hook App.tsx mounts
+  const onboarding = useOnboardingGate()   // first launch / About → Replay walkthrough (R086)
   return (
     <SheetHost>
       <Shell />
+      {onboarding && <OnboardingFlow />}
     </SheetHost>
   )
 }
@@ -93,6 +101,8 @@ function Shell() {
         )}
       </main>
       <AudioBar />
+      {/* "Why did you jump?" pill (Study Trail, when the setting is on) — above the bottom bars. */}
+      <StudyTrailArrivalPrompt bottomInset={116} />
       {!showMore && <SpaceTabRow space={activeSpace} />}
       <SpaceBar current={showMore ? 'more' : destination} onSelect={onSelect} />
     </div>
@@ -153,7 +163,9 @@ function NotesSpace() {
 }
 
 function TabPage({ tab }: { tab: Tab }) {
-  if (tab.spaceId === 'scripture' && tab.type === 'bible') return <ReaderPage tab={tab} />
+  if (tab.spaceId === 'scripture' && tab.type === 'bible') {
+    return (tab.state as { compareMode?: boolean }).compareMode ? <ComparePage tab={tab} /> : <ReaderPage tab={tab} />
+  }
   // Interim hosts (documented in feature-matrix.md): the desktop panel's content, full width.
   // ActivePanelContext tells the hosted panel it IS the visible one (desktop's ActivePanel
   // keeps several mounted and hides the rest; here exactly one is mounted).
@@ -220,6 +232,10 @@ function SpaceTabRow({ space }: { space: SpaceId }) {
 function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
   const nav = useNavigation()
   const openSettings = () => nav.push('settings', <SettingsPage onBack={nav.pop} />)
+  const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
+  const openTrail = useCallback(() => nav.push('trail', <StudyTrailPage onBack={nav.pop} onOpenSpace={onOpenSpace} />), [nav, onOpenSpace])
+  // `window.app.openStudyTrailWindow()` (notes' trail embeds, deep links) lands here on the phone.
+  useOpenStudyTrailPageEvent(openTrail)
   return (
     <Page title="More">
       <ListSection title="Spaces">
@@ -229,11 +245,11 @@ function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
       </ListSection>
       <ListSection title="Study">
         <Row leading={<Tags size={20} aria-hidden />} title="Verse tags" subtitle="Tag manager and graph" chevron onClick={() => { useAppStore.getState().openTagsGraph(); onOpenSpace('notes') }} />
-        <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, recap — phone page in a later phase; data already syncs" />
+        <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, threads, recap" chevron onClick={openTrail} />
         <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={() => nav.push('history', <HistoryPage onBack={nav.pop} />)} />
         <Row leading={<Layers size={20} aria-hidden />} title="Workspaces" subtitle="Saved tab sets" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
         <Row leading={<Archive size={20} aria-hidden />} title="Archived tabs" chevron onClick={() => nav.push('archive', <ArchivePage onBack={nav.pop} />)} />
-        <Row leading={<Library size={20} aria-hidden />} title="PDF library" chevron onClick={() => nav.push('pdfs', <PdfLibraryPage onBack={nav.pop} onOpen={() => onOpenSpace('scripture')} />)} />
+        {pdfFeatureEnabled && <Row leading={<Library size={20} aria-hidden />} title="PDF library" chevron onClick={() => nav.push('pdfs', <PdfLibraryPage onBack={nav.pop} onOpen={() => onOpenSpace('scripture')} />)} />}
       </ListSection>
       <ListSection>
         <Row leading={<SettingsIcon size={20} aria-hidden />} title="Settings" chevron onClick={openSettings} />
@@ -323,6 +339,15 @@ function useBoot() {
     window.appHistory?.getAll().then((entries) => useAppStore.getState().setHistory(entries)).catch(() => {})
     const disposeSettings = persistSettingsFromStore()
     const disposeTabs = installTabPersistence()
+    // Sunrise day boundary for daily notes: refresh the cached fix silently when access was
+    // already granted; the first prompt happens when a daily note is opened (location.ts).
+    void ensureDailyNoteLocation({ prompt: false })
+    // Study Trail recording (R042): the same recorder desktop installs in App.tsx — every
+    // navigateToVerse() (reader, search, deep links) becomes a trail stop.
+    installStudyTrailRecorder(); installStudyTrailStateSync()
+    // Power / thermal signal (R103) → store.resourceMode, same consumer as desktop App.tsx.
+    window.app?.getResourceMode?.().then((mode) => useAppStore.getState().setResourceMode(mode)).catch(() => {})
+    window.app?.onResourceModeChanged?.((mode) => useAppStore.getState().setResourceMode(mode))
     const disposeSync = window.sync?.onApplied?.((entities) => {
       const s = useAppStore.getState()
       if (entities.includes('highlight')) s.bumpHighlightToken()
