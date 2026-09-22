@@ -175,6 +175,6 @@ reason) · **Shared**: what is reused unchanged · **iPhone impl.**: what is new
 3. **Freeform mosaic layouts** are stored/synced but rendered as sheets on the phone.
 4. **YouTube auto-PiP on tab switch** — WebKit requires a user gesture to enter PiP; a PiP button and background audio are provided; exact behaviour verified on device in Phase 17.
 5. **Read Aloud** uses the iPhone's system voices (`AVSpeechSynthesizer`) through the shared `TTSBackend` seam; the Mac's Kokoro neural voices are not on the phone until the ORT-WASM device spike (Phase 21) says they can be.
-6. **AI Lookup** needs an Ollama host reachable over the network.
+6. **AI Lookup (Berean Chat)** is intentionally desktop-only in v1 (D-009): its retrieval pipeline (`electron/ipc/aiLookup.ts` + `semanticCandidates.ts` + `ollama.ts`) runs synchronously on better-sqlite3 and desktop IPC modules and has not been ported to the shared async services, so no phone UI is offered rather than shipping a chat box that only forwards to Ollama. The port plan is recorded in `decisions.md` (D-009).
 7. **Vault sync, BibleGateway import, e-Sword import** stay desktop-only (brief + technical reasons above).
 8. **PDF bytes** are not synced through iCloud (size); metadata/highlights/bookmarks are.

@@ -194,7 +194,7 @@ Q1 iCloud transport: proceed with per-device journals in the iCloud Drive contai
 - **AI Lookup** — desktop-only (local Ollama model); `window.aiLookup` reports unavailable on the phone.
 - **YouTube** — plays through the embed player in a native web view; no youtube.com login/comments inside the app; embed-disabled videos open in the YouTube app/Safari; PiP from the fullscreen control only (Phase 17). Playback continues when another space is shown (the space is parked, not unmounted).
 - **Universal links** — not configured: they need a domain with an `apple-app-site-association` file and the associated-domains entitlement (D-008, `ios-build.md` §6). `berean://` links and the Share Sheet cover every route today.
-- **Spotlight** — notes are indexed; sessions/workspaces/books are not yet (R093 pending).
+- **Spotlight** — notes, tab sessions (`berean://session/<id>`), saved workspaces and the books + chapters of the default translation are indexed, incrementally on `data:changed` (R093); individual verses are deliberately not indexed — the app's own search covers those. Results open through the shared deep-link router.
 
 ## Phase 10 — Mobile navigation shell — GATE MET (simulator) (2026-09-21)
 
