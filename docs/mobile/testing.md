@@ -36,6 +36,43 @@ Every phase gate re-runs these and records the numbers in `implementation-progre
 | Phase 0 (2026-09-20) | clean | 141 files / 3894 | — | — |
 | Phase 1/3 + 2 gates (2026-09-21) | clean | 161 files / 4058 | OK | simulator BUILD SUCCEEDED; self-test 12/12 |
 
+### 2b. Phase 20 desktop regression audit (2026-09-21)
+
+Automated, run at this checkpoint: `npm run typecheck` clean; `npx vitest run` 180 files / 4,146
+tests green (includes the sync integration cases A–X, the tab-state split regression, the
+import-boundary guard `src/platform/__tests__/importBoundaries.test.ts`); `npm run build`
+(electron-vite, desktop) OK; `npm run ios:build` OK. The desktop app itself is not launched by
+the assistant (project rule: `npm run dev` is the developer's), so the 24-step manual pass below
+is for Michael on the Mac build of `feature/ios-app`; each row names what changed underneath
+it during the migration so the pass can be targeted.
+
+| # | Area | What changed underneath | Manual check |
+|---|---|---|---|
+| 1 | Bible reader: chapters, prev/next, reference bar, verse popover | `VerseRow` gained `VerseInteractionContext` (touch mode is opt-in; desktop default unchanged); `navigateToVerse` now lands in a Bible tab when a PDF/tags tab is active | open chapters, click verse numbers, popover actions |
+| 2 | Highlights / selection toolbar | range helpers extracted (`applyRangeHighlight`) | select words → toolbar → colour; remove |
+| 3 | Strong's chips, tooltip, lexicon tab | untouched (`capabilities` object only in YouTubeTab) | hover chip, click → lexicon |
+| 4 | Search view (text / Strong's / cross-ref modes, scope modal) | FTS pass now calls the shared `runRawScriptureSearch`; **"All texts" now includes the Didache** (was missing since it was added); Hermas variant excluded as before | search "love" all texts; scope by book; Strong's query |
+| 5 | Cross references / TSKe | untouched | verse → cross refs panel |
+| 6 | Notes editor (ProseMirror) | `berean:insertTimestamp` listener restored (⌘⇧L works again); `idiomExportEntries` moved to `lib/idiomsExport.ts` | type, slash menu, tables, wikilinks, ⌘⇧L with a video playing, Idioms export button |
+| 7 | Notes list / folders / board / calendar | untouched | folder CRUD, board drag, calendar |
+| 8 | Daily notes (sunrise) | untouched on desktop | ⌘⇧D |
+| 9 | Vault sync (Octarine), auto-export, watcher | untouched (`electron/ipc/vault.ts`) | toggle sync, edit in Octarine, reconcile |
+| 10 | Verse tags, tag manager, tags graph | untouched | tag a verse, graph tab |
+| 11 | Tabs, sessions, archived groups, workspaces | persisted to SQLite (v43) + synced; `applyExternalSessions` local-state merge fixed (compare columns) | create/rename/reorder tabs, switch sessions, save/load workspace, restart |
+| 12 | Compare view | tab-state fields unchanged; local merge fix | open compare, add column, restart, columns intact |
+| 13 | YouTube tab (`<webview>`), PiP, timestamp insert, transcripts | `capabilities.nativeVideoPlayer` false on desktop → `<webview>` branch as before; star-preserving upsert | play, PiP on space switch, ⌘⇧L, transcript search |
+| 14 | Read Aloud (Kokoro), queue, playlists | `useQueueAutosave` unchanged | play chapter, queue, save playlist |
+| 15 | PDF library / viewer / bookmarks | bookmarks moved to SQLite (v46, imported from localStorage on first open); import hash-matched | import PDF, bookmark, restart |
+| 16 | Study Trail window | `installTrailNavigator` (no-op unless a host installs one); `EverythingView` new optional props | open window, click stops with ⌘, split session |
+| 17 | Viewer / presenter window | untouched | open viewer, broadcast |
+| 18 | Floating tabs, multi-window, menus, shortcuts | untouched | ⌘T, ⌘K, floating tab |
+| 19 | Settings modal (all sections) | `hydrateSettingsIntoStore`/`persistSettingsFromStore` extracted (same keys) | change theme/fonts/reading options, restart |
+| 20 | iCloud sync section (new) | Phase 7 UI | enable, choose folder, status |
+| 21 | Deep links `berean://` (new) | protocol registered in packaged builds only | open a `berean://verse/Gen/1/1` link from a note |
+| 22 | Importers (e-Sword, BibleGateway), history, danger zone | untouched | import a small file; clear history |
+| 23 | AI Lookup (Ollama) | untouched (D-009) | ask a question with Ollama running |
+| 24 | Updater / About / build scripts (`build:mac`, `build:win`, `tag:*`) | `extraResources` filter narrowed (`youtube_index.db` excluded from desktop) | `npm run build:local` opens; About shows version |
+
 ## 3. Test inventory to be added (by phase)
 
 | Phase | Tests |

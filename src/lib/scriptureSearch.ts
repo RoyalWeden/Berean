@@ -33,7 +33,10 @@ export interface ScriptureSearchOptions {
   wordReplacerRules: WordReplacerRule[]
 }
 
-export const SEARCHABLE_TEXT_IDS = TRANSLATIONS.map((t) => t.id)
+/** Texts an "all texts" search covers: every bundled edition except `hermas_taylor`, which is a
+ *  second translation of the same book (the reader picks Hermas's translation by setting; searching
+ *  both would double every Hermas hit). Shared by the desktop search view and the phone. */
+export const SEARCHABLE_TEXT_IDS = TRANSLATIONS.map((t) => t.id).filter((id) => id !== 'hermas_taylor')
 
 const key = (r: { book_id: string; chapter: number; verse_num: number }) => `${r.book_id}:${r.chapter}:${r.verse_num}`
 

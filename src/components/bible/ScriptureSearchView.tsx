@@ -8,6 +8,7 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { runRawScriptureSearch } from '@/lib/scriptureSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
@@ -86,6 +87,7 @@ const ALL_TEXTS = [
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
   { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' as const },
   { id: '2baruch',       label: '2 Baruch',          category: 'pseudo' as const },
+  { id: 'didache_hoole', label: 'Didache',           category: 'pseudo' as const },
 ]
 
 // Module-level cache: this view remounts every time the search tab is (re)opened (BiblePanel
@@ -619,45 +621,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // Shared by runSearch's main (possibly book-scoped) query and its book-filter-agnostic
   // second query below — same variant/text-target double loop, same dedup, same phrase-mode
   // post-filter, just parameterized on which bookIds restriction (if any) to apply.
+  // The FTS pass (per text × per word-replacer variant, deduped, phrase post-filter) is the
+  // shared src/lib/scriptureSearch.ts implementation — the same function the phone's search
+  // page runs — mapped onto this view's `_textId` row shape.
   const runRawSearch = useCallback(async (
     trimmed: string, tid: string, effectiveWordMode: WordMode, variants: string[], scopedBookIds: string[] | undefined,
   ): Promise<RawResult[]> => {
-    const textTargets = tid === 'all' ? ALL_TEXTS.map((t) => t.id) : [tid]
-    const seen = new Set<string>()
-    let raw: RawResult[] = []
-    for (const textId of textTargets) {
-      for (const variant of variants) {
-        let res: RawResult[]
-        try {
-          res = (await window.bible.searchText(variant, textId, effectiveWordMode, scopedBookIds)) as unknown as RawResult[]
-        } catch { continue }
-        for (const r of res) {
-          const key = `${textId}|${r.book_id}|${r.chapter}|${r.verse_num}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          raw.push({ ...r, _textId: textId })
-        }
-      }
-    }
-    // ── Phrase mode: JS post-filter guarantees only exact-phrase matches ──────
-    // FTS5 phrase search is correct in most cases, but this catches edge cases
-    // and makes the filtering strict regardless of FTS5 tokenizer quirks. Checked
-    // against every VARIANT phrase (not just the user's literal typed text) — a
-    // result found via the substituted-wording variant (e.g. "jesus christ") will
-    // never literally contain the user's own typed phrase ("yeshua messiah"), so
-    // checking only the original phrase here would silently discard exactly the
-    // bidirectional matches the variant search above exists to surface.
-    if (effectiveWordMode === 'phrase') {
-      // Ignore commas and semicolons on BOTH sides of the comparison: a phrase search for
-      // "faith hope charity" should still keep a verse that writes it "faith, hope, charity",
-      // and typing the phrase WITH punctuation should still match a verse without it. Strip
-      // ,/; and collapse whitespace before the substring test (this used to be a bare
-      // t.includes(p), which silently dropped every verse that punctuated between the words).
-      const stripPunct = (s: string) => s.toLowerCase().replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim()
-      const phrases = variants.map(stripPunct)
-      raw = raw.filter((r) => { const t = stripPunct(r.text); return phrases.some((p) => t.includes(p)) })
-    }
-    return raw
+    const raw = await runRawScriptureSearch(trimmed, tid, effectiveWordMode, variants, scopedBookIds)
+    return raw.map(({ textId: t, strongsWords: _sw, ...r }) => ({ ...r, _textId: t }))
   }, [])
 
   const runSearch = useCallback(async (q: string, tid: string, wMode?: WordMode) => {
