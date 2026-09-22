@@ -256,6 +256,11 @@ export interface AppState {
   pendingNoteId: string | null
   requestOpenNote: (noteId: string) => void
   clearPendingNote: () => void
+  /** Bumped by `requestDailyNote()` — the phone's Notes space opens/creates today's note when it
+   *  changes (desktop keeps listening to the `berean:openDailyNote` window event, which the same
+   *  action also dispatches). */
+  dailyNoteRequestToken: number
+  requestDailyNote: () => void
   pendingVerseFilter: string | null
   filterNotesByVerse: (verseRef: string) => void
   clearVerseFilter: () => void
@@ -2552,6 +2557,11 @@ export const useAppStore = create<AppState>()(
         set({ pendingNoteId: noteId })
       },
       clearPendingNote: () => set({ pendingNoteId: null }),
+      dailyNoteRequestToken: 0,
+      requestDailyNote: () => {
+        set((s) => ({ activeSpace: 'notes', dailyNoteRequestToken: s.dailyNoteRequestToken + 1 }))
+        window.dispatchEvent(new CustomEvent('berean:openDailyNote'))
+      },
       filterNotesByVerse: (verseRef) => set({ pendingVerseFilter: verseRef }),
       clearVerseFilter: () => set({ pendingVerseFilter: null }),
       bumpNoteToken: () => set((s) => ({ noteChangeToken: s.noteChangeToken + 1 })),

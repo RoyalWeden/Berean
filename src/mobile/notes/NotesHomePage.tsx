@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, CalendarDays, Folder, Pin, Trash2, Search, LayoutPanelLeft } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
@@ -20,7 +20,7 @@ type Filter = 'all' | 'scripture' | 'topic' | 'daily' | 'video' | 'pinned'
  * editor page. The desktop panel (board / calendar / folder views) stays reachable under
  * "All views" until each has a phone page.
  */
-export function NotesHomePage() {
+export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const nav = useNavigation()
   const noteToken = useAppStore((s) => s.noteChangeToken)
   const [notes, setNotes] = useState<Note[]>([])
@@ -71,6 +71,11 @@ export function NotesHomePage() {
     if (existing) open(existing)
     else await create({ title, type: 'daily' })
   }
+  // `berean:openDailyNote` (desktop sidebar button, ⌘⇧D, the `berean://daily` deep link / App
+  // Intent) is received by NotesSpace, which bumps `dailyRequest` once this page is on screen.
+  const openDailyRef = useRef(openDaily)
+  openDailyRef.current = openDaily
+  useEffect(() => { if (dailyRequest > 0) void openDailyRef.current() }, [dailyRequest])
 
   return (
     <Page

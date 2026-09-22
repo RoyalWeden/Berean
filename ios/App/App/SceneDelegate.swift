@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import BereanNative
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -13,6 +14,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        for activity in connectionOptions.userActivities where BereanSpotlightPlugin.handleContinuation(activity) {}
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -20,6 +22,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        // Spotlight results carry a berean:// deep link as their identifier (BereanSpotlightPlugin).
+        if BereanSpotlightPlugin.handleContinuation(userActivity) { return }
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }
+
 }

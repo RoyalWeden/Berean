@@ -93,3 +93,28 @@ export interface BereanDownloadsPlugin {
   addListener(event: 'cancelled', cb: (e: { id: string; resumable: boolean }) => void): Promise<{ remove: () => Promise<void> }>
 }
 export const BereanDownloads = registerPlugin<BereanDownloadsPlugin>('BereanDownloads')
+
+/** AirPrint / PDF export of note HTML (BereanPrintPlugin.swift). */
+export interface BereanPrintPlugin {
+  printHtml(opts: { html: string; title?: string }): Promise<{ success: boolean }>
+  exportPdf(opts: { html: string; name: string; pageSize?: string }): Promise<{ success: boolean; canceled?: boolean }>
+}
+export const BereanPrint = registerPlugin<BereanPrintPlugin>('BereanPrint')
+
+/** Core Spotlight indexing (BereanSpotlightPlugin.swift); `open` carries the tapped item's deep link. */
+export interface BereanSpotlightPlugin {
+  isAvailable(): Promise<{ available: boolean }>
+  index(opts: { items: Array<{ url: string; title: string; text?: string; keywords?: string[]; updatedAt?: number }> }): Promise<{ indexed: number }>
+  remove(opts: { urls: string[] }): Promise<void>
+  clear(): Promise<void>
+  addListener(event: 'open', cb: (e: { url: string }) => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanSpotlight = registerPlugin<BereanSpotlightPlugin>('BereanSpotlight')
+
+/** App Group inbox filled by the Share Extension (BereanShareInboxPlugin.swift). */
+export interface ShareInboxItem { kind: 'text' | 'url' | 'pdf'; text?: string; url?: string; file?: string; name?: string; receivedAt?: number }
+export interface BereanShareInboxPlugin {
+  take(): Promise<{ items: ShareInboxItem[] }>
+  readFile(opts: { file: string }): Promise<{ base64: string; bytes: number }>
+}
+export const BereanShareInbox = registerPlugin<BereanShareInboxPlugin>('BereanShareInbox')

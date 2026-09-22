@@ -1,6 +1,7 @@
 import { Browser } from '@capacitor/browser'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { createYoutubeFetchService, type FetchProgress } from '../services/youtubeFetchService'
+import { BereanPrint } from './plugins'
 import type { Services } from '../services'
 import { iosServiceContext } from './services'
 import type { UpdateStatus } from '../../types/electron'
@@ -80,8 +81,8 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
     newWindow: async () => { noop('newWindow')() },
     moveWindowBy: noop('moveWindowBy'),
     openFloatingTab: async () => { noop('openFloatingTab')() },
-    printNote: async () => { noop('printNote')(); return { success: false } },
-    exportNotePDF: async () => { noop('exportNotePDF')(); return { success: false, canceled: true } },
+    printNote: async (html, pageSize) => BereanPrint.printHtml({ html, title: pageSize ? undefined : undefined }),
+    exportNotePDF: async (html, suggestedName, _location, pageSize) => BereanPrint.exportPdf({ html, name: suggestedName || 'note', pageSize }),
     renderPreviewPDF: async () => unavailable('renderPreviewPDF'),
     broadcastTabState: noop('broadcastTabState'), onTabStateUpdate: noop('onTabStateUpdate'),
     broadcastAudioState: noop('broadcastAudioState'), onAudioStateUpdate: noop('onAudioStateUpdate'),

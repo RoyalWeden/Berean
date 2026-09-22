@@ -18,15 +18,22 @@ import { parseRef, bookName, resolveBookToken, type ParsedRef } from '@/lib/pars
  *                                            that PDF "Copy link" has written into notes)
  *   berean://search?q=<query>
  *   berean://trail/<trailSessionId>
+ *   berean://daily                        (today's daily note — App Intents)
+ *   berean://workspace?name=<name>        (open a saved workspace by name — App Intents)
+ *   …&play=1 on a verse/open link starts Read Aloud at that passage
  */
 export type DeepLinkRoute =
-  | { kind: 'verse'; bookId: string; chapter: number; verse?: number; endVerse?: number; textId?: string }
+  | { kind: 'verse'; bookId: string; chapter: number; verse?: number; endVerse?: number; textId?: string; play?: boolean }
   | { kind: 'note'; noteId: string }
   | { kind: 'lexicon'; strongsNum: string }
   | { kind: 'video'; videoId: string; startTime?: number }
   | { kind: 'pdf'; pdfId: string; page?: number }
   | { kind: 'search'; query: string }
   | { kind: 'trail'; trailSessionId: string }
+  | { kind: 'daily' }
+  | { kind: 'workspace'; name: string }
+  /** `berean://share` — the Share Extension left items in the inbox; the platform drains it. */
+  | { kind: 'share' }
 
 export const DEEP_LINK_SCHEME = 'berean'
 const LEGACY_PDF_SCHEME = 'berean-pdf'
@@ -67,6 +74,7 @@ export function parseDeepLink(href: string): DeepLinkRoute | null {
       const route: DeepLinkRoute = { kind: 'verse', bookId, chapter: ch }
       if (m) { route.verse = Number(m[1]); if (m[2]) route.endVerse = Number(m[2]) }
       const text = q.get('text'); if (text) route.textId = text
+      if (q.get('play') === '1') route.play = true
       return route
     }
     case 'open': {
@@ -77,6 +85,7 @@ export function parseDeepLink(href: string): DeepLinkRoute | null {
       if (parsed.verse) route.verse = parsed.verse
       if (parsed.endVerse) route.endVerse = parsed.endVerse
       const text = q.get('text'); if (text) route.textId = text
+      if (q.get('play') === '1') route.play = true
       return route
     }
     case 'note': return rest[0] ? { kind: 'note', noteId: rest[0] } : null
@@ -99,6 +108,9 @@ export function parseDeepLink(href: string): DeepLinkRoute | null {
       return query ? { kind: 'search', query } : null
     }
     case 'trail': return rest[0] ? { kind: 'trail', trailSessionId: rest[0] } : null
+    case 'daily': return { kind: 'daily' }
+    case 'share': return { kind: 'share' }
+    case 'workspace': { const name = (q.get('name') ?? rest.join(' ')).trim(); return name ? { kind: 'workspace', name } : null }
     default: return null
   }
 }
@@ -108,7 +120,8 @@ export function formatDeepLink(route: DeepLinkRoute): string {
   switch (route.kind) {
     case 'verse': {
       const v = route.verse ? `/${route.verse}${route.endVerse ? `-${route.endVerse}` : ''}` : ''
-      return `${DEEP_LINK_SCHEME}://verse/${e(route.bookId)}/${route.chapter}${v}${route.textId ? `?text=${e(route.textId)}` : ''}`
+      const qs = [route.textId ? `text=${e(route.textId)}` : '', route.play ? 'play=1' : ''].filter(Boolean).join('&')
+      return `${DEEP_LINK_SCHEME}://verse/${e(route.bookId)}/${route.chapter}${v}${qs ? `?${qs}` : ''}`
     }
     case 'note': return `${DEEP_LINK_SCHEME}://note/${e(route.noteId)}`
     case 'lexicon': return `${DEEP_LINK_SCHEME}://lexicon/${e(route.strongsNum)}`
@@ -116,6 +129,9 @@ export function formatDeepLink(route: DeepLinkRoute): string {
     case 'pdf': return `${DEEP_LINK_SCHEME}://pdf/${e(route.pdfId)}${route.page ? `/${route.page}` : ''}`
     case 'search': return `${DEEP_LINK_SCHEME}://search?q=${e(route.query)}`
     case 'trail': return `${DEEP_LINK_SCHEME}://trail/${e(route.trailSessionId)}`
+    case 'daily': return `${DEEP_LINK_SCHEME}://daily`
+    case 'share': return `${DEEP_LINK_SCHEME}://share`
+    case 'workspace': return `${DEEP_LINK_SCHEME}://workspace?name=${e(route.name)}`
   }
 }
 
@@ -129,6 +145,9 @@ export function describeDeepLink(route: DeepLinkRoute): string {
     case 'pdf': return `PDF${route.page ? ` p.${route.page}` : ''}`
     case 'search': return `search "${route.query}"`
     case 'trail': return 'study trail'
+    case 'daily': return "today's daily note"
+    case 'share': return 'shared items'
+    case 'workspace': return `workspace "${route.name}"`
   }
 }
 
@@ -145,6 +164,10 @@ export interface DeepLinkTarget {
   openPdf: (pdfId: string, page?: number) => void | Promise<void>
   openSearch: (query: string) => void
   openTrail: (trailSessionId: string) => void
+  openDaily: () => void
+  openWorkspace: (name: string) => void
+  /** Platform hook for `berean://share` (iOS drains the Share Extension inbox). */
+  openShareInbox?: () => void
 }
 
 export function routeDeepLink(route: DeepLinkRoute, target: DeepLinkTarget): void {
@@ -156,6 +179,9 @@ export function routeDeepLink(route: DeepLinkRoute, target: DeepLinkTarget): voi
     case 'pdf': void target.openPdf(route.pdfId, route.page); break
     case 'search': target.openSearch(route.query); break
     case 'trail': target.openTrail(route.trailSessionId); break
+    case 'daily': target.openDaily(); break
+    case 'workspace': target.openWorkspace(route.name); break
+    case 'share': target.openShareInbox?.(); break
   }
 }
 

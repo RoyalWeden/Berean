@@ -5,6 +5,7 @@ import { THEME_PRESETS } from '@/lib/themePresets'
 import { FONT_MAP } from '@/lib/fontFamilies'
 import ICloudSection from '@/components/settings/sections/ICloudSection'
 import AboutSection from '@/components/settings/sections/AboutSection'
+import { YouTubeSettingsPage } from './YouTubeSettingsPage'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { BIBLE_FONT_MAX, BIBLE_FONT_MIN } from '../reader/usePinchFontSize'
@@ -77,6 +78,9 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
       </ListSection>
       <ListSection title="iCloud">
         <div className="mobile-embedded-section"><ICloudSection /></div>
+      </ListSection>
+      <ListSection title="Video">
+        <Row title="YouTube" subtitle="Watch history, transcript packs" chevron onClick={() => nav.push('settings-youtube', <YouTubeSettingsPage onBack={nav.pop} />)} />
       </ListSection>
       <ListSection title="About">
         <div className="mobile-embedded-section"><AboutSection /></div>

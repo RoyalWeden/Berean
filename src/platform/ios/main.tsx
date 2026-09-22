@@ -6,11 +6,14 @@ import { installIosBridge } from './bridge'
 import { installIosBridgeExtras } from './bridgeExtras'
 import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { installIosDeepLinks } from './deepLinks'
+import { installIosSpotlight } from './spotlight'
+import { installIosShareInbox } from './shareInbox'
 import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
 import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/nativeSpeechBackend'
 import { BereanSpeech } from './plugins'
 import MobileApp from '../../mobile/MobileApp'
 import '../../styles/global.css'
+import 'pdfjs-dist/web/pdf_viewer.css'
 
 /**
  * iPhone renderer entry (built by vite.ios.config.ts into out/ios, loaded by Capacitor). The
@@ -34,6 +37,8 @@ async function boot() {
     installIosSyncBridge()
     void initIosSyncHost()   // starts only if the user enabled iCloud sync; never blocks boot
     void installIosDeepLinks()   // berean:// URLs queue until the mobile shell registers its target
+    void installIosSpotlight()   // notes searchable from the home screen; results are deep links
+    installIosShareInbox()       // "Open in Berean": items the Share Extension left in the App Group
     // Read Aloud: the system speech synthesiser implements the shared TTSBackend on the phone.
     setActiveTTSBackend(new NativeSpeechBackend(BereanSpeech), createNativeVoiceProvider(BereanSpeech))
     root.render(

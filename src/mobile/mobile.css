@@ -29,6 +29,10 @@ html[data-platform="ios"] #root { height: 100%; }
    controls take that role); the page keeps its header and the editor toolbar stays visible. */
 html[data-keyboard] .mobile-space-bar, html[data-keyboard] .mobile-tab-pill-row { display: none; }
 .mobile-main { flex: 1; min-height: 0; position: relative; }
+/* The YouTube space when another space is showing: kept mounted so playback continues, but out
+   of the way (visibility keeps the layout, so the native player's rect stays valid). */
+.mobile-space-live { position: absolute; inset: 0; }
+.mobile-space-parked { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
 
 /* ── navigation stack ─────────────────────────────────────────────────── */
 .mobile-nav-stack { position: absolute; inset: 0; overflow: hidden; }
@@ -237,3 +241,9 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-audio-sheet { padding: 0 16px 16px; }
 .mobile-audio-progress { height: 6px; margin-top: 8px; border-radius: 3px; background: rgb(var(--color-surface-4)); overflow: hidden; }
 .mobile-audio-progress-fill { height: 100%; background: rgb(var(--color-accent)); transition: width 0.3s; }
+
+/* Settings → YouTube (watch history, pack server) */
+.mobile-field-label { display: block; font-size: 13px; font-weight: 600; color: rgb(var(--color-text-secondary)); margin: 4px 0 6px; }
+.mobile-field-hint { font-size: 12px; color: rgb(var(--color-text-muted)); margin: 6px 0 2px; line-height: 1.4; }
+.mobile-thumb { width: 56px; height: 36px; object-fit: cover; border-radius: 6px; background: rgb(var(--color-surface-4)); flex-shrink: 0; }
+.mobile-row-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }

@@ -201,3 +201,33 @@ Format: **decision · date · reason · alternatives considered · consequences 
   online API (the desktop feature is offline by design and transcript fetching is dev-only).
 - **Affected requirements:** R026, R066, R143; feature-matrix rows "YouTube transcripts" and
   "Transcript search".
+
+## D-008 — "Open in Berean" arrives through a Share Extension + App Group inbox; universal links are documented, not configured
+
+- **Date:** 2026-09-21 (developer decision Q5: `berean://` first, routing kept central)
+- **Decision:** The system Share Sheet target is a real app extension
+  (`ios/App/ShareExtension/`, product `$(BEREAN_BUNDLE_ID).share`, wired by
+  `scripts/ios/patch-xcodeproj.mjs` step 8 and embedded in the App target). It accepts text, one
+  web URL and up to five files, copies PDFs and appends every item to `inbox/pending.json` in the
+  App Group container (`BEREAN_APP_GROUP`, default `group.com.berean.app`), then opens the app
+  with `berean://share` through `UIScene.open` (the only URL-opening API an extension may call on
+  iOS 18+). `BereanShareInboxPlugin` drains the inbox on that link and on every return to the
+  foreground, and `src/platform/ios/shareInbox.ts` routes each item through the same central
+  router every other entry point uses (`src/lib/deepLinks.ts`): a scripture reference opens the
+  passage, a YouTube link opens the video, other text or links become a general note, a PDF is
+  imported into the library (SHA-256 matched, so a file already imported on the Mac attaches to
+  the synced row instead of duplicating it). The App Group is the only data path between the
+  extension and the app; the extension never opens `berean.db`.
+- **Universal links:** not configured. They need an `apple-app-site-association` file served
+  from a domain the developer controls plus the `applinks:` associated-domains entitlement; the
+  router already understands the https path form (`https://<host>/berean/verse/…`), so enabling
+  them later is (1) host the AASA file, (2) add `com.apple.developer.associated-domains` to
+  `App.entitlements` with the domain, (3) nothing in JS. Recorded in `ios-build.md` §8.
+- **Reason:** an extension is the only way to appear in the Share Sheet; an App Group inbox keeps
+  the extension tiny and lets the app apply its normal services (services, sync, Spotlight)
+  instead of duplicating them in the extension process.
+- **Alternatives considered:** no Share Sheet input (drops "Open in Berean" — not allowed); the
+  extension writing to `berean.db` directly (two processes on one SQLite file plus the sync
+  engine's capture would not see the change); `UIApplication.openURL:` via the responder chain
+  (refused by UIKit since iOS 18 — observed on the iOS 26 simulator).
+- **Affected requirements:** R092; feature-matrix rows "Open in Berean", "Share sheet in".

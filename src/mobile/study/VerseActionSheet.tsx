@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Copy, Hash, NotepadText, GitFork, Volume2, Tag as TagIcon, Highlighter, Eraser } from 'lucide-react'
+import { Copy, Hash, NotepadText, GitFork, Volume2, Tag as TagIcon, Highlighter, Eraser, Share2 } from 'lucide-react'
 import type { HighlightColor } from '@/types'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { VerseActionContext } from '@/components/bible/verseInteraction'
@@ -64,6 +64,7 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
         )}
         <button type="button" className="mobile-action-row" onClick={run(ctx.copyVerse)}><Copy size={20} aria-hidden /><span>Copy verse</span></button>
         <button type="button" className="mobile-action-row" onClick={run(ctx.copyReference)}><Hash size={20} aria-hidden /><span>Copy reference</span></button>
+        <button type="button" className="mobile-action-row" onClick={run(async () => { const { Share } = await import('@capacitor/share'); await Share.share({ title: ctx.label, text: `${ctx.label} ${sel ? sel.text.trim() : ctx.verse.text}` }).catch(() => {}) })}><Share2 size={20} aria-hidden /><span>Share…</span></button>
         <button type="button" className="mobile-action-row" onClick={run(async () => { const id = await ctx.addVerseNote(); if (id) onNoteCreated(id) })}><NotepadText size={20} aria-hidden /><span>Add note</span></button>
         <button type="button" className="mobile-action-row" onClick={run(onShowNotes)}><NotepadText size={20} aria-hidden /><span>Show notes for this verse</span></button>
         <button type="button" className="mobile-action-row" onClick={run(onShowCrossRefs)}><GitFork size={20} aria-hidden /><span>Cross references</span></button>

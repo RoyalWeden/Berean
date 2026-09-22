@@ -1,6 +1,8 @@
 #!/bin/bash
 # Build the iOS app from the command line.
-#   scripts/ios/build.sh simulator   — Debug build for the iOS Simulator (no signing needed)
+#   scripts/ios/build.sh simulator   — Debug build for the iOS Simulator ("Sign to Run Locally": no
+#                                      team needed, but the entitlements — App Group, iCloud — are
+#                                      embedded so the Share Extension inbox works in the simulator)
 #   scripts/ios/build.sh device      — Debug build for a physical iPhone (needs Signing.xcconfig)
 #   scripts/ios/build.sh archive     — Release archive (needs Signing.xcconfig); upload via Xcode Organizer
 # Always sets DEVELOPER_DIR so it works even when xcode-select points at the CommandLineTools.
@@ -13,7 +15,7 @@ case "$MODE" in
   simulator)
     xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
       -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData \
-      CODE_SIGNING_ALLOWED=NO build | "$ROOT/scripts/ios/xcpretty-lite.sh" ;;
+      build | "$ROOT/scripts/ios/xcpretty-lite.sh" ;;
   device)
     xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
       -destination 'generic/platform=iOS' -derivedDataPath DerivedData \

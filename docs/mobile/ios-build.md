@@ -61,7 +61,7 @@ Nothing in the repository contains your team id, certificates or profiles.
 |---|---|
 | `npm run ios:sync` | `vite build -c vite.ios.config.ts` (renderer → `out/ios`), `scripts/ios/version.mjs`, `cap sync ios` (copies `out/ios` → `ios/App/App/public`, updates plugins), `scripts/ios/patch-xcodeproj.mjs` (idempotent project wiring) |
 | `npm run ios:open` | opens `ios/App/App.xcodeproj` in Xcode |
-| `npm run ios:build` | command-line simulator build (no signing needed) — `scripts/ios/build.sh simulator` |
+| `npm run ios:build` | command-line simulator build ("Sign to Run Locally", no team needed; entitlements embedded so the App Group / Share Extension work) — `scripts/ios/build.sh simulator` |
 | `npm run ios:run` | boots an iPhone simulator, installs and launches (`scripts/ios/run.sh [name]`) |
 | `npm run ios:device` | Debug build for a connected iPhone (needs `Signing.xcconfig`) |
 | `npm run ios:archive` | Release archive for TestFlight/App Store (upload is a manual Xcode Organizer step) |
@@ -118,7 +118,23 @@ network — `NSAllowsLocalNetworking`).
   clicked inside a note (`NoteEditorPM` `onLinkClick`).
   Routes: `berean://verse/<book>/<chapter>[/<verse>[-<end>]][?text=]`, `berean://open?ref=John%203:16`,
   `berean://note/<id>`, `berean://lexicon/H7225`, `berean://video/<id>[?t=]`, `berean://pdf/<id>[/<page>]`,
-  `berean://search?q=…`, `berean://trail/<id>`. Unknown or malformed links are ignored (never guessed).
+  `berean://search?q=…`, `berean://trail/<id>`, `berean://daily`, `berean://workspace?name=…`,
+  `berean://share` (drain the Share Extension inbox), `&play=1` on video links. Unknown or
+  malformed links are ignored (never guessed).
+- **Share Extension** (`ios/App/ShareExtension/`, D-008): "Berean" in the system Share Sheet for
+  text, one web URL and up to five files. The extension writes to the App Group inbox
+  (`BEREAN_APP_GROUP`) and opens `berean://share`; the app routes each item (reference →
+  passage, YouTube link → video, other text → note, PDF → library). The target is created by
+  `scripts/ios/patch-xcodeproj.mjs` step 8 (product `$(BEREAN_BUNDLE_ID).share`, same xcconfigs
+  as the App target, embedded via "Embed Foundation Extensions" — placed before the run-script
+  phases, or Xcode reports "Cycle inside App"). The App Group must exist on the developer's App
+  ID for device builds; the simulator build signs "to run locally" with the entitlements
+  embedded, which is why `build.sh simulator` no longer passes `CODE_SIGNING_ALLOWED=NO`.
+- **Spotlight** (`BereanSpotlightPlugin`): notes are indexed as `CSSearchableItem`s whose
+  identifier is the note's `berean://note/<id>` link; tapping a result continues the activity in
+  `SceneDelegate` → the router. **App Intents** (`ios/App/App/BereanIntents.swift`): Open
+  Scripture, Search Berean, Open Today's Daily Note, Start Read Aloud, Open Workspace — each
+  opens a deep link, so Siri / Shortcuts share the router too.
 - Universal links (`https://sitgmeat.com/berean/…` or any domain you control) need an
   `apple-app-site-association` file hosted at that domain and the Associated Domains capability.
   Optional; documented, not assumed. `parseDeepLink` already accepts the `https://<host>/berean/<route>`
@@ -129,7 +145,7 @@ network — `NSAllowsLocalNetworking`).
 | Item | Status | Notes |
 |---|---|---|
 | Bundle identifier | developer | §2 |
-| Entitlements: iCloud Documents container (done, Phase 7), App Groups, audio background mode | iCloud ✔ (`App.entitlements`, id from `BEREAN_ICLOUD_CONTAINER`); App Groups / audio: Phase 16 / 18 | `App.entitlements` |
+| Entitlements: iCloud Documents container (done, Phase 7), App Groups, audio background mode | iCloud ✔ (`App.entitlements`, id from `BEREAN_ICLOUD_CONTAINER`); App Group ✔ (`BEREAN_APP_GROUP`, app + `ShareExtension.entitlements`); `UIBackgroundModes: audio` ✔ | `App.entitlements` |
 | `PrivacyInfo.xcprivacy` | Phase 22 (not yet in repo) | declares UserDefaults + file-timestamp API reasons; no tracking |
 | Permission strings | Phase 13/18 (not yet in repo) | `NSLocationWhenInUseUsageDescription` (daily-note sunrise — same text as desktop), `NSPhotoLibraryUsageDescription` (insert image into note) |
 | Export compliance | developer answers in ASC | App uses only Apple-provided TLS/HTTPS and SQLite — "exempt" (`ITSAppUsesNonExemptEncryption = NO`, to be set in Info.plist in Phase 22) |

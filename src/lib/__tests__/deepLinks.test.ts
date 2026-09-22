@@ -12,6 +12,8 @@ const target = (): DeepLinkTarget & { calls: string[] } => {
     openPdf: (id, p) => { calls.push(`pdf:${id}/${p ?? ''}`) },
     openSearch: (q) => calls.push(`search:${q}`),
     openTrail: (id) => calls.push(`trail:${id}`),
+    openDaily: () => calls.push('daily'),
+    openWorkspace: (n) => calls.push(`workspace:${n}`),
   }
 }
 
@@ -30,6 +32,9 @@ describe('deep links (berean://)', () => {
     expect(parseDeepLink('berean://search?q=in%20the%20beginning')).toEqual({ kind: 'search', query: 'in the beginning' })
     expect(parseDeepLink('berean://trail/t1')).toEqual({ kind: 'trail', trailSessionId: 't1' })
     expect(parseDeepLink('https://sitgmeat.com/berean/verse/Gen/1/1')).toEqual({ kind: 'verse', bookId: 'GEN', chapter: 1, verse: 1 })
+    expect(parseDeepLink('berean://daily')).toEqual({ kind: 'daily' })
+    expect(parseDeepLink('berean://workspace?name=Study%20Mode')).toEqual({ kind: 'workspace', name: 'Study Mode' })
+    expect(parseDeepLink('berean://open?ref=Psa%2023&play=1')).toEqual({ kind: 'verse', bookId: 'PSA', chapter: 23, play: true })
   })
 
   it('rejects what it does not understand instead of guessing', () => {
@@ -51,6 +56,9 @@ describe('deep links (berean://)', () => {
       { kind: 'pdf', pdfId: 'p', page: 2 },
       { kind: 'search', query: 'love & mercy' },
       { kind: 'trail', trailSessionId: 't' },
+      { kind: 'daily' },
+      { kind: 'workspace', name: 'Compare Mode' },
+      { kind: 'verse', bookId: 'EXO', chapter: 20, verse: 8, play: true },
     ] as const
     for (const r of routes) expect(parseDeepLink(formatDeepLink(r)), formatDeepLink(r)).toEqual(r)
     expect(describeDeepLink({ kind: 'verse', bookId: 'GEN', chapter: 1, verse: 1, endVerse: 3 })).toBe('Genesis 1:1-3')

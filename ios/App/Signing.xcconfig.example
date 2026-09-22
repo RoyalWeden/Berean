@@ -3,4 +3,5 @@ DEVELOPMENT_TEAM = ABCDE12345
 BEREAN_BUNDLE_ID = com.yourname.berean
 BEREAN_TEAM_ID = ABCDE12345
 BEREAN_ICLOUD_CONTAINER = iCloud.com.yourname.berean
+BEREAN_APP_GROUP = group.com.yourname.berean
 CODE_SIGN_STYLE = Automatic

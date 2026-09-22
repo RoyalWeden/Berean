@@ -8,6 +8,7 @@ import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settin
 import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
 import { storeDeepLinkTarget } from '@/lib/deepLinkTarget'
 import { setIosDeepLinkTarget } from '@/platform/ios/deepLinks'
+import { drainShareInbox } from '@/platform/ios/shareInbox'
 import BiblePanel from '@/components/bible/BiblePanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
@@ -70,14 +71,26 @@ function Shell() {
   // The More page shows only when explicitly opened; a More-hosted space (Lexicon, YouTube)
   // renders its own root while the bar keeps "More" highlighted.
   const showMore = moreVisible
-  useEffect(() => { setIosDeepLinkTarget(storeDeepLinkTarget); return () => setIosDeepLinkTarget(null) }, [])
+  useEffect(() => { setIosDeepLinkTarget({ ...storeDeepLinkTarget, openShareInbox: () => { void drainShareInbox() } }); return () => setIosDeepLinkTarget(null) }, [])
+
+  // The YouTube space stays mounted (parked, hidden) while a video tab is open and another space
+  // is showing, so the native player keeps playing — the phone's counterpart of desktop auto-PiP
+  // — and "Insert timestamp" from a note can ask the player for its position. Unmounting it
+  // would close the player (TouchYouTubePlayer's cleanup).
+  const ytVideoOpen = useAppStore((s) => { const t = s.tabs.youtube.find((x) => x.id === s.activeTabId.youtube) ?? s.tabs.youtube[0]; return !!(t?.state as { videoId?: string | null } | undefined)?.videoId })
+  const youtubeShowing = !showMore && activeSpace === 'youtube'
+  const youtubeParked = !youtubeShowing && ytVideoOpen
 
   return (
     <div className="mobile-root">
       <main className="mobile-main">
-        {showMore
-          ? <NavigationStack rootKey="more" root={<MorePage onOpenSpace={(sp) => { setActiveSpace(sp); setMoreVisible(false) }} />} />
-          : <NavigationStack key={activeSpace} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
+        {showMore && <NavigationStack rootKey="more" root={<MorePage onOpenSpace={(sp) => { setActiveSpace(sp); setMoreVisible(false) }} />} />}
+        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={activeSpace} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
+        {(youtubeShowing || youtubeParked) && (
+          <div key="youtube-space" className={youtubeParked ? 'mobile-space-parked' : 'mobile-space-live'} aria-hidden={youtubeParked || undefined}>
+            <NavigationStack rootKey="youtube" root={<SpaceRoot space="youtube" />} />
+          </div>
+        )}
       </main>
       <AudioBar />
       {!showMore && <SpaceTabRow space={activeSpace} />}
@@ -99,6 +112,8 @@ function SpaceRoot({ space }: { space: SpaceId }) {
   return <ErrorBoundary label={`${space} error`}><TabPage tab={active} /></ErrorBoundary>
 }
 
+let lastHandledDailyToken = 0
+
 /** Notes space: native home page; a `requestOpenNote` from anywhere (verse sheet, history, deep
  *  link, wikilink) pushes the editor for that note. */
 function NotesSpace() {
@@ -114,9 +129,27 @@ function NotesSpace() {
     clearPendingNote()
     nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={nav.pop} />)
   }, [pendingNoteId, clearPendingNote, nav])
+  // Daily note requests (sidebar button on desktop, ⌘⇧D, `berean://daily`): make sure the notes
+  // home is the visible page (not the hosted tags graph), then let it open/create today's note.
+  const dailyToken = useAppStore((s) => s.dailyNoteRequestToken)
+  const [dailyRequest, setDailyRequest] = useState(0)
+  useEffect(() => {
+    // Module-level "last handled" so a request made while another space was showing (the
+    // action switches to Notes, mounting this component afterwards) is still picked up.
+    if (dailyToken === lastHandledDailyToken) return
+    lastHandledDailyToken = dailyToken
+    const s = useAppStore.getState()
+    const cur = s.tabs.notes.find((t) => t.id === s.activeTabId.notes)
+    if (cur?.type === 'tags') {
+      const other = s.tabs.notes.find((t) => t.type !== 'tags')
+      if (other) s.setActiveTab('notes', other.id); else s.createTab('note')
+    }
+    nav.popToRoot()
+    setDailyRequest((n) => n + 1)
+  }, [dailyToken, nav])
   // The tags graph lives in the notes space as a 'tags' tab; it is hosted until its phone page lands.
   if (active?.type === 'tags') return <ActivePanelContext.Provider value="tags"><div className="mobile-hosted-panel"><Suspense fallback={null}><TagsGraphPanel /></Suspense></div></ActivePanelContext.Provider>
-  return <NotesHomePage />
+  return <NotesHomePage dailyRequest={dailyRequest} />
 }
 
 function TabPage({ tab }: { tab: Tab }) {

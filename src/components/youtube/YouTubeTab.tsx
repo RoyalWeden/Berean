@@ -415,6 +415,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // Ref keeps historyMap readable inside effects without causing re-runs
   const historyMapRef = useRef<Record<string, number>>({})
   useEffect(() => { historyMapRef.current = historyMap }, [historyMap])
+  // Resume point latched once per video open. Reading historyMapRef on every render would hand
+  // the player a new startTime after each 5 s position save and remount it (playback restarted).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const touchStartTime = useMemo(() => (activeVideoId ? historyMapRef.current[activeVideoId] ?? 0 : 0), [activeVideoId])
   // Persists across video changes within the session — skips embed attempt on revisit
   const embedBlockedRef = useRef<Set<string>>(new Set())
   // Always holds the latest saveCurrentPosition so unmount cleanup is never stale
@@ -1462,7 +1466,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     if (!activeVideoId) return
     try {
       let secs = 0
-      if (mode === 'timestamp' && webviewRef.current) {
+      if (mode === 'timestamp' && window.__berean_platform === 'ios') {
+        secs = Math.floor(touchPosRef.current) // native player position (TouchYouTubePlayer)
+      } else if (mode === 'timestamp' && webviewRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rawPos = await (webviewRef.current as any).executeJavaScript(
           watchFallback
@@ -1792,7 +1798,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           {playerSrc && window.__berean_platform === 'ios' && activeVideoId && (
             <TouchYouTubePlayer
               videoId={activeVideoId}
-              startTime={historyMapRef.current[activeVideoId] ?? 0}
+              startTime={touchStartTime}
               onReady={touchPlayerReady}
               onEnded={touchPlayerEnded}
               onPosition={touchPlayerPosition}

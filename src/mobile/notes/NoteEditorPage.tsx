@@ -12,6 +12,7 @@ import { useActionSheet } from '../primitives/ActionSheet'
 import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
+import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
 
 const SAVE_DEBOUNCE_MS = 500
 const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
@@ -32,6 +33,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const [notes, setNotes] = useState<Note[]>([])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSnapshot = useRef<string | null>(null)
@@ -108,6 +110,10 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={strongsId} api={api} onNavigate={() => setActiveSpace('scripture')} /> })
   }, [sheets, setActiveSpace])
 
+  // A YouTube video tab open (its player stays mounted while this page shows — MobileApp parks
+  // the space) → the timestamp action asks the player for its position (berean:requestTimestamp
+  // → YouTubeTab → berean:insertTimestamp → NoteEditorPM).
+  const ytVideoOpen = useAppStore((s) => { const t = s.tabs.youtube.find((x) => x.id === s.activeTabId.youtube) ?? s.tabs.youtube[0]; return !!(t?.state as { videoId?: string | null } | undefined)?.videoId })
   const openActions = () => {
     const n = latest.current
     if (!n) return
@@ -119,7 +125,9 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       ]) },
       { id: 'folder', label: 'Move to folder…', onSelect: () => sheets.open({ id: 'note-folder', title: 'Folder', detents: [0.6, 0.92], render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...n, folderId: id }; setNote(latest.current); bumpNoteToken(); api.close() }) }} /> }) },
       { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { latest.current = { ...(latest.current ?? n), content }; setNote(latest.current); bumpNoteToken() }} />) },
+      ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
       { id: 'copy', label: 'Copy as Markdown', onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },
+      { id: 'print', label: 'Print / Export PDF…', onSelect: () => setPrintOpen(true) },
       { id: 'share', label: 'Share…', onSelect: () => { void shareNote(n) } },
       { id: 'trash', label: 'Move to trash', destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { bumpNoteToken(); onBack() }) } },
     ])
@@ -134,6 +142,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       title={<input className="mobile-title-input" value={note.title} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: e.target.value })} />}
       right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /><IconTap icon={MoreHorizontal} label="Note actions" onClick={openActions} /></>}
     >
+      {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
       <div className="mobile-note-editor">
         {note.verseRef && <div className="mobile-note-meta">{note.verseRef.replace(/\./g, ' ')}{note.textId ? ` · ${note.textId.toUpperCase()}` : ''}</div>}
         <NoteEditorPM

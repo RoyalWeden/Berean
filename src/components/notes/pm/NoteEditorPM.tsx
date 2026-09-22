@@ -862,6 +862,30 @@ export default function NoteEditorPM({
     return () => window.removeEventListener('berean:scrollToHeading', handler)
   }, [mode])
 
+  // Insert a YouTube timestamp / video link at the cursor (⌘⇧L, the YouTube tab's "Insert
+  // timestamp link into active note", the phone's player action). The text arrives as markdown
+  // `[label](url)`; it becomes a linked text run so it renders as a link immediately (the
+  // serializer writes it back as the same markdown). Plain text is inserted verbatim. This
+  // listener was lost when the CodeMirror editor was removed, so the desktop command was a no-op.
+  useEffect(() => {
+    function handler(e: Event) {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text
+      const view = viewRef.current
+      if (!view || !text) return
+      const { from, to } = view.state.selection
+      const m = /^\[([^\]]+)\]\((\S+)\)$/.exec(text)
+      const node = m
+        ? schema.text(m[1], [schema.marks.link.create({ href: m[2] })])
+        : schema.text(text)
+      const tr = view.state.tr.replaceWith(from, to, node)
+      tr.setSelection(TextSelection.create(tr.doc, from + node.nodeSize))
+      view.dispatch(tr.scrollIntoView())
+      view.focus()
+    }
+    window.addEventListener('berean:insertTimestamp', handler)
+    return () => window.removeEventListener('berean:insertTimestamp', handler)
+  }, [])
+
   const filteredNotes = wikilinkTrigger
     ? (notesRef.current ?? [])
         .filter((n) => (n.title || 'Untitled').toLowerCase().includes(wikilinkTrigger.query.toLowerCase()))

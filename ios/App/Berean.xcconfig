@@ -8,6 +8,8 @@ BEREAN_TEAM_ID =
 // developer's App ID; override in Signing.xcconfig together with BEREAN_BUNDLE_ID.
 BEREAN_ICLOUD_CONTAINER = iCloud.com.berean.app
 CODE_SIGN_ENTITLEMENTS = App/App.entitlements
+// App Group shared by the app and its Share Extension (inbox). Must exist on the App ID.
+BEREAN_APP_GROUP = group.com.berean.app
 IPHONEOS_DEPLOYMENT_TARGET = 17.0
 TARGETED_DEVICE_FAMILY = 1
 SWIFT_VERSION = 5.0
