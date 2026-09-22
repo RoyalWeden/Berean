@@ -11,6 +11,7 @@ import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { IconButton, Button, ControlGroup, OverflowGroup, OverflowSection, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
+import TouchYouTubePlayer from './TouchYouTubePlayer'
 import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
 import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
 import type { ParsedRef } from '@/lib/parseRef'
@@ -366,6 +367,31 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [videoDescription, setVideoDescription] = useState('')
   const [historyMap, setHistoryMap] = useState<Record<string, number>>({})
   const [videoEnded, setVideoEnded] = useState(false)
+  // Touch player (iPhone) callbacks — stable identities so the embed's message listener is not
+  // re-registered on every render. Position saves reuse the desktop rule (within 10 s of the
+  // end → 0, so the next open starts fresh).
+  const touchPosRef = useRef(0)
+  const touchPlayerReady = useCallback(() => setPlayerReady(true), [])
+  const touchPlayerBlocked = useCallback(() => { setPlayerReady(true); void import('@/platform/ios/plugins').then((m) => m.BereanWebView.hide()).catch(() => {}) }, [])
+  const touchPlayerEnded = useCallback(() => setVideoEnded(true), [])
+  const touchPlayerPosition = useCallback((seconds: number) => { touchPosRef.current = seconds }, [])
+  useEffect(() => {
+    if (window.__berean_platform !== 'ios' || !activeVideoId) return
+    const id = activeVideoId
+    const save = () => {
+      const pos = touchPosRef.current
+      if (!(pos > 0)) return
+      const video = videos.find((v) => v.videoId === id)
+      const duration = video?.durationSeconds ?? 0
+      const effectivePos = duration > 0 && pos >= duration - 10 ? 0 : pos
+      historyMapRef.current = { ...historyMapRef.current, [id]: effectivePos }
+      window.youtube.savePosition(id, effectivePos, { title: video?.title ?? '', channelName: video?.channelName ?? '', thumbnailUrl: video?.thumbnailUrl ?? '' }).catch(() => {})
+    }
+    const timer = setInterval(save, 5000)
+    document.addEventListener('visibilitychange', save)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', save); save(); touchPosRef.current = 0 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeVideoId])
   const [showEndOverlay, setShowEndOverlay] = useState(false)
   const [recommendations, setRecommendations] = useState<VideoEntry[]>([])
   const [isPiPActive, setIsPiPActive] = useState(false)
@@ -1760,7 +1786,20 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               behind it instead. Reusing the same opacity toggle already used for the
               playerReady loading state — confirmed to actually hide the webview, since the
               loading spinner already relies on it to cover the webview while loading. */}
-          {playerSrc && (
+          {/* iPhone: no <webview> in WKWebView — a plain IFrame embed reports state to this
+              window instead (TouchYouTubePlayer). webviewRef stays null, so every Electron-only
+              effect below (polls, executeJavaScript, PiP) no-ops. */}
+          {playerSrc && window.__berean_platform === 'ios' && activeVideoId && (
+            <TouchYouTubePlayer
+              videoId={activeVideoId}
+              startTime={historyMapRef.current[activeVideoId] ?? 0}
+              onReady={touchPlayerReady}
+              onEnded={touchPlayerEnded}
+              onPosition={touchPlayerPosition}
+              onEmbedBlocked={touchPlayerBlocked}
+            />
+          )}
+          {playerSrc && window.__berean_platform !== 'ios' && (
             <webview
               ref={webviewRef}
               src={playerSrc}

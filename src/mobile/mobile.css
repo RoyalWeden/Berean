@@ -24,7 +24,10 @@ html[data-platform="ios"], html[data-platform="ios"] body {
 }
 html[data-platform="ios"] #root { height: 100%; }
 
-.mobile-root { position: fixed; inset: 0; display: flex; flex-direction: column; background: rgb(var(--color-surface-1)); }
+.mobile-root { position: fixed; inset: 0; display: flex; flex-direction: column; background: rgb(var(--color-surface-1)); padding-bottom: var(--m-keyboard-h, 0px); }
+/* With the keyboard up, the space bar and tab pill step aside (the keyboard's own Done/next
+   controls take that role); the page keeps its header and the editor toolbar stays visible. */
+html[data-keyboard] .mobile-space-bar, html[data-keyboard] .mobile-tab-pill-row { display: none; }
 .mobile-main { flex: 1; min-height: 0; position: relative; }
 
 /* ── navigation stack ─────────────────────────────────────────────────── */

@@ -75,6 +75,15 @@ merging to `main`, run `npm run ios:sync` once so the paths point at `main`'s ow
 
 All set `DEVELOPER_DIR` themselves. None of them touch the desktop build.
 
+## 3b. Transcript packs (D-007)
+
+`node scripts/data/split-youtube-seed.mjs` (after `youtube:buildSeed` in dev) writes `data/youtube_index.db`
+(bundled) and `data/youtube_transcripts/*.db` + `manifest.json`. Publish the packs once per seed version
+with `scripts/data/publish-transcripts.sh` (GitHub release `transcripts-v<seedVersion>`, needs `gh auth`);
+the phone downloads from `https://github.com/RoyalWeden/Berean/releases/download/transcripts-v<N>/` by
+default, or from any host set in the `transcriptPacksBaseUrl` setting (plain http only on the local
+network — `NSAllowsLocalNetworking`).
+
 ## 4. Running on your iPhone
 
 1. Connect the iPhone by cable (first time), trust the computer, enable Developer Mode on the

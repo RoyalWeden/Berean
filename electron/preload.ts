@@ -439,6 +439,7 @@ contextBridge.exposeInMainWorld('youtube', {
   fetchTranscripts: (batchSize?: number, workerCount?: number) => ipcRenderer.invoke('youtube:fetchTranscripts', batchSize, workerCount),
   clearTranscripts: () => ipcRenderer.invoke('youtube:clearTranscripts'),
   getTranscriptStatus: () => ipcRenderer.invoke('youtube:getTranscriptStatus'),
+  getTranscriptAvailability: () => ipcRenderer.invoke('youtube:getTranscriptAvailability'),
   getTranscript: (videoId: string) => ipcRenderer.invoke('youtube:getTranscript', videoId),
   searchTranscripts: (query: string, videoLimit?: number, perVideoLimit?: number) => ipcRenderer.invoke('youtube:searchTranscripts', query, videoLimit, perVideoLimit),
   buildSeed: () => ipcRenderer.invoke('youtube:buildSeed'),

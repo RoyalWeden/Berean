@@ -12,6 +12,8 @@ class BereanBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(BereanCloudPlugin())
         bridge?.registerPluginInstance(BereanAudioPlugin())
         bridge?.registerPluginInstance(BereanSpeechPlugin())
+        bridge?.registerPluginInstance(BereanWebViewPlugin())
+        bridge?.registerPluginInstance(BereanDownloadsPlugin())
         NSLog("[Berean] native plugins registered: BereanSQLite=%@ BereanCloud=%@",
               bridge?.plugin(withName: "BereanSQLite") == nil ? "missing" : "ok",
               bridge?.plugin(withName: "BereanCloud") == nil ? "missing" : "ok")

@@ -1,5 +1,6 @@
 import { Browser } from '@capacitor/browser'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { createYoutubeFetchService, type FetchProgress } from '../services/youtubeFetchService'
 import type { Services } from '../services'
 import { iosServiceContext } from './services'
 import type { UpdateStatus } from '../../types/electron'
@@ -140,21 +141,41 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
   } as Window['studyTrail']
 
   const y = s.youtube
+  // Channel fetching (Phase 17): the shared port of the desktop network layer over the WebView's
+  // fetch (routed natively by CapacitorHttp — see capacitor.config.ts). The Data API key is only
+  // bundled in dev builds, where Full Sync is allowed (same rule as desktop).
+  let progressCb: ((p: FetchProgress) => void) | null = null
+  let fetchSvc: ReturnType<typeof createYoutubeFetchService> | null = null
+  const fetchService = async () => {
+    if (fetchSvc) return fetchSvc
+    let apiKey: string | null = null
+    if (import.meta.env.DEV) {
+      // import.meta.glob resolves to {} when the (gitignored) key file is absent, so a checkout
+      // without it still builds; the branch is dead code in production builds.
+      const keyModules = import.meta.glob<{ YOUTUBE_API_KEY?: string }>('../../../electron/youtube-key.ts')
+      const loader = Object.values(keyModules)[0]
+      try { apiKey = loader ? ((await loader()).YOUTUBE_API_KEY ?? null) : null } catch { apiKey = null }
+    }
+    fetchSvc = createYoutubeFetchService(ctx, { fetch: (url, init) => fetch(url, init), apiKey, onProgress: (p) => progressCb?.(p) })
+    return fetchSvc
+  }
   const youtube: Window['youtube'] = {
     loadAll: () => y.loadAll(),
-    refresh: async () => unavailable('youtube.refresh', 'channel fetching arrives with the YouTube phase (Phase 17)'),
-    fullSync: async () => unavailable('youtube.fullSync', 'channel fetching arrives with the YouTube phase (Phase 17)'),
+    refresh: async () => (await fetchService()).refresh(),
+    fullSync: async () => (await fetchService()).fullSync(),
+    onProgress: (cb: (p: FetchProgress) => void) => { progressCb = cb },
     clearAll: async () => { await y.clearAll(); return { success: true } },
     toggleStar: (id: string) => y.toggleStar(id),
     savePosition: (id: string, sec: number, meta: { title: string; channelName: string; thumbnailUrl: string }) => y.savePosition(id, sec, meta),
     getPosition: (id: string) => y.getPosition(id),
     getWatchHistory: () => y.getWatchHistory(), removeFromHistory: (id: string) => y.removeFromHistory(id), clearWatchHistory: () => y.clearWatchHistory(),
-    fetchDescription: async () => unavailable('youtube.fetchDescription', 'Phase 17'),
-    searchVideos: async () => unavailable('youtube.searchVideos', 'Phase 17'),
+    fetchDescription: async (id: string) => (await fetchService()).fetchDescription(id),
+    searchVideos: async (q: string, limit?: number) => (await fetchService()).searchVideos(q, limit),
     // Dev-only on every platform (R143): production never fetches transcripts.
     fetchTranscripts: async () => unavailable('youtube.fetchTranscripts', 'dev-only, and transcripts on the phone come from downloaded packs'),
     clearTranscripts: async () => unavailable('youtube.clearTranscripts', 'dev-only'),
     getTranscriptStatus: () => y.getTranscriptStatus(), getTranscript: (id: string) => y.getTranscript(id),
+    getTranscriptAvailability: () => y.getTranscriptAvailability(),
     searchTranscripts: (q: string, a?: number, b?: number) => y.searchTranscripts(q, a, b),
     buildSeed: async () => unavailable('youtube.buildSeed', 'dev-only'),
   } as unknown as Window['youtube']

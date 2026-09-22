@@ -32,5 +32,7 @@ done
 # Optional — a build without it just shows "no transcript packs in this build".
 if [ -f "$SRC/youtube_transcripts/manifest.json" ]; then
   cp -L "$SRC/youtube_transcripts/manifest.json" "$DEST/youtube_transcripts.manifest.json"
+  # ...and into the web root, where the renderer can fetch it as ./youtube_transcripts.manifest.json
+  cp -L "$SRC/youtube_transcripts/manifest.json" "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/public/youtube_transcripts.manifest.json" 2>/dev/null || true
 fi
 [ "$missing" -eq 0 ] || exit 1

@@ -177,6 +177,8 @@ interface YouTubeAPI {
   fetchTranscripts: (batchSize?: number, workerCount?: number) => Promise<{ fetched: number; skipped: number; errors: number } | { error: string }>
   clearTranscripts: () => Promise<{ success: boolean } | { error: string }>
   getTranscriptStatus: () => Promise<string[]>
+  /** Per channel: transcripts available (index) vs downloaded (segments present) — the phone's pack UI. */
+  getTranscriptAvailability?: () => Promise<Array<{ channelHandle: string; channelName: string; available: number; downloaded: number }>>
   getTranscript: (videoId: string) => Promise<Array<{ startMs: number; durMs: number; text: string }>>
   searchTranscripts: (query: string, videoLimit?: number, perVideoLimit?: number) => Promise<Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>>
   buildSeed: () => Promise<{ success: boolean; videos?: number; transcripts?: number; segments?: number } | { error: string }>
@@ -881,7 +883,8 @@ declare global {
       newIndependentWindow: () => Promise<void>
     }
     // Platform string injected by preload for renderer-side platform detection
-    __berean_platform: NodeJS.Platform
+    /** Desktop: process.platform from the preload; iPhone: 'ios' (src/platform/ios/bridge.ts). */
+    __berean_platform: NodeJS.Platform | 'ios'
 
     // Custom frameless window controls (Windows), also reused by the note
     // editor's Focus-mode floating toolbar on any platform.

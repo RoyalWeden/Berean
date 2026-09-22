@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive } from 'lucide-react'
+import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { applyThemeToDocument } from '@/lib/applyTheme'
@@ -34,7 +34,9 @@ import { NotesHomePage } from './notes/NotesHomePage'
 import { NoteEditorPage } from './notes/NoteEditorPage'
 import { SearchPage } from './search/SearchPage'
 import { AudioBar } from './audio/AudioBar'
+import { TranscriptPacksPage } from './youtube/TranscriptPacksPage'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
+import { Keyboard } from '@capacitor/keyboard'
 import './mobile.css'
 
 /**
@@ -190,6 +192,7 @@ function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
       <ListSection title="Spaces">
         <Row leading={<BookMarked size={20} aria-hidden />} title="Lexicon" subtitle="Strong's entries, search, occurrences" chevron onClick={() => onOpenSpace('lexicon')} />
         <Row leading={<Youtube size={20} aria-hidden />} title="YouTube" subtitle="Channels, transcripts, watch positions" chevron onClick={() => onOpenSpace('youtube')} />
+        <Row leading={<Download size={20} aria-hidden />} title="Transcript packs" subtitle="Download channel transcripts for offline search" chevron onClick={() => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />)} />
       </ListSection>
       <ListSection title="Study">
         <Row leading={<Tags size={20} aria-hidden />} title="Verse tags" subtitle="Tag manager and graph" chevron onClick={() => { useAppStore.getState().openTagsGraph(); onOpenSpace('notes') }} />
@@ -269,8 +272,19 @@ function useAppearance() {
   useEffect(() => { applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily }) }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
 }
 
-/** Boot: settings hydration + persistence, tab persistence (SQLite mirror), history, sync refresh. */
+/** Boot: settings hydration + persistence, tab persistence (SQLite mirror), history, sync refresh, keyboard. */
 function useBoot() {
+  useEffect(() => {
+    // Software keyboard (R083): expose its height so the shell's bottom bars and the editor
+    // toolbar sit above it (capacitor.config.ts keeps the WebView itself unresized).
+    const root = document.documentElement
+    const handles: Array<Promise<{ remove: () => Promise<void> }>> = []
+    try {
+      handles.push(Keyboard.addListener('keyboardWillShow', (e) => { root.style.setProperty('--m-keyboard-h', `${e.keyboardHeight}px`); root.dataset.keyboard = '' }))
+      handles.push(Keyboard.addListener('keyboardWillHide', () => { root.style.setProperty('--m-keyboard-h', '0px'); delete root.dataset.keyboard }))
+    } catch { /* web preview */ }
+    return () => { for (const h of handles) h.then((x) => x.remove()).catch(() => {}) }
+  }, [])
   useEffect(() => {
     window.settings?.getAll().then((all) => hydrateSettingsIntoStore(all)).catch(() => {})
     window.appHistory?.getAll().then((entries) => useAppStore.getState().setHistory(entries)).catch(() => {})

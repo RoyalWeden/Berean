@@ -1269,6 +1269,7 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
   ipc.handle('youtube:removeFromHistory', (_e, videoId: string) => services().youtube.removeFromHistory(videoId))
   ipc.handle('youtube:clearWatchHistory', () => services().youtube.clearWatchHistory())
   ipc.handle('youtube:fetchDescription', async (_e, videoId: string) => fetchDescription(videoId))
+  ipc.handle('youtube:getTranscriptAvailability', () => services().youtube.getTranscriptAvailability())
 
   // Transcript fetch: scrapes tactiq.io via hidden BrowserWindows — dev only.
   // Michael runs this during development; production builds read the already-stored data.

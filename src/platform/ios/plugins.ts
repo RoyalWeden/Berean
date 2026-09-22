@@ -65,3 +65,31 @@ export interface BereanSpeechPlugin {
   addListener(event: 'boundary', cb: (e: { id: string; charIndex: number; charLength: number }) => void): Promise<{ remove: () => Promise<void> }>
 }
 export const BereanSpeech = registerPlugin<BereanSpeechPlugin>('BereanSpeech')
+
+/** Native YouTube player web view (BereanWebViewPlugin.swift). Rect in CSS px of the app web view. */
+export interface BereanWebViewPlugin {
+  open(opts: { videoId: string; startTime?: number; rect: { x: number; y: number; width: number; height: number } }): Promise<void>
+  setRect(opts: { rect: { x: number; y: number; width: number; height: number } }): Promise<void>
+  show(): Promise<void>
+  hide(): Promise<void>
+  command(opts: { func: string; args?: unknown[] }): Promise<void>
+  close(): Promise<void>
+  addListener(event: 'ready', cb: () => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'state', cb: (e: { state: number }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'error', cb: (e: { code: number }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'position', cb: (e: { t: number; d: number }) => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanWebView = registerPlugin<BereanWebViewPlugin>('BereanWebView')
+
+/** Resumable, cancellable downloads with SHA-256 on completion (BereanDownloadsPlugin.swift). */
+export interface BereanDownloadsPlugin {
+  start(opts: { id: string; url: string; name: string }): Promise<{ resumed: boolean }>
+  cancel(opts: { id: string }): Promise<{ resumable: boolean }>
+  remove(opts: { name: string }): Promise<void>
+  list(): Promise<{ files: Array<{ name: string; bytes: number }> }>
+  addListener(event: 'progress', cb: (e: { id: string; received: number; total: number }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'done', cb: (e: { id: string; name: string; path: string; sha256: string; bytes: number }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'error', cb: (e: { id: string; message: string; resumable?: boolean }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'cancelled', cb: (e: { id: string; resumable: boolean }) => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanDownloads = registerPlugin<BereanDownloadsPlugin>('BereanDownloads')
