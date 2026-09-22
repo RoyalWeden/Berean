@@ -1,7 +1,7 @@
 import { useAppStore, type AppState } from './index'
 import { buildSnapshot, hydrateFromRows, emptyKeyMaps, type OrderKeyMaps, type HydratedState, SPACES } from './tabPersistence'
 import type { SpaceId, TabType } from '../types'
-import { splitTabState, isKnownTabType } from '../platform/sync/tabFields'
+import { splitTabState, mergeTabState, isKnownTabType } from '../platform/sync/tabFields'
 
 /**
  * Runtime half of the sessions/tabs mirror (see tabPersistence.ts for the pure functions).
@@ -82,7 +82,9 @@ function applyHydrated(h: HydratedState, opts: { keepLocalTabState: boolean }): 
             // cursor, pane sizes) are newer than whatever local_state_json was last mirrored.
             const type: TabType = isKnownTabType(mine.type) ? mine.type : 'bible'
             const { local } = splitTabState(type, mine.state)
-            return { ...t, state: { ...(t.state as Record<string, unknown>), ...local } as typeof t.state }
+            // mergeTabState, not a spread: nested local parts (compare columns' scrollPos) must be
+            // merged per column — a spread replaced the synced columns with the bare local shells.
+            return { ...t, state: mergeTabState(type, t.state as unknown as Record<string, unknown>, local) }
           })
         }
         return { ...inc, tabs }

@@ -12,6 +12,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import NotesList from './NotesList'
 import NoteEditor from './pm/NoteEditorPM'
 import PrintPreviewModal from './PrintPreviewModal'
+import { idiomExportEntries } from '@/lib/idiomsExport'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import NoteLookDropdown from './NoteLookDropdown'
@@ -561,24 +562,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     // visible indication a filter is active.
     if (next === 'folder') setNoteFilter('all')
   }, [])
-
-  /** Map idiom notes to export entries, auto-detecting the scripture references each cites. */
-  function idiomExportEntries() {
-    const fmt = (r: NoteVerseRef): string => {
-      if (r.isChapter || r.verse === 0) return bookChapterVerseLabel(r.bookId, r.chapter)
-      return `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${r.endVerse ? `-${r.endVerse}` : ''}`
-    }
-    return notes.filter((n) => n.type === 'idiom').map((n) => {
-      const d = n.idiomData ?? {}
-      // Examples aren't part of the export output, but they're still useful text to mine
-      // for scripture references the idiom note otherwise doesn't list explicitly.
-      const textForRefs = [...(d.examples ?? []), d.explanation ?? '', n.content ?? ''].join('\n')
-      const seen = new Set<string>()
-      const autoVerse = extractRefsFromNote(textForRefs, n.idiomTerm || n.title || '').map(fmt)
-      const verses = [...new Set([...(d.verses ?? []), ...autoVerse])].filter((v) => { const ok = !seen.has(v); seen.add(v); return ok })
-      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, aliases: n.idiomAliases, explanation: d.explanation, compare: d.compare, verses }
-    })
-  }
 
   /** Idioms → single PDF export control (button + options popover). Rendered in the notes
    *  header so it's reachable from both list and folder view; only shown when idioms exist. */
@@ -2144,7 +2127,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         <PrintPreviewModal
           title="Idioms"
           content=""
-          idiomEntries={idiomExportEntries()}
+          idiomEntries={idiomExportEntries(notes)}
           onClose={() => setIdiomsModalOpen(false)}
         />
       )}

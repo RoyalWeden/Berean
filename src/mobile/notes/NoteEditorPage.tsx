@@ -17,6 +17,7 @@ import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
 import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
 import { EMOJI_CATEGORIES, ALL_EMOJI } from '@/lib/emojiList'
+import { noteToMarkdownFile, noteFileName } from '@/lib/noteMarkdownFile'
 
 const SAVE_DEBOUNCE_MS = 500
 const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
@@ -176,6 +177,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       { id: 'copy', label: 'Copy as Markdown', onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },
       { id: 'print', label: 'Print / Export PDF…', onSelect: () => setPrintOpen(true) },
       { id: 'share', label: 'Share…', onSelect: () => { void shareNote(n) } },
+      { id: 'export-md', label: 'Export Markdown file…', onSelect: () => { void exportNoteFile(n) } },
       { id: 'trash', label: 'Move to trash', destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { bumpNoteToken(); onBack() }) } },
     ])
   }
@@ -246,6 +248,17 @@ async function shareNote(n: Note): Promise<void> {
   } catch {
     try { await navigator.clipboard.writeText(text) } catch { /* ignore */ }
   }
+}
+
+/** R099: the note as a vault-format `.md` file handed to the share sheet (Save to Files, AirDrop, …). */
+async function exportNoteFile(n: Note): Promise<void> {
+  try {
+    const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
+    const { Share } = await import('@capacitor/share')
+    const path = `exports/${noteFileName(n)}`
+    const w = await Filesystem.writeFile({ path, directory: Directory.Cache, data: noteToMarkdownFile(n), encoding: Encoding.UTF8, recursive: true })
+    await Share.share({ title: n.title || 'Note', files: [w.uri] })
+  } catch { /* share cancelled or unavailable */ }
 }
 
 /** The desktop NoteIconPicker's emoji set (src/lib/emojiList.ts) as a sheet: search + categories. */

@@ -68,7 +68,9 @@ export function splitTabState(type: TabType, state: TabState): SplitTabState {
           return { copy: item, localPart: {} }
         })
         v = stripped.map((s) => s.copy)
-        local[k] = stripped.map((s) => s.localPart)
+        // Only when some column actually carries a local part — an array of empty shells is noise
+        // (and, merged with a spread, once wiped the synced columns).
+        if (stripped.some((s) => Object.keys(s.localPart).length)) local[k] = stripped.map((s) => s.localPart)
       } else {
         const copy = { ...(v as Record<string, unknown>) }
         const localPart: Record<string, unknown> = {}

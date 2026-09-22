@@ -28,6 +28,13 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 document.documentElement.dataset.window = 'main'
 document.documentElement.dataset.platform = 'ios'
 
+// Capacitor's console bridge JSON-serialises arguments, so an Error prints as `{}` in the Xcode /
+// simulator console. Print name, message and stack instead (diagnostics only; no behaviour change).
+for (const level of ['error', 'warn'] as const) {
+  const orig = console[level].bind(console)
+  console[level] = (...args: unknown[]) => orig(...args.map((a) => (a instanceof Error ? `${a.name}: ${a.message}${a.stack ? `\n${a.stack}` : ''}` : a)))
+}
+
 async function boot() {
   const root = ReactDOM.createRoot(document.getElementById('root')!)
   try {

@@ -9,6 +9,10 @@
  * would otherwise print as literal visible text instead of being rendered).
  */
 
+import type { Note } from '@/types'
+import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
+
 export interface IdiomExportEntry {
   term: string
   meaning?: string
@@ -163,4 +167,26 @@ export function buildIdiomsExportHtml(idioms: IdiomExportEntry[], opts: IdiomsEx
     return `<div style="column-count:2;column-gap:${colGap}px;column-rule:1px solid ${colors.rule}">${inner}</div>`
   }
   return inner
+}
+
+/**
+ * Map idiom notes to export entries, auto-detecting the scripture references each cites (moved
+ * from NotesPanel so the phone's Notes home can offer the same "Export all idioms" — the entries
+ * are what `PrintPreviewModal`'s idioms mode renders).
+ */
+export function idiomExportEntries(notes: Note[]): IdiomExportEntry[] {
+  const fmt = (r: NoteVerseRef): string => {
+    if (r.isChapter || r.verse === 0) return bookChapterVerseLabel(r.bookId, r.chapter)
+    return `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${r.endVerse ? `-${r.endVerse}` : ''}`
+  }
+  return notes.filter((n) => n.type === 'idiom').map((n) => {
+    const d = n.idiomData ?? {}
+    // Examples aren't part of the export output, but they're still useful text to mine
+    // for scripture references the idiom note otherwise doesn't list explicitly.
+    const textForRefs = [...(d.examples ?? []), d.explanation ?? '', n.content ?? ''].join('\n')
+    const seen = new Set<string>()
+    const autoVerse = extractRefsFromNote(textForRefs, n.idiomTerm || n.title || '').map(fmt)
+    const verses = [...new Set([...(d.verses ?? []), ...autoVerse])].filter((v) => { const ok = !seen.has(v); seen.add(v); return ok })
+    return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, aliases: n.idiomAliases, explanation: d.explanation, compare: d.compare, verses }
+  })
 }

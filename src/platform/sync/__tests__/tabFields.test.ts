@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { splitTabState, mergeTabState, stableJson } from '../tabFields'
-import type { BibleTabState, NoteTabState } from '../../../types'
+import type { BibleTabState, NoteTabState, TabState } from '../../../types'
 
 describe('tab state split (sync vs local)', () => {
   it('bible: location + study config sync; scroll, pane sizes and targets do not', () => {
@@ -48,6 +48,17 @@ describe('tab state split (sync vs local)', () => {
     const { sync, local } = splitTabState('search', { query: 'love', results: [{ verseRef: 'x' } as never], scrollTop: 1 })
     expect(sync).toEqual({ query: 'love' })
     expect(Object.keys(local).sort()).toEqual(['results', 'scrollTop'])
+  })
+
+  it('compare columns without a scroll position leave no empty local shells, and merging local over synced keeps the columns', () => {
+    const state = { bookId: 'DEU', chapter: 5, translation: 'KJVA', showStrongs: false, scrollPosition: 0, compareMode: true,
+      compareColumns: [{ textId: 'kjva', bookId: 'DEU', chapter: 5 }, { textId: 'lxx', bookId: 'DEU', chapter: 5 }] } as unknown as TabState
+    const { sync, local } = splitTabState('bible', state)
+    expect(local).toEqual({ scrollPosition: 0 })
+    expect((sync.compareColumns as unknown[]).length).toBe(2)
+    // The startup/remote-apply path merges this device's local part over the synced rows:
+    const merged = mergeTabState('bible', sync, { compareColumns: [{ scrollPos: { verseNum: 3, frac: 0 } }, {}], scrollPosition: 40 }) as unknown as Record<string, unknown>
+    expect(merged.compareColumns).toEqual([{ textId: 'kjva', bookId: 'DEU', chapter: 5, scrollPos: { verseNum: 3, frac: 0 } }, { textId: 'lxx', bookId: 'DEU', chapter: 5 }])
   })
 
   it('stableJson is key-order independent and drops undefined', () => {

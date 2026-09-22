@@ -22,7 +22,10 @@ export function translationLabel(textId: string): string {
 /** The columns a compare tab shows: the persisted ones, or — entering compare from a plain
  *  chapter, as the desktop "Compare translations" does — KJV vs LXX of that reference. */
 export function columnsForState(state: BibleTabState): CompareColumn[] {
-  if (state.compareColumns && state.compareColumns.length > 0) return state.compareColumns.map((c) => ({ ...c, textId: c.textId.toLowerCase() }))
+  // Columns persisted by an earlier build could be bare shells (`[{}, {}]` — the local-state
+  // merge bug fixed in tabPersistenceRuntime); anything without a text or book is dropped.
+  const valid = (state.compareColumns ?? []).filter((c) => c && typeof c.textId === 'string' && typeof c.bookId === 'string' && Number.isFinite(c.chapter))
+  if (valid.length >= COMPARE_MIN_COLUMNS) return valid.map((c) => ({ ...c, textId: c.textId.toLowerCase() }))
   return defaultCompareColumns(state.bookId, state.chapter, (state.translation ?? 'kjva').toLowerCase())
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, CalendarDays, Folder, FolderPlus, Pin, Trash2, Search, LayoutPanelLeft } from 'lucide-react'
+import { Plus, CalendarDays, Folder, FolderPlus, Pin, Trash2, Search, MoreHorizontal } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
@@ -14,6 +14,9 @@ import { useLongPress } from '../primitives/useLongPress'
 import { NoteEditorPage } from './NoteEditorPage'
 import { TrashPage } from './TrashPage'
 import NotesPanel from '@/components/notes/NotesPanel'
+import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
+import { idiomExportEntries } from '@/lib/idiomsExport'
+import { parseNoteMarkdownFile } from '@/lib/noteMarkdownFile'
 
 type Filter = 'all' | 'scripture' | 'topic' | 'daily' | 'video' | 'pinned'
 
@@ -69,6 +72,42 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     ])
   }
 
+  // Home "…" menu: import a Markdown file (R099 — vault-format frontmatter or plain Markdown;
+  // a file carrying a `berean_id` that already exists updates that note instead of duplicating
+  // it), export all idioms to one PDF (desktop's notes-header button), new folder.
+  const [idiomsOpen, setIdiomsOpen] = useState(false)
+  const hasIdioms = notes.some((n) => n.type === 'idiom')
+  const importMarkdown = () => {
+    const input = document.createElement('input')
+    input.type = 'file'; input.accept = '.md,.markdown,.txt,text/markdown,text/plain'; input.multiple = true; input.style.display = 'none'
+    document.body.appendChild(input)
+    input.addEventListener('change', async () => {
+      const files = Array.from(input.files ?? [])
+      input.remove()
+      let created = 0, updated = 0
+      for (const f of files) {
+        const parsed = parseNoteMarkdownFile(await f.text(), f.name.replace(/\.(md|markdown|txt)$/i, ''))
+        const existing = parsed.bereanId ? notes.find((n) => n.id === parsed.bereanId) : null
+        if (existing) {
+          const r = await window.notes.updateNote(existing.id, { title: parsed.title, content: parsed.content, tags: parsed.tags, ...(parsed.icon ? { icon: parsed.icon } : {}), ...(parsed.color ? { color: parsed.color } : {}) }).catch(() => ({ success: false }))
+          if (r.success) updated++
+        } else {
+          const r = await window.notes.createNote({ type: parsed.type, title: parsed.title, content: parsed.content, tags: parsed.tags, ...(parsed.verseRef ? { verseRef: parsed.verseRef } : {}), ...(parsed.icon ? { icon: parsed.icon } : {}), ...(parsed.color ? { color: parsed.color } : {}) }).catch(() => ({ success: false as const }))
+          if (r.success) created++
+        }
+      }
+      if (created || updated) { refresh(); void haptic.success() }
+      if (files.length) alert(`Imported ${created} new note${created === 1 ? '' : 's'}${updated ? `, updated ${updated}` : ''}.`)
+    })
+    input.click()
+  }
+  const homeActions = () => actions('notes-home', 'Notes', [
+    { id: 'import', label: 'Import Markdown file…', onSelect: importMarkdown },
+    ...(hasIdioms ? [{ id: 'idioms', label: 'Export all idioms (PDF)…', onSelect: () => setIdiomsOpen(true) }] : []),
+    { id: 'folder', label: 'New folder…', onSelect: () => { void newFolder(null) } },
+    { id: 'desktop', label: 'All views (desktop layout)', onSelect: () => nav.push('notes-desktop', <DesktopNotesPage onBack={nav.pop} />) },
+  ])
+
   const user = notes   // every note (verse and daily notes included — they are first-class on the phone)
   const pinned = useMemo(() => user.filter((n) => n.pinned), [user])
   const list = useMemo(() => {
@@ -110,7 +149,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     <Page
       title="Notes"
       left={<IconTap icon={CalendarDays} label="Today's daily note" onClick={() => void openDaily()} />}
-      right={<><IconTap icon={LayoutPanelLeft} label="All views (desktop layout)" onClick={() => nav.push('notes-desktop', <DesktopNotesPage onBack={nav.pop} />)} /><IconTap icon={Plus} label="New note" onClick={() => void create({})} /></>}
+      right={<><IconTap icon={MoreHorizontal} label="Notes actions" onClick={homeActions} /><IconTap icon={Plus} label="New note" onClick={() => void create({})} /></>}
       headerBelow={
         <div className="mobile-search-row">
           <Search size={16} aria-hidden />
@@ -118,6 +157,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
         </div>
       }
     >
+      {idiomsOpen && <PrintPreviewModal title="Idioms" content="" idiomEntries={idiomExportEntries(notes)} onClose={() => setIdiomsOpen(false)} />}
       <div className="mobile-chip-row mobile-chip-row-scroll" role="tablist" aria-label="Filter">
         {([['all', 'All'], ['scripture', 'Scripture'], ['topic', 'Topic'], ['daily', 'Daily'], ['video', 'Video'], ['pinned', 'Pinned']] as Array<[Filter, string]>).map(([f, label]) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f} className={`mobile-chip${filter === f ? ' is-on' : ''}`} onClick={() => setFilter(f)}>{label}</button>
