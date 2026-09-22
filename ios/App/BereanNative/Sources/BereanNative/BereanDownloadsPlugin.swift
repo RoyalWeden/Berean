@@ -33,6 +33,9 @@ public class BereanDownloadsPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionDownl
         let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let dir = support.appendingPathComponent("Berean/downloads", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // Re-downloadable, potentially large: keep out of device backups (the user DB is backed up).
+        var values = URLResourceValues(); values.isExcludedFromBackup = true
+        var mutable = dir; try? mutable.setResourceValues(values)
         return dir
     }
     private func resumeFile(_ id: String) throws -> URL { try downloadsDir().appendingPathComponent(".\(id).resume") }

@@ -55,11 +55,24 @@ public class BereanSQLitePlugin: CAPPlugin, CAPBridgedPlugin {
             let dir = support.appendingPathComponent("Berean", isDirectory: true)
             if !FileManager.default.fileExists(atPath: dir.path) {
                 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                // The iCloud journal (docs/mobile/icloud.md) is the durable copy of user data and the
-                // bundled DBs ship with the app, so none of this needs to be in device backups.
+                // The user database (berean.db) stays in device backups: iCloud sync is opt-in, so
+                // for a user who never enables it the backup is the only durable copy (R017).
+                // Re-creatable caches are excluded per directory below.
+                var values = URLResourceValues()
+                values.isExcludedFromBackup = false
+                var mutable = dir
+                try? mutable.setResourceValues(values)
+            }
+            // Purgeable subdirectories (downloaded transcript packs, TTS caches/models) are excluded
+            // from backup — they are re-downloadable and can be large.
+            for cache in ["downloads", "tts-cache", "tts-model"] where rest.hasPrefix(cache + "/") || rest == cache {
+                let cacheDir = dir.appendingPathComponent(cache, isDirectory: true)
+                if !FileManager.default.fileExists(atPath: cacheDir.path) {
+                    try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+                }
                 var values = URLResourceValues()
                 values.isExcludedFromBackup = true
-                var mutable = dir
+                var mutable = cacheDir
                 try? mutable.setResourceValues(values)
             }
             return (dir.appendingPathComponent(rest), false)

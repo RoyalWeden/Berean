@@ -93,6 +93,32 @@ network — `NSAllowsLocalNetworking`).
    renderer appear there; native logs in Xcode's console.
 4. Wireless debugging: Xcode → Devices → *Connect via network*.
 
+### 4b. Phase 21 device pass (what to verify once, per `testing.md` §5 and §8)
+
+The simulator cannot exercise these; they need the phone (and, for sync, the Mac app on the same
+iCloud account with the same container id):
+
+1. **Install + launch** from Xcode (`Signing.xcconfig` in place). Note the `[perf]` console lines
+   (Safari → Develop → iPhone → Berean) into `testing.md` §6.
+2. **iCloud sync matrix** (`testing.md` §5, cases A–O): enable sync on both; create a note on the
+   phone → appears on the Mac; edit both offline → conflict copy; tab session created on the Mac
+   → appears in the phone's session switcher; workspace saved on the Mac → opens from Spotlight
+   on the phone; delete a tag on the Mac → gone on the phone.
+3. **Read Aloud in the background / lock screen**: start a chapter, lock the phone → speech
+   continues, lock-screen card shows the reference, play/pause/next work from the card and
+   AirPods; an incoming call pauses and playback resumes.
+4. **YouTube**: playback continues while switching spaces; PiP from the fullscreen control; the
+   Now Playing / audio session does not fight Read Aloud.
+5. **Share Extension** from Safari (URL), Notes (text), Files (PDF) → the right destination.
+6. **Spotlight**: search a note title / "Genesis 3" / a session name → tapping opens it.
+7. **Siri / Shortcuts**: "Open Scripture", "Search Berean", "Open today's daily note", "Start Read
+   Aloud", "Open workspace" appear in the Shortcuts app and run.
+8. **VoiceOver** run-through (`testing.md` §7): space bar, reader, verse sheet, notes editor.
+9. **Dynamic Type** at Accessibility XL: chrome scales, reader stays readable.
+10. **Location**: first daily-note open asks; deny → note still opens (midnight boundary).
+11. **Kokoro-in-WKWebView spike** (R096): measure whether the Kokoro WASM model loads and
+    speaks a verse in WKWebView within memory limits; record the result in `decisions.md`.
+
 ## 5. TestFlight
 
 1. Bump `version` in `package.json`; `npm run ios:sync` regenerates `Version.xcconfig`
@@ -146,10 +172,10 @@ network — `NSAllowsLocalNetworking`).
 |---|---|---|
 | Bundle identifier | developer | §2 |
 | Entitlements: iCloud Documents container (done, Phase 7), App Groups, audio background mode | iCloud ✔ (`App.entitlements`, id from `BEREAN_ICLOUD_CONTAINER`); App Group ✔ (`BEREAN_APP_GROUP`, app + `ShareExtension.entitlements`); `UIBackgroundModes: audio` ✔ | `App.entitlements` |
-| `PrivacyInfo.xcprivacy` | Phase 22 (not yet in repo) | declares UserDefaults + file-timestamp API reasons; no tracking |
-| Permission strings | Phase 13/18 (not yet in repo) | `NSLocationWhenInUseUsageDescription` (daily-note sunrise — same text as desktop), `NSPhotoLibraryUsageDescription` (insert image into note) |
-| Export compliance | developer answers in ASC | App uses only Apple-provided TLS/HTTPS and SQLite — "exempt" (`ITSAppUsesNonExemptEncryption = NO`, to be set in Info.plist in Phase 22) |
+| `PrivacyInfo.xcprivacy` | ✔ `ios/App/App/PrivacyInfo.xcprivacy` (patch step 9 adds it to Copy Bundle Resources) | no tracking, no collected data; UserDefaults (CA92.1), file timestamp (C617.1), disk space (E174.1), system boot time (35F9.1) |
+| Permission strings | ✔ `Info.plist` | `NSLocationWhenInUseUsageDescription` (daily-note sunrise; asked on the first daily-note open), `NSPhotoLibraryUsageDescription` (insert image into note) |
+| Export compliance | ✔ `ITSAppUsesNonExemptEncryption = NO` in `Info.plist`; developer confirms in ASC | only Apple-provided TLS/HTTPS and SQLite |
 | Privacy nutrition labels | developer | Data not collected; iCloud data is the user's own |
 | YouTube | documented | Embedded via WKWebView per YouTube ToS; PiP behaviour documented in `feature-matrix.md` |
-| App icon 1024 px, launch screen | Phase 22 (Capacitor placeholder icon today) | from `assets/` |
+| App icon 1024 px, launch screen | ✔ full-bleed icon + launch image generated from `assets/icon.png` (`Assets.xcassets`) | regenerate from `assets/icon.png` if the desktop icon changes |
 | Age rating, category | developer | Reference |

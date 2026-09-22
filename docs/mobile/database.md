@@ -97,8 +97,9 @@ user downgrades) still works — SQLite ignores unknown columns for the queries 
 
 ```
 <App sandbox>/Library/Application Support/Berean/
-├── berean.db, berean.db-wal, berean.db-shm      (NSFileProtectionCompleteUntilFirstUserAuthentication; excluded from backup)
-├── pdfs/<id>.pdf
+├── berean.db, berean.db-wal, berean.db-shm      (NSFileProtectionCompleteUntilFirstUserAuthentication; IN device backups — iCloud sync is opt-in)
+├── pdfs/<id>.pdf                                (in backups)
+├── downloads/…                                  (transcript packs; purgeable; excluded from backup)
 ├── tts-cache/…                                  (purgeable; excluded from backup)
 └── tts-model/…                                  (purgeable; excluded from backup)
 <App bundle>/data/*.db                           (read-only, immutable)
