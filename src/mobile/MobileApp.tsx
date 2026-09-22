@@ -46,6 +46,7 @@ import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { QueuePage } from './audio/QueuePage'
 import { Keyboard } from '@capacitor/keyboard'
+import { BereanA11y } from '@/platform/ios/plugins'
 import './mobile.css'
 
 /**
@@ -323,6 +324,21 @@ function useAppearance() {
     applyThemeToDocument({ theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance })
   }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
   useEffect(() => { applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily }) }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
+  // Dynamic Type + accessibility switches (R082): the shell's CSS font sizes are multiplied by
+  // `--m-type-scale`; VoiceOver / Bold Text / Increase Contrast become data attributes the CSS
+  // and components can key on (Reduce Motion is honoured by framer's MotionConfig + CSS already).
+  useEffect(() => {
+    const apply = (st: { scale: number; voiceOver: boolean; boldText: boolean; increaseContrast: boolean }) => {
+      const root = document.documentElement
+      root.style.setProperty('--m-type-scale', String(st.scale))
+      if (st.voiceOver) root.dataset.voiceover = ''; else delete root.dataset.voiceover
+      if (st.boldText) root.dataset.boldText = ''; else delete root.dataset.boldText
+      if (st.increaseContrast) root.dataset.contrast = 'more'; else delete root.dataset.contrast
+    }
+    BereanA11y.getState().then(apply).catch(() => {})
+    const h = BereanA11y.addListener('change', apply)
+    return () => { h.then((x) => x.remove()).catch(() => {}) }
+  }, [])
 }
 
 /** Boot: settings hydration + persistence, tab persistence (SQLite mirror), history, sync refresh, keyboard. */

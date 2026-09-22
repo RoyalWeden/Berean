@@ -1,17 +1,17 @@
 /* First-launch flow (OnboardingFlow.tsx) — full-screen over the shell. */
 .mobile-onboarding { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: rgb(var(--color-surface-1)); color: rgb(var(--color-text-primary)); padding: calc(var(--m-safe-top, 0px) + 24px) 24px calc(var(--m-safe-bottom, 0px) + 16px); }
 .mobile-onboarding-page { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.mobile-onboarding-page h1 { font-size: 28px; font-weight: 700; margin: 8px 0 0; letter-spacing: -0.01em; }
-.mobile-onboarding-page p { margin: 0; font-size: 16px; line-height: 1.5; color: rgb(var(--color-text-secondary)); }
+.mobile-onboarding-page h1 { font-size: calc(28px * var(--m-type-scale, 1)); font-weight: 700; margin: 8px 0 0; letter-spacing: -0.01em; }
+.mobile-onboarding-page p { margin: 0; font-size: calc(16px * var(--m-type-scale, 1)); line-height: 1.5; color: rgb(var(--color-text-secondary)); }
 .mobile-onboarding-art { width: 96px; height: 96px; border-radius: 28px; display: flex; align-items: center; justify-content: center; background: rgb(var(--color-accent) / 0.14); color: rgb(var(--color-accent)); margin-top: 16px; }
-.mobile-onboarding-hint { font-size: 14px !important; color: rgb(var(--color-text-muted)) !important; }
+.mobile-onboarding-hint { font-size: calc(14px * var(--m-type-scale, 1)) !important; color: rgb(var(--color-text-muted)) !important; }
 .mobile-onboarding-ok { color: rgb(var(--color-accent)) !important; display: flex; align-items: center; gap: 6px; }
-.mobile-onboarding-error { color: rgb(var(--color-destructive, 220 60 60)) !important; font-size: 14px !important; }
+.mobile-onboarding-error { color: rgb(var(--color-destructive, 220 60 60)) !important; font-size: calc(14px * var(--m-type-scale, 1)) !important; }
 .mobile-onboarding-list { display: flex; flex-direction: column; gap: 8px; }
 .mobile-onboarding-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 10px 14px; border-radius: 14px; border: 1px solid rgb(var(--color-surface-4)); background: rgb(var(--color-surface-2)); color: inherit; text-align: left; font: inherit; }
 .mobile-onboarding-option.is-on { border-color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.1); }
 .mobile-onboarding-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.mobile-onboarding-option small { font-size: 12px; color: rgb(var(--color-text-muted)); }
+.mobile-onboarding-option small { font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
 .mobile-onboarding-footer { flex: none; display: flex; flex-direction: column; gap: 14px; padding-top: 12px; }
 .mobile-onboarding-dots { display: flex; justify-content: center; gap: 6px; }
 .mobile-onboarding-dots span { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--color-surface-4)); }

@@ -8,6 +8,7 @@ import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { installIosDeepLinks } from './deepLinks'
 import { installIosSpotlight } from './spotlight'
 import { installIosShareInbox } from './shareInbox'
+import { perfMark } from './perf'
 import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
 import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/nativeSpeechBackend'
 import { BereanSpeech } from './plugins'
@@ -36,9 +37,11 @@ for (const level of ['error', 'warn'] as const) {
 }
 
 async function boot() {
+  perfMark('boot:start')
   const root = ReactDOM.createRoot(document.getElementById('root')!)
   try {
     const services = await initIosServices()
+    perfMark('boot:services-ready')
     installIosBridge(services)
     installIosBridgeExtras(services, import.meta.env.VITE_APP_VERSION ?? '0')
     installIosSyncBridge()
@@ -48,6 +51,7 @@ async function boot() {
     installIosShareInbox()       // "Open in Berean": items the Share Extension left in the App Group
     // Read Aloud: the system speech synthesiser implements the shared TTSBackend on the phone.
     setActiveTTSBackend(new NativeSpeechBackend(BereanSpeech), createNativeVoiceProvider(BereanSpeech))
+    perfMark('boot:render')
     root.render(
       <React.StrictMode>
         <MotionConfig reducedMotion="user">

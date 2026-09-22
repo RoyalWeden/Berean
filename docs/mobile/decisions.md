@@ -231,3 +231,26 @@ Format: **decision · date · reason · alternatives considered · consequences 
   engine's capture would not see the change); `UIApplication.openURL:` via the responder chain
   (refused by UIKit since iOS 18 — observed on the iOS 26 simulator).
 - **Affected requirements:** R092; feature-matrix rows "Open in Berean", "Share sheet in".
+
+## D-009 — AI Lookup (Berean Chat) stays desktop-only in v1; the port is specified, not started
+
+- **Date:** 2026-09-21
+- **Decision:** `window.aiLookup` reports unavailable on the iPhone and the chat UI is not
+  offered there. The requirement (R046) allows "connect to an Ollama host on your network", but
+  a bare Ollama connection would not be Berean Chat: the feature is a 3,600-line retrieval
+  pipeline (`electron/ipc/aiLookup.ts` + `semanticCandidates.ts` + `ollama.ts`) that runs scripture
+  search, lexicon, cross-reference, TSKe, notes and YouTube-transcript tools synchronously on
+  better-sqlite3 and the desktop IPC modules before and after every model call. Shipping a
+  chat box that only forwards the question to Ollama would be a fake implementation of that
+  feature (R134), so it is not done.
+- **Port plan (for when it is scheduled):** move the module to
+  `src/platform/services/aiLookupService.ts` over the async `Services` (bible / lexicon /
+  crossrefs / notes / youtube already exist as async services), make `electron/ipc/aiLookup.ts`
+  a thin delegate so desktop behaviour stays byte-identical, keep the six existing test files
+  (`aiLookup.*.test.ts`, `semanticCandidates.test.ts`) green against the shared module, move the
+  Ollama HTTP client to a shared file with a configurable base URL (desktop default
+  `http://localhost:11434`, phone setting `ollamaHost`, requests through `CapacitorHttp`), and
+  treat `verse_embeddings.db` as absent on the phone (`gatherSemanticCandidates` → `[]`, as it
+  already is on desktops without the index). Estimated at one focused day; every DB call site
+  (17 `getBereanDb()/getTextDb()` uses plus the imported IPC helpers) becomes an `await`.
+- **Affected requirements:** R046 (NOT STARTED, plan recorded); feature-matrix row "AI Lookup".

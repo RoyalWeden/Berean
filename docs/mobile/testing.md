@@ -98,31 +98,44 @@ Every phase gate re-runs these and records the numbers in `implementation-progre
 | iCloud unavailable | — | — | — | — | — |
 | interrupted sync | — | — | — | — | — |
 
-## 6. Performance targets (set after baseline in Phase 11)
+## 6. Performance targets and baselines (R110 / R111)
 
-| Metric | Baseline (device, date) | Target | Latest |
-|---|---|---|---|
-| Cold launch → first chapter painted | — | — | — |
-| (simulator, iPhone 17 Pro, 2026-09-21 — not a device number) Genesis 1 query | 4 ms | | |
-| (simulator) FTS5 "love" whole KJVA | 36 ms | | |
-| (simulator) Strong's H7225 entry + occurrences | 107 ms | | |
-| (simulator) GEN 1:1 cross refs + TSKe | 130 ms | | |
-| Warm launch | — | — | — |
-| Chapter navigation (swipe commit → painted) | — | — | — |
-| FTS search "love" whole library | — | — | — |
-| Strong's sheet open (tap → gloss) | — | — | — |
-| Tab switch | — | — | — |
-| Session switch | — | — | — |
-| Note open (10 KB) / keystroke latency | — | — | — |
-| Sheet animation frame time | — | — | — |
-| Memory after 10 min reading / after search | — | — | — |
+Targets (from the brief, measured on a physical iPhone in Phase 21): cold launch → first chapter
+< 1.5 s, warm launch < 0.5 s, chapter navigation commit → painted < 100 ms, library search
+< 300 ms, Strong's sheet < 150 ms, tab/session switch < 100 ms, keystroke latency < 16 ms,
+sheet animation 60 fps, memory < 300 MB after 10 min reading. No optimisation was done ahead of
+measurement (R111); the numbers below are the simulator baseline that instrumentation now
+reports on every launch (`[perf]` console lines from `src/platform/ios/perf.ts`;
+`[perf] search …` from `SearchPage`).
 
-## 7. Accessibility checklist
+| Metric | Simulator baseline (iPhone 17 Pro sim on an M5 MacBook Air, 2026-09-21 — not a device number) | Device (Phase 21) |
+|---|---|---|
+| JS boot → services ready (DB open + migrations check) | +104–108 ms after navigation start | — |
+| JS boot → shell render | +105–108 ms | — |
+| JS boot → first chapter (books loaded, reader mounted) | +137–176 ms | — |
+| Genesis 1 chapter query | 4 ms | — |
+| FTS5 "love", all texts (1,119 hits) | 122 ms | — |
+| FTS5 "in the beginning", all texts (201 hits) | 62 ms | — |
+| FTS5 "love", KJVA only | 36 ms | — |
+| Strong's H7225 entry + occurrences | 107 ms | — |
+| GEN 1:1 cross refs + TSKe | 130 ms | — |
+| Native process launch → WebView navigation start | not captured by the JS marks (needs `os_signpost` on device) | — |
+| Warm launch, chapter swipe, tab/session switch, keystroke latency, sheet frame time, memory | — (device) | — |
 
-VoiceOver: every control labelled; verse rows read as "verse N, text"; sheets announce; tab pill
-announces current tab and count. Dynamic Type: reader font scale follows the system multiplier
-unless the user pins a size. Contrast: theme tokens checked at 4.5:1 for body text. Reduced
-motion: sheet/page transitions become fades. Touch targets ≥ 44×44 pt. Results recorded in Phase 19.
+## 7. Accessibility checklist (R082) — Phase 19 pass, 2026-09-21
+
+| Item | Status | Where |
+|---|---|---|
+| Every icon-only control labelled | ✔ (audit: every `<button>` in `src/mobile` has text or `aria-label`; `IconTap` requires `label`) | `primitives/Page.tsx`, sheets, bars |
+| Sheets: `role="dialog"`, explicit Close button (not only backdrop/drag), newest on top | ✔ | `primitives/Sheet.tsx` |
+| Space bar as `nav` with `aria-current="page"`; tab grid cards `aria-current`; segmented controls `role="radiogroup"` | ✔ | `tabs/SpaceBar.tsx`, `TabGrid.tsx`, `settings/SettingsControls.tsx` |
+| Verse rows: number + text readable; long-press sheet opens with the reference as its title | ✔ (shared `VerseRow`) | `study/VerseActionSheet.tsx` |
+| Dynamic Type | ✔ `BereanA11y` reports the content-size category → `--m-type-scale` multiplies every phone CSS font size (reader text stays under the user's pinch size, as the desktop zoom does) | `BereanA11yPlugin.swift`, `MobileApp.useAppearance` |
+| VoiceOver / Bold Text / Increase Contrast switches | ✔ exposed as `data-voiceover`, `data-bold-text`, `data-contrast` on `<html>`; contrast rules also via `prefers-contrast: more` | `mobile.css` |
+| Reduced motion | ✔ `MotionConfig reducedMotion="user"` + `prefers-reduced-motion` CSS (transitions off) | `platform/ios/main.tsx`, `mobile.css` |
+| Touch targets ≥ 44 pt | ✔ rows 52 pt, icon taps 44 pt, chips ≥ 36 pt tall inside 44 pt rows; grid cells 44 pt | `mobile.css` |
+| Contrast 4.5:1 body text | ✔ inherited from the design-system tokens (checked in docs/design-system.md) | — |
+| VoiceOver run-through on a device (focus order, rotor, sheet announcements) | pending Phase 21 | — |
 
 ## 8. Manual acceptance checklist (device)
 

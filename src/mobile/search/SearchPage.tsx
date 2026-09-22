@@ -112,8 +112,10 @@ export function SearchPage() {
         const r = await window.lexicon.search(trimmed, 'all')
         if (my === seq.current) { setEntries(r); setHits(null); setNotes(null) }
       } else {
+        const t0 = performance.now()
         const strongs = await runStrongsSearch(trimmed)
         const r = strongs ?? await runScriptureSearch(trimmed, { textId, wordMode, bookIds: books.length ? books : undefined, wordReplacerEnabled, wordReplacerRules })
+        console.debug(`[perf] search "${trimmed}" (${textId}) → ${r.length} hits in ${Math.round(performance.now() - t0)}ms`)
         if (my === seq.current) { setHits(r); setNotes(null); setEntries(null) }
       }
     } catch { if (my === seq.current) { setHits([]); setNotes([]); setEntries([]) } }

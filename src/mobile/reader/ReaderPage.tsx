@@ -12,6 +12,7 @@ import { Page, IconTap } from '../primitives/Page'
 import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
+import { perfMark } from '@/platform/ios/perf'
 import { StrongsSheet } from '../study/StrongsSheet'
 import { VerseActionSheet } from '../study/VerseActionSheet'
 import { VerseNotesSheet } from '../study/VerseNotesSheet'
@@ -71,6 +72,8 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.bookId, state.chapter, state.endChapter, book?.id, tab.id])
 
+  // First Scripture render mark for the perf baseline (once per launch).
+  useEffect(() => { if (book) perfMark('reader:first-chapter') }, [book])
   const goTo = useCallback((bookId: string, chapter: number, verse?: number) => {
     navigateToVerse({ bookId, chapter, verse, origin: { kind: 'sequential-nav' } })
   }, [])

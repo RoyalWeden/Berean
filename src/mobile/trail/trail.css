@@ -17,10 +17,10 @@
 .m-trail-note { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--m-radius); background: rgb(var(--color-surface-2)); }
 .m-trail-note.is-section { border-left: 3px solid rgb(var(--color-accent)); }
 .m-trail-note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.m-trail-note-kind { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.m-trail-note-kind { font-size: calc(12px * var(--m-type-scale, 1)); text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
 .m-trail-note-tools { display: inline-flex; gap: 2px; }
 .m-trail-note-title { font-weight: 600; }
-.m-trail-note-text { white-space: pre-wrap; font-size: 15px; line-height: 1.4; }
+.m-trail-note-text { white-space: pre-wrap; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.4; }
 .m-trail-note-body { min-height: 96px; padding: 10px 14px; resize: vertical; }
 .m-trail-note-row { display: flex; gap: 8px; }
 /* tags sheet */
