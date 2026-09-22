@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download } from 'lucide-react'
+import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { applyThemeToDocument } from '@/lib/applyTheme'
@@ -43,6 +43,8 @@ import { StudyTrailPage, useOpenStudyTrailPageEvent } from './trail'
 import { ComparePage } from './reader/ComparePage'
 import { OnboardingFlow, useOnboardingGate } from './onboarding'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
+import { useQueueAutosave } from '@/hooks/useQueueAutosave'
+import { QueuePage } from './audio/QueuePage'
 import { Keyboard } from '@capacitor/keyboard'
 import './mobile.css'
 
@@ -57,6 +59,7 @@ export default function MobileApp() {
   useAppearance()
   useBoot()
   useTTSPlayback()   // Read Aloud engine driver — the same hook App.tsx mounts
+  useQueueAutosave() // queue ↔ its source playlist, as desktop
   const onboarding = useOnboardingGate()   // first launch / About → Replay walkthrough (R086)
   return (
     <SheetHost>
@@ -246,6 +249,7 @@ function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
       <ListSection title="Study">
         <Row leading={<Tags size={20} aria-hidden />} title="Verse tags" subtitle="Tag manager and graph" chevron onClick={() => { useAppStore.getState().openTagsGraph(); onOpenSpace('notes') }} />
         <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, threads, recap" chevron onClick={openTrail} />
+        <Row leading={<ListMusic size={20} aria-hidden />} title="Read Aloud queue" subtitle="Queue and saved playlists" chevron onClick={() => nav.push('queue', <QueuePage onBack={nav.pop} />)} />
         <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={() => nav.push('history', <HistoryPage onBack={nav.pop} />)} />
         <Row leading={<Layers size={20} aria-hidden />} title="Workspaces" subtitle="Saved tab sets" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
         <Row leading={<Archive size={20} aria-hidden />} title="Archived tabs" chevron onClick={() => nav.push('archive', <ArchivePage onBack={nav.pop} />)} />

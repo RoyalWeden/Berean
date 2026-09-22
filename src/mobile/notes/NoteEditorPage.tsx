@@ -6,6 +6,9 @@ import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
 import { resolveBookToken, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
+import { parseRef } from '@/lib/parseRef'
+import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
+import { useLongPress } from '../primitives/useLongPress'
 import { Page, IconTap, ListSection, Row } from '../primitives/Page'
 import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
@@ -107,6 +110,48 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     if (found) nav.push(`note-${found.id}`, <NoteEditorPage noteId={found.id} onBack={nav.pop} />)
     else void window.notes.createNote({ type: 'general', title: target, content: '' }).then((r) => { if (r.success && r.note) { bumpNoteToken(); nav.push(`note-${r.note.id}`, <NoteEditorPage noteId={r.note.id} onBack={nav.pop} />) } })
   }, [notes, nav, openVerse, bumpNoteToken])
+  // Long-press on a scripture / Strong's reference inside the note (R037): the desktop
+  // right-click menu's actions (open, copy verse(s), copy reference, open in new tab) as an
+  // action sheet. WKWebView fires no `contextmenu` for a press, so the press is detected here.
+  const refLongPress = useLongPress((e) => {
+    const target = e.target as HTMLElement | null
+    const verseEl = target?.closest('.pm-verse-ref, .pm-lxx-ref, .pm-verse-block-ref') as HTMLElement | null
+    if (verseEl) {
+      const raw = (verseEl.getAttribute('data-ref') || verseEl.textContent || '').trim()
+      const isLxx = verseEl.getAttribute('data-lxx') === 'true' || verseEl.classList.contains('pm-lxx-ref')
+      const parsed = parseRef(raw.replace(/^(?:lxx|LXX):/i, '').replace(/\s+LXX$/i, '').trim())
+      if (!parsed) return
+      void haptic.medium()
+      const ref = isLxx ? { ...parsed, forcedTranslation: 'LXX' } : parsed
+      const textId = isLxx ? 'lxx' : (getTranslationForBook(parsed.bookId) ?? useAppStore.getState().defaultBibleTranslation ?? 'kjva')
+      actions('note-ref', raw, [
+        { id: 'open', label: 'Open verse', onSelect: () => openVerse(ref) },
+        { id: 'copy', label: parsed.endVerse && parsed.verse && parsed.endVerse > parsed.verse ? 'Copy verses' : 'Copy verse', onSelect: () => {
+          void (async () => {
+            const from = parsed.verse ?? 1, to = parsed.endVerse ?? parsed.verse ?? from
+            const refs = Array.from({ length: to - from + 1 }, (_, i) => ({ bookId: parsed.bookId, chapter: parsed.chapter, verse: from + i }))
+            const map = await window.bible.queryVerses(refs, textId).catch(() => ({} as Record<string, { text: string }>))
+            const text = refs.map((r) => map[`${r.bookId}.${r.chapter}.${r.verse}`]?.text ?? '').filter(Boolean).join(' ')
+            if (text) copyVerse(parsed.bookId, parsed.chapter, from, text, isLxx, to > from ? to : undefined)
+          })()
+        } },
+        { id: 'ref', label: 'Copy reference', onSelect: () => copyVerseRef(parsed.bookId, parsed.chapter, parsed.verse ?? 1, isLxx, parsed.endVerse) },
+        { id: 'newtab', label: 'Open in new tab', onSelect: () => { const st = useAppStore.getState(); st.createTab('bible'); openVerse(ref) } },
+      ])
+      return
+    }
+    const lexEl = target?.closest('.pm-lexicon-ref, .pm-lexicon-block-ref') as HTMLElement | null
+    if (lexEl) {
+      const id = (lexEl.getAttribute('data-strongs-id') || lexEl.textContent || '').trim().toUpperCase()
+      if (!id) return
+      void haptic.medium()
+      actions('note-strongs', id, [
+        { id: 'open', label: "Open Strong's entry", onSelect: () => openLexicon(id) },
+        { id: 'copy', label: 'Copy number', onSelect: () => { navigator.clipboard.writeText(id).catch(() => {}) } },
+        { id: 'lexicon', label: 'Open in Lexicon space', onSelect: () => { useAppStore.getState().openLexiconEntry(id, { noteId, title: latest.current?.title ?? '' }) } },
+      ])
+    }
+  })
   const openLexicon = useCallback((strongsId: string) => {
     sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={strongsId} api={api} onNavigate={() => setActiveSpace('scripture')} /> })
   }, [sheets, setActiveSpace])
@@ -145,7 +190,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /><IconTap icon={MoreHorizontal} label="Note actions" onClick={openActions} /></>}
     >
       {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
-      <div className="mobile-note-editor">
+      <div className="mobile-note-editor" {...refLongPress}>
         {note.verseRef && <div className="mobile-note-meta">{note.verseRef.replace(/\./g, ' ')}{note.textId ? ` · ${note.textId.toUpperCase()}` : ''}</div>}
         <NoteEditorPM
           content={note.content}

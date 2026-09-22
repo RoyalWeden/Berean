@@ -262,3 +262,21 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
   .mobile-chip, .mobile-input, .mobile-onboarding-option, .mobile-emoji-grid button { border: 1px solid rgb(var(--color-text-muted) / 0.6); }
   .mobile-page-header, .mobile-space-bar, .mobile-tab-row { border-color: rgb(var(--color-text-muted) / 0.6); }
 }
+
+/* Tab grid reorder mode (drag rows) */
+.mobile-tab-grid-head { display: flex; align-items: center; gap: 10px; }
+.mobile-tab-grid-head .mobile-muted { margin-left: auto; }
+.mobile-tab-reorder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mobile-tab-reorder-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 12px; border-radius: var(--m-radius); background: rgb(var(--color-surface-2)); border: 2px solid transparent; touch-action: none; -webkit-user-select: none; user-select: none; }
+.mobile-tab-reorder-row.is-active { border-color: rgb(var(--color-accent)); }
+.mobile-tab-reorder-grip { color: rgb(var(--color-text-muted)); flex: none; }
+.mobile-tab-reorder-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+
+/* Read Aloud queue page */
+.mobile-queue-add { display: flex; gap: 8px; padding: 4px 0 8px; }
+.mobile-queue-add .mobile-input { flex: 1; min-width: 0; }
+.mobile-queue-add .mobile-button { flex: none; width: 48px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.mobile-queue-item { display: flex; align-items: baseline; gap: 8px; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 12px 0; }
+.mobile-queue-item small { font-size: 11px; color: rgb(var(--color-text-muted)); }
+.mobile-queue-actions { display: flex; gap: 8px; padding-top: 10px; }
+.mobile-queue-actions .mobile-button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }

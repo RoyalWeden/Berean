@@ -1,5 +1,7 @@
-import React from 'react'
-import { X, Pin, Layers } from 'lucide-react'
+import React, { useState } from 'react'
+import { Reorder } from 'framer-motion'
+import { X, Pin, Layers, GripVertical, ArrowUpDown } from 'lucide-react'
+import { singleMove } from './reorderDiff'
 import { useAppStore } from '@/store'
 import type { SpaceId } from '@/types'
 import { haptic } from '../primitives/haptics'
@@ -17,6 +19,13 @@ export function TabGrid({ space, close, onOpenSessions, onTabActions }: { space:
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const closeTab = useAppStore((s) => s.closeTab)
   const session = useAppStore((s) => s.sessions.find((x) => x.id === s.currentSessionId))
+  const reorderTabs = useAppStore((s) => s.reorderTabs)
+  // Drag-to-reorder (R071): "Reorder" switches the grid to a one-column list whose rows drag
+  // (framer Reorder, one axis); each drop becomes the same `reorderTabs(space, from, to)` the
+  // desktop tab bar uses. Long-press → Move up / down stays for VoiceOver users.
+  const [reordering, setReordering] = useState(false)
+  const ids = tabs.map((t) => t.id)
+  const onReorder = (next: string[]) => { const mv = singleMove(ids, next); if (mv) { void haptic.selection(); reorderTabs(space, mv.from, mv.to) } }
   return (
     <div className="mobile-tab-grid">
       <div className="mobile-tab-grid-head">
@@ -24,8 +33,20 @@ export function TabGrid({ space, close, onOpenSessions, onTabActions }: { space:
           {(() => { const I = (SESSION_ICONS.find((i) => i.name === session?.icon) ?? { Icon: Layers }).Icon; return <I size={16} aria-hidden /> })()} {session?.name ?? 'Workspace'}
         </button>
         <span className="mobile-muted">{tabs.length} tab{tabs.length === 1 ? '' : 's'}</span>
+        {tabs.length > 1 && <button type="button" className={`mobile-chip${reordering ? ' is-on' : ''}`} aria-pressed={reordering} onClick={() => setReordering((r) => !r)}><ArrowUpDown size={14} aria-hidden /> {reordering ? 'Done' : 'Reorder'}</button>}
       </div>
       {tabs.length === 0 && <div className="mobile-empty">No open tabs in this space.</div>}
+      {reordering ? (
+        <Reorder.Group axis="y" values={ids} onReorder={onReorder} className="mobile-tab-reorder" as="ul">
+          {tabs.map((t) => (
+            <Reorder.Item key={t.id} value={t.id} className={`mobile-tab-reorder-row${t.id === activeId ? ' is-active' : ''}`} as="li" whileDrag={{ scale: 1.02, boxShadow: '0 8px 24px rgb(0 0 0 / 0.18)' }}>
+              <GripVertical size={18} aria-hidden className="mobile-tab-reorder-grip" />
+              <span className="mobile-tab-reorder-title">{tabTitle(t)}</span>
+              {t.isPinned && <Pin size={12} aria-label="Pinned" />}
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+      ) : (
       <div className="mobile-tab-cards">
         {tabs.map((t) => (
           <TabCard key={t.id} title={tabTitle(t)} pinned={!!t.isPinned} active={t.id === activeId}
@@ -34,6 +55,7 @@ export function TabGrid({ space, close, onOpenSessions, onTabActions }: { space:
             onLongPress={() => onTabActions(t.id)} />
         ))}
       </div>
+      )}
     </div>
   )
 }
