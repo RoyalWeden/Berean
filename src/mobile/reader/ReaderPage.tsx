@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { BookOpen, Hash, MoreHorizontal, Languages, ChevronLeft, ChevronRight, ALargeSmall } from 'lucide-react'
+import { BookOpen, Hash, Languages, ChevronLeft, ChevronRight, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
 import ChapterView from '@/components/bible/ChapterView'
@@ -9,7 +9,12 @@ import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { chapterForBookSwitch } from '@/lib/textCoverage'
 import { isHermasBook, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
-import { Page, IconTap } from '../primitives/Page'
+import { Page } from '../primitives/Page'
+import { useCaretCommands } from '../commands/caretRegistry'
+import { requestMore } from '../navigation/shellNav'
+import { makeCompareTab } from './compareState'
+import { TagPickerSheet } from '../study/TagPickerSheet'
+import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
@@ -17,7 +22,7 @@ import { perfMark } from '@/platform/ios/perf'
 import { SelectionBar } from '../study/SelectionBar'
 import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { ReferencePicker } from './ReferencePicker'
-import { usePinchFontSize } from './usePinchFontSize'
+import { usePinchFontSize, BIBLE_FONT_MAX, BIBLE_FONT_MIN } from './usePinchFontSize'
 import { ReaderOptionsSheet } from './ReaderOptionsSheet'
 import { useVerseSheets } from './verseSheets'
 import { useHideOnScroll } from './useHideOnScroll'
@@ -138,15 +143,48 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     })))
   }
   const openOptions = () => sheets.open({ id: 'reader-options', title: 'Reading', detents: [0.72, 0.92], render: () => <ReaderOptionsSheet /> })
-  const openMore = () => {
-    actions('reader-more', undefined, [
-      { id: 'strongs', label: state.showStrongs ? "Hide Strong's numbers" : "Show Strong's numbers", icon: Hash, onSelect: () => updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs }) },
-      { id: 'options', label: 'Reading options (text size, font, continuous scroll)…', icon: ALargeSmall, onSelect: openOptions },
-      { id: 'prev', label: neighbours.prev ? `Previous chapter (${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter})` : 'Previous chapter', icon: ChevronLeft, disabled: !neighbours.prev, onSelect: () => goNeighbour('prev') },
-      { id: 'next', label: neighbours.next ? `Next chapter (${bookName(neighbours.next.bookId)} ${neighbours.next.chapter})` : 'Next chapter', icon: ChevronRight, disabled: !neighbours.next, onSelect: () => goNeighbour('next') },
-    ])
-  }
   const continuous = useAppStore((s) => s.continuousChapterScroll)
+
+  // ── caret commands (TEST-033/034): everything the old translation / Aa / … controls did ──────
+  useCaretCommands(() => {
+    const st = useAppStore.getState()
+    const ref = `${bookName(state.bookId)} ${state.chapter}`
+    return {
+      title: ref, subtitle: TRANSLATIONS.find((t) => t.id === textId)?.description ?? textId.toUpperCase(),
+      sections: [
+        { id: 'quick', style: 'tiles', commands: [
+          { kind: 'action', id: 'translation', label: textId.toUpperCase(), detail: 'Translation', icon: Languages, run: openTranslation },
+          { kind: 'action', id: 'goto', label: 'Go to', icon: BookOpen, run: openReference },
+          { kind: 'toggle', id: 'strongs', label: "Strong's", icon: Hash, value: !!state.showStrongs, set: (v) => updateTabState('scripture', tab.id, { showStrongs: v }) },
+          { kind: 'action', id: 'audio', label: 'Read aloud', icon: Volume2, run: () => st.startPlaybackFrom(state.bookId, state.chapter, 1, textId) },
+        ] },
+        { id: 'reading', title: 'Reading', commands: [
+          { kind: 'segmented', id: 'quick-translation', label: 'Text', icon: Languages, value: textId === 'lxx' ? 'lxx' : textId === 'kjva' ? 'kjva' : '', options: [['kjva', 'KJV'], ['lxx', 'LXX']], set: (v) => updateTabState('scripture', tab.id, { translation: v.toUpperCase() }) },
+          { kind: 'action', id: 'all-translations', label: 'All translations…', icon: Languages, run: openTranslation },
+          { kind: 'stepper', id: 'size', label: 'Text size', icon: ALargeSmall, value: st.bibleFontSize, min: BIBLE_FONT_MIN, max: BIBLE_FONT_MAX, set: st.setBibleFontSize },
+          { kind: 'segmented', id: 'line-height', label: 'Line height', icon: AlignJustify, value: st.bibleLineHeight, options: [['compact', 'Compact'], ['comfortable', 'Normal'], ['spacious', 'Airy']], set: (v) => st.setBibleLineHeight(v as 'compact' | 'comfortable' | 'spacious') },
+          { kind: 'toggle', id: 'continuous', label: 'Continuous scroll', detail: 'Chapters flow into one page', icon: ScrollText, value: st.continuousChapterScroll, set: st.setContinuousChapterScroll },
+          { kind: 'toggle', id: 'verse-numbers', label: 'Verse numbers', icon: Hash, value: st.showVerseNumbers, set: st.setShowVerseNumbers },
+          { kind: 'toggle', id: 'red-letters', label: 'Red letter text', icon: Type, value: st.showRedLetters, set: st.setShowRedLetters },
+          { kind: 'action', id: 'reading-more', label: 'Font, theme and more reading options…', icon: Palette, run: openOptions },
+        ] },
+        { id: 'navigate', title: 'Navigate', commands: [
+          { kind: 'action', id: 'prev', label: neighbours.prev ? `Previous chapter · ${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter}` : 'Previous chapter', icon: ChevronLeft, disabled: !neighbours.prev, run: () => goNeighbour('prev') },
+          { kind: 'action', id: 'next', label: neighbours.next ? `Next chapter · ${bookName(neighbours.next.bookId)} ${neighbours.next.chapter}` : 'Next chapter', icon: ChevronRight, disabled: !neighbours.next, run: () => goNeighbour('next') },
+          { kind: 'action', id: 'compare', label: 'Compare translations', icon: Columns2, run: () => st.addTab(makeCompareTab({ ...state }, state.targetVerse)) },
+        ] },
+        { id: 'study', title: 'Study', commands: [
+          { kind: 'segmented', id: 'xref-source', label: 'Cross references', icon: GitFork, value: st.crossRefSource === 'classic' ? 'classic' : 'tske', options: [['tske', 'TSKe'], ['classic', 'Classic']], set: (v) => st.setCrossRefSource(v as 'tske' | 'classic') },
+          { kind: 'action', id: 'tag-chapter', label: `Tag ${ref}…`, icon: TagIcon, run: () => { const ranges = chapterRanges(state.bookId, state.chapter); sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={rangesLabel(ranges)} kind="chapter" api={api} /> }) } },
+          { kind: 'action', id: 'trail', label: 'Study trail', icon: Route, run: () => requestMore('trail') },
+        ] },
+        { id: 'share', title: 'Share', commands: [
+          { kind: 'action', id: 'copy-ref', label: `Copy “${ref}”`, icon: Copy, run: () => { void navigator.clipboard.writeText(ref) } },
+          { kind: 'action', id: 'share', label: 'Share chapter…', icon: Share2, run: () => { void import('@capacitor/share').then(({ Share }) => Share.share({ title: ref, text: ref }).catch(() => {})) } },
+        ] },
+      ],
+    }
+  })
 
   // ── top bar hides while reading downward (TEST-029) ─────────────────────────────────────
   const readerRef = useRef<HTMLDivElement>(null)
@@ -162,9 +200,9 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     <Page
       noScroll
       className={`is-reader${headerHidden ? ' is-header-hidden' : ''}`}
-      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Go to a passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
-      left={<IconTap icon={Languages} label={`Translation: ${textId.toUpperCase()}`} onClick={openTranslation} />}
-      right={<><IconTap icon={ALargeSmall} label="Reading options" onClick={openOptions} /><IconTap icon={MoreHorizontal} label="More" onClick={openMore} /></>}
+      // Translation, Reading (Aa) and "…" moved into the caret (TEST-033/034); the title stays the
+      // passage navigator (TEST-041).
+      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}, ${textId.toUpperCase()}. Go to a passage`}><BookOpen size={16} aria-hidden /> {title}<span className="mobile-title-sub">{textId.toUpperCase()}</span></button>}
     >
       <VerseInteractionContext.Provider value={verseInteraction}>
       <div className="mobile-reader" ref={readerRef} {...pinch.handlers}>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { BookOpen, ChevronLeft, ChevronRight, MoreHorizontal, Hash, Plus, X, Columns2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab, Verse, VerseTagLite, HighlightColor } from '@/types'
@@ -130,11 +131,22 @@ export function ComparePage({ tab }: { tab: Tab }) {
     id: 'reference', title: 'Go to', detents: [0.92],
     render: (api) => <ReferencePicker books={books} bookId={lead.bookId} chapter={lead.chapter} onPick={(b, c, v) => { api.close(); goTo(b, c, v) }} />,
   })
-  const openMore = () => actions('compare-more', undefined, [
+  const compareActionList = () => [
     { id: 'strongs', label: state.showStrongs ? "Hide Strong's numbers" : "Show Strong's numbers", icon: Hash, onSelect: () => updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs }) },
     { id: 'sync', label: state.compareSyncScroll ? 'Stop syncing scroll on Mac' : 'Sync scroll on Mac (matching chapters)', icon: Columns2, onSelect: () => updateTabState('scripture', tab.id, { compareSyncScroll: !state.compareSyncScroll }) },
     { id: 'exit', label: 'Exit compare (keep first text)', icon: X, onSelect: () => collapseIfSingle([columns[0]]) },
-  ])
+  ]
+  // Compare's caret (TEST-033): the former "…" menu plus passage / column actions.
+  useCaretCommands(() => ({
+    title: `${bookName(lead.bookId)} ${lead.chapter}`, subtitle: 'Compare',
+    sections: [
+      { id: 'quick', style: 'tiles', commands: [
+        { kind: 'action', id: 'goto', label: 'Go to', icon: BookOpen, run: openReference },
+        { kind: 'action', id: 'add', label: 'Add text', icon: Plus, run: () => pickTranslation('Add translation', (t) => setColumns(addColumn(columns, t))) },
+      ] },
+      ...fromSheetActions(compareActionList(), { title: 'Compare' }),
+    ],
+  }))
 
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const title = `${leadBook?.name ?? bookName(lead.bookId)} ${lead.chapter}`
@@ -142,7 +154,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
     <Page noScroll
       title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Choose passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
       left={<IconTap icon={ChevronLeft} label="Previous chapter" disabled={prev == null} onClick={() => { if (prev != null) { void haptic.selection(); goTo(lead.bookId, prev) } }} />}
-      right={<><IconTap icon={ChevronRight} label="Next chapter" disabled={next == null} onClick={() => { if (next != null) { void haptic.selection(); goTo(lead.bookId, next) } }} /><IconTap icon={MoreHorizontal} label="More" onClick={openMore} /></>}
+      right={<><IconTap icon={ChevronRight} label="Next chapter" disabled={next == null} onClick={() => { if (next != null) { void haptic.selection(); goTo(lead.bookId, next) } }} /></>}
       headerBelow={
         <div className="mobile-chip-row mobile-chip-row-scroll m-compare-chips" role="list" aria-label="Translations">
           {columns.map((c, i) => (

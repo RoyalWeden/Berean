@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { Plus, CalendarDays, Folder, FolderPlus, Pin, Trash2, Search, MoreHorizontal } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
@@ -101,12 +102,23 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     })
     input.click()
   }
-  const homeActions = () => actions('notes-home', 'Notes', [
+  const homeActionList = () => [
     { id: 'import', label: 'Import Markdown file…', onSelect: importMarkdown },
     ...(hasIdioms ? [{ id: 'idioms', label: 'Export all idioms (PDF)…', onSelect: () => setIdiomsOpen(true) }] : []),
     { id: 'folder', label: 'New folder…', onSelect: () => { void newFolder(null) } },
     { id: 'desktop', label: 'All views (desktop layout)', onSelect: () => nav.push('notes-desktop', <DesktopNotesPage onBack={nav.pop} />) },
-  ])
+  ]
+  // Notes' caret (TEST-033): new note / today first, then the former "…" menu (moved, not copied).
+  useCaretCommands(() => ({
+    title: 'Notes',
+    sections: [
+      { id: 'quick', style: 'tiles', commands: [
+        { kind: 'action', id: 'new', label: 'New note', icon: Plus, run: () => { void create({}) } },
+        { kind: 'action', id: 'daily', label: 'Today', icon: CalendarDays, run: () => { void openDaily() } },
+      ] },
+      ...fromSheetActions(homeActionList(), { title: 'Notes' }),
+    ],
+  }))
 
   const user = notes   // every note (verse and daily notes included — they are first-class on the phone)
   const pinned = useMemo(() => user.filter((n) => n.pinned), [user])
@@ -149,7 +161,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     <Page
       title="Notes"
       left={<IconTap icon={CalendarDays} label="Today's daily note" onClick={() => void openDaily()} />}
-      right={<><IconTap icon={MoreHorizontal} label="Notes actions" onClick={homeActions} /><IconTap icon={Plus} label="New note" onClick={() => void create({})} /></>}
+      right={<IconTap icon={Plus} label="New note" onClick={() => void create({})} />}
       headerBelow={
         <div className="mobile-search-row">
           <Search size={16} aria-hidden />

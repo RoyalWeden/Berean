@@ -6,7 +6,10 @@ import { renderToString } from 'react-dom/server'
 import { NavigationStack, useNavigation } from '../navigation/NavigationStack'
 import { Page, Row, ListSection } from '../primitives/Page'
 import { ActionList } from '../primitives/ActionSheet'
-import { SpaceBar, destinationForSpace } from '../tabs/SpaceBar'
+import { classifyNewTabQuery } from '../navigation/NewTabSheet'
+import { workspaceTabs, tabKind } from '../tabs/TabCardsSheet'
+import { caretRegistry, fromSheetActions } from '../commands/caretRegistry'
+import type { Tab, SpaceId } from '@/types'
 import { ReferencePicker, matchBooks } from '../reader/ReferencePicker'
 import { parseDeepLink } from '@/lib/deepLinks'
 import { useLongPress } from '../primitives/useLongPress'
@@ -72,16 +75,39 @@ describe('mobile primitives', () => {
     unmount()
   })
 
-  it('SpaceBar maps every store space to a destination and marks the current one', () => {
-    expect(destinationForSpace('scripture')).toBe('scripture')
-    expect(destinationForSpace('notes')).toBe('notes')
-    expect(destinationForSpace('search')).toBe('search')
-    expect(destinationForSpace('lexicon')).toBe('more')
-    expect(destinationForSpace('youtube')).toBe('more')
-    const html = renderToString(<SpaceBar current="notes" onSelect={() => {}} />)
-    expect(html.match(/aria-current="page"/g)?.length).toBe(1)
-    expect(html).toContain('Scripture')
-    expect(html).toContain('More')
+  it('plus sheet classifies a query: reference, Strong\'s number, text (TEST-032)', () => {
+    expect(classifyNewTabQuery('John 3:16')).toMatchObject({ kind: 'ref', bookId: 'JHN', chapter: 3, verse: 16 })
+    expect(classifyNewTabQuery('Genesis 1')).toMatchObject({ kind: 'ref', bookId: 'GEN', chapter: 1 })
+    expect(classifyNewTabQuery('Psalm 23')).toMatchObject({ kind: 'ref', bookId: 'PSA', chapter: 23 })
+    expect(classifyNewTabQuery('Romans 8:28')).toMatchObject({ kind: 'ref', bookId: 'ROM', chapter: 8, verse: 28 })
+    expect(classifyNewTabQuery('H7225')).toEqual({ kind: 'strongs', num: 'H7225' })
+    expect(classifyNewTabQuery('love one another')).toEqual({ kind: 'text', text: 'love one another' })
+    expect(classifyNewTabQuery('  ')).toEqual({ kind: 'empty' })
+  })
+
+  it('tab cards list every tab of the workspace, all types together (TEST-022/031)', () => {
+    const t = (id: string, spaceId: SpaceId, type: Tab['type'], extra: object = {}) => ({ id, spaceId, type, title: id, state: extra } as unknown as Tab)
+    const tabs = { scripture: [t('b1', 'scripture', 'bible'), t('c1', 'scripture', 'bible', { compareMode: true })], notes: [t('n1', 'notes', 'note')], lexicon: [t('l1', 'lexicon', 'lexicon')], youtube: [t('y1', 'youtube', 'youtube')], search: [t('s1', 'search', 'search')] }
+    const all = workspaceTabs(tabs as Record<SpaceId, Tab[]>)
+    expect(all.map((e) => e.tab.id)).toEqual(['b1', 'c1', 'n1', 'l1', 'y1', 's1'])
+    expect(tabKind(tabs.scripture[1]).label).toBe('Compare')
+    expect(tabKind(tabs.notes[0]).label).toBe('Note')
+  })
+
+  it('caret registry: the most recently mounted page owns the caret; unmount hands it back', () => {
+    caretRegistry.reset()
+    const offA = caretRegistry.register(() => ({ title: 'Notes', sections: [] }))
+    const offB = caretRegistry.register(() => ({ title: 'Note editor', sections: [] }))
+    expect(caretRegistry.top()!().title).toBe('Note editor')
+    offB()
+    expect(caretRegistry.top()!().title).toBe('Notes')
+    offA()
+    expect(caretRegistry.top()).toBeNull()
+  })
+
+  it('fromSheetActions reuses existing action definitions, promoting tiles', () => {
+    const secs = fromSheetActions([{ id: 'pin', label: 'Pin', onSelect: () => {} }, { id: 'trash', label: 'Move to trash', destructive: true, onSelect: () => {} }], { tiles: ['pin'], title: 'Note' })
+    expect(secs.map((x) => [x.style ?? 'rows', x.commands.map((c) => c.id)])).toEqual([['tiles', ['pin']], ['rows', ['trash']]])
   })
 
   it('ReferencePicker (passage navigator, TEST-041): typed refs, ranges, full-name filtering, book → chapter → verse range', () => {

@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCaretCommands } from '../commands/caretRegistry'
+import { requestMore } from '../navigation/shellNav'
 import { Search, SlidersHorizontal, X, Clock, ArrowUp, ArrowDown, Tag } from 'lucide-react'
 import type { Note, LexiconEntry, VerseTagMember } from '@/types'
 import { useAppStore } from '@/store'
@@ -168,6 +170,25 @@ export function SearchPage() {
   const { limit, grow, sentinelRef } = useIncrementalLimit(groups, RESULT_CHUNK)
   const page = useMemo(() => takeGroupRows(groups, limit), [groups, limit])
   const filterCount = (textId !== 'all' ? 1 : 0) + (books.length ? 1 : 0) + (wordMode !== 'all' ? 1 : 0) + (tagIds.length ? 1 : 0) + (sort !== 'relevance' ? 1 : 0)
+
+  // Search's caret (TEST-033): scope, filters, sort, clearing — the search tab's own commands.
+  useCaretCommands(() => ({
+    title: query.trim() ? `Search · “${query.trim()}”` : 'Search',
+    sections: [
+      { id: 'scope', title: 'Search in', commands: [
+        { kind: 'segmented', id: 'scope', label: 'Scope', value: scope, options: [['scripture', 'Scripture'], ['notes', 'Notes'], ['lexicon', 'Lexicon']], set: (v) => setScope(v as Scope) },
+      ] },
+      ...(scope === 'scripture' ? [{ id: 'scripture', title: 'Scripture results', commands: [
+        { kind: 'action' as const, id: 'filters', label: filterCount ? `Filters (${filterCount})…` : 'Filters…', detail: 'Texts, books, word mode, tags', run: openFilters },
+        { kind: 'segmented' as const, id: 'sort', label: 'Sort', value: sort, options: [['relevance', 'Relevance'], ['bookOrder', 'Bible order']] as Array<[string, string]>, set: (v: string) => setFilters((f) => ({ ...f, sort: v as SearchSortMode, direction: naturalDirection(v as SearchSortMode) })) },
+        { kind: 'action' as const, id: 'reset', label: 'Reset filters', disabled: filterCount === 0, run: () => setFilters(DEFAULT_SEARCH_FILTERS) },
+      ] }] : []),
+      { id: 'more', commands: [
+        { kind: 'action', id: 'clear', label: 'Clear search', disabled: !query, run: () => setQuery('') },
+        { kind: 'action', id: 'history', label: 'History', run: () => requestMore('history') },
+      ] },
+    ],
+  }))
   const snippetQuery = browsing ? '' : query
 
   const openFilters = () => sheets.open({ id: 'search-filters', title: 'Filters', detents: [0.75, 0.92], render: (api) => (

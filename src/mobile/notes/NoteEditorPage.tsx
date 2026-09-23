@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { MoreHorizontal, Eye, Pencil } from 'lucide-react'
 import type { Note, NoteFolder, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
@@ -161,10 +162,10 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   // the space) → the timestamp action asks the player for its position (berean:requestTimestamp
   // → YouTubeTab → berean:insertTimestamp → NoteEditorPM).
   const ytVideoOpen = useAppStore((s) => { const t = s.tabs.youtube.find((x) => x.id === s.activeTabId.youtube) ?? s.tabs.youtube[0]; return !!(t?.state as { videoId?: string | null } | undefined)?.videoId })
-  const openActions = () => {
+  const actionList = () => {
     const n = latest.current
-    if (!n) return
-    actions('note-actions', n.title || 'Untitled', [
+    if (!n) return []
+    return [
       { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { latest.current = { ...n, pinned: !n.pinned }; setNote(latest.current); bumpNoteToken() }) } },
       { id: 'status', label: `Status${n.status ? ` (${NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status})` : ''}…`, onSelect: () => actions('note-status', 'Status', [
         { id: 'none', label: 'No status', onSelect: () => persist({ status: null }) },
@@ -179,8 +180,14 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       { id: 'share', label: 'Share…', onSelect: () => { void shareNote(n) } },
       { id: 'export-md', label: 'Export Markdown file…', onSelect: () => { void exportNoteFile(n) } },
       { id: 'trash', label: 'Move to trash', destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { bumpNoteToken(); onBack() }) } },
-    ])
+    ]
   }
+  // The note's caret (TEST-033): the former "…" note actions, the frequent ones as tiles.
+  useCaretCommands(() => ({
+    title: latest.current?.title || 'Untitled note',
+    subtitle: 'Note',
+    sections: fromSheetActions(actionList(), { tiles: ['pin', 'share', 'copy', 'print'], tileLabels: { copy: 'Copy', print: 'Print / PDF', share: 'Share' }, title: 'Note' }),
+  }), note != null)
 
   if (note === undefined) return <Page title="Note" onBack={onBack}><div className="mobile-empty">Loading…</div></Page>
   if (note === null) return <Page title="Note" onBack={onBack}><div className="mobile-empty">This note no longer exists.</div></Page>
@@ -189,7 +196,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       noScroll
       onBack={onBack}
       title={<span className="mobile-title-wrap">{note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}<input className="mobile-title-input" value={note.title} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: e.target.value })} /></span>}
-      right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /><IconTap icon={MoreHorizontal} label="Note actions" onClick={openActions} /></>}
+      right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /></>}
     >
       {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
       <div className="mobile-note-editor" {...refLongPress}>

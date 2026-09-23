@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { applyThemeToDocument } from '@/lib/applyTheme'
@@ -26,15 +26,20 @@ import { SheetHost, useSheets } from './primitives/Sheet'
 import { useActionSheet } from './primitives/ActionSheet'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
 import { Page, ListSection, Row } from './primitives/Page'
-import { SpaceBar, destinationForSpace, type MobileDestination } from './tabs/SpaceBar'
-import { TabPill } from './tabs/TabPill'
-import { TabGrid } from './tabs/TabGrid'
+import { TabCardsSheet } from './tabs/TabCardsSheet'
+import { BottomNav } from './navigation/BottomNav'
+import { useMoreRouteRequests } from './navigation/shellNav'
+import { NewTabSheet } from './navigation/NewTabSheet'
+import { CaretSheet } from './commands/CaretSheet'
+import { caretRegistry, useCaretTopVersion, useCaretCommands } from './commands/caretRegistry'
+import { staticCaretScope, type MoreRoute } from './commands/staticCommands'
 import { SessionSwitcher } from './tabs/SessionSwitcher'
 import { WorkspacesPage } from './tabs/WorkspacesPage'
 import { ArchivePage } from './tabs/ArchivePage'
 import { SESSION_ICONS } from '@/components/shell/Sidebar'
 import { ReaderPage } from './reader/ReaderPage'
 import { SettingsPage } from './settings/SettingsPage'
+import { YouTubeSettingsPage } from './settings/YouTubeSettingsPage'
 import { NotesHomePage } from './notes/NotesHomePage'
 import { NoteEditorPage } from './notes/NoteEditorPage'
 import { SearchPage } from './search/SearchPage'
@@ -76,17 +81,21 @@ export default function MobileApp() {
 
 function Shell() {
   const activeSpace = useAppStore((s) => s.activeSpace)
-  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const destination: MobileDestination = destinationForSpace(activeSpace)
-  const onSelect = (d: MobileDestination) => {
-    if (d === 'more') { setMoreVisible(true); return }
-    setMoreVisible(false)
-    setActiveSpace(d)
-  }
-  const [moreVisible, setMoreVisible] = useState(false)
-  // The More page shows only when explicitly opened; a More-hosted space (Lexicon, YouTube)
-  // renders its own root while the bar keeps "More" highlighted.
-  const showMore = moreVisible
+  // More (and its sub-pages) — reached from the plus sheet, the caret and deep links now that the
+  // bottom space bar is gone (TEST-030). `null` = the active tab is showing.
+  const [moreRoute, setMoreRoute] = useState<MoreRoute | null>(null)
+  const openMore = useCallback((route: MoreRoute) => setMoreRoute(route), [])
+  const closeMore = useCallback(() => setMoreRoute(null), [])
+  // Any tab activation (tab cards, plus, deep link, navigation) leaves More.
+  const activeKey = useAppStore((s) => `${s.activeSpace}:${s.activeTabId[s.activeSpace] ?? ''}`)
+  const lastActiveKey = useRef(activeKey)
+  useEffect(() => { if (activeKey !== lastActiveKey.current) { lastActiveKey.current = activeKey; setMoreRoute(null) } }, [activeKey])
+  const showMore = moreRoute != null
+  useMoreRouteRequests(openMore)
+  // window.app.openStudyTrailWindow() (note embeds, deep links, the reader's caret) opens the Study
+  // trail page wherever the user is — not only while More happens to be mounted.
+  const openTrailRoute = useCallback(() => setMoreRoute((r) => (r === 'trail' ? r : 'trail')), [])
+  useOpenStudyTrailPageEvent(openTrailRoute)
   useEffect(() => { setIosDeepLinkTarget({ ...storeDeepLinkTarget, openShareInbox: () => { void drainShareInbox() } }); return () => setIosDeepLinkTarget(null) }, [])
 
   // The YouTube space stays mounted (parked, hidden) while a video tab is open and another space
@@ -96,11 +105,12 @@ function Shell() {
   const ytVideoOpen = useAppStore((s) => { const t = s.tabs.youtube.find((x) => x.id === s.activeTabId.youtube) ?? s.tabs.youtube[0]; return !!(t?.state as { videoId?: string | null } | undefined)?.videoId })
   const youtubeShowing = !showMore && activeSpace === 'youtube'
   const youtubeParked = !youtubeShowing && ytVideoOpen
+  const nav = useShellSheets({ openMore })
 
   return (
     <div className="mobile-root">
       <main className="mobile-main">
-        {showMore && <NavigationStack rootKey="more" root={<MorePage onOpenSpace={(sp) => { setActiveSpace(sp); setMoreVisible(false) }} />} />}
+        {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {!showMore && activeSpace !== 'youtube' && <NavigationStack key={activeSpace} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
         {(youtubeShowing || youtubeParked) && (
           <div key="youtube-space" className={youtubeParked ? 'mobile-space-parked' : 'mobile-space-live'} aria-hidden={youtubeParked || undefined}>
@@ -109,13 +119,65 @@ function Shell() {
         )}
       </main>
       <AudioBar />
-      <VerseDragIndicator />
-      {/* "Why did you jump?" pill (Study Trail, when the setting is on) — above the bottom bars. */}
-      <StudyTrailArrivalPrompt bottomInset={116} />
-      {!showMore && <SpaceTabRow space={activeSpace} />}
-      <SpaceBar current={showMore ? 'more' : destination} onSelect={onSelect} />
+      {/* "Why did you jump?" pill (Study Trail, when the setting is on) — above the bottom bar. */}
+      <StudyTrailArrivalPrompt bottomInset={96} />
+      <BottomNav onTabs={nav.openTabs} onPlus={nav.openPlus} onCaret={nav.openCaret} caretLabel={nav.caretLabel} />
     </div>
   )
+}
+
+/** The three bottom-control surfaces (tab cards, plus, caret) + the tab / workspace action sheets
+ *  that used to hang off the tab pill and grid. */
+function useShellSheets({ openMore }: { openMore: (r: MoreRoute) => void }) {
+  const sheets = useSheets()
+  const actions = useActionSheet()
+  useCaretTopVersion() // re-render when the page that owns the caret changes
+  const activeSpace = useAppStore((s) => s.activeSpace)
+  const activeTab = useAppStore((s) => s.tabs[s.activeSpace].find((t) => t.id === s.activeTabId[s.activeSpace]) ?? null)
+
+  const openSessions = useCallback(() => sheets.open({ id: 'sessions', title: 'Workspaces', detents: [0.6, 0.92], render: (api) => (
+    <SessionSwitcher close={api.close} onActions={(id) => {
+      const s = useAppStore.getState()
+      const session = s.sessions.find((x) => x.id === id)
+      actions('session-actions', session?.name, [
+        { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Workspace name', session?.name ?? ''); if (n?.trim()) s.renameSession(id, n.trim()) } },
+        { id: 'icon', label: 'Icon…', onSelect: () => actions('session-icon', 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, onSelect: () => s.setSessionIcon(id, i.name) }))) },
+        { id: 'archive-all', label: 'Archive all tabs in this workspace', onSelect: () => s.archiveAllTabs(session?.name) },
+        { id: 'delete', label: 'Delete workspace', destructive: true, disabled: s.sessions.length <= 1, onSelect: () => { if (confirm(`Delete "${session?.name}" and close its tabs?`)) s.deleteSession(id) } },
+      ])
+    }} />
+  ) }), [sheets, actions])
+
+  const tabActions = useCallback((space: SpaceId, tabId: string) => {
+    const s = useAppStore.getState()
+    const t = s.tabs[space].find((x) => x.id === tabId)
+    if (!t) return
+    const idx = s.tabs[space].findIndex((x) => x.id === tabId)
+    const others = s.sessions.filter((x) => x.id !== s.currentSessionId)
+    actions('tab-actions', t.title, [
+      { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Tab name', t.title); if (n?.trim()) s.renameTab(space, tabId, n.trim()) } },
+      { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { s.addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
+      { id: 'up', label: 'Move up', disabled: idx <= 0, onSelect: () => s.reorderTabs(space, idx, idx - 1) },
+      { id: 'down', label: 'Move down', disabled: idx < 0 || idx >= s.tabs[space].length - 1, onSelect: () => s.reorderTabs(space, idx, idx + 1) },
+      { id: 'move', label: 'Move to workspace…', disabled: others.length === 0, onSelect: () => actions('tab-move', 'Move to', others.map((x) => ({ id: x.id, label: x.name, onSelect: () => s.moveTabToSession(space, tabId, x.id) }))) },
+      { id: 'archive', label: 'Archive tab', onSelect: () => s.archiveTab(space, tabId) },
+      { id: 'close-others', label: 'Close other tabs of this type', onSelect: () => { for (const o of s.tabs[space]) if (o.id !== tabId && !o.isPinned) s.closeTab(space, o.id) } },
+      { id: 'close', label: 'Close tab', destructive: true, onSelect: () => s.closeTab(space, tabId) },
+    ])
+  }, [actions])
+
+  const openPlus = useCallback(() => sheets.open({ id: 'new-tab', detents: [0.92], render: (api) => <NewTabSheet close={api.close} openMore={(r) => openMore(r)} /> }), [sheets, openMore])
+  const openTabs = useCallback(() => sheets.open({ id: 'tabs', detents: [0.62, 0.92], render: (api) => (
+    <TabCardsSheet close={api.close} onOpenSessions={() => { api.close(); openSessions() }} onTabActions={tabActions}
+      onNewTab={openPlus} onOpenArchive={() => { api.close(); openMore('archive') }} />
+  ) }), [sheets, openSessions, tabActions, openPlus, openMore])
+  const scopeFor = useCallback(() => caretRegistry.top() ?? (() => staticCaretScope(useAppStore.getState().activeSpace, (() => { const s = useAppStore.getState(); return s.tabs[s.activeSpace].find((t) => t.id === s.activeTabId[s.activeSpace]) ?? null })(), { openMore })), [openMore])
+  const openCaret = useCallback(() => {
+    const scope = scopeFor()
+    sheets.open({ id: 'caret', detents: [0.62, 0.92], render: (api) => <CaretSheet scope={scope} api={api} /> })
+  }, [sheets, scopeFor])
+  const caretTitle = (() => { try { return scopeFor()().title } catch { return activeTab?.title ?? activeSpace } })()
+  return { openTabs, openPlus, openCaret, caretLabel: `Actions for ${caretTitle}` }
 }
 
 /** The active tab of a space, rendered by the page that knows its type. */
@@ -199,54 +261,40 @@ function EmptySpace({ space }: { space: SpaceId }) {
   )
 }
 
-function SpaceTabRow({ space }: { space: SpaceId }) {
-  const sheets = useSheets()
-  const actions = useActionSheet()
-  const createTab = useAppStore((s) => s.createTab)
-  const kind = space === 'scripture' ? 'bible' : space === 'notes' ? 'note' : space === 'lexicon' ? 'lexicon' : space === 'youtube' ? 'youtube' : 'search'
-  const openSessions = () => sheets.open({ id: 'sessions', title: 'Workspaces', detents: [0.6, 0.92], render: (api) => (
-    <SessionSwitcher close={api.close} onActions={(id) => {
-      const s = useAppStore.getState()
-      const session = s.sessions.find((x) => x.id === id)
-      actions('session-actions', session?.name, [
-        { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Workspace name', session?.name ?? ''); if (n?.trim()) s.renameSession(id, n.trim()) } },
-        { id: 'icon', label: 'Icon…', onSelect: () => actions('session-icon', 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, onSelect: () => s.setSessionIcon(id, i.name) }))) },
-        { id: 'archive-all', label: 'Archive all tabs in this workspace', onSelect: () => s.archiveAllTabs(session?.name) },
-        { id: 'delete', label: 'Delete workspace', destructive: true, disabled: s.sessions.length <= 1, onSelect: () => { if (confirm(`Delete "${session?.name}" and close its tabs?`)) s.deleteSession(id) } },
-      ])
-    }} />
-  ) })
-  const openGrid = () => sheets.open({ id: 'tabs', title: undefined, detents: [0.7, 0.92], render: (api) => (
-    <TabGrid space={space} close={api.close} onOpenSessions={() => { api.close(); openSessions() }} onTabActions={(tabId) => {
-      const s = useAppStore.getState()
-      const t = s.tabs[space].find((x) => x.id === tabId)
-      if (!t) return
-      const idx = s.tabs[space].findIndex((x) => x.id === tabId)
-      const others = s.sessions.filter((x) => x.id !== s.currentSessionId)
-      actions('tab-actions', t.title, [
-        { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Tab name', t.title); if (n?.trim()) s.renameTab(space, tabId, n.trim()) } },
-        { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { s.addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
-        { id: 'up', label: 'Move up', disabled: idx <= 0, onSelect: () => s.reorderTabs(space, idx, idx - 1) },
-        { id: 'down', label: 'Move down', disabled: idx < 0 || idx >= s.tabs[space].length - 1, onSelect: () => s.reorderTabs(space, idx, idx + 1) },
-        { id: 'move', label: 'Move to workspace…', disabled: others.length === 0, onSelect: () => actions('tab-move', 'Move to', others.map((x) => ({ id: x.id, label: `${x.icon ? '' : ''}${x.name}`, onSelect: () => s.moveTabToSession(space, tabId, x.id) }))) },
-        { id: 'archive', label: 'Archive tab', onSelect: () => s.archiveTab(space, tabId) },
-        { id: 'close-others', label: 'Close other tabs', onSelect: () => { for (const o of s.tabs[space]) if (o.id !== tabId && !o.isPinned) s.closeTab(space, o.id) } },
-        { id: 'close', label: 'Close tab', destructive: true, onSelect: () => s.closeTab(space, tabId) },
-      ])
-    }} />
-  ) })
-  return <TabPill space={space} onOpenGrid={openGrid} onNewTab={() => createTab(kind)} />
-}
-
-function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
+function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space: SpaceId) => void; initialRoute: MoreRoute | null; onClose: () => void }) {
   const nav = useNavigation()
-  const openSettings = () => nav.push('settings', <SettingsPage onBack={nav.pop} />)
+  const openSettings = useCallback(() => nav.push('settings', <SettingsPage onBack={nav.pop} />), [nav])
   const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
   const openTrail = useCallback(() => nav.push('trail', <StudyTrailPage onBack={nav.pop} onOpenSpace={onOpenSpace} />), [nav, onOpenSpace])
-  // `window.app.openStudyTrailWindow()` (notes' trail embeds, deep links) lands here on the phone.
-  useOpenStudyTrailPageEvent(openTrail)
+  // (window.app.openStudyTrailWindow() is handled by the shell — it opens More at the trail route.)
+  // Opened for a specific destination (plus sheet, caret, deep link): push it straight away; Back
+  // from it returns to the More list, and More's Done returns to the tab.
+  useEffect(() => {
+    const push: Partial<Record<MoreRoute, () => void>> = {
+      settings: openSettings,
+      history: () => nav.push('history', <HistoryPage onBack={nav.pop} />),
+      workspaces: () => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />),
+      archive: () => nav.push('archive', <ArchivePage onBack={nav.pop} />),
+      transcripts: () => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />),
+      'youtube-settings': () => nav.push('settings-youtube', <YouTubeSettingsPage onBack={nav.pop} />),
+      trail: openTrail,
+      queue: () => nav.push('queue', <QueuePage onBack={nav.pop} />),
+      pdfs: () => nav.push('pdfs', <PdfLibraryPage onBack={nav.pop} onOpen={() => onOpenSpace('scripture')} />),
+    }
+    if (initialRoute && initialRoute !== 'more') push[initialRoute]?.()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // The caret on More: its navigation, not a copy of the list below (brief §28 "More / Settings").
+  useCaretCommands(() => ({
+    title: 'More',
+    sections: [{ id: 'more', commands: [
+      { kind: 'action', id: 'back', label: 'Back to the current tab', icon: ArrowLeft, run: onClose },
+      { kind: 'action', id: 'settings', label: 'Settings', icon: SettingsIcon, run: openSettings },
+      { kind: 'action', id: 'history', label: 'History', icon: History, run: () => nav.push('history', <HistoryPage onBack={nav.pop} />) },
+    ] }],
+  }))
   return (
-    <Page title="More">
+    <Page title="More" right={<button type="button" className="mobile-link-button" onClick={onClose}>Done</button>}>
       <ListSection title="Spaces">
         <Row leading={<BookMarked size={20} aria-hidden />} title="Lexicon" subtitle="Strong's entries, search, occurrences" chevron onClick={() => onOpenSpace('lexicon')} />
         <Row leading={<Youtube size={20} aria-hidden />} title="YouTube" subtitle="Channels, transcripts, watch positions" chevron onClick={() => onOpenSpace('youtube')} />
