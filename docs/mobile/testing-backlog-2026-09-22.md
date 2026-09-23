@@ -87,3 +87,43 @@ Columns **S / D / P** = affects shared code / desktop / iPhone.
 |---|---|---|---|---|---|---|---|---|---|---|
 | TEST-043 | "On the phone, I would like a similar way to view the scripture and have the strongs numbers (if applicable) and cross refs like esword (cross refs may be pickable between the different versions)" | iPhone | Change · study presentation | Verse sheet study pane (`VerseStudy.tsx`, `buildVerseStudyTokens`): verse as (KJVA+) with tappable Strong’s superscripts + dense cross references (TSKe/Classic pickable); undimmed at medium so the reader stays tappable; tapping another verse updates the pane and scrolls that verse above it (`keepVerseAboveSheet`) | COMPLETE (simulator: verse 9 tapped below the pane → scrolled above it, pane updated, sheet stays at medium) | `lib/__tests__/verseStudyTokens.test.ts` (tokens, particles, replacer, labels); simulator |  |  | ✔ | e-Sword split-pane equivalent; “pickable between versions” implemented as the cross-reference source picker (TSKe/Classic) + per-text lookup; branding/visuals are Berean’s |
 | TEST-044 | "Also use the compactness from the image" | iPhone | Change · reader density | `mobile.css` compact reader (text ≈90% width, tight verse rows, inline Strong’s) + Dynamic Type zoom on the reading column | COMPLETE (simulator: 90.3% width; row 62→80px at type scale 1.3) | simulator measurement |  |  | ✔ | Compactness from spacing/layout, never smaller text; Dynamic Type honoured |
+
+---
+
+## Final audit (Wave 7, 2026-09-23)
+
+**Every item of the 2026-09-22 notes is accounted for: 43 COMPLETE · 1 SUPERSEDED (TEST-028, by
+the three-control navigation — its function, a quick floating search from anywhere, is the plus
+control on every screen) · 0 BLOCKED · 0 unexplained.**
+
+Final build/test state: `npm run typecheck` clean · vitest **189 files / 4,229 tests** (baseline
+before this wave: 180 / 4,146) · `npm run build` (desktop) OK · `npm run ios:build` (normal build —
+the simulator probe is compiled out) OK. Checkpoint commits on `feature/ios-app` (not pushed, not
+merged): wave 1 `4a63d8e` · wave 2 `a968312` · wave 3 `ec95d48` · wave 4 `b92b712` · wave 5
+`106acc6` · wave 6 `7881528` · wave 7 (this audit).
+
+| Area | Verified by | Result |
+|---|---|---|
+| Shared behaviour (selection model, navigation fallbacks, history model, scroll state) | unit tests + running desktop app (CDP) + simulator | ✔ |
+| macOS (all 15 items) | running desktop app over CDP: screenshots, DOM probes, real mouse/keyboard events | ✔ |
+| Desktop regression of shared changes | CDP: verse-number click/deselect, drag range, text-selection highlight offsets, Strong's pills under words, presenter follow (12 jumps), Ctrl+Tab, floating tabs, history | ✔ no regression |
+| iPhone reader + selection | simulator (probe build): tap, text selection + highlight, study pane, continuous scroll, line heights, edge taps, navigator, top bar | ✔ |
+| Tabs / workspaces / tab cards | simulator: all 8 tab types in one workspace view, switching across spaces | ✔ |
+| Bottom navigation / plus / caret | simulator: every caret context (reader, compare, notes list, note editor, search, lexicon, More), plus → reference / History / Done | ✔ |
+| Sheets | unit tests (detent math, fling, dismiss) + simulator (✕ only at low, undimmed low/medium) | ✔ |
+| Strong's / cross references | simulator (inline superscripts, study pane, Copy), unit tests (study tokens) | ✔ |
+| Search / notes / audio / YouTube / PDFs | carets verified; underlying pages unchanged apart from moved "…" menus | ✔ (no behaviour change) |
+| Accessibility | labels on all new controls, 44pt+ targets, VoiceOver Close kept on sheets, Dynamic Type now reaches Scripture, reduced motion honoured (MotionConfig + CSS) | ✔ (VoiceOver run-through: device pass) |
+| Performance | caret scope built lazily on open; tab cards read store only; no new DB reads on navigation | ✔ (device timings: device pass) |
+
+### For the physical-device pass (cannot be simulated)
+1. Long-press → native selection handles: drag the handles; the verse sheet must stay at its low
+   position and never cover the handles; tap elsewhere → selection and sheet gone, no verse selected.
+2. Tap anywhere on a verse (text, space between words, number) → verse selected + low sheet; a
+   tap on a Strong's superscript opens the Strong's sheet instead (hit area 6×4 px beyond the glyph).
+3. Edge taps (far left/right 22 px) vs iOS edge-swipe gestures; horizontal swipe between chapters.
+4. Verse-number drag with a finger (range + badge) — the badge has `touch-action: none`.
+5. Top bar hide/show while scrolling with momentum; sheets freeze it.
+6. Bottom bar: swipe across it to change tabs; keyboard hides it; safe areas on your model.
+7. Study pane at medium: tap verses above it; the tapped verse scrolls above the pane.
+8. Dynamic Type at an accessibility size: Scripture scales, compact layout holds.
