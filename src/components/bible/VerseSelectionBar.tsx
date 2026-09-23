@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, Hash, NotepadText, Files, GitFork, Volume2, Palette, Tag, X, Check } from 'lucide-react'
 import { IconButton, Toolbar, Divider, ColorSwatchRow, Button, type Swatch } from '@/components/ui'
+import { selectionAllows, selectionKind, selectionLabel } from '@/lib/verseSelection'
 import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
@@ -143,7 +144,9 @@ export default function VerseSelectionBar() {
     flashCopied('verses')
   }, [sel, wordReplacerEnabled, wordReplacerRules, flashCopied])
 
+  const canAddNote = selectionAllows(sel, 'add-note')
   const addNote = useCallback(async () => {
+    if (!selectionAllows(sel, 'add-note')) return
     const anchor = sel[0]
     const result = await window.notes.createNote({
       type: 'verse', title: refLabel(sel), verseRef: `${anchor.bookId}.${anchor.chapter}.${anchor.verse}`, content: '', textId: anchor.textId,
@@ -183,14 +186,15 @@ export default function VerseSelectionBar() {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <Toolbar material="none" edge="none" size="sm" itemVariant="ghost" className="px-0 gap-0.5 h-auto">
-          <span className="px-2 text-footnote font-medium text-text-secondary whitespace-nowrap">{sel.length} selected</span>
+          <span className="px-2 text-footnote font-medium text-text-secondary whitespace-nowrap" title={`${sel.length} selected`}>{selectionKind(sel) === 'multiple' ? `${sel.length} selected` : selectionLabel(sel)}</span>
           <Divider orientation="vertical" className="mx-0.5" />
 
           <IconButton size={28} label={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}
             icon={copied === 'verses' ? Check : Copy} iconClassName={copied === 'verses' ? 'text-success' : undefined} />
           <IconButton size={28} label={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}
             icon={copied === 'refs' ? Check : Hash} iconClassName={copied === 'refs' ? 'text-success' : undefined} />
-          <IconButton size={28} label="Add note" icon={NotepadText} onClick={addNote} />
+          {/* A verse note anchors to ONE verse — no "note on all selected verses" (TEST-007). */}
+          <IconButton size={28} label={canAddNote ? 'Add note' : 'Select a single verse to add a note'} icon={NotepadText} disabled={!canAddNote} onClick={() => { if (canAddNote) void addNote() }} />
           <IconButton size={28} label={single ? 'Show notes for this verse' : 'Select a single verse'} icon={Files} disabled={!single}
             onClick={() => single && filterBiblePanelByVerse(`${single.bookId}.${single.chapter}.${single.verse}`)} />
           <IconButton size={28} label={single ? 'Show cross references' : 'Select a single verse'} icon={GitFork} disabled={!single}

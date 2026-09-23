@@ -37,6 +37,8 @@ import { installTabPersistence, applyExternalSessions } from '@/store/tabPersist
 import { openDeepLink } from '@/lib/deepLinkTarget'
 import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
 import { applyFontFamilies } from '@/lib/fontFamilies'
+import { useBibleLineHeight } from '@/hooks/useBibleLineHeight'
+import VerseDragIndicator from '@/components/bible/VerseDragIndicator'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
@@ -172,7 +174,6 @@ export default function App() {
   const scriptureFontFamily = useAppStore((s) => s.scriptureFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
   const uiFontFamily = useAppStore((s) => s.uiFontFamily)
-  const bibleLineHeight = useAppStore((s) => s.bibleLineHeight)
   const openSearch = useAppStore((s) => s.openSearch)
   const toggleSettings = useAppStore((s) => s.toggleSettings)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
@@ -553,11 +554,8 @@ export default function App() {
     setSwitcherIdx(idx)
   }
 
-  // Sync line-height CSS variable
-  useEffect(() => {
-    const values = { compact: '1.3', comfortable: '1.75', spacious: '2.1' }
-    document.documentElement.style.setProperty('--line-height-comfortable', values[bibleLineHeight])
-  }, [bibleLineHeight])
+  // Sync line-height CSS variable (shared with the iPhone shell)
+  useBibleLineHeight()
 
   // Relay nativeTheme IPC changes into a React-friendly state so the theme
   // effect below re-runs reliably when macOS switches dark/light mode.
@@ -1081,6 +1079,7 @@ export default function App() {
       </TopBarSlotContext.Provider>
       </PopoverBoundaryContext.Provider>
       <FloatingSearch />
+      <VerseDragIndicator />
       <PresenterControls />
       <AudioPlayer />
       <LazyOnce when={settingsOpen}><SettingsModal /></LazyOnce>

@@ -1153,6 +1153,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const tab = activeTabRef.current
       const el = getScrollEl()
       if (!tab) return
+      // The event fires for EVERY switch, including one that returns TO Scripture from another
+      // space. This panel is then hidden (its layer is display:none), the browser has already
+      // dropped the scroller's offset to 0, and it is not the panel being left — its position
+      // was flushed when it WAS left. Writing now saved 0 over it (TEST-003).
+      if (el && el.getClientRects().length === 0) return
       const updates: Partial<import('@/types').BibleTabState> = {}
       if (el) {
         // A live read of the scroll container at flush time is authoritative — it is never the
@@ -3843,6 +3848,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           initialScrollTop={slot === 'A' ? tabState.rightPanelScrollTop : tabState.rightPanelScrollTopB}
           onScrollTopChange={(top) => {
             if (activeTab) updateTabState('scripture', activeTab.id, slot === 'A' ? { rightPanelScrollTop: top } : { rightPanelScrollTopB: top })
+          }}
+          initialScrollTops={slot === 'A' ? tabState.rightPanelScrollTops : tabState.rightPanelScrollTopsB}
+          onScrollTopsChange={(tops) => {
+            if (activeTab) updateTabState('scripture', activeTab.id, slot === 'A' ? { rightPanelScrollTops: tops } : { rightPanelScrollTopsB: tops })
           }}
           onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()

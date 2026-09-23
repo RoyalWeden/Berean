@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react'
 import { Copy, Hash, NotepadText, GitFork, Volume2, Palette, Tag, X, Check, type LucideIcon } from 'lucide-react'
 import { useAppStore, type SelectedVerseRef } from '@/store'
+import { selectionAllows } from '@/lib/verseSelection'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { selectionToRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { sortSelection, refLabel, fetchVerse } from '@/components/bible/VerseSelectionBar'
@@ -50,6 +51,7 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
     flash('verses')
   }
   const addNote = async () => {
+    if (!selectionAllows(sel, 'add-note')) return
     const anchor = sel[0]
     const result = await window.notes.createNote({ type: 'verse', title: refLabel(sel), verseRef: `${anchor.bookId}.${anchor.chapter}.${anchor.verse}`, content: '', textId: anchor.textId })
     if (result.success && result.note) { bumpNoteToken(); bumpVerseNoteToken(); clear(); onOpenNote(result.note.id) }
@@ -93,7 +95,8 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
           <span className="mobile-selection-count">{sel.length}</span>
           <Btn icon={copied === 'verses' ? Check : Copy} label={sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => void copyVerses(false)} />
           <Btn icon={copied === 'refs' ? Check : Hash} label="Copy references" onClick={() => void copyVerses(true)} />
-          <Btn icon={NotepadText} label="Add note" onClick={() => void addNote()} />
+          {/* A verse note anchors to one verse — hidden for several verses (TEST-007). */}
+          {selectionAllows(sel, 'add-note') && <Btn icon={NotepadText} label="Add note" onClick={() => void addNote()} />}
           {single && <Btn icon={NotepadText} label="Notes" onClick={notes} />}
           {single && <Btn icon={GitFork} label="Cross references" onClick={crossRefs} />}
           <Btn icon={Volume2} label="Play from here" onClick={() => { const v = sel[0]; startPlaybackFrom(v.bookId, v.chapter, v.verse, v.textId); clear() }} />

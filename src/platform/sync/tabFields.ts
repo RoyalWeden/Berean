@@ -29,6 +29,7 @@ const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
   bible: [
     'scrollPosition', 'rightPanelOpen', 'rightPanelWidth', 'bottomPanelHeight', 'rightPanelNoteCursor',
     'rightPanelNoteFocused', 'rightPanelExpandAll', 'rightPanelExpandAllB', 'rightPanelScrollTop', 'rightPanelScrollTopB',
+    'rightPanelScrollTops', 'rightPanelScrollTopsB',
     'rightPanelNoteCursorB', 'rightPanelNoteFocusedB', 'searchScrollTop', 'searchScrollAnchor',
   ],
   note: ['scrollTop', 'cursorPos', 'listScrollTop', 'continuousDailyDate'],

@@ -2284,3 +2284,12 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
   filter: brightness(0.9);
 }
 
+
+/* Verse-number range drag in progress (TEST-001): no text selection starts while the pointer
+   sweeps across verses, and the cursor says "range". Set on <html> by verseDragSelect.ts. */
+html[data-verse-dragging],
+html[data-verse-dragging] * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  cursor: ns-resize !important;
+}

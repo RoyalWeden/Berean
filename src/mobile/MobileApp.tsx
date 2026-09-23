@@ -21,6 +21,7 @@ import { lazy, Suspense } from 'react'
 const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
 const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
+import { HISTORY_CATEGORIES, HISTORY_TYPE_LABEL, countByCategory, filterHistory, shouldLoadMoreHistory, type HistoryCategory } from '@/lib/historyModel'
 import { SheetHost, useSheets } from './primitives/Sheet'
 import { useActionSheet } from './primitives/ActionSheet'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
@@ -43,6 +44,8 @@ import { StudyTrailPage, useOpenStudyTrailPageEvent } from './trail'
 import { ComparePage } from './reader/ComparePage'
 import { OnboardingFlow, useOnboardingGate } from './onboarding'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
+import { useBibleLineHeight } from '@/hooks/useBibleLineHeight'
+import VerseDragIndicator from '@/components/bible/VerseDragIndicator'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { QueuePage } from './audio/QueuePage'
 import { Keyboard } from '@capacitor/keyboard'
@@ -58,6 +61,7 @@ import './mobile.css'
  */
 export default function MobileApp() {
   useAppearance()
+  useBibleLineHeight() // Reading → Line height (TEST-024), same hook as desktop
   useBoot()
   useTTSPlayback()   // Read Aloud engine driver — the same hook App.tsx mounts
   useQueueAutosave() // queue ↔ its source playlist, as desktop
@@ -105,6 +109,7 @@ function Shell() {
         )}
       </main>
       <AudioBar />
+      <VerseDragIndicator />
       {/* "Why did you jump?" pill (Study Trail, when the setting is on) — above the bottom bars. */}
       <StudyTrailArrivalPrompt bottomInset={116} />
       {!showMore && <SpaceTabRow space={activeSpace} />}
@@ -266,14 +271,37 @@ function MorePage({ onOpenSpace }: { onOpenSpace: (space: SpaceId) => void }) {
 
 function HistoryPage({ onBack }: { onBack: () => void }) {
   const history = useAppStore((s) => s.history)
+  const hasMore = useAppStore((s) => s.historyHasMore)
+  const loadingMore = useAppStore((s) => s.historyLoadingMore)
+  const loadMore = useAppStore((s) => s.loadMoreHistory)
   const navigate = useHistoryNavigate()
+  // Same categories and filter rules as the desktop History modal (src/lib/historyModel.ts, TEST-002).
+  const [category, setCategory] = useState<HistoryCategory>('all')
+  const [studyOnly, setStudyOnly] = useState(false)
+  const rows = useMemo(() => filterHistory(history, { category, studyOnly: studyOnly && category === 'scripture' }), [history, category, studyOnly])
+  const counts = useMemo(() => countByCategory(history), [history])
+  useEffect(() => {
+    if (category !== 'all' && shouldLoadMoreHistory(rows.length, hasMore, loadingMore)) void loadMore()
+  }, [category, rows.length, hasMore, loadingMore, loadMore])
   return (
-    <Page title="History" onBack={onBack}>
-      <ListSection>
-        {history.length === 0 && <div className="mobile-empty">Nothing yet.</div>}
-        {history.slice(0, 200).map((h) => (
-          <Row key={h.id} title={h.title} subtitle={`${h.type} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => { onBack(); navigate(h) }} />
+    <Page title="History" onBack={onBack} headerBelow={
+      <div className="mobile-chip-row mobile-chip-row-scroll" role="tablist" aria-label="History category">
+        {HISTORY_CATEGORIES.map((c) => (
+          <button key={c.key} type="button" role="tab" aria-selected={category === c.key} className={`mobile-chip${category === c.key ? ' is-on' : ''}`} onClick={() => setCategory(c.key)}>
+            {c.label}{c.key !== 'all' && counts[c.key] ? ` · ${counts[c.key]}` : ''}
+          </button>
         ))}
+        {category === 'scripture' && (
+          <button type="button" className={`mobile-chip${studyOnly ? ' is-on' : ''}`} aria-pressed={studyOnly} onClick={() => setStudyOnly((v) => !v)}>Study only</button>
+        )}
+      </div>
+    }>
+      <ListSection>
+        {rows.length === 0 && <div className="mobile-empty">{history.length === 0 ? 'Nothing yet.' : 'No entries in this category.'}</div>}
+        {rows.slice(0, 400).map((h) => (
+          <Row key={h.id} title={h.title} subtitle={`${HISTORY_TYPE_LABEL[h.type]} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => { onBack(); navigate(h) }} />
+        ))}
+        {hasMore && <Row title={loadingMore ? 'Loading…' : 'Load older history'} onClick={() => void loadMore()} />}
       </ListSection>
     </Page>
   )

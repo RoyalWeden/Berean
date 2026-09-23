@@ -7,6 +7,17 @@ Branch: `feature/ios-app` · Worktree: `/Users/roywe/Berean-ios` · Base: `main`
 
 ---
 
+## Testing wave 2026-09-22 (post-migration backlog)
+
+Source: the developer's 2026-09-22 device/desktop testing notes → `testing-backlog-2026-09-22.md`
+(TEST-001–TEST-044, every note line tracked). Architecture added by this wave:
+`post-migration-architecture.md`. Waves: 1 shared logic · 2 macOS · 3 iPhone reader/selection ·
+4 iPhone navigation · 5 compact reader · 6 remaining iPhone · 7 regression + audit.
+
+| Wave | Scope | Status |
+|---|---|---|
+| 1 | Shared: drag range selection, history model, scroll-state audit (Ctrl+Tab, side panel), LXX→KJV and chapter fallbacks, line-height hook | **CHECKPOINT** 2026-09-22 — typecheck clean; vitest 184 files / 4,201 tests (was 180 / 4,146); `npm run build` OK; `ios:build` (simulator) OK; Ctrl+Tab and side-panel scroll reproduced + verified in the running desktop app over CDP |
+
 ## Status summary (2026-09-21, end of the autonomous run)
 
 - **Ledger (`requirements.md`, 115 rows):** 22 DONE · 31 IMPLEMENTED · 32 TESTING (works on the

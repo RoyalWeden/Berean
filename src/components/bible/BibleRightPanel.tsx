@@ -6,6 +6,7 @@ import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, SectionHeader, EmptyState, Button, SearchField, TextField, Toolbar, DisclosureRow, ListRow, Divider, TabStrip, CompactMetrics } from '@/components/ui'
 import { LexiconEntryHeader, LangBadge, OccurrenceRow, DerivedTermRow } from '@/components/lexicon/parts'
+import { useKeyedScrollMemory } from '@/hooks/useKeyedScrollMemory'
 import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -1205,6 +1206,9 @@ interface Props {
    *  app) doesn't reset the side panel back to the top. */
   initialScrollTop?: number
   onScrollTopChange?: (top: number) => void
+  /** Per-sub-tab scroll offsets (device-local), so each sub-tab returns to its own position (TEST-008). */
+  initialScrollTops?: Partial<Record<PanelTab, number>>
+  onScrollTopsChange?: (tops: Partial<Record<PanelTab, number>>) => void
   /** Which of the two independent side-panel slots this instance renders — namespaces the
    *  tab-strip's sliding-pill layoutId (see the tab strip below) and identifies this instance
    *  in the pop-out/merge/drag-and-drop context menu. */
@@ -1244,6 +1248,8 @@ export default function BibleRightPanel({
   onScrollPercent,
   initialScrollTop,
   onScrollTopChange,
+  initialScrollTops,
+  onScrollTopsChange,
   slotId = 'A',
   onMoveTab,
   canPopOut,
@@ -1260,6 +1266,12 @@ export default function BibleRightPanel({
   const panelRootRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastScrollTopRef = useRef<number>(initialScrollTop ?? 0)
+  // Each sub-tab keeps its own offset across sub-tab and Scripture-tab switches (TEST-008).
+  const subTabScroll = useKeyedScrollMemory<PanelTab>({
+    rootRef: panelRootRef, activeKey: visibleTab,
+    initial: initialScrollTops ?? (initialScrollTop != null ? { [visibleTab]: initialScrollTop } as Partial<Record<PanelTab, number>> : undefined),
+    onChange: onScrollTopsChange,
+  })
   // Restore scroll into whichever sub-tab's container is initially mounted (only the active
   // visibleTab is rendered at mount, per mountedTabs above, so this selector is unambiguous).
   useEffect(() => {
@@ -1654,6 +1666,7 @@ export default function BibleRightPanel({
       // Scroll events don't bubble — use the capture phase so a scroll in ANY inner scroller
       // (note editor, cross-ref list, lexicon) is caught and mirrored to the presenter.
       onScrollCapture={(e) => {
+        subTabScroll.onScrollCapture(e)
         const el = e.target as HTMLElement
         const max = el.scrollHeight - el.clientHeight
         if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
@@ -1770,7 +1783,7 @@ export default function BibleRightPanel({
 
       {/* Notes tab — note open */}
       {mountedTabs.has('notes') && sidebarNote && (
-        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
+        <div data-scroll-key="notes" className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
           <Toolbar size="sm" material="none" edgeStyle="hard">
             <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={closeSidebarNote}>
               Notes
@@ -1814,7 +1827,7 @@ export default function BibleRightPanel({
 
       {/* Notes tab — list */}
       {mountedTabs.has('notes') && !sidebarNote && (
-        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
+        <div data-scroll-key="notes" className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
           {/* Two-row header: search (full width) on top, controls below. The previous
               single-row merge packed search + scope + sort + expand-all + new-note into
               one line, which went cramped/near-overflow well before the panel's resize
@@ -2022,7 +2035,7 @@ export default function BibleRightPanel({
 
       {/* Lexicon tab */}
       {mountedTabs.has('lexicon') && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'lexicon' ? undefined : 'none' }}>
+        <div data-scroll-key="lexicon" className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'lexicon' ? undefined : 'none' }}>
           <SidebarLexicon
             initialEntry={initialLexiconEntry}
             onEntryChange={onLexiconEntryChange}
@@ -2032,7 +2045,7 @@ export default function BibleRightPanel({
 
       {/* Cross References tab */}
       {mountedTabs.has('crossrefs') && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'crossrefs' ? undefined : 'none' }}>
+        <div data-scroll-key="crossrefs" className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'crossrefs' ? undefined : 'none' }}>
           <CrossRefsTab
             bookId={bookId}
             chapter={chapter}

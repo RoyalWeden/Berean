@@ -7,6 +7,7 @@ import ChapterView from '@/components/bible/ChapterView'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { navigateToVerse } from '@/lib/verseNavigation'
+import { chapterForBookSwitch } from '@/lib/textCoverage'
 import { isHermasBook, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
 import { Page, IconTap } from '../primitives/Page'
 import { useSheets } from '../primitives/Sheet'
@@ -43,6 +44,13 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   useEffect(() => { window.bible.getBooks(textId).then(setBooks).catch(() => setBooks([])) }, [textId])
   const book = books.find((b) => b.id === state.bookId)
   const chapterCount = book?.chapters_count ?? 1
+  // The loaded text's real chapter count wins: switching book or translation onto a chapter the
+  // book does not have opens chapter 1 rather than an empty page (TEST-025, shared rule).
+  useEffect(() => {
+    if (!book || isHermasBook(book.id)) return // Hermas has its own numbering + clamp (hermasMap)
+    const ch = chapterForBookSwitch(book.id, state.chapter, book.chapters_count)
+    if (ch !== state.chapter) updateTabState('scripture', tab.id, { chapter: ch, targetVerse: undefined, scrollPosition: 0 })
+  }, [book, state.chapter, tab.id, updateTabState])
   const bookIndex = books.findIndex((b) => b.id === state.bookId)
 
   // Neighbouring pages: previous/next chapter, crossing into the previous/next book.

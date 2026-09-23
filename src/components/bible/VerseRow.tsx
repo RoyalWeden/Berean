@@ -25,6 +25,7 @@ import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
 import { VerseInteractionContext, type VerseActionContext } from './verseInteraction'
+import { startVerseDrag, consumeDragClick } from './verseDragSelect'
 import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
@@ -554,6 +555,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   // selection) — it tints the row and number badge but is NOT in the store, so the selection bar
   // count and copy/highlight/tag actions still act only on what the user actually clicked.
   const isSelected = storeSelected || !!forceSelected
+  // A range drag is in progress in this row's tab — selected rows get an outline so the range
+  // being built is unmistakable while the pointer is still down (TEST-001).
+  const dragInThisTab = useAppStore((s) => !!s.verseDrag && s.verseDrag.tabId === rowTabId)
   const toggleVerseSelection = useAppStore((s) => s.toggleVerseSelection)
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -1558,7 +1562,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'}`}
+      data-verse-row=""
+      data-book={verse.book_id}
+      data-chapter={verse.chapter}
+      data-text={selfTextId}
+      className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'} ${isSelected && dragInThisTab ? 'ring-1 ring-inset ring-accent/70' : ''}`}
       style={rowStyle}
       {...touchHandlers}
     >
@@ -1568,8 +1576,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         <button
           onClick={(e) => {
             e.stopPropagation()
+            if (consumeDragClick()) return // the click that ends a range drag (TEST-001)
             toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
           }}
+          // Press on a verse number and drag across verses → range selection (TEST-001).
+          onPointerDown={(e) => startVerseDrag(e, rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })}
           onContextMenu={(e) => { e.preventDefault(); if (isTouch) requestTouchActions(); else openPopover(e) }}
           // Keyboard verse model (§8.4): only while a badge is focused. Enter toggles selection,
           // ⇧↑/↓ extends (handled by the chapter root via data attributes), Shift+F10 opens the
@@ -1592,7 +1603,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 : 'text-text-quaternary tabular-nums hover:text-accent hover:bg-accent-muted'
             }
           `}
-          style={{ width: '1.9em', minWidth: '1.9em' }}
+          // No native pan/scroll starting on the badge, so a touch drag reaches the range gesture.
+          style={{ width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
         >
           {verse.verse_num}
         </button>

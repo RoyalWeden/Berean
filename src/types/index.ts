@@ -72,6 +72,9 @@ export interface BibleTabState {
   // than one value per sub-tab.
   rightPanelScrollTop?: number
   rightPanelScrollTopB?: number
+  /** Per-sub-tab side-panel scroll offsets (device-local, TEST-008). */
+  rightPanelScrollTops?: Partial<Record<'notes' | 'lexicon' | 'crossrefs', number>>
+  rightPanelScrollTopsB?: Partial<Record<'notes' | 'lexicon' | 'crossrefs', number>>
   // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
   // moveTab/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
   // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,

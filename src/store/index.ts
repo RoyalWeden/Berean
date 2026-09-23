@@ -1,3 +1,4 @@
+import { verseRange } from '@/lib/verseSelection'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { workspaceSessionId } from '@/lib/workspaceSnapshot'
@@ -814,6 +815,14 @@ export interface AppState {
   bumpVersePopoverToken: () => void
   /** `tabId` omitted/null → the active scripture tab. */
   toggleVerseSelection: (tabId: string | null | undefined, ref: SelectedVerseRef) => void
+  /** Replaces a tab's verse selection (range selection, "select these verses"). */
+  setVerseSelection: (tabId: string | null | undefined, refs: SelectedVerseRef[]) => void
+  /** Drag-to-select from a verse number (TEST-001): the live range is written into the tab's
+   *  selection while dragging (that IS the visible indicator), `before` restores on cancel. */
+  verseDrag: { tabId: string; anchor: SelectedVerseRef; current: SelectedVerseRef; before: SelectedVerseRef[]; pointer: { x: number; y: number } | null } | null
+  beginVerseDrag: (tabId: string, anchor: SelectedVerseRef, pointer?: { x: number; y: number }) => void
+  updateVerseDrag: (current: SelectedVerseRef | null, pointer?: { x: number; y: number }, available?: readonly number[]) => void
+  endVerseDrag: (commit: boolean) => void
   clearVerseSelection: (tabId?: string | null) => void
   remapVerseSelection: (tabId: string | null | undefined, remap: (ref: SelectedVerseRef) => SelectedVerseRef | null) => void
   bumpNoteEditToken: () => void
@@ -1360,6 +1369,37 @@ export const useAppStore = create<AppState>()(
           ? cur.filter((v) => selectedVerseKey(v) !== key)
           : [...cur, ref]
         return { selectedVersesByTab: { ...s.selectedVersesByTab, [tid]: next } }
+      }),
+      setVerseSelection: (tabId, refs) => set((s) => {
+        const tid = tabId ?? s.activeTabId['scripture']
+        if (!tid) return {}
+        const nextMap = { ...s.selectedVersesByTab }
+        if (refs.length) nextMap[tid] = refs; else delete nextMap[tid]
+        return { selectedVersesByTab: nextMap }
+      }),
+      verseDrag: null,
+      beginVerseDrag: (tabId, anchor, pointer) => set((s) => ({
+        verseDrag: { tabId, anchor, current: anchor, before: s.selectedVersesByTab[tabId] ?? [], pointer: pointer ?? null },
+        selectedVersesByTab: { ...s.selectedVersesByTab, [tabId]: [anchor] },
+      })),
+      updateVerseDrag: (current, pointer, available) => set((s) => {
+        const d = s.verseDrag
+        if (!d) return {}
+        const next = current ?? d.current
+        const moved = next.verse !== d.current.verse || next.chapter !== d.current.chapter || next.bookId !== d.current.bookId
+        if (!moved) return pointer ? { verseDrag: { ...d, pointer } } : {}
+        return {
+          verseDrag: { ...d, current: next, pointer: pointer ?? d.pointer },
+          selectedVersesByTab: { ...s.selectedVersesByTab, [d.tabId]: verseRange(d.anchor, next, available) },
+        }
+      }),
+      endVerseDrag: (commit) => set((s) => {
+        const d = s.verseDrag
+        if (!d) return {}
+        if (commit) return { verseDrag: null }
+        const nextMap = { ...s.selectedVersesByTab }
+        if (d.before.length) nextMap[d.tabId] = d.before; else delete nextMap[d.tabId]
+        return { verseDrag: null, selectedVersesByTab: nextMap }
       }),
       clearVerseSelection: (tabId) => set((s) => {
         const tid = tabId ?? s.activeTabId['scripture']
@@ -2355,14 +2395,19 @@ export const useAppStore = create<AppState>()(
         // same search you left, not a reset to Genesis 1. (Previously searchMode was
         // force-cleared on every switch off such a tab, so re-visiting it fell through to
         // the reader at whatever bookId/chapter the tab last held — usually the default.)
-        const tabs = state.tabs[spaceId]
-
+        //
+        // Re-read the store AFTER the flush above: the outgoing panel's listener has just written
+        // its live scroll position (and other view state) into its tab. Committing from the
+        // pre-flush snapshot (`state`) — which this used to do, including a no-op rewrite of
+        // `tabs` — put the OLD tab state straight back, so every tab switch discarded the scroll
+        // position it had just saved (TEST-003: Ctrl+Tab / sidebar switch came back at the top).
+        // `tabs` isn't changed by an activation, so it is not written at all.
+        const fresh = get()
         set({
-          tabs: { ...state.tabs, [spaceId]: tabs },
-          activeTabId: { ...state.activeTabId, [spaceId]: tabId },
+          activeTabId: { ...fresh.activeTabId, [spaceId]: tabId },
           activeSpace: spaceId,
-          tabMRUList: updateMRU(state.tabMRUList, spaceId, tabId),
-          tabLastAccessed: { ...state.tabLastAccessed, [key]: Date.now() },
+          tabMRUList: updateMRU(fresh.tabMRUList, spaceId, tabId),
+          tabLastAccessed: { ...fresh.tabLastAccessed, [key]: Date.now() },
         })
       },
 
