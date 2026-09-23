@@ -265,7 +265,7 @@ function ColorGridPopover({ anchorRect, onPick, onRemove, onClose }: {
       style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <ColorSwatchRow swatches={HIGHLIGHT_SWATCHES} value={null} onChange={(id) => id && onPick(id as HighlightColor)} className="max-w-[136px]" />
+      <ColorSwatchRow swatches={HIGHLIGHT_SWATCHES} value={undefined} onChange={(id) => id && onPick(id as HighlightColor)} rows={2} />
       <Button variant="ghost" size="sm" icon={X} onClick={onRemove} className="mt-2 w-full text-text-muted hover:text-destructive">
         Remove highlights
       </Button>

@@ -5,4 +5,7 @@
  * don't each hardcode the same numbers.
  */
 export const TRAFFIC_LIGHT_INSET = 76
-export const HEADER_HEIGHT = 44
+// TEST-010: bumped 44→52 for more vertical breathing room around the bar's controls (per
+// direct feedback) — the single metric everything else (traffic-light y in electron/main.ts,
+// docs/design-system.md) derives from, rather than nudging individual buttons.
+export const HEADER_HEIGHT = 52

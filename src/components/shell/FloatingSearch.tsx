@@ -1,3 +1,4 @@
+import { openFloatingTab } from '@/lib/floatingTab'
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, Tag, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -16,7 +17,7 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import { IconButton, SectionLabel, SectionHeader, SearchField, SegmentedControl, RefChip, Chip, ListRow, Toolbar, ToolbarSpacer, Button } from '@/components/ui'
+import { IconButton, SectionLabel, SectionHeader, SearchField, SegmentedControl, RefChip, Chip, ListRow, Toolbar, ToolbarSpacer, Button, MenuItem, useContextMenu } from '@/components/ui'
 
 /** Spotlight-style group heading for each result kind — the order matches how `results` is
  *  actually built/ranked below; groups are inserted around already-ordered runs (never
@@ -207,6 +208,10 @@ function timed<T>(label: string, fn: () => T, warnMs = 1): T {
 }
 
 export default function FloatingSearch() {
+  // TEST-013: right-click a result row → Open / Open in New Tab / Open in Floating Tab.
+  // Payload is just the row's own `openWith` dispatcher (built per-result above), so this
+  // needs no knowledge of what kind of result it's pointed at.
+  const resultMenu = useContextMenu<{ openWith: (target: 'current' | 'new' | 'floating') => void }>()
   const searchOpen = useAppStore((s) => s.searchOpen)
   const searchMode = useAppStore((s) => s.searchMode)
   const searchNewTabPosition = useAppStore((s) => s.searchNewTabPosition)
@@ -702,7 +707,14 @@ export default function FloatingSearch() {
     if (q.trim()) runSearch(q, tid, mode)
   }
 
-  function navigate(bookId: string, chapter: number, targetVerse?: number, endVerse?: number, translationOverride?: string, endChapter?: number) {
+  // TEST-013: the one open-a-scripture-result function, parametrized on WHERE it opens —
+  // 'current' (reuse/update the active bible tab), 'new' (a fresh tab), or 'floating' (its own
+  // OS window via window.app.openFloatingTab, the same IPC TabBar.tsx's "Open in floating tab"
+  // context-menu item and drag-out-of-the-bar use). Explicit `targetOverride` (from the result
+  // row's own right-click menu) wins; omitted, it falls back to the global searchMode toggle —
+  // unchanged behavior for every existing call site below that doesn't pass one.
+  function navigate(bookId: string, chapter: number, targetVerse?: number, endVerse?: number, translationOverride?: string, endChapter?: number, targetOverride?: 'current' | 'new' | 'floating') {
+    const target: 'current' | 'new' | 'floating' = targetOverride ?? searchMode
     const bookNames: Record<string, string> = {}
     books.forEach((b) => { bookNames[b.id] = b.name })
     const bookLabel = bookNames[bookId] ?? bookId
@@ -716,7 +728,7 @@ export default function FloatingSearch() {
     // In 'current' mode, reuse the active (or first) bible tab. If none exists,
     // fall through to creating a new tab — opening "in current tab" when there is
     // no current tab should still open the verse, not do nothing.
-    const targetTab = searchMode === 'current'
+    const targetTab = target === 'current'
       ? (() => {
           const activeId = useAppStore.getState().activeTabId.scripture
           return activeId
@@ -763,6 +775,14 @@ export default function FloatingSearch() {
       if (targetVerse == null) {
         requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('berean:scriptureScrollToTop')))
       }
+    } else if (target === 'floating') {
+      // "Open in Floating Tab": same tab-state shape the 'new' branch below builds for
+      // addTab, handed to the Electron main process instead (new BrowserWindow) — the exact
+      // mechanism TabBar.tsx's own "Open in floating tab" row and drag-out-of-the-bar use.
+      // Never added to this window's tab bar at all, so there's nothing to activate/rename here.
+      openFloatingTab('bible', {
+        bookId, chapter, endChapter, translation, showStrongs: false, scrollPosition: 0, targetVerse, endVerse,
+      }).catch((err) => console.error('[FloatingSearch] openFloatingTab (bible) failed', err))
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab
       const id = `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -788,18 +808,65 @@ export default function FloatingSearch() {
         q ? { kind: 'search-result', query: q } : { kind: 'book-chapter-picker' },
       )
     }
-    setActiveSpace('scripture')
+    // A floating open never touches this window's own space/tabs — matches TabBar's
+    // "Open in floating tab" (which only closes the source tab, never reassigns activeSpace).
+    if (target !== 'floating') setActiveSpace('scripture')
     closeSearch()
   }
 
-  function goToLexicon(strongsNum: string) {
-    if (searchMode === 'new') {
+  function openLexicon(strongsNum: string, targetOverride?: 'current' | 'new' | 'floating') {
+    const target = targetOverride ?? searchMode
+    if (target === 'floating') {
+      openFloatingTab('lexicon', { strongsNum }).catch((err) => console.error('[FloatingSearch] openFloatingTab (lexicon) failed', err))
+      closeSearch()
+      return
+    }
+    if (target === 'new') {
       createTab('lexicon', searchNewTabPosition)
     } else {
       ensureTab('lexicon')
     }
     openLexiconEntry(strongsNum)
     setActiveSpace('lexicon')
+    closeSearch()
+  }
+
+  function openNote(noteId: string, targetOverride?: 'current' | 'new' | 'floating') {
+    const target = targetOverride ?? searchMode
+    if (target === 'floating') {
+      // NoteTabState is just { noteId, isNew } — the same shape a real note tab's `state`
+      // carries (see types/index.ts), so this needs no bespoke bootstrap the way TabBar's
+      // float mechanism reads it either from an existing tab or from here.
+      openFloatingTab('notes', { noteId, isNew: false }).catch((err) => console.error('[FloatingSearch] openFloatingTab (notes) failed', err))
+      closeSearch()
+      return
+    }
+    if (target === 'new') createTab('note', searchNewTabPosition)
+    else ensureTab('note')
+    setActiveSpace('notes')
+    requestOpenNote(noteId)
+    closeSearch()
+  }
+
+  function openYouTubeResult(videoId: string, startMs: number | null | undefined, targetOverride?: 'current' | 'new' | 'floating') {
+    const target = targetOverride ?? searchMode
+    const hasTimestamp = startMs !== undefined && startMs !== null
+    if (target === 'floating') {
+      // YouTubeTabState carries no start-time field (only a playing tab's own player state
+      // does), so a timestamp hit floats to the video's start rather than the matched moment —
+      // a known, minor gap versus the in-window open.
+      openFloatingTab('youtube', { videoId, playlistId: null }).catch((err) => console.error('[FloatingSearch] openFloatingTab (youtube) failed', err))
+      closeSearch()
+      return
+    }
+    if (target === 'new') {
+      openYouTubeVideoInNewTab(videoId, hasTimestamp ? startMs! / 1000 : undefined)
+    } else if (hasTimestamp) {
+      openYouTubeVideo(videoId, startMs! / 1000)
+    } else {
+      openYouTubeVideoInNewTab(videoId)
+    }
+    setActiveSpace('youtube')
     closeSearch()
   }
 
@@ -849,23 +916,26 @@ export default function FloatingSearch() {
       : refTextId
         ? `${ref.verse ? `Go to verse ${ref.verse}` : 'Go to chapter'} in ${refTextId.toUpperCase()}`
         : ref.verse ? `Go to verse ${ref.verse}` : 'Go to chapter'
+    const openRef = (targetOverride?: 'current' | 'new' | 'floating') => {
+      addRecentSearchQuery(query.trim())
+      navigate(
+        ref.bookId,
+        navChapter,
+        navVerse,
+        chapterRemapped ? undefined : ref.endVerse,
+        // forcedTranslation ("Isaiah 66:3 LXX") outranks the book's own required
+        // translation — same precedence NotesPanel.tsx uses for verse-ref clicks.
+        ref.forcedTranslation ?? getTranslationForBook(ref.bookId) ?? undefined,
+        ref.endChapter,
+        targetOverride,
+      )
+    }
     return {
       type: 'ref' as const,
       label,
       sub: subLabel,
-      action: () => {
-        addRecentSearchQuery(query.trim())
-        navigate(
-          ref.bookId,
-          navChapter,
-          navVerse,
-          chapterRemapped ? undefined : ref.endVerse,
-          // forcedTranslation ("Isaiah 66:3 LXX") outranks the book's own required
-          // translation — same precedence NotesPanel.tsx uses for verse-ref clicks.
-          ref.forcedTranslation ?? getTranslationForBook(ref.bookId) ?? undefined,
-          ref.endChapter,
-        )
-      },
+      action: () => openRef(),
+      openWith: openRef,
     }
   }
 
@@ -880,6 +950,10 @@ export default function FloatingSearch() {
     label: string
     sub: string
     action: () => void
+    /** TEST-013: right-click's Open / Open in New Tab / Open in Floating Tab, all through this
+     *  one function — omitted for kinds that aren't "open a piece of content" (command rows),
+     *  which get no context menu at all (see the render loop below). */
+    openWith?: (target: 'current' | 'new' | 'floating') => void
     /** Verse rows only: every term that may actually appear in `sub` after word-replacement
      *  (typed term + its replacer substitution + a bridge row's replaced word) — all marked. */
     highlightTerms?: string[]
@@ -919,14 +993,16 @@ export default function FloatingSearch() {
     // different reason — e.g. an out-of-range chapter — and shouldn't silently become ch.1).
     if (bareBookId) {
       const label = bookChapterVerseLabel(bareBookId, 1)
+      const openBareBook = (targetOverride?: 'current' | 'new' | 'floating') => {
+        addRecentSearchQuery(query.trim())
+        navigate(bareBookId, 1, undefined, undefined, getTranslationForBook(bareBookId) ?? undefined, undefined, targetOverride)
+      }
       results.push({
         type: 'ref',
         label,
         sub: 'Go to chapter',
-        action: () => {
-          addRecentSearchQuery(query.trim())
-          navigate(bareBookId, 1, undefined, undefined, getTranslationForBook(bareBookId) ?? undefined, undefined)
-        },
+        action: () => openBareBook(),
+        openWith: openBareBook,
       })
     }
   }
@@ -939,25 +1015,32 @@ export default function FloatingSearch() {
         : bookChapterVerseLabel(cr.bookId, cr.chapter, cr.verse)
       const strength = Math.max(0, Math.min(Math.ceil(cr.votes / 3), 5))
       const dots = '●'.repeat(strength) + '○'.repeat(5 - strength)
+      const openCrossRef = (targetOverride?: 'current' | 'new' | 'floating') => {
+        addRecentSearchQuery(query.trim())
+        navigate(cr.bookId, cr.chapter, cr.verse, undefined, undefined, undefined, targetOverride)
+      }
       results.push({
         type: 'crossref',
         label: ref,
         sub: cr.text ? `${dots}  ${cr.text.slice(0, 100)}` : dots,
-        action: () => {
-          addRecentSearchQuery(query.trim())
-          navigate(cr.bookId, cr.chapter, cr.verse)
-        },
+        action: () => openCrossRef(),
+        openWith: openCrossRef,
       })
     }
   }
 
   if (!versesOnly) {
     for (const entry of lexiconResults) {
+      const openLex = (targetOverride?: 'current' | 'new' | 'floating') => {
+        addRecentSearchQuery(query.trim())
+        openLexicon(entry.strongsNum, targetOverride)
+      }
       results.push({
         type: 'lexicon',
         label: `${entry.strongsNum}  ${entry.lemma}  (${entry.transliteration})`,
         sub: entry.gloss,
-        action: () => { addRecentSearchQuery(query.trim()); goToLexicon(entry.strongsNum) },
+        action: () => openLex(),
+        openWith: openLex,
       })
     }
   }
@@ -1067,29 +1150,33 @@ export default function FloatingSearch() {
   })()
 
   for (const row of verseRows) {
+    const openVerseRow = (targetOverride?: 'current' | 'new' | 'floating') => {
+      addRecentSearchQuery(query.trim())
+      navigate(row.nav.book_id, row.nav.chapter, row.nav.verse_num, undefined, row.nav.sourceTextId, undefined, targetOverride)
+    }
     results.push({
       type: 'verse',
       label: row.label,
       sub: row.sub,
       highlightTerms: row.highlightTerms,
-      action: () => { addRecentSearchQuery(query.trim()); navigate(row.nav.book_id, row.nav.chapter, row.nav.verse_num, undefined, row.nav.sourceTextId) },
+      action: () => openVerseRow(),
+      openWith: openVerseRow,
     })
   }
 
   // Then the user's notes.
   if (!versesOnly) {
     for (const row of noteRows) {
+      const openNoteRow = (targetOverride?: 'current' | 'new' | 'floating') => {
+        addRecentSearchQuery(query.trim())
+        openNote(row.id, targetOverride)
+      }
       results.push({
         type: 'note' as const,
         label: row.label,
         sub: row.sub,
-        action: () => {
-          addRecentSearchQuery(query.trim())
-          ensureTab('note')
-          setActiveSpace('notes')
-          requestOpenNote(row.id)
-          closeSearch()
-        },
+        action: () => openNoteRow(),
+        openWith: openNoteRow,
       })
     }
   }
@@ -1102,20 +1189,16 @@ export default function FloatingSearch() {
   for (const vid of versesOnly ? [] : youtubeResults) {
     const hasTimestamp = vid.startMs !== undefined && vid.startMs !== null
     const tsLabel = hasTimestamp ? formatTranscriptTs(vid.startMs!) : null
+    const openYtRow = (targetOverride?: 'current' | 'new' | 'floating') => {
+      addRecentSearchQuery(query.trim())
+      openYouTubeResult(vid.videoId, vid.startMs, targetOverride)
+    }
     results.push({
       type: 'youtube' as const,
       label: tsLabel ? `${vid.title} — ${tsLabel}` : vid.title,
       sub: vid.snippet ? `”${decodeEntities(vid.snippet)}”` : vid.channelName,
-      action: () => {
-        addRecentSearchQuery(query.trim())
-        if (hasTimestamp) {
-          openYouTubeVideo(vid.videoId, vid.startMs! / 1000)
-        } else {
-          openYouTubeVideoInNewTab(vid.videoId)
-        }
-        setActiveSpace('youtube')
-        closeSearch()
-      },
+      action: () => openYtRow(),
+      openWith: openYtRow,
     })
   }
 
@@ -1420,6 +1503,10 @@ export default function FloatingSearch() {
                     // navigation, rather than only ever falling back to the smart-prediction
                     // jump once the cursor has clearly indicated an actual row.
                     onMouseEnter={() => setSelectedIdx(i)}
+                    // TEST-013: right-click → Open / Open in New Tab / Open in Floating Tab.
+                    // Only rows that are actually "open a piece of content" carry `openWith`
+                    // (command rows don't — they RUN something, so no menu for those).
+                    onContextMenu={r.openWith ? (e) => { setSelectedIdx(i); resultMenu.openAt(e, { openWith: r.openWith! }) } : undefined}
                     // The input stays the focused element the whole time — arrow keys move
                     // `selectedIdx`, not DOM focus — so these row buttons must be pulled out
                     // of the Tab order rather than competing with it.
@@ -1430,6 +1517,15 @@ export default function FloatingSearch() {
               })}
             </div>
           )}
+          <resultMenu.Menu>
+            {(payload) => (
+              <>
+                <MenuItem label="Open" onClick={() => payload.openWith('current')} />
+                <MenuItem label="Open in New Tab" onClick={() => payload.openWith('new')} />
+                <MenuItem label="Open in Floating Tab" onClick={() => payload.openWith('floating')} />
+              </>
+            )}
+          </resultMenu.Menu>
 
           {/* Hint when empty — show recent queries if available */}
           {showHint && (

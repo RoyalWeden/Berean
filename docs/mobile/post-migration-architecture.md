@@ -92,3 +92,42 @@ TEST-003 root causes (reproduced in the running desktop app over CDP, then verif
 2. Switching **back** to Scripture fires the flush again; the hidden Bible panel (display:none,
    offset already dropped to 0) answered it and saved 0. `onSave` now ignores the event when its
    scroller is not rendered.
+
+## 5. Presenter sync after a verse jump (Wave 2 — TEST-004)
+
+Reproduced in the running desktop app (CDP, presenter window open) and fixed at each link:
+
+1. **Payload lost the verse.** ChapterView scrolls to `targetVerse` and clears it in a *child*
+   effect, which runs before App's `useViewerSync` push effect — the payload carried neither a
+   verse nor a percent. `useViewerSync` now records every jump synchronously with a store
+   subscription (`setLastBibleVerse` + a **jump anchor**).
+2. **Jump anchor.** While `jumpAnchor` matches the chapter, the payload carries the verse and
+   no scroll percent, and BiblePanel's proportional pushes (scroll handler, settle, centred
+   model step) stand down. The user's own wheel / touch / scroll-key input clears it, after
+   which the presenter mirrors the reader proportionally again.
+3. **Presenter side.** A verse-only payload releases the live percent ref (`ViewerApp`) so the
+   rAF apply loop stops pulling the presenter back to an earlier position; centring on the verse
+   is instant (`behavior: 'auto'`), like the find-bar path.
+4. **Main side.** Region-arrival seeding of the centred model and the band clamp skip while a
+   jump owns the passage; a landed jump (cached chapter) is honoured by the chapter-reset paths
+   for 1.5 s (`verseJumpOwnsPassage`). This last part also fixed a pre-existing bug: cross-chapter
+   search / cross-ref jumps into an already-cached chapter landed on verse 1.
+
+## 6. Layering and menus (Wave 2 — TEST-005/006/012/017/018)
+
+- Layer tokens stay `--z-popover` (400) < `--z-menu` (450). A popover must carry its layer on
+  the **fixed** element that forms its stacking context — `MenuPositioner` does this; the layout
+  picker now uses it instead of a z-index-less fixed wrapper.
+- `MenuItem.selectionStyle: 'check' | 'highlight'` — `highlight` draws no check column and gives
+  the selected row the selected-row treatment; semantics (`aria-checked`) unchanged. Used by the
+  session menu and every `OverflowGroup` ("…") menu.
+- `Select` aligns its menu to the trigger (`align: 'auto'`, `resolveSelectAlign`) and matches the
+  trigger's width.
+
+## 7. Floating tabs (Wave 2 — TEST-013)
+
+`src/lib/floatingTab.ts` is the single entry for opening a floating window (`openFloatingTab`,
+`floatingTabState` drops null/undefined before the state is serialised into the window URL).
+`FloatingShell` gives an independent window its own Scripture tab before applying the
+requested passage — since the Phase 5 SQLite tab mirror, independent windows start with no
+active tab and every floating Scripture window had opened at Genesis 1.

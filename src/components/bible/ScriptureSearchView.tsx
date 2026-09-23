@@ -1119,6 +1119,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           return (
             <Button
               variant="secondary" size="sm" selected={isFiltered}
+              shape="capsule"
               icon={BookOpen}
               onClick={() => openScopePalette()}
               tooltip="Scope: edition, testament, and books"

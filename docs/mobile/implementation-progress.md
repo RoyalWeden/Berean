@@ -17,6 +17,7 @@ Source: the developer's 2026-09-22 device/desktop testing notes → `testing-bac
 | Wave | Scope | Status |
 |---|---|---|
 | 1 | Shared: drag range selection, history model, scroll-state audit (Ctrl+Tab, side panel), LXX→KJV and chapter fallbacks, line-height hook | **CHECKPOINT** 2026-09-22 — typecheck clean; vitest 184 files / 4,201 tests (was 180 / 4,146); `npm run build` OK; `ios:build` (simulator) OK; Ctrl+Tab and side-panel scroll reproduced + verified in the running desktop app over CDP |
+| 2 | macOS: presenter/outline follow jumps (+ cached-chapter landing fix), notes sort menu alignment, layout-picker layering, taller title bar, calendar month/year/12-year picker, session + … menus highlight selection, floating-search context menu (+ floating windows opened at Genesis 1 — fixed), selection-menu material + 2-row swatches, Select verses, notes filter follows selection, search scope radius | **CHECKPOINT** 2026-09-22 — typecheck clean; vitest 187 files / 4,213 tests; `npm run build` OK; `ios:build` OK; every item checked in the running desktop app over CDP (screenshots + DOM probes) |
 
 ## Status summary (2026-09-21, end of the autonomous run)
 

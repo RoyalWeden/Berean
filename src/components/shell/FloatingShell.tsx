@@ -56,7 +56,17 @@ export default function FloatingShell() {
   // Override it here so BiblePanel immediately shows the correct book/chapter.
   useEffect(() => {
     if (params.type === 'bible') {
-      const store = useAppStore.getState()
+      let store = useAppStore.getState()
+      // A floating window is an independent window: it starts with no active Scripture tab (tab
+      // state is never hydrated or persisted here — the active tab per space moved to the
+      // device-local SQLite mirror, which only the main window installs). Without a tab to
+      // apply the params to, every floating Scripture window opened at Genesis 1 whatever
+      // passage was requested (found verifying TEST-013). Give this window its own tab first;
+      // nothing here is persisted, so the main window's tabs are untouched.
+      if (!store.activeTabId['scripture'] || !store.tabs['scripture'].some(t => t.id === store.activeTabId['scripture'])) {
+        store.createTab('bible')
+        store = useAppStore.getState()
+      }
       const activeId = store.activeTabId['scripture']
       const exists = activeId && store.tabs['scripture'].some(t => t.id === activeId)
       if (activeId && exists) {

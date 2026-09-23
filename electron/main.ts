@@ -1051,9 +1051,12 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     // On Windows: frameless so we draw our own title bar in React
     frame: !isWinWin,
     titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
-    // Centered on the HEADER_HEIGHT (44px, src/lib/windowChrome.ts) bar: traffic
-    // lights are 12px tall, so y = (44 - 12) / 2 = 16 puts their centre on the bar's centre.
-    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
+    // Centered on the HEADER_HEIGHT (52px, src/lib/windowChrome.ts) bar: traffic
+    // lights are 12px tall, so y = (52 - 12) / 2 = 20 puts their centre on the bar's centre.
+    // TEST-010: was 44/16 — only THIS (the main window) tracks HEADER_HEIGHT; the other
+    // BrowserWindow calls above (viewer/study-trail/verse-picker/floating tab) keep their own
+    // fixed { x: 12, y: 14 } — those are separate window chrome, not this bar.
+    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 20 } } : {}),
     // macOS: transparent + native vibrancy so the sidebar column can show a true
     // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
     // this in an opaque window — it only blurs the app's own content, not what's

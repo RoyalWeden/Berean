@@ -43,6 +43,16 @@ export function clearMainBibleScrollPercent(chapterKey: string) {
 // SAME chapter falls back to the one that was actually just navigated to.
 let lastBibleVerse: number | undefined
 let lastVerseChapterKey = ''
+
+// The verse a one-shot jump (search / cross reference / Scripture link) landed on, held as the
+// presenter's truth until the user scrolls the main reader themselves (TEST-004). While it is
+// set, the payload carries the verse and NO scroll percent: the percents the main panel writes
+// during its own jump animation are intermediate positions, and applying them sent the
+// presenter (and, through the centred model, the main reader) somewhere other than the verse.
+let jumpAnchor: { chapterKey: string; verse: number } | null = null
+export function setPresenterJumpAnchor(chapterKey: string, verse: number) { jumpAnchor = { chapterKey, verse } }
+export function clearPresenterJumpAnchor() { jumpAnchor = null }
+export function presenterJumpAnchor() { return jumpAnchor }
 export function setLastBibleVerse(v: number | undefined, chapterKey = '') {
   if (v === undefined) return
   if (window.__bereanPresenterDebug) {
@@ -104,7 +114,8 @@ export function computeViewerPayload(): ViewerPayload {
     const scrollPercentSource = bs.targetVerse !== undefined
       ? 'undefined (targetVerse pending)'
       : (lastScrollChapterKey === chapterKey ? 'cache hit' : 'undefined (cache miss/different chapter)')
-    const scrollPercent = bs.targetVerse !== undefined
+    const anchored = jumpAnchor?.chapterKey === chapterKey ? jumpAnchor.verse : undefined
+    const scrollPercent = bs.targetVerse !== undefined || anchored !== undefined
       ? undefined
       : (lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined)
     // Fall back to targetVerse when verse isn't set — search-navigation (and other
@@ -117,7 +128,7 @@ export function computeViewerPayload(): ViewerPayload {
     const verseSource = bs.verse !== undefined ? 'bs.verse'
       : bs.targetVerse !== undefined ? 'bs.targetVerse'
       : (lastVerseChapterKey === chapterKey ? 'lastBibleVerse cache' : 'undefined (no source)')
-    const verse = bs.verse ?? bs.targetVerse ?? (lastVerseChapterKey === chapterKey ? lastBibleVerse : undefined)
+    const verse = bs.verse ?? bs.targetVerse ?? anchored ?? (lastVerseChapterKey === chapterKey ? lastBibleVerse : undefined)
     if (bs.verse !== undefined) setLastBibleVerse(bs.verse, chapterKey)
     else if (bs.targetVerse !== undefined) setLastBibleVerse(bs.targetVerse, chapterKey)
     // THE critical diagnostic line for "presenter shows a different verse range than the main
@@ -229,6 +240,42 @@ export function useViewerSync() {
   const viewerSidePanelEnabled = useAppStore((s) => s.viewerSidePanelEnabled)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
+
+  // Record every one-shot verse jump (search, cross reference, Scripture link, Strong's
+  // occurrence…) the instant it lands in the store (TEST-004). ChapterView scrolls to
+  // `targetVerse` and clears it in a CHILD effect, which runs before this hook's push effect —
+  // so by the time computeViewerPayload() read the tab, the target was gone, the jump had also
+  // cleared the chapter's scroll-percent cache, and the presenter received neither a verse nor a
+  // percent: it stayed at the top of the chapter while the main reader (and its outline band)
+  // sat on the target verse. A zustand subscription runs synchronously inside set(), before any
+  // render, so the verse is cached for the payload's same-chapter fallback.
+  useEffect(() => useAppStore.subscribe((st, prev) => {
+    const id = st.activeTabId['scripture']
+    if (!id) return
+    const tab = st.tabs['scripture'].find((t) => t.id === id)
+    if (!tab || tab.type !== 'bible') return
+    const bs = tab.state as BibleTabState
+    if (bs.targetVerse === undefined) return
+    const before = prev.tabs['scripture'].find((t) => t.id === id)?.state as BibleTabState | undefined
+    if (before && before.targetVerse === bs.targetVerse && before.bookId === bs.bookId && before.chapter === bs.chapter) return
+    setLastBibleVerse(bs.targetVerse, `${bs.bookId}:${bs.chapter}`)
+    setPresenterJumpAnchor(`${bs.bookId}:${bs.chapter}`, bs.targetVerse)
+  }), [])
+
+  // The user's own scrolling (wheel / touch / scroll keys) ends the jump anchor: from then on the
+  // presenter mirrors the main reader's proportional position again.
+  useEffect(() => {
+    const end = () => { if (jumpAnchor) { clearPresenterJumpAnchor(); if (useAppStore.getState().viewerWindowOpen) pushCurrentToViewer() } }
+    const onKey = (e: KeyboardEvent) => { if (['PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Home', 'End', ' '].includes(e.key)) end() }
+    window.addEventListener('wheel', end, { capture: true, passive: true })
+    window.addEventListener('touchmove', end, { capture: true, passive: true })
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('wheel', end, { capture: true } as EventListenerOptions)
+      window.removeEventListener('touchmove', end, { capture: true } as EventListenerOptions)
+      window.removeEventListener('keydown', onKey, true)
+    }
+  }, [])
 
   // Listen for viewer-ready signal (fired by viewer React app after registering onContent)
   useEffect(() => {

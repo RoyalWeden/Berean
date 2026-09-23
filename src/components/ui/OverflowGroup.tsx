@@ -128,10 +128,14 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
           <PopoverSurface align="end" innerClassName="p-1 min-w-[220px]" role="menu">
             {renderOverflow ? renderOverflow(folded) : (
               <>
+                {/* Folded controls keep their checked state (aria-checked stays live either way — see
+                    MenuItem) but draw it as the selected-row highlight rather than a leading checkmark,
+                    so no column of blank leading space is reserved for items that never carry one
+                    (§TEST-017/018) — same treatment as the session switcher (§TEST-012). */}
                 {foldedMeta.map(({ el, items: meta, label: sectionLabel }, i) => meta ? (
                   <MenuGroup key={i} label={sectionLabel}>
                     {meta.map((m) => (
-                      <MenuItem key={m.key} icon={m.icon} label={m.label} shortcut={m.shortcut} active={m.checked} disabled={m.disabled} danger={m.danger} onClick={m.onSelect} />
+                      <MenuItem key={m.key} icon={m.icon} label={m.label} shortcut={m.shortcut} active={m.checked} selectionStyle="highlight" disabled={m.disabled} danger={m.danger} onClick={m.onSelect} />
                     ))}
                   </MenuGroup>
                 ) : (
@@ -142,7 +146,7 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
                     {folded.length > 0 && <MenuSeparator />}
                     <MenuGroup>
                       {extraItems.map((m) => (
-                        <MenuItem key={m.key} icon={m.icon} label={m.label} shortcut={m.shortcut} active={m.checked} disabled={m.disabled} danger={m.danger} onClick={m.onSelect} />
+                        <MenuItem key={m.key} icon={m.icon} label={m.label} shortcut={m.shortcut} active={m.checked} selectionStyle="highlight" disabled={m.disabled} danger={m.danger} onClick={m.onSelect} />
                       ))}
                     </MenuGroup>
                   </>

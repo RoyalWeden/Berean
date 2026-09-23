@@ -153,7 +153,8 @@ export default function LayoutPicker({ current, onSelect, onClose, defaultLayout
   return (
     <div
       ref={ref}
-      className="absolute top-full right-0 mt-1 z-popover w-[420px] material-popover rounded-menu p-3"
+      // Placed and layered by its MenuPositioner (BiblePanel) — no own position / z-index.
+      className="w-[420px] material-popover rounded-menu p-3"
     >
       <SectionLabel className="mb-2 px-1">Panel Layout</SectionLabel>
       <div className="grid grid-cols-3 gap-1.5">

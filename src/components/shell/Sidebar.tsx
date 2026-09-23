@@ -590,6 +590,7 @@ export default function Sidebar() {
                     icon={SessionIcon}
                     label={session.name}
                     active={session.id === currentSessionId}
+                    selectionStyle="highlight"
                     onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
                     onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
                   />
@@ -600,13 +601,11 @@ export default function Sidebar() {
                 icon={Plus}
                 label="New session"
                 shortcut="⌘⇧0"
-                active={false}
                 onClick={() => { createSession(); setSessionPopoverOpen(false) }}
               />
               <MenuItem
                 icon={Settings}
                 label="Manage sessions…"
-                active={false}
                 onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
               />
             </PopoverSurface>

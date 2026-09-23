@@ -82,18 +82,30 @@ export interface MenuItemProps extends Omit<HTMLAttributes<HTMLButtonElement>, '
   shortcut?: string
   trailing?: ReactNode
   danger?: boolean
-  /** Checked state — renders a leading check (menuitemradio semantics). */
+  /** Checked state — renders a leading check (menuitemradio semantics) by default. */
   active?: boolean
+  /** How `active` is drawn. 'check' (default) — leading checkmark, and every sibling in the
+   *  same inset context reserves that column so labels stay aligned. 'highlight' — no check
+   *  column at all (nothing reserved on siblings either); the selected row instead gets the
+   *  standard selected-row treatment (bg-accent-muted + accent text, the same language as a
+   *  selected list row elsewhere in the app) so there's no dead leading space when a menu is
+   *  never mixed with icon/check items. `role`/`aria-checked` stay put either way — pass
+   *  `role="menuitemcheckbox"` explicitly for a toggle item (default role is menuitemradio
+   *  when `active` is set). */
+  selectionStyle?: 'check' | 'highlight'
   disabled?: boolean
   /** Secondary line under the label. */
   description?: ReactNode
 }
 
 export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function MenuItem(
-  { icon: Icon, label, shortcut, trailing, danger, active, disabled, description, className, ...rest }, ref,
+  { icon: Icon, label, shortcut, trailing, danger, active, selectionStyle = 'check', disabled, description, className, ...rest }, ref,
 ) {
   const inset = useContext(MenuInsetContext)
   const iconColumn = useContext(MenuIconColumnContext)
+  const highlight = selectionStyle === 'highlight'
+  const showCheckColumn = !highlight && (active !== undefined || inset)
+  const selected = highlight && active === true
   return (
     <button
       ref={ref}
@@ -106,15 +118,21 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
         description ? 'py-1.5' : 'h-7',
         'transition-colors duration-fast active:brightness-90',
         'disabled:opacity-40 disabled:pointer-events-none',
-        // NSMenu highlight: accent fill + white text (danger: destructive fill)
+        // NSMenu highlight: accent fill + white text (danger: destructive fill). A 'highlight'
+        // selection style additionally tints the row at rest when selected (the same resting
+        // treatment a selected list row gets elsewhere), still flipping to the accent fill on
+        // hover/focus like every other item.
         danger
           ? 'text-destructive hover:bg-destructive hover:text-white focus-visible:bg-destructive focus-visible:text-white'
-          : 'text-text-primary hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white',
+          : cx(
+              selected ? 'bg-accent-muted text-accent' : 'text-text-primary',
+              'hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white',
+            ),
         className,
       )}
       {...rest}
     >
-      {(active !== undefined || inset) && (
+      {showCheckColumn && (
         <Check size={12} strokeWidth={2.25} className={cx('flex-shrink-0 -ml-0.5', active ? 'text-accent group-hover/mi:text-white group-focus-visible/mi:text-white' : 'opacity-0')} />
       )}
       {Icon

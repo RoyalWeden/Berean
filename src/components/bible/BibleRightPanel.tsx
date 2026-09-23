@@ -7,6 +7,7 @@ import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, SectionHeader, EmptyState, Button, SearchField, TextField, Toolbar, DisclosureRow, ListRow, Divider, TabStrip, CompactMetrics } from '@/components/ui'
 import { LexiconEntryHeader, LangBadge, OccurrenceRow, DerivedTermRow } from '@/components/lexicon/parts'
 import { useKeyedScrollMemory } from '@/hooks/useKeyedScrollMemory'
+import { selectionLabel } from '@/lib/verseSelection'
 import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -1320,6 +1321,18 @@ export default function BibleRightPanel({
   const savedSort = useRef<NoteSort>(sort)
   const [selectedNoteIdx, setSelectedNoteIdx] = useState(-1)
   const [verseFilter, setVerseFilter] = useState<string | null>(initialVerseFilter ?? null)
+  // The reader's verse selection for this chapter (TEST-020). Read straight from the store so
+  // the filter IS the selection — clearing or changing the selection changes the list.
+  const activeScriptureTabId = useAppStore((s) => s.activeTabId['scripture'])
+  const selectedRaw = useAppStore((s) => (activeScriptureTabId ? s.selectedVersesByTab[activeScriptureTabId] : undefined))
+  const selectedInChapter = useMemo(
+    () => (selectedRaw ?? []).filter((r) => r.bookId === bookId && r.chapter === chapter),
+    [selectedRaw, bookId, chapter],
+  )
+  const selectionRefKeys = useMemo(
+    () => (selectedInChapter.length ? new Set(selectedInChapter.map((r) => `${r.bookId}.${r.chapter}.${r.verse}`)) : null),
+    [selectedInChapter],
+  )
   const [referencingNotes, setReferencingNotes] = useState<Note[]>([])
   const [chapterMentionNotes, setChapterMentionNotes] = useState<Note[]>([])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1486,7 +1499,12 @@ export default function BibleRightPanel({
     let result = [...notes]
     // When scope === 'chapter', notes are already pre-filtered by getChapterNotes.
     // For 'all' scope, filter client-side (loaded set is already limited to 500).
-    if (verseFilter) {
+    // Selected verses in the reader narrow the list to those verses (TEST-020) — derived from
+    // the tab's live selection, never copied into panel state; the explicit single-verse filter
+    // applies when nothing is selected.
+    if (selectionRefKeys) {
+      result = result.filter((n) => !!n.verseRef && selectionRefKeys.has(n.verseRef))
+    } else if (verseFilter) {
       result = result.filter((n) => n.verseRef === verseFilter)
     }
     if (noteSearch.trim()) {
@@ -1505,7 +1523,7 @@ export default function BibleRightPanel({
       return b.createdAt - a.createdAt
     })
     return result
-  }, [notes, sort, verseFilter, noteSearch])
+  }, [notes, sort, verseFilter, noteSearch, selectionRefKeys])
 
   // Whole-chapter notes (verseRef has no verse segment, e.g. "GEN.1" vs "GEN.1.5")
   // vs verse-specific ones — see chapterNotesCollapsed above. When a specific
@@ -1885,8 +1903,16 @@ export default function BibleRightPanel({
             />
           </Toolbar>
 
+          {/* Selected-verses filter (TEST-020): ✕ clears the reader selection itself. */}
+          {selectionRefKeys && (
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-separator bg-accent-muted flex-shrink-0">
+              <Filter size={10} className="text-accent flex-shrink-0" />
+              <span className="text-caption2 text-accent flex-1 truncate">Selected: {selectionLabel(selectedInChapter)}</span>
+              <IconButton icon={X} label="Clear verse selection" size={20} onClick={() => useAppStore.getState().clearVerseSelection(activeScriptureTabId)} />
+            </div>
+          )}
           {/* Verse filter indicator — genuinely conditional context, not redundant chrome */}
-          {verseFilter && (
+          {verseFilter && !selectionRefKeys && (
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-separator bg-accent-muted flex-shrink-0">
               <Filter size={10} className="text-accent flex-shrink-0" />
               <span className="text-caption2 text-accent flex-1 truncate">{formatRef(verseFilter)}</span>
@@ -1897,7 +1923,7 @@ export default function BibleRightPanel({
           {/* Notes list */}
           <div data-panel-scroll-root className="flex-1 overflow-y-auto">
             {filtered.length === 0 && referencingNotes.length === 0 && chapterMentionNotes.length === 0 ? (
-              <EmptyState compact title={`No notes${verseFilter ? ' for this verse' : scope === 'chapter' ? ' for this chapter' : ''}`} />
+              <EmptyState compact title={`No notes${selectionRefKeys ? ' for the selected verses' : verseFilter ? ' for this verse' : scope === 'chapter' ? ' for this chapter' : ''}`} />
             ) : (
               <>
                 {/* General/daily/etc. notes that mention this chapter (indirect connections,

@@ -4,10 +4,87 @@ import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { zoomedFontSize } from '@/lib/zoom'
 import { toDateKey, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { IconButton, Tooltip, ControlGroup } from '@/components/ui'
+import { IconButton, Tooltip, ControlGroup, Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
 import { useRovingGridNav } from '@/lib/useRovingNav'
 
 export { toDateKey }
+
+const MONTH_ABBRS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/**
+ * TEST-011 — clicking the "Month Year" label opens this: a year stepper (‹ year › — cheap to
+ * click through several years at a time, no need for a long scrollable list for a typical
+ * study-note calendar's range) plus a 3×4 month grid, and a Today shortcut. Picking a month
+ * calls `onPick` (which both sets the calendar and closes the popover, via Radix's own
+ * PopoverClose-on-select-below). `pickerYear` is local, separate from the calendar's own
+ * `date` — browsing years in the picker shouldn't move the calendar until a month is actually
+ * chosen; it re-seeds from `date` every time the popover mounts (Radix unmounts content when
+ * closed by default), so reopening always starts back at the calendar's current year.
+ */
+/** First year of the 12-year page that contains `year` (2016–2027 for 2026, …). */
+export function yearPageStart(year: number): number { return year - (((year % 12) + 12) % 12) }
+
+function MonthYearPicker({ date, onPick }: { date: Date; onPick: (d: Date) => void }) {
+  const [pickerYear, setPickerYear] = useState(date.getFullYear())
+  // Clicking the year switches the grid to 12 years at a time (‹ › then page by 12), so long
+  // jumps are two taps instead of one tap per year (TEST-011).
+  const [mode, setMode] = useState<'months' | 'years'>('months')
+  const today = dailyNoteToday()
+  const pageStart = yearPageStart(pickerYear)
+  const step = mode === 'years' ? 12 : 1
+  const cell = (selected: boolean, current: boolean) => `focus-ring h-8 rounded-compact text-footnote font-medium transition-colors duration-fast tabular-nums
+                ${selected ? 'bg-accent text-white'
+                  : current ? 'text-text-primary ring-1 ring-inset ring-accent hover:bg-lift-2'
+                  : 'text-text-secondary hover:bg-lift-2'}`
+  return (
+    <div className="p-2 w-56">
+      <div className="flex items-center justify-between mb-2">
+        <IconButton icon={ChevronLeft} label={mode === 'years' ? 'Previous 12 years' : 'Previous year'} size={24} onClick={() => setPickerYear((y) => y - step)} />
+        <button
+          type="button"
+          onClick={() => setMode((m) => (m === 'months' ? 'years' : 'months'))}
+          aria-label={mode === 'months' ? `${pickerYear}, choose a year` : 'Back to months'}
+          className="focus-ring text-subhead font-semibold text-text-primary tabular-nums px-2 py-0.5 rounded-compact hover:bg-lift-2"
+        >
+          {mode === 'months' ? pickerYear : `${pageStart}–${pageStart + 11}`}
+        </button>
+        <IconButton icon={ChevronRight} label={mode === 'years' ? 'Next 12 years' : 'Next year'} size={24} onClick={() => setPickerYear((y) => y + step)} />
+      </div>
+      {mode === 'months' ? (
+        <div role="grid" aria-label="Month" className="grid grid-cols-3 gap-1">
+          {MONTH_ABBRS.map((label, i) => {
+            const isSelected = pickerYear === date.getFullYear() && i === date.getMonth()
+            const isCurrent = pickerYear === today.getFullYear() && i === today.getMonth()
+            return (
+              <button key={label} type="button" role="gridcell" aria-selected={isSelected || undefined}
+                onClick={() => onPick(new Date(pickerYear, i, 1))} className={cell(isSelected, isCurrent)}>
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div role="grid" aria-label="Year" className="grid grid-cols-3 gap-1">
+          {Array.from({ length: 12 }, (_, i) => pageStart + i).map((y) => (
+            <button key={y} type="button" role="gridcell" aria-selected={y === pickerYear || undefined}
+              onClick={() => { setPickerYear(y); setMode('months') }} className={cell(y === pickerYear, y === today.getFullYear())}>
+              {y}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-2 pt-2 border-t border-separator flex justify-center">
+        <button
+          type="button"
+          onClick={() => onPick(new Date())}
+          className="focus-ring text-caption1 font-medium text-accent hover:brightness-110 px-2 py-1 rounded-compact"
+        >
+          Today
+        </button>
+      </div>
+    </div>
+  )
+}
 
 /** Resolve the existing daily/journal note for a given date, if any — same title-parsing
  *  logic CalendarGrid uses to populate its note-dot indicators, exposed so callers (e.g. a
@@ -160,6 +237,14 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   const todayDow = today.getDay()
   const currentWeekStart = isCurrentMonth ? today.getDate() - todayDow : null
 
+  // TEST-011: the month/year LABEL opens the jump-to-month/year popover — only meaningful in
+  // month view (week view shows a date-span label, not a single month, so no picker there).
+  const [pickerOpen, setPickerOpen] = useState(false)
+  function pickMonth(d: Date) {
+    onDateChange(d)
+    setPickerOpen(false)
+  }
+
   return (
     <div>
       {/* Month navigation — icon-only, color-only hover (no button-chrome box) so the nav
@@ -190,13 +275,27 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
               truncation (ellipsis) only ever eats into the MONTH NAME; the year has its own
               flex-shrink-0 and is never clipped. The week-spanning-months label ("Aug 30 – Sep 5")
               has no year to protect the same way, so it stays one plain truncatable span. */}
-          {crossMonthLabel ? (
-            <span className="px-1.5 font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{crossMonthLabel}</span>
+          {crossMonthLabel || weekOnly ? (
+            // Week view: the label is a date span (or, when the week doesn't cross a month
+            // boundary, just plain text) — not a single month, so no month/year picker here.
+            <span className="px-1.5 font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{crossMonthLabel ?? `${monthName} ${yearStr}`}</span>
           ) : (
-            <span className="flex items-baseline gap-1 min-w-0 px-1.5">
-              <span className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{monthName}</span>
-              <span className="font-semibold whitespace-nowrap flex-shrink-0 text-subhead text-text-muted" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
-            </span>
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`${monthName} ${yearStr} — jump to month or year`}
+                  aria-haspopup="dialog"
+                  className="focus-ring flex items-baseline gap-1 min-w-0 px-1.5 rounded-compact hover:bg-lift-2 transition-colors duration-fast"
+                >
+                  <span className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis min-w-0 text-subhead text-text-primary" style={{ fontSize: monthLabelSize }}>{monthName}</span>
+                  <span className="font-semibold whitespace-nowrap flex-shrink-0 text-subhead text-text-muted" style={{ fontSize: monthLabelSize }}>{yearStr}</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverSurface align="start">
+                <MonthYearPicker date={date} onPick={pickMonth} />
+              </PopoverSurface>
+            </Popover>
           )}
           <IconButton
             icon={ChevronRight}

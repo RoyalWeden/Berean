@@ -210,6 +210,13 @@ export default function ViewerApp() {
       viewerScrollPctRef.current = next.scrollPercent
       viewerScrollTargetKeyRef.current = `${next.bookId}:${next.chapter}`
     }
+    // A verse with NO percent means "centre on this verse" (a search / cross-ref jump — the main
+    // window holds the percent back until the user scrolls). Release the live percent so the rAF
+    // loop stops re-applying the previous position over the centring (TEST-004: the loop pulled
+    // the presenter straight back to where an earlier visit to the chapter had left it).
+    else if (next.kind === 'bible' && next.scrollPercent == null && next.verse != null) {
+      viewerScrollPctRef.current = null
+    }
     // Skip the re-render when ONLY the chapter scroll position moved — the ref update above is
     // enough, the loop picks it up. Everything else (chapter nav, verse, annotations, side
     // panel, side-panel scroll, kind changes) still goes through setPayload. sidePanelScrollPercent

@@ -1921,6 +1921,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               value={activeHighlight}
               onChange={(id) => { if (id) applySelectionHighlight(id as HighlightColor); else clearSelectionHighlights() }}
               allowNone
+              noneLabel="Remove highlight"
+              rows={2}
               size={16}
             />
           </div>

@@ -1,3 +1,4 @@
+import { floatingTabState } from '@/lib/floatingTab'
 import { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { SPRING_SNAPPY } from '@/lib/motion'
@@ -516,11 +517,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
 
     if (wentOutside && tab && tab.type !== 'tags') {
       const floatType = tab.type === 'note' ? 'notes' : tab.type
-      const rawState = (tab.state ?? {}) as unknown as Record<string, unknown>
-      const floatState: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(rawState)) {
-        if (v !== null && v !== undefined) floatState[k] = v
-      }
+      const floatState = floatingTabState((tab.state ?? {}) as unknown as Record<string, unknown>)
       if (floatType === 'bible' && floatState.rightPanelOpen === true) {
         floatState.rightPanelOpen  = false
         floatState._rightPanelWasOpen = 'true'

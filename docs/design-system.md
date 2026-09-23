@@ -175,8 +175,12 @@ timestamps, word counts and status — never stack `opacity-*` on muted text. `S
 uppercase recipe.
 
 ### Spacing
-4px grid (Tailwind default scale). Toolbar height 44 (`h-header`), traffic-light inset 76
-(`pl-traffic-lights`), controls 24/28/32, rows 28–32, panel padding 12–16.
+4px grid (Tailwind default scale). In-content toolbar height 44 (`h-header`); the window title
+bar (ShellHeader.tsx) is its own separate metric, `HEADER_HEIGHT` in `src/lib/windowChrome.ts` —
+**52** as of TEST-010 (was 44, bumped for more vertical breathing room around its controls; macOS
+traffic-light y in `electron/main.ts`'s main-window `trafficLightPosition` is derived from it,
+`(HEADER_HEIGHT - 12) / 2`). Traffic-light inset 76 (`pl-traffic-lights`), controls 24/28/32, rows
+28–32, panel padding 12–16.
 
 ### Icons
 `lucide-react` only. Scale 12 / 14 / 16 / 18 / 20 / 24; `IconButton` maps 20→12, 24→14, 28→16,
