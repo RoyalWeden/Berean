@@ -114,9 +114,12 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 /* ── sheets ───────────────────────────────────────────────────────────── */
 .mobile-sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); }
 .mobile-sheet { position: fixed; left: 0; right: 0; top: 0; display: flex; flex-direction: column; background: rgb(var(--color-surface-2)); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgb(0 0 0 / 0.3); touch-action: none; }
-.mobile-sheet-grabber-area { position: relative; flex: none; padding: 8px 16px 6px; touch-action: none; }
-.mobile-sheet-close { position: absolute; top: 6px; right: 10px; width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-secondary)); display: inline-flex; align-items: center; justify-content: center; }
-.mobile-sheet-grabber { width: 36px; height: 5px; margin: 0 auto; border-radius: 3px; background: rgb(var(--color-text-muted) / 0.5); }
+.mobile-sheet-grabber-area { position: relative; flex: none; min-height: 30px; padding: 12px 16px 10px; touch-action: none; }
+/* ✕ exists only at a verse sheet's special low position (TEST-026 / TEST-040). */
+.mobile-sheet-close { position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border-radius: 16px; border: 0; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-secondary)); display: inline-flex; align-items: center; justify-content: center; }
+.mobile-sheet-grabber { width: 40px; height: 5px; margin: 0 auto; border-radius: 3px; background: rgb(var(--color-text-muted) / 0.55); }
+.mobile-sheet.is-low { box-shadow: 0 -4px 18px rgb(0 0 0 / 0.28); }
+.mobile-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .mobile-sheet-title { margin-top: 8px; text-align: center; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1)); }
 .mobile-sheet-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: calc(var(--m-safe-bottom) + 16px); touch-action: pan-y; }
 .mobile-sheet-loading { padding: 20px; color: rgb(var(--color-text-muted)); }
@@ -130,6 +133,15 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-reader { position: relative; height: 100%; overflow: hidden; touch-action: pan-y pinch-zoom; }
 .mobile-reader-track { position: absolute; top: 0; bottom: 0; display: flex; }
 .mobile-reader-pane { height: 100%; flex: none; }
+/* framer-motion's drag (the chapter pager) sets `user-select: none` inline on the track, which made
+   Scripture text impossible to select on the phone. The panes re-enable it so a long-press gives the
+   native iOS text selection with handles (TEST-039); chrome inside keeps its own `select-none`. */
+.mobile-reader-pane { -webkit-user-select: text; user-select: text; }
+/* Continuous scroll (TEST-023): the shared ContinuousChapterScroll root is `flex-1 min-h-0` — it
+   only gets a height (and therefore scrolls) inside a flex column. In a block pane it grew to its
+   full content height, so the placeholder for the chapters above the current one pushed the text
+   out of the clipped pane and the reader looked empty. */
+.mobile-reader-pane.is-continuous { display: flex; flex-direction: column; min-height: 0; }
 .mobile-reader-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding: 4px 4px 0; }
 .mobile-reader-end { height: 80px; }
 .mobile-reader-boundary { display: flex; align-items: center; justify-content: center; height: 100%; color: rgb(var(--color-text-muted)); }
@@ -286,3 +298,76 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 :root[data-bold-text] .mobile-root { font-weight: 600; }
 :root[data-contrast="more"] .mobile-list-section-title, :root[data-contrast="more"] .mobile-muted, :root[data-contrast="more"] .mobile-field-hint { color: rgb(var(--color-text-secondary)); }
 :root[data-contrast="more"] .mobile-chip, :root[data-contrast="more"] .mobile-input { border: 1px solid rgb(var(--color-text-muted) / 0.6); }
+
+
+/* ── compact Scripture presentation (TEST-036 / TEST-044, e-Sword-inspired) ───────────────────
+   More Scripture, less empty space: the verse number sits near the left edge and the text spans
+   ~90% of the width. Compactness comes from spacing and layout, never from shrinking the text —
+   the font size stays the user's (Dynamic Type scaled) Reading size. */
+.mobile-reader .berean-reading-column { padding: 6px 10px 10px 6px; max-width: none; }
+.mobile-reader [data-verse-row] { gap: 5px; margin-bottom: 4px; padding: 3px 2px 3px 0; border-radius: 8px; }
+.mobile-reader [data-verse-badge] { font-size: 0.7em; }
+.mobile-reader-scroll { padding: 0; }
+
+/* Strong's numbers on touch: inline superscript after the word, accent coloured — distinct but
+   integrated (TEST-038). The hit area is enlarged invisibly so a fingertip can open the sheet. */
+.strongs-sup-stack { display: inline; }
+.strongs-sup { position: relative; display: inline; vertical-align: super; font-size: 0.6em; line-height: 0; margin: 0 0.12em 0 0.05em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: rgb(var(--color-accent)); opacity: 0.9; letter-spacing: -0.02em; -webkit-user-select: none; user-select: none; }
+.strongs-sup::after { content: ''; position: absolute; inset: -6px -4px; }
+.strongs-sup.is-secondary { opacity: 0.6; margin-left: 0.2em; }
+.strongs-sup.is-paren { color: rgb(var(--color-text-muted)); opacity: 0.75; }
+html[data-contrast="more"] .strongs-sup { opacity: 1; }
+
+/* Reader top bar hides on downward scroll, returns on upward scroll (TEST-029). The header is an
+   overlay so hiding it never reflows the text being read. */
+.mobile-page.is-reader { position: relative; }
+.mobile-page.is-reader > .mobile-page-header { position: absolute; top: 0; left: 0; right: 0; z-index: 5; transition: transform 0.22s ease; }
+.mobile-page.is-reader.is-header-hidden > .mobile-page-header { transform: translateY(-100%); }
+/* The scroll content (not the body) reserves the header's height, so hiding the header slides it
+   off without reflowing the text underneath. */
+.mobile-page.is-reader { --m-reader-top: calc(var(--m-safe-top) + var(--m-header-h) + 1px); }
+.mobile-page.is-reader .mobile-reader-scroll > :first-child,
+.mobile-page.is-reader .mobile-reader-pane.is-continuous [data-scroll-root] > :first-child { margin-top: var(--m-reader-top); }
+.mobile-page.is-reader .mobile-reader-boundary { padding-top: var(--m-reader-top); }
+@media (prefers-reduced-motion: reduce) { .mobile-page.is-reader > .mobile-page-header { transition: none; } }
+
+/* Chapter edge taps (TEST-037): thin invisible strips at the far left/right of the reader. */
+.mobile-reader-edge { position: absolute; top: 0; bottom: 0; width: 22px; z-index: 3; background: transparent; border: 0; padding: 0; }
+.mobile-reader-edge.is-left { left: 0; }
+.mobile-reader-edge.is-right { right: 0; }
+
+/* ── verse sheet (TEST-035/039/040/043) ─────────────────────────────────────────────────── */
+.mobile-verse-sheet { padding: 0 12px 16px; }
+.mobile-verse-sheet .mobile-verse-actions-head { padding: 0 44px 8px 4px; }
+.mobile-swatch-row.is-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 8px; padding: 2px 4px 10px; scrollbar-width: none; }
+.mobile-swatch-row.is-scroll::-webkit-scrollbar { display: none; }
+.mobile-swatch-row.is-scroll .mobile-swatch { flex: none; width: 34px; height: 34px; }
+.mobile-tile-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; padding: 0 4px 10px; }
+.mobile-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 58px; border: 0; border-radius: 14px; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); -webkit-user-select: none; user-select: none; }
+.mobile-tile:active { background: rgb(var(--color-surface-4)); }
+
+/* study view — e-Sword-inspired dense lower pane */
+.mobile-study { margin: 2px 4px 12px; padding: 10px 12px; border-radius: 14px; background: rgb(var(--color-surface-1)); }
+.mobile-study-verse { margin: 0 0 10px; font-family: var(--font-scripture); font-size: calc(16px * var(--m-type-scale, 1)); line-height: 1.55; }
+.mobile-study-tag { font-weight: 700; font-family: var(--font-ui, inherit); font-size: 0.85em; }
+.mobile-study-strongs { display: inline; padding: 0 1px; margin: 0 0 0 1px; border: 0; background: none; vertical-align: super; font-size: 0.62em; line-height: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: rgb(var(--color-accent)); text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.4); position: relative; }
+.mobile-study-strongs::after { content: ''; position: absolute; inset: -10px -4px; }
+.mobile-study-red { color: rgb(var(--highlight-red, 220 70 70)); }
+.mobile-study-italic { font-style: italic; opacity: 0.8; }
+.mobile-study-refs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0 6px; border-top: 1px solid rgb(var(--color-surface-4) / 0.6); font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); text-transform: uppercase; letter-spacing: 0.03em; }
+.mobile-study-refs { margin: 0 0 8px; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.7; }
+.mobile-study-refs-heading { font-size: 0.8em; color: rgb(var(--color-text-muted)); font-style: italic; }
+.mobile-study-ref { display: inline; padding: 0; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.35); text-underline-offset: 2px; }
+.mobile-study-pad { padding: 4px 0 8px; }
+.mobile-strongs-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* passage navigator (TEST-041) */
+.mobile-search-field { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px; margin-bottom: 10px; border-radius: 14px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-muted)); }
+.mobile-search-field .mobile-search-input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); outline: none; }
+.mobile-ref-picker form.mobile-search-field { flex-direction: row; }
+.mobile-ref-go { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px; margin-bottom: 12px; border: 0; border-radius: 14px; background: rgb(var(--color-accent)); color: white; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-book-list { display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: rgb(var(--color-surface-2)); }
+.mobile-book-row { min-height: 46px; padding: 0 14px; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-book-row:last-child { border-bottom: 0; }
+.mobile-book-row.is-current { color: rgb(var(--color-accent)); font-weight: 600; }
+.mobile-ref-hint { margin: 4px 2px 0; }

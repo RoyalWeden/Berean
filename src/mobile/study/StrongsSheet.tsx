@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Copy, Check } from 'lucide-react'
 import type { LexiconEntry } from '@/types'
 import { useAppStore } from '@/store'
-import { DerivationText, stripBracketNotation } from '@/components/lexicon/LexiconPanel'
+import { DerivationText, stripBracketNotation, buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import type { SheetApi } from '../primitives/Sheet'
@@ -18,6 +18,7 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
   const [occ, setOcc] = useState<Array<{ book_id: string; chapter: number; verse_num: number; text: string }>>([])
   const [num, setNum] = useState(strongsNum)
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
+  const [copied, setCopied] = useState(false)
   const lang: 'H' | 'G' = num.startsWith('G') ? 'G' : 'H'
 
   useEffect(() => {
@@ -43,6 +44,16 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
         <div className="mobile-strongs-lemma" lang={lang === 'H' ? 'he' : 'el'}>{entry.lemma}</div>
         <div className="mobile-strongs-meta"><span className="mobile-strongs-num">{entry.strongsNum}</span> · {entry.transliteration}{entry.pronunciation ? ` · ${entry.pronunciation}` : ''}</div>
         <div className="mobile-strongs-gloss">{stripBracketNotation(entry.gloss)}</div>
+        {/* Copy — the desktop lexicon's Copy semantics (buildLexiconCopyText: number, word,
+            definition) — TEST-042. */}
+        <div className="mobile-strongs-actions">
+          <button type="button" className="mobile-chip" onClick={() => { navigator.clipboard.writeText(buildLexiconCopyText(entry)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600) }).catch(() => {}) }}>
+            {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />} {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button type="button" className="mobile-chip" onClick={() => { api.close(); openLexiconEntry(num) }}>
+            <ExternalLink size={16} aria-hidden /> Open in Lexicon
+          </button>
+        </div>
       </div>
       {api.detent === 0 && (
         <button type="button" className="mobile-link-button" onClick={api.expand}>Full entry, related words and {entry.occurrences} occurrences ↑</button>

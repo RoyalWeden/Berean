@@ -24,7 +24,7 @@ import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
-import { VerseInteractionContext, type VerseActionContext } from './verseInteraction'
+import { VerseInteractionContext, verseRowKey, type VerseActionContext } from './verseInteraction'
 import { startVerseDrag, consumeDragClick } from './verseDragSelect'
 import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
@@ -184,7 +184,9 @@ function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement)
   const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
   let curr: Text | null
   while ((curr = walker.nextNode() as Text) !== null) {
-    const isAnnotation = !!(curr.parentElement)?.closest('[data-strongs-chip], [aria-hidden]')
+    // `[aria-hidden="true"]` only: an ancestor rendered with aria-hidden="false" (the phone reader's
+    // current pane) is NOT hidden — matching the bare attribute zeroed every offset there.
+    const isAnnotation = !!(curr.parentElement)?.closest('[data-strongs-chip], [aria-hidden="true"]')
     if (curr === node) return pos + (isAnnotation ? 0 : offset)
     if (!isAnnotation) pos += curr.length
   }
@@ -1019,8 +1021,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   //    functions the desktop popover and selection toolbar call (see verseInteraction.ts).
   const interaction = useContext(VerseInteractionContext)
   const isTouch = interaction.interaction === 'touch'
-  const requestTouchActions = useCallback(() => {
-    if (!interaction.onRequestActions) return
+  const buildTouchCtx = useCallback((): VerseActionContext => {
     const computed = computeSelectionRange()
     const selection = computed && computed.startChar >= 0 && computed.endChar > computed.startChar
       ? { startChar: computed.startChar, endChar: computed.endChar, text: window.getSelection()?.toString() ?? '' }
@@ -1041,25 +1042,46 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         return { ranges, label: rangesLabel(ranges), kind: scope === 'chapter' ? 'chapter' : 'verses' }
       },
     }
-    interaction.onRequestActions(ctx)
+    if (import.meta.env.VITE_E2E_PROBE === '1') (ctx as unknown as { __computed: unknown }).__computed = computed
+    return ctx
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interaction, computeSelectionRange, verse, textId, activeHighlight, verseRef])
-  const touchPress = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ x: 0, y: 0, timer: null, fired: false })
+  }, [computeSelectionRange, verse, textId, activeHighlight, verseRef])
+  const requestTouchActions = useCallback(() => { interaction.onRequestActions?.(buildTouchCtx()) }, [interaction, buildTouchCtx])
+  // Register this row's context builder so the reader's single selectionchange listener can open
+  // the verse sheet for a native long-press text selection inside this verse (TEST-039).
+  const buildTouchCtxRef = useRef(buildTouchCtx)
+  buildTouchCtxRef.current = buildTouchCtx
+  const registerRow = interaction.registerRow
+  useEffect(() => {
+    if (!isTouch || !registerRow) return
+    return registerRow(verseRowKey(textId ?? 'kjva', verse.book_id, verse.chapter, verse.verse_num), () => buildTouchCtxRef.current())
+  }, [isTouch, registerRow, textId, verse.book_id, verse.chapter, verse.verse_num])
+  // Touch tap model (TEST-035 / TEST-039): a quick tap ANYWHERE in the row (text, whitespace, the
+  // number) selects the verse; a long-press is left to iOS's native text selection (handles); a tap
+  // that merely dismisses an active text selection selects nothing. Taps on interactive children
+  // (Strong's chips, links, indicator pills, buttons) keep their own behaviour.
+  const touchPress = useRef<{ x: number; y: number; t: number; moved: boolean; hadSelection: boolean; ignore: boolean }>({ x: 0, y: 0, t: 0, moved: false, hadSelection: false, ignore: false })
   const touchHandlers = isTouch ? {
     onPointerDown: (e: React.PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return
+      const sel = window.getSelection()
       const t = touchPress.current
-      t.x = e.clientX; t.y = e.clientY; t.fired = false
-      if (t.timer) clearTimeout(t.timer)
-      t.timer = setTimeout(() => { t.timer = null; t.fired = true; requestTouchActions() }, 450)
+      t.x = e.clientX; t.y = e.clientY; t.t = Date.now(); t.moved = false
+      t.hadSelection = !!sel && !sel.isCollapsed && sel.toString().trim().length > 0
+      t.ignore = !!(e.target as HTMLElement).closest?.('button, a, input, [data-strongs-chip], [data-no-verse-tap]')
     },
     onPointerMove: (e: React.PointerEvent) => {
       const t = touchPress.current
-      if (t.timer && (Math.abs(e.clientX - t.x) > 8 || Math.abs(e.clientY - t.y) > 8)) { clearTimeout(t.timer); t.timer = null }
+      if (Math.abs(e.clientX - t.x) > 10 || Math.abs(e.clientY - t.y) > 10) t.moved = true
     },
-    onPointerUp: () => { const t = touchPress.current; if (t.timer) { clearTimeout(t.timer); t.timer = null } },
-    onPointerCancel: () => { const t = touchPress.current; if (t.timer) { clearTimeout(t.timer); t.timer = null } },
-    onClickCapture: (e: React.MouseEvent) => { if (touchPress.current.fired) { e.stopPropagation(); e.preventDefault(); touchPress.current.fired = false } },
+    onPointerUp: () => {
+      const t = touchPress.current
+      if (t.ignore || t.moved || t.hadSelection || Date.now() - t.t > 450) return
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return // a selection is being made
+      interaction.onVerseTap?.(buildTouchCtx())
+    },
+    onPointerCancel: () => { touchPress.current.moved = true },
   } : {}
 
   // Find-bar: does this verse contain the query? Memoized on the actual inputs so ChapterView
@@ -1236,7 +1258,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         const wordPx = (w: string) => Math.max(5, (w.match(/\p{L}/gu)?.length ?? 0) * CH)
         const groupPx = (g: Grp) => g.members.reduce((s, mi) => s + wordPx(displayTokens[mi].word), 0) + 4 * (g.members.length - 1)
         const groupGaps: Record<number, number> = {}
-        for (let gi = 0; gi < groups.length - 1; gi++) {
+        // Touch renders numbers inline after the word (no centred pill under it), so there is no
+        // overlap to make room for — the extra gaps only broke up the line (TEST-038).
+        for (let gi = 0; !isTouch && gi < groups.length - 1; gi++) {
           const a = groups[gi], b = groups[gi + 1]
           if (a.k == null) continue
           const aHalf = Math.max(...numsOf(displayTokens[a.members[0]]).map(chipW)) / 2
@@ -1577,6 +1601,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           onClick={(e) => {
             e.stopPropagation()
             if (consumeDragClick()) return // the click that ends a range drag (TEST-001)
+            if (isTouch) return // touch: the row's tap handler selects the verse (TEST-035)
             toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
           }}
           // Press on a verse number and drag across verses → range selection (TEST-001).
@@ -1604,7 +1629,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             }
           `}
           // No native pan/scroll starting on the badge, so a touch drag reaches the range gesture.
-          style={{ width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
+          style={isTouch ? { width: '1.45em', minWidth: '1.45em', touchAction: 'none' } : { width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
         >
           {verse.verse_num}
         </button>
@@ -1653,7 +1678,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         // gap and normally need no extra room — the ONE exception is "compact" (1.3), where the
         // gap is too small, so when Strong's is on we floor the line-height at 1.65. For the
         // other two settings max() is a no-op, so toggling Strong's changes nothing at all.
-        style={{ lineHeight: renderStrongs ? 'max(var(--line-height-comfortable), 1.65)' : 'var(--line-height-comfortable)' }}
+        // Touch renders Strong's inline (superscript) — no leading-gap floor needed there, so the
+        // Line height setting applies unchanged (TEST-024 / TEST-038).
+        style={{ lineHeight: renderStrongs && !isTouch ? 'max(var(--line-height-comfortable), 1.65)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>

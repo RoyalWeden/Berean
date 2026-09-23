@@ -34,7 +34,15 @@ export interface VerseActionContext {
 export interface VerseInteraction {
   interaction: 'pointer' | 'touch'
   onRequestActions?: (ctx: VerseActionContext) => void
-  /** Touch: a Strong's chip tap (VerseRow already routes it through onStrongsClick). */
+  /** Touch: a single tap anywhere in a verse row (text, whitespace, number) — TEST-035. Not
+   *  called when the tap only dismissed an active text selection (TEST-039). */
+  onVerseTap?: (ctx: VerseActionContext) => void
+  /** Touch: VerseRows register a context builder keyed `${textId}|${book}|${chapter}|${verse}`
+   *  so the reader's single `selectionchange` listener can build the verse sheet for a native
+   *  long-press text selection without one listener per row. Returns the unregister function. */
+  registerRow?: (key: string, build: () => VerseActionContext) => () => void
 }
+
+export const verseRowKey = (textId: string, bookId: string, chapter: number, verse: number) => `${textId}|${bookId}|${chapter}|${verse}`
 
 export const VerseInteractionContext = createContext<VerseInteraction>({ interaction: 'pointer' })

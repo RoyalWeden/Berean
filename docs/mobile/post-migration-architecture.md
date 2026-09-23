@@ -131,3 +131,33 @@ Reproduced in the running desktop app (CDP, presenter window open) and fixed at 
 `FloatingShell` gives an independent window its own Scripture tab before applying the
 requested passage — since the Phase 5 SQLite tab mirror, independent windows start with no
 active tab and every floating Scripture window had opened at Genesis 1.
+
+## 8. iPhone Scripture reader + verse selection (Wave 3)
+
+- **Verse model** (`src/mobile/reader/verseSheets.tsx`, shared by the reader and Compare page):
+  tap anywhere on a verse → single-verse selection + verse sheet at its LOW position (tap again →
+  deselect + close; another verse → selection moves, sheet keeps its height); long-press → native
+  iOS text selection; one `selectionchange` listener finds the verse through a registry of
+  per-row context builders (`VerseInteraction.registerRow`) and shows the verse sheet in
+  selection mode, forced back to LOW while the handles move; clearing the selection closes it and
+  selects nothing. `VerseRow` (touch) implements the tap: movement, hold time, taps on Strong's
+  chips / buttons and "tap that only dismissed a selection" are excluded.
+- **Two root causes found on the simulator:** framer-motion's pager drag set `user-select: none`
+  on the whole track (Scripture text was never selectable on the phone) — panes re-enable it; and
+  the current pane rendered `aria-hidden="false"`, which `charOffsetInVerse` treated as hidden
+  text, so every selection offset was 0 — now only `aria-hidden="true"` is skipped.
+- **Sheet detents** (`src/mobile/primitives/Sheet.tsx`): `detents` (fractions) + optional
+  `lowDetent` (px, verse sheets only) + `undimmedThrough` + `forceDetent`; ✕ only at the low
+  position (visually hidden Close elsewhere for VoiceOver); a fast fling closes from any position
+  (`settleDetent`); taller grab strip.
+- **Verse sheet** (`VerseActionSheet`): LOW = reference, highlight colours, Copy / Note / Refs /
+  Share / More tiles; MEDIUM+ = the study view (`VerseStudy`: verse with Strong's superscripts +
+  dense cross references, TSKe/Classic) and every other verse action.
+- **Reader** (`ReaderPage`): compact layout (mobile.css; text ≈ 90% of width), inline superscript
+  Strong's on touch (`StrongsInline` touch variant; no overlap spacing), edge taps + swipe pager,
+  overlay top bar hidden on downward scroll (`useHideOnScroll`), per-tab scroll memory
+  (`readerScrollMemory`, device-local), passage navigator on the title (`ReferencePicker`),
+  continuous scroll fixed (flex pane), line height via the shared `useBibleLineHeight`.
+- **Simulator automation** (`src/platform/ios/devProbe.ts` + `scripts/ios/probe-server.mjs`):
+  a JS evaluation channel compiled in ONLY for `BEREAN_E2E_PROBE=1` builds (dev CSP), used to
+  verify UI flows with real WKWebView rendering. Never in normal / TestFlight / App Store builds.

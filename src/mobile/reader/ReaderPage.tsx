@@ -14,25 +14,30 @@ import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
 import { perfMark } from '@/platform/ios/perf'
-import { StrongsSheet } from '../study/StrongsSheet'
-import { VerseActionSheet } from '../study/VerseActionSheet'
-import { VerseNotesSheet } from '../study/VerseNotesSheet'
-import { CrossRefsSheet } from '../study/CrossRefsSheet'
-import { TagPickerSheet } from '../study/TagPickerSheet'
 import { SelectionBar } from '../study/SelectionBar'
-import { VerseInteractionContext, type VerseActionContext, type VerseInteraction } from '@/components/bible/verseInteraction'
+import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { ReferencePicker } from './ReferencePicker'
 import { usePinchFontSize } from './usePinchFontSize'
 import { ReaderOptionsSheet } from './ReaderOptionsSheet'
+import { useVerseSheets } from './verseSheets'
+import { useHideOnScroll } from './useHideOnScroll'
+import { readerScrollMemory } from './readerScrollMemory'
 import ContinuousChapterScroll from '@/components/bible/ContinuousChapterScroll'
 
 /**
- * Scripture reader (R070/R077/R078): the active Bible tab of the scripture space rendered as a
- * horizontal chapter pager (previous / current / next pages, follows the finger, respects book
- * boundaries, never fights vertical scroll), with pinch-to-resize writing `bibleFontSize`, the
- * reference picker and translation picker as sheets, and Strong's numbers opening the Strong's
- * sheet. The content itself is the shared ChapterView — the same verses, highlights, tags, notes
- * and Strong's chips as desktop.
+ * Scripture reader (R070/R077/R078; reworked for the 2026-09-22 testing wave). The active Bible
+ * tab of the scripture space rendered as a horizontal chapter pager (previous / current / next
+ * pages, follows the finger, respects book boundaries, never fights vertical scroll) or as one
+ * continuous scroll, with:
+ *  • the compact, high-density Scripture layout (verse numbers near the left edge, ~90% text
+ *    width, inline superscript Strong's) — TEST-036/038/044 (mobile.css);
+ *  • the verse model of verseSheets.tsx — tap selects a verse, long-press selects text, the verse
+ *    sheet opens at its low position (TEST-035/039/040);
+ *  • edge taps and swipes for chapters (TEST-037), a top bar that hides while reading downward
+ *    (TEST-029), and a passage navigator on the title (TEST-041);
+ *  • per-tab scroll memory, device-local (scroll-state audit, TEST-003).
+ * The content is the shared ChapterView — the same verses, highlights, tags, notes and Strong's
+ * data as desktop.
  */
 export function ReaderPage({ tab }: { tab: Tab }) {
   const state = tab.state as BibleTabState
@@ -82,11 +87,17 @@ export function ReaderPage({ tab }: { tab: Tab }) {
 
   // First Scripture render mark for the perf baseline (once per launch).
   useEffect(() => { if (book) perfMark('reader:first-chapter') }, [book])
-  const goTo = useCallback((bookId: string, chapter: number, verse?: number) => {
-    navigateToVerse({ bookId, chapter, verse, origin: { kind: 'sequential-nav' } })
+  const goTo = useCallback((bookId: string, chapter: number, verse?: number, endVerse?: number) => {
+    navigateToVerse({ bookId, chapter, verse, endVerse, origin: { kind: 'sequential-nav' } })
   }, [])
+  const goNeighbour = useCallback((dir: 'prev' | 'next') => {
+    const t = dir === 'prev' ? neighbours.prev : neighbours.next
+    if (!t) { void haptic.warning(); return }
+    void haptic.selection()
+    goTo(t.bookId, t.chapter)
+  }, [neighbours, goTo])
 
-  // ── pager ──────────────────────────────────────────────────────────────────────────────
+  // ── pager (horizontal swipe between chapters) ──────────────────────────────────────────
   const width = typeof window !== 'undefined' ? window.innerWidth : 390
   const x = useMotionValue(0)
   const settling = useRef(false)
@@ -109,53 +120,15 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   // ── pinch → font size ───────────────────────────────────────────────────────────────────
   const pinch = usePinchFontSize()
 
-  // ── Strong's / verse actions ────────────────────────────────────────────────────────────
-  const openStrongs = useCallback((num: string) => {
-    sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={num} api={api} /> })
-  }, [sheets])
-
-  // ── verse long-press → action sheet → notes / cross refs / tag sheets ───────────────────
-  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
-  const openNoteInNotesSpace = useCallback((noteId: string) => {
-    setActiveSpace('notes')
-    useAppStore.getState().ensureTab('note')
-    requestOpenNote(noteId)
-  }, [setActiveSpace, requestOpenNote])
-  const openVerseNotes = useCallback((ctx: VerseActionContext) => {
-    sheets.open({ id: 'verse-notes', detents: [0.5, 0.92], render: (api) => (
-      <VerseNotesSheet verseRef={ctx.verseRef} textId={ctx.textId} label={ctx.label} api={api}
-        onOpenNote={openNoteInNotesSpace}
-        onNewNote={() => { void ctx.addVerseNote().then((id) => { if (id) openNoteInNotesSpace(id) }) }} />
-    ) })
-  }, [sheets, openNoteInNotesSpace])
-  const openCrossRefs = useCallback((ctx: VerseActionContext) => {
-    sheets.open({ id: 'crossrefs', detents: [0.55, 0.92], render: (api) => (
-      <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verse={ctx.verse.verse_num} textId={ctx.textId} label={ctx.label} api={api} />
-    ) })
-  }, [sheets])
-  const openTagPicker = useCallback((ctx: VerseActionContext, scope: 'verse' | 'chapter') => {
-    const { ranges, label, kind } = ctx.tagRanges(scope)
-    sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={label} kind={kind} api={api} /> })
-  }, [sheets])
-  const verseInteraction = useMemo<VerseInteraction>(() => ({
-    interaction: 'touch',
-    onRequestActions: (ctx) => {
-      void haptic.medium()
-      sheets.open({ id: 'verse-actions', detents: [0.62, 0.92], render: (api) => (
-        <VerseActionSheet ctx={ctx} api={api}
-          onShowNotes={() => openVerseNotes(ctx)}
-          onShowCrossRefs={() => openCrossRefs(ctx)}
-          onTag={(scope) => openTagPicker(ctx, scope)}
-          onNoteCreated={openNoteInNotesSpace} />
-      ) })
-    },
-  }), [sheets, openVerseNotes, openCrossRefs, openTagPicker, openNoteInNotesSpace])
+  // ── verse model (tap / long-press / verse sheet) ────────────────────────────────────────
+  const { verseInteraction, openStrongs, openNoteInNotesSpace } = useVerseSheets({ tabId: tab.id })
+  // Leaving a chapter clears a tapped-verse selection's sheet.
+  useEffect(() => () => { sheets.close('verse') }, [state.bookId, state.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openReference = () => {
     sheets.open({
-      id: 'reference', title: 'Go to', detents: [0.92], initialDetent: 0,
-      render: (api) => <ReferencePicker books={books} bookId={state.bookId} chapter={state.chapter} onPick={(b, c, v) => { api.close(); goTo(b, c, v) }} />,
+      id: 'reference', detents: [0.92], initialDetent: 0,
+      render: (api) => <ReferencePicker books={books} bookId={state.bookId} chapter={state.chapter} onPick={(b, c, v, e) => { api.close(); goTo(b, c, v, e) }} />,
     })
   }
   const openTranslation = () => {
@@ -169,24 +142,34 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     actions('reader-more', undefined, [
       { id: 'strongs', label: state.showStrongs ? "Hide Strong's numbers" : "Show Strong's numbers", icon: Hash, onSelect: () => updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs }) },
       { id: 'options', label: 'Reading options (text size, font, continuous scroll)…', icon: ALargeSmall, onSelect: openOptions },
-      { id: 'prev', label: neighbours.prev ? `Previous chapter (${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter})` : 'Previous chapter', icon: ChevronLeft, disabled: !neighbours.prev, onSelect: () => neighbours.prev && goTo(neighbours.prev.bookId, neighbours.prev.chapter) },
-      { id: 'next', label: neighbours.next ? `Next chapter (${bookName(neighbours.next.bookId)} ${neighbours.next.chapter})` : 'Next chapter', icon: ChevronRight, disabled: !neighbours.next, onSelect: () => neighbours.next && goTo(neighbours.next.bookId, neighbours.next.chapter) },
+      { id: 'prev', label: neighbours.prev ? `Previous chapter (${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter})` : 'Previous chapter', icon: ChevronLeft, disabled: !neighbours.prev, onSelect: () => goNeighbour('prev') },
+      { id: 'next', label: neighbours.next ? `Next chapter (${bookName(neighbours.next.bookId)} ${neighbours.next.chapter})` : 'Next chapter', icon: ChevronRight, disabled: !neighbours.next, onSelect: () => goNeighbour('next') },
     ])
   }
   const continuous = useAppStore((s) => s.continuousChapterScroll)
+
+  // ── top bar hides while reading downward (TEST-029) ─────────────────────────────────────
+  const readerRef = useRef<HTMLDivElement>(null)
+  const headerHidden = useHideOnScroll(readerRef, { frozen: sheets.currentId != null, resetKey: `${state.bookId}:${state.chapter}:${tab.id}` })
+
+  // ── per-tab scroll memory (device-local; scroll-state audit) ───────────────────────────
+  const passageKey = `${state.bookId}:${state.chapter}:${textId}`
+  const onReaderScroll = useCallback((top: number) => { readerScrollMemory.save(tab.id, passageKey, top) }, [tab.id, passageKey])
+  const initialTop = readerScrollMemory.restore(tab.id, passageKey)
 
   const title = `${bookName(state.bookId)} ${state.chapter}`
   return (
     <Page
       noScroll
-      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Choose passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
+      className={`is-reader${headerHidden ? ' is-header-hidden' : ''}`}
+      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Go to a passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
       left={<IconTap icon={Languages} label={`Translation: ${textId.toUpperCase()}`} onClick={openTranslation} />}
       right={<><IconTap icon={ALargeSmall} label="Reading options" onClick={openOptions} /><IconTap icon={MoreHorizontal} label="More" onClick={openMore} /></>}
     >
       <VerseInteractionContext.Provider value={verseInteraction}>
-      <div className="mobile-reader" {...pinch.handlers}>
+      <div className="mobile-reader" ref={readerRef} {...pinch.handlers}>
         {continuous ? (
-          <div className="mobile-reader-pane" style={{ width }}>
+          <div className="mobile-reader-pane is-continuous" style={{ width }}>
             <ContinuousChapterScroll
               key={`${state.bookId}-${textId}`}
               bookId={state.bookId} chapter={state.chapter} totalChapters={chapterCount}
@@ -208,10 +191,14 @@ export function ReaderPage({ tab }: { tab: Tab }) {
           <ReaderPane key={neighbours.prev ? `${neighbours.prev.bookId}-${neighbours.prev.chapter}` : 'none-prev'} width={width} target={neighbours.prev} textId={textId} showStrongs={state.showStrongs} preview />
           <ReaderPane key={`${state.bookId}-${state.chapter}-${textId}`} width={width} target={{ bookId: state.bookId, chapter: state.chapter }} textId={textId} showStrongs={state.showStrongs}
             targetVerse={state.targetVerse} onTargetVerseConsumed={() => updateTabState('scripture', tab.id, { targetVerse: undefined })}
-            onStrongsClick={openStrongs} tabId={tab.id} />
+            onStrongsClick={openStrongs} tabId={tab.id} initialScrollTop={initialTop} onScrollTop={onReaderScroll} />
           <ReaderPane key={neighbours.next ? `${neighbours.next.bookId}-${neighbours.next.chapter}` : 'none-next'} width={width} target={neighbours.next} textId={textId} showStrongs={state.showStrongs} preview />
         </motion.div>
         )}
+        {/* Far-left / far-right taps turn the chapter (TEST-037); swipes keep working through the
+            pager. Thin strips, so text selection and the verse tap zone are unaffected. */}
+        <button type="button" className="mobile-reader-edge is-left" aria-label={neighbours.prev ? `Previous chapter, ${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter}` : 'No previous chapter'} onClick={() => goNeighbour('prev')} />
+        <button type="button" className="mobile-reader-edge is-right" aria-label={neighbours.next ? `Next chapter, ${bookName(neighbours.next.bookId)} ${neighbours.next.chapter}` : 'No next chapter'} onClick={() => goNeighbour('next')} />
         {pinch.badge && <div className="mobile-pinch-badge" aria-live="polite">{pinch.badge}</div>}
         <SelectionBar tabId={tab.id} onOpenNote={openNoteInNotesSpace} />
       </div>
@@ -220,16 +207,26 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   )
 }
 
-function ReaderPane({ width, target, textId, showStrongs, preview, targetVerse, onTargetVerseConsumed, onStrongsClick, tabId }: {
+function ReaderPane({ width, target, textId, showStrongs, preview, targetVerse, onTargetVerseConsumed, onStrongsClick, tabId, initialScrollTop, onScrollTop }: {
   width: number; target: { bookId: string; chapter: number } | null; textId: string; showStrongs: boolean; preview?: boolean
   targetVerse?: number; onTargetVerseConsumed?: () => void; onStrongsClick?: (num: string) => void; tabId?: string
+  initialScrollTop?: number; onScrollTop?: (top: number) => void
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const restored = useRef(false)
+  const onVersesLoaded = useCallback(() => {
+    // Restore this tab's remembered position once, unless a verse jump owns the scroll.
+    if (restored.current || targetVerse || !initialScrollTop) return
+    restored.current = true
+    requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = initialScrollTop })
+  }, [targetVerse, initialScrollTop])
   return (
-    <div className="mobile-reader-pane" style={{ width }} aria-hidden={preview}>
+    <div className="mobile-reader-pane" style={{ width }} aria-hidden={preview || undefined}>
       {target ? (
-        <div className="mobile-reader-scroll">
+        <div ref={scrollRef} className="mobile-reader-scroll" onScroll={onScrollTop ? (e) => onScrollTop((e.currentTarget as HTMLDivElement).scrollTop) : undefined}>
           <ChapterView bookId={target.bookId} chapter={target.chapter} textId={textId} showStrongs={showStrongs}
-            targetVerse={targetVerse} onTargetVerseConsumed={onTargetVerseConsumed} onStrongsClick={onStrongsClick} tabId={tabId} />
+            targetVerse={targetVerse} onTargetVerseConsumed={onTargetVerseConsumed} onStrongsClick={onStrongsClick} tabId={tabId}
+            onVersesLoaded={preview ? undefined : onVersesLoaded} />
           <div className="mobile-reader-end" />
         </div>
       ) : (

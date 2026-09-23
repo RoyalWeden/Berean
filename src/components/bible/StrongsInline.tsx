@@ -1,4 +1,5 @@
-import { memo, type CSSProperties, type ReactNode } from 'react'
+import { memo, useContext, type CSSProperties, type ReactNode } from 'react'
+import { VerseInteractionContext } from './verseInteraction'
 import StrongsTooltip from './StrongsTooltip'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
@@ -66,8 +67,14 @@ function StrongsInline({
   // verse text, and that text (later in DOM order, otherwise at the same z-index:auto stacking
   // level) painted on top of it, swallowing hover/click. z-10 guarantees the whole stack — both
   // chips — always paints above ordinary verse text nearby, regardless of that DOM-order race.
-  const CHIP_STACK = 'strongs-chip-abs absolute z-10 flex flex-col items-center'
-  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '-0.06em', lineHeight: 1, gap: '4px' }
+  // Touch (iPhone): numbers sit INLINE as a compact superscript right after the word — the
+  // e-Sword-style study presentation (TEST-038 / TEST-043). The leading-gap pill stack is a
+  // pointer design (hover tooltips, room between lines); on a phone it read as crowded and forced
+  // extra line height. Same data attributes, so the chapter-wide echo/phrase highlighting and the
+  // tap → Strong's sheet routing are unchanged.
+  const touch = useContext(VerseInteractionContext).interaction === 'touch'
+  const CHIP_STACK = touch ? 'strongs-sup-stack' : 'strongs-chip-abs absolute z-10 flex flex-col items-center'
+  const CHIP_STACK_STYLE: CSSProperties | undefined = touch ? undefined : { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '-0.06em', lineHeight: 1, gap: '4px' }
   // Clearly-a-pill: translucent accent fill + faint accent border, fully rounded, real padding.
   // Dim at rest. All brightening/highlighting is driven by ChapterView's delegated hover
   // handler adding classes (.strongs-echo on every matching chip chapter-wide, .strongs-phrase-hl
@@ -75,10 +82,10 @@ function StrongsInline({
   // for multi-word phrases and cross-verse matches, not just one word.
   const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-chip border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color,box-shadow] duration-150 cursor-pointer'
   const CHIP_ACCENT = 'text-accent bg-accent/15 border-accent/25'
-  const chipPrimary = `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-40`
-  const chipSecondary = `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-25`
+  const chipPrimary = touch ? 'strongs-chip strongs-sup' : `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-40`
+  const chipSecondary = touch ? 'strongs-chip strongs-sup is-secondary' : `${CHIP_BASE} text-micro ${CHIP_ACCENT} opacity-25`
   // Grammatical particles: dimmer still, muted colour.
-  const chipParen = `${CHIP_BASE} text-micro text-text-muted bg-surface-4/60 border-border opacity-30`
+  const chipParen = touch ? 'strongs-chip strongs-sup is-paren' : `${CHIP_BASE} text-micro text-text-muted bg-surface-4/60 border-border opacity-30`
   // The word text — `.strongs-word` is the target the phrase-highlight class paints behind.
   const WORD_LINK = 'strongs-word rounded-[3px] transition-colors duration-150 px-[2px] -mx-[2px]'
   // Very short adjacent words ("of the", "and") would otherwise sit with their (centered) chips

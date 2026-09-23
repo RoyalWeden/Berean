@@ -22,6 +22,9 @@ export default defineConfig(({ command }) => ({
   cacheDir: resolve(__dirname, '.vite-ios'),
   define: {
     'import.meta.env.VITE_PLATFORM': JSON.stringify('ios'),
+    // Simulator automation probe (src/platform/ios/devProbe.ts) — only in builds made with
+    // BEREAN_E2E_PROBE=1; a compile-time constant, so normal builds contain no probe code path.
+    'import.meta.env.VITE_E2E_PROBE': JSON.stringify(process.env.BEREAN_E2E_PROBE === '1' ? '1' : ''),
     'import.meta.env.VITE_APP_VERSION': JSON.stringify((JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string }).version),
   },
   build: {
@@ -52,7 +55,7 @@ export default defineConfig(({ command }) => ({
         return [{
           tag: 'meta',
           injectTo: 'head-prepend',
-          attrs: { 'http-equiv': 'Content-Security-Policy', content: buildIosCSP(command === 'serve') },
+          attrs: { 'http-equiv': 'Content-Security-Policy', content: buildIosCSP(command === 'serve' || process.env.BEREAN_E2E_PROBE === '1') },
         }]
       },
     },

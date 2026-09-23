@@ -9,6 +9,7 @@ import { installIosDeepLinks } from './deepLinks'
 import { installIosSpotlight } from './spotlight'
 import { installIosShareInbox } from './shareInbox'
 import { perfMark } from './perf'
+import { installDevProbe } from './devProbe'
 import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
 import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/nativeSpeechBackend'
 import { BereanSpeech } from './plugins'
@@ -38,6 +39,7 @@ for (const level of ['error', 'warn'] as const) {
 
 async function boot() {
   perfMark('boot:start')
+  installDevProbe() // no-op unless built with BEREAN_E2E_PROBE=1 (simulator automation)
   const root = ReactDOM.createRoot(document.getElementById('root')!)
   try {
     const services = await initIosServices()

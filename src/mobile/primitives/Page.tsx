@@ -6,7 +6,7 @@ import { ChevronLeft, type LucideIcon } from 'lucide-react'
  * and a scrolling body. Every mobile page uses it, so headers line up and VoiceOver gets a
  * consistent landmark structure.
  */
-export function Page({ title, onBack, backLabel, right, left, children, bodyClassName, noScroll, headerBelow }: {
+export function Page({ title, onBack, backLabel, right, left, children, bodyClassName, noScroll, headerBelow, className }: {
   title?: React.ReactNode
   onBack?: () => void
   backLabel?: string
@@ -18,9 +18,11 @@ export function Page({ title, onBack, backLabel, right, left, children, bodyClas
   noScroll?: boolean
   /** Extra row rendered under the title bar (search field, segmented control). */
   headerBelow?: React.ReactNode
+  /** Extra classes on the page root (e.g. the reader's overlay header). */
+  className?: string
 }) {
   return (
-    <div className="mobile-page">
+    <div className={`mobile-page${className ? ` ${className}` : ''}`}>
       <header className="mobile-page-header">
         <div className="mobile-page-header-row">
           <div className="mobile-page-header-side">

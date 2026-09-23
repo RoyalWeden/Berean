@@ -33,7 +33,9 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
   const [palette, setPalette] = useState(false)
   const sel = sortSelection(selectedRaw)
   const clear = useCallback(() => clearVerseSelectionRaw(tabId), [clearVerseSelectionRaw, tabId])
-  if (sel.length === 0) return null
+  // One tapped verse is handled by the verse sheet (TEST-035); the bar serves ranges / several
+  // verses (drag-to-select, TEST-001) and any selection while the verse sheet is closed.
+  if (sel.length === 0 || sheets.isOpen('verse')) return null
   const single = sel.length === 1 ? sel[0] : null
   const flash = (w: 'verses' | 'refs') => { setCopied(w); void haptic.light(); setTimeout(() => setCopied(null), 1200) }
 

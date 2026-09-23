@@ -107,7 +107,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
   }, [state.targetVerse, rows.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── touch interaction (same sheets as the reader) ──────────────────────────────────────────
-  const { verseInteraction, openStrongs, openNoteInNotesSpace } = useCompareVerseInteraction()
+  const { verseInteraction, openStrongs, openNoteInNotesSpace } = useCompareVerseInteraction(tab.id)
 
   // ── chips / pickers ────────────────────────────────────────────────────────────────────────
   const collapseIfSingle = (cols: CompareColumn[]) => {

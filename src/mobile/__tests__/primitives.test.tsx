@@ -7,7 +7,7 @@ import { NavigationStack, useNavigation } from '../navigation/NavigationStack'
 import { Page, Row, ListSection } from '../primitives/Page'
 import { ActionList } from '../primitives/ActionSheet'
 import { SpaceBar, destinationForSpace } from '../tabs/SpaceBar'
-import { ReferencePicker } from '../reader/ReferencePicker'
+import { ReferencePicker, matchBooks } from '../reader/ReferencePicker'
 import { parseDeepLink } from '@/lib/deepLinks'
 import { useLongPress } from '../primitives/useLongPress'
 
@@ -84,22 +84,43 @@ describe('mobile primitives', () => {
     expect(html).toContain('More')
   })
 
-  it('ReferencePicker resolves a typed reference through parseRef and offers book → chapter → verse', () => {
+  it('ReferencePicker (passage navigator, TEST-041): typed refs, ranges, full-name filtering, book → chapter → verse range', () => {
     const picked: unknown[] = []
     const books = [
       { id: 'GEN', name: 'Genesis', short_name: 'Gen', testament: 'OT' as const, chapters_count: 50 },
+      { id: 'PSA', name: 'Psalms', short_name: 'Psa', testament: 'OT' as const, chapters_count: 150 },
       { id: 'MAT', name: 'Matthew', short_name: 'Mat', testament: 'NT' as const, chapters_count: 28 },
     ]
-    const { host, unmount } = mount(<ReferencePicker books={books} bookId="GEN" chapter={1} onPick={(b, c, v) => picked.push([b, c, v])} />)
+    const { host, unmount } = mount(<ReferencePicker books={books} bookId="GEN" chapter={1} onPick={(b, c, v, e) => picked.push([b, c, v, e])} />)
     const input = host.querySelector('input') as HTMLInputElement
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
-    act(() => { setter.call(input, 'Mat 5:3'); input.dispatchEvent(new Event('input', { bubbles: true })) })
-    act(() => { host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
-    expect(picked).toEqual([['MAT', 5, 3]])
-    // tap Matthew → chapter grid of 28
-    act(() => { [...host.querySelectorAll('.mobile-book-cell')].find((b) => b.textContent === 'Mat')!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
-    expect(host.querySelectorAll('.mobile-grid-cell').length).toBe(28)
+    const type = (v: string) => act(() => { setter.call(input, v); input.dispatchEvent(new Event('input', { bubbles: true })) })
+    const submit = () => act(() => { host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+    type('Mat 5:3'); submit()
+    type('Psalm 23:1-6'); submit()
+    expect(picked).toEqual([['MAT', 5, 3, undefined], ['PSA', 23, 1, 6]])
+    // a leading book number is still a book search ("1 cor" → 1 Corinthians), not a reference
+    type('1 cor')
+    expect(host.querySelector('.mobile-ref-go')).toBeNull()
+    // full book names filter as you type; tap Matthew → its 28 chapters
+    type('matt')
+    const rows = [...host.querySelectorAll('.mobile-book-row')].map((b) => b.textContent)
+    expect(rows[0]).toBe('Matthew')
+    act(() => { [...host.querySelectorAll('.mobile-book-row')].find((b) => b.textContent === 'Matthew')!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(host.querySelectorAll('.mobile-grid-numbers .mobile-grid-cell').length).toBe(28)
+    // choose verses → tap 4 then 9 → a range
+    act(() => { [...host.querySelectorAll('button')].find((b) => b.textContent === 'Choose verses…')!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    const verseBtn = (n: string) => [...host.querySelectorAll('.mobile-grid-cell')].find((b) => b.textContent === n)!
+    act(() => { verseBtn('4').dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    act(() => { verseBtn('9').dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(picked.at(-1)).toEqual(['MAT', 1, 4, 9])
     unmount()
+  })
+
+  it('matchBooks ranks full-name prefix, then word prefix, then substring', () => {
+    const list = [{ id: 'JHN', name: 'John' }, { id: '1JN', name: '1 John' }, { id: 'JON', name: 'Jonah' }, { id: 'EPH', name: 'Ephesians' }]
+    expect(matchBooks(list, 'jo').map((b) => b.id)).toEqual(['JHN', 'JON', '1JN'])
+    expect(matchBooks(list, 'sian').map((b) => b.id)).toEqual(['EPH'])
   })
 
   it('useLongPress fires after the delay, not on movement, and swallows the following click', () => {

@@ -4,31 +4,58 @@ import { X } from 'lucide-react'
 import { haptic } from './haptics'
 
 /**
- * Bottom sheet with detents (R073): collapsed → drag up → expanded → full → drag down → dismiss.
- * Detents are fractions of the viewport height. The sheet body scrolls when at the top detent;
- * a downward drag from a scrolled-to-top body, or on the grabber, moves the sheet.
+ * Bottom sheet with detents (R073; reworked for TEST-026/027/040).
+ *
+ * Detent model — one reusable, per-sheet configuration instead of per-sheet hacks:
+ *   • `detents` — fractions of the viewport height, ascending (MEDIUM, LARGE, …).
+ *   • `lowDetent` — OPTIONAL special LOW / "verse-min" position below the others, given in px.
+ *     Only verse-related sheets use it (the verse sheet, verse notes, cross references). At the
+ *     low position the sheet is non-modal (no backdrop — the reader stays interactive so a text
+ *     selection can still be adjusted) and it is the ONLY position that shows an explicit ✕.
+ *     The caret sheet and the tab-cards sheet deliberately have no low detent.
+ *   • `undimmedThrough` — highest detent index (counting the low detent as 0 when present) that
+ *     keeps the page behind interactive (no backdrop). Default: only the low detent.
+ * Dismissal is standard iOS: tap the backdrop, drag down past the lowest position, or a fast
+ * downward fling from ANY position. There is no visible ✕ at the other positions; a visually
+ * hidden Close button stays for VoiceOver / Switch Control.
+ * The drag handle is a taller dedicated strip (the grabber area); the body only drags the sheet
+ * when it is scrolled to its top (so content scrolling never moves the sheet by accident).
  */
 export interface SheetOptions {
   id: string
   title?: string
   /** Fractions of the viewport height, ascending. Default [0.45, 0.92]. */
   detents?: number[]
-  /** Index into `detents` to open at. Default 0. */
+  /** Special low position (px of visible sheet) — verse-related sheets only. */
+  lowDetent?: number
+  /** Index into the full detent list (low detent included) to open at. Default 0. */
   initialDetent?: number
+  /** Highest detent index that keeps the page behind interactive. Default: 0 when a low detent exists, else -1. */
+  undimmedThrough?: number
+  /** Move an ALREADY-OPEN sheet to a detent (e.g. back to the low position while a text selection
+   *  is being adjusted). A new `nonce` re-applies it. */
+  forceDetent?: { index: number; nonce: number }
   render: (api: SheetApi) => React.ReactNode
   onClose?: () => void
 }
 export interface SheetApi {
   close: () => void
   expand: () => void
+  /** Move to a detent index (low detent = 0 when present). */
+  setDetent: (i: number) => void
   detent: number
+  /** True while the sheet sits at its special low position. */
+  atLow: boolean
 }
 
 interface SheetHostState {
   open: (o: SheetOptions) => void
   close: (id?: string) => void
+  /** Update an open sheet in place (e.g. a new verse in the same verse sheet). */
+  update: (id: string, patch: Partial<SheetOptions>) => void
   /** Top-most open sheet id. */
   currentId: string | null
+  isOpen: (id: string) => boolean
 }
 const SheetContext = createContext<SheetHostState | null>(null)
 
@@ -41,8 +68,13 @@ export function useSheets(): SheetHostState {
 /** Renders the open sheets (stacked) above the app; put it once at the root. */
 export function SheetHost({ children }: { children: React.ReactNode }) {
   const [stack, setStack] = useState<SheetOptions[]>([])
+  const stackRef = useRef(stack)
+  stackRef.current = stack
   const open = useCallback((o: SheetOptions) => {
     setStack((s) => [...s.filter((x) => x.id !== o.id), o])
+  }, [])
+  const update = useCallback((id: string, patch: Partial<SheetOptions>) => {
+    setStack((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)))
   }, [])
   const close = useCallback((id?: string) => {
     setStack((s) => {
@@ -52,7 +84,8 @@ export function SheetHost({ children }: { children: React.ReactNode }) {
       return s.filter((x) => x.id !== target)
     })
   }, [])
-  const value = useMemo(() => ({ open, close, currentId: stack[stack.length - 1]?.id ?? null }), [open, close, stack])
+  const isOpen = useCallback((id: string) => stackRef.current.some((x) => x.id === id), [])
+  const value = useMemo(() => ({ open, close, update, isOpen, currentId: stack[stack.length - 1]?.id ?? null }), [open, close, update, isOpen, stack])
   return (
     <SheetContext.Provider value={value}>
       {children}
@@ -65,65 +98,102 @@ export function SheetHost({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Resolved heights (px) of every detent, low detent first when present. Exported for tests. */
+export function resolveDetentHeights(vh: number, detents: number[], lowDetent?: number): number[] {
+  const hs = detents.map((d) => Math.round(vh * d))
+  return lowDetent != null ? [Math.min(lowDetent, hs[0] ?? lowDetent), ...hs] : hs
+}
+
+/** Where a release lands: -1 = dismiss, else the detent index. Exported for tests. */
+export function settleDetent(opts: { heights: number[]; vh: number; releaseY: number; velocityY: number; current: number }): number {
+  const { heights, vh, releaseY, velocityY, current } = opts
+  // A fast downward fling closes the sheet from ANY position (TEST-040).
+  if (velocityY > 1400) return -1
+  const projected = releaseY + velocityY * 0.15
+  // Dragged well below the lowest position → close.
+  if (projected > vh - heights[0] * 0.55) return -1
+  if (velocityY > 900 && current === 0) return -1
+  let best = 0, bestDist = Infinity
+  for (let i = 0; i < heights.length; i++) {
+    const d = Math.abs(vh - heights[i] - projected)
+    if (d < bestDist) { bestDist = d; best = i }
+  }
+  return best
+}
+
 function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose: () => void; depth: number }) {
-  const detents = options.detents ?? [0.45, 0.92]
-  const [detentIndex, setDetentIndex] = useState(Math.min(options.initialDetent ?? 0, detents.length - 1))
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
-  const heightFor = (i: number) => Math.round(vh * detents[i])
+  const hasLow = options.lowDetent != null
+  const heights = useMemo(() => resolveDetentHeights(vh, options.detents ?? [0.45, 0.92], options.lowDetent), [vh, options.detents, options.lowDetent])
+  const [detentIndex, setDetentIndex] = useState(Math.min(options.initialDetent ?? 0, heights.length - 1))
+  const forceNonce = options.forceDetent?.nonce
+  useEffect(() => {
+    if (options.forceDetent) setDetentIndex(Math.max(0, Math.min(heights.length - 1, options.forceDetent.index)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceNonce])
   const y = useMotionValue(vh)
   const dragControls = useDragControls()
   const bodyRef = useRef<HTMLDivElement>(null)
-  const targetY = (i: number) => vh - heightFor(i)
+  const targetY = (i: number) => vh - heights[i]
+  const top = heights.length - 1
 
   useEffect(() => {
     animate(y, targetY(detentIndex), { type: 'spring', stiffness: 420, damping: 40 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detentIndex])
+  }, [detentIndex, heights])
 
   const settle = (_: unknown, info: PanInfo) => {
-    const current = y.get() + info.velocity.y * 0.15
-    // Fling down past the lowest detent → close
-    if (current > vh - heightFor(0) * 0.6 || (info.velocity.y > 900 && detentIndex === 0)) { void haptic.light(); onClose(); return }
-    let best = 0, bestDist = Infinity
-    for (let i = 0; i < detents.length; i++) { const d = Math.abs(targetY(i) - current); if (d < bestDist) { bestDist = d; best = i } }
-    if (best !== detentIndex) void haptic.selection()
-    setDetentIndex(best)
-    animate(y, targetY(best), { type: 'spring', stiffness: 420, damping: 40 })
+    const next = settleDetent({ heights, vh, releaseY: y.get(), velocityY: info.velocity.y, current: detentIndex })
+    if (next < 0) { void haptic.light(); onClose(); return }
+    if (next !== detentIndex) void haptic.selection()
+    setDetentIndex(next)
+    animate(y, targetY(next), { type: 'spring', stiffness: 420, damping: 40 })
   }
 
-  const api: SheetApi = { close: onClose, expand: () => setDetentIndex(detents.length - 1), detent: detentIndex }
-  const atTop = detentIndex === detents.length - 1
+  const atLow = hasLow && detentIndex === 0
+  const undimmedThrough = options.undimmedThrough ?? (hasLow ? 0 : -1)
+  const dimmed = detentIndex > undimmedThrough
+  const api: SheetApi = { close: onClose, expand: () => setDetentIndex(top), setDetent: (i) => setDetentIndex(Math.max(0, Math.min(top, i))), detent: detentIndex, atLow }
+  const atTop = detentIndex === top
 
   return (
     <>
+      {dimmed && (
+        <motion.div
+          className="mobile-sheet-backdrop"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={onClose}
+          style={{ zIndex: 100 + depth * 2 }}
+          aria-hidden
+        />
+      )}
       <motion.div
-        className="mobile-sheet-backdrop"
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose}
-        style={{ zIndex: 100 + depth * 2 }}
-        aria-hidden
-      />
-      <motion.div
-        className="mobile-sheet"
-        role="dialog" aria-modal="true" aria-label={options.title}
-        style={{ y, height: heightFor(detents.length - 1), zIndex: 101 + depth * 2 }}
+        className={`mobile-sheet${atLow ? ' is-low' : ''}`}
+        role="dialog" aria-modal={dimmed} aria-label={options.title}
+        data-sheet-id={options.id}
+        data-detent={detentIndex}
+        style={{ y, height: heights[top], zIndex: 101 + depth * 2 }}
         initial={{ y: vh }}
         exit={{ y: vh, transition: { duration: 0.22 } }}
         drag="y"
         dragControls={dragControls}
         dragListener={false}
-        dragConstraints={{ top: targetY(detents.length - 1), bottom: vh }}
+        dragConstraints={{ top: targetY(top), bottom: vh }}
         dragElastic={{ top: 0.05, bottom: 0.2 }}
         onDragEnd={settle}
       >
-        <div
-          className="mobile-sheet-grabber-area"
-          onPointerDown={(e) => dragControls.start(e)}
-        >
+        <div className="mobile-sheet-grabber-area" onPointerDown={(e) => dragControls.start(e)}>
           <div className="mobile-sheet-grabber" />
           {options.title && <div className="mobile-sheet-title">{options.title}</div>}
-          {/* Explicit close for VoiceOver / Switch Control users who cannot drag or reach the backdrop. */}
-          <button type="button" className="mobile-sheet-close" aria-label="Close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}>
+          {/* ✕ only at the special low (verse) position — elsewhere the sheet is dismissed the
+              iOS way. Screen-reader users always get a Close button (visually hidden). */}
+          <button
+            type="button"
+            className={atLow ? 'mobile-sheet-close' : 'mobile-sr-only'}
+            aria-label="Close"
+            onClick={onClose}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <X size={18} aria-hidden />
           </button>
         </div>
@@ -133,6 +203,7 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
           style={{ overflowY: atTop ? 'auto' : 'hidden' }}
           onPointerDown={(e) => {
             // Body scrolled to the top (or not scrollable at this detent): the drag moves the sheet.
+            if ((e.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"], [data-no-sheet-drag]')) return
             const el = bodyRef.current
             if (!atTop || (el && el.scrollTop <= 0)) dragControls.start(e)
           }}
