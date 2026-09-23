@@ -11,7 +11,7 @@ import './onboarding.css'
  * First-launch flow on the phone (R086) — the phone's counterpart of the desktop walkthrough
  * (`src/components/shell/Onboarding.tsx`): four short pages (welcome → default text → theme →
  * iCloud sync opt-in) instead of the desktop's ten feature pages, because the shell itself is
- * the tour (space bar, long-press hints). It shares the desktop's gate: the `onboardingCompleted`
+ * the tour (bottom navigation, verse hints). It shares the desktop's gate: the `onboardingCompleted`
  * setting + store `onboardingOpen` / `completeOnboarding()`, so About → "Replay getting started
  * walkthrough" re-opens it here too, and a Mac that already completed onboarding (setting
  * synced through iCloud is NOT the case — settings are per device) does not suppress it.
@@ -62,7 +62,7 @@ export function OnboardingFlow() {
               <div className="mobile-onboarding-art"><BookOpen size={56} aria-hidden /></div>
               <h1>Welcome to Berean</h1>
               <p>Read the KJV with Apocrypha, Brenton's Septuagint, 1 Enoch, Jubilees and more — all offline — with Strong's numbers, cross references, notes, highlights and verse tags.</p>
-              <p className="mobile-onboarding-hint">Long-press a verse for actions. Swipe left or right to change chapters. Tap a tab pill for your open tabs.</p>
+              <p className="mobile-onboarding-hint">Tap a verse for its study view and actions; press and hold to select words. Swipe, or tap the far left or right edge, to change chapters. At the bottom: your tabs, + to open or search, and ⌃ for everything you can do here.</p>
             </>
           )}
           {page === 'text' && (

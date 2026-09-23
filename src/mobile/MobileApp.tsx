@@ -60,7 +60,7 @@ import './mobile.css'
 /**
  * iPhone shell root (Phase 10, R070–R072, R076, R079–R081). The same zustand store, the same
  * services behind `window.*`, the same tabs/sessions — presented as: a per-space navigation
- * stack, a bottom space bar, the Arc-style tab pill, and bottom sheets. Desktop panels that have
+ * stack, three bottom controls (tab cards · plus · caret — docs/mobile/mobile-navigation.md), and bottom sheets. Desktop panels that have
  * no mobile page yet are hosted inside a page (their content is what matters; their chrome is
  * replaced phase by phase — see docs/mobile/feature-matrix.md).
  */

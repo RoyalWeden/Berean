@@ -14,7 +14,7 @@ import { CrossRefsSheet } from './CrossRefsSheet'
 import { VerseNotesSheet } from './VerseNotesSheet'
 
 /**
- * Verse selection bar for the phone (R075): appears above the tab pill while verse numbers
+ * Verse selection bar for the phone (R075): appears above the bottom navigation while verse numbers
  * are selected in the active scripture tab. Same actions as the desktop VerseSelectionBar,
  * sized for thumbs: copy verses / refs, add note, notes, cross refs (single verse), play,
  * tag, highlight, clear.

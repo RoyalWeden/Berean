@@ -11,7 +11,7 @@ import { ListSection, Row } from '../primitives/Page'
 import { useIosAudioSession } from './useIosAudioSession'
 
 /**
- * Read Aloud on the phone (Phase 16): a compact bar above the tab pill while playback exists
+ * Read Aloud on the phone (Phase 16): a compact bar above the bottom navigation while playback exists
  * (play/pause, previous/next verse, current reference, progress, stop) and a full player sheet
  * (chapter progress with seek, rate, voice, auto-advance). Drives the same store actions
  * `useTTSPlayback` listens to, so the shared engine (Web Speech on iOS) does the speaking.

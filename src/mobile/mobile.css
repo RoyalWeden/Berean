@@ -5,8 +5,7 @@
 :root {
   --m-safe-top: env(safe-area-inset-top, 0px);
   --m-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --m-bar-h: 50px;          /* space bar row (labels included) */
-  --m-pill-h: 44px;
+  --m-bar-h: 50px;          /* bottom navigation row */
   --m-header-h: 48px;
   --m-radius: 14px;
 }
@@ -25,7 +24,7 @@ html[data-platform="ios"], html[data-platform="ios"] body {
 html[data-platform="ios"] #root { height: 100%; }
 
 .mobile-root { position: fixed; inset: 0; display: flex; flex-direction: column; background: rgb(var(--color-surface-1)); padding-bottom: var(--m-keyboard-h, 0px); }
-/* With the keyboard up, the space bar and tab pill step aside (the keyboard's own Done/next
+/* With the keyboard up, the bottom navigation steps aside (the keyboard's own Done/next
    controls take that role); the page keeps its header and the editor toolbar stays visible. */
 html[data-keyboard] .mobile-bottom-nav { display: none; }
 .mobile-main { flex: 1; min-height: 0; position: relative; }
