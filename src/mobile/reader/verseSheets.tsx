@@ -13,6 +13,21 @@ import { TagPickerSheet } from '../study/TagPickerSheet'
 
 export const VERSE_SHEET_ID = 'verse'
 
+/** Scroll the reader so a verse sits above the verse sheet (no-op when it already does). */
+export function keepVerseAboveSheet(bookId: string, chapter: number, verse: number): void {
+  const sheet = document.querySelector(`[data-sheet-id="${VERSE_SHEET_ID}"]`) as HTMLElement | null
+  const row = document.querySelector(`.mobile-reader-pane:not([aria-hidden="true"]) [data-verse-row][data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"], .m-compare [data-verse-row][data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"]`) as HTMLElement | null
+  if (!sheet || !row) return
+  const sheetTop = sheet.getBoundingClientRect().top
+  const r = row.getBoundingClientRect()
+  const margin = 12
+  if (r.bottom <= sheetTop - margin && r.top >= 80) return
+  const scroller = row.closest('.mobile-reader-scroll, [data-scroll-root], .m-compare-scroll') as HTMLElement | null
+  if (!scroller) return
+  const target = r.bottom > sheetTop - margin ? r.bottom - (sheetTop - margin) : r.top - 90
+  scroller.scrollBy({ top: target, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+}
+
 /**
  * The iPhone reader's verse interaction model — shared by the Scripture reader and the Compare
  * page (TEST-035 / TEST-039 / TEST-040):
@@ -148,6 +163,10 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
       if (tid) s.setVerseSelection(tid, [ref])
       selectionSheetOpen.current = false
       openVerseSheet(ctx, 'tap')
+      // e-Sword-style browsing (TEST-043): with the study pane open (the verse sheet above its low
+      // position), keep the tapped verse visible ABOVE the pane so verse → Strong's / cross refs
+      // can be read side by side while moving through the chapter.
+      requestAnimationFrame(() => requestAnimationFrame(() => keepVerseAboveSheet(ctx.verse.book_id, ctx.verse.chapter, ctx.verse.verse_num)))
     },
     onRequestActions: (ctx) => { void haptic.medium(); openVerseSheet(ctx, ctx.selection ? 'selection' : 'tap') },
   }), [registerRow, sheets, openVerseSheet])

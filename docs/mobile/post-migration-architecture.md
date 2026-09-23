@@ -161,3 +161,17 @@ active tab and every floating Scripture window had opened at Genesis 1.
 - **Simulator automation** (`src/platform/ios/devProbe.ts` + `scripts/ios/probe-server.mjs`):
   a JS evaluation channel compiled in ONLY for `BEREAN_E2E_PROBE=1` builds (dev CSP), used to
   verify UI flows with real WKWebView rendering. Never in normal / TestFlight / App Store builds.
+
+## 9. Compact, e-Sword-inspired study presentation (Wave 5)
+
+- The reader keeps Scripture dominant: verse number near the left edge, text ≈ 90% of the width,
+  tight verse rows, Strong's numbers inline as small accent superscripts (no pills, no extra line
+  height). Dynamic Type scales the whole reading column (`zoom: var(--m-type-scale)`) on top of
+  the user's Reading text size — compactness comes from spacing, never from small text.
+- The verse sheet at its medium position is the "lower pane": the verse as `(KJVA+)` with tappable
+  Strong's superscripts, then its cross references as a dense list of links (TSKe / Classic,
+  looked up for the current text). The page behind stays interactive: tapping another verse
+  updates the pane in place and scrolls that verse above it (`keepVerseAboveSheet`), so a chapter
+  can be studied verse by verse without closing anything.
+- Visuals are Berean's (tokens, materials, typography); only the density and the reader + study
+  pane arrangement are taken from the reference.

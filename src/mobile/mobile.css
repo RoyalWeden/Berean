@@ -424,3 +424,8 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
 .mobile-newtab-recent h3 { margin: 0 0 6px 6px; font-size: calc(13px * var(--m-type-scale, 1)); text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
 .mobile-newtab-recent { display: flex; flex-direction: column; }
 .mobile-newtab-recent .mobile-newtab-row { border-radius: 0; }
+
+/* Dynamic Type for Scripture (TEST-044 / brief §32, §38): the reader's text size setting is in
+   px (pinch changes it); the iOS text-size preference scales the whole reading column on top, so
+   the compact layout never depends on small text for users who need larger type. */
+.mobile-reader .berean-reading-column { zoom: var(--m-type-scale, 1); }

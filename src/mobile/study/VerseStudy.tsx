@@ -51,9 +51,9 @@ export function VerseStudy({ verse, textId, onStrongs, onNavigate }: {
   const refs = mode === 'classic' ? classic : tske
   return (
     <div className="mobile-study">
-      {hasStrongs && (
-        <p className="mobile-study-verse" lang="en">
-          <span className="mobile-study-tag">({textId.toUpperCase()}+)</span>{' '}
+      {/* The verse itself — "(KJVA+)" with Strong's numbers when the text is tagged, plain otherwise. */}
+      <p className="mobile-study-verse" lang="en">
+          <span className="mobile-study-tag">({textId.toUpperCase()}{hasStrongs ? '+' : ''})</span>{' '}
           {tokens.map((t, i) => (
             <React.Fragment key={i}>
               <span className={`${t.isRedLetter ? 'mobile-study-red' : ''}${t.isItalic ? ' mobile-study-italic' : ''}`}>{t.word}</span>
@@ -66,8 +66,7 @@ export function VerseStudy({ verse, textId, onStrongs, onNavigate }: {
               {' '}
             </React.Fragment>
           ))}
-        </p>
-      )}
+      </p>
       <div className="mobile-study-refs-head">
         <span>Cross references</span>
         <Segmented value={mode} options={[['tske', 'TSKe'], ['classic', 'Classic']]} onChange={(v) => setSource(v as 'tske' | 'classic')} />

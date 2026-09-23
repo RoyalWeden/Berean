@@ -67,7 +67,8 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
     <div className={`mobile-verse-sheet${api.atLow ? ' is-low' : ''}`}>
       <div className="mobile-verse-actions-head">
         <div className="mobile-verse-actions-ref">{ctx.label}{sel ? ' · selection' : ''}</div>
-        {!api.atLow && <div className="mobile-verse-actions-text">{sel ? `“${sel.text.trim()}”` : ctx.verse.text}</div>}
+        {/* The study view below shows the verse; the head quotes only a text selection. */}
+        {!api.atLow && sel && <div className="mobile-verse-actions-text">“{sel.text.trim()}”</div>}
       </div>
 
       {/* Highlight colours — one scrolling row; targets the selection when there is one. */}
