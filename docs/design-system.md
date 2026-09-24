@@ -179,7 +179,10 @@ uppercase recipe.
 bar (ShellHeader.tsx) is its own separate metric, `HEADER_HEIGHT` in `src/lib/windowChrome.ts` —
 **52** as of TEST-010 (was 44, bumped for more vertical breathing room around its controls; macOS
 traffic-light y in `electron/main.ts`'s main-window `trafficLightPosition` is derived from it,
-`(HEADER_HEIGHT - 12) / 2`). Traffic-light inset 76 (`pl-traffic-lights`), controls 24/28/32, rows
+`(HEADER_HEIGHT - 12) / 2`). ShellHeader vertically centres its 44px inner `Toolbar` in the bar
+(flex column, `justify-center`), so the 36px controls have equal 8px gaps above and below and share
+the traffic lights' centre line (26px) — never top-align the Toolbar or offset individual controls
+(NEW-17: top-aligned it gave 4px above / 12px below). Traffic-light inset 76 (`pl-traffic-lights`), controls 24/28/32, rows
 28–32, panel padding 12–16.
 
 ### Icons

@@ -60,7 +60,7 @@ export function DataSettingsPage({ onBack }: { onBack?: () => void }) {
       <ListSection title="Navigation & app history">
         <div className="mobile-embedded-section"><HistorySection /></div>
       </ListSection>
-      <ListSection title="Workspaces">
+      <ListSection title="Saved sessions">
         <div className="mobile-embedded-section"><WorkspacesSection /></div>
       </ListSection>
       <ListSection>

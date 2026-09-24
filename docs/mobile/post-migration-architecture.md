@@ -175,3 +175,20 @@ active tab and every floating Scripture window had opened at Genesis 1.
   can be studied verse by verse without closing anything.
 - Visuals are Berean's (tokens, materials, typography); only the density and the reader + study
   pane arrangement are taken from the reference.
+
+## Workspaces vs saved snapshots (NEW-004, 2026-09-23)
+
+Two genuinely different systems share the word "workspace" in code:
+
+| | Live workspaces | Saved snapshots |
+|---|---|---|
+| Store | `sessions`, `currentSessionId`, `sessionDisplayOrders` | `savedWorkspaces` (list only; rows loaded on demand) |
+| Durable home | SQLite `sessions` / `tabs` / `archived_groups` / `session_local_state` (v43) via `src/store/tabPersistence*.ts` + zustand persist `berean-app-state` | SQLite `workspaces` (`layout_json`, `state_json` v2 via `src/lib/workspaceSnapshot.ts`) |
+| iCloud sync kinds | `session`, `tab`, `archived_group` | `workspace` |
+| Desktop UI | Sidebar session switcher ("Session", "New session", "Manage sessions…") | Settings → Workspaces (save / load / rename / delete) |
+| iPhone UI | "Workspaces" (tab-cards chip, More → Workspaces, New Tab → Workspaces) | "Saved snapshots", one level down in the Workspaces page |
+
+A snapshot is a frozen copy; opening it creates/switches to the live workspace `ws:<snapshotId>`
+(`openWorkspaceSession`). On iPhone the user-facing concept is ONE thing — the live list — and
+snapshots are labelled as snapshots. No data was migrated or renamed: old "Session N" names are
+shown as stored; new phone-created workspaces default to "Workspace N".

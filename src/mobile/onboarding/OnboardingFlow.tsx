@@ -92,7 +92,7 @@ export function OnboardingFlow() {
             <>
               <div className="mobile-onboarding-art"><Cloud size={56} aria-hidden /></div>
               <h1>iCloud sync</h1>
-              <p>Keep notes, highlights, verse tags, tabs, sessions and workspaces the same on every device signed into your iCloud account. Bible texts never sync — they ship with the app. Everything works offline; changes upload when iCloud can.</p>
+              <p>Keep notes, highlights, verse tags, tabs, sessions and saved sessions the same on every device signed into your iCloud account. Bible texts never sync — they ship with the app. Everything works offline; changes upload when iCloud can.</p>
               {cloudOn ? (
                 <p className="mobile-onboarding-ok"><Check size={16} aria-hidden /> iCloud sync is on.</p>
               ) : (

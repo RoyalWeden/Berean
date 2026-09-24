@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, LayoutGrid, Settings as SettingsIcon, History, Layers, CornerDownLeft, Clock, Hash, Columns2, type LucideIcon } from 'lucide-react'
+import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, Settings as SettingsIcon, History, CornerDownLeft, Clock, Hash, MoreHorizontal, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef, bookName, isStrongsRef } from '@/lib/parseRef'
 import { navigateToVerse } from '@/lib/verseNavigation'
-import { compareApplicable } from '@/lib/textCoverage'
-import { makeCompareTab } from '../reader/compareState'
-import type { BibleTabState } from '@/types'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_TYPE_LABEL } from '@/lib/historyModel'
 import { haptic } from '../primitives/haptics'
@@ -45,7 +42,8 @@ export function openQueryInNewSearchTab(query: string): void {
  * tab (or the current one); a Strong's number opens a Lexicon tab; while typing, "Search … in a new
  * Search tab" opens a DEDICATED Search tab. With nothing typed: one tile per genuine tab type —
  * each creates a real, independent tab (several of a kind are fine) — then the navigation that is
- * not a tab (More, Workspaces), then recent history. There is no separate Search tile: a Search
+ * compact icon row (NEW-013; More is its last icon), then recent history (scrolling dismisses the
+ * keyboard). There is no separate Search tile: a Search
  * tab starts from what you type.
  */
 export function NewTabSheet({ close, openMore }: { close: () => void; openMore: (route: MorePageRoute) => void }) {
@@ -55,7 +53,7 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
   const q = useMemo(() => classifyNewTabQuery(query), [query])
   const history = useAppStore((s) => s.history)
   const navigateHistory = useHistoryNavigate()
-  const recent = useMemo(() => dedupeRecent(history).slice(0, 6), [history])
+  const recent = useMemo(() => dedupeRecent(history).slice(0, 12), [history])
 
   const st = () => useAppStore.getState()
   const done = () => { void haptic.light(); close() }
@@ -72,14 +70,11 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
   const newHistory = () => { done(); st().createTab('history') }
   const newSettings = () => { done(); st().createTab('settings') }
   const newSearchTab = (text: string) => { done(); openQueryInNewSearchTab(text) }
-  // Compare is offered only for a passage that has an LXX ↔ KJV counterpart (T23-023).
-  const scripture = (() => { const s = st(); return s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture && t.type === 'bible') })()
-  const scriptureState = scripture?.state as BibleTabState | undefined
-  const canCompare = !!scriptureState && !scriptureState.compareMode && compareApplicable(scriptureState.bookId, scriptureState.chapter, (scriptureState.translation ?? 'kjva').toLowerCase())
-  const newCompare = () => { if (!scriptureState) return; done(); st().addTab(makeCompareTab({ ...scriptureState }, scriptureState.targetVerse)) }
+  // Scrolling the destinations / recent list puts the keyboard away (NEW-013).
+  const dismissKeyboard = () => { if (document.activeElement === inputRef.current) inputRef.current?.blur() }
 
   return (
-    <div className="mobile-newtab">
+    <div className="mobile-newtab" onTouchMove={dismissKeyboard} onWheel={dismissKeyboard}>
       <form className="mobile-search-field" onSubmit={(e) => {
         e.preventDefault()
         if (q.kind === 'ref') openRef(q, 'new')
@@ -112,19 +107,17 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
 
       {q.kind === 'empty' && (
         <>
-          <div className="mobile-newtab-tiles" role="group" aria-label="New tab">
-            <Tile icon={BookOpen} label="Scripture" onClick={newScripture} />
-            <Tile icon={NotepadText} label="Note" onClick={newNote} />
-            <Tile icon={CalendarDays} label="Today" onClick={daily} />
-            <Tile icon={BookMarked} label="Lexicon" onClick={newLexicon} />
-            <Tile icon={Youtube} label="YouTube" onClick={newYouTube} />
-            <Tile icon={History} label="History" onClick={newHistory} />
-            <Tile icon={SettingsIcon} label="Settings" onClick={newSettings} />
-            {canCompare && <Tile icon={Columns2} label="Compare" onClick={newCompare} />}
-          </div>
-          <div className="mobile-newtab-nav">
-            <NavRow icon={LayoutGrid} label="More" detail="Study trail, tags, queue, PDFs…" onClick={() => { done(); openMore('more') }} />
-            <NavRow icon={Layers} label="Workspaces" onClick={() => { done(); openMore('workspaces') }} />
+          {/* Compact, icon-only destinations (NEW-013) — one row; each is a real new tab, More is
+              the last icon. Names are spoken by VoiceOver and shown on long-press tooltips. */}
+          <div className="mobile-newtab-icons" role="group" aria-label="New tab">
+            <IconTile icon={BookOpen} label="New Scripture tab" onClick={newScripture} />
+            <IconTile icon={NotepadText} label="New note" onClick={newNote} />
+            <IconTile icon={CalendarDays} label="Today's daily note" onClick={daily} />
+            <IconTile icon={BookMarked} label="New Lexicon tab" onClick={newLexicon} />
+            <IconTile icon={Youtube} label="New YouTube tab" onClick={newYouTube} />
+            <IconTile icon={History} label="New History tab" onClick={newHistory} />
+            <IconTile icon={SettingsIcon} label="New Settings tab" onClick={newSettings} />
+            <IconTile icon={MoreHorizontal} label="More — study trail, tags, queue, PDFs, sessions" onClick={() => { done(); openMore('more') }} />
           </div>
           {recent.length > 0 && (
             <section className="mobile-newtab-recent" aria-label="Recent">
@@ -153,9 +146,6 @@ function dedupeRecent(history: HistoryEntry[]): HistoryEntry[] {
   return out
 }
 
-function Tile({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
-  return <button type="button" className="mobile-tile" onClick={onClick} aria-label={label === 'Today' ? "Today's daily note" : `New ${label} tab`}><Icon size={22} aria-hidden /><span>{label}</span></button>
-}
-function NavRow({ icon: Icon, label, detail, onClick }: { icon: LucideIcon; label: string; detail?: string; onClick: () => void }) {
-  return <button type="button" className="mobile-newtab-row" onClick={onClick}><Icon size={18} aria-hidden /><span>{label}</span>{detail && <small>{detail}</small>}</button>
+function IconTile({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
+  return <button type="button" className="mobile-newtab-icon" onClick={onClick} aria-label={label} title={label}><Icon size={21} aria-hidden /></button>
 }

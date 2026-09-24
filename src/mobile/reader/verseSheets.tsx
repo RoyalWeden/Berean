@@ -67,23 +67,23 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
     sheets.open({ id: 'strongs', detents: [0.42, 0.92], render: (api) => <StrongsSheet strongsNum={num} api={api} /> })
   }, [sheets])
   const pushStrongs = useCallback((api: SheetApi, num: string) => {
-    api.push({ key: `strongs-${num}`, title: num, expand: true, render: (a) => <StrongsSheet strongsNum={num} api={a} /> })
+    api.push({ key: `strongs-${num}`, title: num, render: (a) => <StrongsSheet strongsNum={num} api={a} /> })
   }, [])
   const pushVerseNotes = useCallback((api: SheetApi, ctx: VerseActionContext) => {
-    api.push({ key: 'notes', title: 'Notes', expand: true, render: (a) => (
+    api.push({ key: 'notes', title: 'Notes', render: (a) => (
       <VerseNotesSheet verseRef={ctx.verseRef} textId={ctx.textId} label={ctx.label} api={a}
         onOpenNote={openNoteInNotesSpace}
         onNewNote={() => { void ctx.addVerseNote().then((id) => { if (id) openNoteInNotesSpace(id) }) }} />
     ) })
   }, [openNoteInNotesSpace])
   const pushCrossRefs = useCallback((api: SheetApi, ctx: VerseActionContext) => {
-    api.push({ key: 'crossrefs', title: 'Cross references', expand: true, render: (a) => (
+    api.push({ key: 'crossrefs', title: 'Cross references', render: (a) => (
       <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verse={ctx.verse.verse_num} textId={ctx.textId} label={ctx.label} api={a} />
     ) })
   }, [])
   const pushTagPicker = useCallback((api: SheetApi, ctx: VerseActionContext, scope: 'verse' | 'chapter') => {
     const { ranges, label, kind } = ctx.tagRanges(scope)
-    api.push({ key: `tag-${scope}`, title: scope === 'chapter' ? 'Tag chapter' : 'Tag verse', expand: true, render: (a) => <TagPickerSheet ranges={ranges} label={label} kind={kind} api={a} /> })
+    api.push({ key: `tag-${scope}`, title: scope === 'chapter' ? 'Tag chapter' : 'Tag verse', render: (a) => <TagPickerSheet ranges={ranges} label={label} kind={kind} api={a} /> })
   }, [])
 
   const tabIdRef = useRef(tabId)

@@ -56,8 +56,6 @@ export interface SheetSubView {
   /** Shown centred at the top of the sheet, and as the back label of any view pushed after it. */
   title: string
   render: (api: SheetApi) => React.ReactNode
-  /** Move the sheet to its largest detent when this view opens (long lists, editors). */
-  expand?: boolean
 }
 export interface SheetApi {
   close: () => void
@@ -198,9 +196,9 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
     scrollMemo.current[views.length] = bodyRef.current?.scrollTop ?? 0
     setDirection(1)
     setViews((v) => [...v.filter((x) => x.key !== view.key), view])
-    if (view.expand) setDetentIndex(top)
+    // The sheet keeps its detent, position and size when its content changes (NEW-002).
     void haptic.selection()
-  }, [views.length, top])
+  }, [views.length])
   const pop = useCallback(() => {
     setDirection(-1)
     setViews((v) => v.slice(0, -1))
@@ -222,6 +220,34 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
   }
   const atTop = detentIndex === top
   const current = views[views.length - 1]
+  // Body gesture: decided on the first real move. Dragging DOWN with the content at its top moves
+  // the sheet (lower detent / dismiss); dragging UP below the top detent moves the sheet only when
+  // there is nothing to scroll; otherwise the content scrolls. Deciding on the native touchmove
+  // lets us preventDefault it, so WebKit never starts a scroll under a sheet drag.
+  const bodyGesture = useRef<{ x: number; y: number; event: PointerEvent; decided: boolean } | null>(null)
+  const detentRef = useRef({ atTop, dragControls })
+  detentRef.current = { atTop, dragControls }
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const onMove = (e: TouchEvent) => {
+      const g = bodyGesture.current
+      const t = e.touches[0]
+      if (!g || !t) return
+      if (g.decided) return
+      const dy = t.clientY - g.y, dx = t.clientX - g.x
+      if (Math.abs(dy) < 6 || Math.abs(dy) < Math.abs(dx)) return
+      g.decided = true
+      const scrollable = el.scrollHeight > el.clientHeight + 1
+      const moveSheet = dy > 0 ? el.scrollTop <= 0 : (!detentRef.current.atTop && !scrollable)
+      if (moveSheet) { e.preventDefault(); detentRef.current.dragControls.start(g.event) }
+    }
+    const onEnd = () => { bodyGesture.current = null }
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    return () => { el.removeEventListener('touchmove', onMove); el.removeEventListener('touchend', onEnd); el.removeEventListener('touchcancel', onEnd) }
+  }, [])
   const backLabel = views.length > 1 ? views[views.length - 2].title : (options.rootTitle ?? options.title ?? 'Back')
   const headerTitle = current ? current.title : options.title
 
@@ -276,12 +302,13 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
         <div
           ref={bodyRef}
           className="mobile-sheet-body"
-          style={{ overflowY: atTop ? 'auto' : 'hidden' }}
+          // Content scrolls at EVERY detent (NEW-003: the half-open Tabs sheet could not scroll). The
+          // part of the sheet below the screen edge at a partial detent is padded out, so the last
+          // rows can be scrolled into view.
+          style={{ overflowY: 'auto', paddingBottom: `calc(var(--m-safe-bottom) + 16px + ${Math.max(0, heights[top] - heights[detentIndex])}px)` }}
           onPointerDown={(e) => {
-            // Body scrolled to the top (or not scrollable at this detent): the drag moves the sheet.
-            if ((e.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"], [data-no-sheet-drag]')) return
-            const el = bodyRef.current
-            if (!atTop || (el && el.scrollTop <= 0)) dragControls.start(e)
+            if ((e.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"], [data-no-sheet-drag]')) { bodyGesture.current = null; return }
+            bodyGesture.current = { y: e.clientY, x: e.clientX, event: e.nativeEvent, decided: false }
           }}
         >
           <SheetApiContext.Provider value={api}>

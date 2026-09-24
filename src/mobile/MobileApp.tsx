@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { HistoryPage } from './history/HistoryPage'
 import { Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
@@ -18,11 +19,10 @@ import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import StudyTrailArrivalPrompt from '@/components/studyTrail/StudyTrailArrivalPrompt'
 import { ActivePanelContext } from '@/components/shell/ActivePanelContext'
 import { PanelChromeContext } from '@/components/shell/PanelHeader'
+import { useChromeState } from './navigation/chromeState'
 import { lazy, Suspense } from 'react'
 const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
 const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
-import { useHistoryNavigate } from '@/components/shell/HistoryModal'
-import { HISTORY_CATEGORIES, HISTORY_TYPE_LABEL, countByCategory, filterHistory, shouldLoadMoreHistory, type HistoryCategory } from '@/lib/historyModel'
 import { SheetHost, useSheets } from './primitives/Sheet'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
 import { Page, ListSection, Row } from './primitives/Page'
@@ -105,9 +105,20 @@ function Shell() {
   const youtubeShowing = !showMore && activeSpace === 'youtube'
   const youtubeParked = !youtubeShowing && ytVideoOpen
   const nav = useShellSheets({ openMore })
+  const chrome = useChromeState()
+  // The bottom bar's measured height (--m-nav-h) lets the reader leave room under its overlay.
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = rootRef.current
+    const bar = root?.querySelector('.mobile-bottom-nav') as HTMLElement | null
+    if (!root || !bar || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => root.style.setProperty('--m-nav-h', `${bar.offsetHeight}px`))
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [])
 
   return (
-    <div className="mobile-root">
+    <div ref={rootRef} className={`mobile-root${chrome.overlay && !showMore ? ' has-overlay-nav' : ''}${chrome.overlay && chrome.collapsed && !showMore ? ' is-nav-collapsed' : ''}`}>
       <main className="mobile-main">
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes
@@ -311,7 +322,7 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
         <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, threads, recap" chevron onClick={openTrail} />
         <Row leading={<ListMusic size={20} aria-hidden />} title="Read Aloud queue" subtitle="Queue and saved playlists" chevron onClick={() => nav.push('queue', <QueuePage onBack={nav.pop} />)} />
         <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={() => nav.push('history', <HistoryPage onBack={nav.pop} />)} />
-        <Row leading={<Layers size={20} aria-hidden />} title="Workspaces" subtitle="Saved tab sets" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
+        <Row leading={<Layers size={20} aria-hidden />} title="Sessions" subtitle="Switch, rename, saved sessions" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
         <Row leading={<Archive size={20} aria-hidden />} title="Archived tabs" chevron onClick={() => nav.push('archive', <ArchivePage onBack={nav.pop} />)} />
         <Row leading={<Download size={20} aria-hidden />} title="Transcript packs" subtitle="Download channel transcripts for offline search" chevron onClick={() => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />)} />
         {pdfFeatureEnabled && <Row leading={<Library size={20} aria-hidden />} title="PDF library" chevron onClick={() => nav.push('pdfs', <PdfLibraryPage onBack={nav.pop} onOpen={() => onOpenSpace('scripture')} />)} />}
@@ -325,46 +336,6 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
 }
 
 /** History — a page under More, or a dedicated History tab whose filter is kept in the tab (T23-009). */
-function HistoryPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }) {
-  const history = useAppStore((s) => s.history)
-  const hasMore = useAppStore((s) => s.historyHasMore)
-  const loadingMore = useAppStore((s) => s.historyLoadingMore)
-  const loadMore = useAppStore((s) => s.loadMoreHistory)
-  const navigate = useHistoryNavigate()
-  // Same categories and filter rules as the desktop History modal (src/lib/historyModel.ts, TEST-002).
-  const tabState = tab?.state as { category?: HistoryCategory; studyOnly?: boolean } | undefined
-  const [category, setCategoryLocal] = useState<HistoryCategory>(tabState?.category ?? 'all')
-  const [studyOnly, setStudyOnlyLocal] = useState(tabState?.studyOnly ?? false)
-  const setCategory = (c: HistoryCategory) => { setCategoryLocal(c); if (tab) useAppStore.getState().updateTabState('search', tab.id, { category: c }) }
-  const setStudyOnly = (v: boolean) => { setStudyOnlyLocal(v); if (tab) useAppStore.getState().updateTabState('search', tab.id, { studyOnly: v }) }
-  const rows = useMemo(() => filterHistory(history, { category, studyOnly: studyOnly && category === 'scripture' }), [history, category, studyOnly])
-  const counts = useMemo(() => countByCategory(history), [history])
-  useEffect(() => {
-    if (category !== 'all' && shouldLoadMoreHistory(rows.length, hasMore, loadingMore)) void loadMore()
-  }, [category, rows.length, hasMore, loadingMore, loadMore])
-  return (
-    <Page title="History" onBack={onBack} headerBelow={
-      <div className="mobile-chip-row mobile-chip-row-scroll" role="tablist" aria-label="History category">
-        {HISTORY_CATEGORIES.map((c) => (
-          <button key={c.key} type="button" role="tab" aria-selected={category === c.key} className={`mobile-chip${category === c.key ? ' is-on' : ''}`} onClick={() => setCategory(c.key)}>
-            {c.label}{c.key !== 'all' && counts[c.key] ? ` · ${counts[c.key]}` : ''}
-          </button>
-        ))}
-        {category === 'scripture' && (
-          <button type="button" className={`mobile-chip${studyOnly ? ' is-on' : ''}`} aria-pressed={studyOnly} onClick={() => setStudyOnly(!studyOnly)}>Study only</button>
-        )}
-      </div>
-    }>
-      <ListSection>
-        {rows.length === 0 && <div className="mobile-empty">{history.length === 0 ? 'Nothing yet.' : 'No entries in this category.'}</div>}
-        {rows.slice(0, 400).map((h) => (
-          <Row key={h.id} title={h.title} subtitle={`${HISTORY_TYPE_LABEL[h.type]} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => { onBack?.(); navigate(h) }} />
-        ))}
-        {hasMore && <Row title={loadingMore ? 'Loading…' : 'Load older history'} onClick={() => void loadMore()} />}
-      </ListSection>
-    </Page>
-  )
-}
 
 function PdfLibraryPage({ onBack, onOpen }: { onBack: () => void; onOpen: () => void }) {
   const [pdfs, setPdfs] = useState<import('@/types').PdfDoc[]>([])

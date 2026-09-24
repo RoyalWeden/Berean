@@ -2,6 +2,7 @@ import type { DatabaseAdapter } from '../db/DatabaseAdapter'
 import { hasColumn, placeholders } from '../db/DatabaseAdapter'
 import type { ServiceContext } from './context'
 import { numberTokenAlternates } from '../../lib/numberWords'
+import { displayBookName } from '../../lib/parseRef'
 
 /**
  * Scripture text access — extracted verbatim from electron/ipc/bible.ts (Phase 1/3). The SQL
@@ -74,7 +75,11 @@ export function createBibleService(ctx: ServiceContext) {
     const orderBy = (await hasSortOrderCol(db))
       ? 'ORDER BY COALESCE(sort_order, 9999), rowid'
       : 'ORDER BY rowid'
-    const books = await db.all<BookRow>(`SELECT id, name, short_name, testament, chapters_count FROM books ${orderBy}`)
+    // Book names are normalised HERE, at the one place every text's book list is produced, so no
+    // consumer (desktop panels, iPhone picker, search, spotlight) ever shows the KJV databases'
+    // roman-numeral names ("I John", "III John", "II Maccabees") — NEW-11A.
+    const books = (await db.all<BookRow>(`SELECT id, name, short_name, testament, chapters_count FROM books ${orderBy}`))
+      .map((b) => ({ ...b, name: displayBookName(b.name, b.id) }))
     // LXX (and some other texts) store chapters_count = 0; compute from verses table. A single
     // GROUP BY covers every book in one query — an earlier version ran one MAX(chapter) query
     // PER book needing a fallback, which for a ~80-book text like LXX meant 80+ synchronous

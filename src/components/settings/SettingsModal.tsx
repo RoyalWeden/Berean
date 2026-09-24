@@ -1666,7 +1666,7 @@ export default function SettingsModal() {
                     <HistorySection />
                   </div>
                   <div className="pt-4 border-t border-separator">
-                    <SectionLabel className="mb-3">Workspaces</SectionLabel>
+                    <SectionLabel className="mb-3">Saved sessions</SectionLabel>
                     <WorkspacesSection />
                   </div>
                   <div className="pt-4 border-t border-separator">

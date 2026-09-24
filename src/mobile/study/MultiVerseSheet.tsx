@@ -40,7 +40,7 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
         <Tile icon={copied === 'refs' ? Check : Hash} label="Copy refs" onClick={() => void copy(true)} />
         <Tile icon={TagIcon} label="Tag" onClick={() => {
           const { ranges, label: l } = tagRanges()
-          api.push({ key: 'tag', title: 'Tag verses', expand: true, render: (a) => <TagPickerSheet ranges={ranges} label={l} kind="verses" api={a} /> })
+          api.push({ key: 'tag', title: 'Tag verses', render: (a) => <TagPickerSheet ranges={ranges} label={l} kind="verses" api={a} /> })
         }} />
         <Tile icon={Volume2} label="Play" onClick={() => { play(); api.close() }} />
         <Tile icon={X} label="Clear" onClick={() => { clear(); api.close() }} />

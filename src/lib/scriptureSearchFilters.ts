@@ -1,3 +1,5 @@
+import { bookName, bookOrder } from './parseRef'
+
 /**
  * Filter model for the redesigned advanced scripture search: canonical book-group
  * presets, multi-select book filtering, and a "current book/chapter" scope. Pure and
@@ -78,4 +80,101 @@ export function bookFilterSummary(selectedBooks: string[], nameOf: (id: string) 
     g.books.length === selectedBooks.length && g.books.every((b) => selectedBooks.includes(b)))
   if (group) return group.label
   return `${selectedBooks.length} books`
+}
+
+// ── Individual-book selection (NEW-15) ──────────────────────────────────────────────────
+// The Books filter is ALWAYS a set of individual book ids. Testament sections and the
+// canonical groups above are only quick-select helpers that add/remove those ids. Every
+// Books UI (desktop Scope modal, iPhone BooksFilterView) reads its list, ordering and
+// summary from here so they cannot drift.
+
+/** Deuterocanonical books across the Bible editions (KJVA + Brenton LXX), in KJV-Apocrypha
+ *  order with the LXX-only books appended. */
+export const APOCRYPHA_BOOK_IDS: readonly string[] = [
+  '1ES', '2ES', 'TOB', 'JDT', 'ESG', 'WIS', 'SIR', 'BAR', 'LJE', 'PRA', 'SUS', 'BEL', 'PRM',
+  '1MA', '2MA', '3MA', '4MA',
+]
+
+const groupBooks = (ids: string[]) => CANONICAL_BOOK_GROUPS.filter((g) => ids.includes(g.id)).flatMap((g) => g.books)
+
+/** Testament sections shown as headers in every Books picker, in display order. */
+export const BOOK_SECTIONS: readonly BookGroup[] = [
+  { id: 'ot', label: 'Old Testament', books: groupBooks(['torah', 'history', 'wisdom', 'major-prophets', 'minor-prophets']) },
+  { id: 'apocrypha', label: 'Apocrypha', books: [...APOCRYPHA_BOOK_IDS] },
+  { id: 'nt', label: 'New Testament', books: groupBooks(['gospels', 'acts', 'pauline', 'general-epistles', 'revelation']) },
+]
+
+const SECTION_INDEX = new Map<string, number>()
+BOOK_SECTIONS.forEach((s) => s.books.forEach((b) => { if (!SECTION_INDEX.has(b)) SECTION_INDEX.set(b, SECTION_INDEX.size) }))
+
+/** Canonical sort key: OT, Apocrypha, NT (section order), then anything else by parseRef order. */
+export function bookSortKey(bookId: string): number {
+  return SECTION_INDEX.get(bookId) ?? 1000 + bookOrder(bookId)
+}
+
+/** Book ids sorted canonically (stable, de-duplicated). */
+export function sortBookIds(ids: readonly string[]): string[] {
+  return [...new Set(ids)].sort((a, b) => bookSortKey(a) - bookSortKey(b))
+}
+
+export interface BookListItem { id: string; name: string }
+export interface BookSection { id: string; label: string; books: BookListItem[] }
+
+/**
+ * The sectioned book list for a picker. `available` (optional) limits it to books that exist
+ * in the loaded texts; `query` filters by name or id; `nameOf` defaults to the shared bookName().
+ * Empty sections are dropped.
+ */
+export function bookSections(opts: {
+  available?: Iterable<string>
+  query?: string
+  nameOf?: (id: string) => string
+} = {}): BookSection[] {
+  const avail = opts.available ? new Set(opts.available) : null
+  const nameOf = opts.nameOf ?? bookName
+  return BOOK_SECTIONS.map((s) => ({
+    id: s.id,
+    label: s.label,
+    books: filterBookList(
+      s.books.filter((id) => !avail || avail.has(id)).map((id) => ({ id, name: nameOf(id) })),
+      opts.query ?? '',
+    ),
+  })).filter((s) => s.books.length > 0)
+}
+
+/** Add every book of a group to the selection (never removes). Result is canonically sorted. */
+export function selectGroup(selected: readonly string[], books: readonly string[]): string[] {
+  return sortBookIds([...selected, ...books])
+}
+
+/** Remove every book of a group from the selection. */
+export function clearGroup(selected: readonly string[], books: readonly string[]): string[] {
+  const drop = new Set(books)
+  return selected.filter((b) => !drop.has(b))
+}
+
+/** How much of a group is selected — drives "Select all" vs "Clear" and mixed state. */
+export function groupSelectionState(selected: readonly string[], books: readonly string[]): 'none' | 'some' | 'all' {
+  if (books.length === 0) return 'none'
+  const n = books.filter((b) => selected.includes(b)).length
+  return n === 0 ? 'none' : n === books.length ? 'all' : 'some'
+}
+
+/**
+ * Human summary of the Books selection:
+ *  - empty → "Every book"
+ *  - exactly one section / canonical group → its label ("Old Testament", "Torah")
+ *  - 1–2 books → "Genesis, Exodus"
+ *  - more → first two (canonical order) + remainder: "Genesis, Exodus +3"
+ */
+export function booksSummary(ids: readonly string[], nameOf: (id: string) => string = bookName): string {
+  const sorted = sortBookIds(ids)
+  if (sorted.length === 0) return 'Every book'
+  if (sorted.length > 1) {
+    const exact = [...BOOK_SECTIONS, ...CANONICAL_BOOK_GROUPS].find((g) =>
+      g.books.length === sorted.length && g.books.every((b) => sorted.includes(b)))
+    if (exact) return exact.label
+  }
+  const head = sorted.slice(0, 2).map(nameOf).join(', ')
+  return sorted.length > 2 ? `${head} +${sorted.length - 2}` : head
 }

@@ -1,0 +1,40 @@
+/* PassagePicker (NEW-11) — compact grouped rows with chevrons, 44pt+ chapter/verse grid,
+   Dynamic Type through --m-type-scale. Theme colours only (no hard-coded values). */
+.m-pp-root { min-height: 100%; }
+.m-pp { padding: 4px 16px 24px; }
+
+.m-pp-search { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; margin: 4px 0 12px; border-radius: 10px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-muted)); }
+.m-pp-search input { flex: 1; min-width: 0; height: 40px; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); outline: none; -webkit-user-select: text; user-select: text; }
+
+.m-pp-section { margin-bottom: 14px; }
+.m-pp-section-title { margin: 10px 0 6px 14px; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: rgb(var(--color-text-muted)); }
+.m-pp-list { border-radius: 12px; overflow: hidden; background: rgb(var(--color-surface-2)); }
+
+.m-pp-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px 8px 16px; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; text-align: left; position: relative; }
+.m-pp-row + .m-pp-row::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 0.5px; background: rgb(var(--color-surface-4)); }
+.m-pp-row:active { background: rgb(var(--color-surface-3)); }
+.m-pp-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.m-pp-row-title { font-size: calc(17px * var(--m-type-scale, 1)); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; }
+.m-pp-row-sub { font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-pp-row.is-current .m-pp-row-title { color: rgb(var(--color-accent)); font-weight: 600; }
+.m-pp-row-check { flex: none; color: rgb(var(--color-accent)); }
+.m-pp-row-chevron { flex: none; color: rgb(var(--color-text-muted)); opacity: 0.7; }
+.m-pp-row.is-first .m-pp-row-title { font-weight: 600; }
+
+.m-pp-mode { display: flex; gap: 2px; padding: 2px; margin: 4px 0 10px; border-radius: 9px; background: rgb(var(--color-surface-3)); }
+.m-pp-mode button { flex: 1; min-height: 32px; border: 0; border-radius: 7px; background: none; color: rgb(var(--color-text-secondary)); font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; }
+.m-pp-mode button.is-on { background: rgb(var(--color-surface-1)); color: rgb(var(--color-text-primary)); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+
+.m-pp-hint { margin: 0 4px 8px; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+
+.m-pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(52px * var(--m-type-scale, 1)), 1fr)); gap: 8px; margin: 4px 0 12px; }
+.m-pp-grid.is-wide { grid-template-columns: repeat(auto-fill, minmax(calc(96px * var(--m-type-scale, 1)), 1fr)); }
+.m-pp-cell { min-height: 44px; min-width: 44px; padding: 0 4px; border: 0; border-radius: 10px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); font-variant-numeric: tabular-nums; }
+.m-pp-cell:active { opacity: 0.7; }
+.m-pp-cell.is-current { background: rgb(var(--color-accent)); color: white; font-weight: 600; }
+
+.m-pp-whole { width: 100%; min-height: 44px; margin: 4px 0 8px; border: 0; border-radius: 10px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-accent)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); font-weight: 500; }
+
+/* Local (non-sheet) navigation fallback. */
+.m-pp-back { display: inline-flex; align-items: center; min-height: 44px; margin: 0 8px; padding: 0 4px 0 0; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); }
+.m-pp-local-title { padding: 0 16px 4px; font-weight: 600; font-size: calc(17px * var(--m-type-scale, 1)); }

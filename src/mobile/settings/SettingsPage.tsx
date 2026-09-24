@@ -171,7 +171,7 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
       </ListSection>
 
       <ListSection title="Data">
-        <Row title="Data" subtitle="History, workspaces, sessions, danger zone" chevron onClick={() => nav.push('settings-data', <DataSettingsPage onBack={nav.pop} />)} />
+        <Row title="Data" subtitle="History, saved sessions, danger zone" chevron onClick={() => nav.push('settings-data', <DataSettingsPage onBack={nav.pop} />)} />
       </ListSection>
 
       <ListSection title="Study trail">

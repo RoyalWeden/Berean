@@ -16,11 +16,11 @@ import type { SheetApi } from '../primitives/Sheet'
 /** What a `view` command shows inside the same caret sheet: a nested command scope (rendered by
  *  CaretSheet itself) or a custom body. The caret then shows "‹ <parent title>" at its top. */
 export type CaretView =
-  | { title: string; scope: () => CaretScope; expand?: boolean }
-  | { title: string; render: (api: SheetApi) => ReactNode; expand?: boolean }
+  | { title: string; scope: () => CaretScope }
+  | { title: string; render: (api: SheetApi) => ReactNode }
 
 export type CaretCommand =
-  | { kind: 'action'; id: string; label: string; icon?: LucideIcon; detail?: string; value?: string; destructive?: boolean; disabled?: boolean; keepOpen?: boolean; run: () => void }
+  | { kind: 'action'; id: string; label: string; icon?: LucideIcon; detail?: string; value?: string; destructive?: boolean; disabled?: boolean; keepOpen?: boolean; /** Spoken label when the visible one is terse (e.g. "LXX"). */ a11yLabel?: string; run: () => void }
   /** Opens a sub-view in the same sheet (T23-006/019); `value` is shown at the right ("KJV ›"). */
   | { kind: 'view'; id: string; label: string; icon?: LucideIcon; detail?: string; value?: string; disabled?: boolean; view: () => CaretView }
   | { kind: 'toggle'; id: string; label: string; icon?: LucideIcon; detail?: string; value: boolean; set: (v: boolean) => void }

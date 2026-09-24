@@ -28,7 +28,7 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
     if (c.disabled) return
     const v = c.view()
     api.push({
-      key: c.id, title: v.title, expand: v.expand,
+      key: c.id, title: v.title,
       render: (a) => ('scope' in v ? <CaretSheet scope={v.scope} api={a} /> : v.render(a)),
     })
   }
@@ -63,7 +63,7 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
             }
             if (c.kind !== 'action') return null
             return (
-              <button key={c.id} type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={act(c)}>
+              <button key={c.id} type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={act(c)} aria-label={c.a11yLabel}>
                 {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.detail && <small>{c.detail}</small>}
               </button>
             )

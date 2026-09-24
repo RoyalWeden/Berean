@@ -14,7 +14,7 @@ import { Page, IconTap } from '../primitives/Page'
 import { useSheets } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { SelectionBar } from '../study/SelectionBar'
-import { ReferencePicker } from './ReferencePicker'
+import { PassagePicker } from './PassagePicker'
 import { useCompareVerseInteraction } from './compareInteraction'
 import {
   columnsForState, compareAnchor, compareTitle, navigateColumns, swapColumns, correspondingVerse,
@@ -195,9 +195,11 @@ export function ComparePage({ tab }: { tab: Tab }) {
   // ── touch interaction (same sheets as the reader; selection per column) ────────────────────
   const { verseInteraction, openStrongs, openNoteInNotesSpace } = useCompareVerseInteraction(tab.id)
 
+  // Same hierarchical picker as the reader (NEW-011C). Compare stays LXX ↔ KJV, so a pick's
+  // passage is used and its collection only decides the book list shown.
   const openReference = () => sheets.open({
-    id: 'reference', title: 'Go to', detents: [0.92],
-    render: (api) => <ReferencePicker books={books} bookId={lead.bookId} chapter={lead.chapter} onPick={(b, c, v) => { api.close(); goTo(b, c, v) }} />,
+    id: 'reference', rootTitle: 'Library', detents: [0.92],
+    render: (api) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { api.close(); goTo(d.bookId, d.chapter, d.verse) }} />,
   })
   const exitCompare = () => {
     // Back to a normal Scripture tab on the same passage, in the left column's text.

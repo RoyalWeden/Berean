@@ -310,11 +310,25 @@ const ROMAN_TO_ARABIC: Record<string, string> = {
  *  of the far more readable "Book 7". */
 export function normalizeBookName(name: string): string {
   return name
+    .replace(/^IV /, '4 ')
     .replace(/^III /, '3 ')
     .replace(/^II /, '2 ')
     .replace(/^I /, '1 ')
     .replace(/^Revelation of John$/, 'Revelation')
     .replace(/\bBook\s+([IVX]+)\b/, (full, roman: string) => ROMAN_TO_ARABIC[roman] ? `Book ${ROMAN_TO_ARABIC[roman]}` : full)
+}
+
+/**
+ * The user-facing name of a book row read from ANY text database (NEW-11A). Book names are
+ * produced by `bibleService.getBooks`, which runs every row through this, so desktop and iPhone
+ * both show "1 John" / "2 Maccabees" — the KJV/KJVA databases store "I John", "II Maccabees",
+ * "III John", "Revelation of John". A name that is empty or just the raw book id (some texts
+ * store e.g. "3MA") falls back to the canonical `bookName(id)`. IDs are never changed.
+ */
+export function displayBookName(name: string | null | undefined, bookId?: string): string {
+  const n = normalizeBookName((name ?? '').trim())
+  if (bookId && (!n || n.toUpperCase() === bookId.toUpperCase())) return bookName(bookId)
+  return n
 }
 
 export function bookName(bookId: string): string {

@@ -9,3 +9,7 @@ export const TRAFFIC_LIGHT_INSET = 76
 // direct feedback) — the single metric everything else (traffic-light y in electron/main.ts,
 // docs/design-system.md) derives from, rather than nudging individual buttons.
 export const HEADER_HEIGHT = 52
+// The inner Toolbar is 44px (h-11) holding 36px controls; ShellHeader centres it vertically in
+// this bar (flex column, justify-center), so the controls sit (HEADER_HEIGHT - 36) / 2 = 8px from
+// both the top and bottom edges, on the same centre line as the traffic lights (y 20, 12px tall).
+// Change HEADER_HEIGHT and the main-window trafficLightPosition y (electron/main.ts) together.

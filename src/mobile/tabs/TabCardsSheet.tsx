@@ -9,6 +9,7 @@ import { actionListView } from '../primitives/ActionSheet'
 import { SESSION_ICONS } from '@/components/shell/Sidebar'
 import { TabPreview, tabTextBadge } from './TabPreview'
 import { SessionSwitcher } from './SessionSwitcher'
+import { ArchiveView } from './ArchivePage'
 import { NewTabSheet, type MorePageRoute } from '../navigation/NewTabSheet'
 import { moveInOrder, workspaceOrder } from './tabOrder'
 
@@ -188,15 +189,16 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
   return (
     <div className="mobile-tab-cards-sheet">
       <div className="mobile-tab-grid-head">
-        <button type="button" className="mobile-chip" aria-label={`Workspace: ${session?.name ?? 'Workspace'}. Switch workspace`} onClick={() => api.push(sessionsView())}>
-          <SessionIcon size={16} aria-hidden /> {session?.name ?? 'Workspace'}
+        <button type="button" className="mobile-chip" aria-label={`Session: ${session?.name ?? 'Session'}. Switch session`} onClick={() => api.push(sessionsView())}>
+          <SessionIcon size={16} aria-hidden /> {session?.name ?? 'Session'}
         </button>
         <span className="mobile-muted">{all.length} tab{all.length === 1 ? '' : 's'}</span>
         <div className="mobile-tab-grid-head-actions">
-          <button type="button" className="mobile-chip" aria-label="Archived tabs" onClick={() => { api.close(); openMore('archive') }}><Archive size={14} aria-hidden /></button>
+          {/* Archive opens INSIDE this sheet (NEW-016) — no page or panel on top. */}
+          <button type="button" className="mobile-chip" aria-label="Archived tabs" onClick={() => api.push({ key: 'archive', title: 'Archived tabs', render: (a) => <ArchiveView api={a} /> })}><Archive size={14} aria-hidden /></button>
         </div>
       </div>
-      {all.length === 0 && <div className="mobile-empty">No open tabs in this workspace.</div>}
+      {all.length === 0 && <div className="mobile-empty">No open tabs in this session.</div>}
       <div ref={gridRef} className={`mobile-tab-cards${liftedId ? ' is-dragging' : ''}`} data-no-sheet-drag role="list" aria-label="Tabs">
         {order.map((id) => {
           const it = byId.get(id)
@@ -240,7 +242,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
           )
         })}
         <button type="button" className="mobile-tab-card is-new" aria-label="New tab"
-          onClick={() => api.push({ key: 'new-tab', title: 'New Tab', expand: true, render: (a) => <NewTabSheet close={a.close} openMore={(r) => { a.close(); openMore(r) }} /> })}>
+          onClick={() => api.push({ key: 'new-tab', title: 'New Tab', render: (a) => <NewTabSheet close={a.close} openMore={(r) => { a.close(); openMore(r) }} /> })}>
           <Plus size={24} aria-hidden /><span>New tab</span>
         </button>
       </div>
@@ -261,7 +263,7 @@ function tabActionsView(space: SpaceId, t: Tab): SheetSubView {
     { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { st().addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
     { id: 'earlier', label: 'Move earlier', stay: true, disabled: k <= 0, onSelect: () => st().reorderTabDisplay(s.currentSessionId, t.id, order[k - 1], true) },
     { id: 'later', label: 'Move later', stay: true, disabled: k < 0 || k >= order.length - 1, onSelect: () => st().reorderTabDisplay(s.currentSessionId, t.id, order[k + 1], false) },
-    ...(others.length ? [{ id: 'move', label: 'Move to workspace', onSelect: () => {}, view: () => actionListView(`tab-move-${t.id}`, 'Move to', others.map((x) => ({ id: x.id, label: x.name, onSelect: () => st().moveTabToSession(space, t.id, x.id) }))) }] : []),
+    ...(others.length ? [{ id: 'move', label: 'Move to session', onSelect: () => {}, view: () => actionListView(`tab-move-${t.id}`, 'Move to', others.map((x) => ({ id: x.id, label: x.name, onSelect: () => st().moveTabToSession(space, t.id, x.id) }))) }] : []),
     { id: 'archive', label: 'Archive tab', stay: true, onSelect: () => st().archiveTab(space, t.id) },
     { id: 'close-others', label: 'Close other tabs of this type', stay: true, onSelect: () => { for (const o of st().tabs[space]) if (o.id !== t.id && !o.isPinned && o.type === t.type) st().closeTab(space, o.id) } },
     { id: 'close', label: 'Close tab', destructive: true, stay: true, onSelect: () => st().closeTab(space, t.id) },
@@ -272,15 +274,16 @@ function tabActionsView(space: SpaceId, t: Tab): SheetSubView {
  *  workspace's actions and its icon picker go one level deeper in the same sheet. */
 function sessionsView(): SheetSubView {
   return {
-    key: 'sessions', title: 'Workspaces', expand: true,
+    key: 'sessions', title: 'Sessions',
     render: (a) => (
       <SessionSwitcher close={() => a.pop()} onActions={(id) => {
         const s = useAppStore.getState()
         const session = s.sessions.find((x) => x.id === id)
-        a.push(actionListView(`session-${id}`, session?.name ?? 'Workspace', [
-          { id: 'rename', label: 'Rename…', stay: true, onSelect: () => { const n = prompt('Workspace name', session?.name ?? ''); if (n?.trim()) s.renameSession(id, n.trim()) } },
-          { id: 'archive-all', label: 'Archive all tabs in this workspace', stay: true, onSelect: () => s.archiveAllTabs(session?.name) },
-          { id: 'delete', label: 'Delete workspace', destructive: true, stay: true, disabled: s.sessions.length <= 1, onSelect: () => { if (confirm(`Delete "${session?.name}" and close its tabs?`)) s.deleteSession(id) } },
+        a.push(actionListView(`session-${id}`, session?.name ?? 'Session', [
+          { id: 'rename', label: 'Rename…', stay: true, onSelect: () => { const n = prompt('Session name', session?.name ?? ''); if (n?.trim()) s.renameSession(id, n.trim()) } },
+          // archiveAllTabs acts on the live (current) workspace's tabs only.
+          ...(id === s.currentSessionId ? [{ id: 'archive-all', label: 'Archive all tabs in this session', stay: true, onSelect: () => s.archiveAllTabs(session?.name) }] : []),
+          { id: 'delete', label: 'Delete session', destructive: true, stay: true, disabled: s.sessions.length <= 1, onSelect: () => { if (confirm(`Delete "${session?.name}" and close its tabs?`)) s.deleteSession(id) } },
           { id: 'icon', label: 'Icon', onSelect: () => {}, view: () => actionListView(`session-icon-${id}`, 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, stay: true, onSelect: () => s.setSessionIcon(id, i.name) }))) },
         ]))
       }} />

@@ -72,7 +72,7 @@ export default function WorkspacesSection() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-subhead font-medium text-text-primary mb-1">Saved workspaces</p>
+        <p className="text-subhead font-medium text-text-primary mb-1">Saved sessions</p>
         <p className="s-desc text-caption text-text-muted">
           Save a named snapshot of the current panel layout. Load it later to restore that arrangement. Tab contents are not restored — only the panel split configuration.
         </p>
@@ -84,7 +84,7 @@ export default function WorkspacesSection() {
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && saveWorkspace()}
-          placeholder="Name this workspace…"
+          placeholder="Name this saved session…"
           wrapperClassName="flex-1"
         />
         <Button variant="primary" size="sm" onClick={saveWorkspace} disabled={!newName.trim() || saving}>
@@ -94,7 +94,7 @@ export default function WorkspacesSection() {
 
       {/* List */}
       {savedWorkspaces.length === 0 ? (
-        <p className="s-desc text-caption text-text-muted text-center py-4">No saved workspaces yet</p>
+        <p className="s-desc text-caption text-text-muted text-center py-4">No saved sessions yet</p>
       ) : (
         <div className="space-y-1.5">
           {savedWorkspaces.map((ws) => (
@@ -120,7 +120,7 @@ export default function WorkspacesSection() {
               <span className="text-caption2 text-text-muted flex-shrink-0">
                 {new Date(ws.created_at).toLocaleDateString()}
               </span>
-              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} tooltip="Open this workspace (its tabs and layout) as a session" className="flex-shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => loadWorkspace(ws.id)} tooltip="Open this saved session (its tabs and layout) as a session" className="flex-shrink-0">
                 Load
               </Button>
               <Button
@@ -131,7 +131,7 @@ export default function WorkspacesSection() {
               >
                 Rename
               </Button>
-              <IconButton icon={Trash2} label="Delete this workspace" size={20} danger onClick={() => deleteWorkspace(ws.id)} />
+              <IconButton icon={Trash2} label="Delete this saved session" size={20} danger onClick={() => deleteWorkspace(ws.id)} />
             </div>
           ))}
         </div>

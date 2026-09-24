@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands } from '../commands/caretRegistry'
-import { requestMore } from '../navigation/shellNav'
 import { Search, X, Clock, Tag, Languages, Library, Tags as TagsIcon, ListFilter, RotateCcw, History as HistoryIcon, ArrowDownUp, Type } from 'lucide-react'
 import type { Note, LexiconEntry, VerseTagMember, Tab, SearchTabState } from '@/types'
 import { useAppStore } from '@/store'
@@ -15,7 +14,9 @@ import {
   runScriptureSearch, runStrongsSearch, groupHitsByBook, filterHitsByVerseTags, takeGroupRows,
   type ScriptureHit, type SearchSortMode, type SearchSortDirection,
 } from '@/lib/scriptureSearch'
-import { CANONICAL_BOOK_GROUPS, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
+import { booksSummary } from '@/lib/scriptureSearchFilters'
+import { BooksFilterView } from './BooksFilterView'
+import { HistoryView } from '../history/HistoryPage'
 import type { WordMode } from '@/lib/scriptureHighlight'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
@@ -216,22 +217,20 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const q = (live?.query ?? query).trim()
     const count = (f.textId !== 'all' ? 1 : 0) + (f.books.length ? 1 : 0) + (f.wordMode !== 'all' ? 1 : 0) + (f.tagIds.length ? 1 : 0) + (f.sort !== 'relevance' ? 1 : 0)
     const textLabel = f.textId === 'all' ? 'All texts' : (TRANSLATIONS.find((t) => t.id === f.textId)?.label ?? f.textId)
-    const booksLabel = f.books.length === 0 ? 'Every book' : CANONICAL_BOOK_GROUPS.filter((g) => isGroupActive(f.books, g)).map((g) => g.label).join(', ') || `${f.books.length} books`
+    const booksLabel = booksSummary(f.books)
     const tagsLabel = f.tagIds.length === 0 ? 'None' : `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}`
     return {
       title: q ? `Search · “${q}”` : 'Search', backTitle: 'Search',
       sections: [
-        { id: 'scope', title: 'Search in', commands: [
-          { kind: 'segmented', id: 'scope', label: 'Scope', value: sc, options: [['scripture', 'Scripture'], ['notes', 'Notes'], ['lexicon', 'Lexicon']], set: (v) => updateTabState('search', tabId, { scope: v as Scope }) },
-        ] },
+        // No Scope row (NEW-014): the page's own Scripture / Notes / Lexicon switch is the scope.
         { id: 'match', title: 'Match', commands: [
           { kind: 'segmented', id: 'word-mode', label: 'Words', icon: Type, value: f.wordMode, options: [['all', 'All'], ['any', 'Any'], ['phrase', 'Phrase']], set: (v) => patchSearchFilters(tabId, { wordMode: v as WordMode }) },
         ] },
         ...(sc === 'scripture' ? [
           { id: 'filters', title: count ? `Scripture filters · ${count}` : 'Scripture filters', commands: [
             { kind: 'view' as const, id: 'text', label: 'Text', icon: Languages, value: textLabel, view: () => ({ title: 'Text', render: (a: SheetApi) => <SearchTextChoices tabId={tabId} api={a} /> }) },
-            { kind: 'view' as const, id: 'books', label: 'Books', icon: Library, value: booksLabel, view: () => ({ title: 'Books', expand: true, render: () => <SearchBooksFilter tabId={tabId} /> }) },
-            { kind: 'view' as const, id: 'tags', label: 'Verse tags', icon: TagsIcon, value: tagsLabel, view: () => ({ title: 'Verse tags', expand: true, render: (a: SheetApi) => <SearchTagsFilter tabId={tabId} api={a} /> }) },
+            { kind: 'view' as const, id: 'books', label: 'Books', icon: Library, value: booksLabel, view: () => ({ title: 'Books', render: () => <SearchBooksFilter tabId={tabId} /> }) },
+            { kind: 'view' as const, id: 'tags', label: 'Verse tags', icon: TagsIcon, value: tagsLabel, view: () => ({ title: 'Verse tags', render: (a: SheetApi) => <SearchTagsFilter tabId={tabId} api={a} /> }) },
             { kind: 'action' as const, id: 'reset', label: 'Reset filters', icon: RotateCcw, keepOpen: true, disabled: count === 0, run: () => updateTabState('search', tabId, { filters: {} }) },
           ] },
           { id: 'sort', title: 'Sort', commands: [
@@ -243,7 +242,8 @@ export function SearchPage({ tab }: { tab: Tab }) {
         ] : []),
         { id: 'more', commands: [
           { kind: 'action', id: 'clear', label: 'Clear search', icon: X, disabled: !q, run: () => setQuery('') },
-          { kind: 'action', id: 'history', label: 'History', icon: HistoryIcon, run: () => requestMore('history') },
+          // History opens INSIDE this sheet ("‹ Search"), keeping its position (NEW-014).
+          { kind: 'view', id: 'history', label: 'History', icon: HistoryIcon, view: () => ({ title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
         ] },
       ],
     }
@@ -337,20 +337,10 @@ function SearchTextChoices({ tabId, api }: { tabId: string; api: SheetApi }) {
   )
 }
 
-/** Caret → Books: testament / book groups, several at once. */
+/** Caret → Books: individual books, several at once (NEW-015; the shared BooksFilterView). */
 function SearchBooksFilter({ tabId }: { tabId: string }) {
   const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
-  return (
-    <div className="mobile-search-filters">
-      <div className="mobile-chip-row">
-        <button type="button" className={`mobile-chip${f.books.length === 0 ? ' is-on' : ''}`} aria-pressed={f.books.length === 0} onClick={() => patchSearchFilters(tabId, { books: [] })}>Every book</button>
-        {CANONICAL_BOOK_GROUPS.map((g) => (
-          <button key={g.id} type="button" className={`mobile-chip${isGroupActive(f.books, g) ? ' is-on' : ''}`} aria-pressed={isGroupActive(f.books, g)}
-            onClick={() => { void haptic.selection(); patchSearchFilters(tabId, { books: toggleGroup(f.books, g) }) }}>{g.label}</button>
-        ))}
-      </div>
-    </div>
-  )
+  return <BooksFilterView value={f.books} onChange={(ids) => patchSearchFilters(tabId, { books: ids })} />
 }
 
 /** Caret → Verse tags: narrow results to tagged verses (any / every tag). */

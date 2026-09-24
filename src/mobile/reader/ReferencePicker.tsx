@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, ChevronLeft, CornerDownLeft } from 'lucide-react'
 import type { Book } from '@/types'
-import { parseRef, ALL_BOOKS, bookName } from '@/lib/parseRef'
+import { parseRef, ALL_BOOKS, bookName, displayBookName } from '@/lib/parseRef'
+export { PassagePicker, type PassagePick, type PassagePickerProps } from './PassagePicker'
 import { haptic } from '../primitives/haptics'
 import { displayChapter, chapterNumberingNote } from '@/lib/chapterNumbering'
 
@@ -22,6 +23,9 @@ export function matchBooks<T extends { id: string; name: string }>(books: readon
 }
 
 /**
+ * LEGACY flat passage navigator — superseded by the hierarchical `PassagePicker` (NEW-11,
+ * re-exported above); kept with its old props so existing callers compile until they are rewired.
+ *
  * The reader's passage navigator (TEST-041): tapping the book/chapter title opens this floating
  * search. Type naturally — "John 3:16", "Genesis 1", "1 Corinthians 13", "Psalm 23:1-6" — or
  * filter books by their FULL names and tap book → chapter (→ verses; tap a second verse for a
@@ -45,7 +49,7 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
     if (!q || !/\p{L}.*\d/u.test(q)) return null
     return parseRef(q)
   }, [query])
-  const inText = useMemo(() => books.map((b) => ({ id: b.id, name: b.name, chapters: b.chapters_count, testament: b.testament })), [books])
+  const inText = useMemo(() => books.map((b) => ({ id: b.id, name: displayBookName(b.name, b.id), chapters: b.chapters_count, testament: b.testament })), [books])
   const others = useMemo(() => {
     const have = new Set(books.map((b) => b.id))
     return ALL_BOOKS.filter((b) => !have.has(b.id)).map((b) => ({ id: b.id, name: b.name, chapters: 0, testament: 'Other books' }))

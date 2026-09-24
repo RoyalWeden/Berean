@@ -107,3 +107,18 @@ export function compareCounterpart(textId: string, bookId: string, chapter: numb
 export function compareApplicable(bookId: string, chapter: number, fromTextId = 'kjva'): boolean {
   return compareCounterpart(fromTextId, bookId, chapter) != null
 }
+
+/**
+ * Where a tab should be once `books` (the newly selected text's book list) is known (NEW-005B):
+ * the same book and chapter when valid; the book's last chapter / chapter 1 via
+ * chapterForBookSwitch when only the chapter is out of range; and — when the text doesn't have the
+ * book at all (Matthew 22 → 1 Enoch) — the text's FIRST book, chapter 1. `null` = stay put.
+ * Desktop's BiblePanel applies the same rule when its book list loads.
+ */
+export function passageForTextBooks(books: ReadonlyArray<{ id: string; chapters_count: number }>, bookId: string, chapter: number): { bookId: string; chapter: number } | null {
+  if (books.length === 0) return null
+  const book = books.find((b) => b.id === bookId)
+  if (!book) return { bookId: books[0].id, chapter: 1 }
+  const ch = chapterForBookSwitch(book.id, chapter, book.chapters_count)
+  return ch === chapter ? null : { bookId, chapter: ch }
+}

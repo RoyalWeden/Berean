@@ -10,7 +10,7 @@ import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrong
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { runRawScriptureSearch } from '@/lib/scriptureSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
+import { toggleBook, bookPassesFilter, isGroupActive, bookSections, booksSummary, selectGroup, clearGroup, groupSelectionState, type BookSection } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
@@ -1114,8 +1114,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           const scopeParts: string[] = []
           if (currentTextEntry) scopeParts.push(currentTextEntry.label)
           if (testamentFilter !== 'all') scopeParts.push(testamentFilter)
-          if (selectedBooks.length === 1) scopeParts.push(bookNameOf(selectedBooks[0]))
-          else if (selectedBooks.length > 1) scopeParts.push(`${selectedBooks.length} books`)
+          if (selectedBooks.length > 0) scopeParts.push(booksSummary(selectedBooks, bookNameOf))
           const scopeSummary = scopeParts.length > 0 ? scopeParts.join(' · ') : 'All scripture'
           return (
             <Button
@@ -1364,7 +1363,22 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         const testamentNav = useRovingGridNav({ itemCount: scopeOptions.length, columns: 1 })
         const editionItemCount = (showAllEditionsOption ? 1 : 0) + filteredEditions.length
         const editionNav = useRovingGridNav({ itemCount: editionItemCount, columns: 1 })
-        const canonNav = useRovingGridNav({ itemCount: filteredCanonBooks.length, columns: 3 })
+        // Canon books are listed individually under testament section headers (OT /
+        // Apocrypha / NT — the shared BOOK_SECTIONS order from scriptureSearchFilters), each
+        // with Select all / Clear quick-select that only adds/removes those individual ids.
+        // Anything a text ships that isn't in a known section lands in "More books".
+        const canonNameById = new Map(filteredCanonBooks.map((b) => [b.id, b.name]))
+        const canonSections: BookSection[] = bookSections({ available: canonNameById.keys(), nameOf: (id) => canonNameById.get(id) ?? bookName(id) })
+        const sectionedIds = new Set(canonSections.flatMap((sec) => sec.books.map((b) => b.id)))
+        const leftoverCanon = filteredCanonBooks.filter((b) => !sectionedIds.has(b.id))
+        if (leftoverCanon.length > 0) canonSections.push({ id: 'more', label: 'More books', books: leftoverCanon.map((b) => ({ id: b.id, name: b.name })) })
+        const sectionCount = (id: string) => canonSections.find((sec) => sec.id === id)?.books.length ?? 0
+        const canonSectionNav: Record<string, ReturnType<typeof useRovingGridNav>> = {
+          ot: useRovingGridNav({ itemCount: sectionCount('ot'), columns: 3 }),
+          apocrypha: useRovingGridNav({ itemCount: sectionCount('apocrypha'), columns: 3 }),
+          nt: useRovingGridNav({ itemCount: sectionCount('nt'), columns: 3 }),
+          more: useRovingGridNav({ itemCount: sectionCount('more'), columns: 3 }),
+        }
         // "Other Books" multi-book groups (T12P, Hermas, Recognitions of Clement) are a
         // fixed, known set — each gets its own independent sub-grid nav instance. No
         // cross-group edge-of-grid handoff between different groups' sub-grids (deferred
@@ -1491,18 +1505,37 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       <div className="mx-3 my-1 h-px bg-surface-4" />
                     )}
 
-                    {/* ── Canon Books — flat grid, no OT/NT/Apocrypha sub-headers: the scope
-                         pill row above already tells you what you're looking at when it's
-                         narrowed, and when it's "All" the testament order (OT then NT then
-                         Apocrypha, canonBooksAll's own natural order) still reads fine
-                         without a label repeating what's visually obvious from scrolling. ── */}
-                    {hasCanonMatch && (
-                      <div className="grid grid-cols-3 gap-0.5 px-2 py-1">
-                        {filteredCanonBooks.map((book, i) =>
-                          scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false, canonNav.getItemProps(i))
-                        )}
-                      </div>
-                    )}
+                    {/* ── Canon Books — individual books under testament section headers. The
+                         selection is always a set of individual book ids; the header's
+                         Select all / Clear are quick-select helpers over that section's
+                         (currently visible) books. ── */}
+                    {hasCanonMatch && canonSections.map((sec) => {
+                      const ids = sec.books.map((b) => b.id)
+                      const state = groupSelectionState(selectedBooks, ids)
+                      const picked = ids.filter((id) => selectedBooks.includes(id)).length
+                      return (
+                        <div key={sec.id} role="group" aria-label={sec.label}>
+                          <div className="flex items-center gap-2 px-3 pt-1.5 pb-0.5">
+                            <p className="flex-1 text-caption2 font-medium text-text-muted">
+                              {sec.label}{picked > 0 && <span className="ml-1.5 tabular-nums">· {picked} of {ids.length}</span>}
+                            </p>
+                            {state !== 'all' && (
+                              <Button variant="ghost" size="sm" className="h-auto px-1.5 py-0.5 text-caption2"
+                                onClick={() => setSelectedBooks((cur) => selectGroup(cur, ids))}>Select all</Button>
+                            )}
+                            {state !== 'none' && (
+                              <Button variant="ghost" size="sm" className="h-auto px-1.5 py-0.5 text-caption2"
+                                onClick={() => setSelectedBooks((cur) => clearGroup(cur, ids))}>Clear</Button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-0.5 px-2 pb-1.5">
+                            {sec.books.map((book, i) =>
+                              scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false, canonSectionNav[sec.id]?.getItemProps(i))
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
 
                     {hasCanonMatch && hasOtherMatch && (
                       <div className="mx-3 my-1 h-px bg-separator" />
@@ -1527,7 +1560,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 <Button
                                   variant="ghost" size="sm" selected={wholeGroupSelected}
                                   className="h-auto px-1.5 py-0.5 text-caption2"
-                                  onClick={() => setSelectedBooks((cur) => toggleGroup(cur, group))}
+                                  onClick={() => setSelectedBooks((cur) => wholeGroupSelected ? clearGroup(cur, group.books) : selectGroup(cur, group.books))}
                                 >
                                   {wholeGroupSelected ? 'Clear all' : 'Select all'}
                                 </Button>
@@ -1545,7 +1578,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   </div>
 
                   <Toolbar size="sm" material="none" edge="top" className="justify-between">
-                    <span className="text-caption2 text-text-muted">Esc to close</span>
+                    <span className="min-w-0 truncate text-caption2 text-text-muted" aria-live="polite">
+                      Books: <span className="text-text-secondary">{booksSummary(selectedBooks, bookNameOf)}</span>
+                      {selectedBooks.length > 0 && (
+                        <Button variant="ghost" size="sm" className="ml-1.5 h-auto px-1.5 py-0.5 text-caption2"
+                          onClick={() => setSelectedBooks([])}>Clear books</Button>
+                      )}
+                      <span className="ml-2">· Esc to close</span>
+                    </span>
                     <Button
                       variant="primary" size="sm"
                       onClick={() => { setScopePaletteOpen(false); setScopeSearch('') }}
