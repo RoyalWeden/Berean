@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands } from '../commands/caretRegistry'
 import { requestMore } from '../navigation/shellNav'
-import { Search, SlidersHorizontal, X, Clock, ArrowUp, ArrowDown, Tag } from 'lucide-react'
-import type { Note, LexiconEntry, VerseTagMember } from '@/types'
+import { Search, X, Clock, Tag, Languages, Library, Tags as TagsIcon, ListFilter, RotateCcw, History as HistoryIcon, ArrowDownUp, Type } from 'lucide-react'
+import type { Note, LexiconEntry, VerseTagMember, Tab, SearchTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookName, parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
@@ -17,8 +17,9 @@ import {
 } from '@/lib/scriptureSearch'
 import { CANONICAL_BOOK_GROUPS, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
 import type { WordMode } from '@/lib/scriptureHighlight'
-import { Page, IconTap, ListSection, Row } from '../primitives/Page'
+import { Page, ListSection, Row } from '../primitives/Page'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
+import { ChoiceList } from '../primitives/ActionSheet'
 import { Segmented } from '../settings/SettingsPage'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -54,11 +55,46 @@ const RESULT_CHUNK = 50
  * typed here ("Gen 1:1") opens the passage; a Strong's number searches its occurrences; tags
  * picked with no query browse the tagged verses themselves (the desktop's browse view).
  */
-export function SearchPage() {
+/** A search tab's filters, defaults filled in. */
+export function tabFilters(st: SearchTabState | undefined): SearchFilterState {
+  return { ...DEFAULT_SEARCH_FILTERS, ...((st?.filters ?? {}) as Partial<SearchFilterState>) }
+}
+/** Live state of search tab `tabId` (store, not a render snapshot — caret views read it lazily). */
+function liveSearchState(tabId: string): SearchTabState | undefined {
+  return useAppStore.getState().tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined
+}
+function patchSearchFilters(tabId: string, patch: Partial<SearchFilterState>) {
+  useAppStore.getState().updateTabState('search', tabId, { filters: { ...tabFilters(liveSearchState(tabId)), ...patch } as unknown as Record<string, unknown> })
+}
+
+/**
+ * Each Search TAB keeps its own scope, query and filters in its tab state (T23-009: several
+ * Search tabs are independent; the page is keyed per tab by the shell). Filters are edited from
+ * the caret (T23-013) — Match / Sort inline, Text / Books / Verse tags as views inside the caret.
+ */
+export function SearchPage({ tab }: { tab: Tab }) {
   const sheets = useSheets()
-  const [scope, setScope] = useState<Scope>('scripture')
-  const [query, setQuery] = useState('')
-  const [filters, setFilters] = useState<SearchFilterState>(DEFAULT_SEARCH_FILTERS)
+  const tabId = tab.id
+  const st = tab.state as SearchTabState
+  const scope: Scope = st.scope ?? 'scripture'
+  const updateTabState = useAppStore((s) => s.updateTabState)
+  const renameTab = useAppStore((s) => s.renameTab)
+  const setScope = useCallback((v: Scope) => updateTabState('search', tabId, { scope: v }), [updateTabState, tabId])
+  const [query, setQuery] = useState(st.query ?? '')
+  // The typed query is saved into the tab (and names it) once typing pauses.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = query.trim()
+      if ((liveSearchState(tabId)?.query ?? '') !== query) updateTabState('search', tabId, { query })
+      renameTab('search', tabId, q ? `“${q}”` : 'Search')
+    }, 400)
+    return () => clearTimeout(t)
+  }, [query, tabId, updateTabState, renameTab])
+  const filters = tabFilters(st)
+  const setFilters = useCallback((next: SearchFilterState | ((f: SearchFilterState) => SearchFilterState)) => {
+    const cur = tabFilters(liveSearchState(tabId))
+    patchSearchFilters(tabId, typeof next === 'function' ? next(cur) : next)
+  }, [tabId])
   const { textId, wordMode, books, tagIds, tagMatchAll, sort, direction } = filters
   const [hits, setHits] = useState<ScriptureHit[] | null>(null)
   const [notes, setNotes] = useState<Note[] | null>(null)
@@ -169,36 +205,54 @@ export function SearchPage() {
   const groups = useMemo(() => (filteredHits ? groupHitsByBook(filteredHits, { sort, direction }) : []), [filteredHits, sort, direction])
   const { limit, grow, sentinelRef } = useIncrementalLimit(groups, RESULT_CHUNK)
   const page = useMemo(() => takeGroupRows(groups, limit), [groups, limit])
-  const filterCount = (textId !== 'all' ? 1 : 0) + (books.length ? 1 : 0) + (wordMode !== 'all' ? 1 : 0) + (tagIds.length ? 1 : 0) + (sort !== 'relevance' ? 1 : 0)
 
-  // Search's caret (TEST-033): scope, filters, sort, clearing — the search tab's own commands.
-  useCaretCommands(() => ({
-    title: query.trim() ? `Search · “${query.trim()}”` : 'Search',
-    sections: [
-      { id: 'scope', title: 'Search in', commands: [
-        { kind: 'segmented', id: 'scope', label: 'Scope', value: scope, options: [['scripture', 'Scripture'], ['notes', 'Notes'], ['lexicon', 'Lexicon']], set: (v) => setScope(v as Scope) },
-      ] },
-      ...(scope === 'scripture' ? [{ id: 'scripture', title: 'Scripture results', commands: [
-        { kind: 'action' as const, id: 'filters', label: filterCount ? `Filters (${filterCount})…` : 'Filters…', detail: 'Texts, books, word mode, tags', run: openFilters },
-        { kind: 'segmented' as const, id: 'sort', label: 'Sort', value: sort, options: [['relevance', 'Relevance'], ['bookOrder', 'Bible order']] as Array<[string, string]>, set: (v: string) => setFilters((f) => ({ ...f, sort: v as SearchSortMode, direction: naturalDirection(v as SearchSortMode) })) },
-        { kind: 'action' as const, id: 'reset', label: 'Reset filters', disabled: filterCount === 0, run: () => setFilters(DEFAULT_SEARCH_FILTERS) },
-      ] }] : []),
-      { id: 'more', commands: [
-        { kind: 'action', id: 'clear', label: 'Clear search', disabled: !query, run: () => setQuery('') },
-        { kind: 'action', id: 'history', label: 'History', run: () => requestMore('history') },
-      ] },
-    ],
-  }))
+  // Search's caret (T23-013): the filters live here now (no filter button in the header), in a
+  // clear order — what to search, how to match, which texts / books / tags, how to sort. Values
+  // are read from the tab's live state so inline controls and sub-views stay current.
+  useCaretCommands(() => {
+    const live = liveSearchState(tabId)
+    const f = tabFilters(live)
+    const sc: Scope = live?.scope ?? 'scripture'
+    const q = (live?.query ?? query).trim()
+    const count = (f.textId !== 'all' ? 1 : 0) + (f.books.length ? 1 : 0) + (f.wordMode !== 'all' ? 1 : 0) + (f.tagIds.length ? 1 : 0) + (f.sort !== 'relevance' ? 1 : 0)
+    const textLabel = f.textId === 'all' ? 'All texts' : (TRANSLATIONS.find((t) => t.id === f.textId)?.label ?? f.textId)
+    const booksLabel = f.books.length === 0 ? 'Every book' : CANONICAL_BOOK_GROUPS.filter((g) => isGroupActive(f.books, g)).map((g) => g.label).join(', ') || `${f.books.length} books`
+    const tagsLabel = f.tagIds.length === 0 ? 'None' : `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}`
+    return {
+      title: q ? `Search · “${q}”` : 'Search', backTitle: 'Search',
+      sections: [
+        { id: 'scope', title: 'Search in', commands: [
+          { kind: 'segmented', id: 'scope', label: 'Scope', value: sc, options: [['scripture', 'Scripture'], ['notes', 'Notes'], ['lexicon', 'Lexicon']], set: (v) => updateTabState('search', tabId, { scope: v as Scope }) },
+        ] },
+        { id: 'match', title: 'Match', commands: [
+          { kind: 'segmented', id: 'word-mode', label: 'Words', icon: Type, value: f.wordMode, options: [['all', 'All'], ['any', 'Any'], ['phrase', 'Phrase']], set: (v) => patchSearchFilters(tabId, { wordMode: v as WordMode }) },
+        ] },
+        ...(sc === 'scripture' ? [
+          { id: 'filters', title: count ? `Scripture filters · ${count}` : 'Scripture filters', commands: [
+            { kind: 'view' as const, id: 'text', label: 'Text', icon: Languages, value: textLabel, view: () => ({ title: 'Text', render: (a: SheetApi) => <SearchTextChoices tabId={tabId} api={a} /> }) },
+            { kind: 'view' as const, id: 'books', label: 'Books', icon: Library, value: booksLabel, view: () => ({ title: 'Books', expand: true, render: () => <SearchBooksFilter tabId={tabId} /> }) },
+            { kind: 'view' as const, id: 'tags', label: 'Verse tags', icon: TagsIcon, value: tagsLabel, view: () => ({ title: 'Verse tags', expand: true, render: (a: SheetApi) => <SearchTagsFilter tabId={tabId} api={a} /> }) },
+            { kind: 'action' as const, id: 'reset', label: 'Reset filters', icon: RotateCcw, keepOpen: true, disabled: count === 0, run: () => updateTabState('search', tabId, { filters: {} }) },
+          ] },
+          { id: 'sort', title: 'Sort', commands: [
+            { kind: 'segmented' as const, id: 'sort', label: 'Order', icon: ListFilter, value: f.sort, options: [['relevance', 'Relevance'], ['bookOrder', 'Bible order']] as Array<[string, string]>, set: (v: string) => patchSearchFilters(tabId, { sort: v as SearchSortMode, direction: naturalDirection(v as SearchSortMode) }) },
+            { kind: 'segmented' as const, id: 'direction', label: 'Direction', icon: ArrowDownUp, value: f.direction,
+              options: (f.sort === 'relevance' ? [['desc', 'Best first'], ['asc', 'Weakest first']] : [['asc', 'Genesis → end'], ['desc', 'End → Genesis']]) as Array<[string, string]>,
+              set: (v: string) => patchSearchFilters(tabId, { direction: v as SearchSortDirection }) },
+          ] },
+        ] : []),
+        { id: 'more', commands: [
+          { kind: 'action', id: 'clear', label: 'Clear search', icon: X, disabled: !q, run: () => setQuery('') },
+          { kind: 'action', id: 'history', label: 'History', icon: HistoryIcon, run: () => requestMore('history') },
+        ] },
+      ],
+    }
+  })
   const snippetQuery = browsing ? '' : query
-
-  const openFilters = () => sheets.open({ id: 'search-filters', title: 'Filters', detents: [0.75, 0.92], render: (api) => (
-    <SearchFilters initial={filters} onChange={setFilters} api={api} />
-  ) })
 
   return (
     <Page
       title="Search"
-      right={scope === 'scripture' ? <IconTap icon={SlidersHorizontal} label={`Filters${filterCount ? ` (${filterCount})` : ''}`} active={filterCount > 0} onClick={openFilters} /> : undefined}
       headerBelow={
         <>
           <form className="mobile-search-row" onSubmit={submit}>
@@ -273,50 +327,43 @@ export function SearchPage() {
   )
 }
 
-/**
- * The filter sheet owns a working copy of the filters and reports every change up — the sheet
- * host renders the `render` closure it was opened with, so props captured at open time would
- * never refresh; local state keeps the chips live while the page state follows along.
- */
-export function SearchFilters({ initial, onChange, api }: { initial: SearchFilterState; onChange: (next: SearchFilterState) => void; api?: SheetApi }) {
-  const [f, setF] = useState<SearchFilterState>(initial)
+/** Caret → Text: every text or one. Picking returns to the caret. */
+function SearchTextChoices({ tabId, api }: { tabId: string; api: SheetApi }) {
+  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
+  return (
+    <ChoiceList api={api} value={f.textId}
+      options={[{ id: 'all', label: 'All texts' }, ...TRANSLATIONS.map((t) => ({ id: t.id, label: t.label, detail: t.description }))]}
+      onSelect={(id) => patchSearchFilters(tabId, { textId: id })} />
+  )
+}
+
+/** Caret → Books: testament / book groups, several at once. */
+function SearchBooksFilter({ tabId }: { tabId: string }) {
+  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
+  return (
+    <div className="mobile-search-filters">
+      <div className="mobile-chip-row">
+        <button type="button" className={`mobile-chip${f.books.length === 0 ? ' is-on' : ''}`} aria-pressed={f.books.length === 0} onClick={() => patchSearchFilters(tabId, { books: [] })}>Every book</button>
+        {CANONICAL_BOOK_GROUPS.map((g) => (
+          <button key={g.id} type="button" className={`mobile-chip${isGroupActive(f.books, g) ? ' is-on' : ''}`} aria-pressed={isGroupActive(f.books, g)}
+            onClick={() => { void haptic.selection(); patchSearchFilters(tabId, { books: toggleGroup(f.books, g) }) }}>{g.label}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Caret → Verse tags: narrow results to tagged verses (any / every tag). */
+function SearchTagsFilter({ tabId, api }: { tabId: string; api: SheetApi }) {
+  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
   const verseTags = useAppStore((s) => s.verseTags)
   const openTagsGraph = useAppStore((s) => s.openTagsGraph)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const update = (patch: Partial<SearchFilterState>) => { setF((cur) => { const next = { ...cur, ...patch }; onChange(next); return next }) }
-  const toggleTag = (id: string) => { void haptic.selection(); update({ tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id] }) }
-  const setSort = (sort: SearchSortMode) => update({ sort, direction: naturalDirection(sort) })
-  const flipDirection = () => update({ direction: f.direction === 'asc' ? 'desc' : 'asc' })
-  const dirLabel = f.sort === 'relevance' ? (f.direction === 'desc' ? 'Best first' : 'Weakest first') : (f.direction === 'asc' ? 'Genesis → end' : 'End → Genesis')
-  const dirty = f.tagIds.length > 0 || f.books.length > 0 || f.textId !== 'all' || f.wordMode !== 'all' || f.sort !== 'relevance' || f.direction !== 'desc'
+  const toggleTag = (id: string) => { void haptic.selection(); patchSearchFilters(tabId, { tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id] }) }
   return (
     <div className="mobile-search-filters">
-      <div className="mobile-option-label">Sort</div>
-      <div className="mobile-search-filter-row">
-        <Segmented value={f.sort} options={[['relevance', 'Relevance'], ['bookOrder', 'Book order']]} onChange={(v) => setSort(v as SearchSortMode)} />
-        <button type="button" className="mobile-search-sort-dir" onClick={flipDirection} aria-label={`Sort direction: ${dirLabel}`}>
-          {f.direction === 'asc' ? <ArrowUp size={14} aria-hidden /> : <ArrowDown size={14} aria-hidden />} {dirLabel}
-        </button>
-      </div>
-      <div className="mobile-option-label">Match</div>
-      <Segmented value={f.wordMode} options={[['all', 'All words'], ['any', 'Any word'], ['phrase', 'Exact phrase']]} onChange={(v) => update({ wordMode: v as WordMode })} />
-      <div className="mobile-option-label">Text</div>
-      <div className="mobile-chip-row">
-        <button type="button" className={`mobile-chip${f.textId === 'all' ? ' is-on' : ''}`} onClick={() => update({ textId: 'all' })}>All texts</button>
-        {TRANSLATIONS.map((t) => (
-          <button key={t.id} type="button" className={`mobile-chip${f.textId === t.id ? ' is-on' : ''}`} onClick={() => update({ textId: t.id })}>{t.label}</button>
-        ))}
-      </div>
-      <div className="mobile-option-label">Books</div>
-      <div className="mobile-chip-row">
-        <button type="button" className={`mobile-chip${f.books.length === 0 ? ' is-on' : ''}`} onClick={() => update({ books: [] })}>Every book</button>
-        {CANONICAL_BOOK_GROUPS.map((g) => (
-          <button key={g.id} type="button" className={`mobile-chip${isGroupActive(f.books, g) ? ' is-on' : ''}`} onClick={() => update({ books: toggleGroup(f.books, g) })}>{g.label}</button>
-        ))}
-      </div>
-      <div className="mobile-option-label">Verse tags</div>
       {verseTags.length === 0 ? (
-        <div className="mobile-muted">No verse tags yet — long-press a verse to tag it.</div>
+        <div className="mobile-muted">No verse tags yet — tap a verse, then Tag.</div>
       ) : (
         <div className="mobile-chip-row" role="group" aria-label="Verse tags">
           {verseTags.map((t) => (
@@ -329,12 +376,11 @@ export function SearchFilters({ initial, onChange, api }: { initial: SearchFilte
       {f.tagIds.length >= 2 && (
         <div className="mobile-search-filter-row">
           <span className="mobile-muted">Verse must be in</span>
-          <Segmented value={f.tagMatchAll ? 'all' : 'any'} options={[['any', 'Any tag'], ['all', 'Every tag']]} onChange={(v) => update({ tagMatchAll: v === 'all' })} />
+          <Segmented value={f.tagMatchAll ? 'all' : 'any'} options={[['any', 'Any tag'], ['all', 'Every tag']]} onChange={(v) => patchSearchFilters(tabId, { tagMatchAll: v === 'all' })} />
         </div>
       )}
       <div className="mobile-search-filter-row">
-        <button type="button" className="mobile-link-button" onClick={() => { api?.close(); openTagsGraph(); setActiveSpace('notes') }}>Manage tags</button>
-        {dirty && <button type="button" className="mobile-link-button" onClick={() => update({ ...DEFAULT_SEARCH_FILTERS })}>Reset filters</button>}
+        <button type="button" className="mobile-link-button" onClick={() => { api.close(); openTagsGraph(); setActiveSpace('notes') }}>Manage tags</button>
       </div>
     </div>
   )

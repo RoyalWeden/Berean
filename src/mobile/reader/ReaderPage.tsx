@@ -214,7 +214,9 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       className={`is-reader${headerHidden ? ' is-header-hidden' : ''}`}
       // Translation, Reading (Aa) and "…" moved into the caret (TEST-033/034); the title stays the
       // passage navigator (TEST-041).
-      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}, ${textId.toUpperCase()}. Go to a passage`}><BookOpen size={16} aria-hidden /> {title}<span className="mobile-title-sub">{textId.toUpperCase()}</span></button>}
+      // The text is named only when it is the Septuagint (T23-007) — KJV is the default, and the
+      // caret's All Translations shows the current text.
+      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}, ${translationShortLabel(textId)}. Go to a passage`}><BookOpen size={16} aria-hidden /> {title}{textId === 'lxx' && <span className="mobile-title-sub">LXX</span>}</button>}
     >
       <VerseInteractionContext.Provider value={verseInteraction}>
       <div className="mobile-reader" ref={readerRef} {...pinch.handlers}>

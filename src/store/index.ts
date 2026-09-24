@@ -184,6 +184,8 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   search: 'search',
   pdf: 'scripture',   // PDFs open as tabs within the Scripture space
   tags: 'notes',      // the singleton Tags graph opens as a tab within the Notes space
+  history: 'search',  // dedicated History / Settings tabs (iPhone New Tab, T23-009) group with Search
+  settings: 'search',
 }
 
 /** The one and only Tags graph tab id (singleton — see openTagsGraph). */
@@ -2120,6 +2122,10 @@ export const useAppStore = create<AppState>()(
           // The Tags graph is really a singleton opened via openTagsGraph() / TAGS_GRAPH_TAB_ID;
           // this branch only exists so a stray createTab('tags') can't fall through to a Search tab.
           tab = { id, spaceId, type, title: 'Tags', state: { selectedTagId: null } as TagsTabState }
+        } else if (type === 'history') {
+          tab = { id, spaceId, type, title: 'History', state: {} }
+        } else if (type === 'settings') {
+          tab = { id, spaceId, type, title: 'Settings', state: {} }
         } else {
           tab = { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
         }
@@ -2198,10 +2204,14 @@ export const useAppStore = create<AppState>()(
       ensureTab: (type) => {
         const spaceId = TYPE_TO_SPACE[type]
         const state = get()
-        if (state.tabs[spaceId].length === 0) {
+        // The search space also holds dedicated History / Settings tabs (T23-009): ensuring a tab
+        // of one of those types only counts tabs of that type.
+        const pool = spaceId === 'search' ? state.tabs.search.filter((t) => t.type === type) : state.tabs[spaceId]
+        if (pool.length === 0) {
           get().createTab(type)
         } else {
-          const currentId = state.activeTabId[spaceId] ?? state.tabs[spaceId][0].id
+          const active = state.activeTabId[spaceId]
+          const currentId = pool.some((t) => t.id === active) ? active! : pool[0].id
           set({
             activeSpace: spaceId,
             activeTabId: { ...state.activeTabId, [spaceId]: currentId },
@@ -2752,15 +2762,17 @@ export const useAppStore = create<AppState>()(
         // (which arrives through navigateToVerse with origin 'search-result'). The two together
         // are what make "I went looking for X, and that took me to Y" legible on the map.
         recordSideStop({ kind: 'search', label: `searched for "${query}"` })
-        if (get().tabs['search'].length === 0) get().createTab('search')
+        // Only real Search tabs take a query (the search space also holds History / Settings tabs).
+        const searchTabs = () => get().tabs['search'].filter((t) => t.type === 'search')
+        if (searchTabs().length === 0) get().createTab('search')
         const fresh = get()
         // Prefer the currently active search tab (if it still exists) over always reusing the
         // first one in the array — otherwise a query pushed in while a *different* search tab is
         // active would silently redirect into the wrong tab.
         const activeSearchId = fresh.activeTabId['search']
-        const targetId = fresh.tabs['search'].some((t) => t.id === activeSearchId)
+        const targetId = searchTabs().some((t) => t.id === activeSearchId)
           ? activeSearchId
-          : fresh.tabs['search'][0]?.id ?? null
+          : searchTabs()[0]?.id ?? null
         set({ pendingSearchQuery: query, activeSpace: 'search', activeTabId: { ...fresh.activeTabId, search: targetId } })
       },
       clearSearchQuery: () => set({ pendingSearchQuery: null }),

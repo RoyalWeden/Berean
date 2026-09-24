@@ -18,7 +18,9 @@ export type ScriptureLayout =
   | 'commentary'       // Wide notes left | Scripture right — 50/50 with no tab strip on notes
   | 'split-bottom'     // Scripture top | Notes left + Lexicon right in bottom row
 
-export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags'
+/** 'history' / 'settings' are dedicated tabs created from the iPhone New Tab sheet (T23-009); they
+ *  live in the search space ("tools") and desktop shows a small fallback panel for them. */
+export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags' | 'history' | 'settings'
 
 export interface BibleTabState {
   bookId: string
@@ -206,6 +208,22 @@ export interface SearchTabState {
   query: string
   results: SearchResult[]
   scrollTop?: number
+  /** iPhone Search page: what this tab searches and its Scripture filters (per tab, so several
+   *  Search tabs keep their own state — T23-009). Opaque to desktop. */
+  scope?: 'scripture' | 'notes' | 'lexicon'
+  filters?: Record<string, unknown>
+}
+
+/** A dedicated History tab (T23-009): its own category / study-only filter. */
+export interface HistoryTabState {
+  category?: string
+  studyOnly?: boolean
+}
+
+/** A dedicated Settings tab (T23-009). */
+export interface SettingsTabState {
+  /** Reserved for a deep-linked settings section. */
+  section?: string
 }
 
 export interface PdfTabState {
@@ -263,6 +281,8 @@ export type TabState =
   | SearchTabState
   | PdfTabState
   | TagsTabState
+  | HistoryTabState
+  | SettingsTabState
 
 export interface Tab {
   id: string

@@ -35,17 +35,19 @@ export function ActionList({ title, actions, close }: { title?: string; actions:
 
 /** The same action list as a sub-view of an ALREADY-OPEN sheet (T23-006): it replaces the sheet's
  *  content with "‹ <parent>" at the top instead of stacking a second sheet. Choosing an action
- *  closes the whole sheet unless the action sets `stay` (then it pops back). */
-export function actionListView(key: string, title: string, actions: Array<SheetAction & { stay?: boolean }>): SheetSubView {
+ *  closes the whole sheet unless the action sets `stay` (then it pops back); an action with a
+ *  `view` goes one level deeper in the same sheet. */
+export function actionListView(key: string, title: string, actions: Array<SheetAction & { stay?: boolean; view?: () => SheetSubView }>): SheetSubView {
   return {
     key, title,
     render: (api) => (
       <div className="mobile-action-list">
         {actions.map((a) => (
           <button key={a.id} type="button" className={`mobile-action-row${a.destructive ? ' is-destructive' : ''}`} disabled={a.disabled}
-            onClick={() => { void haptic.light(); if (a.stay) api.pop(); else api.close(); a.onSelect() }}>
+            onClick={() => { void haptic.light(); if (a.view) { api.push(a.view()); return } if (a.stay) api.pop(); else api.close(); a.onSelect() }}>
             {a.icon && <a.icon size={20} aria-hidden />}
             <span>{a.label}</span>
+            {a.view && <span className="mobile-action-row-chevron" aria-hidden>›</span>}
           </button>
         ))}
       </div>

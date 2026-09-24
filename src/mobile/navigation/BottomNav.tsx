@@ -18,7 +18,9 @@ export function BottomNav({ onTabs, onPlus, onCaret, caretLabel }: { onTabs: () 
   const tabs = useAppStore((s) => s.tabs)
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activeTabId = useAppStore((s) => s.activeTabId)
-  const all = useMemo(() => workspaceTabs(tabs), [tabs])
+  // Swiping across the bar steps through the same order the tab cards show (T23-008).
+  const stored = useAppStore((s) => s.sessionDisplayOrders[s.currentSessionId])
+  const all = useMemo(() => workspaceTabs(tabs, stored), [tabs, stored])
   const count = all.length
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null)
 

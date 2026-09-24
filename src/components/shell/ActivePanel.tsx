@@ -1,4 +1,4 @@
-import { EmptyState as UiEmptyState } from '@/components/ui'
+import { EmptyState as UiEmptyState, Button } from '@/components/ui'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { CROSSFADE } from '@/lib/motion'
@@ -11,7 +11,7 @@ import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import { ActivePanelContext } from './ActivePanelContext'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react'
 import type { TabType } from '@/types'
 
 // YouTubeTab is large (~2.6k lines w/ webview wiring) and only needed once a
@@ -34,6 +34,21 @@ if (typeof window !== 'undefined') {
   const warm = () => { void importYouTubeTab().catch(() => {}) }
   if (ric) ric(warm, { timeout: 4000 })
   else setTimeout(warm, 2500)
+}
+
+/** A dedicated History / Settings tab opened on the iPhone (T23-009) and synced here: the Mac
+ *  keeps History and Settings as windows, so the tab offers to open them instead of a blank panel. */
+function ToolTabFallback({ type }: { type: 'history' | 'settings' }) {
+  const isHistory = type === 'history'
+  return (
+    <UiEmptyState
+      icon={isHistory ? HistoryIcon : SettingsIcon}
+      title={isHistory ? 'History' : 'Settings'}
+      hint={`This tab was opened on iPhone. On the Mac, ${isHistory ? 'History' : 'Settings'} opens in its own window.`}
+      action={<Button onClick={() => { const s = useAppStore.getState(); if (isHistory) s.openHistory(); else useAppStore.setState({ settingsOpen: true }) }}>Open {isHistory ? 'History' : 'Settings'}</Button>}
+      className="h-full"
+    />
+  )
 }
 
 function EmptyState() {
@@ -74,7 +89,7 @@ export default function ActivePanel() {
   // scroll-position tick in ANY space, a Strong's toggle, a panel resize) does
   // NOT re-render ActivePanel, and therefore doesn't re-render every mounted
   // panel underneath it. Each panel subscribes to what it actually needs itself.
-  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab, lexiconTabId, searchTabId } = useAppStore(
+  const { activeSpace, scriptureTabId, scriptureTabType, notesTabType, hasNotesTab, hasLexiconTab, hasSearchTab, hasYouTubeTab, lexiconTabId, searchTabId, searchTabType } = useAppStore(
     useShallow((s) => {
       const scriptureTab = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture) ?? null
       const notesTab = s.tabs.notes.find((t) => t.id === s.activeTabId.notes) ?? null
@@ -86,6 +101,7 @@ export default function ActivePanel() {
         hasNotesTab:   s.tabs.notes.some((t) => t.id === s.activeTabId.notes),
         hasLexiconTab: s.tabs.lexicon.some((t) => t.id === s.activeTabId.lexicon),
         hasSearchTab:  s.tabs.search.some((t) => t.id === s.activeTabId.search),
+        searchTabType: s.tabs.search.find((t) => t.id === s.activeTabId.search)?.type ?? null,
         lexiconTabId:  s.activeTabId.lexicon,
         searchTabId:   s.activeTabId.search,
         hasYouTubeTab: s.tabs.youtube.some((t) => t.id === s.activeTabId.youtube),
@@ -153,7 +169,11 @@ export default function ActivePanel() {
 
         {hasSearchTab && (
           <Layer visible={activeSpace === 'search'}>
-            <ErrorBoundary label="Search error"><SearchTab key={searchTabId ?? 'search'} /></ErrorBoundary>
+            {searchTabType === 'history' || searchTabType === 'settings' ? (
+              <ToolTabFallback type={searchTabType} />
+            ) : (
+              <ErrorBoundary label="Search error"><SearchTab key={searchTabId ?? 'search'} /></ErrorBoundary>
+            )}
           </Layer>
         )}
 

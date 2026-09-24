@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, LayoutGrid, Settings as SettingsIcon, History, Layers, CornerDownLeft, Clock, Hash, type LucideIcon } from 'lucide-react'
+import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, LayoutGrid, Settings as SettingsIcon, History, Layers, CornerDownLeft, Clock, Hash, Columns2, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef, bookName, isStrongsRef } from '@/lib/parseRef'
 import { navigateToVerse } from '@/lib/verseNavigation'
+import { compareApplicable } from '@/lib/textCoverage'
+import { makeCompareTab } from '../reader/compareState'
+import type { BibleTabState } from '@/types'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_TYPE_LABEL } from '@/lib/historyModel'
 import { haptic } from '../primitives/haptics'
@@ -22,13 +25,27 @@ export function classifyNewTabQuery(q: string): { kind: 'empty' } | { kind: 'ref
   return { kind: 'text', text: t }
 }
 
+/** A NEW Search tab (never the current one) with this query (T23-010). */
+export function openQueryInNewSearchTab(query: string): void {
+  const s = useAppStore.getState()
+  s.createTab('search')
+  const id = useAppStore.getState().activeTabId.search
+  if (id) {
+    s.updateTabState('search', id, { query, scope: 'scripture' })
+    s.renameTab('search', id, `“${query.trim()}”`)
+  }
+  s.addRecentSearchQuery(query.trim())
+  s.addHistoryEntry({ type: 'search', title: `"${query.trim()}"`, query: query.trim() })
+}
+
 /**
- * The plus / new-tab surface (TEST-032, S1 screenshot): a floating search sheet built for frequent
- * Bible use. Type a reference ("John 3:16", "Genesis 1", "Romans 8:28", "Psalm 23") and open it in
- * a NEW Scripture tab (or the current one); a Strong's number opens a Lexicon tab; anything else
- * searches. Below: one tile per legitimate top-level tab type, then the navigation that used to
- * live on the bottom bar / More (More, Settings, History, Workspaces), then recent history.
- * Organised, not a dump of every command.
+ * The plus / new-tab surface (TEST-032; reworked T23-009/010): a floating search sheet built for
+ * frequent Bible use. Type a reference ("John 3:16", "Psalm 23:1-6") and open it in a NEW Scripture
+ * tab (or the current one); a Strong's number opens a Lexicon tab; while typing, "Search … in a new
+ * Search tab" opens a DEDICATED Search tab. With nothing typed: one tile per genuine tab type —
+ * each creates a real, independent tab (several of a kind are fine) — then the navigation that is
+ * not a tab (More, Workspaces), then recent history. There is no separate Search tile: a Search
+ * tab starts from what you type.
  */
 export function NewTabSheet({ close, openMore }: { close: () => void; openMore: (route: MorePageRoute) => void }) {
   const [query, setQuery] = useState('')
@@ -51,7 +68,14 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
   const daily = () => { done(); st().requestDailyNote() }
   const newLexicon = () => { done(); st().createTab('lexicon'); st().setActiveSpace('lexicon') }
   const newYouTube = () => { done(); st().createTab('youtube'); st().setActiveSpace('youtube') }
-  const newSearch = () => { done(); st().createTab('search'); st().setActiveSpace('search') }
+  const newHistory = () => { done(); st().createTab('history') }
+  const newSettings = () => { done(); st().createTab('settings') }
+  const newSearchTab = (text: string) => { done(); openQueryInNewSearchTab(text) }
+  // Compare is offered only for a passage that has an LXX ↔ KJV counterpart (T23-023).
+  const scripture = (() => { const s = st(); return s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture && t.type === 'bible') })()
+  const scriptureState = scripture?.state as BibleTabState | undefined
+  const canCompare = !!scriptureState && !scriptureState.compareMode && compareApplicable(scriptureState.bookId, scriptureState.chapter, (scriptureState.translation ?? 'kjva').toLowerCase())
+  const newCompare = () => { if (!scriptureState) return; done(); st().addTab(makeCompareTab({ ...scriptureState }, scriptureState.targetVerse)) }
 
   return (
     <div className="mobile-newtab">
@@ -59,7 +83,7 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
         e.preventDefault()
         if (q.kind === 'ref') openRef(q, 'new')
         else if (q.kind === 'strongs') { done(); st().openLexiconEntry(q.num) }
-        else if (q.kind === 'text') { done(); st().openSearchTab(q.text) }
+        else if (q.kind === 'text') newSearchTab(q.text)
       }}>
         <Search size={18} aria-hidden />
         <input ref={inputRef} className="mobile-search-input" type="search" enterKeyHint="go" autoCorrect="off" autoCapitalize="words"
@@ -70,16 +94,18 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
         <div className="mobile-newtab-results">
           <button type="button" className="mobile-ref-go" onClick={() => openRef(q, 'new')}><CornerDownLeft size={18} aria-hidden /><span>Open <strong>{q.label}</strong> in a new tab</span></button>
           <button type="button" className="mobile-newtab-row" onClick={() => openRef(q, 'current')}><BookOpen size={18} aria-hidden /><span>Open in the current Scripture tab</span></button>
+          <button type="button" className="mobile-newtab-row" onClick={() => newSearchTab(query)}><Search size={18} aria-hidden /><span>Search “{query.trim()}” in a new Search tab</span></button>
         </div>
       )}
       {q.kind === 'strongs' && (
         <div className="mobile-newtab-results">
           <button type="button" className="mobile-ref-go" onClick={() => { done(); st().openLexiconEntry(q.num) }}><Hash size={18} aria-hidden /><span>Open <strong>{q.num}</strong> in the Lexicon</span></button>
+          <button type="button" className="mobile-newtab-row" onClick={() => newSearchTab(q.num)}><Search size={18} aria-hidden /><span>Find {q.num} in Scripture — new Search tab</span></button>
         </div>
       )}
       {q.kind === 'text' && (
         <div className="mobile-newtab-results">
-          <button type="button" className="mobile-ref-go" onClick={() => { done(); st().openSearchTab(q.text) }}><Search size={18} aria-hidden /><span>Search for “<strong>{q.text}</strong>”</span></button>
+          <button type="button" className="mobile-ref-go" onClick={() => newSearchTab(q.text)}><Search size={18} aria-hidden /><span>Search “<strong>{q.text}</strong>” in a new Search tab</span></button>
         </div>
       )}
 
@@ -91,13 +117,13 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
             <Tile icon={CalendarDays} label="Today" onClick={daily} />
             <Tile icon={BookMarked} label="Lexicon" onClick={newLexicon} />
             <Tile icon={Youtube} label="YouTube" onClick={newYouTube} />
-            <Tile icon={Search} label="Search" onClick={newSearch} />
+            <Tile icon={History} label="History" onClick={newHistory} />
+            <Tile icon={SettingsIcon} label="Settings" onClick={newSettings} />
+            {canCompare && <Tile icon={Columns2} label="Compare" onClick={newCompare} />}
           </div>
           <div className="mobile-newtab-nav">
             <NavRow icon={LayoutGrid} label="More" detail="Study trail, tags, queue, PDFs…" onClick={() => { done(); openMore('more') }} />
-            <NavRow icon={History} label="History" onClick={() => { done(); openMore('history') }} />
             <NavRow icon={Layers} label="Workspaces" onClick={() => { done(); openMore('workspaces') }} />
-            <NavRow icon={SettingsIcon} label="Settings" onClick={() => { done(); openMore('settings') }} />
           </div>
           {recent.length > 0 && (
             <section className="mobile-newtab-recent" aria-label="Recent">

@@ -2,7 +2,7 @@ import { floatingTabState } from '@/lib/floatingTab'
 import { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { SPRING_SNAPPY } from '@/lib/motion'
-import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, History, Settings as SettingsIcon, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
@@ -16,6 +16,8 @@ const TAB_ICONS: Record<TabType, LucideIcon> = {
   search:  Search,
   pdf:     FileType2,
   tags:    Waypoints,
+  history: History,
+  settings: SettingsIcon,
 }
 
 // Per-type color for the tab icon in the unified (unfiltered, unsectioned)
@@ -30,6 +32,8 @@ const TAB_ICON_CLASS: Record<TabType, string> = {
   search:  'text-tab-search',
   pdf:     'text-tab-pdf',
   tags:    'text-tab-tags',
+  history: 'text-tab-search',
+  settings: 'text-tab-search',
 }
 
 interface TabBarProps {

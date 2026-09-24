@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookMarked, Youtube, Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
+import { Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { applyThemeToDocument } from '@/lib/applyTheme'
@@ -24,7 +24,6 @@ const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_CATEGORIES, HISTORY_TYPE_LABEL, countByCategory, filterHistory, shouldLoadMoreHistory, type HistoryCategory } from '@/lib/historyModel'
 import { SheetHost, useSheets } from './primitives/Sheet'
-import { useActionSheet } from './primitives/ActionSheet'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
 import { Page, ListSection, Row } from './primitives/Page'
 import { TabCardsSheet } from './tabs/TabCardsSheet'
@@ -34,10 +33,8 @@ import { NewTabSheet } from './navigation/NewTabSheet'
 import { CaretSheet } from './commands/CaretSheet'
 import { caretRegistry, useCaretTopVersion, useCaretCommands } from './commands/caretRegistry'
 import { staticCaretScope, type MoreRoute } from './commands/staticCommands'
-import { SessionSwitcher } from './tabs/SessionSwitcher'
 import { WorkspacesPage } from './tabs/WorkspacesPage'
 import { ArchivePage } from './tabs/ArchivePage'
-import { SESSION_ICONS } from '@/components/shell/Sidebar'
 import { ReaderPage } from './reader/ReaderPage'
 import { SettingsPage } from './settings/SettingsPage'
 import { YouTubeSettingsPage } from './settings/YouTubeSettingsPage'
@@ -92,6 +89,7 @@ function Shell() {
   const lastActiveKey = useRef(activeKey)
   useEffect(() => { if (activeKey !== lastActiveKey.current) { lastActiveKey.current = activeKey; setMoreRoute(null) } }, [activeKey])
   const showMore = moreRoute != null
+  const activeTabIdOf = useAppStore((s) => s.activeTabId[s.activeSpace] ?? '')
   useMoreRouteRequests(openMore)
   // window.app.openStudyTrailWindow() (note embeds, deep links, the reader's caret) opens the Study
   // trail page wherever the user is — not only while More happens to be mounted.
@@ -112,7 +110,9 @@ function Shell() {
     <div className="mobile-root">
       <main className="mobile-main">
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
-        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={activeSpace} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
+        {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes
+            tabs — keeps its own page and state (T23-009). */}
+        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={`${activeSpace}:${activeTabIdOf}`} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
         {(youtubeShowing || youtubeParked) && (
           <div key="youtube-space" className={youtubeParked ? 'mobile-space-parked' : 'mobile-space-live'} aria-hidden={youtubeParked || undefined}>
             <NavigationStack rootKey="youtube" root={<SpaceRoot space="youtube" />} />
@@ -131,47 +131,15 @@ function Shell() {
  *  that used to hang off the tab pill and grid. */
 function useShellSheets({ openMore }: { openMore: (r: MoreRoute) => void }) {
   const sheets = useSheets()
-  const actions = useActionSheet()
   useCaretTopVersion() // re-render when the page that owns the caret changes
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activeTab = useAppStore((s) => s.tabs[s.activeSpace].find((t) => t.id === s.activeTabId[s.activeSpace]) ?? null)
 
-  const openSessions = useCallback(() => sheets.open({ id: 'sessions', title: 'Workspaces', detents: [0.6, 0.92], render: (api) => (
-    <SessionSwitcher close={api.close} onActions={(id) => {
-      const s = useAppStore.getState()
-      const session = s.sessions.find((x) => x.id === id)
-      actions('session-actions', session?.name, [
-        { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Workspace name', session?.name ?? ''); if (n?.trim()) s.renameSession(id, n.trim()) } },
-        { id: 'icon', label: 'Icon…', onSelect: () => actions('session-icon', 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, onSelect: () => s.setSessionIcon(id, i.name) }))) },
-        { id: 'archive-all', label: 'Archive all tabs in this workspace', onSelect: () => s.archiveAllTabs(session?.name) },
-        { id: 'delete', label: 'Delete workspace', destructive: true, disabled: s.sessions.length <= 1, onSelect: () => { if (confirm(`Delete "${session?.name}" and close its tabs?`)) s.deleteSession(id) } },
-      ])
-    }} />
-  ) }), [sheets, actions])
-
-  const tabActions = useCallback((space: SpaceId, tabId: string) => {
-    const s = useAppStore.getState()
-    const t = s.tabs[space].find((x) => x.id === tabId)
-    if (!t) return
-    const idx = s.tabs[space].findIndex((x) => x.id === tabId)
-    const others = s.sessions.filter((x) => x.id !== s.currentSessionId)
-    actions('tab-actions', t.title, [
-      { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Tab name', t.title); if (n?.trim()) s.renameTab(space, tabId, n.trim()) } },
-      { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { s.addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
-      { id: 'up', label: 'Move up', disabled: idx <= 0, onSelect: () => s.reorderTabs(space, idx, idx - 1) },
-      { id: 'down', label: 'Move down', disabled: idx < 0 || idx >= s.tabs[space].length - 1, onSelect: () => s.reorderTabs(space, idx, idx + 1) },
-      { id: 'move', label: 'Move to workspace…', disabled: others.length === 0, onSelect: () => actions('tab-move', 'Move to', others.map((x) => ({ id: x.id, label: x.name, onSelect: () => s.moveTabToSession(space, tabId, x.id) }))) },
-      { id: 'archive', label: 'Archive tab', onSelect: () => s.archiveTab(space, tabId) },
-      { id: 'close-others', label: 'Close other tabs of this type', onSelect: () => { for (const o of s.tabs[space]) if (o.id !== tabId && !o.isPinned) s.closeTab(space, o.id) } },
-      { id: 'close', label: 'Close tab', destructive: true, onSelect: () => s.closeTab(space, tabId) },
-    ])
-  }, [actions])
-
   const openPlus = useCallback(() => sheets.open({ id: 'new-tab', detents: [0.92], render: (api) => <NewTabSheet close={api.close} openMore={(r) => openMore(r)} /> }), [sheets, openMore])
-  const openTabs = useCallback(() => sheets.open({ id: 'tabs', detents: [0.62, 0.92], render: (api) => (
-    <TabCardsSheet close={api.close} onOpenSessions={() => { api.close(); openSessions() }} onTabActions={tabActions}
-      onNewTab={openPlus} onOpenArchive={() => { api.close(); openMore('archive') }} />
-  ) }), [sheets, openSessions, tabActions, openPlus, openMore])
+  // Tab cards: workspaces, tab actions and New tab all open INSIDE this sheet ("‹ Tabs", T23-012).
+  const openTabs = useCallback(() => sheets.open({ id: 'tabs', title: undefined, rootTitle: 'Tabs', detents: [0.62, 0.92], render: (api) => (
+    <TabCardsSheet api={api} openMore={(r) => openMore(r as MoreRoute)} />
+  ) }), [sheets, openMore])
   const scopeFor = useCallback(() => caretRegistry.top() ?? (() => staticCaretScope(useAppStore.getState().activeSpace, (() => { const s = useAppStore.getState(); return s.tabs[s.activeSpace].find((t) => t.id === s.activeTabId[s.activeSpace]) ?? null })(), { openMore })), [openMore])
   const openCaret = useCallback(() => {
     const scope = scopeFor()
@@ -191,7 +159,13 @@ function SpaceRoot({ space }: { space: SpaceId }) {
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0] ?? null
   useEffect(() => { if (!active && space === 'scripture') ensureTab('bible') }, [active, space, ensureTab])
   if (space === 'notes') return <ErrorBoundary label="notes error"><NotesSpace /></ErrorBoundary>
-  if (space === 'search') return <ErrorBoundary label="search error"><SearchPage /></ErrorBoundary>
+  // The search space holds Search tabs and the dedicated History / Settings tabs (T23-009).
+  if (space === 'search') {
+    if (!active) return <EmptySpace space={space} />
+    if (active.type === 'history') return <ErrorBoundary label="history error"><HistoryPage tab={active} /></ErrorBoundary>
+    if (active.type === 'settings') return <ErrorBoundary label="settings error"><SettingsPage /></ErrorBoundary>
+    return <ErrorBoundary label="search error"><SearchPage tab={active} /></ErrorBoundary>
+  }
   if (!active) return <EmptySpace space={space} />
   return <ErrorBoundary label={`${space} error`}><TabPage tab={active} /></ErrorBoundary>
 }
@@ -207,12 +181,33 @@ function NotesSpace() {
   const tabs = useAppStore((s) => s.tabs.notes)
   const activeId = useAppStore((s) => s.activeTabId.notes)
   const active = tabs.find((t) => t.id === activeId)
+  // Each Notes TAB remembers the note it shows (tab state noteId, as on desktop), so switching
+  // between Notes tabs — each with its own navigation stack — reopens that tab's note (T23-009),
+  // and its tab card can preview it.
+  const openEditor = useCallback((id: string) => {
+    const s = useAppStore.getState()
+    const tid = s.activeTabId.notes
+    if (tid) s.updateTabState('notes', tid, { noteId: id, isNew: false })
+    nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={() => {
+      const st = useAppStore.getState()
+      if (tid && st.tabs.notes.some((t) => t.id === tid)) st.updateTabState('notes', tid, { noteId: null })
+      nav.pop()
+    }} />)
+  }, [nav])
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current) return
+    restored.current = true
+    const noteId = active?.type === 'note' ? (active.state as { noteId?: string | null }).noteId : null
+    if (noteId && !useAppStore.getState().pendingNoteId) openEditor(noteId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (!pendingNoteId) return
     const id = pendingNoteId
     clearPendingNote()
-    nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={nav.pop} />)
-  }, [pendingNoteId, clearPendingNote, nav])
+    openEditor(id)
+  }, [pendingNoteId, clearPendingNote, openEditor])
   // Daily note requests (sidebar button on desktop, ⌘⇧D, `berean://daily`): make sure the notes
   // home is the visible page (not the hosted tags graph), then let it open/create today's note.
   const dailyToken = useAppStore((s) => s.dailyNoteRequestToken)
@@ -309,11 +304,8 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
   }))
   return (
     <Page title="More" right={<button type="button" className="mobile-link-button" onClick={onClose}>Done</button>}>
-      <ListSection title="Spaces">
-        <Row leading={<BookMarked size={20} aria-hidden />} title="Lexicon" subtitle="Strong's entries, search, occurrences" chevron onClick={() => onOpenSpace('lexicon')} />
-        <Row leading={<Youtube size={20} aria-hidden />} title="YouTube" subtitle="Channels, transcripts, watch positions" chevron onClick={() => onOpenSpace('youtube')} />
-        <Row leading={<Download size={20} aria-hidden />} title="Transcript packs" subtitle="Download channel transcripts for offline search" chevron onClick={() => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />)} />
-      </ListSection>
+      {/* Lexicon and YouTube are tabs — opened from the plus (New Tab) sheet, Strong's numbers and
+          search results — so More no longer duplicates them as "spaces" (T23-031). */}
       <ListSection title="Study">
         <Row leading={<Tags size={20} aria-hidden />} title="Verse tags" subtitle="Tag manager and graph" chevron onClick={() => { useAppStore.getState().openTagsGraph(); onOpenSpace('notes') }} />
         <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, threads, recap" chevron onClick={openTrail} />
@@ -321,6 +313,7 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
         <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={() => nav.push('history', <HistoryPage onBack={nav.pop} />)} />
         <Row leading={<Layers size={20} aria-hidden />} title="Workspaces" subtitle="Saved tab sets" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
         <Row leading={<Archive size={20} aria-hidden />} title="Archived tabs" chevron onClick={() => nav.push('archive', <ArchivePage onBack={nav.pop} />)} />
+        <Row leading={<Download size={20} aria-hidden />} title="Transcript packs" subtitle="Download channel transcripts for offline search" chevron onClick={() => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />)} />
         {pdfFeatureEnabled && <Row leading={<Library size={20} aria-hidden />} title="PDF library" chevron onClick={() => nav.push('pdfs', <PdfLibraryPage onBack={nav.pop} onOpen={() => onOpenSpace('scripture')} />)} />}
       </ListSection>
       <ListSection>
@@ -331,15 +324,19 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
   )
 }
 
-function HistoryPage({ onBack }: { onBack: () => void }) {
+/** History — a page under More, or a dedicated History tab whose filter is kept in the tab (T23-009). */
+function HistoryPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }) {
   const history = useAppStore((s) => s.history)
   const hasMore = useAppStore((s) => s.historyHasMore)
   const loadingMore = useAppStore((s) => s.historyLoadingMore)
   const loadMore = useAppStore((s) => s.loadMoreHistory)
   const navigate = useHistoryNavigate()
   // Same categories and filter rules as the desktop History modal (src/lib/historyModel.ts, TEST-002).
-  const [category, setCategory] = useState<HistoryCategory>('all')
-  const [studyOnly, setStudyOnly] = useState(false)
+  const tabState = tab?.state as { category?: HistoryCategory; studyOnly?: boolean } | undefined
+  const [category, setCategoryLocal] = useState<HistoryCategory>(tabState?.category ?? 'all')
+  const [studyOnly, setStudyOnlyLocal] = useState(tabState?.studyOnly ?? false)
+  const setCategory = (c: HistoryCategory) => { setCategoryLocal(c); if (tab) useAppStore.getState().updateTabState('search', tab.id, { category: c }) }
+  const setStudyOnly = (v: boolean) => { setStudyOnlyLocal(v); if (tab) useAppStore.getState().updateTabState('search', tab.id, { studyOnly: v }) }
   const rows = useMemo(() => filterHistory(history, { category, studyOnly: studyOnly && category === 'scripture' }), [history, category, studyOnly])
   const counts = useMemo(() => countByCategory(history), [history])
   useEffect(() => {
@@ -354,14 +351,14 @@ function HistoryPage({ onBack }: { onBack: () => void }) {
           </button>
         ))}
         {category === 'scripture' && (
-          <button type="button" className={`mobile-chip${studyOnly ? ' is-on' : ''}`} aria-pressed={studyOnly} onClick={() => setStudyOnly((v) => !v)}>Study only</button>
+          <button type="button" className={`mobile-chip${studyOnly ? ' is-on' : ''}`} aria-pressed={studyOnly} onClick={() => setStudyOnly(!studyOnly)}>Study only</button>
         )}
       </div>
     }>
       <ListSection>
         {rows.length === 0 && <div className="mobile-empty">{history.length === 0 ? 'Nothing yet.' : 'No entries in this category.'}</div>}
         {rows.slice(0, 400).map((h) => (
-          <Row key={h.id} title={h.title} subtitle={`${HISTORY_TYPE_LABEL[h.type]} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => { onBack(); navigate(h) }} />
+          <Row key={h.id} title={h.title} subtitle={`${HISTORY_TYPE_LABEL[h.type]} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => { onBack?.(); navigate(h) }} />
         ))}
         {hasMore && <Row title={loadingMore ? 'Loading…' : 'Load older history'} onClick={() => void loadMore()} />}
       </ListSection>
