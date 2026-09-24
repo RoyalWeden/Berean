@@ -1,4 +1,5 @@
 import { getTranslationForBook, isDedicatedTranslation, maxChapterFor } from '@/lib/parseRef'
+import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 
 /**
  * Which books a Bible text can actually display — shared by every navigation path (desktop
@@ -55,4 +56,54 @@ export function chapterForBookSwitch(bookId: string, chapter: number, chapterCou
   if (!Number.isFinite(chapter) || chapter < 1) return 1
   if (max != null && chapter > max) return 1
   return chapter
+}
+
+// ── Compare (LXX ↔ KJVA) coverage (T23-022…T23-027) ──────────────────────────────────────────
+
+/** Books the LXX (lxx_brenton.db) has but the KJVA does not: 3–4 Maccabees, and the Epistle of
+ *  Jeremiah (the KJVA appends it to Baruch as chapter 6 instead). `SELECT id FROM books` diff. */
+const KJVA_LACKS: ReadonlySet<string> = new Set(['3MA', '4MA', 'LJE'])
+
+/** LXX chapter counts wherever they differ from the KJV-numbered `maxChapterFor` table
+ *  (`SELECT book_id, MAX(chapter) FROM verses GROUP BY book_id` of lxx_brenton.db — its
+ *  `books.chapters_count` column is mostly 0 and cannot be used). */
+const LXX_CHAPTER_COUNT: Readonly<Record<string, number>> = { BAR: 5, EZR: 23, JOL: 4, MAL: 3, PSA: 151 }
+
+const isLxxId = (id: string) => id === 'lxx'
+const isKjvFamilyId = (id: string) => id === 'kjva' || id === 'kjv'
+
+/** Chapters `textId` has for `bookId` (LXX-aware); undefined when not statically known. */
+export function textChapterCount(textId: string, bookId: string): number | undefined {
+  const book = bookId.toUpperCase()
+  if (isLxxId(textId.toLowerCase()) && LXX_CHAPTER_COUNT[book] != null) return LXX_CHAPTER_COUNT[book]
+  return maxChapterFor(book)
+}
+
+/**
+ * The other side of an LXX ↔ KJVA compare for `bookId` `chapter` as numbered in `textId`, or
+ * null when there is none: `textId` is not LXX/KJV(A), the book is missing from either text (every
+ * NT book; 3–4 Maccabees…), or the chapter has no counterpart chapter (LXX Psalm 151, LXX Ezra
+ * 11–23 = KJV Nehemiah, KJVA Baruch 6). Chapter numbering goes through
+ * `mapChapterOnTranslationSwitch` — the same source of truth as every translation switch — so
+ * KJV Psalm 23 ↔ LXX Psalm 22, KJV Joel 3 ↔ LXX Joel 4, etc.
+ */
+export function compareCounterpart(textId: string, bookId: string, chapter: number): { textId: string; chapter: number } | null {
+  const from = textId.toLowerCase()
+  const book = bookId.toUpperCase()
+  const to = isLxxId(from) ? 'kjva' : isKjvFamilyId(from) ? 'lxx' : null
+  if (!to) return null
+  if (!textHasBook('lxx', book) || !textHasBook('kjva', book) || KJVA_LACKS.has(book)) return null
+  if (!Number.isFinite(chapter) || chapter < 1) return null
+  const fromMax = textChapterCount(from, book)
+  if (fromMax != null && chapter > fromMax) return null
+  const mapped = mapChapterOnTranslationSwitch(book, chapter, from, to)
+  const toMax = textChapterCount(to, book)
+  if (mapped < 1 || (toMax != null && mapped > toMax)) return null
+  return { textId: to, chapter: mapped }
+}
+
+/** True when Compare (LXX ↔ KJVA) can show `bookId` `chapter` (numbered in `fromTextId`, KJVA by
+ *  default) — both texts have the book and the chapter maps to an equivalent chapter. */
+export function compareApplicable(bookId: string, chapter: number, fromTextId = 'kjva'): boolean {
+  return compareCounterpart(fromTextId, bookId, chapter) != null
 }
