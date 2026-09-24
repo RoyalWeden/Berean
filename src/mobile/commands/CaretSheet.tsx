@@ -23,12 +23,25 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
     c.run()
     if (c.keepOpen) bump()
   }
+  // A `view` command replaces this sheet's content (same surface, "‹ <this title>" at the top).
+  const open = (c: Extract<CaretCommand, { kind: 'view' }>) => () => {
+    if (c.disabled) return
+    const v = c.view()
+    api.push({
+      key: c.id, title: v.title, expand: v.expand,
+      render: (a) => ('scope' in v ? <CaretSheet scope={v.scope} api={a} /> : v.render(a)),
+    })
+  }
+  const nested = api.depth > 0
   return (
     <div className="mobile-caret">
-      <div className="mobile-caret-head">
-        <div className="mobile-caret-title">{s.title}</div>
-        {s.subtitle && <div className="mobile-caret-subtitle">{s.subtitle}</div>}
-      </div>
+      {/* In a pushed view the sheet's own nav bar names it; the heading would repeat it. */}
+      {!nested && (
+        <div className="mobile-caret-head">
+          <div className="mobile-caret-title">{s.title}</div>
+          {s.subtitle && <div className="mobile-caret-subtitle">{s.subtitle}</div>}
+        </div>
+      )}
       {s.sections.map((sec) => sec.style === 'tiles' ? (
         <div key={sec.id} className="mobile-caret-tiles" role="group" aria-label={sec.title ?? 'Quick actions'}>
           {sec.commands.map((c) => {
@@ -38,6 +51,13 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
                 <button key={c.id} type="button" className={`mobile-caret-tile${c.value ? ' is-on' : ''}`} aria-pressed={c.value}
                   onClick={() => { void haptic.selection(); c.set(!c.value); bump() }}>
                   {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>
+                </button>
+              )
+            }
+            if (c.kind === 'view') {
+              return (
+                <button key={c.id} type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={open(c)}>
+                  {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.value && <small>{c.value}</small>}
                 </button>
               )
             }
@@ -53,7 +73,7 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
         <section key={sec.id} className="mobile-caret-group" aria-label={sec.title}>
           {sec.title && <h3 className="mobile-caret-group-title">{sec.title}</h3>}
           <div className="mobile-caret-group-body">
-            {sec.commands.map((c) => <CaretRow key={c.id} c={c} onAction={act} onChanged={bump} />)}
+            {sec.commands.map((c) => <CaretRow key={c.id} c={c} onAction={act} onView={open} onChanged={bump} />)}
           </div>
         </section>
       ))}
@@ -61,13 +81,28 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
   )
 }
 
-function CaretRow({ c, onAction, onChanged }: { c: CaretCommand; onAction: (c: Extract<CaretCommand, { kind: 'action' }>) => () => void; onChanged: () => void }) {
+function CaretRow({ c, onAction, onView, onChanged }: {
+  c: CaretCommand
+  onAction: (c: Extract<CaretCommand, { kind: 'action' }>) => () => void
+  onView: (c: Extract<CaretCommand, { kind: 'view' }>) => () => void
+  onChanged: () => void
+}) {
   const Icon = c.icon
   const lead = Icon ? <Icon size={20} aria-hidden className="mobile-caret-row-icon" /> : null
+  if (c.kind === 'view') {
+    return (
+      <button type="button" className="mobile-caret-row" disabled={c.disabled} onClick={onView(c)} aria-label={c.value ? `${c.label}, ${c.value}` : c.label}>
+        {lead}<span className="mobile-caret-row-label">{c.label}{c.detail && <small>{c.detail}</small>}</span>
+        {c.value && <span className="mobile-caret-row-value">{c.value}</span>}
+        <ChevronRight size={16} aria-hidden className="mobile-caret-row-chevron" />
+      </button>
+    )
+  }
   if (c.kind === 'action') {
     return (
       <button type="button" className={`mobile-caret-row${c.destructive ? ' is-destructive' : ''}`} disabled={c.disabled} onClick={onAction(c)}>
         {lead}<span className="mobile-caret-row-label">{c.label}{c.detail && <small>{c.detail}</small>}</span>
+        {c.value && <span className="mobile-caret-row-value">{c.value}</span>}
         {!c.keepOpen && <ChevronRight size={16} aria-hidden className="mobile-caret-row-chevron" />}
       </button>
     )

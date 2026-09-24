@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useDragControls, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { X } from 'lucide-react'
+import { X, ChevronLeft } from 'lucide-react'
 import { haptic } from './haptics'
 
 /**
@@ -20,6 +20,14 @@ import { haptic } from './haptics'
  * hidden Close button stays for VoiceOver / Switch Control.
  * The drag handle is a taller dedicated strip (the grabber area); the body only drags the sheet
  * when it is scrolled to its top (so content scrolling never moves the sheet by accident).
+ *
+ * Sheets are NAVIGABLE SURFACES (T23-006/012/019, mobile-navigation.md §5). A control inside a
+ * sheet that shows another view of the same context calls `api.push({ title, render })`: the SAME
+ * sheet replaces its content (slide forward) and its top shows a contextual back control
+ * ("‹ Scripture", "‹ Tabs") that pops back to the previous view (slide back). No second sheet is
+ * stacked on top. Any component rendered in a sheet can reach this through `useSheetApi()`.
+ * Opening a genuinely separate surface (the audio player, a new-tab flow from elsewhere) is still
+ * `useSheets().open`.
  */
 export interface SheetOptions {
   id: string
@@ -35,8 +43,21 @@ export interface SheetOptions {
   /** Move an ALREADY-OPEN sheet to a detent (e.g. back to the low position while a text selection
    *  is being adjusted). A new `nonce` re-applies it. */
   forceDetent?: { index: number; nonce: number }
+  /** Name of the root view, shown as the back label once a sub-view is pushed ("‹ Scripture").
+   *  Defaults to `title`. */
+  rootTitle?: string
   render: (api: SheetApi) => React.ReactNode
   onClose?: () => void
+}
+/** A sub-view shown inside the same sheet (see the navigable-surface note above). */
+export interface SheetSubView {
+  /** Stable identity (for transitions and de-duplication). */
+  key: string
+  /** Shown centred at the top of the sheet, and as the back label of any view pushed after it. */
+  title: string
+  render: (api: SheetApi) => React.ReactNode
+  /** Move the sheet to its largest detent when this view opens (long lists, editors). */
+  expand?: boolean
 }
 export interface SheetApi {
   close: () => void
@@ -46,7 +67,17 @@ export interface SheetApi {
   detent: number
   /** True while the sheet sits at its special low position. */
   atLow: boolean
+  /** Show a sub-view in this same sheet, with a back control to the current view. */
+  push: (view: SheetSubView) => void
+  /** Back to the previous view (no-op at the root). */
+  pop: () => void
+  popToRoot: () => void
+  /** 0 at the root view. */
+  depth: number
 }
+const SheetApiContext = createContext<SheetApi | null>(null)
+/** The sheet the calling component is rendered in (null outside a sheet). */
+export function useSheetApi(): SheetApi | null { return useContext(SheetApiContext) }
 
 interface SheetHostState {
   open: (o: SheetOptions) => void
@@ -121,6 +152,13 @@ export function settleDetent(opts: { heights: number[]; vh: number; releaseY: nu
   return best
 }
 
+/** Forward = the new view slides in from the right; back = from the left (iOS navigation). */
+const SHEET_VIEW_VARIANTS = {
+  enter: (dir: 1 | -1) => ({ x: dir > 0 ? '28%' : '-28%', opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir: 1 | -1) => ({ x: dir > 0 ? '-28%' : '28%', opacity: 0 }),
+}
+
 function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose: () => void; depth: number }) {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const hasLow = options.lowDetent != null
@@ -150,11 +188,42 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
     animate(y, targetY(next), { type: 'spring', stiffness: 420, damping: 40 })
   }
 
+  // ── in-sheet navigation stack ──────────────────────────────────────────────────────────
+  const [views, setViews] = useState<SheetSubView[]>([])
+  const [direction, setDirection] = useState<1 | -1>(1)
+  const scrollMemo = useRef<number[]>([])
+  // A reopened / updated sheet (new options object) starts again at its root view.
+  useEffect(() => { setViews([]) }, [options])
+  const push = useCallback((view: SheetSubView) => {
+    scrollMemo.current[views.length] = bodyRef.current?.scrollTop ?? 0
+    setDirection(1)
+    setViews((v) => [...v.filter((x) => x.key !== view.key), view])
+    if (view.expand) setDetentIndex(top)
+    void haptic.selection()
+  }, [views.length, top])
+  const pop = useCallback(() => {
+    setDirection(-1)
+    setViews((v) => v.slice(0, -1))
+  }, [])
+  const popToRoot = useCallback(() => { setDirection(-1); setViews([]) }, [])
+  // Restore the parent view's scroll position after a pop; a pushed view starts at its top.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    el.scrollTop = direction < 0 ? (scrollMemo.current[views.length] ?? 0) : 0
+  }, [views.length, direction])
+
   const atLow = hasLow && detentIndex === 0
   const undimmedThrough = options.undimmedThrough ?? (hasLow ? 0 : -1)
   const dimmed = detentIndex > undimmedThrough
-  const api: SheetApi = { close: onClose, expand: () => setDetentIndex(top), setDetent: (i) => setDetentIndex(Math.max(0, Math.min(top, i))), detent: detentIndex, atLow }
+  const api: SheetApi = {
+    close: onClose, expand: () => setDetentIndex(top), setDetent: (i) => setDetentIndex(Math.max(0, Math.min(top, i))), detent: detentIndex, atLow,
+    push, pop, popToRoot, depth: views.length,
+  }
   const atTop = detentIndex === top
+  const current = views[views.length - 1]
+  const backLabel = views.length > 1 ? views[views.length - 2].title : (options.rootTitle ?? options.title ?? 'Back')
+  const headerTitle = current ? current.title : options.title
 
   return (
     <>
@@ -184,7 +253,14 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
       >
         <div className="mobile-sheet-grabber-area" onPointerDown={(e) => dragControls.start(e)}>
           <div className="mobile-sheet-grabber" />
-          {options.title && <div className="mobile-sheet-title">{options.title}</div>}
+          {current ? (
+            <div className="mobile-sheet-nav">
+              <button type="button" className="mobile-sheet-back" onClick={pop} onPointerDown={(e) => e.stopPropagation()} aria-label={`Back to ${backLabel}`}>
+                <ChevronLeft size={22} aria-hidden /><span>{backLabel}</span>
+              </button>
+              <div className="mobile-sheet-title is-nav" aria-live="polite">{headerTitle}</div>
+            </div>
+          ) : headerTitle && <div className="mobile-sheet-title">{headerTitle}</div>}
           {/* ✕ only at the special low (verse) position — elsewhere the sheet is dismissed the
               iOS way. Screen-reader users always get a Close button (visually hidden). */}
           <button
@@ -208,7 +284,20 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
             if (!atTop || (el && el.scrollTop <= 0)) dragControls.start(e)
           }}
         >
-          {options.render(api)}
+          <SheetApiContext.Provider value={api}>
+            <AnimatePresence initial={false} mode="popLayout" custom={direction}>
+              <motion.div
+                key={current?.key ?? '__root'}
+                className="mobile-sheet-view"
+                custom={direction}
+                variants={SHEET_VIEW_VARIANTS}
+                initial="enter" animate="center" exit="exit"
+                transition={{ type: 'spring', stiffness: 520, damping: 46 }}
+              >
+                {current ? current.render(api) : options.render(api)}
+              </motion.div>
+            </AnimatePresence>
+          </SheetApiContext.Provider>
         </div>
       </motion.div>
     </>

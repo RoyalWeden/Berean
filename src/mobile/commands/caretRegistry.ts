@@ -1,5 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
+import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import type { SheetApi } from '../primitives/Sheet'
 
 /**
  * The caret's command registry (TEST-033 / brief §28–30). The upward caret in the bottom
@@ -11,8 +13,16 @@ import type { LucideIcon } from 'lucide-react'
  * registration fall back to a static provider for their tab type (staticCommands.tsx). No page
  * needs to know about any other page's commands, and no component branches on tab type.
  */
+/** What a `view` command shows inside the same caret sheet: a nested command scope (rendered by
+ *  CaretSheet itself) or a custom body. The caret then shows "‹ <parent title>" at its top. */
+export type CaretView =
+  | { title: string; scope: () => CaretScope; expand?: boolean }
+  | { title: string; render: (api: SheetApi) => ReactNode; expand?: boolean }
+
 export type CaretCommand =
-  | { kind: 'action'; id: string; label: string; icon?: LucideIcon; detail?: string; destructive?: boolean; disabled?: boolean; keepOpen?: boolean; run: () => void }
+  | { kind: 'action'; id: string; label: string; icon?: LucideIcon; detail?: string; value?: string; destructive?: boolean; disabled?: boolean; keepOpen?: boolean; run: () => void }
+  /** Opens a sub-view in the same sheet (T23-006/019); `value` is shown at the right ("KJV ›"). */
+  | { kind: 'view'; id: string; label: string; icon?: LucideIcon; detail?: string; value?: string; disabled?: boolean; view: () => CaretView }
   | { kind: 'toggle'; id: string; label: string; icon?: LucideIcon; detail?: string; value: boolean; set: (v: boolean) => void }
   | { kind: 'stepper'; id: string; label: string; icon?: LucideIcon; value: number; unit?: string; min: number; max: number; set: (v: number) => void }
   | { kind: 'segmented'; id: string; label: string; icon?: LucideIcon; value: string; options: Array<[string, string]>; set: (v: string) => void }

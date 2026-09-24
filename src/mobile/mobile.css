@@ -110,6 +110,12 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-sheet.is-low { box-shadow: 0 -4px 18px rgb(0 0 0 / 0.28); }
 .mobile-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .mobile-sheet-title { margin-top: 8px; text-align: center; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1)); }
+/* In-sheet navigation (Sheet.push/pop): contextual back at the top of the same sheet. */
+.mobile-sheet-nav { position: relative; margin-top: 6px; min-height: 32px; display: flex; align-items: center; justify-content: center; }
+.mobile-sheet-back { position: absolute; left: -6px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 0; max-width: 42%; min-height: 44px; padding: 0 6px 0 0; border: 0; background: none; color: rgb(var(--color-accent)); font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-sheet-back span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-sheet-title.is-nav { margin-top: 0; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-sheet-view { min-height: 100%; }
 .mobile-sheet-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: calc(var(--m-safe-bottom) + 16px); touch-action: pan-y; }
 .mobile-sheet-loading { padding: 20px; color: rgb(var(--color-text-muted)); }
 .mobile-action-list { padding: 4px 12px 8px; }
@@ -412,6 +418,7 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
 .mobile-caret-row-label small { font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
 .mobile-caret-row.is-stacked .mobile-caret-row-label { flex-direction: row; align-items: center; gap: 12px; }
 .mobile-caret-row-chevron { color: rgb(var(--color-text-muted)); }
+.mobile-caret-row-value { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); font-size: calc(15px * var(--m-type-scale, 1)); }
 
 /* plus / new tab sheet */
 .mobile-newtab { padding: 0 16px 24px; }
@@ -432,3 +439,12 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
    px (pinch changes it); the iOS text-size preference scales the whole reading column on top, so
    the compact layout never depends on small text for users who need larger type. */
 .mobile-reader .berean-reading-column { zoom: var(--m-type-scale, 1); }
+
+/* Choice sub-view (ChoiceList): one tappable row per option, check on the current one. */
+.mobile-choice-list { margin: 4px 14px 16px; border-radius: 16px; overflow: hidden; background: rgb(var(--color-surface-3)); }
+.mobile-choice-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 8px 16px; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-choice-row:last-child { border-bottom: 0; }
+.mobile-choice-row.is-on { font-weight: 600; }
+.mobile-choice-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mobile-choice-label small { font-weight: 400; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-choice-check { flex: none; color: rgb(var(--color-accent)); }
