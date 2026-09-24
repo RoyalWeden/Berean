@@ -90,7 +90,10 @@ export function TrailSessionPage({ sessionId, onBack, onOpenSession, initialView
       list.push({ id: 'zoom-out', label: 'Zoom out', icon: ZoomOut, disabled: zoom <= TRAIL_ZOOM_MIN, onSelect: () => setZoom((z) => clampZoom(z / 1.2)) })
     }
     if (session && sessionId && sessionId !== LOOSE_SESSION_ID) {
-      for (const id of sessionActionsFor(session, isCurrent)) list.push({ id, label: labels[id], icon: icons[id], destructive: id === 'delete', onSelect: () => void runAction(id) })
+      // Sticky notes / Tags open inside this action sheet (NEW-002), not as a second sheet.
+      for (const id of sessionActionsFor(session, isCurrent)) list.push({ id, label: labels[id], icon: icons[id], destructive: id === 'delete', onSelect: () => void runAction(id),
+        view: id === 'notes' ? () => ({ key: 'trail-notes', title: 'Sticky notes', render: (api) => <TrailNotesSheet sessionId={sessionId} api={api} /> })
+          : id === 'tags' ? () => ({ key: 'trail-tags', title: 'Tags', render: (api) => <TrailTagsSheet sessionId={sessionId} api={api} /> }) : undefined })
     }
     actions('trail-session-more', session?.name, list)
   }

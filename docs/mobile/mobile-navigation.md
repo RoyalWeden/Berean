@@ -174,3 +174,19 @@ contiguous or not; a selection in another text — the other Compare column — 
 (combined "John 3:6-7, 18", highlight all, copy in the shared multi-verse format, tag, play, clear).
 Drag-select from verse numbers is unchanged. The study view no longer prints "(KJVA+)"; Strong's
 superscripts are 0.7em in the reader, the study view and Compare (T23-027/029).
+
+## 7. Second 09-23 round (docs/mobile/testing-backlog-2026-09-23b.md)
+
+- **Sheets keep their position**: a pushed view never changes the detent; content scrolls at every
+  detent (the half-open Tabs sheet scrolls); a body drag moves the sheet only when the content can't
+  scroll in that direction.
+- **History and Settings are tabs** everywhere: any request for them opens or focuses the tab.
+- **Plus / floating search**: one row of icon buttons (Scripture, Note, Today, Lexicon, YouTube,
+  History, Settings, More); no Compare or Workspaces; recent list scrolls and dismisses the keyboard.
+- **Passage picker** (title of the reader and Compare): Library → collection → book → chapter →
+  optional verse in one sheet; search understands "LXX", book names and references.
+- **Sessions** is the one name for live tab groups (the desktop's term); snapshots are **Saved
+  sessions**. Tabs → session chip → Sessions view; Tabs → archive icon → Archived tabs view.
+- **Search caret**: no Scope row; History opens in the caret; Books = individual books.
+- **Reader chrome**: scrolling down collapses the header into a compact pill joined to the Dynamic
+  Island / notch and slides the bottom controls away (same hysteresis); tap the pill for the picker.

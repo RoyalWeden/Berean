@@ -82,7 +82,13 @@ function Shell() {
   // More (and its sub-pages) — reached from the plus sheet, the caret and deep links now that the
   // bottom space bar is gone (TEST-030). `null` = the active tab is showing.
   const [moreRoute, setMoreRoute] = useState<MoreRoute | null>(null)
-  const openMore = useCallback((route: MoreRoute) => setMoreRoute(route), [])
+  // History and Settings are TABS (persistent, content-rich — NEW-001): any request for them
+  // (plus sheet, caret, deep link, More) opens or focuses that tab instead of sliding a page over
+  // the current tab. Utilities (study trail, queue, PDF library, sessions, archive…) stay under More.
+  const openMore = useCallback((route: MoreRoute) => {
+    if (route === 'history' || route === 'settings') { setMoreRoute(null); useAppStore.getState().ensureTab(route); return }
+    setMoreRoute(route)
+  }, [])
   const closeMore = useCallback(() => setMoreRoute(null), [])
   // Any tab activation (tab cards, plus, deep link, navigation) leaves More.
   const activeKey = useAppStore((s) => `${s.activeSpace}:${s.activeTabId[s.activeSpace] ?? ''}`)
@@ -283,7 +289,9 @@ function EmptySpace({ space }: { space: SpaceId }) {
 
 function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space: SpaceId) => void; initialRoute: MoreRoute | null; onClose: () => void }) {
   const nav = useNavigation()
-  const openSettings = useCallback(() => nav.push('settings', <SettingsPage onBack={nav.pop} />), [nav])
+  // Settings / History open their tabs (see Shell's openMore) — More only lists them.
+  const openSettings = useCallback(() => { onClose(); useAppStore.getState().ensureTab('settings') }, [onClose])
+  const openHistory = useCallback(() => { onClose(); useAppStore.getState().ensureTab('history') }, [onClose])
   const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
   const openTrail = useCallback(() => nav.push('trail', <StudyTrailPage onBack={nav.pop} onOpenSpace={onOpenSpace} />), [nav, onOpenSpace])
   // (window.app.openStudyTrailWindow() is handled by the shell — it opens More at the trail route.)
@@ -292,7 +300,7 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
   useEffect(() => {
     const push: Partial<Record<MoreRoute, () => void>> = {
       settings: openSettings,
-      history: () => nav.push('history', <HistoryPage onBack={nav.pop} />),
+      history: openHistory,
       workspaces: () => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />),
       archive: () => nav.push('archive', <ArchivePage onBack={nav.pop} />),
       transcripts: () => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />),
@@ -310,7 +318,7 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
     sections: [{ id: 'more', commands: [
       { kind: 'action', id: 'back', label: 'Back to the current tab', icon: ArrowLeft, run: onClose },
       { kind: 'action', id: 'settings', label: 'Settings', icon: SettingsIcon, run: openSettings },
-      { kind: 'action', id: 'history', label: 'History', icon: History, run: () => nav.push('history', <HistoryPage onBack={nav.pop} />) },
+      { kind: 'action', id: 'history', label: 'History', icon: History, run: openHistory },
     ] }],
   }))
   return (
@@ -321,7 +329,7 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
         <Row leading={<Tags size={20} aria-hidden />} title="Verse tags" subtitle="Tag manager and graph" chevron onClick={() => { useAppStore.getState().openTagsGraph(); onOpenSpace('notes') }} />
         <Row leading={<Route size={20} aria-hidden />} title="Study trail" subtitle="Sessions, map, threads, recap" chevron onClick={openTrail} />
         <Row leading={<ListMusic size={20} aria-hidden />} title="Read Aloud queue" subtitle="Queue and saved playlists" chevron onClick={() => nav.push('queue', <QueuePage onBack={nav.pop} />)} />
-        <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={() => nav.push('history', <HistoryPage onBack={nav.pop} />)} />
+        <Row leading={<History size={20} aria-hidden />} title="History" chevron onClick={openHistory} />
         <Row leading={<Layers size={20} aria-hidden />} title="Sessions" subtitle="Switch, rename, saved sessions" chevron onClick={() => nav.push('workspaces', <WorkspacesPage onBack={nav.pop} />)} />
         <Row leading={<Archive size={20} aria-hidden />} title="Archived tabs" chevron onClick={() => nav.push('archive', <ArchivePage onBack={nav.pop} />)} />
         <Row leading={<Download size={20} aria-hidden />} title="Transcript packs" subtitle="Download channel transcripts for offline search" chevron onClick={() => nav.push('transcripts', <TranscriptPacksPage onBack={nav.pop} />)} />

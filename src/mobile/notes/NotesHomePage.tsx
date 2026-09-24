@@ -12,7 +12,7 @@ import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { useLongPress } from '../primitives/useLongPress'
-import { useSheets } from '../primitives/Sheet'
+import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { noteIsMovable } from '@/lib/noteMovability'
 import { FolderPicker } from './FolderPicker'
 import './notes.css'
@@ -83,9 +83,10 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   // restorable from Trash, matching desktop), Cancel.
   const noteActions = (n: Note) => {
     actions(`note-actions-${n.id}`, n.title || 'Untitled', [
-      ...(noteIsMovable(n) ? [{ id: 'move', label: 'Move…', icon: FolderInput, onSelect: () => sheets.open({
-        id: 'note-folder', title: 'Folder', detents: [0.6, 0.92],
-        render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { void haptic.success(); refresh(); api.close() }).catch(() => api.close()) }} />,
+      // Move opens the folder list INSIDE this sheet ("‹ <note>") — NEW-002.
+      ...(noteIsMovable(n) ? [{ id: 'move', label: 'Move…', icon: FolderInput, onSelect: () => {}, view: () => ({
+        key: 'move', title: 'Move to',
+        render: (api: SheetApi) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { void haptic.success(); refresh(); api.close() }).catch(() => api.close()) }} />,
       }) }] : []),
       { id: 'delete', label: 'Delete', icon: Trash2, destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { void haptic.success(); refresh() }).catch(() => {}) } },
       { id: 'cancel', label: 'Cancel', onSelect: () => {} },

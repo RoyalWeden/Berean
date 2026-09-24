@@ -1,6 +1,6 @@
 /* iPhone Books filter (BooksFilterView) — individual-book multi-select. Same tokens as
    mobile.css; every tappable row is ≥44pt. */
-.mobile-books-filter { display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
+.mobile-books-filter { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 8px; }
 
 .mobile-books-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 14px; border-radius: var(--m-radius, 12px); background: rgb(var(--color-surface-3)); }
 .mobile-books-summary-text { display: flex; flex-direction: column; min-width: 0; }

@@ -9,7 +9,6 @@ import { ChoiceList } from '../primitives/ActionSheet'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { useEffectiveScheme, themePresetLabel } from '../settings/ThemePresetPage'
-import { requestMore } from '../navigation/shellNav'
 
 /**
  * Sub-views of the Scripture caret (T23-019/020/021): shown INSIDE the caret sheet (Sheet.push),
@@ -69,7 +68,7 @@ export function ColorChoices({ api }: { api: SheetApi }) {
           )
         })}
       </div>
-      <button type="button" className="mobile-button mobile-color-more" onClick={() => { api.close(); requestMore('settings') }}>
+      <button type="button" className="mobile-button mobile-color-more" onClick={() => { api.close(); useAppStore.getState().ensureTab('settings') }}>
         Custom colors in Settings…
       </button>
     </div>

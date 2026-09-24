@@ -10,10 +10,12 @@ export interface SheetAction {
   destructive?: boolean
   disabled?: boolean
   onSelect: () => void
+  /** Open this sub-view INSIDE the same sheet instead of running onSelect (NEW-002). */
+  view?: () => SheetSubView
 }
 
 /** iOS-style action list inside a bottom sheet (verse long-press, tab actions, note actions). */
-export function ActionList({ title, actions, close }: { title?: string; actions: SheetAction[]; close: () => void }) {
+export function ActionList({ title, actions, close, api }: { title?: string; actions: SheetAction[]; close: () => void; api?: SheetApi }) {
   return (
     <div className="mobile-action-list">
       {title && <div className="mobile-action-title">{title}</div>}
@@ -23,7 +25,7 @@ export function ActionList({ title, actions, close }: { title?: string; actions:
           type="button"
           className={`mobile-action-row${a.destructive ? ' is-destructive' : ''}`}
           disabled={a.disabled}
-          onClick={() => { void haptic.light(); close(); a.onSelect() }}
+          onClick={() => { void haptic.light(); if (a.view && api) { api.push(a.view()); return } close(); a.onSelect() }}
         >
           {a.icon && <a.icon size={20} aria-hidden />}
           <span>{a.label}</span>
@@ -78,8 +80,10 @@ export function ChoiceList({ options, value, onSelect, api, closeOnSelect }: { o
 export function useActionSheet() {
   const sheets = useSheets()
   return (id: string, title: string | undefined, actions: SheetAction[]) => {
-    const h = Math.min(0.92, 0.12 + actions.length * 0.075 + (title ? 0.05 : 0))
-    sheets.open({ id, title: undefined, detents: [h], render: (api) => <ActionList title={title} actions={actions} close={api.close} /> })
+    // A list with a row that opens a sub-view starts tall enough for it, so the sheet doesn't resize.
+    const base = Math.min(0.92, 0.12 + actions.length * 0.075 + (title ? 0.05 : 0))
+    const h = actions.some((a) => a.view) ? Math.max(base, 0.62) : base
+    sheets.open({ id, title: undefined, rootTitle: title, detents: [h], render: (api) => <ActionList title={title} actions={actions} close={api.close} api={api} /> })
   }
 }
 

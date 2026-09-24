@@ -89,7 +89,10 @@ export function StudyTrailPage({ onBack, onOpenSpace }: { onBack: () => void; on
   const openActions = (s: TrailSession) => {
     const isCurrent = s.id === currentTrailSessionId
     const labels: Record<SessionActionId, string> = { resume: isCurrent && s.status === 'paused' ? 'Resume recording' : 'Record into this session', pause: 'Pause recording', end: 'End session', rename: 'Rename…', recap: 'Recap…', tags: 'Tags…', notes: 'Sticky notes…', delete: 'Delete session' }
-    const list: SheetAction[] = sessionActionsFor(s, isCurrent).map((id) => ({ id, label: labels[id], destructive: id === 'delete', onSelect: () => void runAction(s, id) }))
+    // Sticky notes / Tags open inside this action sheet (NEW-002), not as a second sheet.
+    const list: SheetAction[] = sessionActionsFor(s, isCurrent).map((id) => ({ id, label: labels[id], destructive: id === 'delete', onSelect: () => void runAction(s, id),
+      view: id === 'notes' ? () => ({ key: 'trail-notes', title: 'Sticky notes', render: (api) => <TrailNotesSheet sessionId={s.id} api={api} /> })
+        : id === 'tags' ? () => ({ key: 'trail-tags', title: 'Tags', render: (api) => <TrailTagsSheet sessionId={s.id} api={api} /> }) : undefined }))
     actions('trail-session-actions', s.name, list)
   }
 

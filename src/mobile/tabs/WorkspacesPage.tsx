@@ -4,7 +4,7 @@ import { useAppStore } from '@/store'
 import { buildWorkspaceState, parseWorkspaceState, workspaceSessionId } from '@/lib/workspaceSnapshot'
 import { SESSION_ICONS } from '@/components/shell/Sidebar'
 import { Page, ListSection, Row } from '../primitives/Page'
-import { useActionSheet, type SheetAction } from '../primitives/ActionSheet'
+import { actionListView, useActionSheet, type SheetAction } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
 import { WorkspaceIcon, workspaceTabCount, nextWorkspaceName } from './SessionSwitcher'
 
@@ -70,7 +70,7 @@ function LiveWorkspacesView({ onBack, onSnapshots }: { onBack: () => void; onSna
     const list: SheetAction[] = [
       ...(!isCurrent ? [{ id: 'switch', label: 'Switch to this session', onSelect: () => switchTo(id) }] : []),
       { id: 'rename', label: 'Rename…', onSelect: () => { const n = prompt('Session name', label); if (n?.trim()) useAppStore.getState().renameSession(id, n.trim()) } },
-      { id: 'icon', label: 'Change icon…', onSelect: () => actions(`ws-icon-${id}`, 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, onSelect: () => useAppStore.getState().setSessionIcon(id, i.name) }))) },
+      { id: 'icon', label: 'Change icon…', onSelect: () => {}, view: () => actionListView(`ws-icon-${id}`, 'Icon', SESSION_ICONS.map((i) => ({ id: i.name, label: i.name, icon: i.Icon, onSelect: () => useAppStore.getState().setSessionIcon(id, i.name) }))) },
       // archiveAllTabs acts on the live (current) tabs only.
       ...(isCurrent ? [{ id: 'archive-all', label: 'Archive all tabs in this session', onSelect: () => useAppStore.getState().archiveAllTabs(label) }] : []),
       { id: 'snapshot', label: 'Save as a saved session…', onSelect: () => { const n = prompt('Saved session name', label); if (n?.trim()) void saveSnapshot(id, n.trim()).catch(() => {}) } },
