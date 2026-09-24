@@ -178,11 +178,12 @@ export default function ViewerApp() {
   // override (the OTHER two viewerTheme options) deliberately still ignores the preset/animation
   // — that's for presenting on a projector with plain, predictable contrast regardless of
   // whatever colorful theme the main window happens to be on, not a bug to fix here.
+  const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
     if (viewerTheme === 'system') {
       applyThemeToDocument({
         theme, themePreset, systemIsDark, systemAccentColor,
-        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes,
       })
       return
     }
@@ -195,7 +196,7 @@ export default function ViewerApp() {
     const effectiveDark = viewerTheme === 'dark'
     html.classList.toggle('dark', effectiveDark)
     html.classList.toggle('light', !effectiveDark)
-  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
+  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
 
   // Keep the ref in sync every render so handleContent (stable, deps []) sees the latest payload.
   payloadRef.current = payload

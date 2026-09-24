@@ -18,27 +18,11 @@ import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton, Checkbox, DisclosureRow, ListRow, cx } from '@/components/ui'
 import { useRovingNav } from '@/lib/useRovingNav'
+import { systemFolderOf, noteIsMovable, type SystemKey } from '@/lib/noteMovability'
 
-// ── System (virtual) folders ─────────────────────────────────────────────────
-// Notes belong to a system folder by their type/tags. A note that has been moved
-// into a user folder (folderId set) leaves its system folder. System-folder notes
-// cannot be moved.
-type SystemKey = 'daily' | 'esword' | 'biblegateway' | 'verse'
-
-export function systemFolderOf(note: Note): SystemKey | null {
-  if (note.tags?.includes('biblegateway')) return 'biblegateway'
-  if (note.tags?.includes('esword')) return 'esword'
-  if (note.type === 'daily' || note.type === 'journal' ||
-      note.title?.startsWith('Daily — ') || note.title?.startsWith('Journal — ')) return 'daily'
-  if (note.verseRef || note.type === 'verse') return 'verse'
-  return null
-}
-
-// A note can be filed into / out of user folders only if it isn't owned by a
-// system folder (daily, e-Sword, BibleGateway, verse notes).
-export function noteIsMovable(note: Note): boolean {
-  return systemFolderOf(note) === null
-}
+// System (virtual) folders + movability live in src/lib/noteMovability.ts (shared with the
+// iPhone notes list); re-exported here for existing importers (NotesPanel.tsx).
+export { systemFolderOf, noteIsMovable }
 
 // "Deleted 3 days ago" / "Deleted today" style label for the Trash list — also implicitly
 // communicates how much of the 30-day auto-purge window is left without a separate countdown.

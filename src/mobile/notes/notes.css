@@ -1,0 +1,7 @@
+/* Notes-list styles owned by NotesHomePage.tsx (T23-030). */
+
+/* Long-press wrapper around a note row: no text selection / iOS callout while pressing, and
+   keep the row hairlines (the wrapper makes every row its own :last-child). */
+.notes-row-lp { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.notes-row-lp .mobile-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); }
+.notes-row-lp:last-child .mobile-row { border-bottom: 0; }

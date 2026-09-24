@@ -11,6 +11,7 @@ import { AudioSettingsPage } from './AudioSettingsPage'
 import { DataSettingsPage } from './DataSettingsPage'
 import { ExperimentalSettingsPage } from './ExperimentalSettingsPage'
 import { WordReplacerPage } from './WordReplacerPage'
+import { ThemePresetPage, themePresetLabel } from './ThemePresetPage'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { BIBLE_FONT_MAX, BIBLE_FONT_MIN } from '../reader/usePinchFontSize'
@@ -40,7 +41,6 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const preset = useAppStore((s) => s.themePreset)
-  const setThemePreset = useAppStore((s) => s.setThemePreset)
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   const glassAppearance = useAppStore((s) => s.glassAppearance)
   const setGlassAppearance = useAppStore((s) => s.setGlassAppearance)
@@ -72,11 +72,13 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
   const setAskJumpReason = useAppStore((s) => s.setStudyTrailAskChapterJumpReason)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const setContinuousChapterScroll = useAppStore((s) => s.setContinuousChapterScroll)
-  const presetLabel = THEME_PRESETS.find((p) => p.id === preset)?.label ?? (preset === 'system-accent' ? 'System accent' : 'Default')
+  const customThemes = useAppStore((s) => s.customThemes)
+  const presetLabel = themePresetLabel(preset, customThemes)
 
   // Mirrors SettingsModal.tsx's `activePreset` / `curatedAnimationActive`: some themes carry
   // their own always-on ambient animation, which locks the toggle on (see the note below).
-  const activePreset = THEME_PRESETS.find((p) => preset === p.id || preset === `${p.id}-dark` || preset === `${p.id}-light`) ?? THEME_PRESETS[0]
+  const basePresetId = preset.startsWith('custom:') ? (customThemes.find((t) => `custom:${t.id}` === preset)?.basedOn ?? '') : preset
+  const activePreset = THEME_PRESETS.find((p) => basePresetId === p.id || basePresetId === `${p.id}-dark` || basePresetId === `${p.id}-light`) ?? THEME_PRESETS[0]
   const curatedAnimationActive = !!activePreset.animationStyle
 
   return (
@@ -85,27 +87,19 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
         <Row title="Theme" right={
           <Segmented value={theme} options={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]} onChange={(v) => setTheme(v as 'system' | 'light' | 'dark')} />
         } />
-        <Row title="Colour preset" subtitle={presetLabel} chevron onClick={() => nav.push('settings-preset', (
-          <Page title="Colour preset" onBack={nav.pop}>
-            <ListSection>
-              {THEME_PRESETS.map((p) => (
-                <Row key={p.id || 'default'} title={p.label} subtitle={p.family} right={p.id === preset ? '✓' : undefined} onClick={() => { setThemePreset(p.id); nav.pop() }} />
-              ))}
-            </ListSection>
-          </Page>
-        ))} />
+        <Row title="Color preset" subtitle={presetLabel} chevron onClick={() => nav.push('settings-preset', <ThemePresetPage onBack={nav.pop} />)} />
         <Row title="Glass appearance" subtitle="How much shows through menus, panels and sheets" right={
           <Segmented value={glassAppearance} options={[['clear', 'Clear'], ['regular', 'Regular'], ['tinted', 'Tinted']]} onChange={(v) => setGlassAppearance(v as 'clear' | 'regular' | 'tinted')} />
         } />
         {preset === 'system-accent' && !systemAccentColor && (
-          <div className="settings-field-hint">"System" accent falls back to the app's default accent — iPhone doesn't expose a live system accent colour to apps the way macOS does.</div>
+          <div className="settings-field-hint">"System" accent falls back to the app's default accent — iPhone doesn't expose a live system accent color to apps the way macOS does.</div>
         )}
       </ListSection>
 
       <ListSection title="Ambient background animation">
         <Row
           title="Enabled"
-          subtitle={curatedAnimationActive ? `${activePreset.label} has its own animation — on and locked` : 'Adds a subtle motion effect using the theme accent colour'}
+          subtitle={curatedAnimationActive ? `${activePreset.label} has its own animation — on and locked` : 'Adds a subtle motion effect using the theme accent color'}
           right={<Toggle checked={backgroundAnimationEnabled || curatedAnimationActive} onChange={(v) => { if (!curatedAnimationActive) setBackgroundAnimationEnabled(v) }} label="Ambient background animation" />}
         />
         {(backgroundAnimationEnabled || curatedAnimationActive) && (

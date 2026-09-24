@@ -31,7 +31,7 @@ import type { SpaceId, Tab } from '@/types'
 // `partialize` list in src/store/index.ts — a field that should follow the user
 // regardless of which window they're in belongs here.
 const SHARED_PREFERENCE_KEYS = [
-  'theme', 'themePreset', 'appZoom', 'bibleFontSize', 'bibleLineHeight',
+  'theme', 'themePreset', 'customThemes', 'appZoom', 'bibleFontSize', 'bibleLineHeight',
   'defaultBibleTranslation', 'hermasTranslation', 'defaultScriptureLayout',
   'scriptureFontFamily', 'notesFontFamily', 'uiFontFamily',
   'noteTypingLook', 'noteTransformLayout', 'noteSidePanelPinned',

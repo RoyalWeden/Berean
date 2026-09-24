@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { Plus, CalendarDays, Folder, FolderPlus, Pin, Trash2, Search, MoreHorizontal } from 'lucide-react'
+import { Plus, CalendarDays, Folder, FolderPlus, FolderInput, Pin, Trash2, Search, MoreHorizontal } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
@@ -12,6 +12,10 @@ import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { useLongPress } from '../primitives/useLongPress'
+import { useSheets } from '../primitives/Sheet'
+import { noteIsMovable } from '@/lib/noteMovability'
+import { FolderPicker } from './FolderPicker'
+import './notes.css'
 import { NoteEditorPage } from './NoteEditorPage'
 import { TrashPage } from './TrashPage'
 import NotesPanel from '@/components/notes/NotesPanel'
@@ -53,6 +57,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   // new folder; long-press a folder chip → rename / new subfolder / delete (empty) / delete with
   // notes (confirmed). Nested folders are flattened into "Parent / Child" chips.
   const actions = useActionSheet()
+  const sheets = useSheets()
   const refresh = () => useAppStore.getState().bumpNoteToken()
   const folderLabel = (f: NoteFolder): string => { const p = f.parentId ? folders.find((x) => x.id === f.parentId) : null; return p ? `${folderLabel(p)} / ${f.name}` : f.name }
   const newFolder = async (parentId: string | null = null) => {
@@ -70,6 +75,20 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
       ...(count === 0 && children === 0
         ? [{ id: 'delete', label: 'Delete folder', destructive: true, onSelect: () => { window.notes.deleteFolder(f.id).then(() => { if (folderId === f.id) setFolderId(null); refresh() }).catch(() => {}) } }]
         : [{ id: 'delete-deep', label: `Delete folder and its ${count} note${count === 1 ? '' : 's'}${children ? ' + subfolders' : ''}`, destructive: true, onSelect: () => { if (confirm(`Delete "${f.name}" and everything in it? Notes go to Trash.`)) window.notes.deleteFolderDeep(f.id).then(() => { if (folderId === f.id) setFolderId(null); refresh() }).catch(() => {}) } }]),
+    ])
+  }
+
+  // Long-press a note row (T23-030): Move… (only for notes a system folder doesn't own — the
+  // same rule as the desktop context menu), Delete (soft-delete to Trash, no confirmation —
+  // restorable from Trash, matching desktop), Cancel.
+  const noteActions = (n: Note) => {
+    actions(`note-actions-${n.id}`, n.title || 'Untitled', [
+      ...(noteIsMovable(n) ? [{ id: 'move', label: 'Move…', icon: FolderInput, onSelect: () => sheets.open({
+        id: 'note-folder', title: 'Folder', detents: [0.6, 0.92],
+        render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { void haptic.success(); refresh(); api.close() }).catch(() => api.close()) }} />,
+      }) }] : []),
+      { id: 'delete', label: 'Delete', icon: Trash2, destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { void haptic.success(); refresh() }).catch(() => {}) } },
+      { id: 'cancel', label: 'Cancel', onSelect: () => {} },
     ])
   }
 
@@ -184,12 +203,12 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
       </div>
       {!results && filter === 'all' && !folderId && pinned.length > 0 && (
         <ListSection title="Pinned">
-          {pinned.map((n) => <NoteRow key={n.id} note={n} onOpen={open} />)}
+          {pinned.map((n) => <NoteRow key={n.id} note={n} onOpen={open} onLongPress={noteActions} />)}
         </ListSection>
       )}
       <ListSection title={results ? `${list.length} result${list.length === 1 ? '' : 's'}` : 'Recent'}>
         {list.length === 0 && <div className="mobile-empty">{results ? 'No matches.' : 'No notes yet — tap + to write one, or long-press a verse.'}</div>}
-        {list.slice(0, 300).map((n) => <NoteRow key={n.id} note={n} onOpen={open} />)}
+        {list.slice(0, 300).map((n) => <NoteRow key={n.id} note={n} onOpen={open} onLongPress={noteActions} />)}
       </ListSection>
       <ListSection>
         <Row leading={<Trash2 size={18} aria-hidden />} title="Trash" chevron onClick={() => nav.push('trash', <TrashPage onBack={nav.pop} />)} />
@@ -198,10 +217,13 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   )
 }
 
-export function NoteRow({ note, onOpen }: { note: Note; onOpen: (n: Note) => void }) {
+export function NoteRow({ note, onOpen, onLongPress }: { note: Note; onOpen: (n: Note) => void; onLongPress?: (n: Note) => void }) {
+  // Long-press → note actions. useLongPress's capture-phase click handler on the wrapper swallows
+  // the click that follows a completed long press, so the note doesn't also open.
+  const lp = useLongPress(() => { if (!onLongPress) return; void haptic.medium(); onLongPress(note) })
   const status = note.status ? NOTE_STATUSES.find((s) => s.id === note.status) : null
   const preview = stripMarkdownFormatting(note.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 100)
-  return (
+  const row = (
     <Row
       leading={<span className="mobile-note-icon" aria-hidden>{note.icon ?? (note.type === 'verse' ? '📖' : note.type === 'daily' ? '📅' : '📝')}</span>}
       title={<>{note.pinned && <Pin size={12} aria-label="Pinned" />} {note.title || 'Untitled'}</>}
@@ -210,6 +232,8 @@ export function NoteRow({ note, onOpen }: { note: Note; onOpen: (n: Note) => voi
       onClick={() => onOpen(note)}
     />
   )
+  if (!onLongPress) return row
+  return <div className="notes-row-lp" {...lp} onContextMenu={(e) => e.preventDefault()}>{row}</div>
 }
 
 /** The complete desktop notes panel, hosted, for views without a phone page yet. */

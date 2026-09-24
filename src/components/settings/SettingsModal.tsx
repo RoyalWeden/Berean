@@ -26,6 +26,9 @@ import ExperimentalSection from './sections/ExperimentalSection'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { THEME_PRESETS } from '@/lib/themePresets'
 import ThemePicker from './ThemePicker'
+import CustomThemesSection from './sections/CustomThemesSection'
+import { ThemePreviewCard } from './ThemePreviewCard'
+import { findCustomTheme, previewColors } from '@/lib/customTheme'
 
 const FONT_FAMILY_OPTIONS = [
   { value: 'system', label: 'System default' },
@@ -171,6 +174,7 @@ export default function SettingsModal() {
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const customThemes = useAppStore((s) => s.customThemes)
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   const setThemePreset = useAppStore((s) => s.setThemePreset)
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
@@ -468,8 +472,10 @@ export default function SettingsModal() {
   // The currently-active preset object — used by both the Theme summary card and the ambient-
   // animation section below (to detect when the active theme carries its own curated
   // `animationStyle`, which locks that section's toggle on).
+  const activeCustomTheme = findCustomTheme(themePreset, customThemes)
+  const basePresetId = activeCustomTheme ? activeCustomTheme.basedOn : themePreset
   const activePreset = THEME_PRESETS.find((p) =>
-    themePreset === p.id || themePreset === `${p.id}-dark` || themePreset === `${p.id}-light`
+    basePresetId === p.id || basePresetId === `${p.id}-dark` || basePresetId === `${p.id}-light`
   ) ?? THEME_PRESETS[0]
   const curatedAnimationActive = !!activePreset.animationStyle
 
@@ -593,7 +599,7 @@ export default function SettingsModal() {
                       const accent = isSystemAccent ? (systemAccentColor ?? THEME_PRESETS[0].dark.accent) : null
                       const swatchColors = theme === 'system' ? null : (previewVariant === 'dark' ? activePreset.dark : activePreset.light)
                       const bg = swatchColors?.bg ?? activePreset.dark.bg
-                      const label = isSystemAccent ? 'System' : activePreset.label
+                      const label = isSystemAccent ? 'System' : (activeCustomTheme?.name ?? activePreset.label)
                       return (
                         <ListRow
                           className="control-glass rounded-card"
@@ -601,14 +607,18 @@ export default function SettingsModal() {
                           onClick={() => setThemePickerOpen(true)}
                           leading={
                             <div className="w-14 h-10 rounded-md overflow-hidden relative flex-shrink-0 border border-border">
-                              {theme === 'system' && !isSystemAccent ? (
+                              {activeCustomTheme || (theme !== 'system' && !isSystemAccent) ? (
+                                <ThemePreviewCard {...previewColors(themePreset, customThemes, previewVariant)} width="100%" height="100%" style={{ position: 'absolute', inset: 0, borderRadius: 0, fontSize: 7, padding: '0 4px' }} />
+                              ) : theme === 'system' && !isSystemAccent ? (
                                 <div className="absolute inset-0" style={{
                                   background: `linear-gradient(135deg, rgb(${activePreset.dark.bg}) 50%, rgb(${activePreset.light.bg}) 50%)`
                                 }} />
                               ) : (
                                 <div className="absolute inset-0" style={{ background: `rgb(${bg})` }} />
                               )}
-                              <div className="absolute inset-y-0 left-0 w-2.5" style={{ background: `rgb(${accent ?? swatchColors?.accent ?? activePreset.dark.accent})` }} />
+                              {!(activeCustomTheme || (theme !== 'system' && !isSystemAccent)) && (
+                                <div className="absolute inset-y-0 left-0 w-2.5" style={{ background: `rgb(${accent ?? swatchColors?.accent ?? activePreset.dark.accent})` }} />
+                              )}
                             </div>
                           }
                           title={label}
@@ -619,6 +629,8 @@ export default function SettingsModal() {
                       )
                     })()}
                   </div>
+
+                  <CustomThemesSection />
 
                   {/* Glass appearance — Berean's version of macOS 27's system transparency slider.
                       Scales every translucent material's opacity (menus, popovers, side panel,

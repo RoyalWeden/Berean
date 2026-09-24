@@ -408,9 +408,10 @@ function useAppearance() {
     mq.addEventListener('change', h)
     return () => mq.removeEventListener('change', h)
   }, [])
+  const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
-    applyThemeToDocument({ theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
+    applyThemeToDocument({ theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes })
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
   useEffect(() => { applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily }) }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
   // Dynamic Type + accessibility switches (R082): the shell's CSS font sizes are multiplied by
   // `--m-type-scale`; VoiceOver / Bold Text / Increase Contrast become data attributes the CSS

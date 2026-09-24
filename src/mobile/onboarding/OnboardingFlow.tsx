@@ -84,7 +84,7 @@ export function OnboardingFlow() {
             <>
               <div className="mobile-onboarding-art"><Palette size={56} aria-hidden /></div>
               <h1>Appearance</h1>
-              <p>Follow the system, or pick light or dark. Colour presets, fonts and text size live in Settings.</p>
+              <p>Follow the system, or pick light or dark. Color presets, fonts and text size live in Settings.</p>
               <Segmented value={theme} options={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]} onChange={(v) => setTheme(v as 'system' | 'light' | 'dark')} />
             </>
           )}

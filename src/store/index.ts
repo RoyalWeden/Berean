@@ -640,6 +640,12 @@ export interface AppState {
   theme: 'dark' | 'light' | 'system'
   themePreset: string  // '' = default, 'system-accent', or one of the preset class names
   setThemePreset: (preset: string) => void
+  /** User-made themes (src/lib/customTheme.ts), selected via themePreset = 'custom:<id>'. Per device. */
+  customThemes: import('@/lib/customTheme').CustomTheme[]
+  setCustomThemes: (themes: import('@/lib/customTheme').CustomTheme[]) => void
+  addCustomTheme: (theme: import('@/lib/customTheme').CustomTheme) => void
+  updateCustomTheme: (id: string, patch: Partial<Omit<import('@/lib/customTheme').CustomTheme, 'id'>>) => void
+  deleteCustomTheme: (id: string) => void
 
   // Ambient background animation — see src/lib/themePresets.ts's AnimationStyle/AnimationIntensity
   // comments and ThemePicker.tsx for how these combine with a preset's own curated
@@ -1199,6 +1205,20 @@ export const useAppStore = create<AppState>()(
       theme: 'system' as const,
       themePreset: '',
       setThemePreset: (preset) => set({ themePreset: preset }),
+      customThemes: [],
+      setCustomThemes: (themes) => set({ customThemes: themes }),
+      addCustomTheme: (theme) => set((st) => ({ customThemes: [...st.customThemes.filter((t) => t.id !== theme.id), theme] })),
+      updateCustomTheme: (id, patch) => set((st) => ({
+        customThemes: st.customThemes.map((t) => (t.id === id ? { ...t, ...patch, id } : t)),
+      })),
+      // Deleting the active custom theme falls back to the preset it was based on.
+      deleteCustomTheme: (id) => set((st) => {
+        const gone = st.customThemes.find((t) => t.id === id)
+        return {
+          customThemes: st.customThemes.filter((t) => t.id !== id),
+          ...(st.themePreset === `custom:${id}` ? { themePreset: gone?.basedOn ?? '' } : {}),
+        }
+      }),
       backgroundAnimationEnabled: false,
       setBackgroundAnimationEnabled: (v) => set({ backgroundAnimationEnabled: v }),
       backgroundAnimationStyle: 'auto',
@@ -3199,6 +3219,7 @@ export const useAppStore = create<AppState>()(
         noteStrongsBlockSuggest: state.noteStrongsBlockSuggest,
         autoEmDash: state.autoEmDash,
         themePreset: state.themePreset,
+        customThemes: state.customThemes,
         backgroundAnimationEnabled: state.backgroundAnimationEnabled,
         backgroundAnimationStyle: state.backgroundAnimationStyle,
         backgroundAnimationIntensity: state.backgroundAnimationIntensity,
@@ -3333,7 +3354,7 @@ const ASK_WHY_SYNC_KEY = 'berean-ask-why-sync'
 // one real writer's latest snapshot. Without this, changing the theme while one of those
 // windows was already open only took effect on that window's NEXT open/reload.
 const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = [
-  'theme', 'themePreset', 'systemAccentColor',
+  'theme', 'themePreset', 'customThemes', 'systemAccentColor',
   'backgroundAnimationEnabled', 'backgroundAnimationStyle', 'backgroundAnimationIntensity',
   'glassAppearance',
 ]

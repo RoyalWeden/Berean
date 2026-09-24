@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { MoreHorizontal, Eye, Pencil } from 'lucide-react'
-import type { Note, NoteFolder, NoteVersion } from '@/types'
+import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
 import { resolveBookToken, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
@@ -14,6 +14,8 @@ import { Page, IconTap, ListSection, Row } from '../primitives/Page'
 import { useSheets } from '../primitives/Sheet'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { useNavigation } from '../navigation/NavigationStack'
+import { FolderPicker } from './FolderPicker'
+import { noteIsMovable } from '@/lib/noteMovability'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
 import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
@@ -172,7 +174,8 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
         ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label, onSelect: () => persist({ status: s.id }) })),
       ]) },
       { id: 'icon', label: n.icon ? `Icon (${n.icon})…` : 'Icon…', onSelect: () => sheets.open({ id: 'note-icon', title: 'Note icon', detents: [0.7, 0.92], render: (api) => <IconPicker current={n.icon ?? null} onPick={(emoji) => { persist({ icon: emoji }); void haptic.light(); api.close() }} /> }) },
-      { id: 'folder', label: 'Move to folder…', onSelect: () => sheets.open({ id: 'note-folder', title: 'Folder', detents: [0.6, 0.92], render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...n, folderId: id }; setNote(latest.current); bumpNoteToken(); api.close() }) }} /> }) },
+      // Only notes that live in a user folder can move (T23-030; same rule as desktop).
+      ...(noteIsMovable(n) ? [{ id: 'folder', label: 'Move to folder…', onSelect: () => sheets.open({ id: 'note-folder', title: 'Folder', detents: [0.6, 0.92], render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...n, folderId: id }; setNote(latest.current); bumpNoteToken(); api.close() }) }} /> }) }] : []),
       { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { latest.current = { ...(latest.current ?? n), content }; setNote(latest.current); bumpNoteToken() }} />) },
       ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
       { id: 'copy', label: 'Copy as Markdown', onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },
@@ -217,17 +220,6 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
         />
       </div>
     </Page>
-  )
-}
-
-function FolderPicker({ current, onPick }: { current: string | null; onPick: (id: string | null) => void }) {
-  const [folders, setFolders] = useState<NoteFolder[]>([])
-  useEffect(() => { window.notes.getFolders().then(setFolders).catch(() => setFolders([])) }, [])
-  return (
-    <ListSection>
-      <Row title="No folder" right={current === null ? '✓' : undefined} onClick={() => onPick(null)} />
-      {folders.map((f) => <Row key={f.id} title={f.name} right={current === f.id ? '✓' : undefined} onClick={() => onPick(f.id)} />)}
-    </ListSection>
   )
 }
 

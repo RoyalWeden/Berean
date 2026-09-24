@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store'
+import { sanitizeCustomThemes } from '@/lib/customTheme'
 
 /**
  * The settings-table ↔ store mapping (SQLite `settings` rows → store setters, and the reverse
@@ -9,6 +10,7 @@ export function hydrateSettingsIntoStore(all: Record<string, unknown>): void {
   const s = useAppStore.getState()
   if (typeof all.theme === 'string' && ['dark', 'light', 'system'].includes(all.theme as string))
     s.setTheme(all.theme as 'dark' | 'light' | 'system')
+  if (Array.isArray(all.customThemes)) s.setCustomThemes(sanitizeCustomThemes(all.customThemes))
   if (typeof all.themePreset === 'string') s.setThemePreset(all.themePreset)
   if (typeof all.fontSize === 'number') s.setBibleFontSize(all.fontSize)
   if (typeof all.lineHeight === 'string') s.setBibleLineHeight(all.lineHeight as 'compact' | 'comfortable' | 'spacious')
@@ -34,6 +36,7 @@ export function hydrateSettingsIntoStore(all: Record<string, unknown>): void {
 type S = ReturnType<typeof useAppStore.getState>
 const PERSISTED: Array<[settingKey: string, pick: (s: S) => unknown]> = [
   ['theme', (s) => s.theme], ['themePreset', (s) => s.themePreset],
+  ['customThemes', (s) => s.customThemes],
   ['fontSize', (s) => s.bibleFontSize], ['lineHeight', (s) => s.bibleLineHeight],
   ['defaultTranslation', (s) => s.defaultBibleTranslation],
   ['hermasTranslation', (s) => s.hermasTranslation],

@@ -3,6 +3,8 @@ import {
   type AnimationStyle, type AnimationIntensity,
 } from '@/lib/themePresets'
 import { applyTagPaletteToDocument } from '@/lib/tagPalette'
+import { useAppStore } from '@/store'
+import { CUSTOM_THEME_VARS, findCustomTheme, resolveThemeVars, type CustomTheme } from '@/lib/customTheme'
 
 /**
  * Single, shared implementation of "apply the current theme/preset/animation to <html>" —
@@ -31,6 +33,9 @@ export interface ApplyThemeOptions {
   /** Settings → Appearance → Glass appearance. Scales every material's alpha via
    *  `--glass-alpha-mult` (mirrors macOS 27's system transparency slider). */
   glassAppearance?: GlassAppearance
+  /** User-made themes (src/lib/customTheme.ts). Needed when `themePreset` is `custom:<id>`;
+   *  an unknown/missing custom id falls back to the Default palette. */
+  customThemes?: readonly CustomTheme[]
 }
 
 export type GlassAppearance = 'clear' | 'regular' | 'tinted'
@@ -43,6 +48,9 @@ export function applyThemeToDocument(opts: ApplyThemeOptions): void {
     backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
     glassAppearance,
   } = opts
+  // Callers should pass customThemes (and re-run on its change so edits apply live); fall back to
+  // this window's store so a 'custom:<id>' selection still resolves if a caller doesn't yet.
+  const customThemes = opts.customThemes ?? useAppStore.getState().customThemes
 
   ALL_PRESET_CLASSES.forEach((cls) => html.classList.remove(cls))
 
@@ -60,7 +68,11 @@ export function applyThemeToDocument(opts: ApplyThemeOptions): void {
   html.dataset.glass = glassAppearance ?? 'regular'
   html.style.setProperty('--glass-alpha-mult', String(GLASS_ALPHA_MULT[glassAppearance ?? 'regular']))
 
-  const baseId = (themePreset && themePreset !== 'system-accent') ? themePreset.replace(/-(?:dark|light)$/, '') : ''
+  // A custom theme ('custom:<id>') rides on its base preset's class for everything it doesn't
+  // override; the text/background overrides are applied inline further down.
+  const custom = findCustomTheme(themePreset, customThemes)
+  const presetId = custom ? custom.basedOn : (themePreset.startsWith('custom:') ? '' : themePreset)
+  const baseId = (presetId && presetId !== 'system-accent') ? presetId.replace(/-(?:dark|light)$/, '') : ''
 
   if (baseId) {
     const applyPreset = (isDark: boolean) => {
@@ -84,6 +96,12 @@ export function applyThemeToDocument(opts: ApplyThemeOptions): void {
   } else {
     html.style.removeProperty('--color-accent')
   }
+
+  // Custom theme palette overrides — inline on <html> so they beat the preset class. Always
+  // cleared first so switching back to a built-in preset leaves no residue.
+  for (const v of CUSTOM_THEME_VARS) if (v !== '--color-accent') html.style.removeProperty(v)
+  const customVars = resolveThemeVars(themePreset, customThemes, isDark ? 'dark' : 'light')
+  for (const [k, v] of Object.entries(customVars)) html.style.setProperty(k, v)
 
   const curatedStyle = PRESET_ANIMATION_STYLE[baseId]
   const effectiveStyle = curatedStyle

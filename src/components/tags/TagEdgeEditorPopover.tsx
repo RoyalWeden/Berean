@@ -13,7 +13,7 @@ const ARROW_OPTS: Array<{ value: TagEdgeArrows; icon: typeof Minus; title: strin
 ]
 
 const COLOR_SWATCHES: Swatch[] = Array.from({ length: TAG_SLOT_COUNT }, (_, i) => ({
-  id: String(i), rgb: `var(--tag-slot-${i})`, label: `Colour ${i + 1}`,
+  id: String(i), rgb: `var(--tag-slot-${i})`, label: `Color ${i + 1}`,
 }))
 
 export interface EdgeDraft {

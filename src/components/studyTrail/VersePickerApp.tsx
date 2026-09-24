@@ -267,12 +267,13 @@ export default function VersePickerApp() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+  const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
 
   useEffect(() => {
     window.app.onVersePickerInit((p) => {

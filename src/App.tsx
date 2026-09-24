@@ -628,12 +628,13 @@ export default function App() {
   // that mattered: a "Pop Out Tab" window or the presenter window used to silently fall back to
   // no preset at all for any theme added after their own copy was last updated).
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
+  const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
 
   // Sync per-section font families (shared with the mobile shell — src/lib/fontFamilies.ts)
   useEffect(() => {

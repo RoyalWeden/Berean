@@ -36,3 +36,15 @@
 
 /* ── voice list ───────────────────────────────────────────────────────────── */
 .settings-voice-tier { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: calc(11px * var(--m-type-scale, 1)); font-weight: 600; background: rgb(var(--color-accent) / 0.15); color: rgb(var(--color-accent)); }
+
+/* ── color preset picker (T23-033/034) ───────────────────────────────────── */
+.theme-preset-row { padding: 0; gap: 0; }
+.theme-preset-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 4px 8px 14px; background: none; border: 0; color: inherit; font: inherit; text-align: left; }
+.theme-preset-main:active { background: rgb(var(--color-surface-3)); }
+.theme-preset-action { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 48px; align-self: stretch; background: none; border: 0; color: rgb(var(--color-accent)); }
+.theme-preset-action:active { opacity: 0.5; }
+.theme-editor-preview { padding: 12px 16px 4px; }
+.theme-editor-name { width: 160px; padding: 6px 8px; border-radius: 8px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; text-align: right; }
+.theme-editor-color { width: 44px; height: 32px; padding: 0; border: 1px solid rgb(var(--color-surface-4)); border-radius: 8px; background: none; }
+.theme-editor-color::-webkit-color-swatch-wrapper { padding: 2px; }
+.theme-editor-color::-webkit-color-swatch { border: 0; border-radius: 6px; }
