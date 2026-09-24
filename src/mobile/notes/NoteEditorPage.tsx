@@ -11,8 +11,8 @@ import { parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useLongPress } from '../primitives/useLongPress'
 import { Page, IconTap, ListSection, Row } from '../primitives/Page'
-import { useSheets } from '../primitives/Sheet'
-import { useActionSheet } from '../primitives/ActionSheet'
+import { useSheets, type SheetApi } from '../primitives/Sheet'
+import { useActionSheet, ChoiceList } from '../primitives/ActionSheet'
 import { useNavigation } from '../navigation/NavigationStack'
 import { FolderPicker } from './FolderPicker'
 import { noteIsMovable } from '@/lib/noteMovability'
@@ -169,13 +169,14 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     if (!n) return []
     return [
       { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { latest.current = { ...n, pinned: !n.pinned }; setNote(latest.current); bumpNoteToken() }) } },
-      { id: 'status', label: `Status${n.status ? ` (${NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status})` : ''}…`, onSelect: () => actions('note-status', 'Status', [
-        { id: 'none', label: 'No status', onSelect: () => persist({ status: null }) },
-        ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label, onSelect: () => persist({ status: s.id }) })),
-      ]) },
-      { id: 'icon', label: n.icon ? `Icon (${n.icon})…` : 'Icon…', onSelect: () => sheets.open({ id: 'note-icon', title: 'Note icon', detents: [0.7, 0.92], render: (api) => <IconPicker current={n.icon ?? null} onPick={(emoji) => { persist({ icon: emoji }); void haptic.light(); api.close() }} /> }) },
+      // Status, icon and folder open INSIDE the caret ("‹ <note>") — T23-006.
+      { id: 'status', label: 'Status', value: n.status ? (NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status) : 'None', onSelect: () => {},
+        view: () => ({ title: 'Status', render: (api: SheetApi) => <ChoiceList api={api} value={latest.current?.status ?? 'none'} options={[{ id: 'none', label: 'No status' }, ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label }))]} onSelect={(id) => persist({ status: id === 'none' ? null : (id as NonNullable<Note['status']>) })} /> }) },
+      { id: 'icon', label: 'Icon', value: n.icon ?? undefined, onSelect: () => {},
+        view: () => ({ title: 'Note icon', expand: true, render: (api: SheetApi) => <IconPicker current={latest.current?.icon ?? null} onPick={(emoji) => { persist({ icon: emoji }); void haptic.light(); api.pop() }} /> }) },
       // Only notes that live in a user folder can move (T23-030; same rule as desktop).
-      ...(noteIsMovable(n) ? [{ id: 'folder', label: 'Move to folder…', onSelect: () => sheets.open({ id: 'note-folder', title: 'Folder', detents: [0.6, 0.92], render: (api) => <FolderPicker current={n.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...n, folderId: id }; setNote(latest.current); bumpNoteToken(); api.close() }) }} /> }) }] : []),
+      ...(noteIsMovable(n) ? [{ id: 'folder', label: 'Move to folder', onSelect: () => {},
+        view: () => ({ title: 'Folder', expand: true, render: (api: SheetApi) => <FolderPicker current={latest.current?.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...(latest.current ?? n), folderId: id }; setNote(latest.current); bumpNoteToken(); api.pop() }) }} /> }) }] : []),
       { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { latest.current = { ...(latest.current ?? n), content }; setNote(latest.current); bumpNoteToken() }} />) },
       ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
       { id: 'copy', label: 'Copy as Markdown', onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },

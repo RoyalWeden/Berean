@@ -85,10 +85,13 @@ export function useCaretTopVersion(): number {
 /** Reuse a page's existing action-sheet definitions as caret commands (no re-implementation):
  *  ids listed in `tiles` become the top tile row, the rest a grouped list. */
 export function fromSheetActions(
-  actions: Array<{ id: string; label: string; icon?: LucideIcon; destructive?: boolean; disabled?: boolean; onSelect: () => void }>,
+  actions: Array<{ id: string; label: string; icon?: LucideIcon; destructive?: boolean; disabled?: boolean; value?: string; onSelect: () => void; view?: () => CaretView }>,
   opts: { tiles?: string[]; title?: string; tileLabels?: Record<string, string> } = {},
 ): CaretSection[] {
-  const toCmd = (a: (typeof actions)[number], label = a.label): CaretCommand => ({ kind: 'action', id: a.id, label, icon: a.icon, destructive: a.destructive, disabled: a.disabled, run: a.onSelect })
+  // An action with a `view` opens inside the caret (T23-006) instead of closing it for a new sheet.
+  const toCmd = (a: (typeof actions)[number], label = a.label): CaretCommand => (a.view
+    ? { kind: 'view', id: a.id, label, icon: a.icon, disabled: a.disabled, value: a.value, view: a.view }
+    : { kind: 'action', id: a.id, label, icon: a.icon, destructive: a.destructive, disabled: a.disabled, value: a.value, run: a.onSelect })
   const tiles = actions.filter((a) => opts.tiles?.includes(a.id)).map((a) => toCmd(a, opts.tileLabels?.[a.id] ?? a.label))
   const rows = actions.filter((a) => !opts.tiles?.includes(a.id)).map((a) => toCmd(a))
   return [
