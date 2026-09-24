@@ -1,4 +1,4 @@
-# iPhone navigation (testing wave 2026-09-22, Wave 4)
+# iPhone navigation (testing wave 2026-09-22 Wave 4; refined 2026-09-23)
 
 The persistent bottom space bar, the tab pill and the per-page "…" / "Aa" / translation controls
 are replaced by **three persistent controls**, visible on every tab type (Scripture, Compare, PDF,
@@ -24,21 +24,49 @@ Files: `src/mobile/navigation/BottomNav.tsx`, `src/mobile/navigation/NewTabSheet
 
 A view of the shared tab / session model, not a data model of its own. It lists **every tab of the
 current workspace, all types together** (Scripture, Compare, PDF, Note, Tags, Lexicon, YouTube,
-Search) in space order then tab order — the old grid showed only the current space's tabs, which
-read as a separate workspace per type (TEST-022). Tap → switch (any space); × → close; long-press →
-tab actions; header: workspace switcher, Reorder (within each type — tab order is per type, as on
-desktop), Archived tabs; a New tab card opens the plus surface.
+Search, History, Settings) in the workspace's **unified display order** — the same order the Mac
+sidebar shows (`sessionDisplayOrders` / `reorderTabDisplay`).
+
+Each tab is a **card previewing its last state** (`src/mobile/tabs/TabPreview.tsx`): Scripture shows
+the passage text from where the tab was being read (its verse anchor), Compare both columns, a note
+its title and text, Search its query and scope, Lexicon the entry, YouTube the video thumbnail,
+History the latest entries, Settings the current look. Previews are lightweight (the tab's own data,
+cached for the session) — no screenshots, and rendering a card never touches the tab's state. The
+only translation named on a card is **LXX** (KJV is the default) — T23-007.
+
+Gestures (the card layer owns them — T23-005):
+
+| Gesture | Result |
+|---|---|
+| tap | open the tab |
+| × | close the tab |
+| press and hold (≈0.4 s) | the card lifts (haptic) |
+| … then drag | reorder — the other cards make room; drop writes the display order |
+| … release without dragging | the tab's actions, inside the same sheet (‹ Tabs) |
+| finger moves before the lift | ordinary scroll |
+
+While a card is pressed nothing underneath can be text-selected, highlighted or given a callout.
+There is no Reorder button (T23-008). VoiceOver gets an "Actions for …" button per card, and the
+actions include Move earlier / Move later. The workspace chip, a workspace's actions and icon,
+Move to workspace and the **New tab** card all open **inside this sheet** with "‹ Tabs" at the top
+(T23-012). Every genuine tab type can have several independent instances; each tab has its own
+navigation stack and keeps its own state (Search query/scope/filters and History filter live in the
+tab; a Notes tab reopens its note) — T23-009.
 
 ## 2. Plus (bottom center)
 
 A floating search sheet built for frequent Bible use (S1 screenshot). The query is classified
-(`classifyNewTabQuery`): a reference ("John 3:16", "Genesis 1", "Romans 8:28", "Psalm 23") →
-Open in a new Scripture tab (or the current one) via the shared `navigateToVerse`; a Strong's
-number → Lexicon; anything else → Search. With an empty query: tiles for each top-level tab type
-(Scripture, Note, Today's daily note, Lexicon, YouTube, Search), then navigation (More, History,
-Workspaces, Settings), then recent history.
+(`classifyNewTabQuery`): a reference ("John 3:16", "Psalm 23:1-6") → Open in a new Scripture tab
+(or the current one) via the shared `navigateToVerse`; a Strong's number → Lexicon. While typing,
+**"Search … in a new Search tab"** opens a DEDICATED Search tab (never reuses the current one) —
+T23-010. With an empty query: one tile per **genuine tab type**, each creating a real, independent
+tab — Scripture, Note, Today's daily note, Lexicon, YouTube, History, Settings, and Compare when the
+current passage has an LXX ↔ KJV counterpart (T23-009); then navigation that is not a tab (More,
+Workspaces), then recent history. There is no Search tile — a Search tab starts from what you type.
 
 ## 3. Caret (bottom right) — command registry
+
+(Commands of kind `view` open **inside the caret** — see §5.)
 
 `caretRegistry` holds registrations from mounted pages; **the most recently mounted page wins**
 (a pushed note editor takes over from the notes list and hands back on pop). A page registers with
@@ -54,11 +82,11 @@ reused through `fromSheetActions` (not re-implemented). The caret has **no low d
 
 | Context | Caret contents |
 |---|---|
-| Scripture | tiles: Translation (current), Go to, Strong's (toggle), Read aloud · Reading: KJV/LXX quick switch, All translations…, Text size, Line height, Continuous scroll, Verse numbers, Red letter text, Font/theme/more… · Navigate: previous / next chapter, Compare translations · Study: cross-reference source (TSKe/Classic), Tag this chapter, Study trail · Share: copy reference, share chapter |
-| Compare | tiles: Go to, Add text · Compare: Strong's toggle, sync scroll on Mac, exit compare |
+| Scripture | tiles: Strong's (toggle), **KJV ⇄ LXX switch** (only where the other text has this passage — `compareCounterpart`), **Compare** (only where `compareApplicable`), Read aloud · Reading: **All Translations  ‹current› ›** (in-caret list), Text size, Line height, Font › (in-caret), Appearance (Auto/Light/Dark), Color › (in-caret, previews), Continuous scroll, Verse numbers, Red letter text · Study: cross-reference source (TSKe/Classic), Tag this chapter › (in-caret), Study trail · Share: copy reference, share chapter. Opening the caret shows the top bar. No Go to / translation tile / KJV-LXX segmented / ‹ › chapter rows / "Font, theme and more…" — the title is the passage search, edge taps and swipes change chapter |
+| Compare | tiles: Strong's (both columns), **Sync Scrolling** (default on) · Swap sides, Exit compare |
 | Notes list | tiles: New note, Today · Notes: Import Markdown, Export idioms (when present), New folder, All views (desktop layout) |
-| Note editor | tiles: Pin, Share, Copy, Print / PDF · Note: status, icon, folder, version history, insert video timestamp (when a video is open), export Markdown, move to trash |
-| Search | Search in: Scripture / Notes / Lexicon · Scripture results: Filters…, Sort, Reset filters · Clear search, History |
+| Note editor | tiles: Pin, Share, Copy, Print / PDF · Note: Status › / Icon › / Move to folder › (in-caret; Move only for movable notes), version history, insert video timestamp (when a video is open), export Markdown, move to trash |
+| Search | Search in: Scripture / Notes / Lexicon · Match: All / Any / Phrase · Scripture filters: Text ›, Books ›, Verse tags › (in-caret), Reset · Sort: order + direction · Clear search, History. (No filter button in the header — T23-013) |
 | Lexicon | tiles: Open number, Copy entry (desktop copy semantics), In Scripture · Copy Strong's number, New lexicon tab |
 | YouTube | YouTube settings, Transcript packs, New YouTube tab |
 | PDF | PDF library, New Scripture tab |
@@ -78,23 +106,71 @@ reused through `fromSheetActions` (not re-implemented). The caret has **no low d
 | Tab pill | horizontal swipe → adjacent tab | Horizontal swipe across the bottom bar |
 | Tab pill | + new tab of the space's type | Plus → type tiles; Tab cards → New tab card |
 | Tab grid | workspace switcher chip | Tab cards header chip (unchanged sheet) |
-| Tab grid | reorder mode | Tab cards → Reorder |
+| Tab grid | reorder mode | Tab cards → press, hold and drag a card |
 | Tab grid | card tap / × / long-press actions (rename, duplicate, move up/down, move to workspace, archive, close others, close) | Tab cards — same actions |
-| Workspaces sheet | switch / new / rename / icon / archive all / delete | unchanged, from Tab cards → workspace chip |
-| Reader header | Translation (left icon) | Caret → Translation tile, KJV/LXX quick switch, All translations…; also shown on the title |
-| Reader header | Aa Reading options (text size, line height, theme, verse numbers, font, continuous scroll) | Caret → Reading group (inline); font/theme via "Font, theme and more reading options…" (same sheet) |
+| Workspaces sheet | switch / new / rename / icon / archive all / delete | Tab cards → workspace chip (inside the tab-cards sheet, ‹ Tabs) |
+| Reader header | Translation (left icon) | Caret → KJV ⇄ LXX switch tile (where applicable), All Translations (in-caret); LXX named on the title |
+| Reader header | Aa Reading options (text size, line height, theme, verse numbers, font, continuous scroll) | Caret → Reading group (inline; Font and Color in-caret) |
 | Reader header | … → Show/Hide Strong's | Caret → Strong's tile |
 | Reader header | … → Reading options | Caret → Reading group |
-| Reader header | … → Previous / Next chapter | Caret → Navigate; edge taps; swipe |
-| Reader header | Title → Go to | Title (new passage navigator) · Caret → Go to |
+| Reader header | … → Previous / Next chapter | Edge taps; swipe; title (passage search) |
+| Reader header | Title → Go to | Title (passage navigator) |
 | Notes list header | … (import, idioms, new folder, desktop layout) | Caret → Notes group |
 | Notes list header | + New note, Today | unchanged (dedicated header controls) + caret tiles |
 | Note editor header | … (pin, status, icon, folder, versions, timestamp, copy, print, share, export, trash) | Caret (tiles + Note group) |
 | Note editor header | Edit / View | unchanged (dedicated) |
-| Compare header | … (Strong's, sync scroll, exit) | Caret → Compare group |
-| Compare header | ‹ › chapter, title → Go to, translation chips | unchanged (dedicated) |
-| Search header | Filters | unchanged (dedicated) + caret |
+| Compare header | … (Strong's, sync scroll, exit) | Caret → Strong's, Sync Scrolling, Swap sides, Exit compare |
+| Compare header | ‹ › chapter, title → Go to | unchanged (dedicated); translation chips removed (LXX ↔ KJV only) |
+| Search header | Filters | Caret → Match / Scripture filters / Sort (T23-013) |
 | Verse long-press sheet | all verse actions | Verse sheet (tap a verse) — see post-migration-architecture.md §8 |
 
 Nothing reachable before is unreachable now; `docs/mobile/testing-backlog-2026-09-22.md` records
 the per-item verification.
+
+### 4b. Removed 2026-09-23 → new home (nothing became unreachable)
+
+| Removed | What it did | New home |
+|---|---|---|
+| Caret: Go to tile | open the passage picker | the reader title (tap) — passage search |
+| Caret: translation tile | pick a text | caret → All Translations (in-caret, current text at right) |
+| Caret: KJV / LXX segmented | switch KJV ⇄ LXX | one switch tile beside Strong's, only where the other text has the passage |
+| Caret: Previous / Next chapter rows | change chapter | edge taps, swipe, title |
+| Caret: "Font, theme and more reading options…" | font, theme, size, line height… | caret Reading group inline; Font and Color in-caret |
+| Tab cards: Reorder button | reorder tabs | press, hold and drag a card; Move earlier / later in a card's actions |
+| New Tab: Search tile | open a Search tab | type, then "Search … in a new Search tab" |
+| New Tab: History / Settings rows (pages) | open History / Settings | History / Settings tiles create real tabs; More still lists both |
+| Search header: filter button | open the filter sheet | Search caret → Match / Scripture filters / Sort |
+| Compare: Add text, Go to, "(KJVA+)" / column chips | pick more texts | Compare is LXX ↔ KJV only; title = passage picker |
+| More: Lexicon / YouTube rows | open those spaces | plus sheet tiles; Strong's → Open in Lexicon; search results |
+
+## 5. Sheets are navigable surfaces (2026-09-23)
+
+Berean iPhone is one navigation system: **Tab cards → Tab → Caret → current Sheet → sub-view in the
+same sheet → back**. When a control inside a sheet shows another view of the same context, the SAME
+sheet replaces its content (slide forward) and shows a contextual back control at its top — "‹
+Scripture", "‹ Tabs", "‹ Genesis 1:3" — that returns to the previous view (slide back), keeping the
+parent's scroll position. No second sheet is stacked (T23-006/012/019).
+
+API (`src/mobile/primitives/Sheet.tsx`): `api.push({ key, title, render, expand? })`, `api.pop()`,
+`api.popToRoot()`, `api.depth`, `useSheetApi()`; sheet option `rootTitle` names the root view for the
+back label. Reusable bodies: `ChoiceList` (single choice with a check) and `actionListView` (action
+rows; a row with `view` goes one level deeper). Caret commands of kind `view` push a nested command
+scope or a custom body.
+
+Where it is used: caret → All Translations / Font / Color / Tag chapter; Search caret → Text /
+Books / Verse tags; note caret → Status / Icon / Folder; verse sheet → Notes / Cross references /
+Tag / Strong's entry, and the several-verse view (T23-028); tab cards → Workspaces → workspace
+actions → Icon, tab actions → Move to workspace, New tab.
+
+Still separate sheets (genuinely separate surfaces): the plus sheet from the bottom bar, the caret,
+the tab cards, the verse sheet, a Strong's number tapped in the reader text itself, the audio
+player, and single sheets opened from a page (selection bar, lexicon search results).
+
+## 6. Verse selection and the verse sheet (2026-09-23)
+
+Tap adds a verse to the selection, tap a selected verse removes it (`toggleVerseInSelection`,
+contiguous or not; a selection in another text — the other Compare column — starts over). One verse
+→ the verse sheet's study view; several → the same sheet, same height, shows the several-verse view
+(combined "John 3:6-7, 18", highlight all, copy in the shared multi-verse format, tag, play, clear).
+Drag-select from verse numbers is unchanged. The study view no longer prints "(KJVA+)"; Strong's
+superscripts are 0.7em in the reader, the study view and Compare (T23-027/029).
