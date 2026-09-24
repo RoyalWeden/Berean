@@ -250,6 +250,8 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const tagsLabel = f.tagIds.length === 0 ? 'None' : `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}`
     return {
       title: q ? `Search · “${q}”` : 'Search', backTitle: 'Search',
+      // Same header as every caret (SEP24-008): tap to edit the query in the page's own field.
+      location: { label: q ? `“${q}”` : 'Search', placeholder: 'Edit the search', run: () => setTimeout(() => (document.querySelector('.mobile-search-input') as HTMLInputElement | null)?.focus(), 250) },
       sections: [
         // No Scope row (NEW-014): the page's own Scripture / Notes / Lexicon switch is the scope.
         { id: 'match', title: 'Match', commands: [

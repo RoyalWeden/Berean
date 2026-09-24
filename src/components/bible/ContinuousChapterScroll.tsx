@@ -214,13 +214,29 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       const c = scrollRef.current
       if (!c) return visibleCh
       const top = c.getBoundingClientRect().top + 1
-      let best = visibleCh
+      let best: number | null = null
       chapterWrapperRefs.current.forEach((el, ch) => {
         const r = el.getBoundingClientRect()
         if (r.top <= top && r.bottom > top) best = ch
       })
-      return best
-    }, [visibleCh])
+      if (best != null) return best
+      // The viewport top is inside a placeholder (measured chapters that were evicted): work out
+      // which chapter that offset belongs to from the measured heights.
+      const y = c.scrollTop
+      const firstEl = chapterWrapperRefs.current.get(firstCh)
+      if (firstEl && y < firstEl.offsetTop) {
+        let acc = firstEl.offsetTop
+        for (let ch = firstCh - 1; ch >= 1; ch--) { acc -= heightCacheRef.current.get(ch) ?? 0; if (y >= acc) return ch }
+        return 1
+      }
+      const lastEl = chapterWrapperRefs.current.get(lastCh)
+      if (lastEl) {
+        let acc = lastEl.offsetTop + lastEl.offsetHeight
+        for (let ch = lastCh + 1; ch <= totalChapters; ch++) { acc += heightCacheRef.current.get(ch) ?? 0; if (y < acc) return ch }
+        return totalChapters
+      }
+      return visibleCh
+    }, [visibleCh, firstCh, lastCh, totalChapters])
     const lastScrollTopRef = useRef(0)
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
       onScroll?.(e)
@@ -232,6 +248,11 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       const speed = Math.abs(scrollTop - lastScrollTopRef.current)
       lastScrollTopRef.current = scrollTop
       const ahead = speed > clientHeight * 0.5 ? 2 : LOAD_AHEAD
+      // A fling that lands inside placeholder space mounts that chapter (and a neighbour) right away —
+      // otherwise nothing loads until the very edge and the reader shows empty space (SEP24-004).
+      // The far end is trimmed in the same step, so only a small window mounts.
+      if (live < firstCh) { measureMountedChapterHeights(); setFirstCh(Math.max(1, live - 1)); setLastCh((prev) => Math.max(live, Math.min(prev, live + WINDOW_CHAPTERS))) }
+      if (live > lastCh) { measureMountedChapterHeights(); setLastCh(Math.min(totalChapters, live + 1)); setFirstCh((prev) => Math.min(live, Math.max(prev, live - WINDOW_CHAPTERS))) }
       // Near bottom → load next chapter
       if (scrollHeight - scrollTop - clientHeight < clientHeight * 1.2) {
         setLastCh((prev) => Math.min(prev + ahead, totalChapters))
@@ -294,7 +315,10 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
         resetScrollRef.current = false
         anchorRef.current = null
         const head = chapterWrapperRefs.current.get(firstCh)
-        c.scrollTop = head ? head.offsetTop : 0
+        // Honour the container's scroll-padding-top (the phone reader's overlay header sets it;
+        // desktop has none), so the chapter start isn't hidden under a translucent bar.
+        const pad = parseFloat(getComputedStyle(c).scrollPaddingTop) || 0
+        c.scrollTop = head ? Math.max(0, head.offsetTop - pad) : 0
         return
       }
       const a = anchorRef.current

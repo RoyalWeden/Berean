@@ -190,3 +190,13 @@ superscripts are 0.7em in the reader, the study view and Compare (T23-027/029).
 - **Search caret**: no Scope row; History opens in the caret; Books = individual books.
 - **Reader chrome**: scrolling down collapses the header into a compact pill joined to the Dynamic
   Island / notch and slides the bottom controls away (same hysteresis); tap the pill for the picker.
+
+## Caret header and tab history (2026-09-24)
+
+Every caret opens with a location field (the current passage / note / query; tapping it opens
+that tab's finder — the passage picker, note finder or search field — inside the same sheet) and
+‹ › buttons that step through the **current tab's** history (the shared per-tab navigation
+stacks the desktop uses). The reader caret's tiles are Find on Page · Strong's · KJV/LXX · Read
+aloud; Compare and All Translations sit below; Display options are an inline disclosure. The
+study-trail "Why did you go to…" prompt is not shown on iPhone. Destination map and gesture
+ownership: [testing-backlog-2026-09-24.md](testing-backlog-2026-09-24.md).

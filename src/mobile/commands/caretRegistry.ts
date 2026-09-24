@@ -32,6 +32,9 @@ export interface CaretSection {
   title?: string
   /** `tiles` — the few most frequent actions as large tiles at the top (Arc-style); `rows` — a grouped list. */
   style?: 'tiles' | 'rows'
+  /** A compact one-line row that expands INLINE (in this same sheet) into the section's commands
+   *  — e.g. "Display ›" (SEP24-010). Collapsed by default. */
+  collapsible?: { label: string; icon?: LucideIcon; summary?: string }
   commands: CaretCommand[]
 }
 
@@ -42,6 +45,10 @@ export interface CaretScope {
   /** Name of this context for the back control of views pushed from it ("‹ Scripture").
    *  Defaults to `title`. */
   backTitle?: string
+  /** The navigation header (SEP24-008): the current location as a search-field-like control
+   *  (tap → a view in this sheet to go somewhere else) with the CURRENT TAB's back / forward
+   *  history (the shared per-tab nav stack — navTabBack / navTabForward). */
+  location?: { label: string; placeholder?: string; view?: () => CaretView; /** Instead of a view: close the caret and run (e.g. focus the page's own search field). */ run?: () => void }
   sections: CaretSection[]
 }
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { BookOpen, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat } from 'lucide-react'
+import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
 import ChapterView from '@/components/bible/ChapterView'
@@ -23,6 +23,7 @@ import { perfMark } from '@/platform/ios/perf'
 import { SelectionBar } from '../study/SelectionBar'
 import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { PassagePicker } from './PassagePicker'
+import { FindOnPageBar } from './FindOnPage'
 import { usePinchFontSize, BIBLE_FONT_MAX, BIBLE_FONT_MIN } from './usePinchFontSize'
 import { TranslationChoices, FontChoices, ColorChoices, translationShortLabel, fontLabel } from './readerViews'
 import { themePresetLabel } from '../settings/ThemePresetPage'
@@ -187,30 +188,47 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   }
   const continuous = useAppStore((s) => s.continuousChapterScroll)
 
-  // ── caret commands (reworked T23-014…021) ──────────────────────────────────────────────
-  // One surface: quick tiles (Strong's with the KJV⇄LXX switch beside it, Compare, Read aloud),
-  // then inline reading controls; All Translations, Font and Color open INSIDE the caret with
-  // "‹ Scripture" at the top. Passage navigation lives on the title (tap → passage search) and on
-  // edge taps / swipes, so the caret no longer repeats Go to, a translation tile or ‹ › chapter rows.
+  // ── Find on Page (SEP24-019) ──────────────────────────────────────────────────────────
+  const [find, setFind] = useState<{ open: boolean; query: string }>({ open: false, query: '' })
+  const findQuery = find.open ? find.query.trim() : ''
+  useEffect(() => { setFind({ open: false, query: '' }) }, [state.bookId, textId])
+
+  // ── caret commands (SEP24-008/009/010) ───────────────────────────────────────────────────
+  // [ location / search ] [‹] [›] (this tab's history) → Find on Page · Strong's · KJV⇄LXX tiles →
+  // Compare (where valid) and All Translations → "Display ›" (collapsed, expands in place) → Study →
+  // Share. Passage navigation: the location field (picker inside the caret), the title, edge taps
+  // and swipes — no Go to / translation tile / ‹ › chapter rows / "Switch text" label.
   useCaretCommands(() => {
     const st = useAppStore.getState()
     const ref = `${bookName(state.bookId)} ${displayChapter(state.bookId, state.chapter)}`
     // The quick switch only exists where the other text really has this passage (T23-017).
     const alt = compareCounterpart(textId, state.bookId, state.chapter)
     const canCompare = compareApplicable(state.bookId, state.chapter, textId)
+    const textLabel = translationShortLabel(textId)
     return {
       title: ref, backTitle: 'Scripture',
+      location: {
+        label: `${ref} · ${textLabel}`, placeholder: 'Go to a book, chapter or collection',
+        view: () => ({ title: 'Library', render: (a) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => {
+          a.close()
+          if (d.textId.toLowerCase() !== textId) updateTabState('scripture', tab.id, { translation: d.textId.toUpperCase() })
+          goTo(d.bookId, d.chapter, d.verse, d.endVerse)
+        }} /> }),
+      },
       sections: [
         { id: 'quick', style: 'tiles', commands: [
+          { kind: 'action', id: 'find', label: 'Find on Page', icon: TextSearch, run: () => setFind({ open: true, query: '' }) },
           { kind: 'toggle', id: 'strongs', label: "Strong's", icon: Hash, value: !!state.showStrongs, set: (v) => updateTabState('scripture', tab.id, { showStrongs: v }) },
-          // Compact switch (NEW-010): icon + target text only ("LXX" / "KJV"), no "Switch text" label.
+          // Compact switch (NEW-010): icon + target text only ("LXX" / "KJV").
           ...(alt ? [{ kind: 'action' as const, id: 'switch-text', label: translationShortLabel(alt.textId) === 'KJVA' ? 'KJV' : translationShortLabel(alt.textId), icon: Repeat, keepOpen: true, a11yLabel: alt.textId === 'lxx' ? 'Switch to the Septuagint' : 'Switch to the King James Version', run: () => switchText(alt.textId) }] : []),
-          ...(canCompare ? [{ kind: 'action' as const, id: 'compare', label: 'Compare', icon: Columns2, run: () => st.addTab(makeCompareTab({ ...state }, state.targetVerse)) }] : []),
           { kind: 'action', id: 'audio', label: 'Read aloud', icon: Volume2, run: () => st.startPlaybackFrom(state.bookId, state.chapter, 1, textId) },
         ] },
-        { id: 'reading', title: 'Reading', commands: [
-          { kind: 'view', id: 'all-translations', label: 'All Translations', icon: Languages, value: translationShortLabel(textId),
+        { id: 'text', commands: [
+          ...(canCompare ? [{ kind: 'action' as const, id: 'compare', label: 'Compare with ' + (alt?.textId === 'lxx' ? 'the Septuagint' : 'the KJV'), icon: Columns2, run: () => st.addTab(makeCompareTab({ ...state }, state.targetVerse)) }] : []),
+          { kind: 'view', id: 'all-translations', label: 'All Translations', icon: Languages, value: textLabel,
             view: () => ({ title: 'All Translations', render: (a) => <TranslationChoices api={a} textId={textId} onPick={switchText} /> }) },
+        ] },
+        { id: 'display', collapsible: { label: 'Display', icon: ALargeSmall, summary: `${st.bibleFontSize} pt · ${fontLabel(st.scriptureFontFamily)}` }, commands: [
           { kind: 'stepper', id: 'size', label: 'Text size', icon: ALargeSmall, value: st.bibleFontSize, min: BIBLE_FONT_MIN, max: BIBLE_FONT_MAX, set: st.setBibleFontSize },
           { kind: 'segmented', id: 'line-height', label: 'Line height', icon: AlignJustify, value: st.bibleLineHeight, options: [['compact', 'Compact'], ['comfortable', 'Normal'], ['spacious', 'Airy']], set: (v) => st.setBibleLineHeight(v as 'compact' | 'comfortable' | 'spacious') },
           { kind: 'view', id: 'font', label: 'Font', icon: CaseSensitive, value: fontLabel(st.scriptureFontFamily), view: () => ({ title: 'Font', render: (a) => <FontChoices api={a} /> }) },
@@ -295,7 +313,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
               bookId={state.bookId} chapter={state.chapter} totalChapters={chapterCount}
               showStrongs={state.showStrongs} textId={textId}
               targetVerse={state.targetVerse} onTargetVerseConsumed={() => updateTabState('scripture', tab.id, { targetVerse: undefined })}
-              onStrongsClick={openStrongs}
+              onStrongsClick={openStrongs} findQuery={findQuery} findWordMode="all"
               onChapterChange={(ch) => { if (ch !== state.chapter) updateTabState('scripture', tab.id, { chapter: ch }) }}
             />
           </div>
@@ -318,7 +336,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
             )}
             <ReaderPane key={centerKey} width={width} waitForLoad={!!heldPane} onReady={releaseHeld} target={{ bookId: state.bookId, chapter: state.chapter }} textId={textId} showStrongs={state.showStrongs}
             targetVerse={state.targetVerse} onTargetVerseConsumed={() => updateTabState('scripture', tab.id, { targetVerse: undefined })}
-            onStrongsClick={openStrongs} tabId={tab.id} initialAnchor={pagedAnchor} onSaveAnchor={saveAnchor} />
+            onStrongsClick={openStrongs} tabId={tab.id} initialAnchor={pagedAnchor} onSaveAnchor={saveAnchor} findQuery={findQuery} />
           </div>
           <ReaderPane key={neighbours.next ? `${neighbours.next.bookId}-${neighbours.next.chapter}` : 'none-next'} width={width} target={neighbours.next} textId={textId} showStrongs={state.showStrongs} preview />
         </motion.div>
@@ -328,6 +346,12 @@ export function ReaderPage({ tab }: { tab: Tab }) {
         <button type="button" className="mobile-reader-edge is-left" aria-label={neighbours.prev ? `Previous chapter, ${bookName(neighbours.prev.bookId)} ${displayChapter(neighbours.prev.bookId, neighbours.prev.chapter)}` : 'No previous chapter'} onClick={() => goNeighbour('prev')} />
         <button type="button" className="mobile-reader-edge is-right" aria-label={neighbours.next ? `Next chapter, ${bookName(neighbours.next.bookId)} ${displayChapter(neighbours.next.bookId, neighbours.next.chapter)}` : 'No next chapter'} onClick={() => goNeighbour('next')} />
         {pinch.badge && <div className="mobile-pinch-badge" aria-live="polite">{pinch.badge}</div>}
+        {find.open && (
+          <FindOnPageBar textId={textId} bookId={state.bookId} chapters={chapterCount} query={find.query}
+            onQuery={(q) => setFind({ open: true, query: q })}
+            onGo={(m) => updateTabState('scripture', tab.id, { chapter: m.chapter, targetVerse: m.verse })}
+            onClose={() => setFind({ open: false, query: '' })} />
+        )}
         <SelectionBar tabId={tab.id} onOpenNote={openNoteInNotesSpace} />
       </div>
       </VerseInteractionContext.Provider>
@@ -335,13 +359,14 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   )
 }
 
-function ReaderPane({ width, target, textId, showStrongs, preview, held, waitForLoad, onReady, targetVerse, onTargetVerseConsumed, onStrongsClick, tabId, initialAnchor, onSaveAnchor }: {
+function ReaderPane({ width, target, textId, showStrongs, preview, held, waitForLoad, onReady, findQuery, targetVerse, onTargetVerseConsumed, onStrongsClick, tabId, initialAnchor, onSaveAnchor }: {
   width: number; target: { bookId: string; chapter: number } | null; textId: string; showStrongs: boolean; preview?: boolean
   /** The previous text's pane kept on top during a text switch (NEW-005A). */
   held?: boolean
   /** Stay hidden until the verses are loaded (a held pane covers it meanwhile). */
   waitForLoad?: boolean
   onReady?: () => void
+  findQuery?: string
   targetVerse?: number; onTargetVerseConsumed?: () => void; onStrongsClick?: (num: string) => void; tabId?: string
   initialAnchor?: ReaderAnchor; onSaveAnchor?: (el: HTMLElement) => void
 }) {
@@ -370,6 +395,7 @@ function ReaderPane({ width, target, textId, showStrongs, preview, held, waitFor
         <div ref={scrollRef} className="mobile-reader-scroll" onScroll={onScroll}>
           <ChapterView bookId={target.bookId} chapter={target.chapter} textId={textId} showStrongs={showStrongs}
             targetVerse={targetVerse} onTargetVerseConsumed={onTargetVerseConsumed} onStrongsClick={onStrongsClick} tabId={tabId}
+            findQuery={findQuery} findWordMode="all"
             onVersesLoaded={preview ? undefined : onVersesLoaded} />
           <div className="mobile-reader-end" />
         </div>

@@ -71,15 +71,31 @@ inset-grouped action list, primary action first (Enter runs it). No Compare, no 
 - **Reduce Transparency**: `@media (prefers-reduced-transparency: reduce)` and
   `html[data-reduce-transparency]` redefine every material token to its opaque surface and set
   the filters to `none`. WebKit on iOS does not reliably report the media query, so the native
-  a11y bridge should set `data-reduce-transparency` from
-  `UIAccessibility.isReduceTransparencyEnabled` (not wired yet — see open items).
+  a11y bridge (`BereanA11yPlugin`, observing `reduceTransparencyStatusDidChangeNotification`)
+  reports `reduceTransparency`, and `MobileApp.tsx` sets `html[data-reduce-transparency]`.
 - **Increase Contrast** (`prefers-contrast: more` / `html[data-contrast="more"]`): materials go to
   α ≥ 0.97, hairlines/separators use text-muted at 60 % / 45 %, grouped cards and fields get a
   1px ring.
 - Text sits on materials of α ≥ 0.72 over a blurred backdrop; primary text keeps the theme's
   contrast. Touch targets stay ≥ 44pt. Reduce Motion drops the press-scale on nav controls.
 
+## Action sheets and context menus
+
+Every `ActionList` / `actionListView` reads as one iOS inset-grouped menu: contiguous rows with
+hairline separators, rounded only at the group ends; a `cancel` action stands apart as its own
+centred row; rows that push a sub-view show a chevron. Search result long-press menus use this.
+
+## Compact passage header (collapsed Scripture header)
+
+A black shape that merges with the device cutout: island devices get a 999px capsule under the
+island (top 11pt), notch devices a shape hanging from the notch with 32pt lower corners; a small
+pill on home-button devices. The band behind it is the opaque reader surface fading out over its
+last 8px — it never blurs, so the status area stays one colour.
+
+**Screenshot limitation:** iOS screenshots do not draw the Dynamic Island or notch hardware, so a
+captured image shows the black shape standing alone. An app cannot change what the system
+screenshot captures (the screenshot notification fires after the capture), so this is accepted.
+
 ## Open items
 
-- Native: expose Reduce Transparency through `BereanA11y` and set
-  `document.documentElement.dataset.reduceTransparency` in `MobileApp.tsx`'s a11y effect.
+- None blocking. Glass strength and the notch shape need a look on a physical device.

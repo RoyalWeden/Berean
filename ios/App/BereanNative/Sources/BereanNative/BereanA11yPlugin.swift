@@ -3,7 +3,8 @@ import UIKit
 import Capacitor
 
 /// Accessibility signals for the phone shell (R082 / R102): Dynamic Type category (as a scale the
-/// CSS applies to its font sizes), VoiceOver, Reduce Motion, Bold Text, Increase Contrast. Emits
+/// CSS applies to its font sizes), VoiceOver, Reduce Motion, Bold Text, Increase Contrast, Reduce
+/// Transparency (the iOS material system falls back to opaque surfaces — SEP24 design system). Emits
 /// `change` whenever any of them changes.
 @objc(BereanA11yPlugin)
 public class BereanA11yPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -18,7 +19,8 @@ public class BereanA11yPlugin: CAPPlugin, CAPBridgedPlugin {
         let nc = NotificationCenter.default
         for name: Notification.Name in [UIContentSizeCategory.didChangeNotification, UIAccessibility.voiceOverStatusDidChangeNotification,
                                         UIAccessibility.reduceMotionStatusDidChangeNotification, UIAccessibility.boldTextStatusDidChangeNotification,
-                                        UIAccessibility.darkerSystemColorsStatusDidChangeNotification] {
+                                        UIAccessibility.darkerSystemColorsStatusDidChangeNotification,
+                                        UIAccessibility.reduceTransparencyStatusDidChangeNotification] {
             observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 guard let self = self else { return }
                 self.notifyListeners("change", data: self.state())
@@ -54,6 +56,7 @@ public class BereanA11yPlugin: CAPPlugin, CAPBridgedPlugin {
             "reduceMotion": UIAccessibility.isReduceMotionEnabled,
             "boldText": UIAccessibility.isBoldTextEnabled,
             "increaseContrast": UIAccessibility.isDarkerSystemColorsEnabled,
+            "reduceTransparency": UIAccessibility.isReduceTransparencyEnabled,
         ]
     }
 

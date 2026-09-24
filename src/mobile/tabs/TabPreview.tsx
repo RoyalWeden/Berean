@@ -177,7 +177,7 @@ function SearchPreview({ state }: { state: SearchTabState }) {
       ) : !q ? (
         recent.slice(0, 4).map((r) => <div key={r} className="mobile-tab-preview-line"><Clock size={9} aria-hidden /> {r}</div>)
       ) : (
-        <div className="tab-preview-count">Searching {SCOPE_LABEL[scope]}…</div>
+        <div className="tab-preview-count">{SCOPE_LABEL[scope]} results</div>
       )}
     </div>
   )

@@ -17,7 +17,6 @@
 .m-compare-verse.is-target [data-verse-row] { background: rgb(var(--color-accent) / 0.08); }
 
 /* Strong's superscripts a touch larger than the reader's in compare. */
-.m-compare .strongs-sup { font-size: 1em; }
 
 .m-compare-status { padding: 16px 4px; font-size: calc(14px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
 .m-compare-empty { max-width: 32ch; margin: 0 auto; }

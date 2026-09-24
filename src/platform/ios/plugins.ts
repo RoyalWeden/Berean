@@ -127,7 +127,7 @@ export interface BereanShareInboxPlugin {
 export const BereanShareInbox = registerPlugin<BereanShareInboxPlugin>('BereanShareInbox')
 
 /** Accessibility signals (BereanA11yPlugin.swift): Dynamic Type scale, VoiceOver, Reduce Motion, Bold Text, Increase Contrast. */
-export interface BereanA11yState { contentSize: string; scale: number; voiceOver: boolean; reduceMotion: boolean; boldText: boolean; increaseContrast: boolean }
+export interface BereanA11yState { contentSize: string; scale: number; voiceOver: boolean; reduceMotion: boolean; boldText: boolean; increaseContrast: boolean; reduceTransparency?: boolean }
 export interface BereanA11yPlugin {
   getState(): Promise<BereanA11yState>
   addListener(event: 'change', cb: (e: BereanA11yState) => void): Promise<{ remove: () => Promise<void> }>

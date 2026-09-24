@@ -203,13 +203,28 @@ function NotesSpace() {
   const openEditor = useCallback((id: string) => {
     const s = useAppStore.getState()
     const tid = s.activeTabId.notes
-    if (tid) s.updateTabState('notes', tid, { noteId: id, isNew: false })
+    if (tid) {
+      s.updateTabState('notes', tid, { noteId: id, isNew: false })
+      // The tab's history (caret ‹ ›, SEP24-008): opening a note is a navigation step.
+      void window.notes.getNote(id).then((n) => useAppStore.getState().pushTabNav(tid, { type: 'note', title: n?.title || 'Note', noteId: id })).catch(() => {})
+    }
     nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={() => {
       const st = useAppStore.getState()
       if (tid && st.tabs.notes.some((t) => t.id === tid)) st.updateTabState('notes', tid, { noteId: null })
       nav.pop()
     }} />)
   }, [nav])
+  // Back past the first note (caret ‹) returns this Notes tab to its home list.
+  const notesHomeToken = useAppStore((s) => s.notesHomeToken)
+  const homeTokenSeen = useRef(notesHomeToken)
+  useEffect(() => {
+    if (notesHomeToken === homeTokenSeen.current) return
+    homeTokenSeen.current = notesHomeToken
+    const s = useAppStore.getState()
+    const tid = s.activeTabId.notes
+    if (tid) s.updateTabState('notes', tid, { noteId: null })
+    nav.popToRoot()
+  }, [notesHomeToken, nav])
   const restored = useRef(false)
   useEffect(() => {
     if (restored.current) return
@@ -394,12 +409,14 @@ function useAppearance() {
   // `--m-type-scale`; VoiceOver / Bold Text / Increase Contrast become data attributes the CSS
   // and components can key on (Reduce Motion is honoured by framer's MotionConfig + CSS already).
   useEffect(() => {
-    const apply = (st: { scale: number; voiceOver: boolean; boldText: boolean; increaseContrast: boolean }) => {
+    const apply = (st: { scale: number; voiceOver: boolean; boldText: boolean; increaseContrast: boolean; reduceTransparency?: boolean }) => {
       const root = document.documentElement
       root.style.setProperty('--m-type-scale', String(st.scale))
       if (st.voiceOver) root.dataset.voiceover = ''; else delete root.dataset.voiceover
       if (st.boldText) root.dataset.boldText = ''; else delete root.dataset.boldText
       if (st.increaseContrast) root.dataset.contrast = 'more'; else delete root.dataset.contrast
+      // Reduce Transparency → the glass materials become opaque surfaces (ios-design-system.md).
+      if (st.reduceTransparency) root.dataset.reduceTransparency = ''; else delete root.dataset.reduceTransparency
     }
     BereanA11y.getState().then(apply).catch(() => {})
     const h = BereanA11y.addListener('change', apply)

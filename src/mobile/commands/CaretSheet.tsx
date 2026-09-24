@@ -1,5 +1,6 @@
-import React, { useReducer } from 'react'
-import { ChevronRight } from 'lucide-react'
+import React, { useReducer, useState } from 'react'
+import { ChevronRight, ChevronLeft, ChevronDown, Search } from 'lucide-react'
+import { useAppStore } from '@/store'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { Segmented, Stepper, Toggle } from '../settings/SettingsControls'
@@ -33,16 +34,36 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
     })
   }
   const nested = api.depth > 0
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   return (
     <div className="mobile-caret">
       {/* In a pushed view the sheet's own nav bar names it; the heading would repeat it. */}
-      {!nested && (
+      {!nested && (s.location ? (
+        <CaretLocationBar location={s.location} api={api} onChanged={bump} />
+      ) : (
         <div className="mobile-caret-head">
           <div className="mobile-caret-title">{s.title}</div>
           {s.subtitle && <div className="mobile-caret-subtitle">{s.subtitle}</div>}
         </div>
-      )}
-      {s.sections.map((sec) => sec.style === 'tiles' ? (
+      ))}
+      {s.sections.map((sec) => sec.collapsible ? (
+        <section key={sec.id} className="mobile-caret-group" aria-label={sec.collapsible.label}>
+          <div className="mobile-caret-group-body">
+            <button type="button" className="mobile-caret-row mobile-caret-disclosure" aria-expanded={!!expanded[sec.id]}
+              onClick={() => { void haptic.selection(); setExpanded((e) => ({ ...e, [sec.id]: !e[sec.id] })) }}>
+              {sec.collapsible.icon && <sec.collapsible.icon size={20} aria-hidden className="mobile-caret-row-icon" />}
+              <span className="mobile-caret-row-label">{sec.collapsible.label}</span>
+              {!expanded[sec.id] && sec.collapsible.summary && <span className="mobile-caret-row-value">{sec.collapsible.summary}</span>}
+              <ChevronDown size={16} aria-hidden className={`mobile-caret-row-chevron mobile-caret-disclosure-chevron${expanded[sec.id] ? ' is-open' : ''}`} />
+            </button>
+            {expanded[sec.id] && (
+              <div className="mobile-caret-disclosure-body">
+                {sec.commands.map((c) => <CaretRow key={c.id} c={c} onAction={act} onView={open} onChanged={bump} />)}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : sec.style === 'tiles' ? (
         <div key={sec.id} className="mobile-caret-tiles" role="group" aria-label={sec.title ?? 'Quick actions'}>
           {sec.commands.map((c) => {
             const Icon = c.icon
@@ -127,6 +148,45 @@ function CaretRow({ c, onAction, onView, onChanged }: {
     <div className="mobile-caret-row is-stacked">
       <span className="mobile-caret-row-label">{lead}{c.label}</span>
       <Segmented value={c.value} options={c.options} onChange={(v) => { c.set(v); onChanged() }} />
+    </div>
+  )
+}
+
+/**
+ * The caret's navigation header (SEP24-008): [ current location / search ]  [ ‹ ] [ › ].
+ * Back / forward move the CURRENT tab through its own history (database / translation, book,
+ * chapter, verse; note; lexicon entry …) — the shared per-tab nav stack, the same one the Mac's
+ * Cmd+[ / Cmd+] use — without a new tab or another sheet.
+ */
+function CaretLocationBar({ location, api, onChanged }: { location: NonNullable<CaretScope['location']>; api: SheetApi; onChanged: () => void }) {
+  const nav = useAppStore((s) => {
+    const id = s.activeTabId[s.activeSpace]
+    const st = id ? s.tabNavStacks[id] : undefined
+    const type = s.tabs[s.activeSpace]?.find((t) => t.id === id)?.type
+    const floor = type === 'note' || type === 'lexicon' || type === 'youtube' ? -1 : 0
+    return { back: !!st && st.idx > floor, forward: !!st && st.idx < st.stack.length - 1 }
+  }, (a, b) => a.back === b.back && a.forward === b.forward)
+  const openLocation = () => {
+    if (location.run) { api.close(); location.run(); return }
+    if (!location.view) return
+    const v = location.view()
+    void haptic.light()
+    api.push({ key: 'location', title: v.title, render: (a) => ('scope' in v ? <CaretSheet scope={v.scope} api={a} /> : v.render(a)) })
+  }
+  const step = (dir: 'back' | 'forward') => {
+    const s = useAppStore.getState()
+    void haptic.selection()
+    if (dir === 'back') s.navTabBack(); else s.navTabForward()
+    setTimeout(onChanged, 60)
+  }
+  return (
+    <div className="mobile-caret-nav">
+      <button type="button" className="mobile-caret-nav-field" onClick={openLocation} disabled={!location.view && !location.run} aria-label={`${location.label}. ${location.placeholder ?? 'Go somewhere else'}`}>
+        <Search size={15} aria-hidden />
+        <span className="mobile-caret-nav-label">{location.label}</span>
+      </button>
+      <button type="button" className="mobile-caret-nav-btn" aria-label="Back" disabled={!nav.back} onClick={() => step('back')}><ChevronLeft size={20} aria-hidden /></button>
+      <button type="button" className="mobile-caret-nav-btn" aria-label="Forward" disabled={!nav.forward} onClick={() => step('forward')}><ChevronRight size={20} aria-hidden /></button>
     </div>
   )
 }

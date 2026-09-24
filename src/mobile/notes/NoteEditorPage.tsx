@@ -15,6 +15,7 @@ import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { useActionSheet, ChoiceList } from '../primitives/ActionSheet'
 import { useNavigation } from '../navigation/NavigationStack'
 import { FolderPicker } from './FolderPicker'
+import { NoteFinder } from './NoteFinder'
 import { noteIsMovable } from '@/lib/noteMovability'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -190,6 +191,8 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   useCaretCommands(() => ({
     title: latest.current?.title || 'Untitled note',
     subtitle: 'Note',
+    // Same header as every caret (SEP24-008): this note / find another, and the tab's ‹ › history.
+    location: { label: latest.current?.title || 'Untitled note', placeholder: 'Find a note', view: () => ({ title: 'Find a note', render: (a: SheetApi) => <NoteFinder api={a} /> }) },
     sections: fromSheetActions(actionList(), { tiles: ['pin', 'share', 'copy', 'print'], tileLabels: { copy: 'Copy', print: 'Print / PDF', share: 'Share' }, title: 'Note' }),
   }), note != null)
 

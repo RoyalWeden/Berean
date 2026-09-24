@@ -23,12 +23,14 @@ export function ActionList({ title, actions, close, api }: { title?: string; act
         <button
           key={a.id}
           type="button"
+          data-id={a.id}
           className={`mobile-action-row${a.destructive ? ' is-destructive' : ''}`}
           disabled={a.disabled}
           onClick={() => { void haptic.light(); if (a.view && api) { api.push(a.view()); return } close(); a.onSelect() }}
         >
           {a.icon && <a.icon size={20} aria-hidden />}
           <span>{a.label}</span>
+          {a.view && <span className="mobile-action-row-chevron" aria-hidden>›</span>}
         </button>
       ))}
     </div>
@@ -45,7 +47,7 @@ export function actionListView(key: string, title: string, actions: Array<SheetA
     render: (api) => (
       <div className="mobile-action-list">
         {actions.map((a) => (
-          <button key={a.id} type="button" className={`mobile-action-row${a.destructive ? ' is-destructive' : ''}`} disabled={a.disabled}
+          <button key={a.id} type="button" data-id={a.id} className={`mobile-action-row${a.destructive ? ' is-destructive' : ''}`} disabled={a.disabled}
             onClick={() => { void haptic.light(); if (a.view) { api.push(a.view()); return } if (a.stay) api.pop(); else api.close(); a.onSelect() }}>
             {a.icon && <a.icon size={20} aria-hidden />}
             <span>{a.label}</span>

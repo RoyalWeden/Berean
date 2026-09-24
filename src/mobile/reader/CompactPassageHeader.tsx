@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { topCutout } from '../primitives/safeArea'
 
 /**
@@ -11,6 +11,7 @@ import { topCutout } from '../primitives/safeArea'
  */
 export function CompactPassageHeader({ label, badge, visible, onOpen }: { label: string; badge?: string | null; visible: boolean; onOpen: () => void }) {
   const cutout = useMemo(() => topCutout(), [])
+  useEffect(() => { document.documentElement.dataset.cutout = cutout }, [cutout])
   return (
     <>
       {/* Keeps the status-bar band opaque while the full header is away. */}
