@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from 'react'
  * jitters from flickering the bar. Listens in the capture phase on `rootRef`, so it covers the
  * pager's panes and the continuous-scroll root alike. While `frozen` (a sheet / action UI is
  * open) the bar keeps its state instead of fighting the sheet; `resetKey` (new chapter / tab)
- * brings it back.
+ * brings it back, and so does `forceShown` (the caret is open, so the bar it acts on — the
+ * passage title — is visible while the reading controls are adjusted, T23-014).
  */
 export const HIDE_AFTER_PX = 28
 export const SHOW_AFTER_PX = 14
@@ -23,13 +24,14 @@ export function stepHideOnScroll(st: { hidden: boolean; acc: number }, prevTop: 
   return { hidden: st.hidden, acc }
 }
 
-export function useHideOnScroll(rootRef: React.RefObject<HTMLElement>, opts: { frozen?: boolean; resetKey?: string } = {}): boolean {
+export function useHideOnScroll(rootRef: React.RefObject<HTMLElement>, opts: { frozen?: boolean; resetKey?: string; forceShown?: boolean } = {}): boolean {
   const [hidden, setHidden] = useState(false)
   const st = useRef({ hidden: false, acc: 0 })
   const lastTop = useRef(new WeakMap<EventTarget, number>())
   const frozen = useRef(!!opts.frozen)
   frozen.current = !!opts.frozen
   useEffect(() => { st.current = { hidden: false, acc: 0 }; setHidden(false) }, [opts.resetKey])
+  useEffect(() => { if (opts.forceShown) { st.current = { hidden: false, acc: 0 }; setHidden(false) } }, [opts.forceShown])
   useEffect(() => {
     const root = rootRef.current
     if (!root) return

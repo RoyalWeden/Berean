@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { BookOpen, Hash, Languages, ChevronLeft, ChevronRight, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2 } from 'lucide-react'
+import { BookOpen, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
 import ChapterView from '@/components/bible/ChapterView'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
+import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { navigateToVerse } from '@/lib/verseNavigation'
-import { chapterForBookSwitch } from '@/lib/textCoverage'
+import { chapterForBookSwitch, compareApplicable, compareCounterpart } from '@/lib/textCoverage'
 import { isHermasBook, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
 import { Page } from '../primitives/Page'
 import { useCaretCommands } from '../commands/caretRegistry'
@@ -16,14 +17,14 @@ import { makeCompareTab } from './compareState'
 import { TagPickerSheet } from '../study/TagPickerSheet'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useSheets } from '../primitives/Sheet'
-import { useActionSheet } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
 import { perfMark } from '@/platform/ios/perf'
 import { SelectionBar } from '../study/SelectionBar'
 import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { ReferencePicker } from './ReferencePicker'
 import { usePinchFontSize, BIBLE_FONT_MAX, BIBLE_FONT_MIN } from './usePinchFontSize'
-import { ReaderOptionsSheet } from './ReaderOptionsSheet'
+import { TranslationChoices, FontChoices, ColorChoices, translationShortLabel, fontLabel } from './readerViews'
+import { themePresetLabel } from '../settings/ThemePresetPage'
 import { useVerseSheets } from './verseSheets'
 import { useHideOnScroll } from './useHideOnScroll'
 import { readerScrollMemory, captureReaderAnchor, applyReaderAnchor, type ReaderAnchor } from './readerScrollMemory'
@@ -48,7 +49,6 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   const state = tab.state as BibleTabState
   const updateTabState = useAppStore((s) => s.updateTabState)
   const sheets = useSheets()
-  const actions = useActionSheet()
   const textId = (state.translation ?? getTranslationForBook(state.bookId) ?? 'KJVA').toLowerCase()
   const [books, setBooks] = useState<Book[]>([])
   useEffect(() => { window.bible.getBooks(textId).then(setBooks).catch(() => setBooks([])) }, [textId])
@@ -136,46 +136,48 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       render: (api) => <ReferencePicker books={books} bookId={state.bookId} chapter={state.chapter} onPick={(b, c, v, e) => { api.close(); goTo(b, c, v, e) }} />,
     })
   }
-  const openTranslation = () => {
-    actions('translation', 'Translation', TRANSLATIONS.map((t) => ({
-      id: t.id, label: `${t.label} — ${t.description}`,
-      onSelect: () => { updateTabState('scripture', tab.id, { translation: t.id.toUpperCase() }) },
-    })))
+  // Switching text maps the chapter the same way desktop does (LXX Psalms numbering etc.).
+  const switchText = (to: string) => {
+    const ch = mapChapterOnTranslationSwitch(state.bookId, state.chapter, textId, to)
+    updateTabState('scripture', tab.id, { translation: to.toUpperCase(), ...(ch !== state.chapter ? { chapter: ch, targetVerse: undefined } : {}) })
   }
-  const openOptions = () => sheets.open({ id: 'reader-options', title: 'Reading', detents: [0.72, 0.92], render: () => <ReaderOptionsSheet /> })
   const continuous = useAppStore((s) => s.continuousChapterScroll)
 
-  // ── caret commands (TEST-033/034): everything the old translation / Aa / … controls did ──────
+  // ── caret commands (reworked T23-014…021) ──────────────────────────────────────────────
+  // One surface: quick tiles (Strong's with the KJV⇄LXX switch beside it, Compare, Read aloud),
+  // then inline reading controls; All Translations, Font and Color open INSIDE the caret with
+  // "‹ Scripture" at the top. Passage navigation lives on the title (tap → passage search) and on
+  // edge taps / swipes, so the caret no longer repeats Go to, a translation tile or ‹ › chapter rows.
   useCaretCommands(() => {
     const st = useAppStore.getState()
     const ref = `${bookName(state.bookId)} ${state.chapter}`
+    // The quick switch only exists where the other text really has this passage (T23-017).
+    const alt = compareCounterpart(textId, state.bookId, state.chapter)
+    const canCompare = compareApplicable(state.bookId, state.chapter, textId)
     return {
-      title: ref, subtitle: TRANSLATIONS.find((t) => t.id === textId)?.description ?? textId.toUpperCase(),
+      title: ref, backTitle: 'Scripture',
       sections: [
         { id: 'quick', style: 'tiles', commands: [
-          { kind: 'action', id: 'translation', label: textId.toUpperCase(), detail: 'Translation', icon: Languages, run: openTranslation },
-          { kind: 'action', id: 'goto', label: 'Go to', icon: BookOpen, run: openReference },
           { kind: 'toggle', id: 'strongs', label: "Strong's", icon: Hash, value: !!state.showStrongs, set: (v) => updateTabState('scripture', tab.id, { showStrongs: v }) },
+          ...(alt ? [{ kind: 'action' as const, id: 'switch-text', label: translationShortLabel(alt.textId) === 'KJVA' ? 'KJV' : translationShortLabel(alt.textId), detail: 'Switch text', icon: Repeat, keepOpen: true, run: () => switchText(alt.textId) }] : []),
+          ...(canCompare ? [{ kind: 'action' as const, id: 'compare', label: 'Compare', icon: Columns2, run: () => st.addTab(makeCompareTab({ ...state }, state.targetVerse)) }] : []),
           { kind: 'action', id: 'audio', label: 'Read aloud', icon: Volume2, run: () => st.startPlaybackFrom(state.bookId, state.chapter, 1, textId) },
         ] },
         { id: 'reading', title: 'Reading', commands: [
-          { kind: 'segmented', id: 'quick-translation', label: 'Text', icon: Languages, value: textId === 'lxx' ? 'lxx' : textId === 'kjva' ? 'kjva' : '', options: [['kjva', 'KJV'], ['lxx', 'LXX']], set: (v) => updateTabState('scripture', tab.id, { translation: v.toUpperCase() }) },
-          { kind: 'action', id: 'all-translations', label: 'All translations…', icon: Languages, run: openTranslation },
+          { kind: 'view', id: 'all-translations', label: 'All Translations', icon: Languages, value: translationShortLabel(textId),
+            view: () => ({ title: 'All Translations', expand: true, render: (a) => <TranslationChoices api={a} textId={textId} onPick={switchText} /> }) },
           { kind: 'stepper', id: 'size', label: 'Text size', icon: ALargeSmall, value: st.bibleFontSize, min: BIBLE_FONT_MIN, max: BIBLE_FONT_MAX, set: st.setBibleFontSize },
           { kind: 'segmented', id: 'line-height', label: 'Line height', icon: AlignJustify, value: st.bibleLineHeight, options: [['compact', 'Compact'], ['comfortable', 'Normal'], ['spacious', 'Airy']], set: (v) => st.setBibleLineHeight(v as 'compact' | 'comfortable' | 'spacious') },
+          { kind: 'view', id: 'font', label: 'Font', icon: CaseSensitive, value: fontLabel(st.scriptureFontFamily), view: () => ({ title: 'Font', render: (a) => <FontChoices api={a} /> }) },
+          { kind: 'segmented', id: 'theme', label: 'Appearance', icon: SunMoon, value: st.theme, options: [['system', 'Auto'], ['light', 'Light'], ['dark', 'Dark']], set: (v) => st.setTheme(v as 'system' | 'light' | 'dark') },
+          { kind: 'view', id: 'color', label: 'Color', icon: Palette, value: themePresetLabel(st.themePreset, st.customThemes), view: () => ({ title: 'Color', expand: true, render: (a) => <ColorChoices api={a} /> }) },
           { kind: 'toggle', id: 'continuous', label: 'Continuous scroll', detail: 'Chapters flow into one page', icon: ScrollText, value: st.continuousChapterScroll, set: st.setContinuousChapterScroll },
           { kind: 'toggle', id: 'verse-numbers', label: 'Verse numbers', icon: Hash, value: st.showVerseNumbers, set: st.setShowVerseNumbers },
           { kind: 'toggle', id: 'red-letters', label: 'Red letter text', icon: Type, value: st.showRedLetters, set: st.setShowRedLetters },
-          { kind: 'action', id: 'reading-more', label: 'Font, theme and more reading options…', icon: Palette, run: openOptions },
-        ] },
-        { id: 'navigate', title: 'Navigate', commands: [
-          { kind: 'action', id: 'prev', label: neighbours.prev ? `Previous chapter · ${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter}` : 'Previous chapter', icon: ChevronLeft, disabled: !neighbours.prev, run: () => goNeighbour('prev') },
-          { kind: 'action', id: 'next', label: neighbours.next ? `Next chapter · ${bookName(neighbours.next.bookId)} ${neighbours.next.chapter}` : 'Next chapter', icon: ChevronRight, disabled: !neighbours.next, run: () => goNeighbour('next') },
-          { kind: 'action', id: 'compare', label: 'Compare translations', icon: Columns2, run: () => st.addTab(makeCompareTab({ ...state }, state.targetVerse)) },
         ] },
         { id: 'study', title: 'Study', commands: [
           { kind: 'segmented', id: 'xref-source', label: 'Cross references', icon: GitFork, value: st.crossRefSource === 'classic' ? 'classic' : 'tske', options: [['tske', 'TSKe'], ['classic', 'Classic']], set: (v) => st.setCrossRefSource(v as 'tske' | 'classic') },
-          { kind: 'action', id: 'tag-chapter', label: `Tag ${ref}…`, icon: TagIcon, run: () => { const ranges = chapterRanges(state.bookId, state.chapter); sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={rangesLabel(ranges)} kind="chapter" api={api} /> }) } },
+          { kind: 'view', id: 'tag-chapter', label: `Tag ${ref}`, icon: TagIcon, view: () => { const ranges = chapterRanges(state.bookId, state.chapter); return { title: `Tag ${ref}`, expand: true, render: (a) => <TagPickerSheet ranges={ranges} label={rangesLabel(ranges)} kind="chapter" api={a} /> } } },
           { kind: 'action', id: 'trail', label: 'Study trail', icon: Route, run: () => requestMore('trail') },
         ] },
         { id: 'share', title: 'Share', commands: [
@@ -188,7 +190,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
 
   // ── top bar hides while reading downward (TEST-029) ─────────────────────────────────────
   const readerRef = useRef<HTMLDivElement>(null)
-  const headerHidden = useHideOnScroll(readerRef, { frozen: sheets.currentId != null, resetKey: `${state.bookId}:${state.chapter}:${tab.id}` })
+  const headerHidden = useHideOnScroll(readerRef, { frozen: sheets.currentId != null, forceShown: sheets.currentId === 'caret', resetKey: `${state.bookId}:${state.chapter}:${tab.id}` })
 
   // ── per-tab scroll memory (device-local; scroll-state audit) ───────────────────────────
   // The position is a verse anchor, so it survives a translation switch and a paged ⇄ continuous

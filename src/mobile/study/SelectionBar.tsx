@@ -19,7 +19,12 @@ import { VerseNotesSheet } from './VerseNotesSheet'
  * sized for thumbs: copy verses / refs, add note, notes, cross refs (single verse), play,
  * tag, highlight, clear.
  */
-export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote: (noteId: string) => void }) {
+/**
+ * The actions on a tab's verse selection (one or several verses) — shared by the selection bar and
+ * the verse sheet's multi-verse view (T23-028), so both copy / highlight / tag exactly the same
+ * way (copy keeps the desktop multi-verse format: "John 3:6-7, 18" then one line per verse).
+ */
+export function useVerseSelectionActions(tabId: string, onOpenNote?: (noteId: string) => void) {
   const selectedRaw = useAppStore((s) => s.selectedVersesByTab[tabId] ?? EMPTY)
   const clearVerseSelectionRaw = useAppStore((s) => s.clearVerseSelection)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
@@ -28,48 +33,59 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const bumpVerseNoteToken = useAppStore((s) => s.bumpVerseNoteToken)
   const startPlaybackFrom = useAppStore((s) => s.startPlaybackFrom)
-  const sheets = useSheets()
-  const [copied, setCopied] = useState<'verses' | 'refs' | null>(null)
-  const [palette, setPalette] = useState(false)
   const sel = sortSelection(selectedRaw)
   const clear = useCallback(() => clearVerseSelectionRaw(tabId), [clearVerseSelectionRaw, tabId])
-  // One tapped verse is handled by the verse sheet (TEST-035); the bar serves ranges / several
-  // verses (drag-to-select, TEST-001) and any selection while the verse sheet is closed.
-  if (sel.length === 0 || sheets.isOpen('verse')) return null
-  const single = sel.length === 1 ? sel[0] : null
-  const flash = (w: 'verses' | 'refs') => { setCopied(w); void haptic.light(); setTimeout(() => setCopied(null), 1200) }
-
   const copyVerses = async (refsOnly: boolean) => {
     const header = refLabel(sel)
-    if (refsOnly) { navigator.clipboard.writeText(header).catch(() => {}); flash('refs'); return }
+    if (refsOnly) { await navigator.clipboard.writeText(header).catch(() => {}); return }
     const fetched = (await Promise.all(sel.map(fetchVerse))).filter(Boolean) as Array<SelectedVerseRef & { text: string; textTagged: string | null }>
     if (fetched.length === 1) {
       const v = fetched[0]
-      navigator.clipboard.writeText(`${header} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`).catch(() => {})
+      await navigator.clipboard.writeText(`${header} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`).catch(() => {})
     } else {
       const lines = fetched.map((v) => `${v.verse} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`)
-      navigator.clipboard.writeText([header, ...lines].join('\n')).catch(() => {})
+      await navigator.clipboard.writeText([header, ...lines].join('\n')).catch(() => {})
     }
-    flash('verses')
   }
   const addNote = async () => {
     if (!selectionAllows(sel, 'add-note')) return
     const anchor = sel[0]
     const result = await window.notes.createNote({ type: 'verse', title: refLabel(sel), verseRef: `${anchor.bookId}.${anchor.chapter}.${anchor.verse}`, content: '', textId: anchor.textId })
-    if (result.success && result.note) { bumpNoteToken(); bumpVerseNoteToken(); clear(); onOpenNote(result.note.id) }
+    if (result.success && result.note) { bumpNoteToken(); bumpVerseNoteToken(); clear(); onOpenNote?.(result.note.id) }
   }
   const applyHighlight = async (color: HighlightColor) => {
     const fetched = (await Promise.all(sel.map(fetchVerse))).filter(Boolean) as Array<SelectedVerseRef & { text: string }>
     for (const v of fetched) await window.highlights.toggle({ bookId: v.bookId, chapter: v.chapter, verseNum: v.verse, color, textId: v.textId, startChar: 0, endChar: v.text.length })
-    bumpHighlightToken(); void haptic.light(); setPalette(false)
+    bumpHighlightToken(); void haptic.light()
   }
   const removeHighlights = async () => {
     for (const v of sel) await window.highlights.remove(v.bookId, v.chapter, v.verse, v.textId).catch(() => {})
-    bumpHighlightToken(); setPalette(false)
+    bumpHighlightToken()
   }
-  const tag = () => {
+  const tagRanges = () => {
     const ranges = selectionToRanges(sel.map((r) => ({ bookId: r.bookId, chapter: r.chapter, verse: r.verse })))
-    sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={rangesLabel(ranges)} kind="verses" api={api} /> })
+    return { ranges, label: rangesLabel(ranges) }
+  }
+  const play = () => { const v = sel[0]; if (v) startPlaybackFrom(v.bookId, v.chapter, v.verse, v.textId); clear() }
+  return { sel, label: sel.length ? refLabel(sel) : '', clear, copyVerses, addNote, applyHighlight, removeHighlights, tagRanges, play }
+}
+
+export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote: (noteId: string) => void }) {
+  const sheets = useSheets()
+  const [copied, setCopied] = useState<'verses' | 'refs' | null>(null)
+  const [palette, setPalette] = useState(false)
+  const { sel, clear, copyVerses: copy, addNote, applyHighlight: highlight, removeHighlights: unhighlight, tagRanges, play } = useVerseSelectionActions(tabId, onOpenNote)
+  // One tapped verse is handled by the verse sheet (TEST-035); the bar serves ranges / several
+  // verses (drag-to-select, TEST-001) and any selection while the verse sheet is closed.
+  if (sel.length === 0 || sheets.isOpen('verse')) return null
+  const single = sel.length === 1 ? sel[0] : null
+  const flash = (w: 'verses' | 'refs') => { setCopied(w); void haptic.light(); setTimeout(() => setCopied(null), 1200) }
+  const copyVerses = async (refsOnly: boolean) => { await copy(refsOnly); flash(refsOnly ? 'refs' : 'verses') }
+  const applyHighlight = async (color: HighlightColor) => { await highlight(color); setPalette(false) }
+  const removeHighlights = async () => { await unhighlight(); setPalette(false) }
+  const tag = () => {
+    const { ranges, label } = tagRanges()
+    sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={label} kind="verses" api={api} /> })
   }
   const crossRefs = () => {
     if (!single) return
@@ -101,7 +117,7 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
           {selectionAllows(sel, 'add-note') && <Btn icon={NotepadText} label="Add note" onClick={() => void addNote()} />}
           {single && <Btn icon={NotepadText} label="Notes" onClick={notes} />}
           {single && <Btn icon={GitFork} label="Cross references" onClick={crossRefs} />}
-          <Btn icon={Volume2} label="Play from here" onClick={() => { const v = sel[0]; startPlaybackFrom(v.bookId, v.chapter, v.verse, v.textId); clear() }} />
+          <Btn icon={Volume2} label="Play from here" onClick={play} />
           <Btn icon={Tag} label="Tag" onClick={tag} />
           <Btn icon={Palette} label="Highlight" onClick={() => setPalette(true)} />
           <Btn icon={X} label="Clear selection" onClick={clear} />

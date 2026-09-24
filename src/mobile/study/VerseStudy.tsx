@@ -34,7 +34,6 @@ export function VerseStudy({ verse, textId, onStrongs, onNavigate }: {
     () => buildVerseStudyTokens(verse.text, (verse as Verse & { text_tagged?: string | null }).text_tagged, textId, wordReplacerEnabled, wordReplacerRules),
     [verse, textId, wordReplacerEnabled, wordReplacerRules],
   )
-  const hasStrongs = tokens.some((t) => t.strongs.length > 0)
   const source = useAppStore((s) => s.crossRefSource)
   const setSource = useAppStore((s) => s.setCrossRefSource)
   const mode: 'tske' | 'classic' = source === 'classic' ? 'classic' : 'tske'
@@ -51,9 +50,9 @@ export function VerseStudy({ verse, textId, onStrongs, onNavigate }: {
   const refs = mode === 'classic' ? classic : tske
   return (
     <div className="mobile-study">
-      {/* The verse itself — "(KJVA+)" with Strong's numbers when the text is tagged, plain otherwise. */}
+      {/* The verse itself, with its Strong's numbers when the text is tagged. The sheet's heading
+          already names the verse and text, so no "(KJVA+)" label is repeated here (T23-029). */}
       <p className="mobile-study-verse" lang="en">
-          <span className="mobile-study-tag">({textId.toUpperCase()}{hasStrongs ? '+' : ''})</span>{' '}
           {tokens.map((t, i) => (
             <React.Fragment key={i}>
               <span className={`${t.isRedLetter ? 'mobile-study-red' : ''}${t.isItalic ? ' mobile-study-italic' : ''}`}>{t.word}</span>

@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useAppStore } from '@/store'
 import type { VerseActionContext, VerseInteraction } from '@/components/bible/verseInteraction'
 import { navigateToVerse } from '@/lib/verseNavigation'
-import { useSheets } from '../primitives/Sheet'
+import { toggleVerseInSelection } from '@/lib/verseSelection'
+import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { safeAreaBottom } from '../primitives/safeArea'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -10,13 +11,16 @@ import { VerseActionSheet, VERSE_SHEET_LOW_PX } from '../study/VerseActionSheet'
 import { VerseNotesSheet } from '../study/VerseNotesSheet'
 import { CrossRefsSheet } from '../study/CrossRefsSheet'
 import { TagPickerSheet } from '../study/TagPickerSheet'
+import { MultiVerseSheet } from '../study/MultiVerseSheet'
+import type { SelectedVerseRef } from '@/store'
 
 export const VERSE_SHEET_ID = 'verse'
 
 /** Scroll the reader so a verse sits above the verse sheet (no-op when it already does). */
-export function keepVerseAboveSheet(bookId: string, chapter: number, verse: number): void {
+export function keepVerseAboveSheet(bookId: string, chapter: number, verse: number, textId?: string): void {
   const sheet = document.querySelector(`[data-sheet-id="${VERSE_SHEET_ID}"]`) as HTMLElement | null
-  const row = document.querySelector(`.mobile-reader-pane:not([aria-hidden="true"]) [data-verse-row][data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"], .m-compare [data-verse-row][data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"]`) as HTMLElement | null
+  const t = textId ? `[data-text="${textId}"]` : ''
+  const row = document.querySelector(`.mobile-reader-pane:not([aria-hidden="true"]) [data-verse-row]${t}[data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"], .m-compare [data-verse-row]${t}[data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"]`) as HTMLElement | null
   if (!sheet || !row) return
   const sheetTop = sheet.getBoundingClientRect().top
   const r = row.getBoundingClientRect()
@@ -32,9 +36,13 @@ export function keepVerseAboveSheet(bookId: string, chapter: number, verse: numb
  * The iPhone reader's verse interaction model — shared by the Scripture reader and the Compare
  * page (TEST-035 / TEST-039 / TEST-040):
  *
- *  • TAP anywhere on a verse → that verse becomes the tab's (single-verse) selection and the verse
- *    sheet opens at its special LOW position. Tapping the same verse again deselects and closes.
- *    Tapping another verse moves the selection; an already-expanded sheet keeps its height.
+ *  • TAP anywhere on a verse → it is ADDED to the tab's selection; tapping a selected verse removes
+ *    it (T23-028 — a toggle model, contiguous or not). With one verse the verse sheet shows that
+ *    verse's study view; with several the SAME sheet (same height) shows the multi-verse view
+ *    (MultiVerseSheet). Deselecting the last verse closes it. Drag-select from verse numbers still
+ *    works alongside (the selection bar serves a dragged range while no sheet is open).
+ *  • Everything the verse sheet opens — notes, cross references, tags, a Strong's entry — opens
+ *    INSIDE the verse sheet with "‹ <verse>" at the top (T23-006), never as a second sheet.
  *  • LONG-PRESS → native iOS text selection (handles). One `selectionchange` listener resolves the
  *    verse that holds the selection (through the rows' registered context builders) and shows the
  *    verse sheet at the LOW position in selection mode, forcing it back down while the user drags
@@ -53,25 +61,30 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
     useAppStore.getState().ensureTab('note')
     requestOpenNote(noteId)
   }, [setActiveSpace, requestOpenNote])
+  // A Strong's number tapped in the reader text itself opens its own sheet; from inside the verse
+  // sheet it is a sub-view of that sheet (see pushStrongs).
   const openStrongs = useCallback((num: string) => {
     sheets.open({ id: 'strongs', detents: [0.42, 0.92], render: (api) => <StrongsSheet strongsNum={num} api={api} /> })
   }, [sheets])
-  const openVerseNotes = useCallback((ctx: VerseActionContext) => {
-    sheets.open({ id: 'verse-notes', lowDetent: lowPx, detents: [0.5, 0.92], initialDetent: 1, render: (api) => (
-      <VerseNotesSheet verseRef={ctx.verseRef} textId={ctx.textId} label={ctx.label} api={api}
+  const pushStrongs = useCallback((api: SheetApi, num: string) => {
+    api.push({ key: `strongs-${num}`, title: num, expand: true, render: (a) => <StrongsSheet strongsNum={num} api={a} /> })
+  }, [])
+  const pushVerseNotes = useCallback((api: SheetApi, ctx: VerseActionContext) => {
+    api.push({ key: 'notes', title: 'Notes', expand: true, render: (a) => (
+      <VerseNotesSheet verseRef={ctx.verseRef} textId={ctx.textId} label={ctx.label} api={a}
         onOpenNote={openNoteInNotesSpace}
         onNewNote={() => { void ctx.addVerseNote().then((id) => { if (id) openNoteInNotesSpace(id) }) }} />
     ) })
-  }, [sheets, openNoteInNotesSpace, lowPx])
-  const openCrossRefs = useCallback((ctx: VerseActionContext) => {
-    sheets.open({ id: 'crossrefs', lowDetent: lowPx, detents: [0.55, 0.92], initialDetent: 1, render: (api) => (
-      <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verse={ctx.verse.verse_num} textId={ctx.textId} label={ctx.label} api={api} />
+  }, [openNoteInNotesSpace])
+  const pushCrossRefs = useCallback((api: SheetApi, ctx: VerseActionContext) => {
+    api.push({ key: 'crossrefs', title: 'Cross references', expand: true, render: (a) => (
+      <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verse={ctx.verse.verse_num} textId={ctx.textId} label={ctx.label} api={a} />
     ) })
-  }, [sheets, lowPx])
-  const openTagPicker = useCallback((ctx: VerseActionContext, scope: 'verse' | 'chapter') => {
+  }, [])
+  const pushTagPicker = useCallback((api: SheetApi, ctx: VerseActionContext, scope: 'verse' | 'chapter') => {
     const { ranges, label, kind } = ctx.tagRanges(scope)
-    sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={label} kind={kind} api={api} /> })
-  }, [sheets])
+    api.push({ key: `tag-${scope}`, title: scope === 'chapter' ? 'Tag chapter' : 'Tag verse', expand: true, render: (a) => <TagPickerSheet ranges={ranges} label={label} kind={kind} api={a} /> })
+  }, [])
 
   const tabIdRef = useRef(tabId)
   tabIdRef.current = tabId
@@ -92,13 +105,14 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
         const sel = tid ? s.selectedVersesByTab[tid] : undefined
         if (tid && sel?.length === 1 && `${sel[0].bookId}.${sel[0].chapter}.${sel[0].verse}` === key) s.clearVerseSelection(tid)
       },
+      rootTitle: ctx.label,
       render: (api) => (
         <VerseActionSheet ctx={ctx} api={api}
-          onShowNotes={() => openVerseNotes(ctx)}
-          onShowCrossRefs={() => openCrossRefs(ctx)}
-          onTag={(scope) => openTagPicker(ctx, scope)}
+          onShowNotes={() => pushVerseNotes(api, ctx)}
+          onShowCrossRefs={() => pushCrossRefs(api, ctx)}
+          onTag={(scope) => pushTagPicker(api, ctx, scope)}
           onNoteCreated={openNoteInNotesSpace}
-          onStrongs={openStrongs}
+          onStrongs={(num) => pushStrongs(api, num)}
           onNavigateRef={(r, source) => {
             opts.onNavigated?.()
             navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, origin: { kind: 'cross-ref', source, fromVerse: ctx.verse.verse_num } })
@@ -106,7 +120,21 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
       ),
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheets, lowPx, openVerseNotes, openCrossRefs, openTagPicker, openNoteInNotesSpace, openStrongs])
+  }, [sheets, lowPx, pushVerseNotes, pushCrossRefs, pushTagPicker, openNoteInNotesSpace, pushStrongs])
+
+  /** The same verse sheet, showing the several-verse view (T23-028). Opening with the same id keeps
+   *  the sheet's current height. */
+  const openMultiVerseSheet = useCallback(() => {
+    const tid = tabIdRef.current
+    if (!tid) return
+    sheetVerseKey.current = null
+    sheets.open({
+      id: VERSE_SHEET_ID, lowDetent: lowPx, detents: [0.55, 0.92], initialDetent: 0, undimmedThrough: 1,
+      rootTitle: 'Verses',
+      onClose: () => { useAppStore.getState().clearVerseSelection(tid) },
+      render: (api) => <MultiVerseSheet tabId={tid} api={api} />,
+    })
+  }, [sheets, lowPx])
 
   // Row registry for native text selection → verse sheet.
   const registry = useRef(new Map<string, () => VerseActionContext>())
@@ -157,19 +185,26 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
       const s = useAppStore.getState()
       const ref = { bookId: ctx.verse.book_id, chapter: ctx.verse.chapter, verse: ctx.verse.verse_num, textId: ctx.textId }
       const cur = tid ? (s.selectedVersesByTab[tid] ?? []) : []
-      const same = cur.length === 1 && cur[0].bookId === ref.bookId && cur[0].chapter === ref.chapter && cur[0].verse === ref.verse
-      if (same) { if (tid) s.clearVerseSelection(tid); sheets.close(VERSE_SHEET_ID); return }
-      void haptic.selection()
-      if (tid) s.setVerseSelection(tid, [ref])
+      const sameVerse = (r: SelectedVerseRef) => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse && (r.textId ?? ref.textId) === ref.textId
+      const next = toggleVerseInSelection(cur, ref)
       selectionSheetOpen.current = false
-      openVerseSheet(ctx, 'tap')
+      if (next.length === 0) { if (tid) s.clearVerseSelection(tid); sheets.close(VERSE_SHEET_ID); return }
+      void haptic.selection()
+      if (tid) s.setVerseSelection(tid, next)
+      if (next.length > 1) { openMultiVerseSheet(); return }
+      // Back to (or starting with) one verse: its study view. When the remaining verse is not the
+      // tapped one, rebuild its context from the row registry.
+      const only = next[0]
+      const onlyCtx = sameVerse(only) ? ctx : registry.current.get(`${only.textId ?? ref.textId}|${only.bookId}|${only.chapter}|${only.verse}`)?.()
+      if (!onlyCtx) { openMultiVerseSheet(); return }
+      openVerseSheet(onlyCtx, 'tap')
       // e-Sword-style browsing (TEST-043): with the study pane open (the verse sheet above its low
       // position), keep the tapped verse visible ABOVE the pane so verse → Strong's / cross refs
       // can be read side by side while moving through the chapter.
-      requestAnimationFrame(() => requestAnimationFrame(() => keepVerseAboveSheet(ctx.verse.book_id, ctx.verse.chapter, ctx.verse.verse_num)))
+      requestAnimationFrame(() => requestAnimationFrame(() => keepVerseAboveSheet(onlyCtx.verse.book_id, onlyCtx.verse.chapter, onlyCtx.verse.verse_num, onlyCtx.textId)))
     },
     onRequestActions: (ctx) => { void haptic.medium(); openVerseSheet(ctx, ctx.selection ? 'selection' : 'tap') },
-  }), [registerRow, sheets, openVerseSheet])
+  }), [registerRow, sheets, openVerseSheet, openMultiVerseSheet])
 
   return { verseInteraction, openStrongs, openNoteInNotesSpace, openVerseSheet }
 }

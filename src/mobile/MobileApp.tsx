@@ -175,7 +175,9 @@ function useShellSheets({ openMore }: { openMore: (r: MoreRoute) => void }) {
   const scopeFor = useCallback(() => caretRegistry.top() ?? (() => staticCaretScope(useAppStore.getState().activeSpace, (() => { const s = useAppStore.getState(); return s.tabs[s.activeSpace].find((t) => t.id === s.activeTabId[s.activeSpace]) ?? null })(), { openMore })), [openMore])
   const openCaret = useCallback(() => {
     const scope = scopeFor()
-    sheets.open({ id: 'caret', detents: [0.62, 0.92], render: (api) => <CaretSheet scope={scope} api={api} /> })
+    let rootTitle: string | undefined
+    try { const sc = scope(); rootTitle = sc.backTitle ?? sc.title } catch { rootTitle = undefined }
+    sheets.open({ id: 'caret', rootTitle, detents: [0.62, 0.92], render: (api) => <CaretSheet scope={scope} api={api} /> })
   }, [sheets, scopeFor])
   const caretTitle = (() => { try { return scopeFor()().title } catch { return activeTab?.title ?? activeSpace } })()
   return { openTabs, openPlus, openCaret, caretLabel: `Actions for ${caretTitle}` }

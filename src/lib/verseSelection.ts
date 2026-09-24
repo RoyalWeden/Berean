@@ -70,3 +70,14 @@ export function selectionLabel(sel: readonly SelectedVerseRef[]): string {
 export function versesSpanned(first: SelectedVerseRef, last: SelectedVerseRef, available?: readonly number[]): SelectedVerseRef[] {
   return verseRange(first, last, available)
 }
+
+/**
+ * Tap-to-toggle (iPhone, T23-028): a tapped verse is ADDED to the selection, or REMOVED when it is
+ * already selected — contiguous or not, any number of verses. A selection in another text (the
+ * other Compare column) is replaced rather than mixed, so the two columns select independently.
+ */
+export function toggleVerseInSelection(cur: readonly SelectedVerseRef[], ref: SelectedVerseRef): SelectedVerseRef[] {
+  const same = (r: SelectedVerseRef) => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse && (r.textId ?? ref.textId) === ref.textId
+  const base = cur.filter((r) => (r.textId ?? ref.textId) === ref.textId)
+  return base.some(same) ? base.filter((r) => !same(r)) : [...base, ref]
+}

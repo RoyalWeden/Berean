@@ -98,12 +98,13 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
           <div className="mobile-action-list">
             {sel && <button type="button" className="mobile-action-row" onClick={run(ctx.copyVerse)}><Copy size={20} aria-hidden /><span>Copy whole verse</span></button>}
             <button type="button" className="mobile-action-row" onClick={run(ctx.copyReference)}><Hash size={20} aria-hidden /><span>Copy reference</span></button>
-            <button type="button" className="mobile-action-row" onClick={run(onShowNotes)}><Files size={20} aria-hidden /><span>Notes for this verse</span></button>
-            <button type="button" className="mobile-action-row" onClick={run(onShowCrossRefs)}><GitFork size={20} aria-hidden /><span>Cross references (full list)</span></button>
+            {/* These open inside this sheet ("‹ <verse>" at the top), so they don't close it. */}
+            <button type="button" className="mobile-action-row" onClick={onShowNotes}><Files size={20} aria-hidden /><span>Notes for this verse</span></button>
+            <button type="button" className="mobile-action-row" onClick={onShowCrossRefs}><GitFork size={20} aria-hidden /><span>Cross references (full list)</span></button>
             <button type="button" className="mobile-action-row" onClick={run(ctx.playAudioFromHere)}><Volume2 size={20} aria-hidden /><span>Play audio from here</span></button>
             <button type="button" className="mobile-action-row" onClick={compare}><Columns2 size={20} aria-hidden /><span>Compare translations</span></button>
-            <button type="button" className="mobile-action-row" onClick={run(() => onTag('verse'))}><TagIcon size={20} aria-hidden /><span>Tag verse…</span></button>
-            <button type="button" className="mobile-action-row" onClick={run(() => onTag('chapter'))}><TagIcon size={20} aria-hidden /><span>Tag whole chapter…</span></button>
+            <button type="button" className="mobile-action-row" onClick={() => onTag('verse')}><TagIcon size={20} aria-hidden /><span>Tag verse…</span></button>
+            <button type="button" className="mobile-action-row" onClick={() => onTag('chapter')}><TagIcon size={20} aria-hidden /><span>Tag whole chapter…</span></button>
           </div>
         </>
       )}

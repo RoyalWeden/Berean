@@ -53,7 +53,7 @@ export function actionListView(key: string, title: string, actions: Array<SheetA
   }
 }
 
-export interface ChoiceOption { id: string; label: string; detail?: string; disabled?: boolean }
+export interface ChoiceOption { id: string; label: string; detail?: string; disabled?: boolean; style?: React.CSSProperties }
 
 /** A single-choice list with a check on the current value — the body of choice sub-views such as
  *  All Translations. Selecting pops back to the parent view (the sheet stays open) unless
@@ -65,7 +65,7 @@ export function ChoiceList({ options, value, onSelect, api, closeOnSelect }: { o
         <button key={o.id} type="button" role="radio" aria-checked={o.id === value} disabled={o.disabled}
           className={`mobile-choice-row${o.id === value ? ' is-on' : ''}`}
           onClick={() => { void haptic.selection(); onSelect(o.id); if (closeOnSelect) api.close(); else api.pop() }}>
-          <span className="mobile-choice-label">{o.label}{o.detail && <small>{o.detail}</small>}</span>
+          <span className="mobile-choice-label" style={o.style}>{o.label}{o.detail && <small>{o.detail}</small>}</span>
           {o.id === value && <Check size={18} aria-hidden className="mobile-choice-check" />}
         </button>
       ))}

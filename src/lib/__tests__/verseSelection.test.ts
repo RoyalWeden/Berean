@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useAppStore, type SelectedVerseRef } from '@/store'
-import { verseRange, selectionKind, selectionAllows, selectionLabel, versesSpanned } from '@/lib/verseSelection'
+import { verseRange, selectionKind, selectionAllows, selectionLabel, versesSpanned, toggleVerseInSelection } from '@/lib/verseSelection'
 import { startVerseDrag, consumeDragClick } from '@/components/bible/verseDragSelect'
 
 const v = (verse: number, chapter = 1, bookId = 'GEN', textId = 'kjva'): SelectedVerseRef => ({ bookId, chapter, verse, textId })
@@ -129,5 +129,23 @@ describe('pointer gesture on verse numbers', () => {
     move(320)
     cancel()
     expect(nums(useAppStore.getState().selectedVersesByTab.tab)).toEqual([5])
+  })
+})
+
+describe('toggleVerseInSelection (iPhone tap model, T23-028)', () => {
+  const v = (verse: number, textId = 'kjva') => ({ bookId: 'JHN', chapter: 3, verse, textId })
+  it('adds verses one by one, contiguous or not', () => {
+    let sel = toggleVerseInSelection([], v(3))
+    sel = toggleVerseInSelection(sel, v(7))
+    expect(sel.map((r) => r.verse)).toEqual([3, 7])
+  })
+  it('tapping a selected verse deselects only that verse', () => {
+    const sel = toggleVerseInSelection([v(3), v(7)], v(3))
+    expect(sel.map((r) => r.verse)).toEqual([7])
+    expect(toggleVerseInSelection(sel, v(7))).toEqual([])
+  })
+  it('a tap in another text (the other Compare column) starts a separate selection', () => {
+    const sel = toggleVerseInSelection([v(3, 'kjva'), v(4, 'kjva')], v(3, 'lxx'))
+    expect(sel).toEqual([v(3, 'lxx')])
   })
 })

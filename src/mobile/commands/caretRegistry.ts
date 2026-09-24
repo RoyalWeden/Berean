@@ -39,6 +39,9 @@ export interface CaretScope {
   /** What the caret is acting on, shown as its heading ("Genesis 1", "Notes", …). */
   title: string
   subtitle?: string
+  /** Name of this context for the back control of views pushed from it ("‹ Scripture").
+   *  Defaults to `title`. */
+  backTitle?: string
   sections: CaretSection[]
 }
 

@@ -1,31 +1,15 @@
-import { useMemo } from 'react'
-import { useAppStore } from '@/store'
-import type { VerseInteraction } from '@/components/bible/verseInteraction'
 import { useVerseSheets } from './verseSheets'
 
 /**
  * The Compare page's touch interaction (R088): identical to the reader's verse model — see
- * verseSheets.tsx (tap selects a verse → verse sheet at its low position; long-press → native
- * text selection; Strong's → Strong's sheet; notes open in the Notes space).
+ * verseSheets.tsx (tap adds / removes a verse → verse sheet at its low position; long-press →
+ * native text selection; Strong's → Strong's sheet; notes open in the Notes space).
  *
- * The two columns select independently (T23-026): a selection is keyed by text, so tapping
- * LXX Gen 1:3 while KJV Gen 1:3 is selected MOVES the selection to the LXX verse instead of the
- * reader's "same verse tapped again → deselect" (which compares book/chapter/verse only).
+ * The two columns select independently (T23-026/T23-028): the shared model keys a selection by
+ * text, so tapping an LXX verse while KJV verses are selected starts a new LXX selection instead
+ * of mixing the columns — scroll sync never couples selection.
  */
 export function useCompareVerseInteraction(tabId?: string | null) {
-  const { verseInteraction: base, openStrongs, openNoteInNotesSpace } = useVerseSheets({ tabId })
-  const verseInteraction = useMemo<VerseInteraction>(() => ({
-    ...base,
-    onVerseTap: (ctx) => {
-      if (tabId) {
-        const s = useAppStore.getState()
-        const cur = s.selectedVersesByTab[tabId] ?? []
-        const sameVerseOtherText = cur.length === 1 && cur[0].bookId === ctx.verse.book_id && cur[0].chapter === ctx.verse.chapter
-          && cur[0].verse === ctx.verse.verse_num && (cur[0].textId ?? '') !== ctx.textId
-        if (sameVerseOtherText) s.clearVerseSelection(tabId)
-      }
-      base.onVerseTap?.(ctx)
-    },
-  }), [base, tabId])
+  const { verseInteraction, openStrongs, openNoteInNotesSpace } = useVerseSheets({ tabId })
   return { verseInteraction, openStrongs, openNoteInNotesSpace }
 }
