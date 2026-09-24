@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { History, Settings as SettingsIcon, Search, Youtube, Tags, FileText, NotepadText, BookMarked } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, LexiconEntry, Note, Tab, Verse, SearchTabState, YouTubeTabState, PdfTabState } from '@/types'
-import { bookName, getTranslationForBook } from '@/lib/parseRef'
+import { getTranslationForBook } from '@/lib/parseRef'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { customThemeKey, previewColors } from '@/lib/customTheme'
 import { THEME_PRESETS } from '@/lib/themePresets'
 import { readerScrollMemory } from '../reader/readerScrollMemory'
@@ -62,6 +63,19 @@ function versesFrom(verses: Verse[] | undefined, start: number, n: number): Vers
   return verses.slice(i, i + n)
 }
 
+/** Verses as the reader shows them (word replacer applied — e.g. the divine-name rules). */
+function VerseLines({ verses, textId }: { verses: Verse[]; textId: string }) {
+  const enabled = useAppStore((s) => s.wordReplacerEnabled)
+  const rules = useAppStore((s) => s.wordReplacerRules)
+  return (
+    <p className="mobile-tab-preview-text">
+      {verses.map((v) => (
+        <span key={v.verse_num}><sup>{v.verse_num}</sup>{buildVerseDisplayText(v.text, (v as Verse & { text_tagged?: string | null }).text_tagged ?? null, textId, enabled, rules)} </span>
+      ))}
+    </p>
+  )
+}
+
 function ScripturePreview({ tab }: { tab: Tab }) {
   const st = tab.state as BibleTabState
   const textId = (st.translation ?? getTranslationForBook(st.bookId) ?? 'KJVA').toLowerCase()
@@ -70,13 +84,9 @@ function ScripturePreview({ tab }: { tab: Tab }) {
   const from = anchor?.verse ?? st.targetVerse ?? st.verse ?? 1
   const verses = useCached(`ch:${textId}:${st.bookId}:${st.chapter}`, () => window.bible.queryChapter(st.bookId, st.chapter, textId))
   return (
+    // The card header already names the passage; the preview is the text itself (no repeat).
     <div className="mobile-tab-preview is-scripture">
-      <div className="mobile-tab-preview-passage">{bookName(st.bookId)} {st.chapter}</div>
-      <p className="mobile-tab-preview-text">
-        {versesFrom(verses, from, 6).map((v) => (
-          <span key={v.verse_num}><sup>{v.verse_num}</sup>{v.text} </span>
-        ))}
-      </p>
+      <VerseLines verses={versesFrom(verses, from, 6)} textId={textId} />
     </div>
   )
 }
@@ -89,12 +99,11 @@ function ComparePreview({ tab }: { tab: Tab }) {
   if (!a || !b) return <IconPreview icon={BookMarked} lines={['Compare']} />
   return (
     <div className="mobile-tab-preview is-compare">
-      <div className="mobile-tab-preview-passage">{bookName(a.bookId)} {a.chapter}</div>
       <div className="mobile-tab-preview-cols">
         {[{ c: a, v: left }, { c: b, v: right }].map(({ c, v }) => (
           <div key={c.textId}>
             <small>{translationLabel(c.textId)}</small>
-            <p className="mobile-tab-preview-text">{versesFrom(v, 1, 3).map((x) => <span key={x.verse_num}><sup>{x.verse_num}</sup>{x.text} </span>)}</p>
+            <VerseLines verses={versesFrom(v, 1, 3)} textId={c.textId} />
           </div>
         ))}
       </div>

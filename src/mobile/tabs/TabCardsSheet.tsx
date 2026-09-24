@@ -28,6 +28,8 @@ export function tabKind(t: Tab): { icon: LucideIcon; label: string } {
 }
 
 export function tabTitle(t: Tab): string {
+  // An empty YouTube tab keeps the hosted player's transient "Loading…" title — name it by kind.
+  if (t.type === 'youtube' && !(t.state as { videoId?: string | null }).videoId && /^loading/i.test(t.title)) return tabKind(t).label
   return t.title || tabKind(t).label
 }
 

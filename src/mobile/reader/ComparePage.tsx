@@ -3,6 +3,7 @@ import { useCaretCommands } from '../commands/caretRegistry'
 import { ArrowLeftRight, ArrowUpDown, BookOpen, ChevronLeft, ChevronRight, Hash, X } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab, Verse, VerseTagLite, HighlightColor } from '@/types'
+import * as RadixTooltip from '@radix-ui/react-tooltip'
 import VerseRow from '@/components/bible/VerseRow'
 import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { bookName, normalizeBookName } from '@/lib/parseRef'
@@ -236,6 +237,9 @@ export function ComparePage({ tab }: { tab: Tab }) {
         </div>
       ) : undefined}
     >
+      {/* VerseRow's Strong's chips need a Tooltip provider — ChapterView supplies one per chapter;
+          these columns render VerseRow directly. */}
+      <RadixTooltip.Provider delayDuration={200} skipDelayDuration={500}>
       <VerseInteractionContext.Provider value={verseInteraction}>
         <div className="m-compare">
           {!pair ? (
@@ -279,6 +283,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
           <SelectionBar tabId={tab.id} onOpenNote={openNoteInNotesSpace} />
         </div>
       </VerseInteractionContext.Provider>
+      </RadixTooltip.Provider>
     </Page>
   )
 }
