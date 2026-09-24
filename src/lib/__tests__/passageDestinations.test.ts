@@ -99,3 +99,31 @@ describe('resolvePassageQuery (NEW-11B)', () => {
     expect(r('zzzzqq')).toEqual([])
   })
 })
+
+describe('SEP24 picker search inside books and text tokens', () => {
+  it('a bare chapter / chapter:verse inside a book resolves to that book', () => {
+    const r = resolvePassageQuery('10', { textId: 'kjva', bookId: 'MAT' })
+    expect(r[0]).toMatchObject({ kind: 'passage', textId: 'kjva', bookId: 'MAT', chapter: 10 })
+    const v = resolvePassageQuery('10:5', { textId: 'kjva', bookId: 'MAT' })
+    expect(v[0]).toMatchObject({ bookId: 'MAT', chapter: 10, verse: 5 })
+    const e = resolvePassageQuery('10', { textId: 'enoch', bookId: 'ENO' })
+    expect(e[0]).toMatchObject({ textId: 'enoch', bookId: 'ENO', chapter: 10 })
+  })
+  it('a text named anywhere in the query picks that database', () => {
+    const r = resolvePassageQuery('Genesis 10 LXX', { textId: 'kjva' })
+    expect(r[0]).toMatchObject({ kind: 'passage', textId: 'lxx', bookId: 'GEN', chapter: 10 })
+    const k = resolvePassageQuery('lxx psalm 23', { textId: 'kjva' })
+    expect(k[0]).toMatchObject({ textId: 'lxx', bookId: 'PSA' })
+  })
+  it('a text the book is not in is ignored (Matthew has no LXX)', () => {
+    const r = resolvePassageQuery('Matthew 10 LXX', { textId: 'lxx' })
+    expect(r[0]).toMatchObject({ kind: 'passage', bookId: 'MAT', chapter: 10, textId: 'kjva' })
+  })
+  it('"Matthew 10" from another collection opens the KJV', () => {
+    const r = resolvePassageQuery('Matthew 10', { textId: 'enoch' })
+    expect(r[0]).toMatchObject({ kind: 'passage', textId: 'kjva', bookId: 'MAT', chapter: 10 })
+  })
+  it('only "LXX" offers the collection', () => {
+    expect(resolvePassageQuery('LXX', { textId: 'kjva' })[0]).toMatchObject({ kind: 'collection', textId: 'lxx' })
+  })
+})

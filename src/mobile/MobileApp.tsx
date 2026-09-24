@@ -16,7 +16,6 @@ import BiblePanel from '@/components/bible/BiblePanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
-import StudyTrailArrivalPrompt from '@/components/studyTrail/StudyTrailArrivalPrompt'
 import { ActivePanelContext } from '@/components/shell/ActivePanelContext'
 import { PanelChromeContext } from '@/components/shell/PanelHeader'
 import { useChromeState } from './navigation/chromeState'
@@ -137,8 +136,8 @@ function Shell() {
         )}
       </main>
       <AudioBar />
-      {/* "Why did you jump?" pill (Study Trail, when the setting is on) — above the bottom bar. */}
-      <StudyTrailArrivalPrompt bottomInset={96} />
+      {/* No Study Trail "Why'd you go to …?" prompt on the phone (SEP24-003): trail stops are still
+          recorded; reasons are added from the Study trail page. The Mac keeps its prompt. */}
       <BottomNav onTabs={nav.openTabs} onPlus={nav.openPlus} onCaret={nav.openCaret} caretLabel={nav.caretLabel} />
     </div>
   )

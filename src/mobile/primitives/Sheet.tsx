@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import './sheet.css'
 import { AnimatePresence, motion, useDragControls, useMotionValue, animate, type PanInfo } from 'framer-motion'
 import { X, ChevronLeft } from 'lucide-react'
 import { haptic } from './haptics'
@@ -150,13 +151,6 @@ export function settleDetent(opts: { heights: number[]; vh: number; releaseY: nu
   return best
 }
 
-/** Forward = the new view slides in from the right; back = from the left (iOS navigation). */
-const SHEET_VIEW_VARIANTS = {
-  enter: (dir: 1 | -1) => ({ x: dir > 0 ? '28%' : '-28%', opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir: 1 | -1) => ({ x: dir > 0 ? '-28%' : '28%', opacity: 0 }),
-}
-
 function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose: () => void; depth: number }) {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const hasLow = options.lowDetent != null
@@ -188,6 +182,8 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
 
   // ── in-sheet navigation stack ──────────────────────────────────────────────────────────
   const [views, setViews] = useState<SheetSubView[]>([])
+  const openedAt = useRef(Date.now())
+  const [viewAnim, setViewAnim] = useState('')
   const [direction, setDirection] = useState<1 | -1>(1)
   const scrollMemo = useRef<number[]>([])
   // A reopened / updated sheet (new options object) starts again at its root view.
@@ -195,15 +191,17 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
   const push = useCallback((view: SheetSubView) => {
     scrollMemo.current[views.length] = bodyRef.current?.scrollTop ?? 0
     setDirection(1)
+    setViewAnim(Date.now() - openedAt.current < 450 ? '' : 'is-forward')
     setViews((v) => [...v.filter((x) => x.key !== view.key), view])
     // The sheet keeps its detent, position and size when its content changes (NEW-002).
     void haptic.selection()
   }, [views.length])
   const pop = useCallback(() => {
     setDirection(-1)
+    setViewAnim('is-back')
     setViews((v) => v.slice(0, -1))
   }, [])
-  const popToRoot = useCallback(() => { setDirection(-1); setViews([]) }, [])
+  const popToRoot = useCallback(() => { setDirection(-1); setViewAnim('is-back'); setViews([]) }, [])
   // Restore the parent view's scroll position after a pop; a pushed view starts at its top.
   useEffect(() => {
     const el = bodyRef.current
@@ -312,18 +310,13 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
           }}
         >
           <SheetApiContext.Provider value={api}>
-            <AnimatePresence initial={false} mode="popLayout" custom={direction}>
-              <motion.div
-                key={current?.key ?? '__root'}
-                className="mobile-sheet-view"
-                custom={direction}
-                variants={SHEET_VIEW_VARIANTS}
-                initial="enter" animate="center" exit="exit"
-                transition={{ type: 'spring', stiffness: 520, damping: 46 }}
-              >
-                {current ? current.render(api) : options.render(api)}
-              </motion.div>
-            </AnimatePresence>
+            {/* A CSS keyframe slide (SEP24-011): it always runs to completion, so a view can never be
+                left parked part-way (the framer presence spring could be interrupted — e.g. a view
+                pushed while the sheet itself was still opening — leaving the list shifted sideways).
+                Views pushed while the sheet opens appear without a slide. */}
+            <div key={current?.key ?? '__root'} className={`mobile-sheet-view${viewAnim ? ` ${viewAnim}` : ''}`}>
+              {current ? current.render(api) : options.render(api)}
+            </div>
           </SheetApiContext.Provider>
         </div>
       </motion.div>

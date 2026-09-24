@@ -68,8 +68,6 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
   const setShowVerseNumbers = useAppStore((s) => s.setShowVerseNumbers)
   const showRedLetters = useAppStore((s) => s.showRedLetters)
   const setShowRedLetters = useAppStore((s) => s.setShowRedLetters)
-  const askJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
-  const setAskJumpReason = useAppStore((s) => s.setStudyTrailAskChapterJumpReason)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const setContinuousChapterScroll = useAppStore((s) => s.setContinuousChapterScroll)
   const customThemes = useAppStore((s) => s.customThemes)
@@ -175,7 +173,6 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
       </ListSection>
 
       <ListSection title="Study trail">
-        <Row title="Ask why you jumped chapters" subtitle="A small prompt after a chapter jump Study Trail can't explain (search, manual pick, tab switch)" right={<Toggle checked={askJumpReason} onChange={setAskJumpReason} label="Ask why you jumped chapters" />} />
         <Row title="Open Study trail" subtitle="Sessions, map, threads, recap" chevron onClick={() => { void window.app.openStudyTrailWindow?.() }} />
       </ListSection>
 

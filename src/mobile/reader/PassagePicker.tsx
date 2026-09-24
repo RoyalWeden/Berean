@@ -141,6 +141,7 @@ function BooksView({ textId, group }: { textId: string; group?: CollectionGroup 
   const headed = sections.length > 1
   return (
     <div className="m-pp" ref={listRef}>
+      <PickerSearch textId={textId} placeholder="Book or passage — Matthew 10, 10:5 LXX…">
       {sections.map(([title, list]) => (
         <section key={title} className="m-pp-section" aria-label={headed ? title : undefined}>
           {headed && <h3 className="m-pp-section-title">{title}</h3>}
@@ -155,6 +156,7 @@ function BooksView({ textId, group }: { textId: string; group?: CollectionGroup 
           </div>
         </section>
       ))}
+      </PickerSearch>
     </div>
   )
 }
@@ -173,6 +175,7 @@ function ChaptersView({ textId, bookId }: { textId: string; bookId: string }) {
   const isCurrentBook = textId === current.textId && bookId === current.bookId
   return (
     <div className="m-pp">
+      <PickerSearch textId={textId} bookId={bookId} placeholder={`${name} — 10, 10:5, or another passage`}>
       <div className="m-pp-mode" role="radiogroup" aria-label="Chapter action">
         <button type="button" role="radio" aria-checked={!verseMode} className={!verseMode ? 'is-on' : ''} onClick={() => setVerseMode(false)}>Open chapter</button>
         <button type="button" role="radio" aria-checked={verseMode} className={verseMode ? 'is-on' : ''} onClick={() => setVerseMode(true)}>Choose verse</button>
@@ -192,6 +195,7 @@ function ChaptersView({ textId, bookId }: { textId: string; bookId: string }) {
           )
         })}
       </div>
+      </PickerSearch>
     </div>
   )
 }
@@ -222,14 +226,18 @@ function VersesView({ textId, bookId, chapter, title }: { textId: string; bookId
   )
 }
 
-function CollectionsView() {
-  const { current, pick } = useShared()
+/**
+ * The picker's search field — on EVERY level (SEP24-007): at the library it resolves collections,
+ * books and passages; inside a collection it prefers that text; inside a book a bare "10" / "10:5"
+ * is that book's chapter / verse. "… LXX" / "… KJV" anywhere selects that text's database.
+ * While a query is typed the level's own list is replaced by the destinations.
+ */
+function PickerSearch({ textId, bookId, placeholder, children }: { textId: string; bookId?: string; placeholder: string; children: React.ReactNode }) {
+  const { pick } = useShared()
   const push = usePush()
   const [query, setQuery] = useState('')
-  const books = useBooks(current.textId)
-  const results = useMemo(() => resolvePassageQuery(query, { textId: current.textId, books: books ?? [] }), [query, current.textId, books])
-  const currentColl = collectionForText(current.textId)
-
+  const books = useBooks(textId)
+  const results = useMemo(() => resolvePassageQuery(query, { textId, bookId, books: books ?? [] }), [query, textId, bookId, books])
   const open = (d: PassageDestination) => {
     void haptic.selection()
     if (d.kind === 'passage') { pick({ textId: d.textId, bookId: d.bookId, chapter: d.chapter, verse: d.verse, endVerse: d.endVerse }); return }
@@ -237,17 +245,12 @@ function CollectionsView() {
     const c = PASSAGE_COLLECTIONS.find((x) => x.textId === d.textId && x.group === d.group)
     push(collectionView(c ?? { textId: d.textId, group: d.group, short: d.label }))
   }
-  const sections: Array<[string, PassageCollection[]]> = []
-  for (const c of PASSAGE_COLLECTIONS) {
-    const s = sections.find(([k]) => k === c.section)
-    if (s) s[1].push(c); else sections.push([c.section, [c]])
-  }
   return (
-    <div className="m-pp">
+    <>
       <form className="m-pp-search" role="search" onSubmit={(e) => { e.preventDefault(); if (results[0]) open(results[0]) }}>
         <Search size={17} aria-hidden />
         <input type="search" inputMode="text" autoCorrect="off" autoCapitalize="words" enterKeyHint="go" spellCheck={false}
-          placeholder="LXX, Genesis 3, 1 Cor 13, Enoch…" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)}
           aria-label="Go to a collection, book or passage" data-no-sheet-drag />
       </form>
       {query.trim() ? (
@@ -265,16 +268,35 @@ function CollectionsView() {
             ))}
           </div>
         ) : <div className="mobile-empty">Nothing matches “{query.trim()}”.</div>
-      ) : sections.map(([title, list]) => (
-        <section key={title} className="m-pp-section" aria-label={title}>
-          <h3 className="m-pp-section-title">{title}</h3>
-          <div className="m-pp-list">
-            {list.map((c) => (
-              <Row key={c.key} title={c.label} subtitle={c.subtitle} current={!c.group && c.key === currentColl?.key} onClick={() => open({ kind: 'collection', key: c.key, textId: c.textId, group: c.group, label: c.short })} />
-            ))}
-          </div>
-        </section>
-      ))}
+      ) : children}
+    </>
+  )
+}
+
+function CollectionsView() {
+  const { current } = useShared()
+  const push = usePush()
+  const currentColl = collectionForText(current.textId)
+  const sections: Array<[string, PassageCollection[]]> = []
+  for (const c of PASSAGE_COLLECTIONS) {
+    const s = sections.find(([k]) => k === c.section)
+    if (s) s[1].push(c); else sections.push([c.section, [c]])
+  }
+  return (
+    <div className="m-pp">
+      <PickerSearch textId={current.textId} placeholder="LXX, Genesis 3, 1 Cor 13, Enoch…">
+        {sections.map(([title, list]) => (
+          <section key={title} className="m-pp-section" aria-label={title}>
+            <h3 className="m-pp-section-title">{title}</h3>
+            <div className="m-pp-list">
+              {list.map((c) => (
+                <Row key={c.key} title={c.label} subtitle={c.subtitle} current={!c.group && c.key === currentColl?.key}
+                  onClick={() => { void haptic.selection(); push(collectionView(c)) }} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </PickerSearch>
     </div>
   )
 }

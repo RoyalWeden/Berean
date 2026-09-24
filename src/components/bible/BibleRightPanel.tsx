@@ -8,7 +8,7 @@ import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, S
 import { LexiconEntryHeader, LangBadge, OccurrenceRow, DerivedTermRow } from '@/components/lexicon/parts'
 import { useKeyedScrollMemory } from '@/hooks/useKeyedScrollMemory'
 import { selectionLabel } from '@/lib/verseSelection'
-import { useAppStore } from '@/store'
+import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { navigateToVerse, recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
@@ -22,6 +22,7 @@ import {
   getTSKeForChapterShared, getCrossRefsForChapterShared,
 } from '@/lib/panelDataCache'
 import { NOTE_DOT_COLOR } from './VerseRow'
+import SelectedVersesStrongs, { selectionSignature } from './SelectedVersesStrongs'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
@@ -112,9 +113,15 @@ function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; match
 interface SidebarLexiconProps {
   initialEntry?: string | null
   onEntryChange?: (entry: string | null) => void
+  /** The active Scripture tab's verse selection. While no Strong's entry is open (and the search
+   *  field is empty) the panel shows these verses with their Strong's numbers — see
+   *  SelectedVersesStrongs. An explicitly opened entry always wins; Back returns to the verses. */
+  selectedVerses?: SelectedVerseRef[]
 }
 
-function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
+const NO_SELECTION: SelectedVerseRef[] = []
+
+function SidebarLexicon({ initialEntry, onEntryChange, selectedVerses = NO_SELECTION }: SidebarLexiconProps) {
   const createTab = useAppStore((s) => s.createTab)
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
@@ -165,7 +172,38 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     onEntryChange?.(activeEntry?.strongsNum ?? null)
   }, [activeEntry?.strongsNum]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (!activeEntry) inputRef.current?.focus() }, [activeEntry])
+  const hasSelection = selectedVerses.length > 0
+  // Don't pull focus into the search field when the panel is showing the selected verses — the
+  // user is working in the reader, and a verse click must not steal its keyboard focus.
+  useEffect(() => { if (!activeEntry && !hasSelection) inputRef.current?.focus() }, [activeEntry]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A NEW verse selection (not the first render — a persisted entry must survive a restart)
+  // brings the panel back to the selected-verses view: selecting verses is the user asking to
+  // study those verses, which supersedes whatever entry was open before.
+  const selSignature = useMemo(() => selectionSignature(selectedVerses), [selectedVerses])
+  const prevSelSignatureRef = useRef(selSignature)
+  useEffect(() => {
+    if (prevSelSignatureRef.current === selSignature) return
+    prevSelSignatureRef.current = selSignature
+    if (!selSignature) return
+    setHistory([])
+    setActiveEntry(null)
+    setQuery('')
+    setResults([])
+  }, [selSignature])
+
+  // A Strong's number clicked in the selected-verses view opens that entry with an empty
+  // history, so Back (labelled "Verses") returns straight to the verses.
+  const openEntryFromVerses = useCallback((strongsNum: string) => {
+    getLexiconEntryShared(strongsNum)
+      .then((entry) => {
+        if (!entry) return
+        setHistory([])
+        setActiveEntry(entry)
+        recordLexiconConnection(strongsNum, 'click')
+      })
+      .catch(() => {})
+  }, [])
 
   // Respond to word-click searches from BiblePanel
   useEffect(() => {
@@ -275,7 +313,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     }
   }
 
-  const backLabel = history.length > 0 ? history[history.length - 1].strongsNum : 'Search'
+  const backLabel = history.length > 0 ? history[history.length - 1].strongsNum : hasSelection ? 'Verses' : 'Search'
 
   if (activeEntry) {
     const hasDerivation = (activeEntry.derivation?.trim().length ?? 0) > 0
@@ -484,7 +522,9 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           <EmptyState compact title={`No results for "${query}"`} />
         )}
         {!loading && results.length === 0 && query.trim().length < 2 && (
-          <EmptyState compact icon={Search} title="Search Strong's lexicon" />
+          hasSelection
+            ? <SelectedVersesStrongs refs={selectedVerses} onStrongsClick={openEntryFromVerses} />
+            : <EmptyState compact icon={Search} title="Search Strong's lexicon" />
         )}
         {!loading && (
           <div className="flex flex-col gap-0.5 p-1.5">
@@ -2066,6 +2106,7 @@ export default function BibleRightPanel({
           <SidebarLexicon
             initialEntry={initialLexiconEntry}
             onEntryChange={onLexiconEntryChange}
+            selectedVerses={selectedRaw ?? NO_SELECTION}
           />
         </div>
       )}

@@ -104,6 +104,7 @@ scheme-specific values need one rule, not 73.
 | `.material-popover` | menus, context menus, dropdowns, tooltips, hover cards | surface-1 @ 0.86 + 14px blur + hairline + shadow-2 |
 | `.material-sheet` | dialogs / sheets | surface-1 @ 0.94 + 16px blur + border + shadow-3 |
 | `.material-control` | a lone floating capsule control | surface-2 @ 0.72 + 10px blur |
+| `.material-floating-bar` | free-floating action capsule over content (verse-selection bar) | surface-1 @ 0.66 + 24px blur + saturate+0.2, hairline, top highlight, two-layer lift shadow, capsule radius; opaque under Reduce Transparency |
 
 | `.material-inspector` | ATTACHED inspector pane (Scripture side panel, Notes side panel) | `--surface-inspector` (surface-2/3 mix), hairline-left, **no radius / blur / shadow**, width 260–420 |
 | `.material-elevated` | ⌘K, History, Tab Switcher, expanded rail | surface-1 @ 0.84 + 24px blur + hairline + shadow-3 |
@@ -467,4 +468,11 @@ as badges (section labels use `SectionLabel`).
   property list. `Chip` gained the `tooltip` prop it was missing, and the last `title=` attributes
   on primitives became real tooltips.
   Verification note: `npm test` is `vitest` in WATCH mode and never exits — use `npx vitest run`.
-
+- 2026-09-24 — The desktop verse-selection action bar is a **floating capsule** in its own
+  `.material-floating-bar` material (clearer + more blurred than `.material-popover`, soft lift
+  shadow), not a 10px-radius popover rectangle: it floats over Scripture like the top bar's grouped
+  controls, so it takes their capsule shape. Items stay ghost (no glass-on-glass) and lone icon items
+  are circles (`shape="round"`), matching the "lone bar icon controls are circles" rule. Audited: the
+  notes-editor floating toolbar (`material-popover rounded-menu`) and ChapterView's small pills were
+  left as they are — the editor toolbar is a multi-row formatting surface, not a single action
+  capsule, and changing it is outside this pass.

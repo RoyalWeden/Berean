@@ -37,7 +37,7 @@ const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
   note: ['scrollTop', 'cursorPos', 'listScrollTop', 'continuousDailyDate'],
   lexicon: ['scrollTop', 'searchScrollTop'],
   youtube: ['scrollTop'],
-  search: ['scrollTop', 'results', 'scope', 'filters'],
+  search: ['scrollTop', 'results', 'scope', 'filters', 'preview'],
   pdf: ['scrollTop'],
   tags: [],
   history: [],

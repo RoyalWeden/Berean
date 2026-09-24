@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { History, Settings as SettingsIcon, Search, Youtube, Tags, FileText, NotepadText, BookMarked } from 'lucide-react'
+import { History, Search, Youtube, Tags, FileText, NotepadText, BookMarked, Clock } from 'lucide-react'
 import { useAppStore } from '@/store'
-import type { BibleTabState, LexiconEntry, Note, Tab, Verse, SearchTabState, YouTubeTabState, PdfTabState } from '@/types'
+import type { BibleTabState, LexiconEntry, LexiconTabState, Note, Tab, Verse, SearchTabState, YouTubeTabState, PdfTabState } from '@/types'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
-import { customThemeKey, previewColors } from '@/lib/customTheme'
-import { THEME_PRESETS } from '@/lib/themePresets'
+import { TRANSLATIONS } from '@/lib/bibleTexts'
+import { themePresetLabel } from '../settings/ThemePresetPage'
+import type { SearchPreviewSummary } from '../search/resultActions'
+import './tabPreview.css'
 import { readerScrollMemory } from '../reader/readerScrollMemory'
 import { columnsForState, translationLabel } from '../reader/compareState'
 
@@ -14,7 +16,9 @@ import { columnsForState, translationLabel } from '../reader/compareState'
  * What a tab card shows (T23-011): a small, REAL preview of the tab's last state — never a
  * screenshot. Scripture shows the passage text from where the tab was being read, a note its
  * title and text, a search its query, YouTube the video's thumbnail, Lexicon the entry, History
- * the latest entries, Settings the current look. Data comes from the same local services the tab
+ * the latest entries, Settings a miniature of its root list with current values. Search shows
+ * the query and the top results from the summary SearchPage saves into the tab (`state.preview`,
+ * LOCAL — never synced); no search runs for a card. Data comes from the same local services the tab
  * uses, fetched once per card and cached for the session (cards are only mounted while the tab
  * cards sheet is open), so rendering previews never touches or resets the tab itself.
  */
@@ -23,7 +27,7 @@ export function TabPreview({ tab }: { tab: Tab }) {
     case 'bible': return (tab.state as BibleTabState).compareMode ? <ComparePreview tab={tab} /> : <ScripturePreview tab={tab} />
     case 'note': return <NotePreview tab={tab} />
     case 'search': return <SearchPreview state={tab.state as SearchTabState} />
-    case 'lexicon': return <LexiconPreview num={(tab.state as { strongsNum: string | null }).strongsNum} />
+    case 'lexicon': return <LexiconPreview state={tab.state as LexiconTabState} />
     case 'youtube': return <YouTubePreview state={tab.state as YouTubeTabState} />
     case 'history': return <HistoryPreview />
     case 'settings': return <SettingsPreview />
@@ -80,9 +84,13 @@ function ScripturePreview({ tab }: { tab: Tab }) {
   const st = tab.state as BibleTabState
   const textId = (st.translation ?? getTranslationForBook(st.bookId) ?? 'KJVA').toLowerCase()
   // Where the tab was being read: its remembered verse anchor (this device), else its target verse.
-  const anchor = readerScrollMemory.restore(tab.id, st.bookId, st.chapter)
+  // Continuous scroll can leave the top-most verse in the neighbouring chapter (the anchor is
+  // keyed by tab id, in memory for the session) — trust it within ±1 chapter, else the tab state.
+  const saved = readerScrollMemory.restore(tab.id, st.bookId)
+  const anchor = saved && Math.abs(saved.chapter - st.chapter) <= 1 ? saved : undefined
+  const chapter = anchor?.chapter ?? st.chapter
   const from = anchor?.verse ?? st.targetVerse ?? st.verse ?? 1
-  const verses = useCached(`ch:${textId}:${st.bookId}:${st.chapter}`, () => window.bible.queryChapter(st.bookId, st.chapter, textId))
+  const verses = useCached(`ch:${textId}:${st.bookId}:${chapter}`, () => window.bible.queryChapter(st.bookId, chapter, textId))
   return (
     // The card header already names the passage; the preview is the text itself (no repeat).
     <div className="mobile-tab-preview is-scripture">
@@ -113,8 +121,10 @@ function ComparePreview({ tab }: { tab: Tab }) {
 
 function NotePreview({ tab }: { tab: Tab }) {
   const id = (tab.state as { noteId?: string | null }).noteId ?? null
-  const note = useCached<Note | null>(id ? `note:${id}` : null, () => window.notes.getNote(id!))
-  if (!id) return <IconPreview icon={NotepadText} lines={['Notes', 'Folders, daily notes, pinned']} />
+  // Keyed by the notes change token, so an edited note never previews stale text.
+  const token = useAppStore((s) => s.noteChangeToken)
+  const note = useCached<Note | null>(id ? `note:${id}:${token}` : null, () => window.notes.getNote(id!))
+  if (!id) return <NotesHomePreview token={token} />
   const body = note ? stripMarkdownFormatting(note.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 260) : ''
   return (
     <div className="mobile-tab-preview is-note">
@@ -124,30 +134,87 @@ function NotePreview({ tab }: { tab: Tab }) {
   )
 }
 
+/** The notes home (no note open): its list as it opens — pinned first, then the latest edited. */
+function NotesHomePreview({ token }: { token: number }) {
+  const notes = useCached<Note[]>(`notes-home:${token}`, () => window.notes.getNotes(40, 0))
+  if (!notes) return <div className="mobile-tab-preview is-note" />
+  if (notes.length === 0) return <IconPreview icon={NotepadText} lines={['Notes', 'No notes yet']} />
+  const rows = [...notes.filter((n) => n.pinned), ...[...notes].filter((n) => !n.pinned).sort((a, b) => b.updatedAt - a.updatedAt)].slice(0, 5)
+  return (
+    <div className="mobile-tab-preview is-note is-list">
+      <div className="mobile-tab-preview-passage">Notes</div>
+      {rows.map((n) => (
+        <div key={n.id} className="mobile-tab-preview-line"><span aria-hidden>{n.icon ?? (n.type === 'verse' ? '📖' : n.type === 'daily' ? '📅' : '📝')}</span> {n.title || 'Untitled'}</div>
+      ))}
+    </div>
+  )
+}
+
+const SCOPE_LABEL = { scripture: 'Scripture', notes: 'Notes', lexicon: 'Lexicon' } as const
+
 function SearchPreview({ state }: { state: SearchTabState }) {
   const q = (state.query ?? '').trim()
   const scope = state.scope ?? 'scripture'
+  const recent = useAppStore((s) => s.recentSearchQueries)
+  const saved = (state as SearchTabState & { preview?: SearchPreviewSummary | null }).preview
+  // Only a summary of THIS query counts (a tag browse saves an empty query while tags are picked).
+  const summary = saved && saved.query === q ? saved : null
+  const f = (state.filters ?? {}) as { textId?: string }
+  const text = f.textId && f.textId !== 'all' ? TRANSLATIONS.find((t) => t.id === f.textId)?.label ?? f.textId : null
   return (
     <div className="mobile-tab-preview is-search">
-      <div className="mobile-tab-preview-searchbar"><Search size={12} aria-hidden /> {q || 'Search'}</div>
-      <p className="mobile-tab-preview-text is-sans">{q ? `Searching ${scope === 'scripture' ? 'Scripture' : scope === 'notes' ? 'notes' : 'the lexicon'}` : 'Every text, your notes, or the lexicon'}</p>
+      <div className="mobile-tab-preview-searchbar"><Search size={12} aria-hidden /> {q || <span className="tab-preview-placeholder">Search</span>}</div>
+      <div className="tab-preview-scope">
+        {(['scripture', 'notes', 'lexicon'] as const).map((sc) => <span key={sc} className={sc === scope ? 'is-on' : undefined}>{SCOPE_LABEL[sc]}</span>)}
+      </div>
+      {summary ? (
+        <>
+          <div className="tab-preview-count">{summary.total} {scope === 'lexicon' ? (summary.total === 1 ? 'entry' : 'entries') : scope === 'notes' ? (summary.total === 1 ? 'note' : 'notes') : (summary.total === 1 ? 'verse' : 'verses')}{text ? ` · ${text}` : ''}</div>
+          {summary.lines.map((l, i) => (
+            <div key={i} className="tab-preview-hit"><b>{l.ref}</b> {l.snippet}</div>
+          ))}
+        </>
+      ) : !q ? (
+        recent.slice(0, 4).map((r) => <div key={r} className="mobile-tab-preview-line"><Clock size={9} aria-hidden /> {r}</div>)
+      ) : (
+        <div className="tab-preview-count">Searching {SCOPE_LABEL[scope]}…</div>
+      )}
     </div>
   )
 }
 
-function LexiconPreview({ num }: { num: string | null }) {
+function LexiconPreview({ state }: { state: LexiconTabState }) {
+  const num = state.strongsNum
   const entry = useCached<LexiconEntry | null>(num ? `lex:${num}` : null, () => window.lexicon.getEntry(num!))
-  if (!num) return <IconPreview icon={BookMarked} lines={["Strong's lexicon", 'Hebrew and Greek entries']} />
+  if (!num) {
+    const q = (state.searchQuery ?? '').trim()
+    return q
+      ? <div className="mobile-tab-preview is-search"><div className="mobile-tab-preview-searchbar"><Search size={12} aria-hidden /> {q}</div><div className="tab-preview-count">Lexicon search</div></div>
+      : <IconPreview icon={BookMarked} lines={["Strong's lexicon", 'Hebrew and Greek entries']} />
+  }
+  const gloss = entry ? (entry.gloss || entry.definition || '').replace(/\s+/g, ' ').trim() : ''
   return (
     <div className="mobile-tab-preview is-lexicon">
-      <div className="mobile-tab-preview-passage">{num} <span className="mobile-tab-preview-lemma">{entry?.lemma}</span></div>
-      <p className="mobile-tab-preview-text is-sans"><em>{entry?.transliteration}</em> {entry?.gloss}</p>
+      <div className="mobile-tab-preview-passage">{num} {entry?.lemma && <span className="mobile-tab-preview-lemma">{entry.lemma}</span>}</div>
+      {entry?.transliteration && <div className="tab-preview-translit">{entry.transliteration}</div>}
+      <p className="mobile-tab-preview-text is-sans">{gloss.slice(0, 160)}</p>
     </div>
   )
+}
+
+/** Where a YouTube tab without a video is: a playlist, a channel (@handle), or the home grid. */
+const safeDecode = (v: string) => { try { return decodeURIComponent(v) } catch { return v } }
+function youTubePlace(state: YouTubeTabState): string {
+  if (state.playlistId) return 'Playlist'
+  const url = state.url ?? ''
+  const handle = url.match(/youtube\.com\/(@[^/?#]+)/i)?.[1] ?? url.match(/youtube\.com\/(?:c|channel|user)\/([^/?#]+)/i)?.[1]
+  if (handle) return safeDecode(handle)
+  if (/[?&]search_query=/.test(url)) return `Search: ${safeDecode((url.match(/search_query=([^&#]+)/)?.[1] ?? '').replace(/\+/g, ' '))}`
+  return 'Channels and videos'
 }
 
 function YouTubePreview({ state }: { state: YouTubeTabState }) {
-  if (!state.videoId) return <IconPreview icon={Youtube} lines={['YouTube', 'Channels and videos']} />
+  if (!state.videoId) return <IconPreview icon={Youtube} lines={['YouTube', youTubePlace(state)]} />
   return (
     <div className="mobile-tab-preview is-youtube">
       <img src={`https://i.ytimg.com/vi/${encodeURIComponent(state.videoId)}/mqdefault.jpg`} alt="" loading="lazy" />
@@ -165,19 +232,33 @@ function HistoryPreview() {
   )
 }
 
+/** A miniature of the Settings root list as it renders (SettingsPage): the first sections'
+ *  rows with their current values — not a theme swatch. */
 function SettingsPreview() {
+  const theme = useAppStore((s) => s.theme)
   const preset = useAppStore((s) => s.themePreset)
   const customThemes = useAppStore((s) => s.customThemes)
-  const theme = useAppStore((s) => s.theme)
-  const scheme = theme === 'light' ? 'light' : theme === 'dark' ? 'dark' : (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-  const c = previewColors(preset, customThemes, scheme)
-  const label = preset.startsWith('custom:') ? customThemes.find((t) => customThemeKey(t.id) === preset)?.name : THEME_PRESETS.find((p) => p.id === preset)?.label
+  const glass = useAppStore((s) => s.glassAppearance)
+  const translation = useAppStore((s) => s.defaultBibleTranslation)
+  const fontSize = useAppStore((s) => s.bibleFontSize)
+  const verseNumbers = useAppStore((s) => s.showVerseNumbers)
+  const cap = (v: string) => v.charAt(0).toUpperCase() + v.slice(1)
+  const sections: Array<[string, Array<[string, string]>]> = [
+    ['Appearance', [['Theme', cap(theme)], ['Color preset', themePresetLabel(preset, customThemes)], ['Glass appearance', cap(String(glass))]]],
+    ['Reading', [['Default translation', TRANSLATIONS.find((t) => t.id === translation)?.label ?? translation], ['Text size', `${fontSize}`], ['Verse numbers', verseNumbers ? 'On' : 'Off']]],
+  ]
   return (
-    <div className="mobile-tab-preview is-settings">
-      <div className="mobile-tab-preview-swatch" style={{ background: c.background, color: c.text }}>
-        <span style={{ color: c.accent }}>1</span> In the beginning…
-      </div>
-      <div className="mobile-tab-preview-line"><SettingsIcon size={11} aria-hidden /> {label ?? 'Default'} · {theme === 'system' ? 'Auto' : theme}</div>
+    <div className="mobile-tab-preview is-settings tab-preview-settings">
+      {sections.map(([title, rows]) => (
+        <div key={title}>
+          <div className="tab-preview-section">{title}</div>
+          <div className="tab-preview-group">
+            {rows.map(([label, value]) => (
+              <div key={label} className="tab-preview-row"><span>{label}</span><span className="tab-preview-value">{value}</span></div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

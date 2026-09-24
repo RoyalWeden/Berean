@@ -134,6 +134,18 @@ export interface ResolveOptions {
   books?: ReadonlyArray<{ id: string; name: string }>
   /** Maximum destinations returned. Default 12. */
   limit?: number
+  /** The book the user is inside (picker chapter level): a bare "10" / "10:5" means this book. */
+  bookId?: string
+}
+
+/** Text named anywhere in the query ("Matthew 10 LXX", "lxx gen 3", "John 3 KJV"), and the query
+ *  without it (SEP24-007/025): the destination then uses that text's database. */
+export function extractTextToken(query: string): { textId: string | null; rest: string } {
+  const m = /(?:^|\s)(lxx|septuagint|brenton|kjva?|king james)(?=\s|$)/i.exec(query)
+  if (!m) return { textId: null, rest: query }
+  const t = m[1].toLowerCase()
+  const textId = t === 'lxx' || t === 'septuagint' || t === 'brenton' ? 'lxx' : 'kjva'
+  return { textId, rest: (query.slice(0, m.index) + ' ' + query.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim() }
 }
 
 function collectionScore(c: PassageCollection, q: string): number {
@@ -156,6 +168,11 @@ function bookScore(name: string, q: string): number {
 }
 
 /** Text a navigation to `bookId` should use from `textId` (the current text when it has the book). */
+/** Whether `textId` has the book (kjva counts every canonical KJV book). */
+function textHasBookOrKjv(textId: string, bookId: string): boolean {
+  return textId === 'kjva' ? resolveTextForBook('kjva', bookId) === 'kjva' : textHasBook(textId, bookId)
+}
+
 export function textForBook(textId: string, bookId: string): string {
   return resolveTextForBook(textId, bookId) ?? textId.toLowerCase()
 }
@@ -164,12 +181,32 @@ export function textForBook(textId: string, bookId: string): string {
  * Resolve a typed query into ranked navigation destinations (see the file comment).
  * Order: an exact passage first, then exact collection / book names, then prefix matches.
  */
-export function resolvePassageQuery(query: string, opts: ResolveOptions): PassageDestination[] {
+export function resolvePassageQuery(rawQuery: string, opts: ResolveOptions): PassageDestination[] {
+  // A text named in the query ("… LXX") picks that database for the destination.
+  const tok = extractTextToken(rawQuery)
+  const query = tok.rest || (tok.textId ? rawQuery : rawQuery)
   const q = norm(query)
-  if (!q) return []
   const current = opts.textId.toLowerCase()
   const limit = opts.limit ?? 12
   const scored: Array<{ d: PassageDestination; score: number }> = []
+  const withText = (bookId: string, fallback: string) =>
+    tok.textId && textHasBookOrKjv(tok.textId, bookId) ? tok.textId : fallback
+
+  // 0. Inside a book: "10", "10:5", "10:5-8" — that book's chapter / verse.
+  const bare = opts.bookId ? /^(\d{1,3})(?::(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?)?$/.exec(query.trim()) : null
+  if (bare && opts.bookId) {
+    const chapter = Number(bare[1]); const verse = bare[2] ? Number(bare[2]) : undefined; const endVerse = bare[3] ? Number(bare[3]) : undefined
+    const textId = withText(opts.bookId, current)
+    const vl = bookChapterVerseLabel(opts.bookId, chapter, verse)
+    return [{ kind: 'passage', key: `p:${textId}:${opts.bookId}:${chapter}:${verse ?? ''}:${endVerse ?? ''}`, textId, bookId: opts.bookId, chapter, verse, endVerse,
+      label: verse != null && endVerse != null ? `${vl}–${endVerse}` : vl, subtitle: collectionLabel(textId) }]
+  }
+  // Only a text named ("LXX") → that collection first.
+  if (!q && tok.textId) {
+    const c = PASSAGE_COLLECTIONS.find((x) => x.textId === tok.textId && !x.group)
+    return c ? [{ kind: 'collection', key: `c:${c.key}`, textId: c.textId, label: c.label, subtitle: c.subtitle }] : []
+  }
+  if (!q) return []
 
   // 1. A passage — a book name followed by a number ("gen 3", "1 cor 13", "1 Enoch 5:2").
   if (/\p{L}.*\d/u.test(query)) {
@@ -177,6 +214,7 @@ export function resolvePassageQuery(query: string, opts: ResolveOptions): Passag
     if (ref) {
       let textId = textForBook(current, ref.bookId)
       if (ref.forcedTranslation === 'LXX' && textHasBook('lxx', ref.bookId)) textId = 'lxx'
+      textId = withText(ref.bookId, textId)
       const verseLabel = bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)
       const label = ref.verse != null && ref.endVerse != null ? `${verseLabel}–${ref.endVerse}` : verseLabel
       scored.push({ score: 200, d: { kind: 'passage', key: `p:${textId}:${ref.bookId}:${ref.chapter}:${ref.verse ?? ''}:${ref.endVerse ?? ''}`, textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse, label, subtitle: collectionLabel(textId) } })
@@ -211,7 +249,7 @@ export function resolvePassageQuery(query: string, opts: ResolveOptions): Passag
   const currentBooks = new Map((opts.books ?? []).map((b) => [b.id, b.name]))
   for (const [bookId, score] of books) {
     if (!score) continue
-    const textId = currentBooks.has(bookId) ? current : textForBook(current, bookId)
+    const textId = withText(bookId, currentBooks.has(bookId) ? current : textForBook(current, bookId))
     // A single-book text's book IS its collection ("Enoch" → 1 Enoch once, not twice).
     const coll = collectionForText(textId)
     if (coll && collectionHits.has(coll.key) && singleBookOf(textId) === bookId) continue

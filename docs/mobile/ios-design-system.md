@@ -1,0 +1,85 @@
+# iPhone material system (iOS design system)
+
+Source of truth for the phone shell's translucent materials, radii and surfaces. Tokens and
+classes live at the end of `src/mobile/mobile.css` ("iOS material system"). Added 2026-09-24
+after developer feedback that Floating Search felt busy and the sheets / chrome did not feel
+iOS-native or glassy enough.
+
+## References and stance
+
+- Apple HIG: Materials, Sheets, Toolbars, Search fields; iOS 26 "Liquid Glass" (translucent
+  floating controls, toolbars that float over content, sheets with large corner radii).
+- Liquid Glass drew legibility criticism (NN/G, "Liquid Glass Is Cracked, and Usability Suffers
+  in iOS 26"), and Apple itself added a more "frosted"/tinted option in iOS 26.1. Berean is a
+  reading app, so the system is deliberately **restrained**: frosted, fairly dense materials,
+  never clear glass over body text; blur only where content actually scrolls underneath.
+- Reduce Transparency (Settings → Accessibility → Display & Text Size) makes system bars fully
+  opaque; we do the same.
+
+## Tokens (`:root`, dark overrides on `html.scheme-dark`)
+
+| Token | Value (regular glass) | Use |
+|---|---|---|
+| `--m-glass-filter` | `saturate(glass-saturate × 1.25) blur(26px × glass-blur)` | all glass |
+| `--m-glass-filter-thin` | same, 16px blur | thin glass |
+| `--m-glass-thin` / `-regular` / `-thick` | surface-2 at α 0.62 / 0.76 / 0.88 (× `--glass-alpha-mult`, capped) | bars, headers |
+| `--m-glass-sheet` | surface-1 (light) / surface-2 (dark) at α 0.86 | sheets |
+| `--m-glass-control` | surface-3 at α 0.72 | floating controls (bottom nav) |
+| `--m-bar-bg` | surface-2 at α 0.97 | in-flow page headers |
+| `--m-card-bg` | white cards (light); surface-2 lifted 10 % toward text (dark) | grouped cards |
+| `--m-fill` / `--m-fill-pressed` | text-primary at 7 % / 12 % (dark 10 / 16 %) | search fields, chips, segmented track |
+| `--m-hairline`, `--m-separator` | text-primary at 10 % / 8 % | borders, list separators |
+| `--m-edge-highlight` | white at 10 % (dark 7 %) | inset 0.5px top edge on glass |
+| `--m-radius-sheet` / `-card` / `-control` / `-field` | 30 / 16 / 12 / 12 px | |
+| `--m-shadow-float`, `--m-shadow-sheet`, `--m-backdrop-dim` | soft; dim 0.3 (dark 0.45) | |
+
+Alphas multiply the shared `--glass-alpha-mult` / `--glass-blur` / `--glass-saturate` knobs, so
+Settings → Glass appearance (clear / regular / tinted) retunes the phone too.
+
+Utility classes: `.m-glass`, `.m-glass-thick`, `.m-glass-thin`, `.m-glass-control`,
+`.m-glass-card`.
+
+## Where used
+
+- **Sheets** (`.mobile-sheet`): sheet glass + blur, 30px top radius, inset top highlight,
+  hairline + soft shadow; 36×5 grabber at 22 % text; dim backdrop.
+- **Grouped cards** (`.mobile-list-group`, `.mobile-caret-group-body`, `.mobile-choice-list`,
+  `.mobile-caret-tile`, `.mobile-action-row`): `--m-card-bg`, 16px radius, hairline separators,
+  pressed fill. Pages and sheets share the same card treatment (iOS inset-grouped).
+- **Page headers**: in-flow headers use the near-opaque `--m-bar-bg` + hairline (nothing scrolls
+  beneath them, and backdrop-filter during nav-stack pushes costs frames). The reader's overlay
+  header is real glass (`--m-glass-regular` + blur), since the text scrolls under it.
+- **Bottom navigation**: iOS 26 toolbar style — the bar has no fill; tabs (48pt circle), plus
+  (112×48 capsule, accent glyph, the largest) and caret (48pt circle) float as individual glass
+  controls. Over the reader a faint surface gradient keeps them legible. Padding / overlay /
+  collapse remain in `reader/readerChrome.css`.
+- **Search fields** (`.mobile-search-field`, `.mobile-search-row`): filled rounded field
+  (`--m-fill`, 12px radius), no border.
+- **Chips / segmented**: fill-based; selected segment is a raised card (light) or 20 % text
+  (dark); selected chip is accent.
+- **Tab cards**: 16px radius, hairline ring + float shadow, thick-glass header.
+
+## Floating Search (NewTabSheet)
+
+Field (auto-focus, clear button) → one grouped row of 8 icon-only 44pt destinations (Scripture,
+Note, Today, Lexicon, History, YouTube, Settings, More; VoiceOver labels + tooltips) → Recent as
+an inset-grouped list (5, then "Show All" up to 30). Typing replaces the lower part with an
+inset-grouped action list, primary action first (Enter runs it). No Compare, no Workspaces.
+
+## Accessibility
+
+- **Reduce Transparency**: `@media (prefers-reduced-transparency: reduce)` and
+  `html[data-reduce-transparency]` redefine every material token to its opaque surface and set
+  the filters to `none`. WebKit on iOS does not reliably report the media query, so the native
+  a11y bridge should set `data-reduce-transparency` from
+  `UIAccessibility.isReduceTransparencyEnabled` (not wired yet — see open items).
+- **Increase Contrast** (`prefers-contrast: more` / `html[data-contrast="more"]`): materials go to
+  α ≥ 0.97, hairlines/separators use text-muted at 60 % / 45 %, grouped cards and fields get a
+  1px ring.
+- Text sits on materials of α ≥ 0.72 over a blurred backdrop; primary text keeps the theme's
+  contrast. Touch targets stay ≥ 44pt. Reduce Motion drops the press-scale on nav controls.
+
+## Open items
+
+- Native: expose Reduce Transparency through `BereanA11y` and set
+  `document.documentElement.dataset.reduceTransparency` in `MobileApp.tsx`'s a11y effect.

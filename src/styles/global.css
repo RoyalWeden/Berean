@@ -1911,6 +1911,27 @@ html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
   box-shadow: var(--shadow-1);
   border-radius: var(--radius-control);
 }
+/* Floating action bar (verse-selection bar) — a free-floating capsule over Scripture. Clearer and
+   more blurred than a popover so the reading surface reads through it (Liquid Glass "clear"
+   variant), with the top-edge highlight, a hairline, and a soft two-layer lift shadow. Its items
+   stay flat/ghost inside (glass-on-glass is never used). Opaque twin under Reduce Transparency. */
+.material-floating-bar {
+  background: rgb(var(--color-surface-1) / min(0.96, calc(0.66 * var(--glass-alpha-mult))));
+  backdrop-filter: blur(calc(24px * var(--glass-blur))) saturate(calc(var(--glass-saturate) + 0.2)) contrast(var(--glass-contrast));
+  -webkit-backdrop-filter: blur(calc(24px * var(--glass-blur))) saturate(calc(var(--glass-saturate) + 0.2)) contrast(var(--glass-contrast));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  box-shadow:
+    inset 0 1px 0 var(--highlight),
+    0 1px 3px rgb(0 0 0 / calc(0.10 * var(--shadow-strength))),
+    0 12px 32px -12px rgb(0 0 0 / calc(0.42 * var(--shadow-strength) * var(--glass-shadow)));
+}
+html[data-reduce-transparency] .material-floating-bar {
+  background: var(--material-popover-bg-opaque); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .material-floating-bar { background: var(--material-popover-bg-opaque); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
 /* Opaque windows have nothing behind them to blur — drop the filter (GPU cost) and rely on the
    alpha alone; the alpha still lets the app's own content beneath a popover show through. */
 html:not([data-vibrant]) .material-panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(var(--color-surface-2) / 0.97); }

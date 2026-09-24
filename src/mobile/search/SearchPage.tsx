@@ -26,6 +26,8 @@ import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
 import { useIncrementalLimit } from './useIncrementalLimit'
 import { loadTaggedVerses } from './taggedBrowse'
+import { useSearchResultActions, LongPressResult } from './ResultActionSheet'
+import { buildSearchPreview, samePreview, type SearchPreviewSummary } from './resultActions'
 import './search.css'
 
 type Scope = 'scripture' | 'notes' | 'lexicon'
@@ -207,6 +209,33 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const { limit, grow, sentinelRef } = useIncrementalLimit(groups, RESULT_CHUNK)
   const page = useMemo(() => takeGroupRows(groups, limit), [groups, limit])
 
+  const openNote = (n: Note) => { addRecent(query.trim()); setActiveSpace('notes'); requestOpenNote(n.id) }
+  const openEntry = (e: LexiconEntry) => sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={e.strongsNum} api={api} onNavigate={() => setActiveSpace('scripture')} /> })
+  // Long-press menus (SEP24): the same Open as a tap, plus new tab / copy / share / note / highlight.
+  const resultActions = useSearchResultActions({ openHit, openNote, openEntry, runRecent: setQuery, scope })
+
+  // Tab-card preview (T23-011): a tiny summary of what this tab currently shows, saved into the
+  // tab's LOCAL state (tabFields.ts — never synced) once results settle, so the card needs no
+  // search of its own. Empty query → cleared (the card then shows recent queries).
+  const previewSummary = useMemo<SearchPreviewSummary | null>(() => {
+    const q = browsing ? '' : query.trim()
+    if (scope === 'scripture' && filteredHits && (q.length >= 2 || browsing)) {
+      const rows = groups.flatMap((g) => g.hits.slice(0, 3)).slice(0, 3)
+      return buildSearchPreview(q, filteredHits.length, rows.map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(h.text, snippetQueryFor(q), 120).text })))
+    }
+    if (scope === 'notes' && notes && q.length >= 2) return buildSearchPreview(q, notes.length, notes.map((n) => ({ ref: n.title || 'Untitled', text: stripMarkdownFormatting(n.content ?? '') })))
+    if (scope === 'lexicon' && entries && q.length >= 2) return buildSearchPreview(q, entries.length, entries.map((e) => ({ ref: `${e.strongsNum} ${e.lemma ?? ''}`.trim(), text: e.gloss ?? '' })))
+    return null
+  }, [scope, filteredHits, groups, notes, entries, query, browsing])
+  useEffect(() => {
+    if (loading) return
+    const t = setTimeout(() => {
+      const cur = (liveSearchState(tabId) as (SearchTabState & { preview?: SearchPreviewSummary | null }) | undefined)?.preview ?? null
+      if (!samePreview(cur, previewSummary)) updateTabState('search', tabId, { preview: previewSummary } as unknown as Partial<SearchTabState>)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [previewSummary, loading, tabId, updateTabState])
+
   // Search's caret (T23-013): the filters live here now (no filter button in the header), in a
   // clear order — what to search, how to match, which texts / books / tags, how to sort. Values
   // are read from the tab's live state so inline controls and sub-views stay current.
@@ -269,7 +298,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
       {loading && <div className="mobile-muted" style={{ padding: '8px 16px' }}>Searching…</div>}
       {!query.trim() && !browsing && recent.length > 0 && (
         <ListSection title="Recent">
-          {recent.map((r) => <Row key={r} leading={<Clock size={16} aria-hidden />} title={r} onClick={() => setQuery(r)} />)}
+          {recent.map((r) => <LongPressResult key={r} onLongPress={() => resultActions.recent(r)}><Row leading={<Clock size={16} aria-hidden />} title={r} onClick={() => setQuery(r)} /></LongPressResult>)}
         </ListSection>
       )}
       {!query.trim() && !browsing && recent.length === 0 && <div className="mobile-empty">Search every text, your notes, or the lexicon. Type a reference to jump straight to it.</div>}
@@ -288,9 +317,9 @@ export function SearchPage({ tab }: { tab: Tab }) {
               return (
                 <ListSection key={g.bookId} title={`${bookName(g.bookId)} · ${full?.hits.length ?? g.hits.length}`}>
                   {g.hits.map((h) => (
-                    <Row key={`${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`} chevron onClick={() => openHit(h)}
+                    <LongPressResult key={`${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`} onLongPress={() => resultActions.scripture(h)}><Row chevron onClick={() => openHit(h)}
                       title={<span className="mobile-occurrence-ref">{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{textId === 'all' ? <span className="mobile-muted"> · {TRANSLATIONS.find((t) => t.id === h.textId)?.label ?? h.textId}</span> : null}</span>}
-                      subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(h.text, snippetQuery, 140).text, h.strongsWords ? '' : snippetQuery, wordMode)}</span>} />
+                      subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(h.text, snippetQuery, 140).text, h.strongsWords ? '' : snippetQuery, wordMode)}</span>} /></LongPressResult>
                   ))}
                 </ListSection>
               )
@@ -309,7 +338,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
         <ListSection title={`${notes.length} note${notes.length === 1 ? '' : 's'}`}>
           {notes.length === 0 && <div className="mobile-empty">No notes match.</div>}
           {notes.map((n) => (
-            <Row key={n.id} chevron title={n.title || 'Untitled'} subtitle={applyFindHighlight(stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 140), query, wordMode)} onClick={() => { addRecent(query.trim()); setActiveSpace('notes'); requestOpenNote(n.id) }} />
+            <LongPressResult key={n.id} onLongPress={() => resultActions.note(n)}><Row chevron title={n.title || 'Untitled'} subtitle={applyFindHighlight(stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 140), query, wordMode)} onClick={() => openNote(n)} /></LongPressResult>
           ))}
         </ListSection>
       )}
@@ -317,8 +346,8 @@ export function SearchPage({ tab }: { tab: Tab }) {
         <ListSection title={`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`}>
           {entries.length === 0 && <div className="mobile-empty">No entries match.</div>}
           {entries.slice(0, 200).map((e) => (
-            <Row key={e.strongsNum} chevron title={<><span className="mobile-strongs-num">{e.strongsNum}</span> {e.lemma} <span className="mobile-muted">{e.transliteration}</span></>} subtitle={e.gloss}
-              onClick={() => sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={e.strongsNum} api={api} onNavigate={() => setActiveSpace('scripture')} /> })} />
+            <LongPressResult key={e.strongsNum} onLongPress={() => resultActions.entry(e)}><Row chevron title={<><span className="mobile-strongs-num">{e.strongsNum}</span> {e.lemma} <span className="mobile-muted">{e.transliteration}</span></>} subtitle={e.gloss}
+              onClick={() => openEntry(e)} /></LongPressResult>
           ))}
           {entries.length > 0 && <Row title="Open in Lexicon space" onClick={() => { setActiveSpace('lexicon'); openLexiconEntry(entries[0].strongsNum) }} />}
         </ListSection>
@@ -326,6 +355,9 @@ export function SearchPage({ tab }: { tab: Tab }) {
     </Page>
   )
 }
+
+/** The snippet window centres on the query's words; a Strong's query has none to centre on. */
+function snippetQueryFor(q: string): string { return /^[HG]\d+$/i.test(q) ? '' : q }
 
 /** Caret → Text: every text or one. Picking returns to the caret. */
 function SearchTextChoices({ tabId, api }: { tabId: string; api: SheetApi }) {

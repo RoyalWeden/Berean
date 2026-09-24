@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, Settings as SettingsIcon, History, CornerDownLeft, Clock, Hash, MoreHorizontal, type LucideIcon } from 'lucide-react'
+import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, Settings as SettingsIcon, History, CornerDownLeft, Clock, Hash, MoreHorizontal, XCircle, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef, bookName, isStrongsRef } from '@/lib/parseRef'
@@ -37,23 +37,30 @@ export function openQueryInNewSearchTab(query: string): void {
 }
 
 /**
- * The plus / new-tab surface (TEST-032; reworked T23-009/010): a floating search sheet built for
- * frequent Bible use. Type a reference ("John 3:16", "Psalm 23:1-6") and open it in a NEW Scripture
- * tab (or the current one); a Strong's number opens a Lexicon tab; while typing, "Search … in a new
- * Search tab" opens a DEDICATED Search tab. With nothing typed: one tile per genuine tab type —
- * each creates a real, independent tab (several of a kind are fine) — then the navigation that is
- * compact icon row (NEW-013; More is its last icon), then recent history (scrolling dismisses the
- * keyboard). There is no separate Search tile: a Search
- * tab starts from what you type.
+ * The plus / new-tab surface — "Floating Search" (TEST-032; reworked T23-009/010, redesigned
+ * 2026-09-24 as a calm iOS command surface). Top to bottom:
+ *   1. a prominent filled search field (auto-focused): a reference opens Scripture, a Strong's
+ *      number the Lexicon, anything else a DEDICATED new Search tab;
+ *   2. with nothing typed, ONE quiet grouped row of icon-only destinations (44 pt, VoiceOver
+ *      labels) — each creates a real, independent tab; More is the last icon;
+ *   3. Recent as an inset-grouped list (first RECENT_PREVIEW, explicit "Show All");
+ *   while typing, the options become a native inset-grouped list (primary action first).
+ * Scrolling dismisses the keyboard. There is no separate Search destination: a Search tab starts
+ * from what you type. No Compare, no Workspaces here.
  */
+const RECENT_PREVIEW = 5
+const RECENT_ALL = 30
+
 export function NewTabSheet({ close, openMore }: { close: () => void; openMore: (route: MorePageRoute) => void }) {
   const [query, setQuery] = useState('')
+  const [showAllRecent, setShowAllRecent] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { const t = setTimeout(() => inputRef.current?.focus(), 280); return () => clearTimeout(t) }, [])
   const q = useMemo(() => classifyNewTabQuery(query), [query])
   const history = useAppStore((s) => s.history)
   const navigateHistory = useHistoryNavigate()
-  const recent = useMemo(() => dedupeRecent(history).slice(0, 12), [history])
+  const allRecent = useMemo(() => dedupeRecent(history).slice(0, RECENT_ALL), [history])
+  const recent = showAllRecent ? allRecent : allRecent.slice(0, RECENT_PREVIEW)
 
   const st = () => useAppStore.getState()
   const done = () => { void haptic.light(); close() }
@@ -72,66 +79,92 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
   const newSearchTab = (text: string) => { done(); openQueryInNewSearchTab(text) }
   // Scrolling the destinations / recent list puts the keyboard away (NEW-013).
   const dismissKeyboard = () => { if (document.activeElement === inputRef.current) inputRef.current?.blur() }
+  const openStrongs = (num: string) => { done(); st().openLexiconEntry(num) }
 
   return (
     <div className="mobile-newtab" onTouchMove={dismissKeyboard} onWheel={dismissKeyboard}>
-      <form className="mobile-search-field" onSubmit={(e) => {
+      <form className="mobile-search-field" role="search" onSubmit={(e) => {
         e.preventDefault()
         if (q.kind === 'ref') openRef(q, 'new')
-        else if (q.kind === 'strongs') { done(); st().openLexiconEntry(q.num) }
+        else if (q.kind === 'strongs') openStrongs(q.num)
         else if (q.kind === 'text') newSearchTab(q.text)
       }}>
-        <Search size={18} aria-hidden />
+        <Search size={17} aria-hidden />
         <input ref={inputRef} className="mobile-search-input" type="search" enterKeyHint="go" autoCorrect="off" autoCapitalize="words"
-          placeholder="Reference, Strong's number or words…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Open or search" />
+          placeholder="Reference, Strong's or words" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Open or search" />
+        {query && (
+          <button type="button" className="mobile-newtab-clear" aria-label="Clear" onClick={() => { setQuery(''); inputRef.current?.focus() }}>
+            <XCircle size={17} aria-hidden />
+          </button>
+        )}
       </form>
 
       {q.kind === 'ref' && (
-        <div className="mobile-newtab-results">
-          <button type="button" className="mobile-ref-go" onClick={() => openRef(q, 'new')}><CornerDownLeft size={18} aria-hidden /><span>Open <strong>{q.label}</strong> in a new tab</span></button>
-          <button type="button" className="mobile-newtab-row" onClick={() => openRef(q, 'current')}><BookOpen size={18} aria-hidden /><span>Open in the current Scripture tab</span></button>
-          <button type="button" className="mobile-newtab-row" onClick={() => newSearchTab(query)}><Search size={18} aria-hidden /><span>Search “{query.trim()}” in a new Search tab</span></button>
+        <div className="mobile-newtab-list mobile-newtab-section" role="group" aria-label="Open">
+          <ResultRow primary icon={BookOpen} title={<>Open {q.label}</>} subtitle="New Scripture tab" onClick={() => openRef(q, 'new')} />
+          <ResultRow icon={CornerDownLeft} title="Open in current tab" onClick={() => openRef(q, 'current')} />
+          <ResultRow icon={Search} title={<>Search “{query.trim()}”</>} subtitle="New Search tab" onClick={() => newSearchTab(query)} />
         </div>
       )}
       {q.kind === 'strongs' && (
-        <div className="mobile-newtab-results">
-          <button type="button" className="mobile-ref-go" onClick={() => { done(); st().openLexiconEntry(q.num) }}><Hash size={18} aria-hidden /><span>Open <strong>{q.num}</strong> in the Lexicon</span></button>
-          <button type="button" className="mobile-newtab-row" onClick={() => newSearchTab(q.num)}><Search size={18} aria-hidden /><span>Find {q.num} in Scripture — new Search tab</span></button>
+        <div className="mobile-newtab-list mobile-newtab-section" role="group" aria-label="Open">
+          <ResultRow primary icon={Hash} title={<>Open {q.num}</>} subtitle="Lexicon" onClick={() => openStrongs(q.num)} />
+          <ResultRow icon={Search} title={<>Find {q.num} in Scripture</>} subtitle="New Search tab" onClick={() => newSearchTab(q.num)} />
         </div>
       )}
       {q.kind === 'text' && (
-        <div className="mobile-newtab-results">
-          <button type="button" className="mobile-ref-go" onClick={() => newSearchTab(q.text)}><Search size={18} aria-hidden /><span>Search “<strong>{q.text}</strong>” in a new Search tab</span></button>
+        <div className="mobile-newtab-list mobile-newtab-section" role="group" aria-label="Search">
+          <ResultRow primary icon={Search} title={<>Search “{q.text}”</>} subtitle="New Search tab" onClick={() => newSearchTab(q.text)} />
         </div>
       )}
 
       {q.kind === 'empty' && (
         <>
-          {/* Compact, icon-only destinations (NEW-013) — one row; each is a real new tab, More is
-              the last icon. Names are spoken by VoiceOver and shown on long-press tooltips. */}
-          <div className="mobile-newtab-icons" role="group" aria-label="New tab">
-            <IconTile icon={BookOpen} label="New Scripture tab" onClick={newScripture} />
-            <IconTile icon={NotepadText} label="New note" onClick={newNote} />
-            <IconTile icon={CalendarDays} label="Today's daily note" onClick={daily} />
-            <IconTile icon={BookMarked} label="New Lexicon tab" onClick={newLexicon} />
-            <IconTile icon={Youtube} label="New YouTube tab" onClick={newYouTube} />
-            <IconTile icon={History} label="New History tab" onClick={newHistory} />
-            <IconTile icon={SettingsIcon} label="New Settings tab" onClick={newSettings} />
-            <IconTile icon={MoreHorizontal} label="More — study trail, tags, queue, PDFs, sessions" onClick={() => { done(); openMore('more') }} />
+          {/* Icon-only destinations (NEW-013): one quiet grouped row, each a real new tab; More
+              is the last icon. Names are spoken by VoiceOver and shown on long-press tooltips. */}
+          <div className="mobile-newtab-dests" role="group" aria-label="New tab">
+            <Dest icon={BookOpen} label="New Scripture tab" onClick={newScripture} />
+            <Dest icon={NotepadText} label="New note" onClick={newNote} />
+            <Dest icon={CalendarDays} label="Today's daily note" onClick={daily} />
+            <Dest icon={BookMarked} label="New Lexicon tab" onClick={newLexicon} />
+            <Dest icon={History} label="New History tab" onClick={newHistory} />
+            <Dest icon={Youtube} label="New YouTube tab" onClick={newYouTube} />
+            <Dest icon={SettingsIcon} label="New Settings tab" onClick={newSettings} />
+            <Dest icon={MoreHorizontal} label="More — study trail, tags, queue, PDFs, sessions" onClick={() => { done(); openMore('more') }} more />
           </div>
-          {recent.length > 0 && (
-            <section className="mobile-newtab-recent" aria-label="Recent">
-              <h3>Recent</h3>
-              {recent.map((h) => (
-                <button key={h.id} type="button" className="mobile-newtab-row" onClick={() => { done(); navigateHistory(h) }}>
-                  <Clock size={16} aria-hidden /><span>{h.title}</span><small>{HISTORY_TYPE_LABEL[h.type]}</small>
-                </button>
-              ))}
+          {allRecent.length > 0 && (
+            <section className="mobile-newtab-section" aria-label="Recent">
+              <div className="mobile-newtab-section-head">
+                <h3>Recent</h3>
+                {allRecent.length > RECENT_PREVIEW && (
+                  <button type="button" className="mobile-newtab-more" onClick={() => setShowAllRecent((v) => !v)} aria-expanded={showAllRecent}>
+                    {showAllRecent ? 'Show Less' : 'Show All'}
+                  </button>
+                )}
+              </div>
+              <div className="mobile-newtab-list">
+                {recent.map((h) => (
+                  <button key={h.id} type="button" className="mobile-newtab-row" onClick={() => { done(); navigateHistory(h) }}>
+                    <span className="mobile-newtab-row-icon"><Clock size={17} aria-hidden /></span>
+                    <span className="mobile-newtab-row-text"><span>{h.title}</span></span>
+                    <span className="mobile-newtab-row-meta">{HISTORY_TYPE_LABEL[h.type]}</span>
+                  </button>
+                ))}
+              </div>
             </section>
           )}
         </>
       )}
     </div>
+  )
+}
+
+function ResultRow({ icon: Icon, title, subtitle, onClick, primary }: { icon: LucideIcon; title: React.ReactNode; subtitle?: string; onClick: () => void; primary?: boolean }) {
+  return (
+    <button type="button" className={`mobile-newtab-row${primary ? ' is-primary' : ''}`} onClick={onClick}>
+      <span className="mobile-newtab-row-icon"><Icon size={19} aria-hidden /></span>
+      <span className="mobile-newtab-row-text"><span>{title}</span>{subtitle && <small>{subtitle}</small>}</span>
+    </button>
   )
 }
 
@@ -146,6 +179,6 @@ function dedupeRecent(history: HistoryEntry[]): HistoryEntry[] {
   return out
 }
 
-function IconTile({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
-  return <button type="button" className="mobile-newtab-icon" onClick={onClick} aria-label={label} title={label}><Icon size={21} aria-hidden /></button>
+function Dest({ icon: Icon, label, onClick, more }: { icon: LucideIcon; label: string; onClick: () => void; more?: boolean }) {
+  return <button type="button" className={`mobile-newtab-dest${more ? ' is-more' : ''}`} onClick={onClick} aria-label={label} title={label}><Icon size={21} aria-hidden /></button>
 }

@@ -1,0 +1,38 @@
+/* Reader chrome owned by the Scripture reader (compact island/notch header, collapsing bottom
+   controls, text-switch double buffer). Kept apart from mobile.css (the shared design system). */
+
+/* ── compact Scripture header (NEW-007) ─────────────────────────────────
+   Joins the top cutout: a black shape the colour of the island / notch, with the passage under
+   it. Sizes follow the real cutout geometry (island ≈126 pt wide at y≈11; notch 0-≈32 pt). */
+.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: var(--m-safe-top); background: rgb(var(--color-surface-2)); z-index: 6; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+.mobile-compact-band.is-visible { opacity: 1; }
+.mobile-compact-pill { position: fixed; left: 50%; z-index: 7; display: flex; align-items: flex-end; justify-content: center; border: 0; padding: 0 14px 5px; background: #000; color: #fff;
+  font: inherit; font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25)); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
+  transform: translate(-50%, -8px) scaleY(0.6); opacity: 0; pointer-events: none; transform-origin: top center; transition: transform 0.22s ease, opacity 0.18s ease; }
+.mobile-compact-pill.is-visible { transform: translate(-50%, 0) scaleY(1); opacity: 1; pointer-events: auto; }
+/* Dynamic Island: starts at the island's top edge, same corner radius — the island grows downward. */
+.mobile-compact-pill.is-island { top: 11px; min-width: 126px; height: calc(var(--m-safe-top) - 11px + 20px); border-radius: 22px; }
+/* Notch: attached to the top edge like the notch, rounded only at the bottom. */
+.mobile-compact-pill.is-notch { top: 0; min-width: 164px; height: calc(var(--m-safe-top) + 18px); border-radius: 0 0 18px 18px; }
+/* Home-button iPhones: a small pill just under the status bar. */
+.mobile-compact-pill.is-none { top: calc(var(--m-safe-top) + 2px); height: 24px; padding-bottom: 0; align-items: center; border-radius: 12px; }
+.mobile-compact-pill-badge { margin-left: 6px; font-size: 0.85em; opacity: 0.75; }
+.mobile-compact-pill-text { display: inline-flex; align-items: baseline; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .mobile-compact-pill, .mobile-compact-band { transition: opacity 0.1s linear; } }
+
+/* ── bottom controls (NEW-006 / NEW-012) ────────────────────────────────
+   Padding inside the home-indicator inset instead of on top of it: the controls end 12 px above
+   the inset's inner edge (the indicator itself sits in its lowest ~13 px), keeping clear of the
+   system gesture. On the reader the bar overlays the text and slides away while reading down. */
+.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform 0.24s ease; }
+.mobile-root.has-overlay-nav .mobile-bottom-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; }
+.mobile-root.has-overlay-nav.is-nav-collapsed .mobile-bottom-nav { transform: translateY(calc(100% + 2px)); }
+.mobile-page.is-reader .mobile-reader-end { height: calc(var(--m-nav-h, 64px) + 24px); }
+@media (prefers-reduced-motion: reduce) { .mobile-bottom-nav { transition: none; } }
+
+/* ── reader top bar (NEW-008): a slightly shorter row than regular pages. */
+.mobile-page.is-reader { --m-header-h: 44px; }
+
+/* Text-switch double buffer (NEW-005A): the outgoing pane covers the incoming one until it is ready. */
+.mobile-reader-slot { position: relative; flex: none; height: 100%; }
+.mobile-reader-pane.is-held { position: absolute; inset: 0; z-index: 2; pointer-events: none; }

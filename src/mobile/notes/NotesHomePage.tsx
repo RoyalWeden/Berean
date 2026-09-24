@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { Plus, CalendarDays, Folder, FolderPlus, FolderInput, Pin, Trash2, Search, MoreHorizontal } from 'lucide-react'
+import { Plus, CalendarDays, Folder, FolderPlus, FolderInput, Pin, Trash2, Search, Rows3, ArrowDownUp } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
@@ -10,7 +10,7 @@ import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { Page, IconTap, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
-import { useActionSheet } from '../primitives/ActionSheet'
+import { useActionSheet, ChoiceList } from '../primitives/ActionSheet'
 import { useLongPress } from '../primitives/useLongPress'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { noteIsMovable } from '@/lib/noteMovability'
@@ -18,18 +18,19 @@ import { FolderPicker } from './FolderPicker'
 import './notes.css'
 import { NoteEditorPage } from './NoteEditorPage'
 import { TrashPage } from './TrashPage'
-import NotesPanel from '@/components/notes/NotesPanel'
 import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
 import { idiomExportEntries } from '@/lib/idiomsExport'
 import { parseNoteMarkdownFile } from '@/lib/noteMarkdownFile'
+import { groupNotes, useNoteHomeView, noteHomeView, NOTE_GROUPING_OPTIONS, NOTE_SORT_OPTIONS, type NoteGrouping, type NoteSortMode } from './noteGrouping'
 
 type Filter = 'all' | 'scripture' | 'topic' | 'daily' | 'video' | 'pinned'
 
 /**
  * Notes home for the phone (Phase 13, R084/R085): search, type filters, pinned, folders and the
  * recent list — the same `window.notes` data as the desktop NotesHomePanel. Tap → the native
- * editor page. The desktop panel (board / calendar / folder views) stays reachable under
- * "All views" until each has a phone page.
+ * editor page. The phone never hosts the desktop NotesPanel: its list / folder / board views are
+ * native presentations here — the caret's "Group by" (Recent / By status = the board / By folder
+ * = the folder view / By type) and "Sort" (last edited / created / title, as desktop).
  */
 export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const nav = useNavigation()
@@ -126,8 +127,8 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     { id: 'import', label: 'Import Markdown file…', onSelect: importMarkdown },
     ...(hasIdioms ? [{ id: 'idioms', label: 'Export all idioms (PDF)…', onSelect: () => setIdiomsOpen(true) }] : []),
     { id: 'folder', label: 'New folder…', onSelect: () => { void newFolder(null) } },
-    { id: 'desktop', label: 'All views (desktop layout)', onSelect: () => nav.push('notes-desktop', <DesktopNotesPage onBack={nav.pop} />) },
   ]
+  const view = useNoteHomeView()
   // Notes' caret (TEST-033): new note / today first, then the former "…" menu (moved, not copied).
   useCaretCommands(() => ({
     title: 'Notes',
@@ -135,6 +136,13 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
       { id: 'quick', style: 'tiles', commands: [
         { kind: 'action', id: 'new', label: 'New note', icon: Plus, run: () => { void create({}) } },
         { kind: 'action', id: 'daily', label: 'Today', icon: CalendarDays, run: () => { void openDaily() } },
+      ] },
+      // The desktop's list / folder / board views, as native groupings of the home list.
+      { id: 'view', title: 'View', commands: [
+        { kind: 'view', id: 'group', label: 'Group by', icon: Rows3, value: NOTE_GROUPING_OPTIONS.find((o) => o.id === noteHomeView.get().grouping)?.label,
+          view: () => ({ title: 'Group by', render: (api: SheetApi) => <ChoiceList api={api} value={noteHomeView.get().grouping} options={NOTE_GROUPING_OPTIONS} onSelect={(id) => noteHomeView.set({ grouping: id as NoteGrouping })} /> }) },
+        { kind: 'view', id: 'sort', label: 'Sort', icon: ArrowDownUp, value: NOTE_SORT_OPTIONS.find((o) => o.id === noteHomeView.get().sort)?.label,
+          view: () => ({ title: 'Sort', render: (api: SheetApi) => <ChoiceList api={api} value={noteHomeView.get().sort} options={NOTE_SORT_OPTIONS} onSelect={(id) => noteHomeView.set({ sort: id as NoteSortMode })} /> }) },
       ] },
       ...fromSheetActions(homeActionList(), { title: 'Notes' }),
     ],
@@ -154,8 +162,10 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
         case 'pinned': return !!n.pinned
         default: return true
       }
-    }).sort((a, b) => b.updatedAt - a.updatedAt)
+    })
   }, [results, user, filter, folderId])
+  // Search results keep one list (relevance → recency); otherwise the chosen grouping / sort.
+  const groups = useMemo(() => groupNotes(list, results ? 'none' : view.grouping, view.sort, folders), [list, results, view.grouping, view.sort, folders])
 
   const open = (note: Note) => nav.push(`note-${note.id}`, <NoteEditorPage noteId={note.id} onBack={nav.pop} />)
   const create = async (data: Partial<Note>) => {
@@ -207,10 +217,15 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
           {pinned.map((n) => <NoteRow key={n.id} note={n} onOpen={open} onLongPress={noteActions} />)}
         </ListSection>
       )}
-      <ListSection title={results ? `${list.length} result${list.length === 1 ? '' : 's'}` : 'Recent'}>
-        {list.length === 0 && <div className="mobile-empty">{results ? 'No matches.' : 'No notes yet — tap + to write one, or long-press a verse.'}</div>}
-        {list.slice(0, 300).map((n) => <NoteRow key={n.id} note={n} onOpen={open} onLongPress={noteActions} />)}
-      </ListSection>
+      {list.length === 0 ? (
+        <ListSection title={results ? '0 results' : 'Recent'}>
+          <div className="mobile-empty">{results ? 'No matches.' : 'No notes yet — tap + to write one, or long-press a verse.'}</div>
+        </ListSection>
+      ) : groups.map((g) => (
+        <ListSection key={g.id} title={results ? `${list.length} result${list.length === 1 ? '' : 's'}` : groups.length === 1 && g.id === 'all' ? 'Recent' : `${g.title} · ${g.notes.length}`}>
+          {g.notes.slice(0, 300).map((n) => <NoteRow key={n.id} note={n} onOpen={open} onLongPress={noteActions} />)}
+        </ListSection>
+      ))}
       <ListSection>
         <Row leading={<Trash2 size={18} aria-hidden />} title="Trash" chevron onClick={() => nav.push('trash', <TrashPage onBack={nav.pop} />)} />
       </ListSection>
@@ -235,15 +250,6 @@ export function NoteRow({ note, onOpen, onLongPress }: { note: Note; onOpen: (n:
   )
   if (!onLongPress) return row
   return <div className="notes-row-lp" {...lp} onContextMenu={(e) => e.preventDefault()}>{row}</div>
-}
-
-/** The complete desktop notes panel, hosted, for views without a phone page yet. */
-function DesktopNotesPage({ onBack }: { onBack: () => void }) {
-  return (
-    <Page title="All views" onBack={onBack} noScroll>
-      <div className="mobile-hosted-panel" style={{ paddingTop: 0 }}><NotesPanel floating /></div>
-    </Page>
-  )
 }
 
 /** A folder filter chip: tap filters, long-press opens the folder's actions. */

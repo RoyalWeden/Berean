@@ -179,7 +179,7 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-popover rounded-row px-1.5 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
+        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-floating-bar pl-1 pr-1 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
         // While a full-screen overlay (floating search / settings / history) is up, drop to
         // z-raised: still above every bit of app chrome so it stays visible in the dimmed/
         // blurred background, but behind the overlay itself — same token PresenterControls
@@ -187,29 +187,29 @@ export default function VerseSelectionBar() {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <Toolbar material="none" edge="none" size="sm" itemVariant="ghost" className="px-0 gap-0.5 h-auto">
-          <span className="px-2 text-footnote font-medium text-text-secondary whitespace-nowrap" title={`${sel.length} selected`}>{selectionKind(sel) === 'multiple' ? `${sel.length} selected` : selectionLabel(sel)}</span>
-          <Divider orientation="vertical" className="mx-0.5" />
+          <span className="pl-2.5 pr-1.5 text-footnote font-medium text-text-secondary whitespace-nowrap tabular-nums" title={`${sel.length} selected`}>{selectionKind(sel) === 'multiple' ? `${sel.length} selected` : selectionLabel(sel)}</span>
+          <Divider orientation="vertical" className="mx-1" />
 
-          <IconButton size={28} label={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}
+          <IconButton shape="round" size={28} label={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}
             icon={copied === 'verses' ? Check : Copy} iconClassName={copied === 'verses' ? 'text-success' : undefined} />
-          <IconButton size={28} label={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}
+          <IconButton shape="round" size={28} label={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}
             icon={copied === 'refs' ? Check : Hash} iconClassName={copied === 'refs' ? 'text-success' : undefined} />
           {/* A verse note anchors to ONE verse — no "note on all selected verses" (TEST-007). */}
-          <IconButton size={28} label={canAddNote ? 'Add note' : 'Select a single verse to add a note'} icon={NotepadText} disabled={!canAddNote} onClick={() => { if (canAddNote) void addNote() }} />
-          <IconButton size={28} label={single ? 'Show notes for this verse' : 'Select a single verse'} icon={Files} disabled={!single}
+          <IconButton shape="round" size={28} label={canAddNote ? 'Add note' : 'Select a single verse to add a note'} icon={NotepadText} disabled={!canAddNote} onClick={() => { if (canAddNote) void addNote() }} />
+          <IconButton shape="round" size={28} label={single ? 'Show notes for this verse' : 'Select a single verse'} icon={Files} disabled={!single}
             onClick={() => single && filterBiblePanelByVerse(`${single.bookId}.${single.chapter}.${single.verse}`)} />
-          <IconButton size={28} label={single ? 'Show cross references' : 'Select a single verse'} icon={GitFork} disabled={!single}
+          <IconButton shape="round" size={28} label={single ? 'Show cross references' : 'Select a single verse'} icon={GitFork} disabled={!single}
             onClick={() => single && openCrossRefsInBiblePanel(`${single.bookId}.${single.chapter}.${single.verse}`)} />
-          <IconButton size={28} label="Play audio from here" icon={Volume2}
+          <IconButton shape="round" size={28} label="Play audio from here" icon={Volume2}
             onClick={() => startPlaybackFrom(sel[0].bookId, sel[0].chapter, sel[0].verse, sel[0].textId)} />
 
-          <Divider orientation="vertical" className="mx-0.5" />
-          <IconButton ref={tagBtnRef} size={28} label="Tag verses" icon={Tag}
+          <Divider orientation="vertical" className="mx-1" />
+          <IconButton ref={tagBtnRef} shape="round" size={28} label="Tag verses" icon={Tag}
             onClick={() => setTagAnchor(tagAnchor ? null : tagBtnRef.current?.getBoundingClientRect() ?? null)} />
-          <IconButton ref={colorBtnRef} size={28} label="Highlight" icon={Palette} onClick={() => setColorOpen((v) => !v)} />
+          <IconButton ref={colorBtnRef} shape="round" size={28} label="Highlight" icon={Palette} onClick={() => setColorOpen((v) => !v)} />
 
-          <Divider orientation="vertical" className="mx-0.5" />
-          <IconButton size={28} label="Clear selection" icon={X} onClick={clearVerseSelection} />
+          <Divider orientation="vertical" className="mx-1" />
+          <IconButton shape="round" size={28} label="Clear selection" icon={X} onClick={clearVerseSelection} />
         </Toolbar>
       </div>
 

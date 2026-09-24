@@ -130,7 +130,16 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       setLastCh(chapter)
       setVisibleCh(chapter)
       initialScrollDoneRef.current = false
+      // An external jump (picker, search, edge tap, chapter link) starts a fresh window: heights
+      // measured around the OLD position would otherwise become a placeholder above the new
+      // chapter while scrollTop keeps its old value — the reader would sit on empty placeholder
+      // space (SEP24-004). The new chapter opens at its top (or at initialAnchor / targetVerse).
+      heightCacheRef.current.clear()
+      resetScrollRef.current = true
+      setResetTick((t) => t + 1)
     }, [bookId, chapter])
+    const resetScrollRef = useRef(true)
+    const [resetTick, setResetTick] = useState(0)
 
     // IntersectionObserver: track which chapter heading is most in-view
     useEffect(() => {
@@ -198,18 +207,38 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     }, [firstCh, lastCh, onChapterChange])
 
     // Load next/prev chapters when bottom/top sentinels are visible
+    // The chapter actually under the viewport's top edge, read from the DOM right now. A fast fling
+    // outruns the IntersectionObserver's `visibleCh`, and evicting around that stale value used to
+    // unmount the chapter on screen — the reader showed nothing (SEP24-004).
+    const liveVisibleChapter = useCallback((): number => {
+      const c = scrollRef.current
+      if (!c) return visibleCh
+      const top = c.getBoundingClientRect().top + 1
+      let best = visibleCh
+      chapterWrapperRefs.current.forEach((el, ch) => {
+        const r = el.getBoundingClientRect()
+        if (r.top <= top && r.bottom > top) best = ch
+      })
+      return best
+    }, [visibleCh])
+    const lastScrollTopRef = useRef(0)
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
       onScroll?.(e)
       const el = e.currentTarget
       const { scrollTop, scrollHeight, clientHeight } = el
-      if (!anchorRef.current) captureRangeAnchor(visibleCh)
+      const live = liveVisibleChapter()
+      if (!anchorRef.current) captureRangeAnchor(live)
+      // Fast scrolling loads further ahead so content keeps up with the fling.
+      const speed = Math.abs(scrollTop - lastScrollTopRef.current)
+      lastScrollTopRef.current = scrollTop
+      const ahead = speed > clientHeight * 0.5 ? 2 : LOAD_AHEAD
       // Near bottom → load next chapter
-      if (scrollHeight - scrollTop - clientHeight < clientHeight * 0.5) {
-        setLastCh((prev) => Math.min(prev + LOAD_AHEAD, totalChapters))
+      if (scrollHeight - scrollTop - clientHeight < clientHeight * 1.2) {
+        setLastCh((prev) => Math.min(prev + ahead, totalChapters))
       }
       // Near top → load previous chapter
-      if (scrollTop < clientHeight * 0.3) {
-        setFirstCh((prev) => Math.max(prev - LOAD_AHEAD, 1))
+      if (scrollTop < clientHeight * 0.6) {
+        setFirstCh((prev) => Math.max(prev - ahead, 1))
       }
       // Evict chapters that have scrolled far outside the window around visibleCh — without
       // this, firstCh/lastCh only ever grow and every chapter ever visited stays mounted as
@@ -223,15 +252,15 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
         // height, not a guess.
         measureMountedChapterHeights()
         setFirstCh((prev) => {
-          const minAllowed = Math.min(Math.max(1, visibleCh - WINDOW_CHAPTERS), lastCh)
+          const minAllowed = Math.min(Math.max(1, live - WINDOW_CHAPTERS), lastCh)
           return minAllowed > prev ? minAllowed : prev
         })
         setLastCh((prev) => {
-          const maxAllowed = Math.max(Math.min(totalChapters, visibleCh + WINDOW_CHAPTERS), firstCh)
+          const maxAllowed = Math.max(Math.min(totalChapters, live + WINDOW_CHAPTERS), firstCh)
           return maxAllowed < prev ? maxAllowed : prev
         })
       }
-    }, [onScroll, totalChapters, visibleCh, firstCh, lastCh, measureMountedChapterHeights, captureRangeAnchor])
+    }, [onScroll, totalChapters, firstCh, lastCh, measureMountedChapterHeights, captureRangeAnchor, liveVisibleChapter])
 
     // Public API: scroll a specific chapter's heading into view
     const scrollToChapter = useCallback((ch: number, verse?: number) => {
@@ -259,15 +288,23 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     }, [])
 
     useLayoutEffect(() => {
+      const c = scrollRef.current
+      if (resetScrollRef.current && c) {
+        // After an external jump: the opening chapter at the top (placeholders were cleared).
+        resetScrollRef.current = false
+        anchorRef.current = null
+        const head = chapterWrapperRefs.current.get(firstCh)
+        c.scrollTop = head ? head.offsetTop : 0
+        return
+      }
       const a = anchorRef.current
       anchorRef.current = null
-      const c = scrollRef.current
       if (!a || !c || programmaticScrollRef.current) return
       const el = chapterWrapperRefs.current.get(a.ch)
       if (!el) return
       const shift = el.getBoundingClientRect().top - c.getBoundingClientRect().top - a.top
       if (Math.abs(shift) > 0.5) c.scrollTop += shift
-    }, [firstCh, lastCh])
+    }, [firstCh, lastCh, resetTick])
 
     // Initial reading position (T23-003): open at the given verse anchor, instantly. Retried on
     // each verses-loaded until the verse exists (it lives in the chapter this view opened on).

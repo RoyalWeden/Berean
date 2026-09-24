@@ -198,7 +198,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
   // Same hierarchical picker as the reader (NEW-011C). Compare stays LXX ↔ KJV, so a pick's
   // passage is used and its collection only decides the book list shown.
   const openReference = () => sheets.open({
-    id: 'reference', rootTitle: 'Library', detents: [0.92],
+    id: 'reference', rootTitle: 'Library', detents: [0.34, 0.62, 0.92], initialDetent: 2, // low / medium / full (SEP24-013)
     render: (api) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { api.close(); goTo(d.bookId, d.chapter, d.verse) }} />,
   })
   const exitCompare = () => {

@@ -1,0 +1,4 @@
+/* Search result long-press (SEP24): no text selection or iOS callout while pressing a result. */
+.search-result-lp { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.search-result-lp * { -webkit-user-select: none; user-select: none; }
+.search-result-highlight { padding: 12px 16px; }

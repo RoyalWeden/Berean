@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
 import { BookOpen, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -171,7 +172,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     // The hierarchical picker (NEW-011): Library → collection → book → chapter (→ verse), all in
     // this one sheet; a pick in another collection switches this tab's text too.
     sheets.open({
-      id: 'reference', rootTitle: 'Library', detents: [0.92], initialDetent: 0,
+      id: 'reference', rootTitle: 'Library', detents: [0.34, 0.62, 0.92], initialDetent: 2, // low / medium / full (SEP24-013); fresh each open
       render: (api) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => {
         api.close()
         if (d.textId.toLowerCase() !== textId) updateTabState('scripture', tab.id, { translation: d.textId.toUpperCase() })

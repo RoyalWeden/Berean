@@ -404,19 +404,6 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
 .mobile-caret-row-value { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); font-size: calc(15px * var(--m-type-scale, 1)); }
 
 /* plus / new tab sheet */
-.mobile-newtab { padding: 0 16px 24px; }
-.mobile-newtab-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-.mobile-newtab-tiles .mobile-tile { min-height: 72px; font-size: calc(13px * var(--m-type-scale, 1)); }
-.mobile-newtab-nav, .mobile-newtab-results { display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: rgb(var(--color-surface-3)); margin-bottom: 14px; }
-.mobile-newtab-results { background: none; gap: 8px; overflow: visible; }
-.mobile-newtab-row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
-.mobile-newtab-row:last-child { border-bottom: 0; }
-.mobile-newtab-row > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mobile-newtab-row small { color: rgb(var(--color-text-muted)); font-size: calc(12px * var(--m-type-scale, 1)); }
-.mobile-newtab-results .mobile-newtab-row { border-radius: 14px; background: rgb(var(--color-surface-3)); border: 0; }
-.mobile-newtab-recent h3 { margin: 0 0 6px 6px; font-size: calc(13px * var(--m-type-scale, 1)); text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
-.mobile-newtab-recent { display: flex; flex-direction: column; }
-.mobile-newtab-recent .mobile-newtab-row { border-radius: 0; }
 
 /* Dynamic Type for Scripture (TEST-044 / brief §32, §38): the reader's text size setting is in
    px (pinch changes it); the iOS text-size preference scales the whole reading column on top, so
@@ -475,47 +462,208 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
 .mobile-tab-preview-swatch { padding: 8px; border-radius: 8px; margin-bottom: 6px; font-family: var(--font-scripture, serif); font-size: 10px; }
 @media (prefers-reduced-motion: reduce) { .mobile-tab-card-main:active { transform: none; } }
 
-/* ── compact Scripture header (NEW-007) ─────────────────────────────────
-   Joins the top cutout: a black shape the colour of the island / notch, with the passage under
-   it. Sizes follow the real cutout geometry (island ≈126 pt wide at y≈11; notch 0-≈32 pt). */
-.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: var(--m-safe-top); background: rgb(var(--color-surface-2)); z-index: 6; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
-.mobile-compact-band.is-visible { opacity: 1; }
-.mobile-compact-pill { position: fixed; left: 50%; z-index: 7; display: flex; align-items: flex-end; justify-content: center; border: 0; padding: 0 14px 5px; background: #000; color: #fff;
-  font: inherit; font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25)); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
-  transform: translate(-50%, -8px) scaleY(0.6); opacity: 0; pointer-events: none; transform-origin: top center; transition: transform 0.22s ease, opacity 0.18s ease; }
-.mobile-compact-pill.is-visible { transform: translate(-50%, 0) scaleY(1); opacity: 1; pointer-events: auto; }
-/* Dynamic Island: starts at the island's top edge, same corner radius — the island grows downward. */
-.mobile-compact-pill.is-island { top: 11px; min-width: 126px; height: calc(var(--m-safe-top) - 11px + 20px); border-radius: 22px; }
-/* Notch: attached to the top edge like the notch, rounded only at the bottom. */
-.mobile-compact-pill.is-notch { top: 0; min-width: 164px; height: calc(var(--m-safe-top) + 18px); border-radius: 0 0 18px 18px; }
-/* Home-button iPhones: a small pill just under the status bar. */
-.mobile-compact-pill.is-none { top: calc(var(--m-safe-top) + 2px); height: 24px; padding-bottom: 0; align-items: center; border-radius: 12px; }
-.mobile-compact-pill-badge { margin-left: 6px; font-size: 0.85em; opacity: 0.75; }
-.mobile-compact-pill-text { display: inline-flex; align-items: baseline; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
-@media (prefers-reduced-motion: reduce) { .mobile-compact-pill, .mobile-compact-band { transition: opacity 0.1s linear; } }
 
-/* ── bottom controls (NEW-006 / NEW-012) ────────────────────────────────
-   Padding inside the home-indicator inset instead of on top of it: the controls end 12 px above
-   the inset's inner edge (the indicator itself sits in its lowest ~13 px), keeping clear of the
-   system gesture. On the reader the bar overlays the text and slides away while reading down. */
-.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform 0.24s ease; }
-.mobile-root.has-overlay-nav .mobile-bottom-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; }
-.mobile-root.has-overlay-nav.is-nav-collapsed .mobile-bottom-nav { transform: translateY(calc(100% + 2px)); }
-.mobile-page.is-reader .mobile-reader-end { height: calc(var(--m-nav-h, 64px) + 24px); }
-@media (prefers-reduced-motion: reduce) { .mobile-bottom-nav { transition: none; } }
-
-/* ── reader top bar (NEW-008): a slightly shorter row than regular pages. */
-.mobile-page.is-reader { --m-header-h: 44px; }
-
-/* Text-switch double buffer (NEW-005A): the outgoing pane covers the incoming one until it is ready. */
-.mobile-reader-slot { position: relative; flex: none; height: 100%; }
-.mobile-reader-pane.is-held { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 
 /* Strong's superscripts (NEW-009): ≈1.5× the previous 0.7em (reader, study view, compare). Digits in
    the monospace face at 1em superscript read like the reference numbers of a print study Bible; the
    line box doesn't grow (line-height: 0) and the tap target (::after) is unchanged. */
 
 /* Floating search destinations (NEW-013): one compact row of icon buttons (44 pt targets). */
-.mobile-newtab-icons { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin: 2px 0 12px; }
-.mobile-newtab-icon { height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-primary)); }
-.mobile-newtab-icon:active { background: rgb(var(--color-surface-4)); }
+
+/* ══ iOS material system (2026-09-24) ════════════════════════════════════════════════════
+   Restrained, Apple-like translucent materials for the phone shell. Tokens first, then the
+   utility classes, then their application to existing surfaces (visual only). Decisions and
+   the accessibility fallbacks are documented in docs/mobile/ios-design-system.md. Rules here
+   come last in the file on purpose: they refine the earlier per-surface backgrounds. */
+:root {
+  /* Backdrop: saturate + blur, driven by the shared --glass-* knobs (Settings → Glass). */
+  --m-glass-filter: saturate(calc(var(--glass-saturate, 1.4) * 1.25)) blur(calc(26px * var(--glass-blur, 1)));
+  --m-glass-filter-thin: saturate(calc(var(--glass-saturate, 1.4) * 1.2)) blur(calc(16px * var(--glass-blur, 1)));
+  /* Layers (α scaled by --glass-alpha-mult, capped so they never go fully clear/opaque). */
+  --m-glass-thin: rgb(var(--color-surface-2) / min(0.92, calc(0.62 * var(--glass-alpha-mult, 1))));
+  --m-glass-regular: rgb(var(--color-surface-2) / min(0.95, calc(0.76 * var(--glass-alpha-mult, 1))));
+  --m-glass-thick: rgb(var(--color-surface-2) / min(0.98, calc(0.88 * var(--glass-alpha-mult, 1))));
+  --m-glass-sheet: rgb(var(--color-surface-1) / min(0.98, calc(0.86 * var(--glass-alpha-mult, 1))));
+  --m-glass-control: rgb(var(--color-surface-3) / min(0.96, calc(0.72 * var(--glass-alpha-mult, 1))));
+  --m-glass-control-pressed: rgb(var(--color-surface-4) / 0.9);
+  /* Opaque-looking bar for in-flow page headers (nothing scrolls under them). */
+  --m-bar-bg: rgb(var(--color-surface-2) / 0.97);
+  /* Grouped cards / fields. Light: white cards on the grey sheet (surface-3 is white). */
+  --m-card-bg: rgb(var(--color-surface-3) / 0.92);
+  --m-card-pressed: rgb(var(--color-surface-4) / 0.7);
+  --m-fill: rgb(var(--color-text-primary) / 0.07);           /* search field / segmented track */
+  --m-fill-pressed: rgb(var(--color-text-primary) / 0.12);
+  /* Edges. */
+  --m-hairline: rgb(var(--color-text-primary) / 0.1);
+  --m-separator: rgb(var(--color-text-primary) / 0.08);
+  --m-edge-highlight: rgb(255 255 255 / 0.1);              /* inset top edge on glass */
+  /* Radii. */
+  --m-radius-sheet: 30px;
+  --m-radius-card: 16px;
+  --m-radius-control: 12px;
+  --m-radius-field: 12px;
+  /* Shadows. */
+  --m-shadow-float: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 20px rgb(0 0 0 / 0.14);
+  --m-shadow-sheet: 0 -1px 0 var(--m-hairline), 0 -10px 36px rgb(0 0 0 / 0.22);
+  --m-backdrop-dim: rgb(0 0 0 / 0.3);
+}
+/* Dark: cards lift above the sheet (iOS secondary grouped), hairlines slightly brighter. */
+html.scheme-dark {
+  --m-card-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.9) 90%, rgb(var(--color-text-primary)) 10%);
+  --m-card-pressed: color-mix(in srgb, rgb(var(--color-surface-2)) 82%, rgb(var(--color-text-primary)) 18%);
+  --m-glass-sheet: rgb(var(--color-surface-2) / min(0.98, calc(0.86 * var(--glass-alpha-mult, 1))));
+  --m-fill: rgb(var(--color-text-primary) / 0.1);
+  --m-fill-pressed: rgb(var(--color-text-primary) / 0.16);
+  --m-hairline: rgb(var(--color-text-primary) / 0.12);
+  --m-edge-highlight: rgb(255 255 255 / 0.07);
+  --m-shadow-float: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
+  --m-backdrop-dim: rgb(0 0 0 / 0.45);
+}
+
+/* Utility classes. */
+.m-glass, .m-glass-thick, .m-glass-thin, .m-glass-control {
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+}
+.m-glass { background: var(--m-glass-regular); }
+.m-glass-thick { background: var(--m-glass-thick); }
+.m-glass-thin { background: var(--m-glass-thin); -webkit-backdrop-filter: var(--m-glass-filter-thin); backdrop-filter: var(--m-glass-filter-thin); }
+.m-glass-control { background: var(--m-glass-control); border: 0.5px solid var(--m-hairline); box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-float); }
+.m-glass-card { background: var(--m-card-bg); border-radius: var(--m-radius-card); overflow: hidden; }
+
+/* ── sheets ── */
+.mobile-sheet-backdrop { background: var(--m-backdrop-dim); }
+.mobile-sheet {
+  background: var(--m-glass-sheet);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  border-radius: var(--m-radius-sheet) var(--m-radius-sheet) 0 0;
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-sheet);
+}
+.mobile-sheet.is-low { box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), 0 -1px 0 var(--m-hairline), 0 -6px 22px rgb(0 0 0 / 0.2); }
+.mobile-sheet-grabber-area { padding-top: 7px; }
+.mobile-sheet-grabber { width: 36px; height: 5px; border-radius: 2.5px; background: rgb(var(--color-text-primary) / 0.22); }
+.mobile-sheet-close { background: var(--m-fill); }
+.mobile-sheet-title { font-size: calc(17px * var(--m-type-scale, 1)); }
+
+/* Grouped cards (in sheets and on pages): one radius, one fill, hairline separators. */
+.mobile-list-group, .mobile-caret-group-body, .mobile-choice-list { background: var(--m-card-bg); border-radius: var(--m-radius-card); }
+.mobile-row, .mobile-caret-row, .mobile-choice-row { border-bottom-color: var(--m-separator); }
+.mobile-row:last-child, .mobile-caret-row:last-child, .mobile-choice-row:last-child { border-bottom-color: transparent; }
+button.mobile-row:active, .mobile-caret-row:active, .mobile-choice-row:active { background: var(--m-card-pressed); }
+.mobile-caret-tile { background: var(--m-card-bg); border-radius: var(--m-radius-card); }
+.mobile-caret-tile:active { background: var(--m-card-pressed); }
+.mobile-caret-tile.is-on { background: rgb(var(--color-accent) / 0.16); }
+.mobile-caret-group-title, .mobile-list-section-title { font-weight: 500; letter-spacing: 0.02em; }
+.mobile-action-row { background: var(--m-card-bg); border-radius: var(--m-radius-control); }
+.mobile-action-row:active { background: var(--m-card-pressed); }
+.mobile-sheet .mobile-button:not(.is-primary) { background: var(--m-card-bg); }
+
+/* ── page headers: material bar with a hairline; the reader's overlay header is real glass ── */
+.mobile-page-header { background: var(--m-bar-bg); border-bottom-color: var(--m-hairline); }
+.mobile-page.is-reader > .mobile-page-header {
+  background: var(--m-glass-regular);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+}
+.mobile-title-button { background: var(--m-fill); }
+.mobile-icon-tap:active { background: var(--m-fill); }
+
+/* ── bottom navigation: floating glass controls (iOS 26 toolbar style) ──
+   The bar itself carries no fill: tabs (circle) · plus (capsule, largest) · caret (circle) float
+   as individual glass controls. Padding stays owned by reader/readerChrome.css. */
+.mobile-bottom-nav { background: transparent; border-top: 0; }
+.mobile-root.has-overlay-nav .mobile-bottom-nav { background: linear-gradient(to top, rgb(var(--color-surface-1) / 0.55), rgb(var(--color-surface-1) / 0)); }
+.mobile-nav-tabs, .mobile-nav-caret, .mobile-nav-plus {
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-float);
+}
+.mobile-nav-tabs, .mobile-nav-caret { width: 48px; height: 48px; border-radius: 24px; }
+.mobile-nav-plus { width: 112px; height: 48px; border-radius: 24px; color: rgb(var(--color-accent)); }
+.mobile-nav-tabs:active, .mobile-nav-caret:active, .mobile-nav-plus:active { background: var(--m-glass-control-pressed); transform: scale(0.96); }
+.mobile-nav-tabs-stack { width: 26px; height: 26px; }
+.mobile-nav-tabs-card { border-width: 1.75px; border-radius: 5px; background: rgb(var(--color-surface-3)); font-size: calc(11px * var(--m-type-scale, 1)); }
+@media (prefers-reduced-motion: reduce) { .mobile-nav-tabs:active, .mobile-nav-caret:active, .mobile-nav-plus:active { transform: none; } }
+
+/* ── search fields: iOS filled rounded field ── */
+.mobile-search-field, .mobile-search-row { background: var(--m-fill); border-radius: var(--m-radius-field); color: rgb(var(--color-text-muted)); }
+.mobile-search-row { height: 36px; }
+.mobile-search-field { min-height: 44px; }
+.mobile-search-field .mobile-search-input { height: 42px; }
+
+/* ── chips, segmented controls, tiles ── */
+.mobile-chip { min-height: 36px; padding: 0 13px; border-radius: 18px; background: var(--m-fill); }
+.mobile-chip:active { background: var(--m-fill-pressed); }
+.mobile-chip.is-on { background: rgb(var(--color-accent)); color: #fff; }
+.mobile-segmented { background: var(--m-fill); border-radius: 9px; }
+.mobile-segmented button { border-radius: 7px; }
+.mobile-segmented button.is-on { background: var(--m-card-bg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.14), 0 0 0 0.5px var(--m-hairline); }
+html.scheme-dark .mobile-segmented button.is-on { background: rgb(var(--color-text-primary) / 0.2); }
+.mobile-button:not(.is-primary) { border-radius: var(--m-radius-control); }
+
+/* ── tab cards ── */
+.mobile-tab-card { border-radius: var(--m-radius-card); box-shadow: 0 0 0 0.5px var(--m-hairline), var(--m-shadow-float); }
+.mobile-tab-card-head { background: var(--m-glass-thick); border-bottom-color: var(--m-hairline); }
+.mobile-tab-card-close { background: var(--m-fill); }
+.mobile-tab-card.is-new { border: 1.5px dashed rgb(var(--color-text-primary) / 0.18); box-shadow: none; }
+
+/* ── Floating Search / new-tab surface (NewTabSheet) ── */
+.mobile-newtab { padding: 0 16px 24px; }
+.mobile-newtab .mobile-search-field { margin-bottom: 12px; }
+.mobile-newtab-clear { flex: none; width: 30px; height: 30px; margin-right: -6px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 15px; background: none; color: rgb(var(--color-text-muted)); }
+.mobile-newtab-clear::after { content: ''; position: absolute; inset: -7px; }
+.mobile-newtab-clear { position: relative; }
+/* Destinations: one quiet grouped capsule of icon-only 44 pt buttons. */
+.mobile-newtab-dests { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); margin: 0 0 18px; padding: 2px; background: var(--m-card-bg); border-radius: var(--m-radius-card); }
+.mobile-newtab-dest { height: 44px; min-width: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: none; color: rgb(var(--color-text-primary)); }
+.mobile-newtab-dest:active { background: var(--m-fill-pressed); }
+.mobile-newtab-dest.is-more { color: rgb(var(--color-text-secondary)); }
+/* Inset grouped lists (results, recent). */
+.mobile-newtab-section { margin-bottom: 18px; }
+.mobile-newtab-section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 4px 6px 14px; }
+.mobile-newtab-section-head h3 { margin: 0; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; color: rgb(var(--color-text-muted)); }
+.mobile-newtab-more { min-height: 44px; margin: -12px 0 -12px; padding: 0 10px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); }
+.mobile-newtab-list { display: flex; flex-direction: column; background: var(--m-card-bg); border-radius: var(--m-radius-card); overflow: hidden; }
+.mobile-newtab-list .mobile-newtab-row { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 6px 14px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-newtab-list .mobile-newtab-row + .mobile-newtab-row::before { content: ''; position: absolute; top: 0; right: 0; left: 50px; border-top: 0.5px solid var(--m-separator); }
+.mobile-newtab-list .mobile-newtab-row:active { background: var(--m-card-pressed); }
+.mobile-newtab-row-icon { flex: none; width: 24px; display: inline-flex; justify-content: center; color: rgb(var(--color-text-muted)); }
+.mobile-newtab-row.is-primary .mobile-newtab-row-icon { color: rgb(var(--color-accent)); }
+.mobile-newtab-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mobile-newtab-row-text > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-newtab-row-text > small { color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-newtab-row.is-primary .mobile-newtab-row-text > span { font-weight: 600; }
+.mobile-newtab-row-meta { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-newtab-dests, .mobile-newtab-list { -webkit-user-select: none; user-select: none; }
+
+/* ── accessibility fallbacks ──
+   Reduce Transparency → every material becomes opaque and blur is dropped. The media query is
+   honoured where WebKit supports it; html[data-reduce-transparency] is the native hook (set from
+   UIAccessibility.isReduceTransparencyEnabled). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --m-glass-filter: none; --m-glass-filter-thin: none;
+    --m-glass-thin: rgb(var(--color-surface-2)); --m-glass-regular: rgb(var(--color-surface-2)); --m-glass-thick: rgb(var(--color-surface-2));
+    --m-glass-sheet: rgb(var(--color-surface-1)); --m-glass-control: rgb(var(--color-surface-3)); --m-bar-bg: rgb(var(--color-surface-2));
+    --m-card-bg: rgb(var(--color-surface-3));
+  }
+  html.scheme-dark { --m-glass-sheet: rgb(var(--color-surface-2)); --m-card-bg: color-mix(in srgb, rgb(var(--color-surface-2)) 90%, rgb(var(--color-text-primary)) 10%); }
+  .mobile-root.has-overlay-nav .mobile-bottom-nav { background: none; }
+}
+html[data-reduce-transparency] {
+  --m-glass-filter: none; --m-glass-filter-thin: none;
+  --m-glass-thin: rgb(var(--color-surface-2)); --m-glass-regular: rgb(var(--color-surface-2)); --m-glass-thick: rgb(var(--color-surface-2));
+  --m-glass-sheet: rgb(var(--color-surface-1)); --m-glass-control: rgb(var(--color-surface-3)); --m-bar-bg: rgb(var(--color-surface-2));
+  --m-card-bg: rgb(var(--color-surface-3));
+}
+html.scheme-dark[data-reduce-transparency] { --m-glass-sheet: rgb(var(--color-surface-2)); --m-card-bg: color-mix(in srgb, rgb(var(--color-surface-2)) 90%, rgb(var(--color-text-primary)) 10%); }
+html[data-reduce-transparency] .mobile-root.has-overlay-nav .mobile-bottom-nav { background: none; }
+/* Increase Contrast → near-opaque materials and visible edges. */
+@media (prefers-contrast: more) {
+  :root { --m-hairline: rgb(var(--color-text-muted) / 0.6); --m-separator: rgb(var(--color-text-muted) / 0.45); --m-glass-sheet: rgb(var(--color-surface-1) / 0.98); --m-glass-regular: rgb(var(--color-surface-2) / 0.97); --m-glass-control: rgb(var(--color-surface-3) / 0.98); }
+  html.scheme-dark { --m-glass-sheet: rgb(var(--color-surface-2) / 0.98); --m-hairline: rgb(var(--color-text-muted) / 0.6); }
+}
+html[data-contrast="more"] { --m-hairline: rgb(var(--color-text-muted) / 0.6); --m-separator: rgb(var(--color-text-muted) / 0.45); --m-glass-sheet: rgb(var(--color-surface-1) / 0.98); --m-glass-regular: rgb(var(--color-surface-2) / 0.97); --m-glass-control: rgb(var(--color-surface-3) / 0.98); }
+html.scheme-dark[data-contrast="more"] { --m-glass-sheet: rgb(var(--color-surface-2) / 0.98); }
+html[data-contrast="more"] .mobile-newtab-dests, html[data-contrast="more"] .mobile-newtab-list, html[data-contrast="more"] .mobile-list-group,
+html[data-contrast="more"] .mobile-caret-group-body, html[data-contrast="more"] .mobile-choice-list, html[data-contrast="more"] .mobile-search-field,
+html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-hairline); }
