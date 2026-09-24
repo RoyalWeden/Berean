@@ -17,6 +17,7 @@ import YouTubeTab from '@/components/youtube/YouTubeTab'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import StudyTrailArrivalPrompt from '@/components/studyTrail/StudyTrailArrivalPrompt'
 import { ActivePanelContext } from '@/components/shell/ActivePanelContext'
+import { PanelChromeContext } from '@/components/shell/PanelHeader'
 import { lazy, Suspense } from 'react'
 const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
 const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
@@ -229,7 +230,7 @@ function NotesSpace() {
     setDailyRequest((n) => n + 1)
   }, [dailyToken, nav])
   // The tags graph lives in the notes space as a 'tags' tab; it is hosted until its phone page lands.
-  if (active?.type === 'tags') return <ActivePanelContext.Provider value="tags"><div className="mobile-hosted-panel"><Suspense fallback={null}><TagsGraphPanel /></Suspense></div></ActivePanelContext.Provider>
+  if (active?.type === 'tags') return <HostedPanel type="tags"><Suspense fallback={null}><TagsGraphPanel /></Suspense></HostedPanel>
   return <NotesHomePage dailyRequest={dailyRequest} />
 }
 
@@ -245,7 +246,18 @@ function TabPage({ tab }: { tab: Tab }) {
     tab.spaceId === 'scripture' ? <BiblePanel floating /> :
     tab.spaceId === 'lexicon' ? <LexiconPanel floating /> :
     <YouTubeTab floating />
-  return <ActivePanelContext.Provider value={tab.type}><div className="mobile-hosted-panel">{inner}</div></ActivePanelContext.Provider>
+  return <HostedPanel type={tab.type}>{inner}</HostedPanel>
+}
+
+/** The one host for desktop panels shown full-screen on the phone: tells the panel it is the
+ *  visible one (ActivePanelContext) and to use phone header chrome (PanelChromeContext) — one
+ *  shared layer for the safe area and header metrics of every hosted tab (T23-001/002). */
+function HostedPanel({ type, children }: { type: Tab['type']; children: React.ReactNode }) {
+  return (
+    <PanelChromeContext.Provider value="phone">
+      <ActivePanelContext.Provider value={type}><div className="mobile-hosted-panel">{children}</div></ActivePanelContext.Provider>
+    </PanelChromeContext.Provider>
+  )
 }
 
 function EmptySpace({ space }: { space: SpaceId }) {

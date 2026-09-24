@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
 import ChapterView from './ChapterView'
 import { bookName } from '@/lib/parseRef'
@@ -35,6 +35,10 @@ interface ContinuousChapterScrollProps {
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   presenterBand?: { top: number; height: number } | null
   viewerPaused?: boolean
+  /** Open with this verse at this offset from the viewport top (a reading-position anchor from
+   *  the paged reader or a previous translation) instead of at the chapter heading. Applied once,
+   *  instantly, before the first paint of the verses. */
+  initialAnchor?: { chapter: number; verse: number; offset: number } | null
 }
 
 export interface ContinuousChapterScrollHandle {
@@ -55,7 +59,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       bookId, chapter, totalChapters, showStrongs, textId,
       targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase',
       onStrongsClick, onWordClick, onChapterChange, onVersesLoaded, onTargetVerseConsumed, flashAnchor,
-      onScroll, presenterBand, viewerPaused,
+      onScroll, presenterBand, viewerPaused, initialAnchor,
     },
     ref,
   ) {
@@ -94,6 +98,18 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       })
     }, [])
     const initialScrollDoneRef = useRef(false)
+    // ── Scroll anchoring when chapters are added/removed ABOVE the reader (T23-003) ─────────
+    // WebKit (the iPhone's WKWebView) has no CSS scroll anchoring, so prepending the previous
+    // chapter would push the text the user is reading down by a whole chapter. Before any change
+    // to the mounted range we record where a chapter that stays mounted sits; after React commits
+    // we shift scrollTop by however far it moved. Idempotent where the browser already anchors
+    // (Chromium): the measured shift is then ~0.
+    const anchorRef = useRef<{ ch: number; top: number } | null>(null)
+    const captureRangeAnchor = useCallback((ch: number) => {
+      const c = scrollRef.current
+      const el = chapterWrapperRefs.current.get(ch)
+      if (c && el) anchorRef.current = { ch, top: el.getBoundingClientRect().top - c.getBoundingClientRect().top }
+    }, [])
     // Track whether we're in the middle of a programmatic chapter jump (suppresses chapter-change from observer)
     const programmaticScrollRef = useRef(false)
     const programmaticScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -185,6 +201,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       onScroll?.(e)
       const el = e.currentTarget
       const { scrollTop, scrollHeight, clientHeight } = el
+      if (!anchorRef.current) captureRangeAnchor(visibleCh)
       // Near bottom → load next chapter
       if (scrollHeight - scrollTop - clientHeight < clientHeight * 0.5) {
         setLastCh((prev) => Math.min(prev + LOAD_AHEAD, totalChapters))
@@ -213,7 +230,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
           return maxAllowed < prev ? maxAllowed : prev
         })
       }
-    }, [onScroll, totalChapters, visibleCh, firstCh, lastCh, measureMountedChapterHeights])
+    }, [onScroll, totalChapters, visibleCh, firstCh, lastCh, measureMountedChapterHeights, captureRangeAnchor])
 
     // Public API: scroll a specific chapter's heading into view
     const scrollToChapter = useCallback((ch: number, verse?: number) => {
@@ -240,6 +257,30 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       })
     }, [])
 
+    useLayoutEffect(() => {
+      const a = anchorRef.current
+      anchorRef.current = null
+      const c = scrollRef.current
+      if (!a || !c || programmaticScrollRef.current) return
+      const el = chapterWrapperRefs.current.get(a.ch)
+      if (!el) return
+      const shift = el.getBoundingClientRect().top - c.getBoundingClientRect().top - a.top
+      if (Math.abs(shift) > 0.5) c.scrollTop += shift
+    }, [firstCh, lastCh])
+
+    // Initial reading position (T23-003): open at the given verse anchor, instantly. Retried on
+    // each verses-loaded until the verse exists (it lives in the chapter this view opened on).
+    const initialAnchorRef = useRef(initialAnchor ?? null)
+    const applyInitialAnchor = useCallback(() => {
+      const a = initialAnchorRef.current
+      const c = scrollRef.current
+      if (!a || !c) return
+      const row = c.querySelector<HTMLElement>(`[data-verse-row][data-chapter="${a.chapter}"][data-verse="${a.verse}"]`)
+      if (!row) return
+      initialAnchorRef.current = null
+      c.scrollTop += row.getBoundingClientRect().top - c.getBoundingClientRect().top - a.offset
+    }, [])
+
     useImperativeHandle(ref, () => ({
       scrollToChapter,
       getScrollEl: () => scrollRef.current,
@@ -248,21 +289,19 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     const chapters = Array.from({ length: lastCh - firstCh + 1 }, (_, i) => firstCh + i)
 
     // Placeholder height for the evicted range BEFORE firstCh and AFTER lastCh — see
-    // chapterWrapperRefs' own comment above for why this exists. Unmeasured chapters (never
-    // rendered yet this session) fall back to the average of whatever HAS been measured so far;
-    // with nothing measured yet at all (e.g. the very first chapter of a book, nothing scrolled
-    // past), 900px is a reasonable generic guess for one rendered chapter's height rather than 0
-    // (0 would make the very first eviction's placeholder swap look identical to today's
-    // no-placeholder behavior — better to guess wrong in the direction of "close" than to not
-    // even try).
+    // chapterWrapperRefs' own comment above for why this exists.
+    //
+    // Only chapters that WERE mounted (and measured) and then evicted get a placeholder. A chapter
+    // that has never been rendered reserves nothing: reserving a guessed height for every
+    // unvisited chapter above the opening chapter put (chapter − 1) × ~900 px of blank space at
+    // scrollTop 0 — opening continuous scroll on any chapter after the first showed an empty
+    // page (T23-003). Unmeasured chapters are simply prepended/appended when reached, with the
+    // scroll anchoring above keeping the reader in place.
     const measuredHeights = heightCacheRef.current
-    const avgMeasuredHeight = measuredHeights.size > 0
-      ? Array.from(measuredHeights.values()).reduce((a, b) => a + b, 0) / measuredHeights.size
-      : 900
     let beforeHeight = 0
-    for (let ch = 1; ch < firstCh; ch++) beforeHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
+    for (let ch = 1; ch < firstCh; ch++) beforeHeight += measuredHeights.get(ch) ?? 0
     let afterHeight = 0
-    for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
+    for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? 0
 
     return (
       <ScrollContainer ref={scrollRef} className={`flex-1 relative ${audioPlaybackActive ? 'pb-24' : verseSelectionBarOpen ? 'pb-16' : ''}`} onScroll={handleScroll}>
@@ -295,6 +334,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
         {chapters.map((ch) => (
           <div
             key={`${bookId}-${ch}`}
+            data-chapter-wrap={ch}
             ref={(el) => {
               if (el) chapterWrapperRefs.current.set(ch, el)
               else chapterWrapperRefs.current.delete(ch)
@@ -334,7 +374,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
               findWordMode={findWordMode}
               onStrongsClick={onStrongsClick}
               onWordClick={onWordClick}
-              onVersesLoaded={ch === chapter ? onVersesLoaded : undefined}
+              onVersesLoaded={ch === chapter ? () => { applyInitialAnchor(); onVersesLoaded?.() } : undefined}
               onTargetVerseConsumed={ch === chapter ? onTargetVerseConsumed : undefined}
               flashAnchor={ch === chapter ? flashAnchor : undefined}
             />

@@ -26,7 +26,7 @@ import { usePinchFontSize, BIBLE_FONT_MAX, BIBLE_FONT_MIN } from './usePinchFont
 import { ReaderOptionsSheet } from './ReaderOptionsSheet'
 import { useVerseSheets } from './verseSheets'
 import { useHideOnScroll } from './useHideOnScroll'
-import { readerScrollMemory } from './readerScrollMemory'
+import { readerScrollMemory, captureReaderAnchor, applyReaderAnchor, type ReaderAnchor } from './readerScrollMemory'
 import ContinuousChapterScroll from '@/components/bible/ContinuousChapterScroll'
 
 /**
@@ -191,9 +191,19 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   const headerHidden = useHideOnScroll(readerRef, { frozen: sheets.currentId != null, resetKey: `${state.bookId}:${state.chapter}:${tab.id}` })
 
   // ── per-tab scroll memory (device-local; scroll-state audit) ───────────────────────────
-  const passageKey = `${state.bookId}:${state.chapter}:${textId}`
-  const onReaderScroll = useCallback((top: number) => { readerScrollMemory.save(tab.id, passageKey, top) }, [tab.id, passageKey])
-  const initialTop = readerScrollMemory.restore(tab.id, passageKey)
+  // The position is a verse anchor, so it survives a translation switch and a paged ⇄ continuous
+  // switch without the reader visibly jumping (T23-003/T23-004).
+  const saveAnchor = useCallback((el: HTMLElement) => {
+    const a = captureReaderAnchor(el)
+    if (a) readerScrollMemory.save(tab.id, state.bookId, a)
+  }, [tab.id, state.bookId])
+  const pagedAnchor = readerScrollMemory.restore(tab.id, state.bookId, state.chapter)
+  const scrollRaf = useRef(0)
+  const onContinuousScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    cancelAnimationFrame(scrollRaf.current)
+    scrollRaf.current = requestAnimationFrame(() => saveAnchor(el))
+  }, [saveAnchor])
 
   const title = `${bookName(state.bookId)} ${state.chapter}`
   return (
@@ -210,6 +220,8 @@ export function ReaderPage({ tab }: { tab: Tab }) {
           <div className="mobile-reader-pane is-continuous" style={{ width }}>
             <ContinuousChapterScroll
               key={`${state.bookId}-${textId}`}
+              initialAnchor={readerScrollMemory.restore(tab.id, state.bookId, state.chapter)}
+              onScroll={onContinuousScroll}
               bookId={state.bookId} chapter={state.chapter} totalChapters={chapterCount}
               showStrongs={state.showStrongs} textId={textId}
               targetVerse={state.targetVerse} onTargetVerseConsumed={() => updateTabState('scripture', tab.id, { targetVerse: undefined })}
@@ -229,7 +241,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
           <ReaderPane key={neighbours.prev ? `${neighbours.prev.bookId}-${neighbours.prev.chapter}` : 'none-prev'} width={width} target={neighbours.prev} textId={textId} showStrongs={state.showStrongs} preview />
           <ReaderPane key={`${state.bookId}-${state.chapter}-${textId}`} width={width} target={{ bookId: state.bookId, chapter: state.chapter }} textId={textId} showStrongs={state.showStrongs}
             targetVerse={state.targetVerse} onTargetVerseConsumed={() => updateTabState('scripture', tab.id, { targetVerse: undefined })}
-            onStrongsClick={openStrongs} tabId={tab.id} initialScrollTop={initialTop} onScrollTop={onReaderScroll} />
+            onStrongsClick={openStrongs} tabId={tab.id} initialAnchor={pagedAnchor} onSaveAnchor={saveAnchor} />
           <ReaderPane key={neighbours.next ? `${neighbours.next.bookId}-${neighbours.next.chapter}` : 'none-next'} width={width} target={neighbours.next} textId={textId} showStrongs={state.showStrongs} preview />
         </motion.div>
         )}
@@ -245,23 +257,33 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   )
 }
 
-function ReaderPane({ width, target, textId, showStrongs, preview, targetVerse, onTargetVerseConsumed, onStrongsClick, tabId, initialScrollTop, onScrollTop }: {
+function ReaderPane({ width, target, textId, showStrongs, preview, targetVerse, onTargetVerseConsumed, onStrongsClick, tabId, initialAnchor, onSaveAnchor }: {
   width: number; target: { bookId: string; chapter: number } | null; textId: string; showStrongs: boolean; preview?: boolean
   targetVerse?: number; onTargetVerseConsumed?: () => void; onStrongsClick?: (num: string) => void; tabId?: string
-  initialScrollTop?: number; onScrollTop?: (top: number) => void
+  initialAnchor?: ReaderAnchor; onSaveAnchor?: (el: HTMLElement) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const restored = useRef(false)
+  // A pane that has a position to restore stays invisible until it is restored, so a remount
+  // (translation switch, returning to the tab) never shows the chapter's top for a frame and then
+  // jumps — the "new text shows above the sheet for a moment" flash (T23-004).
+  const [ready, setReady] = useState(() => !initialAnchor || !!targetVerse)
   const onVersesLoaded = useCallback(() => {
-    // Restore this tab's remembered position once, unless a verse jump owns the scroll.
-    if (restored.current || targetVerse || !initialScrollTop) return
+    if (restored.current) return
     restored.current = true
-    requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = initialScrollTop })
-  }, [targetVerse, initialScrollTop])
+    if (initialAnchor && !targetVerse && scrollRef.current) applyReaderAnchor(scrollRef.current, initialAnchor)
+    setReady(true)
+  }, [targetVerse, initialAnchor])
+  const raf = useRef(0)
+  const onScroll = onSaveAnchor ? (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    cancelAnimationFrame(raf.current)
+    raf.current = requestAnimationFrame(() => onSaveAnchor(el))
+  } : undefined
   return (
-    <div className="mobile-reader-pane" style={{ width }} aria-hidden={preview || undefined}>
+    <div className="mobile-reader-pane" style={{ width, visibility: ready ? undefined : 'hidden' }} aria-hidden={preview || undefined}>
       {target ? (
-        <div ref={scrollRef} className="mobile-reader-scroll" onScroll={onScrollTop ? (e) => onScrollTop((e.currentTarget as HTMLDivElement).scrollTop) : undefined}>
+        <div ref={scrollRef} className="mobile-reader-scroll" onScroll={onScroll}>
           <ChapterView bookId={target.bookId} chapter={target.chapter} textId={textId} showStrongs={showStrongs}
             targetVerse={targetVerse} onTargetVerseConsumed={onTargetVerseConsumed} onStrongsClick={onStrongsClick} tabId={tabId}
             onVersesLoaded={preview ? undefined : onVersesLoaded} />

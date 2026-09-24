@@ -45,10 +45,12 @@ describe('reader top bar auto-hide (TEST-029)', () => {
 })
 
 describe('reader scroll memory', () => {
-  it('restores only for the same passage', () => {
-    readerScrollMemory.save('t1', 'GEN:1:kjva', 420)
-    expect(readerScrollMemory.restore('t1', 'GEN:1:kjva')).toBe(420)
-    expect(readerScrollMemory.restore('t1', 'GEN:2:kjva')).toBeUndefined()
-    expect(readerScrollMemory.restore('t2', 'GEN:1:kjva')).toBeUndefined()
+  it('restores a verse anchor for the same book (and chapter, when asked)', () => {
+    readerScrollMemory.save('t1', 'GEN', { chapter: 1, verse: 7, offset: -12 })
+    expect(readerScrollMemory.restore('t1', 'GEN')).toEqual({ chapter: 1, verse: 7, offset: -12 })
+    expect(readerScrollMemory.restore('t1', 'GEN', 1)?.verse).toBe(7)
+    expect(readerScrollMemory.restore('t1', 'GEN', 2)).toBeUndefined()
+    expect(readerScrollMemory.restore('t1', 'EXO')).toBeUndefined()
+    expect(readerScrollMemory.restore('t2', 'GEN')).toBeUndefined()
   })
 })

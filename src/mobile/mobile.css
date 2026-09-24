@@ -135,7 +135,11 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-reader-end { height: 80px; }
 .mobile-reader-boundary { display: flex; align-items: center; justify-content: center; height: 100%; color: rgb(var(--color-text-muted)); }
 .mobile-pinch-badge { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 14px; background: rgb(0 0 0 / 0.65); color: white; font-size: calc(13px * var(--m-type-scale, 1)); pointer-events: none; }
-.mobile-hosted-panel { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: var(--m-safe-top); background: rgb(var(--color-surface-1)); }
+.mobile-hosted-panel { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: var(--m-safe-top); background: rgb(var(--color-surface-2)); }
+/* A hosted desktop panel's header in phone chrome (PanelChromeContext 'phone'): the same height
+   and side padding as a native Page header — T23-001/002. */
+.mobile-hosted-header { height: var(--m-header-h); padding: 0 12px; display: flex; align-items: center; }
+.mobile-hosted-header > * { flex: 1; min-width: 0; }
 .mobile-hosted-panel > * { flex: 1; min-height: 0; position: relative; }
 
 /* ── reference picker ─────────────────────────────────────────────────── */
