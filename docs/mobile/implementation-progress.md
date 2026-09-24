@@ -324,3 +324,4 @@ None.
 - 2026-09-21 — Phase 15 tab/session actions, Workspaces + Archive pages; commit b5e0dd8. Bridge completeness; commit 0109263.
 - 2026-09-21 — Phase 16 Read Aloud via native speech backend + audio session on the simulator; commit 363f47c.
 - 2026-09-21 — Phase 17 native YouTube player, channel fetch port, transcript packs (177 files / 4130 tests).
+- 2026-09-23 — 09-23 testing pass (docs/mobile/testing-backlog-2026-09-23.md, T23-001–035 COMPLETE): hosted-panel phone chrome, continuous-scroll + translation-switch fixes, in-sheet navigation, tab cards with previews + drag reorder, genuine History/Settings tabs, Scripture/Search/Note caret restructure, LXX|KJV Compare with verse-synced scrolling, tap-toggle multi-verse selection, notes long-press, custom colors, Recognitions III ANF numbering (195 files / 4269 tests); commits 0ea702c…2bf58bd.
