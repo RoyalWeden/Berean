@@ -7,6 +7,7 @@ import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useAppStore } from '@/store'
 import { SectionLabel, ScrollContainer, IconButton } from '@/components/ui'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -354,7 +355,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
               </SectionLabel>
               <IconButton
                 icon={TagIcon}
-                label={`Tag ${bookName(bookId)} ${ch} (whole chapter)`}
+                label={`Tag ${bookName(bookId)} ${displayChapter(bookId, ch)} (whole chapter)`}
                 size={20}
                 variant="ghost"
                 onClick={(e) => setChapterTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), ch })}

@@ -103,3 +103,11 @@ describe('parseMultiBookQuery — everything else stays untouched', () => {
     expect(parseMultiBookQuery('her 5 children')).toBeNull()
   })
 })
+
+describe('parseMultiBookQuery — Recognitions Book 3 ANF numbering', () => {
+  it('reads the typed chapter as ANF (1, 12..75) and returns the stored chapter', () => {
+    expect(parseMultiBookQuery('recognitions of clement 3 55:2')).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
+    expect(parseMultiBookQuery('recognitions of clement book 3 chapter 12')).toMatchObject({ bookId: 'RCL3', chapter: 2 })
+    expect(parseMultiBookQuery('recognitions of clement 3 5')).toBeNull()
+  })
+})

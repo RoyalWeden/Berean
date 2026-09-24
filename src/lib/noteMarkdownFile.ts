@@ -1,5 +1,6 @@
 import type { Note } from '@/types'
 import { bookName } from '@/lib/parseRef'
+import { displayChapter } from './chapterNumbering'
 
 /**
  * One note ⇄ one Markdown file, in the vault's frontmatter dialect (electron/ipc/vault.ts
@@ -24,7 +25,7 @@ export function noteToMarkdownFile(note: Note): string {
   const verseProps: string[] = []
   if (isVerseType(note.type) && note.verseRef) {
     const [bookId = '', chapter = '', verse = ''] = note.verseRef.split('.')
-    const ref = `${bookName(bookId)} ${chapter}:${verse}`
+    const ref = `${bookName(bookId)} ${chapter ? displayChapter(bookId, Number(chapter)) : chapter}:${verse}`
     displayTitle = ref
     verseProps.push(`verse: "[[${ref}]]"`, `book: ${bookName(bookId)}`, `chapter: ${chapter}`)
   }

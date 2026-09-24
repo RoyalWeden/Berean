@@ -22,6 +22,7 @@
  */
 import { resolveBookToken, isExactBookToken, maxChapterFor, type ParsedRef } from './parseRef'
 import { isHermasBook, getHermasSections, type HermasBookId } from './hermasMap'
+import { storedChapter } from './chapterNumbering'
 
 /** Fast reject before doing any word-splitting/resolveBookToken work — every other
  *  query (the overwhelming majority of keystrokes) should pay nothing for this file
@@ -58,6 +59,10 @@ function finishRcl(book: number, chapter: number, verse: number | undefined): Pa
   if (!Number.isFinite(book) || book < 1 || book > 10) return null
   const bookId = `RCL${book}`
   if (!Number.isFinite(chapter) || chapter < 1) return null
+  // Typed chapter is the displayed (ANF) number — Book III skips 2–11 (chapterNumbering.ts).
+  const stored = storedChapter(bookId, chapter)
+  if (stored == null) return null
+  chapter = stored
   const maxCh = maxChapterFor(bookId)
   if (maxCh !== undefined && chapter > maxCh) return null
   if (verse !== undefined && (verse < 1 || verse > 200)) return null

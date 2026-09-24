@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 import { BereanAudio } from '@/platform/ios/plugins'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 /**
  * Keeps the native audio session and the lock-screen card in step with the store's playback
@@ -30,7 +31,7 @@ export function useIosAudioSession(): void {
       if (!active) { active = true; await BereanAudio.activateSession().catch(() => {}) }
       await BereanAudio.setNowPlaying({
         title: bookChapterVerseLabel(p.bookId, p.chapter, p.verse),
-        artist: `${bookName(p.bookId)} ${p.chapter} · ${p.textId.toUpperCase()}`,
+        artist: `${bookName(p.bookId)} ${displayChapter(p.bookId, p.chapter)} · ${p.textId.toUpperCase()}`,
         isPlaying: p.isPlaying && !p.isPaused,
         rate: useAppStore.getState().ttsRate,
       }).catch(() => {})

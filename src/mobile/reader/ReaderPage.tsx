@@ -29,6 +29,7 @@ import { useVerseSheets } from './verseSheets'
 import { useHideOnScroll } from './useHideOnScroll'
 import { readerScrollMemory, captureReaderAnchor, applyReaderAnchor, type ReaderAnchor } from './readerScrollMemory'
 import ContinuousChapterScroll from '@/components/bible/ContinuousChapterScroll'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 /**
  * Scripture reader (R070/R077/R078; reworked for the 2026-09-22 testing wave). The active Bible
@@ -78,10 +79,10 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   useEffect(() => {
     if (!book) return
     const title = state.endChapter && state.endChapter > state.chapter
-      ? `${book.name} ${state.chapter}–${state.endChapter}`
+      ? `${book.name} ${displayChapter(state.bookId, state.chapter)}–${displayChapter(state.bookId, state.endChapter)}`
       : isHermasBook(state.bookId)
         ? `Hermas ${getHermasShortLabel(state.bookId, state.chapter, hermasVariantForTextId(textId))}`
-        : `${book.name} ${state.chapter}`
+        : `${book.name} ${displayChapter(state.bookId, state.chapter)}`
     if (tab.title !== title) renameTab('scripture', tab.id, title)
     const historyTitle = state.targetVerse && !(state.endChapter && state.endChapter > state.chapter) ? `${title}:${state.targetVerse}` : title
     const s = useAppStore.getState()
@@ -150,7 +151,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   // edge taps / swipes, so the caret no longer repeats Go to, a translation tile or ‹ › chapter rows.
   useCaretCommands(() => {
     const st = useAppStore.getState()
-    const ref = `${bookName(state.bookId)} ${state.chapter}`
+    const ref = `${bookName(state.bookId)} ${displayChapter(state.bookId, state.chapter)}`
     // The quick switch only exists where the other text really has this passage (T23-017).
     const alt = compareCounterpart(textId, state.bookId, state.chapter)
     const canCompare = compareApplicable(state.bookId, state.chapter, textId)
@@ -207,7 +208,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     scrollRaf.current = requestAnimationFrame(() => saveAnchor(el))
   }, [saveAnchor])
 
-  const title = `${bookName(state.bookId)} ${state.chapter}`
+  const title = `${bookName(state.bookId)} ${displayChapter(state.bookId, state.chapter)}`
   return (
     <Page
       noScroll
@@ -251,8 +252,8 @@ export function ReaderPage({ tab }: { tab: Tab }) {
         )}
         {/* Far-left / far-right taps turn the chapter (TEST-037); swipes keep working through the
             pager. Thin strips, so text selection and the verse tap zone are unaffected. */}
-        <button type="button" className="mobile-reader-edge is-left" aria-label={neighbours.prev ? `Previous chapter, ${bookName(neighbours.prev.bookId)} ${neighbours.prev.chapter}` : 'No previous chapter'} onClick={() => goNeighbour('prev')} />
-        <button type="button" className="mobile-reader-edge is-right" aria-label={neighbours.next ? `Next chapter, ${bookName(neighbours.next.bookId)} ${neighbours.next.chapter}` : 'No next chapter'} onClick={() => goNeighbour('next')} />
+        <button type="button" className="mobile-reader-edge is-left" aria-label={neighbours.prev ? `Previous chapter, ${bookName(neighbours.prev.bookId)} ${displayChapter(neighbours.prev.bookId, neighbours.prev.chapter)}` : 'No previous chapter'} onClick={() => goNeighbour('prev')} />
+        <button type="button" className="mobile-reader-edge is-right" aria-label={neighbours.next ? `Next chapter, ${bookName(neighbours.next.bookId)} ${displayChapter(neighbours.next.bookId, neighbours.next.chapter)}` : 'No next chapter'} onClick={() => goNeighbour('next')} />
         {pinch.badge && <div className="mobile-pinch-badge" aria-live="polite">{pinch.badge}</div>}
         <SelectionBar tabId={tab.id} onOpenNote={openNoteInNotesSpace} />
       </div>

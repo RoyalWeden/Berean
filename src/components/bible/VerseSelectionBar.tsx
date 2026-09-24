@@ -5,6 +5,7 @@ import { IconButton, Toolbar, Divider, ColorSwatchRow, Button, type Swatch } fro
 import { selectionAllows, selectionKind, selectionLabel } from '@/lib/verseSelection'
 import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
+import { displayChapter } from '@/lib/chapterNumbering'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { selectionToRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
@@ -51,7 +52,7 @@ export function refLabel(sel: SelectedVerseRef[]): string {
       parts.push(start === prev ? `${start}` : `${start}-${prev}`)
       if (i < nums.length) { start = nums[i]; prev = nums[i] }
     }
-    return `${bookName(first.bookId)} ${first.chapter}:${parts.join(', ')}${lxxSuffix(first.textId)}`
+    return `${bookName(first.bookId)} ${displayChapter(first.bookId, first.chapter)}:${parts.join(', ')}${lxxSuffix(first.textId)}`
   }
   return sel
     .map((r) => `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${lxxSuffix(r.textId)}`)

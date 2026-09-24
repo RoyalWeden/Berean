@@ -1,4 +1,5 @@
 import { parseRef, bookName, resolveBookToken, type ParsedRef } from '@/lib/parseRef'
+import { displayChapter } from './chapterNumbering'
 
 /**
  * Deep links — one central, platform-agnostic router (developer decision Q5, docs/mobile/*):
@@ -142,7 +143,7 @@ export function formatDeepLink(route: DeepLinkRoute): string {
 /** Human label for a route (window titles, toasts, "Copied link to …"). */
 export function describeDeepLink(route: DeepLinkRoute): string {
   switch (route.kind) {
-    case 'verse': return `${bookName(route.bookId)} ${route.chapter}${route.verse ? `:${route.verse}${route.endVerse ? `-${route.endVerse}` : ''}` : ''}`
+    case 'verse': return `${bookName(route.bookId)} ${displayChapter(route.bookId, route.chapter)}${route.verse ? `:${route.verse}${route.endVerse ? `-${route.endVerse}` : ''}` : ''}`
     case 'note': return 'note'
     case 'lexicon': return route.strongsNum
     case 'video': return 'video'

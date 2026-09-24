@@ -36,6 +36,7 @@ function resultGroupLabel(type: string): string {
   }
 }
 import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 interface CrossRef {
   bookId: string
@@ -1101,7 +1102,7 @@ export default function FloatingSearch() {
       const subText = makeSnippet(displayText, snippetTerm, subLen, searchWordMode)
       const highlightTerms = [cleanQuery, replacedQuery, v.wrReplacement].filter((t): t is string => !!t && t.trim().length > 0)
       return {
-        label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
+        label: `${book?.short_name ?? v.book_id} ${displayChapter(v.book_id, v.chapter)}:${v.verse_num}${sourceLabel}`,
         sub: subText,
         highlightTerms,
         nav: { book_id: v.book_id, chapter: v.chapter, verse_num: v.verse_num, sourceTextId: v.sourceTextId as string | undefined },

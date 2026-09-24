@@ -20,6 +20,7 @@ import {
   translationLabel, translationSpokenName, makeCompareTab, type CompareColumn,
 } from './compareState'
 import './compare.css'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 type HighlightEntry = { id: string; color: HighlightColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
 interface ColumnData { verses: Verse[]; highlights: Record<number, HighlightEntry[]>; noteCounts: Record<number, number> }
@@ -109,7 +110,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
     const next = navigateColumns(lead, bookId, chapter)
     recordNavigation({ bookId: lead.bookId, chapter: lead.chapter }, { bookId, chapter, verse }, { kind: 'compare-column' })
     updateTabState('scripture', tab.id, { compareColumns: next, bookId, chapter, targetVerse: verse })
-    useAppStore.getState().addHistoryEntry({ type: 'bible', title: `${bookName(bookId)} ${chapter}${verse ? `:${verse}` : ''}`, bookId, chapter, verse, translation: lead.textId })
+    useAppStore.getState().addHistoryEntry({ type: 'bible', title: `${bookName(bookId)} ${displayChapter(bookId, chapter)}${verse ? `:${verse}` : ''}`, bookId, chapter, verse, translation: lead.textId })
   }, [lead, updateTabState, tab.id])
   const hasPair = (ch: number) => compareCounterpart(lead.textId, lead.bookId, ch) != null
   const prev = lead.chapter > 1 && hasPair(lead.chapter - 1) ? lead.chapter - 1 : null
@@ -206,7 +207,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
   // Compare's caret: Strong's + Sync Scrolling tiles; Swap sides + Exit compare rows. Navigation
   // lives in the header (‹ title ›), so there is no separate "Go to" tile.
   useCaretCommands(() => ({
-    title: `${bookName(lead.bookId)} ${lead.chapter}`, subtitle: 'Compare',
+    title: `${bookName(lead.bookId)} ${displayChapter(lead.bookId, lead.chapter)}`, subtitle: 'Compare',
     sections: [
       ...(pair ? [{ id: 'quick', style: 'tiles' as const, commands: [
         { kind: 'toggle' as const, id: 'strongs', label: "Strong's", icon: Hash, value: !!state.showStrongs, set: (v: boolean) => updateTabState('scripture', tab.id, { showStrongs: v }) },
@@ -248,7 +249,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
                 const tags = tagsByChapter[`${c.bookId}:${c.chapter}`]
                 return (
                   <div key={`${i}-${c.textId}`} ref={(el) => { colRefs.current[i] = el }}
-                    className="m-compare-col m-compare-scroll" role="region" aria-label={`${translationSpokenName(c.textId)}, ${bookName(c.bookId)} ${c.chapter}`}
+                    className="m-compare-col m-compare-scroll" role="region" aria-label={`${translationSpokenName(c.textId)}, ${bookName(c.bookId)} ${displayChapter(c.bookId, c.chapter)}`}
                     data-compare-col={i} onScroll={onColumnScroll(i)}
                     onPointerDown={claimDriver(i)} onTouchStart={claimDriver(i)} onWheel={claimDriver(i)}>
                     {!d && <div className="m-compare-status">Loading…</div>}

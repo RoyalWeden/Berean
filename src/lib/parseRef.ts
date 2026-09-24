@@ -1,3 +1,4 @@
+import { displayChapter, storedChapter, hasCustomChapterNumbering } from './chapterNumbering'
 const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'GEN', name: 'Genesis',        patterns: ['gen', 'ge', 'gn', 'genesis'] },
   { id: 'EXO', name: 'Exodus',         patterns: ['exo', 'ex', 'exod', 'exodus'] },
@@ -339,6 +340,7 @@ const FULL_WORK_NAME: Record<string, string> = {
  *  stores the short "Recognitions" prefix) via FULL_WORK_NAME, same map bookChapterHoverLabel
  *  uses. Every other book keeps the plain "<name> <chapter>[:<verse>]" form. */
 export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: number): string {
+  chapter = displayChapter(bookId, chapter)
   const name = bookName(bookId)
   const bookQualifierMatch = /^(.+), (Book \d+)$/.exec(name)
   if (bookQualifierMatch) {
@@ -358,6 +360,7 @@ export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: n
  *  avoid, so the fuller/more natural word order reads better there). Falls back to a plain
  *  "<name> <chapter>" for every other book, unchanged from bookChapterVerseLabel. */
 export function bookChapterHoverLabel(bookId: string, chapter: number): string {
+  chapter = displayChapter(bookId, chapter)
   const name = bookName(bookId)
   const commaIdx = name.indexOf(', ')
   if (commaIdx === -1) return `${name} ${chapter}`
@@ -449,7 +452,7 @@ export function getTranslationForBook(bookId: string): string | null {
  *  chapter is a single "Psalm", so show "Psalm 23" rather than "Psalms 23". */
 export function bookChapterLabel(bookId: string, chapter: number): string {
   if (bookId === 'PSA') return `Psalm ${chapter}`
-  return `${bookName(bookId)} ${chapter}`
+  return `${bookName(bookId)} ${displayChapter(bookId, chapter)}`
 }
 
 const _DEDICATED_TRANSLATION_IDS = new Set([...Object.values(BOOK_TRANSLATION), 'hermas_taylor'])
@@ -674,7 +677,22 @@ export function parseRef(input: string): ParsedRef | null {
       bookId = combined
     }
 
-    // Reject chapters beyond the book's known maximum.
+    // Books whose DISPLAYED chapter numbers differ from the stored ones (Recognitions
+    // Book III: ANF 1, 12..75 ↔ stored 1..65 — see chapterNumbering.ts). The typed chapter
+    // is the display number; map it to the stored chapter. A display chapter that doesn't
+    // exist (RCL3 2–11, omitted by Rufinus) rejects the ref.
+    if (hasCustomChapterNumbering(bookId)) {
+      const sc = storedChapter(bookId, chapter)
+      if (sc == null) return null
+      chapter = sc
+      if (endChapter !== undefined) {
+        const se = storedChapter(bookId, endChapter)
+        if (se == null) return null
+        endChapter = se
+      }
+    }
+
+    // Reject chapters beyond the book's known maximum (stored numbering).
     const maxCh = MAX_CHAPTERS[bookId]
     if (maxCh !== undefined && chapter > maxCh) return null
     if (maxCh !== undefined && endChapter !== undefined && endChapter > maxCh) return null
@@ -867,7 +885,8 @@ export function toUIDisplay(canonical: string): string | null {
   const name = bookName(bookId)
   if (!name || name === bookId) return null // Unknown book
 
-  return verse && verse !== '0' ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
+  const ch = String(displayChapter(bookId, Number(chapter)))
+  return verse && verse !== '0' ? `${name} ${ch}:${verse}` : `${name} ${ch}`
 }
 
 /** Convert canonical form to wikilink format with folder prefix (e.g. "[[Verse Notes/Genesis 1:1]]").

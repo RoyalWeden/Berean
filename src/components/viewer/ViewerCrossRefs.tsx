@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
 import { RefChip } from '@/components/ui'
 import type { ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 interface Props {
   bookId: string
@@ -20,9 +21,9 @@ type RenderGroup = { heading: string | null; isReciprocal: boolean; refs: FlatRe
 type RenderVerse = { verseNum: number; groups: RenderGroup[] }
 
 function refLabel(r: FlatRef): string {
-  if (r.verse === 0) return `${bookName(r.bookId)} ${r.chapter}`
-  if (r.endVerse) return `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-  return `${bookName(r.bookId)} ${r.chapter}:${r.verse}`
+  if (r.verse === 0) return `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
+  if (r.endVerse) return `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+  return `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`
 }
 
 export default function ViewerCrossRefs({

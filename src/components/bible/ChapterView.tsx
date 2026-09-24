@@ -23,6 +23,7 @@ import { zoomedFontSize } from '@/lib/zoom'
 import { chapterCacheKey, getCachedVerses, setCachedVerses } from '@/lib/chapterCache'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 type HLColor = HighlightColor
 const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLORS.map(c => ({ id: c.id, dot: c.dot, label: c.label }))
@@ -219,7 +220,7 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
   const [tip, setTip] = useState<{ placeBelow: boolean; rect: DOMRect | null } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-  const verseStr = `${bookName(source.homeBookId)} ${source.homeChapter}:${source.homeVerse}`
+  const verseStr = `${bookName(source.homeBookId)} ${displayChapter(source.homeBookId, source.homeChapter)}:${source.homeVerse}`
   // Suppress the "· <title>" suffix whenever the note's title is really just its own verse
   // reference — in any punctuation form ("Romans 10:13", "Romans 10.13", "Romans_10_13"), and
   // ignoring any trailing import tag the note name carries ("Jeremiah 5.24 (bg-234)",

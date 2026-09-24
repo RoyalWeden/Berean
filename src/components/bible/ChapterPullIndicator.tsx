@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import { bookName } from '@/lib/parseRef'
 import type { Verse } from '@/types'
 import { CHAPTER_PULL, type ChapterPullState } from './useChapterPullNav'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 type Ref = { bookId: string; chapter: number } | null
 
@@ -46,7 +47,7 @@ export default function ChapterPullIndicator({
   if (!state.canCommit) return null
   if (state.offset < CHAPTER_PULL.INDICATOR_AT && !state.committing) return null
 
-  const label = `${bookName(targetRef.bookId)} ${targetRef.chapter}`
+  const label = `${bookName(targetRef.bookId)} ${displayChapter(targetRef.bookId, targetRef.chapter)}`
   const ready = state.progress >= 1 || state.committing
   // Fade in across the first stretch past INDICATOR_AT — and back out again as the band relaxes,
   // since this is driven straight off the live offset rather than mounting/unmounting.

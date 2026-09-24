@@ -25,6 +25,7 @@ import { NOTE_DOT_COLOR } from './VerseRow'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
 type NoteScope = 'all' | 'chapter'
@@ -730,10 +731,10 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <CrossRefCard
                               key={ri}
                               refLabel={r.verse === 0
-                                ? `${bookName(r.bookId)} ${r.chapter}`
+                                ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
                                 : r.endVerse
-                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                                  ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                                  : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
                               bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                               onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })}
                               onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
@@ -773,10 +774,10 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <CrossRefCard
                               key={ri}
                               refLabel={r.verse === 0
-                                ? `${bookName(r.bookId)} ${r.chapter}`
+                                ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
                                 : r.endVerse
-                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                                  ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                                  : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
                               bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                               onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })}
                               onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
@@ -843,10 +844,10 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
                 <CrossRefCard
                   key={i}
                   refLabel={r.verse === 0
-                    ? `${bookName(r.bookId)} ${r.chapter}`
+                    ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
                     : r.endVerse
-                      ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                      : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                      ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                      : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
                   meta={<span className="text-micro text-text-tertiary tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
                   bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                   onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })}
@@ -944,7 +945,7 @@ function UserNotesChapterView({
         }
 
         // 2) Notes whose content mentions a verse in this chapter
-        const chapterLabel = `${bookName(bookId)} ${chapter}:`
+        const chapterLabel = `${bookName(bookId)} ${displayChapter(bookId, chapter)}:`
         try {
           const candidates = await searchNotesShared(chapterLabel, 80, noteChangeToken)
           const verseNoteIds = new Set(verseNotes.map(n => n.id))
@@ -1479,7 +1480,7 @@ export default function BibleRightPanel({
     const parts = verseFilter.split('.')
     if (parts.length < 3) { setReferencingNotes([]); return }
     const [bId, ch, vs] = parts
-    const humanRef = `${bookName(bId)} ${ch}:${vs}`
+    const humanRef = `${bookName(bId)} ${displayChapter(bId, Number(ch))}:${vs}`
     searchNotesShared(humanRef, 60, noteChangeToken)
       .then((candidates) => {
         const result: Note[] = []
@@ -1587,7 +1588,7 @@ export default function BibleRightPanel({
   }
 
   async function createChapterNote() {
-    const title = verseFilter ? formatRef(verseFilter) : `${bookName(bookId)} ${chapter}`
+    const title = verseFilter ? formatRef(verseFilter) : `${bookName(bookId)} ${displayChapter(bookId, chapter)}`
     const verseRef = verseFilter ?? `${bookId}.${chapter}`
     const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '' })
     if (result.success && result.note) {

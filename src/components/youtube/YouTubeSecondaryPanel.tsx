@@ -14,6 +14,7 @@ import { useAppStore } from '@/store'
 import { getTranslationForBook, normalizeBookName } from '@/lib/parseRef'
 import { Button, IconButton, SearchField, Toolbar, ListRow } from '@/components/ui'
 import type { YouTubePanelState, Note, LexiconEntry } from '@/types'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 // ── Notes panel ──────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ function ScripturePanel({ panel, onUpdate, onBack, onClose }: {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface-3">
       <PanelHeader
-        title={`${currentBook?.name ?? panel.bookId} ${chapter}`}
+        title={`${currentBook?.name ?? panel.bookId} ${displayChapter(panel.bookId, chapter)}`}
         onBack={onBack} onClose={onClose}
         leftExtra={
           <>

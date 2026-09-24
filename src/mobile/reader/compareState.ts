@@ -2,6 +2,7 @@ import type { BibleTabState, Tab } from '@/types'
 import { bookName } from '@/lib/parseRef'
 import { compareCounterpart } from '@/lib/textCoverage'
 import { equivalentChapters } from '@/lib/translationChapterMap'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 /**
  * Pure state helpers for the phone Compare page (R088, T23-022…T23-027). Compare is LXX ↔ KJVA
@@ -87,7 +88,7 @@ export function makeCompareTab(state: BibleTabState, verse?: number, now = Date.
  *  column shows the same book/chapter, otherwise each column's own reference. */
 export function compareTitle(cols: CompareColumn[]): string {
   if (cols.length === 0) return 'Compare'
-  const refs = [...new Set(cols.map((c) => `${bookName(c.bookId)} ${c.chapter}`))]
+  const refs = [...new Set(cols.map((c) => `${bookName(c.bookId)} ${displayChapter(c.bookId, c.chapter)}`))]
   return refs.length === 1 ? `${refs[0]} ${cols.map((c) => c.textId.toUpperCase()).join(' / ')}` : refs.join(' / ')
 }
 

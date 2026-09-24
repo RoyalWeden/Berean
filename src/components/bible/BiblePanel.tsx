@@ -41,6 +41,7 @@ import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { getPrevChapterRef, getNextChapterRef } from '@/lib/bibleNav'
 import { useChapterPullNav } from './useChapterPullNav'
 import ChapterPullIndicator from './ChapterPullIndicator'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 // Module-level cache of getBooks() results per textId, shared across every BiblePanel
 // instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
@@ -1615,10 +1616,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabState.searchMode) return
     if (!currentBook) return
     const title = tabState.endChapter && tabState.endChapter > tabState.chapter
-      ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
+      ? `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}–${displayChapter(tabState.bookId, tabState.endChapter)}`
       : isHermasBook(tabState.bookId)
         ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
-        : `${currentBook.name} ${tabState.chapter}`
+        : `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`
     if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
     // Record navigation in history — the entry's own title gets a ":verse" suffix when a
     // specific verse was targeted (e.g. from search), distinct from the tab title (which
@@ -1670,9 +1671,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const refs = cols && cols.length > 0
       ? cols.map((c) => {
           const b = books.find((bk) => bk.id === c.bookId)
-          return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
+          return `${b?.name ?? bookName(c.bookId)} ${displayChapter(c.bookId, c.chapter)}`
         })
-      : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
+      : currentBook ? [`${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`] : []
     // No "Compare — " prefix — the tab's own icon already signals it's a compare tab.
     // Same book+chapter across every column (just different translations, e.g. KJV vs LXX
     // side by side): show the reference once, followed by each column's translation. Different
@@ -1704,10 +1705,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (last && last.bookId === tabState.bookId && last.chapter === tabState.chapter && last.verse === tabState.targetVerse) return
     lastVerseRecordRef.current = { bookId: tabState.bookId, chapter: tabState.chapter, verse: tabState.targetVerse }
     const title = tabState.endChapter && tabState.endChapter > tabState.chapter
-      ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
+      ? `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}–${displayChapter(tabState.bookId, tabState.endChapter)}`
       : isHermasBook(tabState.bookId)
         ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
-        : `${currentBook.name} ${tabState.chapter}`
+        : `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`
     useAppStore.getState().addHistoryEntry({
       type: 'bible',
       title: `${title}:${tabState.targetVerse}`,
@@ -2118,9 +2119,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   function makeTitle(bookId: string, chapter: number, endChapter?: number) {
     const book = books.find((b) => b.id === bookId)
     // An individual psalm is singular ("Psalm 23"), even though the book is "Psalms".
-    const singular = (n: number) => bookId === 'PSA' ? `Psalm ${n}` : (book ? `${book.name} ${n}` : `${bookId} ${n}`)
+    const singular = (n: number) => bookId === 'PSA' ? `Psalm ${n}` : (book ? `${book.name} ${displayChapter(bookId, n)}` : `${bookId} ${displayChapter(bookId, n)}`)
     return endChapter
-      ? (bookId === 'PSA' ? `Psalm ${chapter}–${endChapter}` : book ? `${book.name} ${chapter}–${endChapter}` : `${bookId} ${chapter}–${endChapter}`)
+      ? (bookId === 'PSA' ? `Psalm ${chapter}–${endChapter}` : book ? `${book.name} ${displayChapter(bookId, chapter)}–${displayChapter(bookId, endChapter)}` : `${bookId} ${displayChapter(bookId, chapter)}–${displayChapter(bookId, endChapter)}`)
       : isHermasBook(bookId)
         ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(textId))}`
         : (hasPrologueChapter(bookId) && chapter === 0)
@@ -2156,9 +2157,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const list = cols && cols.length > 0
       ? cols.map((c) => {
           const b = books.find((bk) => bk.id === c.bookId)
-          return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
+          return `${b?.name ?? bookName(c.bookId)} ${displayChapter(c.bookId, c.chapter)}`
         })
-      : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
+      : currentBook ? [`${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`] : []
     if (list.length === 0) return 'Compare with…'
     if (list.length === 1) return `Compare ${list[0]} with…`
     if (list.length === 2) return `Compare ${list[0]} and ${list[1]} with…`
@@ -3027,7 +3028,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const book = books.find((b) => b.id === bookId)
             const title = isHermasBook(bookId)
               ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
-              : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
+              : book ? `${book.name} ${displayChapter(bookId, chapter)}` : `${bookId} ${displayChapter(bookId, chapter)}`
             // Record the search itself as a nav-stack entry BEFORE leaving it, so
             // Cmd+[ (navTabBack) from the verse we're about to open returns to
             // these search results (with the query restored) instead of
@@ -3061,7 +3062,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const book = books.find((b) => b.id === bookId)
             const title = isHermasBook(bookId)
               ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
-              : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
+              : book ? `${book.name} ${displayChapter(bookId, chapter)}` : `${bookId} ${displayChapter(bookId, chapter)}`
             addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
               state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
             recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
@@ -3324,7 +3325,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       (the per-verse popover's "Tag chapter…" item still works too). */}
                   <IconButton
                     icon={TagIcon}
-                    label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
+                    label={`Tag ${bookName(tabState.bookId)} ${displayChapter(tabState.bookId, tabState.chapter)} (whole chapter)`}
                     size={28}
                     active={!!chapterTagRect}
                     onMouseDown={() => { chapterTagWasOpenRef.current = !!chapterTagRect }}

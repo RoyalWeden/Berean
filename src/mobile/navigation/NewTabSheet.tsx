@@ -10,6 +10,7 @@ import type { BibleTabState } from '@/types'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_TYPE_LABEL } from '@/lib/historyModel'
 import { haptic } from '../primitives/haptics'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 export type MorePageRoute = 'more' | 'settings' | 'history' | 'workspaces'
 
@@ -20,7 +21,7 @@ export function classifyNewTabQuery(q: string): { kind: 'empty' } | { kind: 'ref
   if (isStrongsRef(t)) return { kind: 'strongs', num: t.toUpperCase().replace(/\s+/g, '') }
   if (/\p{L}.*\d/u.test(t)) {
     const p = parseRef(t)
-    if (p) return { kind: 'ref', bookId: p.bookId, chapter: p.chapter, verse: p.verse, endVerse: p.endVerse, label: `${bookName(p.bookId)} ${p.chapter}${p.verse ? `:${p.verse}${p.endVerse ? `–${p.endVerse}` : ''}` : ''}` }
+    if (p) return { kind: 'ref', bookId: p.bookId, chapter: p.chapter, verse: p.verse, endVerse: p.endVerse, label: `${bookName(p.bookId)} ${displayChapter(p.bookId, p.chapter)}${p.verse ? `:${p.verse}${p.endVerse ? `–${p.endVerse}` : ''}` : ''}` }
   }
   return { kind: 'text', text: t }
 }

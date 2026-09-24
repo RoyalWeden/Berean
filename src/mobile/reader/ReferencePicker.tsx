@@ -3,6 +3,7 @@ import { Search, ChevronLeft, CornerDownLeft } from 'lucide-react'
 import type { Book } from '@/types'
 import { parseRef, ALL_BOOKS, bookName } from '@/lib/parseRef'
 import { haptic } from '../primitives/haptics'
+import { displayChapter, chapterNumberingNote } from '@/lib/chapterNumbering'
 
 type Pick = (bookId: string, chapter: number, verse?: number, endVerse?: number) => void
 
@@ -59,7 +60,7 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
   if (pickBook && pickChapter != null) {
     return (
       <div className="mobile-ref-picker">
-        <button type="button" className="mobile-link-button" onClick={() => { setPickChapter(null); setRangeStart(null) }}><ChevronLeft size={18} aria-hidden /> {pickBook.name} {pickChapter}</button>
+        <button type="button" className="mobile-link-button" onClick={() => { setPickChapter(null); setRangeStart(null) }}><ChevronLeft size={18} aria-hidden /> {pickBook.name} {displayChapter(pickBook.id, pickChapter)}</button>
         <p className="mobile-muted mobile-ref-hint">{rangeStart ? `From verse ${rangeStart} — tap the last verse, or ${rangeStart} again for one verse` : 'Tap a verse, or two verses for a range'}</p>
         <div className="mobile-grid-numbers">
           <button type="button" className="mobile-grid-cell is-wide" onClick={() => go(pickBook.id, pickChapter)}>Whole chapter</button>
@@ -80,10 +81,11 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
     return (
       <div className="mobile-ref-picker">
         <button type="button" className="mobile-link-button" onClick={() => setPickBook(null)}><ChevronLeft size={18} aria-hidden /> {pickBook.name}</button>
+        {chapterNumberingNote(pickBook.id) && <p className="mobile-muted mobile-ref-hint">{chapterNumberingNote(pickBook.id)}</p>}
         <div className="mobile-grid-numbers">
           {Array.from({ length: count }, (_, i) => i + 1).map((c) => (
             <button key={c} type="button" className={`mobile-grid-cell${pickBook.id === bookId && c === chapter ? ' is-current' : ''}`}
-              onClick={() => go(pickBook.id, c)} aria-label={`${pickBook.name} ${c}`}>{c}</button>
+              onClick={() => go(pickBook.id, c)} aria-label={`${pickBook.name} ${displayChapter(pickBook.id, c)}`}>{displayChapter(pickBook.id, c)}</button>
           ))}
         </div>
         <button type="button" className="mobile-button" onClick={() => setPickChapter(pickBook.id === bookId ? chapter : 1)}>Choose verses…</button>
@@ -96,7 +98,7 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
     const g = groups.find(([t]) => t === b.testament)
     if (g) g[1].push(b); else groups.push([b.testament, [b]])
   }
-  const goLabel = parsed ? `${bookName(parsed.bookId)} ${parsed.chapter}${parsed.verse ? `:${parsed.verse}${parsed.endVerse ? `–${parsed.endVerse}` : ''}` : ''}` : ''
+  const goLabel = parsed ? `${bookName(parsed.bookId)} ${displayChapter(parsed.bookId, parsed.chapter)}${parsed.verse ? `:${parsed.verse}${parsed.endVerse ? `–${parsed.endVerse}` : ''}` : ''}` : ''
   return (
     <div className="mobile-ref-picker">
       <form className="mobile-search-field" onSubmit={(e) => {

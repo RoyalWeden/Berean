@@ -25,6 +25,7 @@ import {
   Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
   RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics,
 } from '@/components/ui'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
  *  combined Strong's+word query like "G5485 god" — any plain word from that same query
@@ -581,7 +582,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, previewTextId)
       .then((v) => {
         if (v) {
-          setVersePreview({ ref: `${bookName(parsed.bookId)} ${parsed.chapter}:${parsed.verse}${refSuffix}`, text: v.text })
+          setVersePreview({ ref: `${bookName(parsed.bookId)} ${displayChapter(parsed.bookId, parsed.chapter)}:${parsed.verse}${refSuffix}`, text: v.text })
         } else {
           setVersePreview(null)
         }
@@ -1592,8 +1593,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             <div className="divide-y divide-separator">
               {crossRefs.map((r, i) => {
                 const ref = r.endVerse
-                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`
+                  ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                  : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`
                 const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
                 return (
                   <ListRow
