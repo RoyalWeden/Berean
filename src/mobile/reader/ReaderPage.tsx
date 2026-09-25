@@ -14,7 +14,7 @@ import { isHermasBook, getHermasShortLabel, hermasVariantForTextId } from '@/lib
 import { Page } from '../primitives/Page'
 import { useCaretCommands } from '../commands/caretRegistry'
 import { requestMore } from '../navigation/shellNav'
-import { makeCompareTab } from './compareState'
+import { makeCompareTabState } from './compareState'
 import { TagPickerSheet } from '../study/TagPickerSheet'
 import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useSheets } from '../primitives/Sheet'
@@ -23,6 +23,7 @@ import { perfMark } from '@/platform/ios/perf'
 import { SelectionBar } from '../study/SelectionBar'
 import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { PassagePicker } from './PassagePicker'
+import { CaretGoTo } from '../commands/CaretGoTo'
 import { FindOnPageBar } from './FindOnPage'
 import { usePinchFontSize, BIBLE_FONT_MAX, BIBLE_FONT_MIN } from './usePinchFontSize'
 import { TranslationChoices, FontChoices, ColorChoices, translationShortLabel, fontLabel } from './readerViews'
@@ -176,11 +177,19 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       id: 'reference', rootTitle: 'Library', detents: [0.34, 0.62, 0.92], initialDetent: 2, // low / medium / full (SEP24-013); fresh each open
       render: (api) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => {
         api.close()
-        if (d.textId.toLowerCase() !== textId) updateTabState('scripture', tab.id, { translation: d.textId.toUpperCase() })
-        goTo(d.bookId, d.chapter, d.verse, d.endVerse)
-      }} />,
+        goToDest(d)
+      }} onChapter={goToChapter} />,
     })
   }
+  // Scripture follows the picker live (SEP25): a chapter tap moves this tab at once and the picker
+  // stays open on that chapter's verses; a verse (or dismissing) finishes.
+  // One navigation (text + passage together) — switching the text first would briefly land on a
+  // passage that text lacks and record it as a phantom history step.
+  const goToDest = (d: { textId: string; bookId: string; chapter: number; verse?: number; endVerse?: number }) => {
+    navigateToVerse({ bookId: d.bookId, chapter: d.chapter, verse: d.verse, endVerse: d.endVerse, origin: { kind: 'sequential-nav' },
+      ...(d.textId.toLowerCase() !== textId ? { translationOverride: d.textId.toUpperCase() } : {}) })
+  }
+  const goToChapter = (d: { textId: string; bookId: string; chapter: number }) => goToDest({ textId: d.textId, bookId: d.bookId, chapter: d.chapter })
   // Switching text maps the chapter the same way desktop does (LXX Psalms numbering etc.).
   const switchText = (to: string) => {
     const ch = mapChapterOnTranslationSwitch(state.bookId, state.chapter, textId, to)
@@ -208,12 +217,10 @@ export function ReaderPage({ tab }: { tab: Tab }) {
     return {
       title: ref, backTitle: 'Scripture',
       location: {
-        label: `${ref} · ${textLabel}`, placeholder: 'Go to a book, chapter or collection',
-        view: () => ({ title: 'Library', render: (a) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => {
-          a.close()
-          if (d.textId.toLowerCase() !== textId) updateTabState('scripture', tab.id, { translation: d.textId.toUpperCase() })
-          goTo(d.bookId, d.chapter, d.verse, d.endVerse)
-        }} /> }),
+        // ⌘L (SEP25): the same destinations as Floating Search, landing in THIS tab.
+        label: `${ref} · ${textLabel}`, placeholder: 'Go to a passage or search',
+        view: () => ({ title: 'Go to', render: (a) => <CaretGoTo api={a} textId={textId} bookId={state.bookId} onGo={goToDest}
+          browse={() => ({ title: 'Library', render: (b) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => { b.close(); goToDest(d) }} onChapter={goToChapter} /> })} /> }),
       },
       sections: [
         { id: 'quick', style: 'tiles', commands: [
@@ -224,7 +231,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
           { kind: 'action', id: 'audio', label: 'Read aloud', icon: Volume2, run: () => st.startPlaybackFrom(state.bookId, state.chapter, 1, textId) },
         ] },
         { id: 'text', commands: [
-          ...(canCompare ? [{ kind: 'action' as const, id: 'compare', label: 'Compare with ' + (alt?.textId === 'lxx' ? 'the Septuagint' : 'the KJV'), icon: Columns2, run: () => st.addTab(makeCompareTab({ ...state }, state.targetVerse)) }] : []),
+          ...(canCompare ? [{ kind: 'action' as const, id: 'compare', label: 'Compare with ' + (alt?.textId === 'lxx' ? 'the Septuagint' : 'the KJV'), icon: Columns2, run: () => updateTabState('scripture', tab.id, makeCompareTabState({ ...state }, state.targetVerse)) }] : []),
           { kind: 'view', id: 'all-translations', label: 'All Translations', icon: Languages, value: textLabel,
             view: () => ({ title: 'All Translations', render: (a) => <TranslationChoices api={a} textId={textId} onPick={switchText} /> }) },
         ] },
@@ -239,7 +246,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
           { kind: 'toggle', id: 'red-letters', label: 'Red letter text', icon: Type, value: st.showRedLetters, set: st.setShowRedLetters },
         ] },
         { id: 'study', title: 'Study', commands: [
-          { kind: 'segmented', id: 'xref-source', label: 'Cross references', icon: GitFork, value: st.crossRefSource === 'classic' ? 'classic' : 'tske', options: [['tske', 'TSKe'], ['classic', 'Classic']], set: (v) => st.setCrossRefSource(v as 'tske' | 'classic') },
+          { kind: 'segmented', id: 'xref-source', label: 'Cross references', icon: GitFork, value: st.crossRefSource, options: [['tske', 'TSK/e'], ['classic', 'Classic'], ['notes', 'My Notes']], set: (v) => st.setCrossRefSource(v as 'tske' | 'classic' | 'notes') },
           { kind: 'view', id: 'tag-chapter', label: `Tag ${ref}`, icon: TagIcon, view: () => { const ranges = chapterRanges(state.bookId, state.chapter); return { title: `Tag ${ref}`, render: (a) => <TagPickerSheet ranges={ranges} label={rangesLabel(ranges)} kind="chapter" api={a} /> } } },
           { kind: 'action', id: 'trail', label: 'Study trail', icon: Route, run: () => requestMore('trail') },
         ] },
@@ -294,7 +301,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   return (
     <Page
       noScroll
-      className={`is-reader${headerHidden ? ' is-header-hidden' : ''}`}
+      className={`is-reader is-scripture-chrome${headerHidden ? ' is-header-hidden' : ''}`}
       // Translation, Reading (Aa) and "…" moved into the caret (TEST-033/034); the title stays the
       // passage navigator (TEST-041).
       // The text is named only when it is the Septuagint (T23-007) — KJV is the default, and the

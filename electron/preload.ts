@@ -196,6 +196,12 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:increaseContrast')
     ipcRenderer.on('app:increaseContrast', (_, on: boolean) => cb(on))
   },
+  // Notes-editor image actions (electron/ipc/noteImages.ts): native contextual menu, bitmap
+  // copy to the system clipboard, native Save As.
+  noteImageMenu: () => ipcRenderer.invoke('app:noteImageMenu') as Promise<'copy' | 'saveAs' | 'delete' | null>,
+  copyNoteImage: (dataUrl: string) => ipcRenderer.invoke('app:copyNoteImage', dataUrl) as Promise<{ success: boolean }>,
+  saveNoteImageAs: (dataUrl: string, alt?: string) =>
+    ipcRenderer.invoke('app:saveNoteImageAs', dataUrl, alt) as Promise<{ success: boolean; canceled?: boolean }>,
   openFolderDialog: () => ipcRenderer.invoke('app:openFolderDialog'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   isDev: () => ipcRenderer.invoke('app:isDev'),

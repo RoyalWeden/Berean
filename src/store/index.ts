@@ -226,6 +226,64 @@ function captureActiveScrollIntoNavEntry(get: () => AppState, tabId: string, spa
   stampNavEntryScroll(get, tabId, sp)
 }
 
+/** Shallow equality of two history-entry state snapshots (JSON-comparable values). */
+function sameNavState(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b) return !a && !b
+  try { return JSON.stringify(a) === JSON.stringify(b) } catch { return false }
+}
+
+/**
+ * Restore one per-tab history entry (back and forward share this). Order: a generic `state`
+ * snapshot is re-applied first (SEP25 — Search / Settings / Notes-list destinations and extra
+ * context); a `home` entry returns note / lexicon / YouTube tabs to their list view; then the
+ * typed destinations (search query, chapter, Strong's entry, note, video, PDF page).
+ */
+function restoreTabNavEntry(
+  get: () => AppState,
+  set: (p: Partial<AppState>) => void,
+  space: SpaceId,
+  tabId: string,
+  stackType: TabType | undefined,
+  entry: TabNavEntry,
+): void {
+  if (entry.state) get().updateTabState(space, tabId, entry.state as Partial<TabState>)
+  if (entry.home) {
+    if (stackType === 'note') get().bumpNotesHomeToken()
+    else if (stackType === 'lexicon') get().bumpLexiconHomeToken()
+    else if (stackType === 'youtube') get().bumpYouTubeHomeToken()
+    return
+  }
+  if (entry.query !== undefined && stackType === 'bible') {
+    get().updateTabState(space, tabId, { searchMode: true, scriptureSearchQuery: entry.query })
+  } else if (entry.bookId) {
+    // searchMode: false is required here — without it, landing on a bookId entry right after a
+    // query entry (stepping back INTO the reader from search results) updates bookId/chapter
+    // invisibly underneath the still-mounted ScriptureSearchView, since BiblePanel gates its
+    // render branch purely on tabState.searchMode.
+    get().updateTabState(space, tabId, {
+      bookId: entry.bookId, chapter: entry.chapter ?? 1,
+      ...(entry.translation ? { translation: entry.translation } : {}),
+      scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
+    })
+  } else if (entry.strongsNum) {
+    set({ pendingLexiconEntry: entry.strongsNum })
+  } else if (entry.noteId) {
+    if (space === 'notes') set({ pendingNoteId: entry.noteId })
+    else {
+      // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns to
+      // that note in the Notes space.
+      get().requestOpenNote(entry.noteId)
+      get().ensureTab('note')
+      get().setActiveSpace('notes')
+    }
+  } else if (entry.videoId) {
+    set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
+  } else if (entry.pdfId && entry.page) {
+    window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
+  }
+}
+
 export interface AppState {
   // Navigation
   activeSpace: SpaceId
@@ -715,6 +773,12 @@ export interface AppState {
   openWorkspaceSession: (workspace: { id: string; name: string }, snapshot: import('@/lib/workspaceSnapshot').ParsedWorkspaceState) => void
   moveTabToSession: (spaceId: SpaceId, tabId: string, targetSessionId: string) => void
   reorderTabDisplay: (sessionId: string, fromId: string, toId: string, before: boolean) => void
+  /** Replace a session's whole custom display order (iPhone tab cards: a drag made while the
+   *  cards are sorted by Recent saves the dragged order as the new custom order). */
+  setTabDisplayOrder: (sessionId: string, order: string[]) => void
+  /** iPhone tab cards sort: most recently used first, or the custom (sessionDisplayOrders) order. */
+  mobileTabSort: 'recent' | 'custom'
+  setMobileTabSort: (v: 'recent' | 'custom') => void
 
   // Actions
   setActiveSpace: (space: SpaceId) => void
@@ -892,6 +956,9 @@ export interface AppState {
   isNavJumping: boolean
   pushTabNav: (tabId: string, entry: Omit<TabNavEntry, 'id'>) => void
   navTabBack: () => void
+  /** Give the entries of a tab's history that match `match` a better title (e.g. a note's real
+   *  title once it has loaded). No new entry, no index change. */
+  retitleTabNav: (tabId: string, match: { noteId?: string }, title: string) => void
   navTabForward: () => void
   goToTabHome: () => void
   resetTabNavHome: (tabId: string) => void
@@ -1518,7 +1585,8 @@ export const useAppStore = create<AppState>()(
               top.noteId === full.noteId && top.strongsNum === full.strongsNum &&
               top.videoId === full.videoId &&
               top.pdfId === full.pdfId && top.page === full.page &&
-              top.query === full.query) return {}
+              top.query === full.query && !!top.home === !!full.home &&
+              sameNavState(top.state, full.state)) return {}
           const base = cur.stack.slice(0, cur.idx + 1)
           const maxStack = get().tabNavMaxStack ?? 100
           const newStack = [...base, full].slice(-maxStack)
@@ -1539,7 +1607,8 @@ export const useAppStore = create<AppState>()(
         // entry — "came here from note X" — which must not turn it into a notes tab).
         const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
         const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
-        if (tabStack.idx <= (supportsHome ? -1 : 0)) return
+        // A recorded home entry at 0 IS the list — nothing to step back to below it.
+        if (tabStack.idx <= (supportsHome && !tabStack.stack[0]?.home ? -1 : 0)) return
         // Remember where the reader is in the entry we're leaving, so Cmd+] forward restores it.
         captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx - 1
@@ -1551,37 +1620,7 @@ export const useAppStore = create<AppState>()(
           setTimeout(() => set({ isNavJumping: false }), 50)
           return
         }
-        const entry = tabStack.stack[newIdx]
-        if (entry.query !== undefined) {
-          get().updateTabState(s.activeSpace, activeTabId, { searchMode: true, scriptureSearchQuery: entry.query })
-        } else if (entry.bookId) {
-          // searchMode: false is required here — without it, landing on a bookId
-          // entry right after a query entry (i.e. stepping back INTO the reader
-          // from search results) updates bookId/chapter invisibly underneath the
-          // still-mounted ScriptureSearchView, since BiblePanel gates its render
-          // branch purely on tabState.searchMode. Confirmed bug: after visiting
-          // an Advanced Search entry once, back/forward looked like dead buttons.
-          get().updateTabState(s.activeSpace, activeTabId, {
-            bookId: entry.bookId, chapter: entry.chapter ?? 1,
-            ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
-          })
-        } else if (entry.strongsNum) {
-          set({ pendingLexiconEntry: entry.strongsNum })
-        } else if (entry.noteId) {
-          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
-          else {
-            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
-            // to that note in the Notes space (the pill that used to do this is gone).
-            get().requestOpenNote(entry.noteId)
-            get().ensureTab('note')
-            get().setActiveSpace('notes')
-          }
-        } else if (entry.videoId) {
-          set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
-        } else if (entry.pdfId && entry.page) {
-          window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
-        }
+        restoreTabNavEntry(get, set, s.activeSpace, activeTabId, stackType, tabStack.stack[newIdx])
         setTimeout(() => set({ isNavJumping: false }), 50)
       },
 
@@ -1593,35 +1632,9 @@ export const useAppStore = create<AppState>()(
         if (!tabStack || tabStack.idx >= tabStack.stack.length - 1) return
         captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx + 1
-        const entry = tabStack.stack[newIdx]
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
-        if (entry.query !== undefined) {
-          get().updateTabState(s.activeSpace, activeTabId, { searchMode: true, scriptureSearchQuery: entry.query })
-        } else if (entry.bookId) {
-          // searchMode: false — see the matching comment in navTabBack; without it,
-          // stepping forward out of a search entry into a bookId entry silently
-          // updates the tab underneath the still-mounted ScriptureSearchView.
-          get().updateTabState(s.activeSpace, activeTabId, {
-            bookId: entry.bookId, chapter: entry.chapter ?? 1,
-            ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
-          })
-        } else if (entry.strongsNum) {
-          set({ pendingLexiconEntry: entry.strongsNum })
-        } else if (entry.noteId) {
-          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
-          else {
-            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
-            // to that note in the Notes space (the pill that used to do this is gone).
-            get().requestOpenNote(entry.noteId)
-            get().ensureTab('note')
-            get().setActiveSpace('notes')
-          }
-        } else if (entry.videoId) {
-          set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
-        } else if (entry.pdfId && entry.page) {
-          window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
-        }
+        const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
+        restoreTabNavEntry(get, set, s.activeSpace, activeTabId, stackType, tabStack.stack[newIdx])
         setTimeout(() => set({ isNavJumping: false }), 50)
       },
 
@@ -1706,6 +1719,16 @@ export const useAppStore = create<AppState>()(
       setTabNavMaxStack: (n) => set({ tabNavMaxStack: Math.max(10, Math.min(1000, n)) }),
       setHistoryMaxEntries: (n) => set({ historyMaxEntries: Math.max(50, Math.min(10000, n)) }),
       clearAllTabNavStacks: () => set({ tabNavStacks: {} }),
+      retitleTabNav: (tabId, match, title) => {
+        const cur = get().tabNavStacks[tabId]
+        if (!cur || !title) return
+        let changed = false
+        const stack = cur.stack.map((e) => {
+          if (match.noteId && e.noteId === match.noteId && e.title !== title) { changed = true; return { ...e, title } }
+          return e
+        })
+        if (changed) set((s) => ({ tabNavStacks: { ...s.tabNavStacks, [tabId]: { ...cur, stack } } }))
+      },
 
       // ── Read Aloud (TTS playback) ──────────────────────────────────────────
       // Thin store actions — the actual speechSynthesis orchestration lives in
@@ -1924,6 +1947,9 @@ export const useAppStore = create<AppState>()(
       sessions: [DEFAULT_SESSION] as Session[],
       currentSessionId: 'default',
       sessionDisplayOrders: {} as Record<string, string[]>,
+      mobileTabSort: 'recent' as 'recent' | 'custom',
+      setMobileTabSort: (v) => set({ mobileTabSort: v }),
+      setTabDisplayOrder: (sessionId, order) => set((s) => ({ sessionDisplayOrders: { ...s.sessionDisplayOrders, [sessionId]: [...order] } })),
 
       createSession: (name) => {
         const state = get()
@@ -2540,12 +2566,20 @@ export const useAppStore = create<AppState>()(
               }
               // Compare mode toggle
               if ('compareMode' in ns && Boolean(ns.compareMode) !== Boolean(cur.compareMode)) {
+                // The entry carries the compare state (SEP25), and the entry being left is stamped
+                // with its own, so ‹ out of Compare returns to the plain reader (and › back in).
+                const st0 = get().tabNavStacks[tabId]
+                const top0 = st0 && st0.idx >= 0 ? st0.stack[st0.idx] : undefined
+                if (top0 && !(top0.state && 'compareMode' in top0.state)) {
+                  st0!.stack[st0!.idx] = { ...top0, state: { ...(top0.state ?? {}), compareMode: Boolean(cur.compareMode), compareColumns: cur.compareColumns } }
+                }
                 get().pushTabNav(tabId, {
                   type: 'bible',
                   title: ns.compareMode ? `Compare — ${currentTab.title}` : currentTab.title,
                   bookId: (ns.bookId ?? cur.bookId) as string | undefined,
                   chapter: (ns.chapter ?? cur.chapter) as number | undefined,
                   translation: (ns.translation ?? cur.translation) as string | undefined,
+                  state: { compareMode: Boolean(ns.compareMode), compareColumns: ns.compareMode ? (ns.compareColumns ?? cur.compareColumns) : undefined },
                 })
               }
             } else if (currentTab.type === 'note') {
@@ -3260,6 +3294,7 @@ export const useAppStore = create<AppState>()(
         ),
         // currentSessionId: per-window (see note in partialize head)
         sessionDisplayOrders: state.sessionDisplayOrders,
+        mobileTabSort: state.mobileTabSort,
         tasksVisible: state.tasksVisible,
         tasksMinimized: state.tasksMinimized,
         completedTaskIds: state.completedTaskIds,

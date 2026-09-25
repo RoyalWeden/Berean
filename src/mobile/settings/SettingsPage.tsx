@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { useAppStore } from '@/store'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { THEME_PRESETS } from '@/lib/themePresets'
@@ -16,6 +16,9 @@ import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { BIBLE_FONT_MAX, BIBLE_FONT_MIN } from '../reader/usePinchFontSize'
 import { Segmented, Stepper, Toggle } from './SettingsControls'
+import { settingsRouteOf, settingsStep, SETTINGS_ROUTE_TITLES, type SettingsRoute } from './settingsRoutes'
+import { recordTabStep } from '../search/searchHistory'
+import type { SettingsTabState, Tab } from '@/types'
 import './settings.css'
 
 // Re-exported so mobile/reader/ReaderOptionsSheet.tsx's existing `from '../settings/SettingsPage'`
@@ -36,8 +39,68 @@ export { Segmented, Stepper, Toggle }
  * window), Shortcuts (no keyboard), Study Trail settings (no phone Study Trail UI exists yet —
  * MobileApp.tsx's More page already says so: "phone page in a later phase").
  */
-export function SettingsPage({ onBack }: { onBack?: () => void }) {
+/** The page a Settings subsection route opens. `back` returns to the Settings root. */
+function routeElement(route: SettingsRoute, back: () => void): React.ReactNode {
+  switch (route) {
+    case 'preset': return <ThemePresetPage onBack={back} />
+    case 'translation': return <DefaultTranslationPage onBack={back} />
+    case 'hermas': return <HermasTranslationPage onBack={back} />
+    case 'font-scripture': return <FontPickerPage label="Scripture" field="scriptureFontFamily" onBack={back} />
+    case 'font-notes': return <FontPickerPage label="Notes" field="notesFontFamily" onBack={back} />
+    case 'font-ui': return <FontPickerPage label="UI chrome" field="uiFontFamily" onBack={back} />
+    case 'word-replacer': return <WordReplacerPage onBack={back} />
+    case 'notes': return <NotesSettingsPage onBack={back} />
+    case 'audio': return <AudioSettingsPage onBack={back} />
+    case 'youtube': return <YouTubeSettingsPage onBack={back} />
+    case 'data': return <DataSettingsPage onBack={back} />
+    case 'experimental': return <ExperimentalSettingsPage onBack={back} />
+  }
+}
+
+/**
+ * Subsection routing (SEP25 per-tab history). In a Settings TAB the open subsection lives in the
+ * tab state (`settingsRoute`): opening one or going back to the root is a history step, and a
+ * back / forward restore that changes `settingsRoute` opens that page (or pops to the root)
+ * through this stack. An edge-swipe pop counts as going back. Outside a Settings tab (no tab),
+ * rows simply push their pages as before.
+ */
+function useSettingsRoutes(tab: Tab | null) {
   const nav = useNavigation()
+  const tabId = tab?.id ?? null
+  const route = tab ? settingsRouteOf(tab.state as SettingsTabState) : null
+  const shown = useRef<SettingsRoute | null>(null)
+  const go = useCallback((next: SettingsRoute | null) => {
+    if (!tabId) return
+    const s = useAppStore.getState()
+    const cur = settingsRouteOf(s.tabs.search.find((t) => t.id === tabId)?.state as SettingsTabState | undefined)
+    if (cur === next) return
+    recordTabStep(tabId, settingsStep(cur), settingsStep(next))
+    s.updateTabState('search', tabId, { settingsRoute: next } as Partial<SettingsTabState>)
+  }, [tabId])
+  const back = useCallback(() => (tabId ? go(null) : nav.pop()), [tabId, go, nav])
+  const open = useCallback((r: SettingsRoute) => (tabId ? go(r) : nav.push(`settings-${r}`, routeElement(r, nav.pop))), [tabId, go, nav])
+  // Tab state → stack (a row tap, a restore, or the persisted route on remount).
+  useEffect(() => {
+    if (!tabId || route === shown.current) return
+    if (route == null) nav.popToRoot()
+    else if (shown.current == null) nav.push(`settings-${route}`, routeElement(route, back))
+    else { nav.popToRoot(); nav.push(`settings-${route}`, routeElement(route, back)) }
+    shown.current = route
+  }, [tabId, route]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stack → tab state: an edge-swipe pop back to the root.
+  useEffect(() => {
+    if (tabId && nav.depth === 0 && shown.current != null) { shown.current = null; go(null) }
+  }, [nav.depth]) // eslint-disable-line react-hooks/exhaustive-deps
+  return { open }
+}
+
+export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }) {
+  // The Settings tab this page belongs to (the shell renders it without props today).
+  const activeSettingsTab = useAppStore((s) => {
+    const t = s.tabs.search.find((x) => x.id === s.activeTabId.search)
+    return t?.type === 'settings' ? t : null
+  })
+  const routes = useSettingsRoutes(tab ?? (onBack ? null : activeSettingsTab))
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const preset = useAppStore((s) => s.themePreset)
@@ -51,19 +114,14 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
   const setBackgroundAnimationIntensity = useAppStore((s) => s.setBackgroundAnimationIntensity)
   const uiFontFamily = useAppStore((s) => s.uiFontFamily)
-  const setUiFontFamily = useAppStore((s) => s.setUiFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
-  const setNotesFontFamily = useAppStore((s) => s.setNotesFontFamily)
   const fontSize = useAppStore((s) => s.bibleFontSize)
   const setFontSize = useAppStore((s) => s.setBibleFontSize)
   const lineHeight = useAppStore((s) => s.bibleLineHeight)
   const setLineHeight = useAppStore((s) => s.setBibleLineHeight)
   const family = useAppStore((s) => s.scriptureFontFamily)
-  const setFamily = useAppStore((s) => s.setScriptureFontFamily)
   const translation = useAppStore((s) => s.defaultBibleTranslation)
-  const setTranslation = useAppStore((s) => s.setDefaultBibleTranslation)
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
-  const setHermasTranslation = useAppStore((s) => s.setHermasTranslation)
   const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
   const setShowVerseNumbers = useAppStore((s) => s.setShowVerseNumbers)
   const showRedLetters = useAppStore((s) => s.showRedLetters)
@@ -73,11 +131,11 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
   const customThemes = useAppStore((s) => s.customThemes)
   const presetLabel = themePresetLabel(preset, customThemes)
 
-  // Mirrors SettingsModal.tsx's `activePreset` / `curatedAnimationActive`: some themes carry
-  // their own always-on ambient animation, which locks the toggle on (see the note below).
-  const basePresetId = preset.startsWith('custom:') ? (customThemes.find((t) => `custom:${t.id}` === preset)?.basedOn ?? '') : preset
-  const activePreset = THEME_PRESETS.find((p) => basePresetId === p.id || basePresetId === `${p.id}-dark` || basePresetId === `${p.id}-light`) ?? THEME_PRESETS[0]
-  const curatedAnimationActive = !!activePreset.animationStyle
+  // On iPhone the colour preset is a Scripture-only theme (SEP25, scriptureTheme.ts): it never
+  // reaches the app chrome, so no preset's curated ambient animation runs or locks the toggle
+  // (desktop's SettingsModal still does that). Kept as values so the rows below read the same.
+  const activePreset = THEME_PRESETS[0]
+  const curatedAnimationActive = false
 
   return (
     <Page title="Settings" onBack={onBack}>
@@ -85,7 +143,7 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
         <Row title="Theme" right={
           <Segmented value={theme} options={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]} onChange={(v) => setTheme(v as 'system' | 'light' | 'dark')} />
         } />
-        <Row title="Color preset" subtitle={presetLabel} chevron onClick={() => nav.push('settings-preset', <ThemePresetPage onBack={nav.pop} />)} />
+        <Row title="Color preset" subtitle={`${presetLabel} · Scripture only`} chevron onClick={() => routes.open('preset')} />
         <Row title="Glass appearance" subtitle="How much shows through menus, panels and sheets" right={
           <Segmented value={glassAppearance} options={[['clear', 'Clear'], ['regular', 'Regular'], ['tinted', 'Tinted']]} onChange={(v) => setGlassAppearance(v as 'clear' | 'regular' | 'tinted')} />
         } />
@@ -117,29 +175,14 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
       </ListSection>
 
       <ListSection title="Fonts">
-        <FontPickerRow nav={nav} label="Scripture" value={family} onChange={setFamily} />
-        <FontPickerRow nav={nav} label="Notes" value={notesFontFamily} onChange={setNotesFontFamily} />
-        <FontPickerRow nav={nav} label="UI chrome" value={uiFontFamily} onChange={setUiFontFamily} />
+        <Row title="Scripture" subtitle={fontLabel(family)} chevron onClick={() => routes.open('font-scripture')} />
+        <Row title="Notes" subtitle={fontLabel(notesFontFamily)} chevron onClick={() => routes.open('font-notes')} />
+        <Row title="UI chrome" subtitle={fontLabel(uiFontFamily)} chevron onClick={() => routes.open('font-ui')} />
       </ListSection>
 
       <ListSection title="Reading">
-        <Row title="Default translation" subtitle={TRANSLATIONS.find((t) => t.id === translation)?.label ?? translation} chevron onClick={() => nav.push('settings-translation', (
-          <Page title="Default translation" onBack={nav.pop}>
-            <ListSection>
-              {TRANSLATIONS.map((t) => (
-                <Row key={t.id} title={t.label} subtitle={t.description} right={t.id === translation ? '✓' : undefined} onClick={() => { setTranslation(t.id); nav.pop() }} />
-              ))}
-            </ListSection>
-          </Page>
-        ))} />
-        <Row title="Shepherd of Hermas translation" subtitle={hermasTranslation === 'hermas_taylor' ? 'Charles Taylor (1903)' : 'Roberts-Donaldson (Ante-Nicene Fathers)'} chevron onClick={() => nav.push('settings-hermas', (
-          <Page title="Hermas translation" onBack={nav.pop}>
-            <ListSection>
-              <Row title="Roberts-Donaldson (Ante-Nicene Fathers)" right={hermasTranslation === 'hermas' ? '✓' : undefined} onClick={() => { setHermasTranslation('hermas'); nav.pop() }} />
-              <Row title="Charles Taylor (1903)" subtitle="Finer verse divisions, includes Similitude 7 — best-effort OCR ingest" right={hermasTranslation === 'hermas_taylor' ? '✓' : undefined} onClick={() => { setHermasTranslation('hermas_taylor'); nav.pop() }} />
-            </ListSection>
-          </Page>
-        ))} />
+        <Row title="Default translation" subtitle={TRANSLATIONS.find((t) => t.id === translation)?.label ?? translation} chevron onClick={() => routes.open('translation')} />
+        <Row title="Shepherd of Hermas translation" subtitle={hermasTranslation === 'hermas_taylor' ? 'Charles Taylor (1903)' : 'Roberts-Donaldson (Ante-Nicene Fathers)'} chevron onClick={() => routes.open('hermas')} />
         <Row title="Text size" subtitle="Pinch on the reader also changes this" right={
           <Stepper value={fontSize} min={BIBLE_FONT_MIN} max={BIBLE_FONT_MAX} onChange={setFontSize} label="px" />
         } />
@@ -149,15 +192,15 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
         <Row title="Verse numbers" right={<Toggle checked={showVerseNumbers} onChange={setShowVerseNumbers} label="Verse numbers" />} />
         <Row title="Red letter text" subtitle="Highlight words of Yeshua in the KJVA text (requires tagged source)" right={<Toggle checked={showRedLetters} onChange={setShowRedLetters} label="Red letter text" />} />
         <Row title="Continuous chapter scroll" subtitle="Load the next/previous chapter automatically as you scroll" right={<Toggle checked={continuousChapterScroll} onChange={setContinuousChapterScroll} label="Continuous chapter scroll" />} />
-        <Row title="Word replacer" subtitle="Divine-name and archaic-name substitution" chevron onClick={() => nav.push('settings-word-replacer', <WordReplacerPage onBack={nav.pop} />)} />
+        <Row title="Word replacer" subtitle="Divine-name and archaic-name substitution" chevron onClick={() => routes.open('word-replacer')} />
       </ListSection>
 
       <ListSection title="Notes">
-        <Row title="Notes" subtitle="Reference detection, editor, print & export" chevron onClick={() => nav.push('settings-notes', <NotesSettingsPage onBack={nav.pop} />)} />
+        <Row title="Notes" subtitle="Reference detection, editor, print & export" chevron onClick={() => routes.open('notes')} />
       </ListSection>
 
       <ListSection title="Audio">
-        <Row title="Read Aloud" subtitle="Voice, speed, auto-advance" chevron onClick={() => nav.push('settings-audio', <AudioSettingsPage onBack={nav.pop} />)} />
+        <Row title="Read Aloud" subtitle="Voice, speed, auto-advance" chevron onClick={() => routes.open('audio')} />
       </ListSection>
 
       <ListSection title="iCloud">
@@ -165,11 +208,11 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
       </ListSection>
 
       <ListSection title="Video">
-        <Row title="YouTube" subtitle="Watch history, transcript packs" chevron onClick={() => nav.push('settings-youtube', <YouTubeSettingsPage onBack={nav.pop} />)} />
+        <Row title="YouTube" subtitle="Watch history, transcript packs" chevron onClick={() => routes.open('youtube')} />
       </ListSection>
 
       <ListSection title="Data">
-        <Row title="Data" subtitle="History, saved sessions, danger zone" chevron onClick={() => nav.push('settings-data', <DataSettingsPage onBack={nav.pop} />)} />
+        <Row title="Data" subtitle="History, saved sessions, danger zone" chevron onClick={() => routes.open('data')} />
       </ListSection>
 
       <ListSection title="Study trail">
@@ -177,7 +220,7 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
       </ListSection>
 
       <ListSection title="Experimental">
-        <Row title="Experimental" subtitle="Opt-in features off by default" chevron onClick={() => nav.push('settings-experimental', <ExperimentalSettingsPage onBack={nav.pop} />)} />
+        <Row title="Experimental" subtitle="Opt-in features off by default" chevron onClick={() => routes.open('experimental')} />
       </ListSection>
 
       <ListSection title="About">
@@ -187,16 +230,52 @@ export function SettingsPage({ onBack }: { onBack?: () => void }) {
   )
 }
 
-function FontPickerRow({ nav, label, value, onChange }: { nav: ReturnType<typeof useNavigation>; label: string; value: string; onChange: (v: string) => void }) {
+const fontLabel = (v: string) => (v === 'system' ? 'System' : v)
+
+function FontPickerPage({ label, field, onBack }: { label: string; field: 'scriptureFontFamily' | 'notesFontFamily' | 'uiFontFamily'; onBack: () => void }) {
+  const value = useAppStore((s) => s[field])
+  const set = (f: string) => {
+    const s = useAppStore.getState()
+    if (field === 'scriptureFontFamily') s.setScriptureFontFamily(f)
+    else if (field === 'notesFontFamily') s.setNotesFontFamily(f)
+    else s.setUiFontFamily(f)
+  }
   return (
-    <Row title={label} subtitle={value === 'system' ? 'System' : value} chevron onClick={() => nav.push(`settings-font-${label}`, (
-      <Page title={label} onBack={nav.pop}>
-        <ListSection>
-          {Object.keys(FONT_MAP).map((f) => (
-            <Row key={f} title={<span style={{ fontFamily: FONT_MAP[f] }}>{f === 'system' ? 'System' : f}</span>} right={f === value ? '✓' : undefined} onClick={() => { onChange(f); nav.pop() }} />
-          ))}
-        </ListSection>
-      </Page>
-    ))} />
+    <Page title={label} onBack={onBack}>
+      <ListSection>
+        {Object.keys(FONT_MAP).map((f) => (
+          <Row key={f} title={<span style={{ fontFamily: FONT_MAP[f] }}>{fontLabel(f)}</span>} right={f === value ? '✓' : undefined} onClick={() => { set(f); onBack() }} />
+        ))}
+      </ListSection>
+    </Page>
   )
 }
+
+function DefaultTranslationPage({ onBack }: { onBack: () => void }) {
+  const translation = useAppStore((s) => s.defaultBibleTranslation)
+  const setTranslation = useAppStore((s) => s.setDefaultBibleTranslation)
+  return (
+    <Page title="Default translation" onBack={onBack}>
+      <ListSection>
+        {TRANSLATIONS.map((t) => (
+          <Row key={t.id} title={t.label} subtitle={t.description} right={t.id === translation ? '✓' : undefined} onClick={() => { setTranslation(t.id); onBack() }} />
+        ))}
+      </ListSection>
+    </Page>
+  )
+}
+
+function HermasTranslationPage({ onBack }: { onBack: () => void }) {
+  const hermasTranslation = useAppStore((s) => s.hermasTranslation)
+  const setHermasTranslation = useAppStore((s) => s.setHermasTranslation)
+  return (
+    <Page title="Hermas translation" onBack={onBack}>
+      <ListSection>
+        <Row title="Roberts-Donaldson (Ante-Nicene Fathers)" right={hermasTranslation === 'hermas' ? '✓' : undefined} onClick={() => { setHermasTranslation('hermas'); onBack() }} />
+        <Row title="Charles Taylor (1903)" subtitle="Finer verse divisions, includes Similitude 7 — best-effort OCR ingest" right={hermasTranslation === 'hermas_taylor' ? '✓' : undefined} onClick={() => { setHermasTranslation('hermas_taylor'); onBack() }} />
+      </ListSection>
+    </Page>
+  )
+}
+
+export { SETTINGS_ROUTE_TITLES }

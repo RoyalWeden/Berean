@@ -12,6 +12,8 @@ import { SessionSwitcher } from './SessionSwitcher'
 import { ArchiveView } from './ArchivePage'
 import { NewTabSheet, type MorePageRoute } from '../navigation/NewTabSheet'
 import { moveInOrder, workspaceOrder } from './tabOrder'
+import { displayedOrder, applyManualReorder, type TabSortMode } from './tabSort'
+import './tabCards.css'
 
 export const SPACE_ORDER: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
 
@@ -61,6 +63,9 @@ type Gesture = {
  * pressed nothing underneath can be text-selected or highlighted, and a finger that moves before
  * the lift is an ordinary scroll. Reordering writes the unified display order, so the Mac's
  * sidebar shows the same order.
+ * A "Recent | Custom" segmented control sorts the cards (SEP25, tabSort.ts): Recent = most recently
+ * used first; Custom = that manual order. Dragging while Recent is shown switches to Custom and
+ * saves the dragged order as the custom order.
  */
 export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (route: MorePageRoute | 'archive') => void }) {
   const tabs = useAppStore((s) => s.tabs)
@@ -71,7 +76,13 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
   const sessionId = useAppStore((s) => s.currentSessionId)
   const stored = useAppStore((s) => s.sessionDisplayOrders[s.currentSessionId])
   const session = useAppStore((s) => s.sessions.find((x) => x.id === s.currentSessionId))
-  const all = useMemo(() => workspaceTabs(tabs, stored), [tabs, stored])
+  const sortMode = useAppStore((s) => s.mobileTabSort)
+  const mru = useAppStore((s) => s.tabMRUList)
+  const custom = useMemo(() => workspaceTabs(tabs, stored), [tabs, stored])
+  const all = useMemo(() => {
+    const byTab = new Map(custom.map((x) => [x.tab.id, x]))
+    return displayedOrder(sortMode, custom.map((x) => x.tab.id), mru.map((m) => m.tabId)).map((id) => byTab.get(id)!)
+  }, [custom, sortMode, mru])
   const byId = useMemo(() => new Map(all.map((x) => [x.tab.id, x])), [all])
   const isActive = (space: SpaceId, id: string) => space === activeSpace && activeTabId[space] === id
   const SessionIcon = (SESSION_ICONS.find((i) => i.name === session?.icon) ?? { Icon: Layers }).Icon
@@ -168,8 +179,13 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
       if (st.dragged && liveOrder) {
         const k = liveOrder.indexOf(st.id)
         const changed = liveOrder.join('|') !== all.map((x) => x.tab.id).join('|')
-        const n = k < liveOrder.length - 1 ? { id: liveOrder[k + 1], before: true } : { id: liveOrder[k - 1], before: false }
-        if (changed && n.id) useAppStore.getState().reorderTabDisplay(sessionId, st.id, n.id, n.before)
+        // Any manual reorder is the Custom order — in Recent it switches to Custom (tabSort.ts).
+        if (changed && k >= 0) {
+          const r = applyManualReorder(liveOrder)
+          const store = useAppStore.getState()
+          store.setTabDisplayOrder(sessionId, r.customOrder)
+          if (store.mobileTabSort !== r.mode) store.setMobileTabSort(r.mode)
+        }
         void haptic.light()
       } else {
         const it = byId.get(st.id)
@@ -197,6 +213,12 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
           {/* Archive opens INSIDE this sheet (NEW-016) — no page or panel on top. */}
           <button type="button" className="mobile-chip" aria-label="Archived tabs" onClick={() => api.push({ key: 'archive', title: 'Archived tabs', render: (a) => <ArchiveView api={a} /> })}><Archive size={14} aria-hidden /></button>
         </div>
+      </div>
+      <div className="mobile-segmented m-tab-sort" role="radiogroup" aria-label="Sort tabs">
+        {([['recent', 'Recent'], ['custom', 'Custom']] as Array<[TabSortMode, string]>).map(([m, label]) => (
+          <button key={m} type="button" role="radio" aria-checked={sortMode === m} className={sortMode === m ? 'is-on' : ''}
+            onClick={() => { if (sortMode !== m) { void haptic.selection(); useAppStore.getState().setMobileTabSort(m) } }}>{label}</button>
+        ))}
       </div>
       {all.length === 0 && <div className="mobile-empty">No open tabs in this session.</div>}
       <div ref={gridRef} className={`mobile-tab-cards${liftedId ? ' is-dragging' : ''}`} data-no-sheet-drag role="list" aria-label="Tabs">
@@ -254,15 +276,18 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
  *  earlier / later" are its accessible equivalent. Rows that change the list return to the cards. */
 function tabActionsView(space: SpaceId, t: Tab): SheetSubView {
   const s = useAppStore.getState()
-  const order = workspaceTabs(s.tabs, s.sessionDisplayOrders[s.currentSessionId]).map((x) => x.tab.id)
+  // The order the cards show (Recent or Custom); moving saves it as the Custom order, like a drag.
+  const custom = workspaceTabs(s.tabs, s.sessionDisplayOrders[s.currentSessionId]).map((x) => x.tab.id)
+  const order = displayedOrder(s.mobileTabSort, custom, s.tabMRUList.map((m) => m.tabId))
   const k = order.indexOf(t.id)
+  const move = (to: number) => { const r = applyManualReorder(moveInOrder(order, t.id, to)); st().setTabDisplayOrder(s.currentSessionId, r.customOrder); st().setMobileTabSort(r.mode) }
   const others = s.sessions.filter((x) => x.id !== s.currentSessionId)
   const st = () => useAppStore.getState()
   return actionListView(`tab-actions-${t.id}`, tabTitle(t), [
     { id: 'rename', label: 'Rename…', stay: true, onSelect: () => { const n = prompt('Tab name', t.title); if (n?.trim()) st().renameTab(space, t.id, n.trim()) } },
     { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { st().addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
-    { id: 'earlier', label: 'Move earlier', stay: true, disabled: k <= 0, onSelect: () => st().reorderTabDisplay(s.currentSessionId, t.id, order[k - 1], true) },
-    { id: 'later', label: 'Move later', stay: true, disabled: k < 0 || k >= order.length - 1, onSelect: () => st().reorderTabDisplay(s.currentSessionId, t.id, order[k + 1], false) },
+    { id: 'earlier', label: 'Move earlier', stay: true, disabled: k <= 0, onSelect: () => move(k - 1) },
+    { id: 'later', label: 'Move later', stay: true, disabled: k < 0 || k >= order.length - 1, onSelect: () => move(k + 1) },
     ...(others.length ? [{ id: 'move', label: 'Move to session', onSelect: () => {}, view: () => actionListView(`tab-move-${t.id}`, 'Move to', others.map((x) => ({ id: x.id, label: x.name, onSelect: () => st().moveTabToSession(space, t.id, x.id) }))) }] : []),
     { id: 'archive', label: 'Archive tab', stay: true, onSelect: () => st().archiveTab(space, t.id) },
     { id: 'close-others', label: 'Close other tabs of this type', stay: true, onSelect: () => { for (const o of st().tabs[space]) if (o.id !== t.id && !o.isPinned && o.type === t.type) st().closeTab(space, o.id) } },

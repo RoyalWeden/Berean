@@ -224,36 +224,61 @@
   opacity: 1;
   pointer-events: auto;
 }
-/* Delete button — top-right corner, same reveal-on-hover/selection convention, size,
-   corner-centered positioning, and neutral-circle idle style as the resize handle above
-   (bottom-right) — the two controls read as a matched pair rather than two differently-
-   styled one-offs. Trash2 glyph (see nodeViews.ts) turns red on hover so it reads as
-   destructive without a text label. */
-.berean-pm-editor .ProseMirror .pm-image-delete-btn {
+/* Image actions — Copy / Save As / Delete (nodeViews.ts, MAC-IMG). A small macOS-style glass
+   capsule inset in the image's top-right corner (not a web button row): popover material +
+   hairline + shadow-1, 22px circular hit targets with 12px lucide glyphs in secondary text,
+   hover = the system hover lift. Same reveal-on-hover/selection convention as the resize
+   handle; Delete tints destructive on hover. Right-click opens the native menu instead. */
+.berean-pm-editor .ProseMirror .pm-image-actions {
   position: absolute;
-  right: -9px;
-  top: -9px;
-  width: 18px;
-  height: 18px;
+  top: 8px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--material-popover-bg);
+  -webkit-backdrop-filter: blur(calc(var(--material-popover-blur) * var(--glass-blur))) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--material-popover-blur) * var(--glass-blur))) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--color-border);
+  box-shadow: var(--shadow-1);
+  line-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions {
+  background: var(--material-popover-bg-opaque);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.berean-pm-editor .ProseMirror .pm-image-action {
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: rgb(var(--color-surface-1) / 0.85);
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(var(--color-text-secondary));
+  cursor: default; /* macOS controls don't use the pointing hand */
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.berean-pm-editor .ProseMirror .pm-image-action:hover {
+  background: var(--color-surface-hover);
   color: rgb(var(--color-text-primary));
-  border: 1.5px solid rgb(var(--color-surface-4));
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
 }
-.berean-pm-editor .ProseMirror .pm-image-delete-btn:hover {
-  background: rgb(var(--color-destructive));
-  border-color: rgb(var(--color-destructive));
-  color: white;
+.berean-pm-editor .ProseMirror .pm-image-action:active {
+  background: var(--color-surface-pressed);
 }
-.berean-pm-editor .ProseMirror .pm-image-wrap:hover .pm-image-delete-btn,
-.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-selected .pm-image-delete-btn {
+.berean-pm-editor .ProseMirror .pm-image-action.is-destructive:hover {
+  color: rgb(var(--color-destructive));
+}
+.berean-pm-editor .ProseMirror .pm-image-wrap:hover .pm-image-actions,
+.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-selected .pm-image-actions {
   opacity: 1;
   pointer-events: auto;
 }

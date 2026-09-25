@@ -3,7 +3,7 @@ import { HistoryPage } from './history/HistoryPage'
 import { Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
-import { applyThemeToDocument } from '@/lib/applyTheme'
+import { applyMobileAppearance } from './settings/scriptureTheme'
 import { applyFontFamilies } from '@/lib/fontFamilies'
 import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
 import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
@@ -38,6 +38,7 @@ import { ReaderPage } from './reader/ReaderPage'
 import { SettingsPage } from './settings/SettingsPage'
 import { YouTubeSettingsPage } from './settings/YouTubeSettingsPage'
 import { NotesHomePage } from './notes/NotesHomePage'
+import { pushNotesListHistory, currentNotesListState } from './notes/notesHistory'
 import { NoteEditorPage } from './notes/NoteEditorPage'
 import { SearchPage } from './search/SearchPage'
 import { AudioBar } from './audio/AudioBar'
@@ -111,7 +112,8 @@ function Shell() {
   const youtubeParked = !youtubeShowing && ytVideoOpen
   const nav = useShellSheets({ openMore })
   const chrome = useChromeState()
-  // The bottom bar's measured height (--m-nav-h) lets the reader leave room under its overlay.
+  // The bottom controls float over every tab (SEP25); their measured height (--m-nav-h) is the
+  // room every scroller leaves at its end (readerChrome.css). Only Scripture views collapse them.
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const root = rootRef.current
@@ -123,7 +125,7 @@ function Shell() {
   }, [])
 
   return (
-    <div ref={rootRef} className={`mobile-root${chrome.overlay && !showMore ? ' has-overlay-nav' : ''}${chrome.overlay && chrome.collapsed && !showMore ? ' is-nav-collapsed' : ''}`}>
+    <div ref={rootRef} className={`mobile-root has-overlay-nav${chrome.overlay && chrome.collapsed && !showMore ? ' is-nav-collapsed' : ''}`}>
       <main className="mobile-main">
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes
@@ -179,7 +181,7 @@ function SpaceRoot({ space }: { space: SpaceId }) {
   if (space === 'search') {
     if (!active) return <EmptySpace space={space} />
     if (active.type === 'history') return <ErrorBoundary label="history error"><HistoryPage tab={active} /></ErrorBoundary>
-    if (active.type === 'settings') return <ErrorBoundary label="settings error"><SettingsPage /></ErrorBoundary>
+    if (active.type === 'settings') return <ErrorBoundary label="settings error"><SettingsPage tab={active} /></ErrorBoundary>
     return <ErrorBoundary label="search error"><SearchPage tab={active} /></ErrorBoundary>
   }
   if (!active) return <EmptySpace space={space} />
@@ -198,23 +200,43 @@ function NotesSpace() {
   const activeId = useAppStore((s) => s.activeTabId.notes)
   const active = tabs.find((t) => t.id === activeId)
   // Each Notes TAB remembers the note it shows (tab state noteId, as on desktop), so switching
-  // between Notes tabs — each with its own navigation stack — reopens that tab's note (T23-009),
-  // and its tab card can preview it.
+  // between Notes tabs reopens that tab's note (T23-009), and its tab card can preview it.
+  // History (SEP25): the tab's per-tab history is THE navigation model — the list and each note
+  // are its destinations. One editor page at most (a newly opened note REPLACES the shown one),
+  // so the page stack can never drift from the history; ‹ › in the caret walk the history.
   const openEditor = useCallback((id: string) => {
     const s = useAppStore.getState()
     const tid = s.activeTabId.notes
     if (tid) {
+      const restoring = s.isNavJumping
+      // The first note opened from the list: record the list itself as the step before it.
+      if (!restoring && !(s.tabNavStacks[tid]?.stack.length)) pushNotesListHistory(tid, currentNotesListState(tid))
       s.updateTabState('notes', tid, { noteId: id, isNew: false })
-      // The tab's history (caret ‹ ›, SEP24-008): opening a note is a navigation step.
-      void window.notes.getNote(id).then((n) => useAppStore.getState().pushTabNav(tid, { type: 'note', title: n?.title || 'Note', noteId: id })).catch(() => {})
+      if (!restoring) {
+        s.pushTabNav(tid, { type: 'note', title: 'Note', noteId: id })
+        void window.notes.getNote(id).then((n) => { if (n?.title) useAppStore.getState().retitleTabNav(tid, { noteId: id }, n.title) }).catch(() => {})
+      }
     }
-    nav.push(`note-${id}`, <NoteEditorPage noteId={id} onBack={() => {
-      const st = useAppStore.getState()
-      if (tid && st.tabs.notes.some((t) => t.id === tid)) st.updateTabState('notes', tid, { noteId: null })
-      nav.pop()
-    }} />)
+    const page = <NoteEditorPage key={id} noteId={id} onBack={() => nav.pop()} />
+    if (nav.depth > 0) nav.replaceTop(`note-${id}`, page)
+    else nav.push(`note-${id}`, page)
   }, [nav])
-  // Back past the first note (caret ‹) returns this Notes tab to its home list.
+  // Leaving the editor by its back button or the edge swipe is a navigation step too: back to the
+  // list (recorded, so › returns to the note).
+  const depth = nav.depth
+  const prevDepth = useRef(depth)
+  useEffect(() => {
+    const was = prevDepth.current
+    prevDepth.current = depth
+    if (!(was > 0 && depth === 0)) return
+    const s = useAppStore.getState()
+    const tid = s.activeTabId.notes
+    const t = tid ? s.tabs.notes.find((x) => x.id === tid) : undefined
+    if (!tid || !(t?.state as { noteId?: string | null } | undefined)?.noteId) return
+    s.updateTabState('notes', tid, { noteId: null })
+    pushNotesListHistory(tid, currentNotesListState(tid))
+  }, [depth])
+  // Back to a list step (caret ‹) returns this Notes tab to its home list.
   const notesHomeToken = useAppStore((s) => s.notesHomeToken)
   const homeTokenSeen = useRef(notesHomeToken)
   useEffect(() => {
@@ -402,7 +424,8 @@ function useAppearance() {
   }, [])
   const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
-    applyThemeToDocument({ theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes })
+    // Presets colour Scripture only (SEP25); the app keeps its Light / Dark palette.
+    applyMobileAppearance({ theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes })
   }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
   useEffect(() => { applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily }) }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
   // Dynamic Type + accessibility switches (R082): the shell's CSS font sizes are multiplied by

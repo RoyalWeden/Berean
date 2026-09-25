@@ -37,6 +37,7 @@ function resultGroupLabel(type: string): string {
 }
 import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
 import { displayChapter } from '@/lib/chapterNumbering'
+import { advancedSearchInPlaceTabId, advancedSearchTabPatch, advancedSearchTitle } from './advancedSearchTarget'
 
 interface CrossRef {
   bookId: string
@@ -1245,7 +1246,30 @@ export default function FloatingSearch() {
     const tagIds = tags.map((t) => t.id)
     if (query.trim()) addRecentSearchQuery(query.trim())
     closeSearch()
-    openScriptureSearchTab(keyword || undefined, tagIds.length ? { tagIds } : undefined)
+    openScriptureSearchHere(keyword || undefined, tagIds)
+  }
+
+  // Advanced Scripture Search destination (MAC-FS-ADV): floating search opened to edit the
+  // current tab (⌘L-style) turns the focused Scripture tab itself into the search; ⌘T / floating
+  // mode (or no Scripture tab in focus) keeps opening a fresh search tab.
+  function openScriptureSearchHere(keyword: string | undefined, tagIds: string[]) {
+    const st = useAppStore.getState()
+    const tabId = advancedSearchInPlaceTabId(searchMode, st.activeSpace, st.activeTabId.scripture)
+    const tab = tabId ? st.tabs.scripture.find((t) => t.id === tabId) : undefined
+    if (!tab) { openScriptureSearchTab(keyword, tagIds.length ? { tagIds } : undefined); return }
+    const tagNames = tagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter((x): x is string => !!x)
+    if (keyword || tagIds.length) {
+      st.addHistoryEntry({
+        type: 'search',
+        title: keyword ? `"${keyword}"` : (tagNames.length ? `#${tagNames.join(' #')}` : 'Tagged verses'),
+        query: keyword ?? '',
+        searchTagFilter: tagNames.length ? tagNames : undefined,
+      })
+    }
+    // A nav-stack entry for the search itself, so ⌘[ steps back to the chapter the tab showed.
+    st.pushTabNav(tab.id, { type: 'bible', title: keyword ? `Search: "${keyword}"` : 'Search', query: keyword ?? '' })
+    updateTabState('scripture', tab.id, advancedSearchTabPatch(keyword, tagIds))
+    renameTab('scripture', tab.id, advancedSearchTitle(keyword, tagNames))
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -1307,7 +1331,7 @@ export default function FloatingSearch() {
       // "activate that specific row" behavior below.
       e.preventDefault()
       closeSearch()
-      if (predictedSpace === 'scripture') openScriptureSearchTab(query.trim())
+      if (predictedSpace === 'scripture') openScriptureSearchHere(query.trim() || undefined, [])
       else if (predictedSpace === 'notes') openNotesSearchTab(query.trim())
       else openYouTubeSearchTab(query.trim())
     } else if (e.key === 'Enter' && results.length > 0) {

@@ -6,3 +6,9 @@
 @keyframes m-sheet-view-in-fwd { from { transform: translateX(22%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes m-sheet-view-in-back { from { transform: translateX(-22%); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mobile-sheet-view.is-forward, .mobile-sheet-view.is-back { animation-duration: 0.01s; } }
+
+/* No rubber-banding inside a sheet (SEP25 SHEET-GESTURE): at a scroll boundary the drag belongs to
+   the sheet itself (Sheet.tsx / sheetGesture.ts), so neither the body nor any nested vertical
+   scroller bounces or chains the scroll to the page behind. */
+.mobile-sheet-body { overscroll-behavior: none; }
+.mobile-sheet-body * { overscroll-behavior-y: none; }

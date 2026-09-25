@@ -1,0 +1,3 @@
+/* Tab cards sort control (SEP25 TAB-SORT): a full-width native segmented control above the cards. */
+.m-tab-sort { display: flex; width: 100%; margin: 0 0 12px; }
+.m-tab-sort button { flex: 1; min-height: 32px; }

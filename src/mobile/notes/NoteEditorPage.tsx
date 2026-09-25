@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { MoreHorizontal, Eye, Pencil } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
@@ -22,9 +22,8 @@ import { StrongsSheet } from '../study/StrongsSheet'
 import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
 import { EMOJI_CATEGORIES, ALL_EMOJI } from '@/lib/emojiList'
 import { noteToMarkdownFile, noteFileName } from '@/lib/noteMarkdownFile'
-
-const SAVE_DEBOUNCE_MS = 500
-const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
+import { verseRefDisplay } from '@/lib/parseRef'
+import { useNoteAutosave } from './useNoteAutosave'
 
 /**
  * Note editor page (Phase 13, R084): the shared ProseMirror editor (`NoteEditorPM`) full-screen,
@@ -38,65 +37,19 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const nav = useNavigation()
   const sheets = useSheets()
   const actions = useActionSheet()
-  const [note, setNote] = useState<Note | null | undefined>(undefined)
+  const { note, latest, persist, replace, lastSavedAt } = useNoteAutosave(noteId)
   const [notes, setNotes] = useState<Note[]>([])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
-  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const [printOpen, setPrintOpen] = useState(false)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSnapshot = useRef<string | null>(null)
-  const latest = useRef<Note | null>(null)
   const typingLook = useAppStore((s) => s.noteTypingLook)
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
 
   useEffect(() => {
     let alive = true
-    window.notes.getNote(noteId).then((n) => { if (alive) { setNote(n); latest.current = n; lastSnapshot.current = n?.content ?? null } }).catch(() => { if (alive) setNote(null) })
     window.notes.getNotes(500, 0).then((all) => { if (alive) setNotes(all) }).catch(() => {})
     return () => { alive = false }
   }, [noteId])
-
-  const snapshot = useCallback((kind: string) => {
-    const n = latest.current
-    if (!n || lastSnapshot.current === n.content) return
-    lastSnapshot.current = n.content
-    window.notes.createNoteVersion(n.id, n.title || '', n.content, kind).catch(() => {})
-  }, [])
-
-  type Patch = Partial<Omit<Note, 'status' | 'icon'>> & { status?: Note['status'] | null; icon?: string | null }
-  const persist = useCallback((patch: Patch) => {
-    const n = latest.current
-    if (!n) return
-    const updated = { ...n, ...patch, status: patch.status === null ? undefined : (patch.status ?? n.status), icon: patch.icon === null ? undefined : (patch.icon ?? n.icon), updatedAt: Date.now() } as Note
-    latest.current = updated
-    setNote(updated)
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      saveTimer.current = null
-      window.notes.updateNote(n.id, patch).then(() => { setLastSavedAt(Date.now()); bumpNoteToken() }).catch(() => {})
-    }, SAVE_DEBOUNCE_MS)
-    if ('content' in patch) {
-      if (snapshotTimer.current) clearTimeout(snapshotTimer.current)
-      snapshotTimer.current = setTimeout(() => snapshot('auto'), SNAPSHOT_IDLE_MS)
-    }
-  }, [bumpNoteToken, snapshot])
-
-  // Flush on leave / background: never lose the last keystrokes.
-  useEffect(() => {
-    const flush = () => {
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current); saveTimer.current = null
-        const n = latest.current
-        if (n) window.notes.updateNote(n.id, { title: n.title, content: n.content }).then(() => bumpNoteToken()).catch(() => {})
-      }
-      snapshot('auto')
-    }
-    window.addEventListener('pagehide', flush)
-    document.addEventListener('visibilitychange', flush)
-    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', flush); flush(); if (snapshotTimer.current) clearTimeout(snapshotTimer.current) }
-  }, [bumpNoteToken, snapshot])
 
   const openVerse = useCallback((ref: ParsedRef & { forcedTranslation?: string }) => {
     const s = useAppStore.getState()
@@ -111,10 +64,12 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     const target = title.replace(/\|.*$/, '').trim()
     const m = target.match(/^(?:verse\s+notes[/\s]+)?([A-Za-z0-9\s]+)\s*[:.](\d+)(?:[:.](\d+))?/i)
     if (m) { const bookId = resolveBookToken(m[1].trim()); if (bookId) return openVerse({ bookId, chapter: parseInt(m[2]), verse: m[3] ? parseInt(m[3]) : undefined }) }
+    // Opening another note is a step of this tab's history (SEP25): the Notes space replaces the
+    // editor and records it, so ‹ returns here.
     const found = notes.find((n) => (n.title || '').toLowerCase() === target.toLowerCase())
-    if (found) nav.push(`note-${found.id}`, <NoteEditorPage noteId={found.id} onBack={nav.pop} />)
-    else void window.notes.createNote({ type: 'general', title: target, content: '' }).then((r) => { if (r.success && r.note) { bumpNoteToken(); nav.push(`note-${r.note.id}`, <NoteEditorPage noteId={r.note.id} onBack={nav.pop} />) } })
-  }, [notes, nav, openVerse, bumpNoteToken])
+    if (found) useAppStore.getState().requestOpenNote(found.id)
+    else void window.notes.createNote({ type: 'general', title: target, content: '' }).then((r) => { if (r.success && r.note) { bumpNoteToken(); useAppStore.getState().requestOpenNote(r.note.id) } })
+  }, [notes, openVerse, bumpNoteToken])
   // Long-press on a scripture / Strong's reference inside the note (R037): the desktop
   // right-click menu's actions (open, copy verse(s), copy reference, open in new tab) as an
   // action sheet. WKWebView fires no `contextmenu` for a press, so the press is detected here.
@@ -169,7 +124,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     const n = latest.current
     if (!n) return []
     return [
-      { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { latest.current = { ...n, pinned: !n.pinned }; setNote(latest.current); bumpNoteToken() }) } },
+      { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { replace({ ...n, pinned: !n.pinned }); bumpNoteToken() }) } },
       // Status, icon and folder open INSIDE the caret ("‹ <note>") — T23-006.
       { id: 'status', label: 'Status', value: n.status ? (NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status) : 'None', onSelect: () => {},
         view: () => ({ title: 'Status', render: (api: SheetApi) => <ChoiceList api={api} value={latest.current?.status ?? 'none'} options={[{ id: 'none', label: 'No status' }, ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label }))]} onSelect={(id) => persist({ status: id === 'none' ? null : (id as NonNullable<Note['status']>) })} /> }) },
@@ -177,8 +132,8 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
         view: () => ({ title: 'Note icon', render: (api: SheetApi) => <IconPicker current={latest.current?.icon ?? null} onPick={(emoji) => { persist({ icon: emoji }); void haptic.light(); api.pop() }} /> }) },
       // Only notes that live in a user folder can move (T23-030; same rule as desktop).
       ...(noteIsMovable(n) ? [{ id: 'folder', label: 'Move to folder', onSelect: () => {},
-        view: () => ({ title: 'Folder', render: (api: SheetApi) => <FolderPicker current={latest.current?.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { latest.current = { ...(latest.current ?? n), folderId: id }; setNote(latest.current); bumpNoteToken(); api.pop() }) }} /> }) }] : []),
-      { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { latest.current = { ...(latest.current ?? n), content }; setNote(latest.current); bumpNoteToken() }} />) },
+        view: () => ({ title: 'Folder', render: (api: SheetApi) => <FolderPicker current={latest.current?.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { replace({ ...(latest.current ?? n), folderId: id }); bumpNoteToken(); api.pop() }) }} /> }) }] : []),
+      { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { replace({ ...(latest.current ?? n), content }); bumpNoteToken() }} />) },
       ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
       { id: 'copy', label: 'Copy as Markdown', onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },
       { id: 'print', label: 'Print / Export PDF…', onSelect: () => setPrintOpen(true) },
@@ -207,7 +162,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     >
       {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
       <div className="mobile-note-editor" {...refLongPress}>
-        {note.verseRef && <div className="mobile-note-meta">{note.verseRef.replace(/\./g, ' ')}{note.textId ? ` · ${note.textId.toUpperCase()}` : ''}</div>}
+        {note.verseRef && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
         <NoteEditorPM
           content={note.content}
           noteId={note.id}

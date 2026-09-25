@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { Copy, Hash, Tag as TagIcon, Volume2, Eraser, Check, X } from 'lucide-react'
+import { Copy, Hash, Tag as TagIcon, Volume2, Eraser, Check, X, GitFork } from 'lucide-react'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { useVerseSelectionActions } from './SelectionBar'
 import { TagPickerSheet } from './TagPickerSheet'
+import { CrossRefsSheet } from './CrossRefsSheet'
 
 /**
  * The verse sheet's view of a SEVERAL-verse selection (T23-028). Tapping a second verse adds it to
@@ -16,6 +17,7 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
   const { sel, label, clear, copyVerses, applyHighlight, removeHighlights, tagRanges, play } = useVerseSelectionActions(tabId)
   const [copied, setCopied] = useState<'verses' | 'refs' | null>(null)
   if (sel.length < 2) return null
+  const oneChapter = sel.every((v) => v.bookId === sel[0].bookId && v.chapter === sel[0].chapter && v.textId === sel[0].textId)
   const copy = async (refsOnly: boolean) => {
     await copyVerses(refsOnly)
     void haptic.light()
@@ -38,6 +40,12 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
       <div className="mobile-tile-row">
         <Tile icon={copied === 'verses' ? Check : Copy} label="Copy" onClick={() => void copy(false)} />
         <Tile icon={copied === 'refs' ? Check : Hash} label="Copy refs" onClick={() => void copy(true)} />
+        {/* Cross references filtered to the selected verses (one chapter), grouped per verse. */}
+        {oneChapter && <Tile icon={GitFork} label="Refs" onClick={() => {
+          const f = sel[0]
+          api.push({ key: 'crossrefs', title: 'Cross references', render: (a) => <CrossRefsSheet bookId={f.bookId} chapter={f.chapter} verses={sel.map((v) => v.verse)} textId={f.textId} label={label} api={a} /> })
+          if (api.atLow) api.setDetent(1)
+        }} />}
         <Tile icon={TagIcon} label="Tag" onClick={() => {
           const { ranges, label: l } = tagRanges()
           api.push({ key: 'tag', title: 'Tag verses', render: (a) => <TagPickerSheet ranges={ranges} label={l} kind="verses" api={a} /> })

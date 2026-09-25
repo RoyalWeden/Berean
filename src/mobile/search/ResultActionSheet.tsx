@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowUpRight, SquarePlus, Hash, Copy, Share2, NotepadText, Highlighter, X, Eraser, BookMarked, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, SquarePlus, Hash, Copy, Share2, NotepadText, Highlighter, X, Eraser, BookMarked, Trash2, type LucideIcon } from 'lucide-react'
 import type { HighlightColor, LexiconEntry, Note } from '@/types'
 import { useAppStore } from '@/store'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
@@ -18,16 +18,22 @@ import './resultActions.css'
 const ICONS: Partial<Record<SearchResultActionId, LucideIcon>> = {
   'open': ArrowUpRight, 'open-new-tab': SquarePlus, 'open-lexicon-tab': BookMarked, 'search-new-tab': SquarePlus,
   'copy-ref': Hash, 'copy-verse': Copy, 'copy-title': Copy, 'copy-strongs': Hash, 'copy-query': Copy,
-  'share': Share2, 'add-note': NotepadText, 'highlight': Highlighter, 'cancel': X,
+  'share': Share2, 'add-note': NotepadText, 'highlight': Highlighter, 'remove': Trash2, 'cancel': X,
 }
 
 async function share(title: string, text: string) {
   const { Share } = await import('@capacitor/share')
   await Share.share({ title, text }).catch(() => {})
 }
-const copyText = (s: string) => { navigator.clipboard.writeText(s).catch(() => {}); void haptic.success() }
+export const copyText = (s: string) => { navigator.clipboard.writeText(s).catch(() => {}); void haptic.success() }
 
-type Handlers = Partial<Record<SearchResultActionId, () => void>>
+export type ResultActionHandlers = Partial<Record<SearchResultActionId, () => void>>
+type Handlers = ResultActionHandlers
+
+/** SheetAction list from any spec list (History rows use their own spec — resultActions.ts). */
+export function specsToActions(specs: ReturnType<typeof searchResultActions>, handlers: Handlers): SheetAction[] {
+  return specs.map((spec) => ({ id: spec.id, label: spec.label, icon: ICONS[spec.id], destructive: spec.id === 'remove' || undefined, onSelect: handlers[spec.id] ?? (() => {}) }))
+}
 
 /** Build the SheetAction list for a result from the pure spec + handlers. */
 function toActions(kind: SearchResultKind, handlers: Handlers, highlightView?: SheetAction['view']): SheetAction[] {

@@ -42,6 +42,7 @@ import { getPrevChapterRef, getNextChapterRef } from '@/lib/bibleNav'
 import { useChapterPullNav } from './useChapterPullNav'
 import ChapterPullIndicator from './ChapterPullIndicator'
 import { displayChapter } from '@/lib/chapterNumbering'
+import { verseFilterForChapter } from '@/lib/scriptureContextFilters'
 
 // Module-level cache of getBooks() results per textId, shared across every BiblePanel
 // instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
@@ -524,6 +525,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     presenterScrollTargetRef.current = 0
     presenterScrollCurRef.current = 0
   }
+
+  // ── Contextual side-panel filters never carry across chapters (MAC-FILTER) ─────────────────
+  // navigate()/onChapterChange already clear the verse filter, but other paths change
+  // tabState.bookId/chapter directly (cross-ref / wikilink / floating-search navigation, history,
+  // a persisted stale filter). One chapter-scoped rule for all of them: a verse filter that
+  // doesn't point into the tab's current chapter is dropped — locally during render (no flash of
+  // a filter for another chapter's verse) and in the persisted tab state just below.
+  const validFilterA = verseFilterForChapter(rightPanelVerseFilter, tabState.bookId, tabState.chapter)
+  const validFilterB = verseFilterForChapter(rightPanelVerseFilterB, tabState.bookId, tabState.chapter)
+  if (validFilterA !== rightPanelVerseFilter) setRightPanelVerseFilter(validFilterA)
+  if (validFilterB !== rightPanelVerseFilterB) setRightPanelVerseFilterB(validFilterB)
+  useEffect(() => {
+    if (!activeTab) return
+    const patch: Partial<Record<'rightPanelVerseFilter' | 'rightPanelVerseFilterB', null>> = {}
+    if (tabState.rightPanelVerseFilter && !verseFilterForChapter(tabState.rightPanelVerseFilter, tabState.bookId, tabState.chapter)) patch.rightPanelVerseFilter = null
+    if (tabState.rightPanelVerseFilterB && !verseFilterForChapter(tabState.rightPanelVerseFilterB, tabState.bookId, tabState.chapter)) patch.rightPanelVerseFilterB = null
+    if (Object.keys(patch).length) updateTabState('scripture', activeTab.id, patch)
+  }, [activeTab?.id, tabState.bookId, tabState.chapter, tabState.rightPanelVerseFilter, tabState.rightPanelVerseFilterB]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Publish the right-hand side panel's on-screen width to the store so the portaled Study
   // Trail arrival toast (pinned bottom-right) can slide left clear of it. Zero when closed,

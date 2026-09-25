@@ -87,14 +87,23 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
     const { ranges, label } = tagRanges()
     sheets.open({ id: 'tag-picker', detents: [0.6, 0.92], render: (api) => <TagPickerSheet ranges={ranges} label={label} kind="verses" api={api} /> })
   }
+  // Cross references for the selected verse(s) of ONE chapter (SEP25: filtered to the selection).
+  const oneChapter = sel.length > 0 && sel.every((v) => v.bookId === sel[0].bookId && v.chapter === sel[0].chapter && v.textId === sel[0].textId)
   const crossRefs = () => {
-    if (!single) return
-    sheets.open({ id: 'crossrefs', detents: [0.55, 0.92], render: (api) => <CrossRefsSheet bookId={single.bookId} chapter={single.chapter} verse={single.verse} textId={single.textId} label={refLabel(sel)} api={api} /> })
+    if (!oneChapter) return
+    const f = sel[0]
+    sheets.open({ id: 'crossrefs', detents: [0.55, 0.92], render: (api) => <CrossRefsSheet bookId={f.bookId} chapter={f.chapter} verses={sel.map((v) => v.verse)} textId={f.textId} label={refLabel(sel)} api={api} /> })
   }
   const notes = () => {
     if (!single) return
     sheets.open({ id: 'verse-notes', detents: [0.5, 0.92], render: (api) => (
-      <VerseNotesSheet verseRef={`${single.bookId}.${single.chapter}.${single.verse}`} textId={single.textId} label={refLabel(sel)} api={api} onOpenNote={onOpenNote} onNewNote={() => void addNote()} />
+      <VerseNotesSheet verseRef={`${single.bookId}.${single.chapter}.${single.verse}`} textId={single.textId} label={refLabel(sel)} api={api} onOpenNote={onOpenNote} fullDetent={1}
+        onNewNote={async () => {
+          const r = await window.notes.createNote({ type: 'verse', title: refLabel(sel), verseRef: `${single.bookId}.${single.chapter}.${single.verse}`, content: '', textId: single.textId }).catch(() => null)
+          if (!r?.success || !r.note) return null
+          const st = useAppStore.getState(); st.bumpNoteToken(); st.bumpVerseNoteToken()
+          return r.note.id
+        }} />
     ) })
   }
 
@@ -116,7 +125,7 @@ export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote:
           {/* A verse note anchors to one verse — hidden for several verses (TEST-007). */}
           {selectionAllows(sel, 'add-note') && <Btn icon={NotepadText} label="Add note" onClick={() => void addNote()} />}
           {single && <Btn icon={NotepadText} label="Notes" onClick={notes} />}
-          {single && <Btn icon={GitFork} label="Cross references" onClick={crossRefs} />}
+          {oneChapter && <Btn icon={GitFork} label="Cross references" onClick={crossRefs} />}
           <Btn icon={Volume2} label="Play from here" onClick={play} />
           <Btn icon={Tag} label="Tag" onClick={tag} />
           <Btn icon={Palette} label="Highlight" onClick={() => setPalette(true)} />

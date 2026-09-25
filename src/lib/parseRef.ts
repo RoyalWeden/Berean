@@ -397,6 +397,22 @@ export function formatDottedVerseRef(ref: string): string {
   return bookChapterVerseLabel(bookId, ch, v != null && Number.isFinite(v) ? v : undefined)
 }
 
+/** Human-readable verse reference for a stored dotted ref (SEP25): "DEU.29.3" + "kjva" →
+ *  "Deuteronomy 29:3"; with the Septuagint "Deuteronomy 29:3 LXX". The text name is appended
+ *  ONLY for the LXX (the one case where the same reference means a different text). Ranges
+ *  ("DEU.29.3-5") and comma lists ("GEN.1.1,GEN.1.3") keep their established form. */
+export function verseRefDisplay(ref: string | null | undefined, textId?: string | null): string {
+  if (!ref) return ''
+  const one = (part: string): string => {
+    const m = part.trim().match(/^([^.]+)\.(\d+)(?:\.(\d+)(?:-(\d+))?)?$/)
+    if (!m) return part.trim()
+    const label = bookChapterVerseLabel(m[1], Number(m[2]), m[3] ? Number(m[3]) : undefined)
+    return m[4] && m[4] !== m[3] ? `${label}-${m[4]}` : label
+  }
+  const body = ref.split(',').map(one).join(', ')
+  return textId && textId.toLowerCase() === 'lxx' ? `${body} LXX` : body
+}
+
 const BOOK_TRANSLATION: Record<string, string> = {
   ENO:     'enoch',
   JUB:     'jubilees',

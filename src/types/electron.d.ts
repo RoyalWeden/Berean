@@ -392,6 +392,10 @@ interface AppAPI {
   onReduceTransparency?: (cb: (reduce: boolean) => void) => void
   getIncreaseContrast?: () => Promise<boolean>
   onIncreaseContrast?: (cb: (on: boolean) => void) => void
+  /** Notes-editor image actions (desktop only — absent on iOS/web; callers fall back). */
+  noteImageMenu?: () => Promise<'copy' | 'saveAs' | 'delete' | null>
+  copyNoteImage?: (dataUrl: string) => Promise<{ success: boolean }>
+  saveNoteImageAs?: (dataUrl: string, alt?: string) => Promise<{ success: boolean; canceled?: boolean }>
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   isDev?: () => Promise<boolean>

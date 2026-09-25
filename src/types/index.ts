@@ -126,6 +126,9 @@ export interface NoteTabState {
   listScrollTop?: number
   /** Epoch ms of the day currently in view in continuous-daily-scroll mode. */
   continuousDailyDate?: number
+  /** iPhone Notes list: type filter chip and folder shown (part of the tab's history — SEP25). */
+  listFilter?: 'all' | 'scripture' | 'topic' | 'daily' | 'video' | 'pinned'
+  listFolderId?: string | null
   /** Per-tab snapshot of the home (list/folder/board) view's UI state. NotesPanel is ONE shared
    *  instance across every Notes tab; without this, filters/search/preview selection leaked
    *  between tabs. Saved when leaving a tab, restored when entering it; absent = defaults. */
@@ -224,6 +227,9 @@ export interface HistoryTabState {
 export interface SettingsTabState {
   /** Reserved for a deep-linked settings section. */
   section?: string
+  /** iPhone Settings tab: the open subsection page (null/absent = the Settings root). A history
+   *  step (SEP25 per-tab history) — back / forward restore it. */
+  settingsRoute?: string | null
 }
 
 export interface PdfTabState {
@@ -519,6 +525,15 @@ export interface TabNavEntry {
   /** Scroll offset (px) the panel was at when navigation last left this entry — restored on
    *  Cmd+[ / Cmd+] so back/forward returns to where the user was reading, not the chapter top. */
   scrollPosition?: number
+  /** Generic snapshot of the tab's meaningful state at this destination (SEP25 per-tab
+   *  history): re-applied with updateTabState on back / forward. Used by tab types whose
+   *  destinations are not a chapter / note / entry / video / page — Search (query, scope,
+   *  filters), Settings (section path), the Notes list (folder / view) — and to carry extra
+   *  context (scroll) for the others. */
+  state?: Record<string, unknown>
+  /** A tab's "home" destination (the Notes list, the Lexicon search, the YouTube browse view)
+   *  recorded as a real history step, so ‹ from a note returns to the list and › returns. */
+  home?: boolean
 }
 
 /** A single entry in the global back/forward navigation stack (all tab types). */

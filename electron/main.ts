@@ -87,6 +87,7 @@ import { registerHistoryHandlers } from './ipc/history'
 import { registerStudyTrailHandlers } from './ipc/studyTrail'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
 import { registerPlaylistsHandlers } from './ipc/playlists'
+import { registerNoteImageHandlers } from './ipc/noteImages'
 import { registerSessionsHandlers } from './ipc/sessions'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
 import { registerTTSAudioCacheHandlers } from './ipc/ttsAudioCache'
@@ -1388,6 +1389,7 @@ app.whenReady().then(async () => {
   registerTTSAudioCacheHandlers(ipcMain)
   registerBibleHandlers(ipcMain)
   registerNotesHandlers(ipcMain)
+  registerNoteImageHandlers(ipcMain)
   log.info('[berean-main] Notes handlers registered')
   registerPdfHandlers(ipcMain)
   log.info('[berean-main] PDF handlers registered')

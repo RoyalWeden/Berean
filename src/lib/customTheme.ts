@@ -19,6 +19,10 @@ export interface CustomTheme {
   background: string
   /** #rrggbb — optional accent override */
   accent?: string
+  /** #rrggbb — iPhone Scripture theme only: verse-number colour (derived from text/background when unset). */
+  verseNumber?: string
+  /** #rrggbb — iPhone Scripture theme only: Strong's number colour (derived from the accent when unset). */
+  strongs?: string
 }
 
 export const CUSTOM_PREFIX = 'custom:'

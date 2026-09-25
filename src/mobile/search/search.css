@@ -9,3 +9,16 @@
 .mobile-search-sentinel { height: 1px; }
 .mobile-search-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 16px; }
 .mobile-search-summary .mobile-link-button { min-height: 32px; font-size: calc(13px * var(--m-type-scale, 1)); }
+
+/* ── Filters entry (SEP25): one compact row under the scope switch; all Advanced options live
+   in its sheet. ─────────────────────────────────────────────────────────────── */
+.mobile-search-filters-entry { padding: 0 12px 8px; }
+.mobile-search-filters-button { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 10px; background: none; color: rgb(var(--color-text-secondary)); font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-search-filters-button:active { background: rgb(var(--color-surface-3)); }
+.mobile-search-filters-button svg { flex: none; color: rgb(var(--color-accent)); }
+.mobile-search-filters-label { flex: none; font-weight: 600; color: rgb(var(--color-accent)); }
+.mobile-search-filters-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); }
+.mobile-search-filters-button.is-active .mobile-search-filters-summary { color: rgb(var(--color-text-secondary)); }
+.mobile-search-filters-badge { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: rgb(var(--color-accent)); color: white; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.mobile-search-filter-sheet { padding-bottom: 16px; }
+.mobile-search-filter-sheet .mobile-row-right .mobile-segmented button { min-height: 30px; padding: 0 10px; }

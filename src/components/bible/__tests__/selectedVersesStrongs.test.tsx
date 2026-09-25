@@ -28,6 +28,8 @@ describe('SelectedVerseBlock', () => {
     expect(html).toContain('Genesis 1:1')
     for (const n of ['H7225', 'H430', 'H1254', 'H853', 'H8064']) expect(html).toContain(`aria-label="Open Strong&#x27;s ${n}"`)
     expect(html).not.toContain('No Strong')
+    // MAC-LEX-HOVER: every number is wrapped in the reader's Strong's hover-preview trigger.
+    expect((html.match(/data-state="closed"/g) ?? []).length).toBe(5)
   })
 
   it('untagged text shows the verse with a no-tagging note', () => {

@@ -7,6 +7,7 @@ import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
 import { IconButton, ListRow, MenuItem, MenuSeparator, MenuLabel, RefChip, useContextMenu, cx } from '@/components/ui'
+import { withoutContextualFilters } from '@/lib/scriptureContextFilters'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -718,8 +719,11 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   // existing tab instead of creating a real duplicate — the reported
                   // "duplicating tabs isn't working." Matches createTab's own id scheme.
                   id: `${menuTab.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  // Deep-clone the state so the duplicate is independent
-                  state: JSON.parse(JSON.stringify(menuTab.state)),
+                  // Deep-clone the state so the duplicate is independent. A duplicated
+                  // Scripture tab is a NEW tab: it starts with clean contextual filters.
+                  state: menuTab.type === 'bible'
+                    ? withoutContextualFilters(JSON.parse(JSON.stringify(menuTab.state)))
+                    : JSON.parse(JSON.stringify(menuTab.state)),
                 }
                 store.addTab(newTab)
               }}

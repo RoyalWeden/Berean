@@ -4,6 +4,8 @@
  * Note, Share, Highlight) so a verse long-pressed in Search offers the same words as in the reader.
  * Only actions valid for the result's type are listed; Cancel is always last.
  */
+import type { HistoryEntry } from '@/types'
+
 export type SearchResultKind = 'scripture' | 'note' | 'lexicon' | 'recent'
 
 export type SearchResultActionId =
@@ -11,6 +13,7 @@ export type SearchResultActionId =
   | 'copy-ref' | 'copy-verse' | 'copy-title' | 'copy-strongs' | 'copy-query'
   | 'share' | 'add-note' | 'highlight'
   | 'search-new-tab'
+  | 'remove'
   | 'cancel'
 
 export interface SearchResultActionSpec {
@@ -55,6 +58,27 @@ export function searchResultActions(kind: SearchResultKind, opts: { canShare?: b
       A('cancel', 'Cancel'),
     ]
   }
+}
+
+/**
+ * Long-press on a History row (SEP25): Open (= the tap), Open in New Tab where that type has
+ * its own tab kind, the copy that suits the entry, and Remove from History. An import entry has
+ * nothing to open. Cancel is always last.
+ */
+export function historyEntryActions(type: HistoryEntry['type']): SearchResultActionSpec[] {
+  const openable = type !== 'import'
+  const newTab = type === 'bible' || type === 'compare' || type === 'note' || type === 'lexicon' || type === 'strongs-click' || type === 'search'
+  const copy = type === 'bible' || type === 'compare' ? A('copy-ref', 'Copy Reference')
+    : type === 'lexicon' || type === 'strongs-click' ? A('copy-strongs', "Copy Strong's Number")
+      : type === 'search' ? A('copy-query', 'Copy Search')
+        : A('copy-title', 'Copy Title')
+  return [
+    ...(openable ? [A('open', 'Open')] : []),
+    ...(newTab ? [A('open-new-tab', 'Open in New Tab')] : []),
+    copy,
+    A('remove', 'Remove from History'),
+    A('cancel', 'Cancel'),
+  ]
 }
 
 // ── tab-card preview summary ───────────────────────────────────────────────────────────────

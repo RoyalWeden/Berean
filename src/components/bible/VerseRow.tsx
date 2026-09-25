@@ -1021,6 +1021,12 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   //    functions the desktop popover and selection toolbar call (see verseInteraction.ts).
   const interaction = useContext(VerseInteractionContext)
   const isTouch = interaction.interaction === 'touch'
+  // Touch verse-number marks (SEP25): which annotations the number shows, and their colours.
+  const touchMarkKinds = isTouch ? [noteCount > 0 ? 'note' : '', hasNoteCrossRef ? 'xref' : '', verseTags.length ? 'tag' : ''].filter(Boolean).join(' ') : ''
+  const touchMarkVars: React.CSSProperties = isTouch ? {
+    ...(noteCount > 0 ? { ['--vn-note' as string]: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue } : {}),
+    ...(verseTags.length ? { ['--vn-tag' as string]: (verseTags[0].color || verseTags[0].colorSlot != null) ? resolveTagColor(verseTags[0]) : 'rgb(var(--color-accent))' } : {}),
+  } : {}
   const buildTouchCtx = useCallback((): VerseActionContext => {
     const computed = computeSelectionRange()
     const selection = computed && computed.startChar >= 0 && computed.endChar > computed.startChar
@@ -1616,7 +1622,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           }}
           tabIndex={-1}
           data-verse-badge={verse.verse_num}
-          aria-label={`Verse ${verse.verse_num}${isSelected ? ', selected' : ''}`}
+          aria-label={`Verse ${verse.verse_num}${isSelected ? ', selected' : ''}${isTouch && noteCount > 0 ? `, ${noteCount} note${noteCount === 1 ? '' : 's'}` : ''}${isTouch && hasNoteCrossRef ? ', cross references in your notes' : ''}${isTouch && verseTags.length ? `, tagged ${verseTags.map((t) => t.name).join(', ')}` : ''}`}
           aria-pressed={isSelected}
           className={`
             focus-ring inline-flex items-center justify-center text-[0.72em] font-medium leading-none
@@ -1629,11 +1635,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             }
           `}
           // No native pan/scroll starting on the badge, so a touch drag reaches the range gesture.
-          style={isTouch ? { width: '1.45em', minWidth: '1.45em', touchAction: 'none' } : { width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
+          style={isTouch ? { width: '1.45em', minWidth: '1.45em', touchAction: 'none', ...touchMarkVars } : { width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
+          data-marks={isTouch ? touchMarkKinds || undefined : undefined}
         >
           {verse.verse_num}
+          {/* Touch (SEP25): notes / cross references / tags live IN the number — colour +
+              underline, a corner dot, a tint behind it — so they never take horizontal space. */}
+          {isTouch && hasNoteCrossRef && <span className="verse-num-xref" aria-hidden />}
         </button>
-        {verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
+        {!isTouch && verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
 
         {popoverOpen && (
           <MenuSurface
@@ -1686,7 +1696,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       </div>
 
       {/* ── Verse annotation pill (notes + cross-refs) ─────────────────────── */}
-      {(noteCount > 0 || hasNoteCrossRef) && (
+      {!isTouch && (noteCount > 0 || hasNoteCrossRef) && (
         <div className="flex-shrink-0 self-start mt-[3px] ml-0.5">
           {/* Pill wraps both icons when both present; bare icon when solo. When ONLY ONE
               indicator is present, a hover/click anywhere in the pill opens it (icon glyphs

@@ -3,6 +3,22 @@ import './sheet.css'
 import { AnimatePresence, motion, useDragControls, useMotionValue, animate, type PanInfo } from 'framer-motion'
 import { X, ChevronLeft } from 'lucide-react'
 import { haptic } from './haptics'
+import { sheetTakesOver, followY, handsBackToContent, releaseVelocity, blurActiveEditable, scrollOwner } from './sheetGesture'
+
+interface BodyGesture {
+  x: number; y: number; lastY: number
+  /** Decided vertical (a horizontal gesture drops the tracking). */
+  vertical: boolean
+  mode: 'content' | 'sheet'
+  /** Direction of the hand-off to the sheet: 1 = down, -1 = up. */
+  dir: 1 | -1
+  /** Sheet y and finger y where the sheet took over. */
+  baseY: number; fingerAt: number
+  /** False once this touch's first move was prevented (WebKit then scrolls nothing natively). */
+  nativeScroll: boolean
+  scroller: HTMLElement
+  samples: Array<{ t: number; y: number }>
+}
 
 /**
  * Bottom sheet with detents (R073; reworked for TEST-026/027/040).
@@ -19,8 +35,8 @@ import { haptic } from './haptics'
  * Dismissal is standard iOS: tap the backdrop, drag down past the lowest position, or a fast
  * downward fling from ANY position. There is no visible ✕ at the other positions; a visually
  * hidden Close button stays for VoiceOver / Switch Control.
- * The drag handle is a taller dedicated strip (the grabber area); the body only drags the sheet
- * when it is scrolled to its top (so content scrolling never moves the sheet by accident).
+ * The drag handle is a taller dedicated strip (the grabber area); the body hands a drag to the
+ * sheet only at the content's scroll boundary (sheetGesture.ts), with no rubber-banding inside.
  *
  * Sheets are NAVIGABLE SURFACES (T23-006/012/019, mobile-navigation.md §5). A control inside a
  * sheet that shows another view of the same context calls `api.push({ title, render })`: the SAME
@@ -172,13 +188,14 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detentIndex, heights])
 
-  const settle = (_: unknown, info: PanInfo) => {
-    const next = settleDetent({ heights, vh, releaseY: y.get(), velocityY: info.velocity.y, current: detentIndex })
+  const settleAt = (velocityY: number) => {
+    const next = settleDetent({ heights, vh, releaseY: y.get(), velocityY, current: detentIndex })
     if (next < 0) { void haptic.light(); onClose(); return }
     if (next !== detentIndex) void haptic.selection()
     setDetentIndex(next)
     animate(y, targetY(next), { type: 'spring', stiffness: 420, damping: 40 })
   }
+  const settle = (_: unknown, info: PanInfo) => settleAt(info.velocity.y)
 
   // ── in-sheet navigation stack ──────────────────────────────────────────────────────────
   const [views, setViews] = useState<SheetSubView[]>([])
@@ -218,33 +235,83 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
   }
   const atTop = detentIndex === top
   const current = views[views.length - 1]
-  // Body gesture: decided on the first real move. Dragging DOWN with the content at its top moves
-  // the sheet (lower detent / dismiss); dragging UP below the top detent moves the sheet only when
-  // there is nothing to scroll; otherwise the content scrolls. Deciding on the native touchmove
-  // lets us preventDefault it, so WebKit never starts a scroll under a sheet drag.
-  const bodyGesture = useRef<{ x: number; y: number; event: PointerEvent; decided: boolean } | null>(null)
-  const detentRef = useRef({ atTop, dragControls })
-  detentRef.current = { atTop, dragControls }
+  // Body gesture (SEP25 SHEET-GESTURE): boundary-driven, re-decided on EVERY native touchmove
+  // (sheetGesture.ts). The content scrolls until it reaches its boundary in the drag's direction —
+  // top while dragging down, bottom (or nothing to scroll) while dragging up below the top detent —
+  // and from that exact point the sheet follows the finger (no jump); pulling back past the
+  // hand-off point returns the gesture to the content. Release settles by velocity like
+  // UISheetPresentationController. The sheet itself is moved here (not framer's drag), so the
+  // hand-off can start mid-gesture. The keyboard is dismissed the moment the sheet starts moving.
+  const bodyGesture = useRef<BodyGesture | null>(null)
+  const live = useRef({ atTop, top, targetY, settleAt })
+  live.current = { atTop, top, targetY, settleAt }
   useEffect(() => {
     const el = bodyRef.current
     if (!el) return
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0]
+      const target = e.target as HTMLElement
+      // Horizontal rows opt out; a touch inside a FOCUSED multi-line editor adjusts its selection.
+      const focusedEditor = target.closest?.('textarea, [contenteditable="true"]')
+      if (e.touches.length > 1 || !t || target.closest?.('[data-no-sheet-drag]') || (focusedEditor && focusedEditor.contains(document.activeElement))) { bodyGesture.current = null; return }
+      bodyGesture.current = { x: t.clientX, y: t.clientY, lastY: t.clientY, vertical: false, mode: 'content', dir: 1, baseY: 0, fingerAt: 0, nativeScroll: true, scroller: scrollOwner(target, el), samples: [] }
+    }
     const onMove = (e: TouchEvent) => {
       const g = bodyGesture.current
       const t = e.touches[0]
       if (!g || !t) return
-      if (g.decided) return
-      const dy = t.clientY - g.y, dx = t.clientX - g.x
-      if (Math.abs(dy) < 6 || Math.abs(dy) < Math.abs(dx)) return
-      g.decided = true
-      const scrollable = el.scrollHeight > el.clientHeight + 1
-      const moveSheet = dy > 0 ? el.scrollTop <= 0 : (!detentRef.current.atTop && !scrollable)
-      if (moveSheet) { e.preventDefault(); detentRef.current.dragControls.start(g.event) }
+      if (e.touches.length > 1) { bodyGesture.current = null; return }
+      let first = false
+      if (!g.vertical) {
+        const dy = t.clientY - g.y, dx = t.clientX - g.x
+        if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return
+        if (Math.abs(dy) < Math.abs(dx)) { bodyGesture.current = null; return } // horizontal: not ours
+        g.vertical = true
+        first = true
+      }
+      const L = live.current
+      const step = t.clientY - g.lastY
+      g.lastY = t.clientY
+      const sc = g.scroller
+      if (g.mode === 'content') {
+        if (sheetTakesOver(step, sc, L.atTop)) {
+          g.mode = 'sheet'; g.dir = step > 0 ? 1 : -1
+          y.stop(); g.baseY = y.get(); g.fingerAt = t.clientY - step; g.samples = []
+          blurActiveEditable()
+        } else if (!g.nativeScroll) {
+          // Native scrolling was blocked for this touch (it began as a sheet drag): scroll by hand.
+          sc.scrollTop -= step
+          if (e.cancelable) e.preventDefault()
+          return
+        } else return
+      }
+      // The sheet follows the finger.
+      if (e.cancelable) { e.preventDefault(); if (first) g.nativeScroll = false }
+      else sc.scrollTop = g.dir === 1 ? 0 : sc.scrollHeight - sc.clientHeight // a native scroll is running: pin it at its boundary
+      const ny = followY(g.baseY, t.clientY - g.fingerAt, L.targetY(L.top), vh)
+      if (handsBackToContent(g.dir, g.baseY, ny)) {
+        y.set(g.baseY); g.mode = 'content'
+        if (!g.nativeScroll) sc.scrollTop -= ny - g.baseY
+        return
+      }
+      y.set(ny)
+      g.samples.push({ t: e.timeStamp || Date.now(), y: t.clientY })
+      if (g.samples.length > 8) g.samples.shift()
     }
-    const onEnd = () => { bodyGesture.current = null }
+    const onEnd = () => {
+      const g = bodyGesture.current
+      bodyGesture.current = null
+      if (g?.mode === 'sheet') live.current.settleAt(releaseVelocity(g.samples))
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
     el.addEventListener('touchmove', onMove, { passive: false })
     el.addEventListener('touchend', onEnd)
     el.addEventListener('touchcancel', onEnd)
-    return () => { el.removeEventListener('touchmove', onMove); el.removeEventListener('touchend', onEnd); el.removeEventListener('touchcancel', onEnd) }
+    return () => {
+      el.removeEventListener('touchstart', onStart); el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd); el.removeEventListener('touchcancel', onEnd)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const backLabel = views.length > 1 ? views[views.length - 2].title : (options.rootTitle ?? options.title ?? 'Back')
   const headerTitle = current ? current.title : options.title
@@ -273,6 +340,7 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
         dragListener={false}
         dragConstraints={{ top: targetY(top), bottom: vh }}
         dragElastic={{ top: 0.05, bottom: 0.2 }}
+        onDragStart={() => { blurActiveEditable() }}
         onDragEnd={settle}
       >
         <div className="mobile-sheet-grabber-area" onPointerDown={(e) => dragControls.start(e)}>
@@ -303,11 +371,7 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
           // Content scrolls at EVERY detent (NEW-003: the half-open Tabs sheet could not scroll). The
           // part of the sheet below the screen edge at a partial detent is padded out, so the last
           // rows can be scrolled into view.
-          style={{ overflowY: 'auto', paddingBottom: `calc(var(--m-safe-bottom) + 16px + ${Math.max(0, heights[top] - heights[detentIndex])}px)` }}
-          onPointerDown={(e) => {
-            if ((e.target as HTMLElement).closest?.('input, textarea, [contenteditable="true"], [data-no-sheet-drag]')) { bodyGesture.current = null; return }
-            bodyGesture.current = { y: e.clientY, x: e.clientX, event: e.nativeEvent, decided: false }
-          }}
+          style={{ overflowY: 'auto', overscrollBehavior: 'none', paddingBottom: `calc(var(--m-safe-bottom) + 16px + ${Math.max(0, heights[top] - heights[detentIndex])}px)` }}
         >
           <SheetApiContext.Provider value={api}>
             {/* A CSS keyframe slide (SEP24-011): it always runs to completion, so a view can never be

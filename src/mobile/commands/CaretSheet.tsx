@@ -163,7 +163,8 @@ function CaretLocationBar({ location, api, onChanged }: { location: NonNullable<
     const id = s.activeTabId[s.activeSpace]
     const st = id ? s.tabNavStacks[id] : undefined
     const type = s.tabs[s.activeSpace]?.find((t) => t.id === id)?.type
-    const floor = type === 'note' || type === 'lexicon' || type === 'youtube' ? -1 : 0
+    // List-style tabs can step back to their list (-1) unless the list is itself recorded (home entry).
+    const floor = (type === 'note' || type === 'lexicon' || type === 'youtube') && !st?.stack[0]?.home ? -1 : 0
     return { back: !!st && st.idx > floor, forward: !!st && st.idx < st.stack.length - 1 }
   }, (a, b) => a.back === b.back && a.forward === b.forward)
   const openLocation = () => {

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { verseRefDisplay } from '@/lib/parseRef'
+import { pushNotesListHistory } from './notesHistory'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { Plus, CalendarDays, Folder, FolderPlus, FolderInput, Pin, Trash2, Search, Rows3, ArrowDownUp } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
@@ -40,8 +42,26 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Note[] | null>(null)
-  const [filter, setFilter] = useState<Filter>('all')
-  const [folderId, setFolderId] = useState<string | null>(null)
+  // Filter and folder are part of the Notes tab's state (SEP25 per-tab history): changing them
+  // is a navigation step of this tab, and back / forward restore them.
+  const listState = useAppStore((s) => {
+    const t = s.tabs.notes.find((x) => x.id === s.activeTabId.notes)
+    return (t?.state ?? {}) as { listFilter?: Filter; listFolderId?: string | null }
+  })
+  const filter: Filter = listState.listFilter ?? 'all'
+  const folderId = listState.listFolderId ?? null
+  const setListState = (patch: { listFilter?: Filter; listFolderId?: string | null }) => {
+    const s = useAppStore.getState()
+    const tid = s.activeTabId.notes
+    if (!tid) return
+    const next = { listFilter: patch.listFilter ?? filter, listFolderId: patch.listFolderId !== undefined ? patch.listFolderId : folderId }
+    if (next.listFilter === filter && next.listFolderId === folderId) return
+    pushNotesListHistory(tid, { listFilter: filter, listFolderId: folderId }, folders)
+    s.updateTabState('notes', tid, next)
+    pushNotesListHistory(tid, next, folders)
+  }
+  const setFilter = (f: Filter) => setListState({ listFilter: f })
+  const setFolderId = (id: string | null) => setListState({ listFolderId: id })
 
   useEffect(() => {
     window.notes.getNotes(500, 0).then(setNotes).catch(() => setNotes([]))
@@ -245,7 +265,7 @@ export function NoteRow({ note, onOpen, onLongPress }: { note: Note; onOpen: (n:
     <Row
       leading={<span className="mobile-note-icon" aria-hidden>{note.icon ?? (note.type === 'verse' ? '📖' : note.type === 'daily' ? '📅' : '📝')}</span>}
       title={<>{note.pinned && <Pin size={12} aria-label="Pinned" />} {note.title || 'Untitled'}</>}
-      subtitle={<>{note.verseRef ? `${note.verseRef.replace(/\./g, ' ')} · ` : ''}{status ? `${status.label} · ` : ''}{preview || new Date(note.updatedAt).toLocaleDateString()}</>}
+      subtitle={<>{note.verseRef ? `${verseRefDisplay(note.verseRef, note.textId)} · ` : ''}{status ? `${status.label} · ` : ''}{preview || new Date(note.updatedAt).toLocaleDateString()}</>}
       chevron
       onClick={() => onOpen(note)}
     />

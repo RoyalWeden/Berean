@@ -4,7 +4,9 @@ import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { buildVerseStudyTokens, type StudyToken } from '@/lib/verseUtils'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { SectionLabel } from '@/components/ui'
+import * as RTip from '@radix-ui/react-tooltip'
 import { fetchVerse, sortSelection } from './VerseSelectionBar'
+import StrongsTooltip from './StrongsTooltip'
 
 /** Upper bound on verses rendered at once — a whole-chapter selection stays responsive. */
 export const SELECTED_VERSES_STRONGS_LIMIT = 60
@@ -25,7 +27,8 @@ export function selectionSignature(refs: SelectedVerseRef[]): string {
 /**
  * The side panel Lexicon tab's "Selected verses" view: every verse picked in the reader, each
  * under its own reference heading, rendered with its Strong's numbers always visible (independent
- * of the reader's Strong's toggle). Clicking a number opens that entry in the panel.
+ * of the reader's Strong's toggle). Hovering a number shows the same preview card as the reader
+ * (StrongsTooltip); clicking it opens that entry in the panel.
  */
 export default function SelectedVersesStrongs({ refs, onStrongsClick }: {
   refs: SelectedVerseRef[]
@@ -74,6 +77,9 @@ export function SelectedVerseBlock({ verse, onStrongsClick }: { verse: FetchedVe
   )
   const hasNumbers = tokens.some((t) => t.strongs.length > 0)
   return (
+    // Own Tooltip.Provider (same delays as ChapterView's per-chapter one) so the block also
+    // renders standalone; adjacent numbers in a verse share its fast re-hover window.
+    <RTip.Provider delayDuration={200} skipDelayDuration={500}>
     <section className="py-2.5 first:pt-0" aria-label={selectedVerseHeading(verse)}>
       <h3 className="text-footnote font-semibold text-text-primary mb-1">{selectedVerseHeading(verse)}</h3>
       <p className="text-subhead text-text-primary leading-[1.9]" style={{ fontFamily: 'var(--font-scripture)' }}>
@@ -83,11 +89,17 @@ export function SelectedVerseBlock({ verse, onStrongsClick }: { verse: FetchedVe
             {t.strongs.map((n, j) => {
               const num = n.replace(/[()]/g, '')
               const paren = n.startsWith('(')
+              // Click is handled by StrongsTooltip's trigger (onClickEntry) — the button keeps
+              // keyboard focus/Enter, whose click bubbles to that trigger.
               return (
-                <button
+                <StrongsTooltip
                   key={`${n}-${j}`}
+                  strongsNum={num}
+                  onClickEntry={onStrongsClick}
+                  contextNote={paren ? 'Parenthetical — grammatical particle with no corresponding English word.' : undefined}
+                >
+                <button
                   type="button"
-                  onClick={() => onStrongsClick(num)}
                   aria-label={`Open Strong's ${num}`}
                   className={`ml-0.5 align-[0.35em] inline-flex items-center font-mono text-micro leading-none rounded-chip border px-[4px] py-[1.5px] cursor-pointer transition-colors duration-150 focus-ring ${
                     paren
@@ -97,6 +109,7 @@ export function SelectedVerseBlock({ verse, onStrongsClick }: { verse: FetchedVe
                 >
                   {num}
                 </button>
+                </StrongsTooltip>
               )
             })}
             {' '}
@@ -105,5 +118,6 @@ export function SelectedVerseBlock({ verse, onStrongsClick }: { verse: FetchedVe
       </p>
       {!hasNumbers && <p className="text-caption2 text-text-muted mt-0.5">No Strong's tagging for this text.</p>}
     </section>
+    </RTip.Provider>
   )
 }

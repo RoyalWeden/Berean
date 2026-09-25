@@ -8,6 +8,7 @@ import { haptic } from '../primitives/haptics'
 import { safeAreaBottom } from '../primitives/safeArea'
 import { StrongsSheet } from '../study/StrongsSheet'
 import { VerseActionSheet, VERSE_SHEET_LOW_PX } from '../study/VerseActionSheet'
+import { getVerseSheetMode, verseSheetLowPx } from '../study/verseSheetMode'
 import { VerseNotesSheet } from '../study/VerseNotesSheet'
 import { CrossRefsSheet } from '../study/CrossRefsSheet'
 import { TagPickerSheet } from '../study/TagPickerSheet'
@@ -55,6 +56,8 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const lowPx = VERSE_SHEET_LOW_PX + safeAreaBottom()
+  /** The compact position for the remembered mode (a text selection always uses the brief one). */
+  const lowFor = (mode: 'tap' | 'selection') => (mode === 'selection' ? VERSE_SHEET_LOW_PX : verseSheetLowPx(getVerseSheetMode(), VERSE_SHEET_LOW_PX)) + safeAreaBottom()
 
   const openNoteInNotesSpace = useCallback((noteId: string) => {
     setActiveSpace('notes')
@@ -73,12 +76,12 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
     api.push({ key: 'notes', title: 'Notes', render: (a) => (
       <VerseNotesSheet verseRef={ctx.verseRef} textId={ctx.textId} label={ctx.label} api={a}
         onOpenNote={openNoteInNotesSpace}
-        onNewNote={() => { void ctx.addVerseNote().then((id) => { if (id) openNoteInNotesSpace(id) }) }} />
+        onNewNote={() => ctx.addVerseNote()} />
     ) })
   }, [openNoteInNotesSpace])
   const pushCrossRefs = useCallback((api: SheetApi, ctx: VerseActionContext) => {
     api.push({ key: 'crossrefs', title: 'Cross references', render: (a) => (
-      <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verse={ctx.verse.verse_num} textId={ctx.textId} label={ctx.label} api={a} />
+      <CrossRefsSheet bookId={ctx.verse.book_id} chapter={ctx.verse.chapter} verses={[ctx.verse.verse_num]} textId={ctx.textId} label={ctx.label} api={a} />
     ) })
   }, [])
   const pushTagPicker = useCallback((api: SheetApi, ctx: VerseActionContext, scope: 'verse' | 'chapter') => {
@@ -95,7 +98,7 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
     const key = `${ctx.verse.book_id}.${ctx.verse.chapter}.${ctx.verse.verse_num}`
     sheetVerseKey.current = key
     sheets.open({
-      id: VERSE_SHEET_ID, lowDetent: lowPx, detents: [0.55, 0.92], initialDetent: 0, undimmedThrough: 1,
+      id: VERSE_SHEET_ID, lowDetent: lowFor(mode), detents: [0.55, 0.92], initialDetent: 0, undimmedThrough: 1,
       // A text selection always brings the sheet back to the low position so the handles stay usable.
       forceDetent: mode === 'selection' ? { index: 0, nonce: ++forceNonce.current } : undefined,
       onClose: () => {
@@ -111,7 +114,6 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
           onShowNotes={() => pushVerseNotes(api, ctx)}
           onShowCrossRefs={() => pushCrossRefs(api, ctx)}
           onTag={(scope) => pushTagPicker(api, ctx, scope)}
-          onNoteCreated={openNoteInNotesSpace}
           onStrongs={(num) => pushStrongs(api, num)}
           onNavigateRef={(r, source) => {
             opts.onNavigated?.()

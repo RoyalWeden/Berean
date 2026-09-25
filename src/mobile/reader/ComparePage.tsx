@@ -21,6 +21,10 @@ import {
   translationLabel, translationSpokenName, makeCompareTab, type CompareColumn,
 } from './compareState'
 import './compare.css'
+import './readerChrome.css'
+import { useHideOnScroll } from './useHideOnScroll'
+import { CompactPassageHeader } from './CompactPassageHeader'
+import { chromeState } from '../navigation/chromeState'
 import { displayChapter } from '@/lib/chapterNumbering'
 
 type HighlightEntry = { id: string; color: HighlightColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
@@ -199,7 +203,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
   // passage is used and its collection only decides the book list shown.
   const openReference = () => sheets.open({
     id: 'reference', rootTitle: 'Library', detents: [0.34, 0.62, 0.92], initialDetent: 2, // low / medium / full (SEP24-013)
-    render: (api) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { api.close(); goTo(d.bookId, d.chapter, d.verse) }} />,
+    render: (api) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { api.close(); goTo(d.bookId, d.chapter, d.verse) }} onChapter={(d) => goTo(d.bookId, d.chapter)} />,
   })
   const exitCompare = () => {
     // Back to a normal Scripture tab on the same passage, in the left column's text.
@@ -223,11 +227,19 @@ export function ComparePage({ tab }: { tab: Tab }) {
     ],
   }))
 
+  // Same chrome behaviour as the reader (SEP25): scrolling either column down collapses the
+  // header into the island / notch pill and slides the bottom controls away; up brings both back.
+  const compareRef = useRef<HTMLDivElement>(null)
+  const headerHidden = useHideOnScroll(compareRef, { frozen: sheets.currentId != null, forceShown: sheets.currentId === 'caret', resetKey: `${lead.bookId}:${lead.chapter}:${tab.id}` })
+  useEffect(() => { chromeState.set({ overlay: true }); return () => chromeState.set({ overlay: false, collapsed: false }) }, [])
+  useEffect(() => { chromeState.set({ collapsed: headerHidden }) }, [headerHidden])
+
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const displayBook = leadBook?.name ?? bookName(lead.bookId)
   const title = `${displayBook} ${lead.chapter}`
   return (
     <Page noScroll
+      className={`is-compare is-scripture-chrome${headerHidden ? ' is-header-hidden' : ''}`}
       title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Choose passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
       left={<IconTap icon={ChevronLeft} label="Previous chapter" disabled={prev == null} onClick={() => { if (prev != null) { void haptic.selection(); goTo(lead.bookId, prev) } }} />}
       right={<IconTap icon={ChevronRight} label="Next chapter" disabled={next == null} onClick={() => { if (next != null) { void haptic.selection(); goTo(lead.bookId, next) } }} />}
@@ -241,9 +253,10 @@ export function ComparePage({ tab }: { tab: Tab }) {
     >
       {/* VerseRow's Strong's chips need a Tooltip provider — ChapterView supplies one per chapter;
           these columns render VerseRow directly. */}
+      <CompactPassageHeader label={title} visible={headerHidden} onOpen={openReference} />
       <RadixTooltip.Provider delayDuration={200} skipDelayDuration={500}>
       <VerseInteractionContext.Provider value={verseInteraction}>
-        <div className="m-compare">
+        <div className="m-compare" ref={compareRef}>
           {!pair ? (
             <div className="mobile-empty m-compare-empty">
               Compare isn&rsquo;t available for {displayBook} &mdash; the Septuagint has no counterpart.

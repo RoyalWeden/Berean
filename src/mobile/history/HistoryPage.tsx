@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '@/store'
-import type { Tab } from '@/types'
+import type { HistoryEntry, Tab } from '@/types'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_CATEGORIES, HISTORY_TYPE_LABEL, countByCategory, filterHistory, shouldLoadMoreHistory, type HistoryCategory } from '@/lib/historyModel'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { navigateToVerse } from '@/lib/verseNavigation'
 import { Page, ListSection, Row } from '../primitives/Page'
+import { useActionSheet } from '../primitives/ActionSheet'
+import { haptic } from '../primitives/haptics'
+import { historyEntryActions } from '../search/resultActions'
+import { LongPressResult, specsToActions, copyText } from '../search/ResultActionSheet'
 
 /**
  * History — shared by three places, one implementation: a page under More, a dedicated History tab
@@ -44,13 +50,47 @@ function CategoryChips({ m }: { m: ReturnType<typeof useHistoryModel> }) {
   )
 }
 
-function HistoryRows({ m, onNavigated }: { m: ReturnType<typeof useHistoryModel>; onNavigated?: () => void }) {
+/** The tab type a history entry opens in, for "Open in New Tab" (null = no dedicated new tab). */
+const NEW_TAB_TYPE: Partial<Record<HistoryEntry['type'], 'bible' | 'note' | 'lexicon' | 'search'>> = {
+  bible: 'bible', compare: 'bible', note: 'note', lexicon: 'lexicon', 'strongs-click': 'lexicon', search: 'search',
+}
+
+/** Long-press menu for a History row (SEP25): Open is exactly the tap. */
+function useHistoryRowActions(onNavigated?: () => void) {
   const navigate = useHistoryNavigate()
+  const sheet = useActionSheet()
+  // Open = the CURRENT tab of the entry's space (a new tab is the long-press "Open in New Tab").
+  // Scripture goes through navigateToVerse so a PDF / tags-graph tab is never overwritten.
+  const open = (h: HistoryEntry) => {
+    onNavigated?.()
+    if ((h.type === 'bible' || h.type === 'compare') && h.bookId) {
+      navigateToVerse({ bookId: h.bookId, chapter: h.chapter ?? 1, verse: h.verse, translationOverride: h.translation, origin: { kind: 'history-revisit' } })
+    } else navigate(h)
+  }
+  const menu = (h: HistoryEntry) => {
+    const s = useAppStore.getState()
+    sheet(`history-${h.id}`, h.title, specsToActions(historyEntryActions(h.type), {
+      'open': () => open(h),
+      'open-new-tab': () => { const t = NEW_TAB_TYPE[h.type]; if (t) s.createTab(t); open(h) },
+      'copy-ref': () => copyText(h.bookId ? bookChapterVerseLabel(h.bookId, h.chapter ?? 1, h.verse) : h.title),
+      'copy-strongs': () => copyText(h.strongsNum ?? h.title),
+      'copy-query': () => copyText(h.query ?? h.title),
+      'copy-title': () => copyText(h.title),
+      'remove': () => { s.deleteHistoryEntry(h.id); void haptic.medium() },
+    }))
+  }
+  return { open, menu }
+}
+
+function HistoryRows({ m, onNavigated }: { m: ReturnType<typeof useHistoryModel>; onNavigated?: () => void }) {
+  const actions = useHistoryRowActions(onNavigated)
   return (
     <ListSection>
       {m.rows.length === 0 && <div className="mobile-empty">{m.history.length === 0 ? 'Nothing yet.' : 'No entries in this category.'}</div>}
       {m.rows.slice(0, 400).map((h) => (
-        <Row key={h.id} title={h.title} subtitle={`${HISTORY_TYPE_LABEL[h.type]} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => { onNavigated?.(); navigate(h) }} />
+        <LongPressResult key={h.id} onLongPress={() => actions.menu(h)}>
+          <Row title={h.title} subtitle={`${HISTORY_TYPE_LABEL[h.type]} · ${new Date(h.timestamp).toLocaleString()}`} onClick={() => actions.open(h)} />
+        </LongPressResult>
       ))}
       {m.hasMore && <Row title={m.loadingMore ? 'Loading…' : 'Load older history'} onClick={() => void m.loadMore()} />}
     </ListSection>
