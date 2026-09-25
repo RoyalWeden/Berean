@@ -178,11 +178,12 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       render: (api) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => {
         api.close()
         goToDest(d)
-      }} onChapter={goToChapter} />,
+      }} onChapter={(d) => { goToChapter(d); if (api.detent > 1) api.setDetent(1) }} />,
     })
   }
   // Scripture follows the picker live (SEP25): a chapter tap moves this tab at once and the picker
-  // stays open on that chapter's verses; a verse (or dismissing) finishes.
+  // stays open on that chapter's verses (lowered to the medium detent so the new chapter shows
+  // behind it); a verse (or dismissing) finishes.
   // One navigation (text + passage together) — switching the text first would briefly land on a
   // passage that text lacks and record it as a phantom history step.
   const goToDest = (d: { textId: string; bookId: string; chapter: number; verse?: number; endVerse?: number }) => {

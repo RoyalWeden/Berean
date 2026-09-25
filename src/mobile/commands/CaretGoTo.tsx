@@ -4,6 +4,11 @@ import { resolvePassageQuery, type PassageDestination } from '@/lib/passageDesti
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { useDestinationActions } from '../navigation/destinationQuery'
+import { navigateToVerse } from '@/lib/verseNavigation'
+
+function goInScripture(d: { textId: string; bookId: string; chapter: number; verse?: number; endVerse?: number }) {
+  navigateToVerse({ bookId: d.bookId, chapter: d.chapter, verse: d.verse, endVerse: d.endVerse, translationOverride: d.textId.toUpperCase(), origin: { kind: 'sequential-nav' } })
+}
 
 /**
  * The caret's search field for a Scripture tab — the ⌘L of the phone (SEP25): the same
@@ -12,14 +17,15 @@ import { useDestinationActions } from '../navigation/destinationQuery'
  * work and switch the database), then the shared destinations (search, Strong's, open in a new
  * tab). Empty: "Browse the library" opens the book / chapter / verse picker in the same sheet.
  */
-export function CaretGoTo({ api, textId, bookId, onGo, browse }: {
+export function CaretGoTo({ api, textId = 'kjva', bookId, onGo = goInScripture, browse }: {
   api: SheetApi
-  textId: string
-  bookId: string
-  /** Navigate THIS tab (switching its text when the destination names another one). */
-  onGo: (d: { textId: string; bookId: string; chapter: number; verse?: number; endVerse?: number }) => void
-  /** The picker, pushed into this sheet. */
-  browse: () => { title: string; render: (a: SheetApi) => React.ReactNode }
+  textId?: string
+  bookId?: string
+  /** Navigate THIS tab (switching its text when the destination names another one). Default:
+   *  the current Scripture tab (tabs that are not Scripture — Lexicon, YouTube, History …). */
+  onGo?: (d: { textId: string; bookId: string; chapter: number; verse?: number; endVerse?: number }) => void
+  /** The picker, pushed into this sheet (Scripture tabs). */
+  browse?: () => { title: string; render: (a: SheetApi) => React.ReactNode }
 }) {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -53,7 +59,7 @@ export function CaretGoTo({ api, textId, bookId, onGo, browse }: {
           ))}
           {!passages.length && !others.length && <div className="mobile-empty">Nothing matches “{query.trim()}”.</div>}
         </div>
-      ) : (
+      ) : browse && (
         <div className="m-pp-list">
           <button type="button" className="m-pp-row is-first" onClick={() => { const v = browse(); api.push({ key: 'library', ...v }) }}>
             <Library size={18} aria-hidden className="mobile-caret-goto-icon" />

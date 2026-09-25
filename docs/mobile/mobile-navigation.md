@@ -200,3 +200,22 @@ stacks the desktop uses). The reader caret's tiles are Find on Page · Strong's 
 aloud; Compare and All Translations sit below; Display options are an inline disclosure. The
 study-trail "Why did you go to…" prompt is not shown on iPhone. Destination map and gesture
 ownership: [testing-backlog-2026-09-24.md](testing-backlog-2026-09-24.md).
+
+## 8. Bible-first pass (2026-09-25)
+
+Principles, the interaction-depth audit, the before/after map and the feature-placement matrix:
+[../ux-principles.md](../ux-principles.md); ledger: [testing-backlog-2026-09-25.md](testing-backlog-2026-09-25.md).
+
+- **⌘L vs ⌘T.** Every caret's field (`CaretGoTo`) navigates the CURRENT tab with the same
+  destinations as the plus (⌘T, new tab). Actions inside a tab change that tab (Compare this
+  verse / caret Compare, results, history rows); a new tab is always explicit (long-press → Open
+  in New Tab).
+- **Per-tab history.** `tabNavStacks` entries now carry `state` snapshots and `home` steps;
+  `restoreTabNavEntry` (store) is the single restore path for back and forward. Notes: list /
+  folder / filter and each note; Search: query / scope / filters (+ scroll); Settings: section;
+  Scripture: text, passage, verse, scroll, Compare on/off.
+- **Verse sheet.** Compact: reference · Notes · Strong's · Refs · Copy · colours. Strong's toggles
+  the remembered Brief / Strong's mode; dragging up is Expanded. Notes are edited inside the sheet.
+- **Picker.** A chapter tap moves Scripture immediately and shows that chapter's verses (sheet at
+  medium); a verse or dismissing finishes.
+- **Bottom controls** float over every tab; Scripture and Compare collapse them while reading.

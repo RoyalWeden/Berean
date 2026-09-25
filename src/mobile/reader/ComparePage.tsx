@@ -15,6 +15,7 @@ import { useSheets } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { SelectionBar } from '../study/SelectionBar'
 import { PassagePicker } from './PassagePicker'
+import { CaretGoTo } from '../commands/CaretGoTo'
 import { useCompareVerseInteraction } from './compareInteraction'
 import {
   columnsForState, compareAnchor, compareTitle, navigateColumns, swapColumns, correspondingVerse,
@@ -203,7 +204,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
   // passage is used and its collection only decides the book list shown.
   const openReference = () => sheets.open({
     id: 'reference', rootTitle: 'Library', detents: [0.34, 0.62, 0.92], initialDetent: 2, // low / medium / full (SEP24-013)
-    render: (api) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { api.close(); goTo(d.bookId, d.chapter, d.verse) }} onChapter={(d) => goTo(d.bookId, d.chapter)} />,
+    render: (api) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { api.close(); goTo(d.bookId, d.chapter, d.verse) }} onChapter={(d) => { goTo(d.bookId, d.chapter); if (api.detent > 1) api.setDetent(1) }} />,
   })
   const exitCompare = () => {
     // Back to a normal Scripture tab on the same passage, in the left column's text.
@@ -215,6 +216,13 @@ export function ComparePage({ tab }: { tab: Tab }) {
   // lives in the header (‹ title ›), so there is no separate "Go to" tile.
   useCaretCommands(() => ({
     title: `${bookName(lead.bookId)} ${displayChapter(lead.bookId, lead.chapter)}`, subtitle: 'Compare',
+    // Same caret header as every tab (SEP25): ⌘L-style go-to for this tab, ‹ › its history
+    // (‹ from Compare returns to the plain reader).
+    location: {
+      label: `${bookName(lead.bookId)} ${displayChapter(lead.bookId, lead.chapter)} · Compare`, placeholder: 'Go to a passage or search',
+      view: () => ({ title: 'Go to', render: (a) => <CaretGoTo api={a} textId={lead.textId} bookId={lead.bookId} onGo={(d) => goTo(d.bookId, d.chapter, d.verse)}
+        browse={() => ({ title: 'Library', render: (b) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { b.close(); goTo(d.bookId, d.chapter, d.verse) }} onChapter={(d) => goTo(d.bookId, d.chapter)} /> })} /> }),
+    },
     sections: [
       ...(pair ? [{ id: 'quick', style: 'tiles' as const, commands: [
         { kind: 'toggle' as const, id: 'strongs', label: "Strong's", icon: Hash, value: !!state.showStrongs, set: (v: boolean) => updateTabState('scripture', tab.id, { showStrongs: v }) },

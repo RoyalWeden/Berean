@@ -125,7 +125,7 @@ function Shell() {
   }, [])
 
   return (
-    <div ref={rootRef} className={`mobile-root has-overlay-nav${chrome.overlay && chrome.collapsed && !showMore ? ' is-nav-collapsed' : ''}`}>
+    <div ref={rootRef} className={`mobile-root has-overlay-nav${chrome.overlay && !showMore ? ' has-scripture-chrome' : ''}${chrome.overlay && chrome.collapsed && !showMore ? ' is-nav-collapsed' : ''}`}>
       <main className="mobile-main">
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes

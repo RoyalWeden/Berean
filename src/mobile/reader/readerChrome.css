@@ -137,3 +137,6 @@ html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-page-header 
 .mobile-root.has-overlay-nav .mobile-note-editor { padding-bottom: var(--m-nav-h, 64px); box-sizing: border-box; }
 html[data-keyboard] .mobile-root.has-overlay-nav .mobile-note-editor,
 html[data-keyboard] .mobile-root.has-overlay-nav .mobile-hosted-panel { padding-bottom: 0; }
+/* Over Scripture the glass controls stand alone — no app-coloured fade that would haze a
+   Scripture colour theme (e.g. a black page in System Light). */
+.mobile-root.has-scripture-chrome .mobile-bottom-nav { background: none; }

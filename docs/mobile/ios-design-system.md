@@ -96,6 +96,27 @@ last 8px — it never blurs, so the status area stays one colour.
 captured image shows the black shape standing alone. An app cannot change what the system
 screenshot captures (the screenshot notification fires after the capture), so this is accepted.
 
+## Scripture chrome (2026-09-25)
+
+Reader and Compare share one header: no bar — Scripture stays visible around a floating glass
+passage capsule (translucent surface, saturate + blur backdrop, hairline edge, top specular line;
+opaque under Reduce Transparency, ringed under Increase Contrast). The status-bar area is a solid
+band in the Scripture background colour with a 12 px fade (never a blur, so no halo next to the
+island / notch). Scrolling down swaps it for the island / notch pill and slides the bottom
+controls away. The capsule has no outer drop shadow: WKWebView draws an outer shadow under a
+backdrop-filtered element as a square (checked in the simulator).
+
+Glass placement: floating controls (capsule, bottom controls), sheets, bars. Never Scripture text,
+never cards around Scripture.
+
+## Scripture colour themes (2026-09-25)
+
+Presets colour the reading surface only (`--scripture-bg / -text / -verse-num / -strongs`, plus
+`-rgb` triples) through one injected style scoped to `.mobile-reader`, `.m-compare` and the
+Scripture page roots, gated by `html[data-scripture-theme]`. The app keeps its Default Light /
+Dark palette (`applyMobileAppearance`). Custom themes add optional verse-number and Strong's
+colours (derived when unset).
+
 ## Open items
 
 - None blocking. Glass strength and the notch shape need a look on a physical device.

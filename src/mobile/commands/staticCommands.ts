@@ -3,6 +3,13 @@ import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import type { CaretScope } from './caretRegistry'
+import { createElement } from 'react'
+import { CaretGoTo } from './CaretGoTo'
+
+/** The caret header every tab shares (SEP25): a ⌘L-style go-to for the current tab + ‹ ›. */
+function goToLocation(label: string): NonNullable<CaretScope['location']> {
+  return { label, placeholder: 'Go to a passage or search', view: () => ({ title: 'Go to', render: (api) => createElement(CaretGoTo, { api }) }) }
+}
 
 /** Destinations the static providers can reach without importing pages (supplied by the shell). */
 export type MoreRoute = 'more' | 'settings' | 'history' | 'workspaces' | 'archive' | 'transcripts' | 'youtube-settings' | 'trail' | 'queue' | 'pdfs'
@@ -19,6 +26,7 @@ export function staticCaretScope(space: SpaceId, tab: Tab | null, shell: ShellNa
     const num = (tab?.state as { strongsNum?: string } | undefined)?.strongsNum ?? null
     return {
       title: num ? `Lexicon · ${num}` : 'Lexicon',
+      location: goToLocation(num ? `Lexicon · ${num}` : 'Lexicon'),
       sections: [
         { id: 'quick', style: 'tiles', commands: [
           { kind: 'action', id: 'open-num', label: "Open number", icon: Hash, run: () => { const n = prompt("Strong's number (e.g. H7225, G3056)")?.trim().toUpperCase(); if (n) st().openLexiconEntry(n) } },
@@ -35,6 +43,7 @@ export function staticCaretScope(space: SpaceId, tab: Tab | null, shell: ShellNa
   if (space === 'youtube') {
     return {
       title: 'YouTube',
+      location: goToLocation(tab?.title || 'YouTube'),
       sections: [
         { id: 'yt', title: 'YouTube', commands: [
           { kind: 'action', id: 'settings', label: 'YouTube settings', detail: 'Channels, playback, transcripts', icon: SettingsIcon, run: () => shell.openMore('youtube-settings') },
@@ -47,6 +56,7 @@ export function staticCaretScope(space: SpaceId, tab: Tab | null, shell: ShellNa
   if (space === 'scripture' && tab?.type === 'pdf') {
     return {
       title: tab.title || 'PDF',
+      location: goToLocation(tab.title || 'PDF'),
       sections: [
         { id: 'pdf', title: 'PDF', commands: [
           { kind: 'action', id: 'library', label: 'PDF library', icon: Library, run: () => shell.openMore('pdfs') },
@@ -58,6 +68,7 @@ export function staticCaretScope(space: SpaceId, tab: Tab | null, shell: ShellNa
   if (space === 'notes' && tab?.type === 'tags') {
     return {
       title: 'Verse tags',
+      location: goToLocation('Verse tags'),
       sections: [
         { id: 'tags', title: 'Tags', commands: [
           { kind: 'action', id: 'notes', label: 'Back to notes', icon: ArrowLeft, run: () => { const s = st(); const other = s.tabs.notes.find((t) => t.type !== 'tags'); if (other) s.setActiveTab('notes', other.id); else s.createTab('note') } },
@@ -66,5 +77,5 @@ export function staticCaretScope(space: SpaceId, tab: Tab | null, shell: ShellNa
       ],
     }
   }
-  return { title: 'Actions', sections: [{ id: 'nav', commands: [{ kind: 'action', id: 'more', label: 'More', icon: SettingsIcon, run: () => shell.openMore('more') }] }] }
+  return { title: 'Actions', location: goToLocation(tab?.title || 'Berean'), sections: [{ id: 'nav', commands: [{ kind: 'action', id: 'more', label: 'More', icon: SettingsIcon, run: () => shell.openMore('more') }] }] }
 }

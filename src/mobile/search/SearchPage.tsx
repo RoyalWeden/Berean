@@ -384,7 +384,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
                 <ListSection key={g.bookId} title={`${bookName(g.bookId)} · ${full?.hits.length ?? g.hits.length}`}>
                   {g.hits.map((h) => (
                     <LongPressResult key={`${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`} onLongPress={() => resultActions.scripture(h)}><Row chevron onClick={() => openHit(h)}
-                      title={<span className="mobile-occurrence-ref">{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{textId === 'all' ? <span className="mobile-muted"> · {TRANSLATIONS.find((t) => t.id === h.textId)?.label ?? h.textId}</span> : null}</span>}
+                      title={<span className="mobile-occurrence-ref">{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{h.textId === 'lxx' ? <span className="mobile-muted"> LXX</span> : null}</span>}
                       subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(h.text, snippetQuery, 140).text, h.strongsWords ? '' : snippetQuery, wordMode)}</span>} /></LongPressResult>
                   ))}
                 </ListSection>
