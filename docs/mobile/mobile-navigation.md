@@ -219,3 +219,21 @@ Principles, the interaction-depth audit, the before/after map and the feature-pl
 - **Picker.** A chapter tap moves Scripture immediately and shows that chapter's verses (sheet at
   medium); a verse or dismissing finishes.
 - **Bottom controls** float over every tab; Scripture and Compare collapse them while reading.
+
+## 9. Floating controls and tab types (2026-09-25 v2)
+
+Ledger: [testing-backlog-2026-09-25b.md](testing-backlog-2026-09-25b.md).
+
+- **Top-left switcher** changes what the CURRENT tab is (Scripture, Notes, Today, Lexicon,
+  YouTube, Search, History, Settings — never the current type). `transformTab` keeps the tab's
+  slot and carries its history; ‹ returns to the previous type and state. Typing an experience
+  name ("notes", "history") in the caret does the same; in the plus it opens a new tab.
+- **Top-right audio button** (while audio is active) opens the audio sheet; the floating
+  play/pause sits above the bottom controls. Page headers keep clear of both through
+  `html[data-floating-left|right]`.
+- **Bottom controls** collapse on scroll on every tab (`pageCollapsed`), Scripture views drive it
+  themselves.
+- **Sheets:** a drag that moves the sheet owns the whole touch (direction reversals included);
+  below the top detent an upward drag expands the sheet first.
+- **Notes:** the phone editor has no permanent format bar — selection bubble, markdown, and a
+  floating + for inserts; the editor is never fed its own saves (no lost keystrokes).

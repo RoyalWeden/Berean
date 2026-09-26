@@ -146,7 +146,9 @@ html[data-keyboard] .mobile-root.has-overlay-nav .mobile-hosted-panel { padding-
    have no header row content at the sides (centered capsule), so nothing moves there. */
 html[data-floating-left] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-left: 56px; }
 html[data-floating-right] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-right: 56px; }
-html[data-floating-left] .mobile-hosted-panel { --m-floating-left-inset: 56px; }
+/* Hosted desktop panels (Lexicon, YouTube, PDF, tags graph) keep their first header row clear too. */
+html[data-floating-left] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-left: 56px; }
+html[data-floating-right] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-right: 56px; }
 
 /* Text width (TEST25-SCRIPTURE-008): the reading column's side margins. */
 html[data-reader-width="wide"] .mobile-reader .berean-reading-column { padding-left: 2px; padding-right: 6px; }

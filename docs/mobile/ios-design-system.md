@@ -117,6 +117,14 @@ Scripture page roots, gated by `html[data-scripture-theme]`. The app keeps its D
 Dark palette (`applyMobileAppearance`). Custom themes add optional verse-number and Strong's
 colours (derived when unset).
 
+## Floating controls over Scripture (2026-09-25 v2)
+
+Floating controls that sit over Bible text (tab switcher options, the audio play/pause) use a
+thicker material (surface at ~90 % with the blur) than resting bar controls, so a label or glyph
+never competes with the words behind it. Backdrop-filtered circles use a hairline + inset
+highlight, never an outer drop shadow (WKWebView renders it as a square). Opening the switcher
+dims the page slightly (14 % light / 32 % dark) to separate the fan from the text.
+
 ## Open items
 
 - None blocking. Glass strength and the notch shape need a look on a physical device.

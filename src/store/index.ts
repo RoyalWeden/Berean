@@ -323,7 +323,11 @@ function swapTabType(
   if (fromSpace === toSpace) tabs[toSpace] = tabs[toSpace].map((t) => (t.id === tabId ? tab : t))
   else { tabs[fromSpace] = tabs[fromSpace].filter((t) => t.id !== tabId); tabs[toSpace] = [...tabs[toSpace], tab] }
   const activeTabId = { ...s.activeTabId, [toSpace]: id }
-  if (fromSpace !== toSpace && s.activeTabId[fromSpace] === tabId) activeTabId[fromSpace] = tabs[fromSpace][Math.max(0, fromIdx - 1)]?.id ?? null
+  if (fromSpace !== toSpace && s.activeTabId[fromSpace] === tabId) {
+    // The space shows the tab the user was last in (MRU), not whichever neighbour is left.
+    const recent = s.tabMRUList.find((m) => m.spaceId === fromSpace && m.tabId !== tabId && tabs[fromSpace].some((t) => t.id === m.tabId))
+    activeTabId[fromSpace] = recent?.tabId ?? tabs[fromSpace][Math.max(0, fromIdx - 1)]?.id ?? null
+  }
   const stack = s.tabNavStacks[tabId]
   const pruned = prunePerTabState(s, fromSpace, tabId)
   set({

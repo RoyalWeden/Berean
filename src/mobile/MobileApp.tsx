@@ -264,6 +264,15 @@ function NotesSpace() {
   }, [])
   useEffect(() => {
     if (!pendingNoteId) return
+    // A note never opens over the tags graph (TEST25-NOTES-008): switch to a Notes tab first (or
+    // make one) and let that tab's page — mounted fresh for it — consume the request.
+    const s0 = useAppStore.getState()
+    const cur = s0.tabs.notes.find((t) => t.id === s0.activeTabId.notes)
+    if (cur?.type === 'tags') {
+      const other = s0.tabs.notes.find((t) => t.type === 'note')
+      if (other) s0.setActiveTab('notes', other.id); else s0.createTab('note')
+      return
+    }
     const id = pendingNoteId
     clearPendingNote()
     openEditor(id)

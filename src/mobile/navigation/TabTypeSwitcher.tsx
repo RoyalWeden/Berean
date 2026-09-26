@@ -1,3 +1,4 @@
+import { LayoutGrid } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -56,7 +57,9 @@ export function TabTypeSwitcher({ hidden }: { hidden?: boolean }) {
         <button type="button" className={`m-tabswitch-button${open ? ' is-open' : ''}`} aria-expanded={open} aria-haspopup="menu"
           aria-label={`${face.label} tab. Change this tab to…`} tabIndex={shown ? 0 : -1}
           onClick={() => { void haptic.selection(); setOpen((o) => !o) }}>
-          <face.icon size={19} aria-hidden />
+          {/* One stable "experiences" glyph (the current type is already named by the page / the
+              passage capsule — repeating its icon beside it read as a duplicate). */}
+          <LayoutGrid size={19} aria-hidden />
         </button>
         <AnimatePresence>
           {open && (

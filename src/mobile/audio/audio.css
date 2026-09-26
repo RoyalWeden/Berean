@@ -113,3 +113,8 @@ html[data-reduce-transparency] .m-audio-float { -webkit-backdrop-filter: none; b
   .m-audio-fab-wrap, .m-audio-topbtn { transition: none; }
   .m-audio-fab:active { transform: none; }
 }
+
+/* The floating play/pause sits over Scripture text: a thicker material so the glyph never
+   competes with the words behind it (checked in the simulator). */
+.m-audio-fab-wrap .m-audio-float { background: rgb(var(--color-surface-2) / 0.9); }
+html.scheme-dark .m-audio-fab-wrap .m-audio-float { background: rgb(var(--color-surface-3) / 0.88); }
