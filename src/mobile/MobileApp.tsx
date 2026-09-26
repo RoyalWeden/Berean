@@ -29,6 +29,7 @@ import { TabCardsSheet } from './tabs/TabCardsSheet'
 import { BottomNav } from './navigation/BottomNav'
 import { useMoreRouteRequests } from './navigation/shellNav'
 import { NewTabSheet } from './navigation/NewTabSheet'
+import { TabTypeSwitcher } from './navigation/TabTypeSwitcher'
 import { CaretSheet } from './commands/CaretSheet'
 import { caretRegistry, useCaretTopVersion, useCaretCommands } from './commands/caretRegistry'
 import { staticCaretScope, type MoreRoute } from './commands/staticCommands'
@@ -42,6 +43,7 @@ import { pushNotesListHistory, currentNotesListState } from './notes/notesHistor
 import { NoteEditorPage } from './notes/NoteEditorPage'
 import { SearchPage } from './search/SearchPage'
 import { AudioBar } from './audio/AudioBar'
+import { useChromeScrollCollapse } from './primitives/useChromeScrollCollapse'
 import { TranscriptPacksPage } from './youtube/TranscriptPacksPage'
 import { StudyTrailPage, useOpenStudyTrailPageEvent } from './trail'
 import { ComparePage } from './reader/ComparePage'
@@ -115,6 +117,10 @@ function Shell() {
   // The bottom controls float over every tab (SEP25); their measured height (--m-nav-h) is the
   // room every scroller leaves at its end (readerChrome.css). Only Scripture views collapse them.
   const rootRef = useRef<HTMLDivElement>(null)
+  // Every page's scroll collapses the bottom controls too (TEST25-NAV-010); Scripture views drive
+  // their own chrome.
+  const mainRef = useRef<HTMLElement>(null)
+  useChromeScrollCollapse(mainRef, `${showMore ? 'more' : activeSpace}:${activeTabIdOf}`)
   useEffect(() => {
     const root = rootRef.current
     const bar = root?.querySelector('.mobile-bottom-nav') as HTMLElement | null
@@ -125,8 +131,8 @@ function Shell() {
   }, [])
 
   return (
-    <div ref={rootRef} className={`mobile-root has-overlay-nav${chrome.overlay && !showMore ? ' has-scripture-chrome' : ''}${chrome.overlay && chrome.collapsed && !showMore ? ' is-nav-collapsed' : ''}`}>
-      <main className="mobile-main">
+    <div ref={rootRef} className={`mobile-root has-overlay-nav${chrome.overlay && !showMore ? ' has-scripture-chrome' : ''}${(chrome.overlay ? chrome.collapsed : chrome.pageCollapsed) && !showMore ? ' is-nav-collapsed' : ''}`}>
+      <main className="mobile-main" ref={mainRef}>
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes
             tabs — keeps its own page and state (T23-009). */}
@@ -138,6 +144,7 @@ function Shell() {
         )}
       </main>
       <AudioBar />
+      <TabTypeSwitcher hidden={showMore} />
       {/* No Study Trail "Why'd you go to …?" prompt on the phone (SEP24-003): trail stops are still
           recorded; reasons are added from the Study trail page. The Mac keeps its prompt. */}
       <BottomNav onTabs={nav.openTabs} onPlus={nav.openPlus} onCaret={nav.openCaret} caretLabel={nav.caretLabel} />

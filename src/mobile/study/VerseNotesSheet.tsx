@@ -1,12 +1,17 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, ExternalLink } from 'lucide-react'
+import type { EditorView } from 'prosemirror-view'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import type { SheetApi } from '../primitives/Sheet'
-import { Row, ListSection } from '../primitives/Page'
+import { haptic } from '../primitives/haptics'
+import { NoteInsertButton, useSheetOverlayZ } from '../notes/NoteInsertButton'
+import { renderPhoneSelectionToolbar } from '../notes/phoneEditorChrome'
+import '../notes/verseNotes.css'
 import { useNoteAutosave } from '../notes/useNoteAutosave'
 import { StrongsSheet } from './StrongsSheet'
 
@@ -17,9 +22,11 @@ export function pushSheetNoteEditor(api: SheetApi, noteId: string, context: stri
 }
 
 /**
- * Notes that reference one verse, inside the verse sheet (SEP25): tap a note → edit it right here
- * (the verse stays the sheet's context — "‹ Deuteronomy 29:3" goes back); + → a new note for the
- * verse, opened for editing in place. The Notes tab stays one tap away ("Open in Notes").
+ * Notes that reference one verse, inside the verse sheet (SEP25, TEST25-NOTES-003): the notes as
+ * preview cards (title + a few lines) — tap → edit it right here (the verse stays the sheet's
+ * context — "‹ Deuteronomy 29:3" goes back). No note yet → only a floating glass + at the sheet's
+ * bottom-right, which creates a note for the verse and opens it for editing in place. The Notes tab
+ * stays one tap away (the editor's "Open in Notes").
  */
 export function VerseNotesSheet({ verseRef, textId, label, api, onOpenNote, onNewNote, fullDetent = 2 }: {
   verseRef: string; textId: string; label: string; api: SheetApi
@@ -30,31 +37,61 @@ export function VerseNotesSheet({ verseRef, textId, label, api, onOpenNote, onNe
   fullDetent?: number
 }) {
   const [notes, setNotes] = useState<Note[] | null>(null)
+  const [creating, setCreating] = useState(false)
   const token = useAppStore((s) => s.noteChangeToken)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const overlayZ = useSheetOverlayZ(anchorRef)
   useEffect(() => {
     let alive = true
     window.notes.getVerseNotes(verseRef, textId).then((n) => { if (alive) setNotes(n) }).catch(() => { if (alive) setNotes([]) })
     return () => { alive = false }
   }, [verseRef, textId, token])
   const edit = (id: string) => pushSheetNoteEditor(api, id, label, (nid) => { api.close(); onOpenNote(nid) }, fullDetent)
+  const create = () => {
+    if (creating) return
+    setCreating(true)
+    void haptic.light()
+    void onNewNote().then((id) => { if (id) edit(id) }).finally(() => setCreating(false))
+  }
   return (
-    <div className="mobile-verse-notes">
-      <ListSection title={notes && notes.length ? `${notes.length} note${notes.length === 1 ? '' : 's'} on ${label}` : label}>
-        {notes === null && <div className="mobile-empty">Loading…</div>}
-        {notes?.length === 0 && <div className="mobile-empty">No notes on this verse yet.</div>}
-        {notes?.map((n) => (
-          <Row key={n.id} title={n.title || 'Untitled'} subtitle={previewOf(n)} chevron onClick={() => edit(n.id)} />
-        ))}
-        <Row leading={<Plus size={18} aria-hidden />} title="New note" onClick={() => { void onNewNote().then((id) => { if (id) edit(id) }) }} />
-      </ListSection>
+    <div className="mobile-verse-notes" ref={anchorRef} aria-label={`Notes on ${label}`}>
+      {/* At the sheet's root nothing else names the verse; pushed views have "‹ <verse>" above. */}
+      {api.depth === 0 && <div className="m-verse-notes-context">{label}</div>}
+      {notes === null && <div className="mobile-empty">Loading…</div>}
+      {notes?.length === 0 && <div className="mobile-empty">No notes on this verse yet.</div>}
+      {notes && notes.length > 0 && (
+        <div className="m-verse-note-cards">
+          {notes.map((n) => {
+            const preview = previewOf(n)
+            return (
+              <button key={n.id} type="button" className="m-verse-note-card" onClick={() => edit(n.id)}>
+                <span className="m-verse-note-card-title">{n.icon && <span aria-hidden>{n.icon} </span>}{n.title || 'Untitled'}</span>
+                {preview && <span className="m-verse-note-card-preview">{preview}</span>}
+              </button>
+            )
+          })}
+          {/* The floating + is only for a verse without notes; another note stays one tap away
+              (a verse can carry several notes — no capability lost). */}
+          <button type="button" className="m-verse-note-add" disabled={creating} onClick={create}>Add another note</button>
+        </div>
+      )}
+      {notes?.length === 0 && createPortal(
+        <button type="button" className="m-note-fab m-verse-notes-fab" style={overlayZ != null ? { zIndex: overlayZ } : undefined}
+          aria-label={`New note on ${label}`} disabled={creating} onMouseDown={(e) => e.preventDefault()} onClick={create}>
+          <Plus size={24} aria-hidden />
+        </button>,
+        document.body,
+      )}
     </div>
   )
 }
 
-/** A note edited inside a sheet — the same editor and save semantics as the Notes tab. */
-export function SheetNoteEditor({ noteId, context, api, onOpenInNotes }: { noteId: string; context: string; api: SheetApi; onOpenInNotes: (id: string) => void }) {
+/** A note edited inside a sheet — the same editor and save semantics as the Notes tab. The sheet's
+ *  own title already names the verse, so it is not repeated under the note title. */
+export function SheetNoteEditor({ noteId, api, onOpenInNotes }: { noteId: string; context?: string; api: SheetApi; onOpenInNotes: (id: string) => void }) {
   const { note, persist, lastSavedAt, editorContent } = useNoteAutosave(noteId)
   const typingLook = useAppStore((s) => s.noteTypingLook)
+  const [editorView, setEditorView] = useState<EditorView | null>(null)
   if (note === undefined) return <div className="mobile-empty">Loading…</div>
   if (note === null) return <div className="mobile-empty">This note no longer exists.</div>
   return (
@@ -65,7 +102,6 @@ export function SheetNoteEditor({ noteId, context, api, onOpenInNotes }: { noteI
           <ExternalLink size={17} aria-hidden />
         </button>
       </div>
-      {note.title.trim() !== context && <div className="mobile-sheet-note-context">{context}</div>}
       <NoteEditorPM
         content={editorContent}
         noteId={note.id}
@@ -79,11 +115,15 @@ export function SheetNoteEditor({ noteId, context, api, onOpenInNotes }: { noteI
         onLexiconRefClick={(id) => api.push({ key: `strongs-${id}`, title: id, render: (a) => <StrongsSheet strongsNum={id} api={a} /> })}
         placeholder="Write…"
         className="mobile-pm"
+        chrome="phone"
+        renderSelectionToolbar={renderPhoneSelectionToolbar}
+        onEditorReady={setEditorView}
       />
+      <NoteInsertButton view={editorView} placement="viewport" />
     </div>
   )
 }
 
 function previewOf(n: Note): string {
-  try { return stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 90) } catch { return (n.content ?? '').slice(0, 90) }
+  try { return stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 220) } catch { return (n.content ?? '').slice(0, 220) }
 }

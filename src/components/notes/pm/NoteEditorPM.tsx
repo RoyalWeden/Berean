@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorState, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
@@ -117,6 +117,15 @@ export interface NoteEditorPMProps {
   // the note reading as cluttered. Selecting text still gets the on-selection bubble
   // toolbar (SelectionToolbar) either way — this only hides the always-visible docked bar.
   hideFormattingToolbar?: boolean
+  // iPhone shell (src/mobile/notes): 'phone' drops the always-visible formatting toolbar and the
+  // word-count footer (the phone shows stats in the note's caret and formats via the selection
+  // bubble / its own + insert menu). Default 'desktop' changes nothing.
+  chrome?: 'desktop' | 'phone'
+  // Replaces the default selection bubble (SelectionToolbar) — the phone passes a touch-sized one.
+  renderSelectionToolbar?: (view: EditorView, state: SelectionToolbarState) => ReactNode
+  // The live EditorView once mounted (null on unmount) — lets a host run the editor's own
+  // commands (slashCommands.ts) from its own chrome without duplicating command logic.
+  onEditorReady?: (view: EditorView | null) => void
 }
 
 /** Verse text for the ref hover-preview / verse-block insertion, run through the same word
@@ -152,6 +161,9 @@ export default function NoteEditorPM({
   onWikilinkHoverEnd,
   isSidePanel,
   hideFormattingToolbar,
+  chrome = 'desktop',
+  renderSelectionToolbar,
+  onEditorReady,
   findQuery = '',
   findMode = 'phrase',
   importSource,
@@ -167,6 +179,9 @@ export default function NoteEditorPM({
   const [viewReady, setViewReady] = useState(false)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const onEditorReadyRef = useRef(onEditorReady)
+  onEditorReadyRef.current = onEditorReady
+  const phoneChrome = chrome === 'phone'
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onScrollPositionRef = useRef(onScrollPosition)
@@ -691,6 +706,7 @@ export default function NoteEditorPM({
     })
     viewRef.current = view
     setViewReady(true)
+    onEditorReadyRef.current?.(view)
     loadCollapsedHeadings(view, noteIdRef.current)
     loadCollapsedThreads(view, noteIdRef.current)
 
@@ -749,6 +765,7 @@ export default function NoteEditorPM({
       view.destroy()
       viewRef.current = null
       setViewReady(false)
+      onEditorReadyRef.current?.(null)
     }
     // Mount-only: note switching is handled by the effect below via
     // view.updateState with a freshly-parsed doc (mirrors the CM6 editor's
@@ -1222,19 +1239,19 @@ export default function NoteEditorPM({
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
-      {!isSidePanel && !hideFormattingToolbar && mode === 'edit' && viewReady && (
+      {!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' && viewReady && (
         <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />
       )}
       {/* Word-count / reading-time footer — rendered independently of the formatting toolbar so
           it still shows on idiom notes (which hide that toolbar). Bottom-right of this same
           `relative` wrapper. */}
-      {!isSidePanel && mode === 'edit' && viewReady && (
+      {!isSidePanel && !phoneChrome && mode === 'edit' && viewReady && (
         <WordCountFooter view={viewRef.current} lastSavedAt={lastSavedAt} />
       )}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
-        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
+        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${phoneChrome ? 'pm-chrome-phone' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
       />
       {importSource && (
         <div className="flex-shrink-0 border-t border-separator select-none">
@@ -1326,7 +1343,9 @@ export default function NoteEditorPM({
         document.body,
       )}
       {selectionToolbar && mode === 'edit' && viewRef.current && (
-        <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
+        renderSelectionToolbar
+          ? renderSelectionToolbar(viewRef.current, selectionToolbar)
+          : <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
       )}
       <BlockMenu target={blockMenuTarget} view={viewRef.current} noteId={noteId} onClose={() => setBlockMenuTarget(null)} />
       <VerseCopyMenu target={verseCtxTarget} onClose={() => setVerseCtxTarget(null)} />

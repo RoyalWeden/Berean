@@ -24,6 +24,11 @@ import { EMOJI_CATEGORIES, ALL_EMOJI } from '@/lib/emojiList'
 import { noteToMarkdownFile, noteFileName } from '@/lib/noteMarkdownFile'
 import { verseRefDisplay } from '@/lib/parseRef'
 import { useNoteAutosave } from './useNoteAutosave'
+import type { EditorView } from 'prosemirror-view'
+import { BarChart3 } from 'lucide-react'
+import { computeWordStats } from '@/lib/wordCount'
+import { NoteInsertButton } from './NoteInsertButton'
+import { renderPhoneSelectionToolbar, noteStatsLine, showVerseContextLine } from './phoneEditorChrome'
 
 /**
  * Note editor page (Phase 13, R084): the shared ProseMirror editor (`NoteEditorPM`) full-screen,
@@ -41,6 +46,9 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const [notes, setNotes] = useState<Note[]>([])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
   const [printOpen, setPrintOpen] = useState(false)
+  // The live editor (NoteEditorPM onEditorReady) — the + menu runs its commands, the caret reads
+  // its statistics. Never used to push content back into the editor.
+  const [editorView, setEditorView] = useState<EditorView | null>(null)
   const typingLook = useAppStore((s) => s.noteTypingLook)
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
@@ -148,7 +156,12 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     subtitle: 'Note',
     // Same header as every caret (SEP24-008): this note / find another, and the tab's ‹ › history.
     location: { label: latest.current?.title || 'Untitled note', placeholder: 'Find a note', view: () => ({ title: 'Find a note', render: (a: SheetApi) => <NoteFinder api={a} /> }) },
-    sections: fromSheetActions(actionList(), { tiles: ['pin', 'share', 'copy', 'print'], tileLabels: { copy: 'Copy', print: 'Print / PDF', share: 'Share' }, title: 'Note' }),
+    sections: [
+      ...fromSheetActions(actionList(), { tiles: ['pin', 'share', 'copy', 'print'], tileLabels: { copy: 'Copy', print: 'Print / PDF', share: 'Share' }, title: 'Note' }),
+      // Word count / characters / reading time live here, not on the editor surface (TEST25-NOTES-003).
+      { id: 'stats', commands: [{ kind: 'action', id: 'stats', label: 'Statistics', icon: BarChart3, keepOpen: true, run: () => {},
+        detail: noteStatsLine(computeWordStats(editorView && !editorView.isDestroyed ? editorView.state.doc.textBetween(0, editorView.state.doc.content.size, '\n', '\n') : latest.current?.content ?? '')) }] },
+    ],
   }), note != null)
 
   if (note === undefined) return <Page title="Note" onBack={onBack}><div className="mobile-empty">Loading…</div></Page>
@@ -162,7 +175,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     >
       {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
       <div className="mobile-note-editor" {...refLongPress}>
-        {note.verseRef && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
+        {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
         <NoteEditorPM
           content={editorContent}
           noteId={note.id}
@@ -176,7 +189,11 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
           onLexiconRefClick={openLexicon}
           placeholder="Write…"
           className="mobile-pm"
+          chrome="phone"
+          renderSelectionToolbar={renderPhoneSelectionToolbar}
+          onEditorReady={setEditorView}
         />
+        <NoteInsertButton view={editorView} hidden={mode !== 'edit'} />
       </div>
     </Page>
   )

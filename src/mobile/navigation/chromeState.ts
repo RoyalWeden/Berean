@@ -7,13 +7,15 @@ import { useSyncExternalStore } from 'react'
  * collapses them — the same hysteresis signal (useHideOnScroll) that collapses the top header, so
  * the two always move together. Any other page leaves the bottom controls in normal flow.
  */
-type Chrome = { overlay: boolean; collapsed: boolean }
-let state: Chrome = { overlay: false, collapsed: false }
+/** `overlay` + `collapsed`: a Scripture view (reader / Compare) drives the chrome. `pageCollapsed`:
+ *  every other page scrolled down (TEST25-NAV-010 — the bottom controls hide on any tab). */
+type Chrome = { overlay: boolean; collapsed: boolean; pageCollapsed: boolean }
+let state: Chrome = { overlay: false, collapsed: false, pageCollapsed: false }
 const listeners = new Set<() => void>()
 export const chromeState = {
   set(next: Partial<Chrome>) {
     const merged = { ...state, ...next }
-    if (merged.overlay === state.overlay && merged.collapsed === state.collapsed) return
+    if (merged.overlay === state.overlay && merged.collapsed === state.collapsed && merged.pageCollapsed === state.pageCollapsed) return
     state = merged
     listeners.forEach((l) => l())
   },

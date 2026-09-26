@@ -6,7 +6,7 @@
   text-transform: none; color: rgb(var(--color-text-primary));
 }
 
-.mobile-verse-primary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 2px 8px; }
+.mobile-verse-primary { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 0 2px 8px; }
 .mobile-verse-action {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   min-height: 52px; padding: 4px 2px; border: 0; border-radius: 12px;
@@ -25,7 +25,7 @@
 }
 
 /* Strong's mode: the verse sits between the actions and the colours, scrolling on its own. */
-.mobile-verse-strongs { max-height: 104px; overflow-y: auto; overscroll-behavior: contain; margin: 0 2px 8px; padding: 8px 10px; border-radius: 12px; background: rgb(var(--color-surface-1)); }
+.mobile-verse-strongs { margin: 0 2px 8px; padding: 8px 10px; border-radius: 12px; background: rgb(var(--color-surface-1)); }
 .mobile-verse-strongs .mobile-study-verse { margin: 0; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.5; }
 
 /* Cross references: one block per selected verse. */
@@ -39,5 +39,8 @@
 .mobile-sheet-note-head { display: flex; align-items: center; gap: 8px; }
 .mobile-sheet-note-title { flex: 1; min-width: 0; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(20px * var(--m-type-scale, 1)); font-weight: 700; padding: 4px 0; outline: none; }
 .mobile-sheet-note-open { flex: none; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 18px; background: var(--m-card-bg, rgb(var(--color-surface-3))); color: rgb(var(--color-accent)); }
-.mobile-sheet-note-context { font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); margin: 0 0 6px; }
 .mobile-sheet-note .mobile-pm { flex: 1; }
+
+/* The cross-reference block without a heading: the source switch leads, full width. */
+.mobile-study-refs-head.is-bare { justify-content: stretch; }
+.mobile-study-refs-head.is-bare > * { flex: 1; }

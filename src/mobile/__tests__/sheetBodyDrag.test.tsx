@@ -85,4 +85,34 @@ describe('sheet body drag', () => {
     touch(body, 'touchend', 340)
     act(() => root.unmount())
   })
+
+  it('reversing direction mid-drag keeps moving the sheet until release (TEST25-SHEET-001)', async () => {
+    function Opener() {
+      const sheets = useSheets()
+      React.useEffect(() => { sheets.open({ id: 'r', title: 'R', detents: [0.4, 0.7, 0.9], initialDetent: 1, render: () => <div style={{ height: 3000 }} /> }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      return null
+    }
+    const host = document.createElement('div'); document.body.appendChild(host)
+    const root = createRoot(host)
+    act(() => { root.render(<SheetHost><Opener /></SheetHost>) })
+    await act(async () => { await new Promise((r) => setTimeout(r, 600)) })
+    const sheet = document.querySelector('.mobile-sheet[data-sheet-id="r"]') as HTMLElement
+    const body = sheet.querySelector('.mobile-sheet-body') as HTMLElement
+    Object.defineProperty(body, 'scrollHeight', { value: 3000, configurable: true })
+    Object.defineProperty(body, 'clientHeight', { value: 600, configurable: true })
+    body.scrollTop = 0
+    const y0 = sheetY(sheet)
+    touch(body, 'touchstart', 300)
+    touch(body, 'touchmove', 310)           // down at the top → the sheet takes the touch
+    touch(body, 'touchmove', 360)
+    await frame()
+    expect(sheetY(sheet)).toBeCloseTo(y0 + 60)  // 1:1 from the touch start
+    const back = touch(body, 'touchmove', 250) // reverse upward past the start: still the sheet
+    await frame()
+    expect(back.defaultPrevented).toBe(true)
+    expect(sheetY(sheet)).toBeCloseTo(y0 - 50)
+    expect(body.scrollTop).toBe(0)           // the content never scrolled
+    touch(body, 'touchend', 250)
+    act(() => root.unmount())
+  })
 })

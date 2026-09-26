@@ -140,3 +140,14 @@ html[data-keyboard] .mobile-root.has-overlay-nav .mobile-hosted-panel { padding-
 /* Over Scripture the glass controls stand alone — no app-coloured fade that would haze a
    Scripture colour theme (e.g. a black page in System Light). */
 .mobile-root.has-scripture-chrome .mobile-bottom-nav { background: none; }
+
+/* Floating top-left tab switcher / top-right audio button (TEST25-NAV / AUDIO): page headers keep
+   their buttons clear of them — one central rule instead of per-page offsets. Scripture views
+   have no header row content at the sides (centered capsule), so nothing moves there. */
+html[data-floating-left] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-left: 56px; }
+html[data-floating-right] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-right: 56px; }
+html[data-floating-left] .mobile-hosted-panel { --m-floating-left-inset: 56px; }
+
+/* Text width (TEST25-SCRIPTURE-008): the reading column's side margins. */
+html[data-reader-width="wide"] .mobile-reader .berean-reading-column { padding-left: 2px; padding-right: 6px; }
+html[data-reader-width="narrow"] .mobile-reader .berean-reading-column { padding-left: 16px; padding-right: 26px; }

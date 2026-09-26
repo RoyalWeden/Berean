@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Copy, Hash, NotepadText, GitFork, Volume2, Tag as TagIcon, Eraser, Share2, Columns2, Check, type LucideIcon } from 'lucide-react'
 import type { HighlightColor, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
@@ -84,14 +84,27 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
     const next = mode === 'strongs' ? 'brief' : 'strongs'
     void haptic.selection()
     setVerseSheetMode(next)
-    // The compact position grows to hold the verse (and shrinks back).
-    sheets.update('verse', { lowDetent: verseSheetLowPx(next, VERSE_SHEET_LOW_PX) + safeAreaBottom() })
+    if (next === 'brief') sheets.update('verse', { lowDetent: verseSheetLowPx('brief', VERSE_SHEET_LOW_PX) + safeAreaBottom() })
   }
   const openAndExpand = (fn: () => void) => () => { fn(); if (api.atLow) api.setDetent(1) }
-  const showVerseInline = mode === 'strongs' && !sel
+  // Strong's mode is a COMPACT-position view (TEST25-VERSE-002): the whole verse with its numbers,
+  // no highlight colours. Expanded, the toggle disappears and the study view shows the verse anyway.
+  const showVerseInline = mode === 'strongs' && !sel && api.atLow
+  // The compact position fits the whole verse — never a scroll inside the verse (measured, capped
+  // at 60 % of the screen).
+  const rootRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!showVerseInline) return
+    const el = rootRef.current
+    const sheetEl = el?.closest('.mobile-sheet') as HTMLElement | null
+    if (!el || !sheetEl) return
+    const chrome = el.getBoundingClientRect().top - sheetEl.getBoundingClientRect().top
+    const want = Math.min(Math.round(chrome + el.scrollHeight + 10), Math.round(window.innerHeight * 0.6))
+    sheets.update('verse', { lowDetent: want + safeAreaBottom() })
+  }, [showVerseInline, ctx.verse.book_id, ctx.verse.chapter, ctx.verse.verse_num, ctx.textId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`mobile-verse-sheet${api.atLow ? ' is-low' : ''}${showVerseInline ? ' is-strongs' : ''}`}>
+    <div ref={rootRef} className={`mobile-verse-sheet${api.atLow ? ' is-low' : ''}${showVerseInline ? ' is-strongs' : ''}`}>
       <div className="mobile-verse-actions-head">
         <div className="mobile-verse-actions-ref">{ctx.label}{sel ? ' · selection' : ''}</div>
         {sel && <div className="mobile-verse-actions-text">“{sel.text.trim()}”</div>}
@@ -100,19 +113,20 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
       {/* The four study actions — every position. */}
       <div className="mobile-verse-primary" role="group" aria-label="Verse actions">
         <Action icon={NotepadText} label="Notes" badge={noteCount} onClick={openAndExpand(onShowNotes)} />
-        <Action icon={Hash} label="Strong's" pressed={mode === 'strongs'} onClick={toggleStrongsMode} />
+        {api.atLow && !sel && <Action icon={Hash} label="Strong's" pressed={mode === 'strongs'} onClick={toggleStrongsMode} />}
         <Action icon={GitFork} label="Refs" onClick={openAndExpand(onShowCrossRefs)} />
         <Action icon={copied ? Check : Copy} label={copied ? 'Copied' : 'Copy'} onClick={() => { void copy() }} />
       </div>
 
       {showVerseInline && (
-        <div className="mobile-verse-strongs" data-no-sheet-drag>
+        <div className="mobile-verse-strongs">
           <StrongsVerse verse={ctx.verse} textId={ctx.textId} onStrongs={onStrongs} />
         </div>
       )}
 
-      {/* Highlight colours — one scrolling row; targets the selection when there is one. */}
-      <div className="mobile-swatch-row is-scroll" role="group" aria-label={sel ? 'Highlight selection' : 'Highlight verse'} data-no-sheet-drag>
+      {/* Highlight colours — one scrolling row; targets the selection when there is one. Hidden in
+          Strong's mode so the whole verse fits. */}
+      {!showVerseInline && <div className="mobile-swatch-row is-scroll" role="group" aria-label={sel ? 'Highlight selection' : 'Highlight verse'} data-no-sheet-drag>
         {HIGHLIGHT_COLOR_IDS.map((c) => (
           <button key={c} type="button" className={`mobile-swatch${ctx.activeHighlight === c && !sel ? ' is-on' : ''}`}
             style={{ backgroundColor: highlightDotColor(c) }} aria-label={`${HIGHLIGHT_LABELS[c]}${sel ? ' (selection)' : ''}`} aria-pressed={ctx.activeHighlight === c && !sel}
@@ -121,7 +135,7 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
         <button type="button" className="mobile-swatch is-clear" aria-label={sel ? 'Remove highlights from selection' : 'Remove highlight'} onClick={clear} disabled={busy}>
           <Eraser size={16} aria-hidden />
         </button>
-      </div>
+      </div>}
 
       {!api.atLow && (
         <>

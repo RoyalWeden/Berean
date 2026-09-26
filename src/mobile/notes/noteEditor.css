@@ -1,0 +1,97 @@
+/* Phone note editor chrome (TEST25-NOTES-003): the floating + insert button / menu and the
+   selection formatting bubble. Glass per docs/mobile/ios-design-system.md. WKWebView renders an
+   OUTER box-shadow on a backdrop-filtered element as a square, so backdrop-filtered surfaces here
+   carry only a hairline border + inset top highlight. Reduce Transparency is handled by the
+   tokens themselves (mobile.css drops the filter and makes --m-glass-control opaque). */
+
+/* ── + insert button ── */
+.mobile-note-editor { position: relative; }
+.m-note-insert { position: absolute; left: 16px; bottom: 16px; z-index: 30; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; }
+.m-note-insert > * { pointer-events: auto; }
+/* Above the floating bottom controls; with the keyboard open (they hide) just above the keyboard —
+   .mobile-root already pads the keyboard's height, so the container ends at its top edge. */
+.mobile-root.has-overlay-nav .m-note-insert.is-inline { bottom: calc(var(--m-nav-h, 64px) + 12px); }
+html[data-keyboard] .m-note-insert.is-inline,
+html[data-keyboard] .mobile-root.has-overlay-nav .m-note-insert.is-inline { bottom: 12px; }
+/* In a sheet: fixed to the screen (the sheet's visible bottom), above the keyboard when it is up. */
+.m-note-insert.is-viewport { position: fixed; left: 16px; bottom: calc(var(--m-keyboard-h, 0px) + var(--m-safe-bottom, 0px) + 16px); z-index: 150; }
+html[data-keyboard] .m-note-insert.is-viewport { bottom: calc(var(--m-keyboard-h, 0px) + 12px); }
+.m-note-insert.is-hidden { opacity: 0; transform: translateY(12px); }
+.m-note-insert.is-hidden > * { pointer-events: none; }
+
+.m-note-insert-fab,
+.m-note-fab {
+  width: 48px; height: 48px; border-radius: 24px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: rgb(var(--color-accent));
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+.m-note-insert-fab:active, .m-note-fab:active { background: var(--m-glass-control-pressed); transform: scale(0.94); }
+.m-note-insert-fab:disabled { opacity: 0.5; }
+
+.m-note-insert-menu {
+  min-width: 220px; max-width: calc(100vw - 32px); padding: 6px;
+  border-radius: var(--m-radius-card, 16px);
+  background: var(--m-glass-thick); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  transform-origin: bottom left; animation: m-note-insert-in 0.16s ease-out;
+}
+@keyframes m-note-insert-in { from { opacity: 0; transform: scale(0.92) translateY(6px); } to { opacity: 1; transform: none; } }
+.m-note-insert-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0 12px;
+  border: 0; border-radius: 10px; background: none; color: rgb(var(--color-text-primary));
+  font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left;
+}
+.m-note-insert-row svg { flex: none; color: rgb(var(--color-accent)); }
+.m-note-insert-row:active { background: var(--m-fill-pressed); }
+.m-note-insert-link, .m-selbar-link { display: flex; align-items: center; gap: 6px; }
+.m-note-insert-link { padding: 2px; }
+.m-note-insert-link input, .m-selbar-link input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--m-radius-field, 12px);
+  background: var(--m-fill); color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); outline: none;
+}
+.m-note-insert-link button, .m-selbar-link button {
+  flex: none; min-height: 44px; padding: 0 12px; border: 0; background: none;
+  color: rgb(var(--color-accent)); font: inherit; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1));
+}
+.m-note-insert-link button:disabled { opacity: 0.4; }
+
+/* ── selection formatting bubble ── */
+.m-selbar {
+  position: fixed; z-index: var(--z-popover, 400);
+  display: flex; align-items: center; gap: 0; padding: 3px;
+  max-width: calc(100vw - 16px);
+  border-radius: 25px;
+  background: var(--m-glass-thick); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  animation: m-note-insert-in 0.14s ease-out;
+}
+.m-selbar-btn, .m-selbar-swatch {
+  flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; color: rgb(var(--color-text-primary)); -webkit-tap-highlight-color: transparent;
+}
+.m-selbar-btn:active, .m-selbar-swatch:active { background: var(--m-fill-pressed); }
+.m-selbar-btn.is-on { color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.14); }
+.m-selbar-swatch span { width: 24px; height: 24px; border-radius: 12px; box-shadow: inset 0 0 0 0.5px var(--m-hairline); }
+.m-selbar-link { padding: 0 2px 0 4px; width: min(300px, calc(100vw - 32px)); }
+.m-selbar-link input { background: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-note-insert, .m-note-insert-fab, .m-note-fab { transition: none; }
+  .m-note-insert.is-hidden { transform: none; }
+  .m-note-insert-menu, .m-selbar { animation: none; }
+  .m-note-insert-fab:active, .m-note-fab:active { transform: none; }
+}
+
+/* Phone editor surface (NoteEditorPM chrome="phone"): no docked toolbar, so no top inset; room at
+   the end so the last lines scroll clear of the floating + button. */
+.berean-pm-editor.pm-chrome-phone .ProseMirror { padding-bottom: 88px; }
+.berean-pm-editor.pm-chrome-phone { scroll-padding-bottom: 72px; }

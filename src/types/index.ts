@@ -534,6 +534,9 @@ export interface TabNavEntry {
   /** A tab's "home" destination (the Notes list, the Lexicon search, the YouTube browse view)
    *  recorded as a real history step, so ‹ from a note returns to the list and › returns. */
   home?: boolean
+  /** Recorded by `transformTab` (iPhone tab-type switcher, TEST25-NAV-001): restoring this entry
+   *  from a tab of ANOTHER type turns the tab back into `type` (same position, same history). */
+  switchType?: boolean
 }
 
 /** A single entry in the global back/forward navigation stack (all tab types). */

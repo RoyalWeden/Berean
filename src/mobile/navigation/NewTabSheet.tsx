@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, Clock, MoreHorizontal, XCircle, type LucideIcon } from 'lucide-react'
+import { Search, Clock, XCircle } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_TYPE_LABEL } from '@/lib/historyModel'
 import { haptic } from '../primitives/haptics'
 import { classifyNewTabQuery, openQueryInNewSearchTab, DestinationList, runPrimaryDestination } from './destinationQuery'
+import { ExperienceRow } from './ExperienceRow'
+import { SWITCHER_EXPERIENCES } from './experiences'
 
 export { classifyNewTabQuery, openQueryInNewSearchTab }
 
@@ -17,9 +19,10 @@ export type MorePageRoute = 'more' | 'settings' | 'history' | 'workspaces'
  *   1. the search field (auto-focused): a reference opens Scripture, a Strong's number the
  *      Lexicon, anything else a DEDICATED new Search tab — the options while typing come from
  *      destinationQuery.tsx (shared with the caret's current-tab field);
- *   2. with nothing typed, ONE compact row of the high-frequency new tabs (Scripture, Note, Today,
- *      Lexicon, YouTube) + More — History and Settings live in More (History also behind Recent's
- *      "All History"), so they are not repeated here;
+ *   2. with nothing typed, ONE compact row of the major experiences as new tabs (Scripture, Notes,
+ *      Today, Lexicon, YouTube, Search, History, Settings — the same set as the top-left tab-type
+ *      switcher and the caret's "Go to" row, TEST25-NAV-001) + More; typing an experience's name
+ *      ("notes", "settings", "strong's") offers it as a destination too;
  *   3. Recent (the last few places).
  * Scrolling dismisses the keyboard. No Compare, no Workspaces (Sessions live in More).
  */
@@ -38,11 +41,6 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
   const done = () => { void haptic.light(); close() }
   // Destination rows add their own haptic; they only need the sheet closed.
   const closeSheet = useCallback(() => close(), [close])
-  const newScripture = () => { done(); st().createTab('bible'); st().setActiveSpace('scripture') }
-  const newNote = () => { done(); st().createTab('note'); st().setActiveSpace('notes') }
-  const daily = () => { done(); st().requestDailyNote() }
-  const newLexicon = () => { done(); st().createTab('lexicon'); st().setActiveSpace('lexicon') }
-  const newYouTube = () => { done(); st().createTab('youtube'); st().setActiveSpace('youtube') }
   const allHistory = () => { done(); st().ensureTab('history') }
   // Scrolling the destinations / recent list puts the keyboard away (NEW-013).
   const dismissKeyboard = () => { if (document.activeElement === inputRef.current) inputRef.current?.blur() }
@@ -64,16 +62,8 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
 
       {q.kind === 'empty' && (
         <>
-          {/* Icon-only high-frequency destinations (NEW-013): one quiet grouped row, each a real
-              new tab; More is last. Names are spoken by VoiceOver and shown as tooltips. */}
-          <div className="mobile-newtab-dests" role="group" aria-label="New tab" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
-            <Dest icon={BookOpen} label="New Scripture tab" onClick={newScripture} />
-            <Dest icon={NotepadText} label="New note" onClick={newNote} />
-            <Dest icon={CalendarDays} label="Today's daily note" onClick={daily} />
-            <Dest icon={BookMarked} label="New Lexicon tab" onClick={newLexicon} />
-            <Dest icon={Youtube} label="New YouTube tab" onClick={newYouTube} />
-            <Dest icon={MoreHorizontal} label="More — history, settings, study trail, tags, queue, PDFs, sessions" onClick={() => { done(); openMore('more') }} more />
-          </div>
+          {/* The major experiences, each a real new tab; More is last (NEW-013, TEST25-NAV-001). */}
+          <ExperienceRow items={SWITCHER_EXPERIENCES} target="new-tab" onDone={closeSheet} onMore={() => { close(); openMore('more') }} />
           {recent.length > 0 && (
             <section className="mobile-newtab-section" aria-label="Recent">
               <div className="mobile-newtab-section-head">
@@ -107,8 +97,4 @@ function dedupeRecent(history: HistoryEntry[], max: number): HistoryEntry[] {
     if (out.length >= max) break
   }
   return out
-}
-
-function Dest({ icon: Icon, label, onClick, more }: { icon: LucideIcon; label: string; onClick: () => void; more?: boolean }) {
-  return <button type="button" className={`mobile-newtab-dest${more ? ' is-more' : ''}`} onClick={onClick} aria-label={label} title={label}><Icon size={21} aria-hidden /></button>
 }

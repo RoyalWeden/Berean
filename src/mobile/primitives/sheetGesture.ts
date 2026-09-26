@@ -7,9 +7,13 @@
  *     unless it already sits at its highest detent
  *   • anywhere else → the content scrolls
  *
- * The decision is re-evaluated on EVERY touchmove (not only the first), so a scroll that reaches its
- * boundary mid-gesture hands over continuously from that point — the sheet never jumps. Once the sheet
- * is moving, pulling it back past where it took over hands the gesture back to the content.
+ * While the CONTENT owns the touch the decision is re-evaluated on every touchmove, so a scroll that
+ * reaches its boundary mid-gesture hands over continuously from that point — the sheet never jumps.
+ * TEST25-SHEET-001 (gesture ownership): once the SHEET is moving it owns the rest of that touch —
+ * reversing direction keeps moving the sheet (up and down, between its detents) until the finger
+ * lifts; only the next touch is interpreted afresh. Below the highest detent an upward drag expands
+ * the sheet first (like UISheetPresentationController's scrolling-expands-at-edge), whatever the
+ * content's scroll position.
  */
 
 export interface ScrollBounds { scrollTop: number; scrollHeight: number; clientHeight: number }
@@ -23,7 +27,7 @@ export function atScrollBottom(b: ScrollBounds): boolean { return b.scrollTop + 
 /** Should this finger movement (dy > 0 = down, per move) be taken over by the sheet? */
 export function sheetTakesOver(dy: number, bounds: ScrollBounds, atTopDetent: boolean): boolean {
   if (dy > 0) return atScrollTop(bounds)
-  if (dy < 0) return !atTopDetent && atScrollBottom(bounds)
+  if (dy < 0) return !atTopDetent
   return false
 }
 
@@ -35,12 +39,11 @@ export function followY(baseY: number, fingerDelta: number, minY: number, maxY: 
 }
 
 /**
- * While the sheet follows the finger, has it been pulled back past the point it took over at, in
- * the direction the content can scroll again? Then the content gets the gesture back.
- * `direction` is the direction of the hand-off (1 = took over moving down, -1 = moving up).
+ * Once the sheet owns a touch it keeps it until release (TEST25-SHEET-001) — the content never
+ * takes a gesture back mid-touch. Kept as a function so the rule is explicit and tested.
  */
-export function handsBackToContent(direction: 1 | -1, baseY: number, y: number): boolean {
-  return direction === 1 ? y < baseY : y > baseY
+export function handsBackToContent(_direction: 1 | -1, _baseY: number, _y: number): boolean {
+  return false
 }
 
 /** Release velocity (px/s, + = down) from recent samples, over the last ~100 ms. */

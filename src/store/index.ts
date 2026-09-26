@@ -233,6 +233,111 @@ function sameNavState(a: Record<string, unknown> | undefined, b: Record<string, 
   try { return JSON.stringify(a) === JSON.stringify(b) } catch { return false }
 }
 
+// ── Tab-type change (transformTab, iPhone TEST25-NAV-001) ─────────────────────────────────────
+// Tabs live in per-type spaces, so "turn this tab into a Notes tab" is: a new tab of the target
+// type takes the old tab's place in the session's display order, inherits its per-tab history
+// (plus a step for where it was and one for where it went), and the old tab is removed — not
+// archived: it is not gone, it is the Back step. Back / forward across the change swap back.
+
+/** A blank tab of `type` — the same defaults as createTab. */
+function blankTabOfType(type: TabType, id: string, s: AppState): Tab {
+  const spaceId = TYPE_TO_SPACE[type]
+  switch (type) {
+    case 'bible': {
+      // Open Scripture where the user was last reading (the active Scripture tab), else Genesis 1.
+      const src = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture && t.type === 'bible')
+      const st = src?.state as BibleTabState | undefined
+      return { id, spaceId, type, title: src && st ? src.title : 'Genesis 1', state: {
+        bookId: st?.bookId ?? 'GEN', chapter: st?.chapter ?? 1, translation: st?.translation ?? s.defaultBibleTranslation.toUpperCase(),
+        showStrongs: st?.showStrongs ?? false, scrollPosition: 0,
+      } }
+    }
+    case 'lexicon': return { id, spaceId, type, title: 'Lexicon', state: { strongsNum: null } }
+    case 'note': return { id, spaceId, type, title: 'Notes', state: { noteId: null, isNew: true } }
+    case 'youtube': return { id, spaceId, type, title: 'YouTube', state: { videoId: null, playlistId: null } }
+    case 'tags': return { id, spaceId, type, title: 'Tags', state: { selectedTagId: null } as TagsTabState }
+    case 'history': return { id, spaceId, type, title: 'History', state: {} }
+    case 'settings': return { id, spaceId, type, title: 'Settings', state: {} }
+    case 'pdf': return { id, spaceId, type, title: 'PDF', state: {} as TabState }
+    default: return { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
+  }
+}
+
+/** A tab's state as a history snapshot (no bulky result lists — pages re-run their query). */
+function navSnapshotOf(state: TabState): Record<string, unknown> {
+  const { results: _r, ...rest } = state as unknown as Record<string, unknown>
+  return rest
+}
+
+/** The tab state a type-change entry recreates its tab with. */
+function entryTabSeed(entry: TabNavEntry): Record<string, unknown> {
+  return {
+    ...(entry.bookId ? { bookId: entry.bookId, chapter: entry.chapter ?? 1, ...(entry.translation ? { translation: entry.translation } : {}) } : {}),
+    ...(entry.state ?? {}),
+  }
+}
+
+/** The history step for a tab that has just become `tab.type`. */
+function typeChangeEntryFor(tab: Tab, extraState?: Record<string, unknown>): Omit<TabNavEntry, 'id'> {
+  if (tab.type === 'bible') {
+    const b = tab.state as BibleTabState
+    return { type: 'bible', title: tab.title, bookId: b.bookId, chapter: b.chapter, translation: b.translation, switchType: true, ...(extraState ? { state: extraState } : {}) }
+  }
+  const listLike = tab.type === 'note' || tab.type === 'lexicon' || tab.type === 'youtube'
+  return { type: tab.type, title: tab.title, switchType: true, ...(listLike ? { home: true } : {}), state: { ...navSnapshotOf(tab.state), ...(extraState ?? {}) } }
+}
+
+/**
+ * Replace tab `tabId` by a new tab of `toType` in the same place: same session display position
+ * (and same per-space index when the space is the same), same pin / origin, its per-tab history
+ * moved over, the old tab's per-tab state pruned. Activates the new tab. Returns null when the
+ * tab does not exist.
+ */
+function swapTabType(
+  get: () => AppState,
+  set: (p: Partial<AppState>) => void,
+  tabId: string,
+  toType: TabType,
+  seed: { title?: string; state?: Record<string, unknown> } = {},
+): { space: SpaceId; id: string; tab: Tab } | null {
+  const s = get()
+  const fromSpace = SPACES_ALL.find((sp) => (s.tabs[sp] ?? []).some((t) => t.id === tabId))
+  if (!fromSpace) return null
+  const old = s.tabs[fromSpace].find((t) => t.id === tabId)!
+  const toSpace = TYPE_TO_SPACE[toType]
+  const id = `${toType}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const base = blankTabOfType(toType, id, s)
+  const tab: Tab = {
+    ...base,
+    title: seed.title || base.title,
+    state: { ...(base.state as unknown as Record<string, unknown>), ...(seed.state ?? {}) } as unknown as TabState,
+    ...(old.isPinned ? { isPinned: true } : {}),
+    ...(old.originTabId ? { originTabId: old.originTabId, originSpaceId: old.originSpaceId } : {}),
+  }
+  const all = SPACES_ALL.flatMap((sp) => s.tabs[sp] ?? [])
+  const stored = s.sessionDisplayOrders[s.currentSessionId] ?? []
+  const live = [...stored.filter((x) => all.some((t) => t.id === x)), ...all.filter((t) => !stored.includes(t.id)).map((t) => t.id)]
+  const order = live.map((x) => (x === tabId ? id : x))
+  const tabs = { ...s.tabs }
+  const fromIdx = tabs[fromSpace].findIndex((t) => t.id === tabId)
+  if (fromSpace === toSpace) tabs[toSpace] = tabs[toSpace].map((t) => (t.id === tabId ? tab : t))
+  else { tabs[fromSpace] = tabs[fromSpace].filter((t) => t.id !== tabId); tabs[toSpace] = [...tabs[toSpace], tab] }
+  const activeTabId = { ...s.activeTabId, [toSpace]: id }
+  if (fromSpace !== toSpace && s.activeTabId[fromSpace] === tabId) activeTabId[fromSpace] = tabs[fromSpace][Math.max(0, fromIdx - 1)]?.id ?? null
+  const stack = s.tabNavStacks[tabId]
+  const pruned = prunePerTabState(s, fromSpace, tabId)
+  set({
+    tabs, activeTabId, activeSpace: toSpace,
+    tabMRUList: updateMRU(s.tabMRUList.filter((m) => m.tabId !== tabId), toSpace, id),
+    sessionDisplayOrders: { ...s.sessionDisplayOrders, [s.currentSessionId]: order },
+    ...pruned,
+    tabNavStacks: stack ? { ...pruned.tabNavStacks!, [id]: stack } : pruned.tabNavStacks!,
+    tabLastAccessed: { ...pruned.tabLastAccessed!, [`${toSpace}:${id}`]: Date.now() },
+    ...(toType === 'note' ? { pendingNoteId: null } : {}),
+  })
+  return { space: toSpace, id, tab }
+}
+
 /**
  * Restore one per-tab history entry (back and forward share this). Order: a generic `state`
  * snapshot is re-applied first (SEP25 — Search / Settings / Notes-list destinations and extra
@@ -247,6 +352,12 @@ function restoreTabNavEntry(
   stackType: TabType | undefined,
   entry: TabNavEntry,
 ): void {
+  // A step recorded across a tab-type change (transformTab): turn this tab back into the entry's
+  // type first — same position, same history — then restore the entry on it.
+  if (entry.switchType && stackType && entry.type !== stackType) {
+    const moved = swapTabType(get, set, tabId, entry.type, { title: entry.title, state: entryTabSeed(entry) })
+    if (moved) { restoreTabNavEntry(get, set, moved.space, moved.id, entry.type, entry); return }
+  }
   if (entry.state) get().updateTabState(space, tabId, entry.state as Partial<TabState>)
   if (entry.home) {
     if (stackType === 'note') get().bumpNotesHomeToken()
@@ -787,6 +898,11 @@ export interface AppState {
   addTab: (tab: Tab, position?: 'top' | 'after-active' | 'end') => void
   createTab: (type: TabType, position?: 'top' | 'after-active' | 'end') => void
   ensureTab: (type: TabType) => void
+  /** Change tab `tabId` into a tab of `toType` without creating another tab (iPhone tab-type
+   *  switcher / caret "Go to", TEST25-NAV-001): it keeps its place in the session's tab order and
+   *  its per-tab history — Back returns to the previous type and state. `state` seeds the new
+   *  tab (e.g. Compare). Same type → just activates it. Returns the (new) tab id, or null. */
+  transformTab: (tabId: string, toType: TabType, opts?: { state?: Record<string, unknown> }) => string | null
   closeTab: (spaceId: SpaceId, tabId: string) => void
   closeActiveTab: () => void
   setActiveTab: (spaceId: SpaceId, tabId: string) => void
@@ -2298,6 +2414,38 @@ export const useAppStore = create<AppState>()(
             sessionDisplayOrders: { ...state.sessionDisplayOrders, [state.currentSessionId]: newOrder },
           })
         }
+      },
+
+      transformTab: (tabId, toType, opts = {}) => {
+        const s = get()
+        const fromSpace = SPACES_ALL.find((sp) => (s.tabs[sp] ?? []).some((t) => t.id === tabId))
+        if (!fromSpace) return null
+        const old = s.tabs[fromSpace].find((t) => t.id === tabId)!
+        if (old.type === toType) {
+          if (opts.state) get().updateTabState(fromSpace, tabId, opts.state as Partial<TabState>)
+          set({ activeSpace: fromSpace, activeTabId: { ...get().activeTabId, [fromSpace]: tabId } })
+          return tabId
+        }
+        if (s.activeSpace === fromSpace && s.activeTabId[fromSpace] === tabId) captureActiveScrollIntoNavEntry(get, tabId, fromSpace)
+        // History: where the tab was (merged into its current step when that step is of the old
+        // type, so Back lands there in one step), then where it went.
+        const snapshot = navSnapshotOf((get().tabs[fromSpace].find((t) => t.id === tabId) ?? old).state)
+        const cur = get().tabNavStacks[tabId] ?? { stack: [], idx: -1 }
+        const kept = cur.stack.slice(0, cur.idx + 1)
+        const top = kept[kept.length - 1]
+        const scrollPosition = typeof snapshot.scrollPosition === 'number' && snapshot.scrollPosition > 0 ? snapshot.scrollPosition : top?.scrollPosition
+        const from: TabNavEntry = top && top.type === old.type
+          ? { ...top, title: top.title || old.title, state: snapshot, switchType: true, ...(scrollPosition ? { scrollPosition } : {}) }
+          : { id: `tnav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type: old.type, title: old.title, state: snapshot, switchType: true, ...(scrollPosition ? { scrollPosition } : {}) }
+        const history = top && top.type === old.type ? [...kept.slice(0, -1), from] : [...kept, from]
+        set({ tabNavStacks: { ...get().tabNavStacks, [tabId]: { stack: history, idx: history.length - 1 } } })
+        const moved = swapTabType(get, set, tabId, toType, { state: opts.state })
+        if (!moved) return null
+        const to: TabNavEntry = { id: `tnav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...typeChangeEntryFor(moved.tab, opts.state) }
+        const maxStack = get().tabNavMaxStack ?? 100
+        const stack = [...history, to].slice(-maxStack)
+        set({ tabNavStacks: { ...get().tabNavStacks, [moved.id]: { stack, idx: stack.length - 1 } } })
+        return moved.id
       },
 
       closeTab: (spaceId, tabId) => {

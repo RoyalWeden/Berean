@@ -5,6 +5,7 @@ import { parseRef, bookName, isStrongsRef } from '@/lib/parseRef'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { displayChapter } from '@/lib/chapterNumbering'
 import { haptic } from '../primitives/haptics'
+import { EXPERIENCES, experienceOfTab, matchExperiences, runExperience, type ExperienceId } from './experiences'
 
 /**
  * What a typed query can open — the one vocabulary shared by Floating Search (the plus / ⌘T
@@ -22,6 +23,11 @@ import { haptic } from '../primitives/haptics'
  *   useDestinationActions(q, target, onDone?)    → specs + icon + run() (onDone runs first: close the sheet)
  *   <DestinationList query target onDone />      → the inset-grouped rows (renders nothing for an empty query)
  *   runPrimaryDestination(q, target, onDone?)    → the Return-key action; false when the query is empty
+ *
+ * Typed experience commands (TEST25-NAV-001): words like "notes", "today", "strong's", "settings",
+ * "compare" (and their prefixes — see experiences.ts's keyword table) add `exp-*` destinations
+ * after the primary one: 'current-tab' changes THIS tab into that experience (transformTab),
+ * 'new-tab' opens it in a new tab. The text search stays primary, so Return keeps searching.
  */
 export type DestinationTarget = 'new-tab' | 'current-tab'
 
@@ -47,6 +53,7 @@ export type DestinationId =
   | 'ref-new-tab' | 'ref-current-tab'
   | 'strongs-open'
   | 'search-new-tab' | 'search-current-tab'
+  | `exp-${ExperienceId}`
 
 export interface DestinationSpec {
   id: DestinationId
@@ -55,13 +62,26 @@ export interface DestinationSpec {
   primary?: boolean
 }
 
-const ICON: Record<DestinationId, LucideIcon> = {
+const ICON: Record<Exclude<DestinationId, `exp-${string}`>, LucideIcon> = {
   'ref-new-tab': BookOpen, 'ref-current-tab': CornerDownLeft, 'strongs-open': Hash,
   'search-new-tab': Search, 'search-current-tab': Search,
 }
+function iconFor(id: DestinationId): LucideIcon {
+  return id.startsWith('exp-') ? EXPERIENCES[id.slice(4) as ExperienceId].icon : ICON[id as keyof typeof ICON]
+}
 
-/** Pure: the destinations for a query, primary first. */
-export function destinationSpecs(query: string, target: DestinationTarget): DestinationSpec[] {
+/** Pure: the destinations for a query, primary first. `current` (caret) is the experience the
+ *  current tab already is — not offered as a change. */
+export function destinationSpecs(query: string, target: DestinationTarget, current?: ExperienceId | null): DestinationSpec[] {
+  const base = baseDestinationSpecs(query, target)
+  if (classifyNewTabQuery(query).kind !== 'text') return base
+  const exps: DestinationSpec[] = matchExperiences(query)
+    .filter((e) => !(target === 'current-tab' && e === current))
+    .map((e) => ({ id: `exp-${e}` as const, label: EXPERIENCES[e].label, subtitle: target === 'current-tab' ? 'Change this tab' : 'New tab' }))
+  return [...base.slice(0, 1), ...exps, ...base.slice(1)]
+}
+
+function baseDestinationSpecs(query: string, target: DestinationTarget): DestinationSpec[] {
   const q = classifyNewTabQuery(query)
   const newTab = target === 'new-tab'
   switch (q.kind) {
@@ -105,8 +125,9 @@ export function openQueryInNewSearchTab(query: string): void {
   s.addHistoryEntry({ type: 'search', title: `"${query.trim()}"`, query: query.trim() })
 }
 
-/** Perform one destination. `target` only matters for the history origin label. */
-export function runDestination(id: DestinationId, query: string, _target: DestinationTarget): void {
+/** Perform one destination. `target` matters for experience destinations (change this tab / new tab). */
+export function runDestination(id: DestinationId, query: string, target: DestinationTarget): void {
+  if (id.startsWith('exp-')) { runExperience(id.slice(4) as ExperienceId, target); return }
   const q = classifyNewTabQuery(query)
   const s = useAppStore.getState()
   switch (id) {
@@ -138,16 +159,17 @@ export interface DestinationAction extends DestinationSpec { icon: LucideIcon; r
 
 /** Specs + icons + bound run(); `onDone` (close the sheet / blur the field) runs before each. */
 export function useDestinationActions(query: string, target: DestinationTarget, onDone?: () => void): DestinationAction[] {
-  return useMemo(() => destinationSpecs(query, target).map((spec) => ({
+  const current = useAppStore((s) => experienceOfTab(s.tabs[s.activeSpace]?.find((t) => t.id === s.activeTabId[s.activeSpace])))
+  return useMemo(() => destinationSpecs(query, target, current).map((spec) => ({
     ...spec,
-    icon: ICON[spec.id],
+    icon: iconFor(spec.id),
     run: () => { void haptic.light(); onDone?.(); runDestination(spec.id, query, target) },
-  })), [query, target, onDone])
+  })), [query, target, onDone, current])
 }
 
 /** The Return key: the primary destination. Returns false when there is nothing to do. */
 export function runPrimaryDestination(query: string, target: DestinationTarget, onDone?: () => void): boolean {
-  const primary = destinationSpecs(query, target).find((d) => d.primary)
+  const primary = baseDestinationSpecs(query, target).find((d) => d.primary)
   if (!primary) return false
   void haptic.light()
   onDone?.()

@@ -1,0 +1,115 @@
+/* Read Aloud on the phone (TEST25-AUDIO): floating glass controls + the audio sheet.
+   WKWebView: an OUTER box-shadow on an element that also has backdrop-filter paints as a square
+   behind a rounded element, so the floating circles use a hairline border + inset top highlight
+   only — no outer shadow. Glass tokens (--m-glass-*) already go opaque under
+   html[data-reduce-transparency] / prefers-reduced-transparency (mobile.css). */
+
+.m-audio-float {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0.5px solid var(--m-hairline);
+  background: var(--m-glass-control);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  color: rgb(var(--color-text-primary));
+  padding: 0; font: inherit;
+  -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+}
+.m-audio-float:active { background: var(--m-glass-control-pressed); }
+
+/* Top-right speaker: vertically centred in the page header band, clear of the status bar (the
+   passage capsule is centred, so right is free). Header rows pad 56px on the right while it shows
+   (html[data-floating-right]). Hides with the header when the chrome collapses on scroll. */
+.m-audio-topbtn {
+  position: absolute; top: calc(var(--m-safe-top) + ((var(--m-header-h, 44px) - 40px) / 2)); right: 10px; z-index: 9;
+  width: 40px; height: 40px; border-radius: 50%;
+  transition: opacity 0.2s ease;
+}
+.m-audio-topbtn::before { content: ''; position: absolute; inset: -2px; } /* 44pt target */
+.m-audio-topbtn.is-hidden { opacity: 0; pointer-events: none; }
+
+/* Floating play/pause: lower-centre, above the bottom navigation (--m-nav-h already includes the
+   home-indicator inset); drops toward the bottom edge when the reader collapses the navigation. */
+.m-audio-fab-wrap {
+  position: absolute; left: 50%; z-index: 9;
+  bottom: calc(var(--m-nav-h, 64px) + 10px);
+  transform: translateX(-50%);
+  transition: bottom 0.24s ease, opacity 0.2s ease;
+}
+.m-audio-fab-wrap.is-low { bottom: calc(var(--m-safe-bottom) + 12px); }
+.m-audio-fab-wrap.is-hidden { opacity: 0; pointer-events: none; }
+.m-audio-fab { width: 56px; height: 56px; border-radius: 50%; }
+.m-audio-fab:active { transform: scale(0.95); }
+.m-audio-play-glyph { margin-left: 3px; } /* optical centring of the triangle */
+
+/* "Follow" resume chip: beside the play button, so the button itself stays centred. */
+.m-audio-follow-chip {
+  position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+  height: 32px; padding: 0 12px; gap: 5px; border-radius: 16px; white-space: nowrap;
+  font-size: 13px; font-weight: 600; color: rgb(var(--color-accent));
+}
+.m-audio-follow-chip::before { content: ''; position: absolute; inset: -6px; } /* 44pt target */
+
+/* ── Audio sheet ─────────────────────────────────────────────────────────────────────────── */
+.m-audio-sheet { padding: 4px 20px 12px; display: flex; flex-direction: column; gap: 18px; }
+.m-audio-sheet-head { text-align: center; }
+.m-audio-sheet-title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: rgb(var(--color-text-primary)); }
+.m-audio-sheet-source { margin-top: 3px; font-size: 13px; color: rgb(var(--color-text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.m-audio-progress { display: flex; flex-direction: column; gap: 6px; }
+.m-audio-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 28px; margin: 0; background: transparent;
+  --m-audio-fill: 0%;
+}
+.m-audio-slider::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, rgb(var(--color-text-primary) / 0.7) var(--m-audio-fill), var(--m-fill-pressed, rgb(var(--color-surface-4))) var(--m-audio-fill));
+}
+.m-audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 50%;
+  background: rgb(var(--color-surface-3)); border: 0.5px solid var(--m-hairline);
+}
+.m-audio-slider:disabled { opacity: 0.5; }
+.m-audio-times { display: flex; justify-content: space-between; font-size: 12px; font-variant-numeric: tabular-nums; color: rgb(var(--color-text-muted)); }
+
+.m-audio-transport { display: flex; align-items: center; justify-content: center; gap: 28px; }
+.m-audio-transport-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 60px; height: 60px; border: 0; border-radius: 50%; background: none; padding: 0;
+  color: rgb(var(--color-text-primary)); -webkit-tap-highlight-color: transparent;
+}
+.m-audio-transport-btn:active { background: var(--m-fill); }
+.m-audio-transport-btn.is-primary { width: 76px; height: 76px; background: var(--m-fill); }
+.m-audio-transport-btn.is-primary:active { background: var(--m-fill-pressed); }
+
+.m-audio-secondary { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.m-audio-secondary > :first-child { justify-self: start; }
+.m-audio-secondary > :last-child { justify-self: end; }
+.m-audio-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 44px; height: 36px; padding: 0 12px;
+  border: 0; border-radius: 18px; background: var(--m-fill); color: rgb(var(--color-text-primary));
+  font: inherit; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-audio-chip:active { background: var(--m-fill-pressed); }
+.m-audio-chip.is-on { color: rgb(var(--color-accent)); }
+.m-audio-countdown { font-weight: 600; }
+
+.m-audio-tertiary { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; padding-top: 2px; border-top: 0.5px solid var(--m-separator); }
+.m-audio-link {
+  display: inline-flex; align-items: center; gap: 5px; height: 44px; padding: 0 10px;
+  border: 0; background: none; color: rgb(var(--color-text-muted)); font: inherit; font-size: 13px;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-audio-link:active { color: rgb(var(--color-text-primary)); }
+.m-audio-link.is-attention { color: rgb(var(--color-accent)); font-weight: 600; }
+.m-audio-link.is-destructive { color: rgb(220 70 70); }
+
+.m-audio-subview { padding: 0 4px 12px; }
+.m-audio-sleep-status { text-align: center; padding: 4px 0 10px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.m-audio-footnote { padding: 8px 4px; }
+
+html[data-reduce-transparency] .m-audio-float { -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-motion: reduce) {
+  .m-audio-fab-wrap, .m-audio-topbtn { transition: none; }
+  .m-audio-fab:active { transform: none; }
+}

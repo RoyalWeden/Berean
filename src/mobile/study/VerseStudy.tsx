@@ -49,8 +49,8 @@ export function VerseStudy({ verse, textId, showVerse = true, onStrongs, onNavig
   return (
     <div className="mobile-study">
       {showVerse && <StrongsVerse verse={verse} textId={textId} onStrongs={onStrongs} />}
-      <div className="mobile-study-refs-head">
-        <span>Cross references</span>
+      {/* No "Cross references" heading (TEST25-VERSE-001): the source switch says what this is. */}
+      <div className="mobile-study-refs-head is-bare" role="group" aria-label="Cross references">
         <CrossRefSourcePicker />
       </div>
       <CrossRefList bookId={verse.book_id} chapter={verse.chapter} verses={[verse.verse_num]} textId={textId} onNavigate={onNavigate} />

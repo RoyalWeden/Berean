@@ -19,9 +19,12 @@ describe('sheet body hand-off', () => {
     expect(sheetTakesOver(-4, b(0, 300, 600), false)).toBe(true)
     expect(sheetTakesOver(4, b(0, 300, 600), false)).toBe(true)
   })
-  it('content scrolled to the middle → the content scrolls, either direction', () => {
+  it('content scrolled to the middle → dragging down scrolls the content; at the top detent dragging up scrolls it too', () => {
     expect(sheetTakesOver(4, b(700), false)).toBe(false)
-    expect(sheetTakesOver(-4, b(700), false)).toBe(false)
+    expect(sheetTakesOver(-4, b(700), true)).toBe(false)
+  })
+  it('below the highest detent an upward drag expands the sheet first, whatever the scroll position (TEST25-SHEET-001)', () => {
+    expect(sheetTakesOver(-4, b(700), false)).toBe(true)
   })
   it('the hand-off is continuous: dragging down from the top of a scrolled list only takes over once the top is reached', () => {
     let top = 30
@@ -34,10 +37,10 @@ describe('sheet body hand-off', () => {
     expect(followY(64, -100, 64, 800)).toBeCloseTo(59)
     expect(followY(700, 400, 64, 800)).toBe(800)
   })
-  it('pulling back past the hand-off point returns the gesture to the content', () => {
-    expect(handsBackToContent(1, 300, 299)).toBe(true)
-    expect(handsBackToContent(1, 300, 320)).toBe(false)
-    expect(handsBackToContent(-1, 300, 301)).toBe(true)
+  it('once the sheet moves it owns the touch: reversing direction never hands it back to the content (TEST25-SHEET-001)', () => {
+    expect(handsBackToContent(1, 300, 299)).toBe(false)
+    expect(handsBackToContent(1, 300, 120)).toBe(false)
+    expect(handsBackToContent(-1, 300, 301)).toBe(false)
   })
   it('release velocity is measured over the last ~100 ms', () => {
     expect(releaseVelocity([{ t: 0, y: 0 }])).toBe(0)

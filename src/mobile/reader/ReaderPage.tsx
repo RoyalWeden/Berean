@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat } from 'lucide-react'
+import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat, MoveHorizontal } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
 import ChapterView from '@/components/bible/ChapterView'
@@ -24,6 +24,7 @@ import { SelectionBar } from '../study/SelectionBar'
 import { VerseInteractionContext } from '@/components/bible/verseInteraction'
 import { PassagePicker } from './PassagePicker'
 import { CaretGoTo } from '../commands/CaretGoTo'
+import { getReaderWidth, setReaderWidth, type ReaderWidth } from './readerWidth'
 import { FindOnPageBar } from './FindOnPage'
 import { usePinchFontSize, BIBLE_FONT_MAX, BIBLE_FONT_MIN } from './usePinchFontSize'
 import { TranslationChoices, FontChoices, ColorChoices, translationShortLabel, fontLabel } from './readerViews'
@@ -239,6 +240,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
         { id: 'display', collapsible: { label: 'Display', icon: ALargeSmall, summary: `${st.bibleFontSize} pt · ${fontLabel(st.scriptureFontFamily)}` }, commands: [
           { kind: 'stepper', id: 'size', label: 'Text size', icon: ALargeSmall, value: st.bibleFontSize, min: BIBLE_FONT_MIN, max: BIBLE_FONT_MAX, set: st.setBibleFontSize },
           { kind: 'segmented', id: 'line-height', label: 'Line height', icon: AlignJustify, value: st.bibleLineHeight, options: [['compact', 'Compact'], ['comfortable', 'Normal'], ['spacious', 'Airy']], set: (v) => st.setBibleLineHeight(v as 'compact' | 'comfortable' | 'spacious') },
+          { kind: 'segmented', id: 'text-width', label: 'Text width', icon: MoveHorizontal, value: getReaderWidth(), options: [['wide', 'Wide'], ['normal', 'Normal'], ['narrow', 'Narrow']], set: (v) => setReaderWidth(v as ReaderWidth) },
           { kind: 'view', id: 'font', label: 'Font', icon: CaseSensitive, value: fontLabel(st.scriptureFontFamily), view: () => ({ title: 'Font', render: (a) => <FontChoices api={a} /> }) },
           { kind: 'segmented', id: 'theme', label: 'Appearance', icon: SunMoon, value: st.theme, options: [['system', 'Auto'], ['light', 'Light'], ['dark', 'Dark']], set: (v) => st.setTheme(v as 'system' | 'light' | 'dark') },
           { kind: 'view', id: 'color', label: 'Color', icon: Palette, value: themePresetLabel(st.themePreset, st.customThemes), view: () => ({ title: 'Color', render: (a) => <ColorChoices api={a} /> }) },

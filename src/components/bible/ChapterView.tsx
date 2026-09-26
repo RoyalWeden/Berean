@@ -1,3 +1,4 @@
+import { isAudioFollowPaused } from '@/mobile/audio/followState'
 import { useState, useEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
 import { flushSync, createPortal } from 'react-dom'
 // Aliased away from the design system's `Tooltip` (@/components/ui/Tooltip) — only used here
@@ -876,6 +877,9 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // on every verse change for as long as this chapter is the one actually playing.
   useEffect(() => {
     if (!audioPlayback || !containerRef.current) return
+    // iPhone: the user scrolled away from the spoken verse — don't pull them back until they
+    // resume following or the chapter changes (TEST25-AUDIO-007). Always false on the desktop.
+    if (isAudioFollowPaused()) return
     if (audioPlayback.bookId !== bookId || audioPlayback.chapter !== chapter || audioPlayback.textId !== textId) return
     const container = containerRef.current
     // containerRef itself is just the (naturally tall, unclipped) content div — its own rect
