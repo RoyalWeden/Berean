@@ -174,6 +174,14 @@ export default function NoteEditorPM({
   const onCursorPositionRef = useRef(onCursorPosition)
   onCursorPositionRef.current = onCursorPosition
   const lastContentPropRef = useRef(content)
+  // The editor's own recent outputs for the current note (see the stale-echo guard below).
+  const emittedRef = useRef(new Set<string>())
+  const rememberEmitted = (md: string) => {
+    const set = emittedRef.current
+    set.delete(md)
+    set.add(md)
+    if (set.size > 64) set.delete(set.values().next().value as string)
+  }
   // Read by createSuppressRangesPlugin's getNoteId — the plugin instance is
   // built once at mount and reused across every note switch (plugins are
   // baked into EditorState, see the mount effect below), so it can't take
@@ -522,6 +530,7 @@ export default function NoteEditorPM({
         view.updateState(newState)
         if (tr.docChanged) {
           lastContentPropRef.current = serializeToMarkdown(newState.doc)
+          rememberEmitted(lastContentPropRef.current)
           onChangeRef.current(lastContentPropRef.current)
         }
         if (tr.selectionSet || tr.docChanged) {
@@ -772,6 +781,16 @@ export default function NoteEditorPM({
     if (!view) return
     const isDifferentNote = noteId !== prevSwapNoteIdRef.current
     prevSwapNoteIdRef.current = noteId
+    if (isDifferentNote) emittedRef.current.clear()
+    // TEST25-NOTES-001: a `content` prop that is one of THIS editor's own recent outputs is an
+    // echo (the host saved and re-rendered), never an external edit — even when it is older than
+    // the live document because more typing (or an iOS autocorrect / composition flush) landed
+    // before the re-render. Replacing the doc with it used to wipe the newest keystrokes. The
+    // same goes for any same-note update while the IME is composing.
+    if (!isDifferentNote && (emittedRef.current.has(content) || view.composing)) {
+      lastContentPropRef.current = content
+      return
+    }
     const current = serializeToMarkdown(view.state.doc)
     // A space at the end of a line is not representable in markdown — the
     // serializer emits it, but markdown-it strips it again on the way back in.

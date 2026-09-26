@@ -53,7 +53,7 @@ export function VerseNotesSheet({ verseRef, textId, label, api, onOpenNote, onNe
 
 /** A note edited inside a sheet — the same editor and save semantics as the Notes tab. */
 export function SheetNoteEditor({ noteId, context, api, onOpenInNotes }: { noteId: string; context: string; api: SheetApi; onOpenInNotes: (id: string) => void }) {
-  const { note, persist, lastSavedAt } = useNoteAutosave(noteId)
+  const { note, persist, lastSavedAt, editorContent } = useNoteAutosave(noteId)
   const typingLook = useAppStore((s) => s.noteTypingLook)
   if (note === undefined) return <div className="mobile-empty">Loading…</div>
   if (note === null) return <div className="mobile-empty">This note no longer exists.</div>
@@ -67,7 +67,7 @@ export function SheetNoteEditor({ noteId, context, api, onOpenInNotes }: { noteI
       </div>
       {note.title.trim() !== context && <div className="mobile-sheet-note-context">{context}</div>}
       <NoteEditorPM
-        content={note.content}
+        content={editorContent}
         noteId={note.id}
         onChange={(content) => persist({ content })}
         mode="edit"

@@ -37,7 +37,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const nav = useNavigation()
   const sheets = useSheets()
   const actions = useActionSheet()
-  const { note, latest, persist, replace, lastSavedAt } = useNoteAutosave(noteId)
+  const { note, latest, persist, replace, lastSavedAt, editorContent } = useNoteAutosave(noteId)
   const [notes, setNotes] = useState<Note[]>([])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
   const [printOpen, setPrintOpen] = useState(false)
@@ -164,7 +164,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       <div className="mobile-note-editor" {...refLongPress}>
         {note.verseRef && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
         <NoteEditorPM
-          content={note.content}
+          content={editorContent}
           noteId={note.id}
           onChange={(content) => persist({ content })}
           mode={mode}
