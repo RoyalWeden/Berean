@@ -112,10 +112,11 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
 
       {/* The four study actions — every position. */}
       <div className="mobile-verse-primary" role="group" aria-label="Verse actions">
-        <Action icon={NotepadText} label="Notes" badge={noteCount} onClick={openAndExpand(onShowNotes)} />
-        {api.atLow && !sel && <Action icon={Hash} label="Strong's" pressed={mode === 'strongs'} onClick={toggleStrongsMode} />}
-        <Action icon={GitFork} label="Refs" onClick={openAndExpand(onShowCrossRefs)} />
+        {/* Copy always first — the same slot for one verse or several (SEP26-VERSE-004). */}
         <Action icon={copied ? Check : Copy} label={copied ? 'Copied' : 'Copy'} onClick={() => { void copy() }} />
+        <Action icon={NotepadText} label="Notes" badge={noteCount} onClick={openAndExpand(onShowNotes)} />
+        <Action icon={GitFork} label="Refs" onClick={openAndExpand(onShowCrossRefs)} />
+        {api.atLow && !sel && <Action icon={Hash} label="Strong's" pressed={mode === 'strongs'} onClick={toggleStrongsMode} />}
       </div>
 
       {showVerseInline && (
@@ -167,7 +168,7 @@ function useVerseNoteCount(verseRef: string, textId: string): number {
   return n
 }
 
-function Action({ icon: Icon, label, onClick, badge, pressed }: { icon: LucideIcon; label: string; onClick: () => void; badge?: number; pressed?: boolean }) {
+export function Action({ icon: Icon, label, onClick, badge, pressed }: { icon: LucideIcon; label: string; onClick: () => void; badge?: number; pressed?: boolean }) {
   return (
     <button type="button" className={`mobile-verse-action${pressed ? ' is-on' : ''}`} onClick={onClick}
       aria-pressed={pressed} aria-label={badge ? `${label}, ${badge}` : label}>

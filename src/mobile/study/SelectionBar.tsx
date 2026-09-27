@@ -35,17 +35,25 @@ export function useVerseSelectionActions(tabId: string, onOpenNote?: (noteId: st
   const startPlaybackFrom = useAppStore((s) => s.startPlaybackFrom)
   const sel = sortSelection(selectedRaw)
   const clear = useCallback(() => clearVerseSelectionRaw(tabId), [clearVerseSelectionRaw, tabId])
-  const copyVerses = async (refsOnly: boolean) => {
+  /** The selection as text, in the desktop multi-verse format ("John 3:6-7, 18" then one line per
+   *  verse; one verse = "John 3:16 text"). `refsOnly` = just the reference. */
+  const versesText = async (refsOnly: boolean): Promise<string> => {
     const header = refLabel(sel)
-    if (refsOnly) { await navigator.clipboard.writeText(header).catch(() => {}); return }
+    if (refsOnly) return header
     const fetched = (await Promise.all(sel.map(fetchVerse))).filter(Boolean) as Array<SelectedVerseRef & { text: string; textTagged: string | null }>
     if (fetched.length === 1) {
       const v = fetched[0]
-      await navigator.clipboard.writeText(`${header} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`).catch(() => {})
-    } else {
-      const lines = fetched.map((v) => `${v.verse} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`)
-      await navigator.clipboard.writeText([header, ...lines].join('\n')).catch(() => {})
+      return `${header} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`
     }
+    const lines = fetched.map((v) => `${v.verse} ${buildVerseDisplayText(v.text, v.textTagged, v.textId, wordReplacerEnabled, wordReplacerRules)}`)
+    return [header, ...lines].join('\n')
+  }
+  const copyVerses = async (refsOnly: boolean) => {
+    await navigator.clipboard.writeText(await versesText(refsOnly)).catch(() => {})
+  }
+  const share = async () => {
+    const text = await versesText(false)
+    try { const { Share } = await import('@capacitor/share'); await Share.share({ title: refLabel(sel), text }) } catch { /* cancelled */ }
   }
   const addNote = async () => {
     if (!selectionAllows(sel, 'add-note')) return
@@ -66,8 +74,17 @@ export function useVerseSelectionActions(tabId: string, onOpenNote?: (noteId: st
     const ranges = selectionToRanges(sel.map((r) => ({ bookId: r.bookId, chapter: r.chapter, verse: r.verse })))
     return { ranges, label: rangesLabel(ranges) }
   }
-  const play = () => { const v = sel[0]; if (v) startPlaybackFrom(v.bookId, v.chapter, v.verse, v.textId); clear() }
-  return { sel, label: sel.length ? refLabel(sel) : '', clear, copyVerses, addNote, applyHighlight, removeHighlights, tagRanges, play }
+  // Read aloud the SELECTION through the one audio pipeline (SEP26-VERSE-003): verses of one
+  // chapter play from the first to the last selected verse (endVerse); a selection spanning
+  // chapters plays from its first verse.
+  const play = () => {
+    const v = sel[0]
+    if (!v) return
+    const oneChapter = sel.every((x) => x.bookId === v.bookId && x.chapter === v.chapter && x.textId === v.textId)
+    startPlaybackFrom(v.bookId, v.chapter, v.verse, v.textId, oneChapter && sel.length > 1 ? sel[sel.length - 1].verse : null)
+    clear()
+  }
+  return { sel, label: sel.length ? refLabel(sel) : '', clear, copyVerses, versesText, share, addNote, applyHighlight, removeHighlights, tagRanges, play }
 }
 
 export function SelectionBar({ tabId, onOpenNote }: { tabId: string; onOpenNote: (noteId: string) => void }) {

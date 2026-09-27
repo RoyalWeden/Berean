@@ -44,3 +44,8 @@
 /* The cross-reference block without a heading: the source switch leads, full width. */
 .mobile-study-refs-head.is-bare { justify-content: stretch; }
 .mobile-study-refs-head.is-bare > * { flex: 1; }
+
+/* Strong's mode with several verses: one line per verse, its number leading. */
+.mobile-verse-strongs-item { display: flex; gap: 6px; align-items: baseline; }
+.mobile-verse-strongs-item + .mobile-verse-strongs-item { margin-top: 6px; }
+.mobile-verse-strongs-num { flex: none; min-width: 1.4em; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); }
