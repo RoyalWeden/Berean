@@ -2,6 +2,7 @@
  *  bubble, + insert menu over the editor's own commands, markdown input rules intact, verse notes
  *  as cards with a lone + when empty. */
 import { describe, it, expect, afterEach, vi } from 'vitest'
+import { isInOwnSurface, isEditingInSheet } from '../reader/sheetEditingGuards'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import { EditorState, TextSelection } from 'prosemirror-state'
@@ -143,16 +144,63 @@ describe('+ insert menu commands (the editor\'s own slash commands)', () => {
 })
 
 describe('phone selection toolbar', () => {
-  it('renders touch buttons below the selection and applies marks', () => {
+  it('is DOCKED at the bottom edge (never beside the selection, where the iOS callout lives) and applies marks', () => {
     const v = makeView('bold me')
     v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, 1, 5)))
     render(<PhoneSelectionToolbar view={v} state={{ coords: { left: 10, right: 60, top: 100, bottom: 120 } }} />)
     const bar = document.querySelector('.m-selbar.pm-toolbar-solid') as HTMLElement
     expect(bar).toBeTruthy()
     for (const l of ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Highlight', 'Link', 'Inline code']) expect(bar.querySelector(`[aria-label="${l}"]`)).toBeTruthy()
-    expect(parseFloat(bar.style.top)).toBeGreaterThan(120)
+    // No selection-relative position: the iOS edit callout owns the space around the selection.
+    expect(bar.style.top).toBe('')
+    expect(bar.style.left).toBe('')
+    // The + insert button steps aside while the bar is up.
+    expect(document.documentElement.hasAttribute('data-m-selbar')).toBe(true)
     act(() => (bar.querySelector('[aria-label="Bold"]') as HTMLButtonElement).click())
     expect(serializeToMarkdown(v.state.doc)).toBe('**bold** me')
+    // Buttons never take focus / the selection from the editor.
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    bar.querySelector('[aria-label="Italic"]')!.dispatchEvent(down)
+    expect(down.defaultPrevented).toBe(true)
+  })
+
+  it('removes its docked marker on unmount; inside a sheet it sits above the sheet', () => {
+    const v = makeView('in a sheet')
+    const sheet = document.createElement('div')
+    sheet.className = 'mobile-sheet'; sheet.style.zIndex = '120'
+    document.body.appendChild(sheet)
+    const host = document.createElement('div'); sheet.appendChild(host)
+    const r = createRoot(host)
+    act(() => r.render(<PhoneSelectionToolbar view={v} state={{ coords: { left: 0, right: 10, top: 0, bottom: 10 } }} />))
+    const bar = document.querySelector('.m-selbar') as HTMLElement
+    expect(bar.classList.contains('is-sheet')).toBe(true)
+    expect(bar.style.zIndex).toBe('121')
+    act(() => r.unmount())
+    sheet.remove()
+    expect(document.documentElement.hasAttribute('data-m-selbar')).toBe(false)
+  })
+})
+
+describe('verse-sheet editing guards (NOTES-IOS-002)', () => {
+  it('a caret / selection in a sheet or an editable is never the reader\'s text selection', () => {
+    const sheet = document.createElement('div'); sheet.className = 'mobile-sheet'
+    const ed = document.createElement('div'); ed.setAttribute('contenteditable', 'true'); ed.textContent = 'typing'
+    sheet.appendChild(ed); document.body.appendChild(sheet)
+    const reader = document.createElement('p'); reader.textContent = 'In the beginning'; document.body.appendChild(reader)
+    expect(isInOwnSurface(ed.firstChild)).toBe(true)
+    expect(isInOwnSurface(reader.firstChild)).toBe(false)
+    expect(isInOwnSurface(null)).toBe(false)
+    sheet.remove(); reader.remove()
+  })
+
+  it('isEditingInSheet: focus in a sheet editor yes; in the page or nowhere no', () => {
+    const sheet = document.createElement('div'); sheet.className = 'mobile-sheet'
+    const input = document.createElement('input'); sheet.appendChild(input); document.body.appendChild(sheet)
+    const outside = document.createElement('input'); document.body.appendChild(outside)
+    input.focus(); expect(isEditingInSheet()).toBe(true)
+    outside.focus(); expect(isEditingInSheet()).toBe(false)
+    outside.blur(); expect(isEditingInSheet()).toBe(false)
+    sheet.remove(); outside.remove()
   })
 })
 

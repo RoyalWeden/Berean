@@ -61,18 +61,32 @@ html[data-keyboard] .m-note-insert.is-viewport { bottom: calc(var(--m-keyboard-h
 }
 .m-note-insert-link button:disabled { opacity: 0.4; }
 
-/* ── selection formatting bubble ── */
+/* ── selection formatting bar (NOTES-IOS-003) ──
+   Docked at the screen's bottom edge — above the keyboard when it is up, above the floating
+   bottom controls (or the sheet's visible bottom) otherwise — in the + button's row, which steps
+   aside while it shows. Never positioned near the selection: that space belongs to the iOS edit
+   callout. One row; scrolls horizontally if Dynamic Type makes it wider than the screen. */
 .m-selbar {
   position: fixed; z-index: var(--z-popover, 400);
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--m-nav-h, 64px) + var(--m-safe-bottom, 0px) + 12px);
   display: flex; align-items: center; gap: 0; padding: 3px;
-  max-width: calc(100vw - 16px);
+  max-width: calc(100vw - 32px); overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none;
   border-radius: 25px;
   background: var(--m-glass-thick); border: 0.5px solid var(--m-hairline);
   -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
   box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
-  animation: m-note-insert-in 0.14s ease-out;
+  animation: m-selbar-in 0.14s ease-out;
 }
+.m-selbar::-webkit-scrollbar { display: none; }
+.m-selbar.is-sheet { bottom: calc(var(--m-safe-bottom, 0px) + 16px); }
+html[data-keyboard] .m-selbar,
+html[data-keyboard] .m-selbar.is-sheet { bottom: calc(var(--m-keyboard-h, 0px) + 12px); }
+@keyframes m-selbar-in { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%); } }
+/* The + insert button shares the row — it steps aside while the formatting bar is up. */
+html[data-m-selbar] .m-note-insert { opacity: 0; transform: translateY(12px); }
+html[data-m-selbar] .m-note-insert > * { pointer-events: none; }
 .m-selbar-btn, .m-selbar-swatch {
   flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 22px;
   display: inline-flex; align-items: center; justify-content: center;

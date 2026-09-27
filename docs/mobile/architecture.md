@@ -128,6 +128,13 @@ result rows, `CompareView` cells); desktop *chrome* (mosaic, sidebar, tab bar, h
 Where a shared component has a hover-only affordance, the mobile shell passes an explicit
 `interaction="touch"` prop rather than sniffing the platform inside the component (R013).
 
+### Notes editor on iOS
+
+One shared ProseMirror editor; ProseMirror owns the live document, React / Zustand only load it,
+autosave is downstream, and native text input (autocorrect, dictation, IME, the edit callout) is
+left to WebKit wherever possible. Contract, action matrix, lifecycle and the external-update policy:
+[notes-editor-ios.md](notes-editor-ios.md).
+
 ## 6. Sync engine
 
 `src/platform/sync/` — `hlc.ts`, `fractional.ts`, `journal.ts` (encode/decode/rotate),

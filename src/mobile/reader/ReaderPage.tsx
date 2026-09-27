@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEditingInSheet } from './sheetEditingGuards'
 import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
 import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat, MoveHorizontal } from 'lucide-react'
@@ -168,8 +169,10 @@ export function ReaderPage({ tab }: { tab: Tab }) {
 
   // ── verse model (tap / long-press / verse sheet) ────────────────────────────────────────
   const { verseInteraction, openStrongs, openNoteInNotesSpace } = useVerseSheets({ tabId: tab.id })
-  // Leaving a chapter clears a tapped-verse selection's sheet.
-  useEffect(() => () => { sheets.close('verse') }, [state.bookId, state.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Leaving a chapter clears a tapped-verse selection's sheet — unless the user is typing in it
+  // (a verse note edited in the sheet): the keyboard resizing the reader can move continuous
+  // scroll across a chapter boundary, and that must never close the editor (NOTES-IOS-002).
+  useEffect(() => () => { if (!isEditingInSheet()) sheets.close('verse') }, [state.bookId, state.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openReference = () => {
     // The hierarchical picker (NEW-011): Library → collection → book → chapter (→ verse), all in

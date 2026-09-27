@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { EditorView } from 'prosemirror-view'
 import { toggleMark } from 'prosemirror-commands'
@@ -8,41 +8,42 @@ import { createEditorCommands } from '@/components/notes/pm/editorCommands'
 import type { SelectionToolbarState } from '@/components/notes/pm/selectionToolbarPlugin'
 import { HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { HighlightColor } from '@/types'
+import { useSheetOverlayZ } from './NoteInsertButton'
 import './noteEditor.css'
 
-/** The bubble fits one phone-width row: the six most distinct pigments (the full palette stays on desktop). */
+/** The bar fits one phone-width row: the six most distinct pigments (the full palette stays on desktop). */
 const PHONE_HIGHLIGHTS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple', 'orange']
 
 /**
- * The phone's selection formatting bubble (TEST25-NOTES-003), passed to NoteEditorPM as
- * `renderSelectionToolbar`: bold, italic, underline, strikethrough, highlight, link, inline code
- * as 44 pt glass buttons, sitting BELOW the selection (the iOS edit callout sits above it) and
- * flipping above only when there is no room over the keyboard. Commands are the desktop bubble's
- * (editorCommands.ts). `pm-toolbar-solid` keeps NoteEditorPM's outside-tap dismiss from closing it.
+ * The phone's formatting bar for a text selection (TEST25-NOTES-003, NOTES-IOS-003), passed to
+ * NoteEditorPM as `renderSelectionToolbar`: bold, italic, underline, strikethrough, highlight,
+ * link, inline code as 44 pt glass buttons.
+ *
+ * It is DOCKED at the bottom of the screen (just above the keyboard when it is up), never floating
+ * next to the selection: iOS draws its own edit callout (Cut · Copy · Paste · Replace · Look Up ·
+ * Share…) above OR below the selection depending on room, so any Berean surface near the selection
+ * eventually collides with it. Owning the bottom edge instead keeps exactly one floating menu —
+ * Apple's — and puts Berean's formatting where iOS Notes puts its own (the keyboard's edge).
+ * While it is shown the note's + insert button steps aside (same spot; `html[data-m-selbar]`).
+ * Commands are the desktop bubble's (editorCommands.ts). `pm-toolbar-solid` keeps NoteEditorPM's
+ * outside-tap dismiss from closing it; every button preventDefaults mousedown so the editor keeps
+ * focus, the selection and the keyboard.
  */
 export function PhoneSelectionToolbar({ view, state }: { view: EditorView; state: SelectionToolbarState }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [pane, setPane] = useState<'marks' | 'highlight' | 'link'>('marks')
   const [url, setUrl] = useState('')
   const linkRange = useRef<{ from: number; to: number } | null>(null)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const z = useSheetOverlayZ(anchorRef)
   const cmds = createEditorCommands(view)
+  void state // re-rendered per selection change so the active-mark states stay current
 
-  useLayoutEffect(() => {
-    const el = rootRef.current
-    if (!el) return
-    const { left, right, top } = state.coords
-    const bottom = state.coords.bottom ?? top + 20
-    const rect = el.getBoundingClientRect()
-    const margin = 8
-    const vh = window.visualViewport?.height ?? window.innerHeight
-    let x = (left + right) / 2 - rect.width / 2
-    x = Math.max(margin, Math.min(x, window.innerWidth - rect.width - margin))
-    // Below the selection, past the iOS selection-handle knob; above when it would hit the keyboard.
-    let y = bottom + 14
-    if (y + rect.height > vh - margin) y = Math.max(margin, top - rect.height - 14)
-    setPos({ left: x, top: y })
-  }, [state, pane])
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.mSelbar = ''
+    return () => { delete root.dataset.mSelbar }
+  }, [])
 
   const mark = (name: 'strong' | 'em' | 'underline' | 'strike' | 'code') => () => cmds.run(toggleMark(schema.marks[name]))
   const keep = (e: React.MouseEvent) => e.preventDefault()
@@ -52,13 +53,14 @@ export function PhoneSelectionToolbar({ view, state }: { view: EditorView; state
     </button>
   )
 
-  return createPortal(
-    <div
+  return <>
+    <span ref={anchorRef} hidden />
+    {createPortal(<div
       ref={rootRef}
-      className="pm-toolbar-solid m-selbar"
+      className={`pm-toolbar-solid m-selbar${z != null ? ' is-sheet' : ''}`}
       role="toolbar"
       aria-label="Format"
-      style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: -9999 }}
+      style={z != null ? { zIndex: z } : undefined}
       onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') e.preventDefault() }}
     >
       {pane === 'marks' && <>
@@ -86,6 +88,6 @@ export function PhoneSelectionToolbar({ view, state }: { view: EditorView; state
         </form>
       )}
     </div>,
-    document.body,
-  )
+    document.body)}
+  </>
 }

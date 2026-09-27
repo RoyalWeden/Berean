@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { EditorState, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
 import { history, undo, redo } from 'prosemirror-history'
+import { toggleMark } from 'prosemirror-commands'
 import { gapCursor } from 'prosemirror-gapcursor'
 import { dropCursor } from 'prosemirror-dropcursor'
 import { bereanSchema as schema } from './schema'
@@ -59,6 +60,14 @@ import './pmEditor.css'
 // We record the last short insert and swallow an identical paste that arrives
 // right after it at the same spot. A deliberate "type X then paste X" is
 // vanishingly rare and still works after the 500ms window.
+/** `beforeinput` types for native editing commands, mapped to the editor's own commands. */
+const NATIVE_EDIT_COMMANDS: Record<string, 'strong' | 'em' | 'underline' | 'strike' | 'undo' | 'redo' | undefined> = {
+  formatBold: 'strong', formatItalic: 'em', formatUnderline: 'underline', formatStrikeThrough: 'strike',
+  historyUndo: 'undo', historyRedo: 'redo',
+}
+/** iOS / iPadOS WebKit (iPadOS reports itself as a Mac with touch). */
+const IS_IOS_WEBKIT = typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 let __lastShortInsert: { text: string; pos: number; at: number } | null = null
 
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
@@ -228,6 +237,9 @@ export default function NoteEditorPM({
   // Tell the store a note editor is on screen so the bottom-right Study Trail arrival toast
   // lifts clear of this editor's word-count / reading-time footer (same corner).
   const bumpNoteEditorOpen = useAppStore((s) => s.bumpNoteEditorOpen)
+  const noteSpellCheck = useAppStore((s) => s.noteSpellCheck)
+  const noteSpellCheckRef = useRef(noteSpellCheck)
+  noteSpellCheckRef.current = noteSpellCheck
   useEffect(() => {
     bumpNoteEditorOpen(1)
     return () => bumpNoteEditorOpen(-1)
@@ -528,7 +540,15 @@ export default function NoteEditorPM({
     const view = new EditorView(hostRef.current, {
       state,
       editable: () => mode === 'edit',
-      attributes: placeholder ? { 'data-placeholder': placeholder } : {},
+      // Native text services stay ON (NOTES-IOS-005): autocorrect, predictions, dictation and the
+      // spelling "Replace…" menu all work through the browser; spell-check underlines follow the
+      // Notes setting. Capitalization is never set — it follows the user's own keyboard setting.
+      // A function: ProseMirror re-reads it on every update, so a changed setting sticks.
+      attributes: () => ({
+        ...(placeholder ? { 'data-placeholder': placeholder } : {}),
+        spellcheck: noteSpellCheckRef.current ? 'true' : 'false',
+        autocorrect: 'on',
+      }),
       transformPasted: reclosePastedWrapperBlock,
       nodeViews: {
         callout: (node) => calloutNodeView(node),
@@ -625,7 +645,24 @@ export default function NoteEditorPM({
             __lastShortInsert = null
           }
 
+          // Native editing commands (NOTES-IOS-006) — the iOS callout's Format ▸ B / I / U, shake
+          // to undo, the three-finger undo / redo gestures, a hardware keyboard's menu items. Left
+          // to the browser they would edit the DOM behind ProseMirror's back (a <b> tag, a DOM-level
+          // undo that PM's history never sees); routed here they are the editor's own commands.
+          const native = NATIVE_EDIT_COMMANDS[ie.inputType]
+          if (native) {
+            event.preventDefault()
+            if (view.composing) return true
+            if (native === 'undo') undo(view.state, view.dispatch)
+            else if (native === 'redo') redo(view.state, view.dispatch)
+            else toggleMark(schema.marks[native])(view.state, view.dispatch)
+            return true
+          }
+
           if (!isReplacement && !isDelete) return false
+          // An IME / dictation / marked-text composition owns its own range until it ends —
+          // ProseMirror reads the result from the DOM afterwards (NOTES-IOS-001).
+          if (view.composing) return false
 
           // ── Collapsed-caret Backspace/Delete: authoritative single-character delete ──
           // A single keystroke with no active selection must remove EXACTLY one character and
@@ -640,7 +677,11 @@ export default function NoteEditorPM({
           // selection. Only the simple intra-textblock case is handled here — a caret at a block
           // edge is a structural merge/outdent that belongs to baseKeymap's Backspace/Delete
           // (which already ran on keydown and declined, or this event wouldn't be firing).
-          if (isDelete && view.state.selection.empty && !view.composing) {
+          // Not on iOS: its keyboard keeps its own model of the text around the caret (autocorrect,
+          // predictions, word-at-a-time delete); a cancelled delete + our own DOM edit leaves that
+          // model stale, and the next autocorrect then replaces the wrong range. iOS has no smart
+          // delete to un-widen, so its native delete is exactly the delete we want.
+          if (isDelete && view.state.selection.empty && !IS_IOS_WEBKIT) {
             const $c = view.state.selection.$head
             const docSize = view.state.doc.content.size
             const isSurrogatePair = (s: string) => s.length === 2 && /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(s)
@@ -661,6 +702,16 @@ export default function NoteEditorPM({
           }
 
           // ── Non-collapsed delete / insertReplacementText: trust getTargetRanges() ──
+          // The replacement text is in `data` (Chromium) OR only in `dataTransfer` (WebKit — iOS
+          // autocorrect, spelling "Replace…", text replacements; the Input Events spec's form for
+          // contenteditable). Never fall back to '' — that turned every iOS autocorrection into a
+          // deletion of the word (NOTES-IOS-001). No text at all → leave it to the browser.
+          const replacement = isReplacement ? (ie.data ?? ie.dataTransfer?.getData('text/plain') ?? null) : null
+          if (isReplacement && replacement == null) return false
+          // iOS applies its own replacements natively (ProseMirror's DOM observer reads the result),
+          // which keeps the keyboard's text model and the document in step. The explicit path
+          // below exists for macOS text-expansion tools.
+          if (isReplacement && IS_IOS_WEBKIT) return false
           const ranges = ie.getTargetRanges?.()
           if (!ranges || ranges.length !== 1) return false
           const [range] = ranges
@@ -669,7 +720,7 @@ export default function NoteEditorPM({
           const to = view.posAtDOM(range.endContainer, range.endOffset)
           if (from < 0 || to < 0 || from > to) return false
           if (isDelete && from === to) return false
-          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to))
+          view.dispatch(isReplacement ? view.state.tr.insertText(replacement!, from, to) : view.state.tr.delete(from, to))
           event.preventDefault()
           return true
         },
@@ -857,6 +908,8 @@ export default function NoteEditorPM({
       }
     }
   }, [content, noteId])
+
+  useEffect(() => { viewRef.current?.dom.setAttribute('spellcheck', noteSpellCheck ? 'true' : 'false') }, [noteSpellCheck])
 
   useEffect(() => {
     viewRef.current?.setProps({ editable: () => mode === 'edit' })

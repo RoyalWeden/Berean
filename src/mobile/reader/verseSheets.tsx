@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import { isInOwnSurface } from './sheetEditingGuards'
 import { useAppStore } from '@/store'
 import type { VerseActionContext, VerseInteraction } from '@/components/bible/verseInteraction'
 import { navigateToVerse } from '@/lib/verseNavigation'
@@ -156,6 +157,14 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
       t = setTimeout(() => {
         const sel = window.getSelection()
         const text = sel?.toString().trim() ?? ''
+        // A selection (or caret) inside a sheet or any editable field belongs to that surface — a
+        // note being edited in the verse sheet, the sheet's search field. The sheet has been
+        // adopted: it is no longer a transient "selection sheet", and a caret there must never
+        // close it (that destroyed the note editor mid-typing — NOTES-IOS-002).
+        if (isInOwnSurface(sel?.anchorNode)) {
+          selectionSheetOpen.current = false
+          return
+        }
         if (!sel || sel.isCollapsed || !text) {
           // Selection dismissed (tap elsewhere): close the selection sheet, select nothing.
           if (selectionSheetOpen.current) { selectionSheetOpen.current = false; sheets.close(VERSE_SHEET_ID) }
