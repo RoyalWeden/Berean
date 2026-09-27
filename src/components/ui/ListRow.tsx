@@ -107,9 +107,6 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
             dense ? 'h-7' : 'min-h-9 py-1.5',
             flush ? 'px-3' : dense ? 'px-2' : 'px-2.5',
             leadingAction && 'pl-1.5',
-            // Hover-revealed trailing actions overlay the row's right edge, so the title only
-            // gives up room for them while they're actually visible (hover / focus-within).
-            trailing && !trailingAlways && 'transition-[padding] duration-fast group-hover/row:pr-8 group-focus-within/row:pr-8',
             current ? 'text-accent' : 'text-text-primary',
             buttonClassName,
           ),
@@ -128,8 +125,18 @@ export const ListRow = forwardRef<HTMLDivElement, ListRowProps>(function ListRow
         </span>,
         meta && <span key="m" className="flex-shrink-0 text-meta">{meta}</span>,
       )}
+      {/* Hover-revealed trailing actions take REAL space in the row (SEP26-NOTES-MAC-001): they
+          grow from zero width on hover / focus-within, so the title (the flexible element)
+          truncates and the meta (e.g. a note count) stays visible beside them — never
+          underneath. They used to be overlaid on the row's right edge with a fixed 32 px of
+          reserved padding, so a row with three actions covered its count. */}
       {trailing && (
-        <div className={cx('flex items-center gap-0.5 pr-1 flex-shrink-0', !trailingAlways && 'absolute inset-y-0 right-0 opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto group-focus-within/row:opacity-100 group-focus-within/row:pointer-events-auto transition-opacity duration-fast')}>
+        <div className={cx(
+          'flex items-center gap-0.5 flex-shrink-0',
+          trailingAlways
+            ? 'pr-1'
+            : 'max-w-0 overflow-hidden opacity-0 pointer-events-none group-hover/row:max-w-[60%] group-hover/row:pr-1 group-hover/row:opacity-100 group-hover/row:pointer-events-auto group-focus-within/row:max-w-[60%] group-focus-within/row:pr-1 group-focus-within/row:opacity-100 group-focus-within/row:pointer-events-auto transition-[max-width,opacity] duration-fast',
+        )}>
           {trailing}
         </div>
       )}
