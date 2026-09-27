@@ -128,3 +128,17 @@ user downgrades) still works — SQLite ignores unknown columns for the queries 
 - Prepared-statement caching lives in the Swift plugin (LRU of 64 statements per connection).
 - Chapter queries are already indexed (`idx_verses_ref`); FTS5 queries return within the existing
   `LIMIT`s. Baselines are recorded in `testing.md` §Performance once measured on device.
+
+## Identity rules (2026-09-27, DATA-*)
+
+- Every synced table keys on a TEXT id generated with a UUID. Tab and archived-group ids are
+  `<type>-<ms>-<random>`; no synced id is ever a timestamp alone or an autoincrement.
+- **Daily notes:** `daily-YYYY-MM-DD` when created (random ids kept for older notes, or when that id
+  is taken), so the same day created on two devices is one record.
+- **Highlights:** `hl-<text>-<book>-<chapter>-<verse>-<range>` (range `v`, `w<start>-<end>` or
+  `c<start>-<end>`), so the same range highlighted on two devices is one record.
+- Migrations: one transaction per version, additive only (never DROP), recorded in
+  `schema_version`. Tested: fresh install, idempotent re-run, intermediate upgrade, atomic
+  rollback, and the pre-sync (v42) upgrade keeping notes / folders / highlights / tags without
+  journaling anything until sync is enabled.
+

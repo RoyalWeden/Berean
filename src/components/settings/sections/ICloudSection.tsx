@@ -8,6 +8,13 @@ import type { SyncStatusSnapshot } from '@/platform/sync/types'
  * Settings → iCloud (docs/mobile/icloud.md; R064). Shared by desktop and, later, the iPhone
  * settings page: it only talks to `window.sync`, which each platform's host implements.
  */
+const STATE_LABEL: Record<NonNullable<SyncStatusSnapshot['state']>, string> = {
+  synced: 'Up to date',
+  pending: 'Changes waiting to sync',
+  unavailable: 'iCloud unavailable — changes are kept on this device and sync when it returns',
+  attention: 'Needs attention (see below)',
+}
+
 export default function ICloudSection() {
   const api = typeof window !== 'undefined' ? window.sync : undefined
   const [config, setConfig] = useState<SyncConfig | null>(null)
@@ -90,12 +97,17 @@ export default function ICloudSection() {
           </div>
           <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-caption">
             <dt className="text-text-muted">Transport</dt><dd className="text-text-secondary">{status.transport.available ? 'available' : `unavailable — ${status.transport.reason ?? ''}`}</dd>
+            {status.state && (<><dt className="text-text-muted">State</dt><dd className={status.state === 'attention' ? 'text-danger' : 'text-text-secondary'}>{STATE_LABEL[status.state]}</dd></>)}
             <dt className="text-text-muted">Pending changes</dt><dd className="text-text-secondary">{status.pendingOutbox}</dd>
+            {status.lastApplied && (<><dt className="text-text-muted">Last received</dt><dd className="text-text-secondary">{status.lastApplied.count} change{status.lastApplied.count === 1 ? '' : 's'} · {fmt(status.lastApplied.at)}</dd></>)}
+            {!!status.conflicts && (<><dt className="text-text-muted">Conflict copies</dt><dd className="text-text-secondary">{status.conflicts} — kept in each note's Versions</dd></>)}
+            {!!status.failedOps && (<><dt className="text-text-muted">Changes not applied</dt><dd className="text-danger">{status.failedOps} (retrying)</dd></>)}
             <dt className="text-text-muted">Last push / pull</dt><dd className="text-text-secondary">{fmt(status.lastPushAt)} / {fmt(status.lastPullAt)}</dd>
             <dt className="text-text-muted">This device</dt><dd className="text-text-secondary font-mono">{status.deviceId}</dd>
             {status.unreadable > 0 && (<><dt className="text-text-muted">Unreadable entries</dt><dd className="text-danger">{status.unreadable}</dd></>)}
             {status.journal && (<><dt className="text-text-muted">This device's journal</dt><dd className="text-text-secondary">{status.journal.files} file{status.journal.files === 1 ? '' : 's'}, {(status.journal.bytes / 1024).toFixed(0)} KB{status.journal.snapshotSeq != null ? ` · compacted at change #${status.journal.snapshotSeq}` : ''}</dd></>)}
             {status.lastError && (<><dt className="text-text-muted">Last error</dt><dd className="text-danger">{status.lastError}</dd></>)}
+            {status.schema != null && (<><dt className="text-text-muted">Database schema</dt><dd className="text-text-secondary">v{status.schema}</dd></>)}
           </dl>
           {status.devices.length > 0 && (
             <div className="mt-3">

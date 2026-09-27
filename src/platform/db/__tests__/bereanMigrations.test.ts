@@ -86,6 +86,22 @@ describe('bereanMigrations (shared runner)', () => {
     expect(await db.get('SELECT title FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Old' })
   })
 
+  it('DATA-MIG-001: upgrading a pre-sync (v42) database keeps every user record and journals nothing until sync is enabled', async () => {
+    const db = memoryDb()
+    await runMigrations(db, BEREAN_MIGRATIONS.filter((m) => m.version <= 42))
+    await db.run("INSERT INTO note_folders (id, name, parent_id, created_at) VALUES ('f1', 'Torah', NULL, 1)")
+    await db.run("INSERT INTO notes (id, title, content, created_at, updated_at, tags, folder_id) VALUES ('n1', 'Sabbath', '**Remember** the sabbath — Exod 20:8', 1, 2, '[]', 'f1')")
+    await db.run("INSERT INTO highlights (id, text_id, book_id, chapter, verse_num, color, created_at) VALUES ('h1', 'kjva', 'EXO', 20, 8, 'yellow', 3)")
+    await db.run("INSERT INTO verse_tags (id, name, created_at) VALUES ('t1', 'Sabbath', 4)")
+    await runMigrations(db)
+    expect(await currentSchemaVersion(db)).toBe(BEREAN_SCHEMA_VERSION)
+    expect(await db.get('SELECT title, content, folder_id FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Sabbath', content: '**Remember** the sabbath — Exod 20:8', folder_id: 'f1' })
+    expect(await db.get('SELECT name FROM note_folders WHERE id = ?', ['f1'])).toEqual({ name: 'Torah' })
+    expect(await db.get('SELECT color FROM highlights WHERE id = ?', ['h1'])).toEqual({ color: 'yellow' })
+    expect(await db.get('SELECT name FROM verse_tags WHERE id = ?', ['t1'])).toEqual({ name: 'Sabbath' })
+    expect(await db.get('SELECT COUNT(*) AS n FROM sync_outbox')).toEqual({ n: 0 })
+  })
+
   it('a failing migration rolls back atomically and leaves the version unchanged', async () => {
     const db = memoryDb()
     await runMigrations(db)

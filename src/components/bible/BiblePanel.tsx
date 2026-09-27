@@ -3082,7 +3082,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const title = isHermasBook(bookId)
               ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
               : book ? `${book.name} ${displayChapter(bookId, chapter)}` : `${bookId} ${displayChapter(bookId, chapter)}`
-            addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+            addTab({ id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, spaceId: 'scripture', type: 'bible', title,
               state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
             recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
           }}

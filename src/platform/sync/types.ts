@@ -113,6 +113,18 @@ export interface SyncStatusSnapshot {
   unreadable: number
   /** Own journal: files + bytes currently in the container, and the last compaction (if any). */
   journal?: { files: number; bytes: number; snapshotSeq: number | null }
+  /** One-word state for the UI (DATA-SYNC-004): 'synced' nothing pending · 'pending' local changes
+   *  not in iCloud yet · 'unavailable' iCloud not reachable (changes are kept locally) · 'attention'
+   *  an error, an unreadable entry or a change that failed to apply. */
+  state?: 'synced' | 'pending' | 'unavailable' | 'attention'
+  /** Notes' conflict copies kept by the merge (restorable from the note's Versions). */
+  conflicts?: number
+  /** Remote changes that failed to apply (retried; ids only in the log, never content). */
+  failedOps?: number
+  /** When the last pull applied something, and how many changes. */
+  lastApplied?: { at: number; count: number } | null
+  /** This database's schema version (a device refuses ops from a newer schema). */
+  schema?: number
 }
 
 export const SYNC_FORMAT_VERSION = 1

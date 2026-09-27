@@ -207,7 +207,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
         const t0 = performance.now()
         const strongs = await runStrongsSearch(trimmed)
         const r = strongs ?? await runScriptureSearch(trimmed, { textId, wordMode, bookIds: books.length ? books : undefined, wordReplacerEnabled, wordReplacerRules })
-        console.debug(`[perf] search "${trimmed}" (${textId}) → ${r.length} hits in ${Math.round(performance.now() - t0)}ms`)
+        if (import.meta.env.DEV) console.debug(`[perf] search (${textId}) → ${r.length} hits in ${Math.round(performance.now() - t0)}ms`)
         if (my === seq.current) { setHits(r); setNotes(null); setEntries(null); setUnified(null) }
       }
     } catch { if (my === seq.current) { setHits([]); setNotes([]); setEntries([]) } }

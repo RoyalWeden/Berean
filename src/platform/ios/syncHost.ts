@@ -62,14 +62,25 @@ async function syncNow(reason: string): Promise<void> {
   }
 }
 
-async function startEngine(): Promise<{ ok: boolean; reason?: string }> {
+/**
+ * Start the engine. Capture is independent of the transport (DATA-SYNC-001): once sync is
+ * enabled, every local change is journaled to the SQLite outbox whether or not iCloud is
+ * reachable right now (signed out, container not ready, offline start); push / pull simply
+ * report "unavailable" and retry on the interval, foreground and container triggers. Only turning
+ * sync ON requires iCloud to be available (`requireAvailable`), so the user gets a clear answer.
+ * `reconcile`: 'full' after sync was off (changes made meanwhile were never captured), otherwise
+ * the cheap watermark pass that also covers a kill between a write and its capture.
+ */
+async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' | 'since-last' }): Promise<{ ok: boolean; reason?: string }> {
   if (engine) return { ok: true }
-  const cloud = await BereanCloud.status()
-  if (!cloud.available) return { ok: false, reason: cloud.reason ?? 'iCloud unavailable' }
+  const cloud = await BereanCloud.status().catch((err: unknown) => ({ available: false, signedIn: false, reason: String(err), containerId: DEFAULT_CONTAINER, deviceName: '' }))
+  if (opts.requireAvailable && !cloud.available) return { ok: false, reason: cloud.reason ?? 'iCloud unavailable' }
   const deviceId = await deviceIdFor()
   store = new CloudSyncStore(deviceId)
-  const st = await store.status()
-  if (!st.available) { store = null; return { ok: false, reason: st.reason } }
+  if (opts.requireAvailable) {
+    const st = await store.status()
+    if (!st.available) { store = null; return { ok: false, reason: st.reason } }
+  }
   engine = await SyncEngine.open({
     db: iosServiceContext().userDb, store, events: iosServiceContext().events, deviceId,
     deviceName: cloud.deviceName || 'iPhone', platform: 'ios',
@@ -80,6 +91,10 @@ async function startEngine(): Promise<{ ok: boolean; reason?: string }> {
   engine.start()
   const adopted = await engine.adoptExisting()
   if (adopted) console.log(`[sync] adopted ${adopted} existing records`)
+  try {
+    const n = await engine.reconcileLocal(opts.reconcile === 'full')
+    if (n) console.log(`[sync] reconciled ${n} local change(s) not captured before`)
+  } catch (err) { console.warn('[sync] local reconciliation failed', err) }
   unwatch = store.watch((() => { void syncNow('watch') }))
   timer = setInterval(() => { void syncNow('interval') }, INTERVAL_MS)
   void syncNow('start')
@@ -110,7 +125,7 @@ function installLifecycle(): void {
 export async function initIosSyncHost(): Promise<void> {
   installLifecycle()
   if ((await setting<boolean>('icloudSyncEnabled')) === true) {
-    const r = await startEngine()
+    const r = await startEngine({ requireAvailable: false, reconcile: 'since-last' })
     if (!r.ok) console.warn(`[sync] not started: ${r.reason}`)
   }
 }
@@ -131,7 +146,7 @@ export function installIosSyncBridge(): void {
     },
     syncNow: async () => { await syncNow('manual'); return lastStatus },
     enable: async () => {
-      const r = await startEngine()
+      const r = await startEngine({ requireAvailable: true, reconcile: 'full' })
       if (r.ok) await iosServices().settings.set('icloudSyncEnabled', true)
       return r
     },

@@ -2044,7 +2044,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   const title = bookChapterVerseLabel(r.bookId, r.chapter)
                   const originTabId = s.activeTabId[s.activeSpace] ?? undefined
                   s.addTab({
-                    id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+                    id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, spaceId: 'scripture', type: 'bible', title,
                     state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation, showStrongs: false, scrollPosition: 0 },
                     ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
                   })

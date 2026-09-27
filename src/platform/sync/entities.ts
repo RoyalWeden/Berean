@@ -29,6 +29,11 @@ export interface EntityAdapter {
   listKeys(db: DatabaseAdapter): Promise<string[]>
   applyUpsert(db: DatabaseAdapter, key: string, fields: Record<string, unknown>): Promise<void>
   applyDelete(db: DatabaseAdapter, key: string, deletedAt: number): Promise<void>
+  /** Keys whose row changed at or after `ms` (by its own timestamp column); null = this table
+   *  cannot tell (no reliable timestamp) — the reconciliation then compares every row. */
+  changedSince?(db: DatabaseAdapter, ms: number): Promise<string[] | null>
+  /** Every row (live and tombstoned) in ONE query — the reconciliation's full compare. */
+  readAll?(db: DatabaseAdapter): Promise<Array<[string, EntityRecord]>>
 }
 
 const columnCache = new Map<string, string[]>()
@@ -62,22 +67,41 @@ interface TableEntityOptions {
   /** Hook after a remote upsert/delete (e.g. rebuild derived rows). */
   afterUpsert?: (db: DatabaseAdapter, key: string, fields: Record<string, unknown>) => Promise<void>
   beforeDelete?: (db: DatabaseAdapter, key: string) => Promise<void>
+  /** Rows are never modified after insert (note_versions): `created_at` dates every change. */
+  appendOnly?: boolean
 }
 
 export function tableEntity(o: TableEntityOptions): EntityAdapter {
   const table = assertIdent(o.table)
   const idCol = assertIdent(o.idColumn ?? 'id')
   const exclude = new Set(o.exclude ?? [])
+  const toRecord = (row: Record<string, unknown>): EntityRecord => {
+    if (o.tombstoneColumn && row[o.tombstoneColumn] != null) return { fields: { [o.tombstoneColumn]: row[o.tombstoneColumn] }, deleted: true }
+    const fields: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(row)) if (!exclude.has(k)) fields[k] = v
+    return { fields }
+  }
   return {
     kind: o.kind,
     dependents: o.dependents,
     async read(db, key) {
       const row = await db.get<Record<string, unknown>>(`SELECT * FROM ${table} WHERE ${idCol} = ?`, [key])
-      if (!row) return undefined
-      if (o.tombstoneColumn && row[o.tombstoneColumn] != null) return { fields: { [o.tombstoneColumn]: row[o.tombstoneColumn] }, deleted: true }
-      const fields: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(row)) if (!exclude.has(k)) fields[k] = v
-      return { fields }
+      return row ? toRecord(row) : undefined
+    },
+    async readAll(db) {
+      return (await db.all<Record<string, unknown>>(`SELECT * FROM ${table}`)).map((r) => [String(r[idCol]), toRecord(r)] as [string, EntityRecord])
+    },
+    async changedSince(db, ms) {
+      const cols = await tableColumns(db, table)
+      // Only a column every write touches dates a change: updated_at, or created_at for tables
+      // whose rows are never modified. Stored as epoch ms or as ISO text depending on the table.
+      const col = cols.includes('updated_at') ? 'updated_at' : o.appendOnly && cols.includes('created_at') ? 'created_at' : null
+      if (!col) return null
+      const rows = await db.all<{ k: string }>(
+        `SELECT ${idCol} AS k FROM ${table} WHERE (typeof(${col}) IN ('integer', 'real') AND ${col} >= ?) OR (typeof(${col}) = 'text' AND ${col} >= ?) OR ${col} IS NULL`,
+        [ms, new Date(ms).toISOString()],
+      )
+      return rows.map((r) => r.k)
     },
     async listKeys(db) {
       const where = o.tombstoneColumn ? ` WHERE ${assertIdent(o.tombstoneColumn)} IS NULL` : ''
@@ -279,7 +303,7 @@ export function createEntityRegistry(): Map<string, EntityAdapter> {
   const list: EntityAdapter[] = [
     tableEntity({ kind: 'note', table: 'notes', dependents: ['note_version'] }),
     tableEntity({ kind: 'note_folder', table: 'note_folders', dependents: ['note_folder', 'note'] }),
-    tableEntity({ kind: 'note_version', table: 'note_versions' }),
+    tableEntity({ kind: 'note_version', table: 'note_versions', appendOnly: true }),
     tableEntity({ kind: 'highlight', table: 'highlights' }),
     verseTagEntity(),
     tableEntity({

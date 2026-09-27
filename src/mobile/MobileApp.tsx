@@ -474,8 +474,9 @@ function useBoot() {
     const root = document.documentElement
     const handles: Array<Promise<{ remove: () => Promise<void> }>> = []
     try {
-      handles.push(Keyboard.addListener('keyboardWillShow', (e) => { root.style.setProperty('--m-keyboard-h', `${e.keyboardHeight}px`); root.dataset.keyboard = '' }))
-      handles.push(Keyboard.addListener('keyboardWillHide', () => { root.style.setProperty('--m-keyboard-h', '0px'); delete root.dataset.keyboard }))
+      // `berean:keyboard` lets anchored menus re-measure (primitives/anchoredMenu.ts).
+      handles.push(Keyboard.addListener('keyboardWillShow', (e) => { root.style.setProperty('--m-keyboard-h', `${e.keyboardHeight}px`); root.dataset.keyboard = ''; window.dispatchEvent(new Event('berean:keyboard')) }))
+      handles.push(Keyboard.addListener('keyboardWillHide', () => { root.style.setProperty('--m-keyboard-h', '0px'); delete root.dataset.keyboard; window.dispatchEvent(new Event('berean:keyboard')) }))
     } catch { /* web preview */ }
     return () => { for (const h of handles) h.then((x) => x.remove()).catch(() => {}) }
   }, [])

@@ -132,7 +132,7 @@ export default function App() {
         const title = bookChapterVerseLabel(payload.bookId, payload.chapter)
         const originTabId = s.activeTabId[s.activeSpace] ?? undefined
         s.addTab({
-          id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+          id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, spaceId: 'scripture', type: 'bible', title,
           state: { bookId: payload.bookId, chapter: payload.chapter, targetVerse: payload.verse, translation, showStrongs: false, scrollPosition: 0 },
           ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
         })

@@ -105,7 +105,11 @@ export function createHighlightsService(ctx: ServiceContext) {
       return { updated: true, id: existing.id, color }
     }
 
-    const id = ctx.uuid()
+    // The id is the highlighted RANGE (DATA-HL-001): the same range highlighted on two devices
+    // while apart is one record after sync (the later colour wins), never two stacked rows that
+    // un-highlighting would only half remove. Older random-id rows keep their ids.
+    const range = isCharLevel ? `c${startChar}-${endChar}` : isWordLevel ? `w${startWord}-${endWord}` : 'v'
+    const id = `hl-${textId}-${bookId}-${chapter}-${verseNum}-${range}`
     await db().run(INSERT_SQL, [
       id, textId, bookId, chapter, verseNum, color,
       isWordLevel ? startWord! : null, isWordLevel ? endWord! : null,

@@ -15,11 +15,49 @@ import { Filesystem, Directory } from '@capacitor/filesystem'
  */
 const YT = /(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/
 
-export async function drainShareInbox(): Promise<number> {
-  let items: ShareInboxItem[] = []
-  try { items = (await BereanShareInbox.take()).items } catch { return 0 }
-  for (const it of items) await routeItem(it).catch((err) => console.warn('[share-inbox] item failed', err))
-  return items.length
+/** Ids handled already (a kill between handling and ack must not create the note twice). */
+const DONE_KEY = 'shareInboxHandled'
+const DONE_MAX = 200
+/** An item that keeps failing is given up (and acked) after this many drains. */
+const MAX_ATTEMPTS = 3
+const attempts = new Map<string, number>()
+let draining: Promise<number> | null = null
+
+/**
+ * Drain the inbox (DATA-SHARE-001): each item is handled, recorded as handled, then acknowledged
+ * (removed from the App Group). A failure leaves the item for the next drain; an app kill at any
+ * point loses nothing and never handles an item twice.
+ */
+export function drainShareInbox(): Promise<number> {
+  if (draining) return draining
+  draining = (async () => {
+    let items: ShareInboxItem[] = []
+    try { items = (await BereanShareInbox.take()).items } catch { return 0 }
+    if (!items.length) return 0
+    const settings = iosServices().settings
+    const done = new Set<string>(((await settings.get(DONE_KEY).catch(() => null)) as string[] | null) ?? [])
+    const ack: string[] = [], files: string[] = []
+    for (const it of items) {
+      const id = it.id ?? `${it.kind}-${it.receivedAt ?? 0}`
+      if (!done.has(id)) {
+        try {
+          await routeItem(it)
+        } catch (err) {
+          const n = (attempts.get(id) ?? 0) + 1
+          attempts.set(id, n)
+          console.warn(`[share-inbox] item failed (attempt ${n})`, err instanceof Error ? err.message : String(err))
+          if (n < MAX_ATTEMPTS) continue
+        }
+        done.add(id)
+        await settings.set(DONE_KEY, [...done].slice(-DONE_MAX)).catch(() => {})
+      }
+      ack.push(id)
+      if (it.file) files.push(it.file)
+    }
+    if (ack.length) await BereanShareInbox.ack({ ids: ack, files }).catch(() => {})
+    return ack.length
+  })().finally(() => { draining = null })
+  return draining
 }
 
 async function routeItem(it: ShareInboxItem): Promise<void> {

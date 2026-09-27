@@ -119,10 +119,13 @@ export interface BereanPowerPlugin {
 export const BereanPower = registerPlugin<BereanPowerPlugin>('BereanPower')
 
 /** App Group inbox filled by the Share Extension (BereanShareInboxPlugin.swift). */
-export interface ShareInboxItem { kind: 'text' | 'url' | 'pdf'; text?: string; url?: string; file?: string; name?: string; receivedAt?: number }
+export interface ShareInboxItem { id?: string; kind: 'text' | 'url' | 'pdf'; text?: string; url?: string; file?: string; name?: string; receivedAt?: number }
 export interface BereanShareInboxPlugin {
+  /** Pending items — nothing is removed until `ack`. */
   take(): Promise<{ items: ShareInboxItem[] }>
   readFile(opts: { file: string }): Promise<{ base64: string; bytes: number }>
+  /** Remove handled items and their files (idempotent). */
+  ack(opts: { ids: string[]; files?: string[] }): Promise<void>
 }
 export const BereanShareInbox = registerPlugin<BereanShareInboxPlugin>('BereanShareInbox')
 

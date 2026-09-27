@@ -66,18 +66,24 @@ async function syncNow(reason: string): Promise<void> {
   }
 }
 
-/** Start the engine (idempotent). Returns false when the folder is not usable. */
-async function startEngine(): Promise<{ ok: boolean; reason?: string }> {
+/**
+ * Start the engine (idempotent). Capture is independent of the folder (DATA-SYNC-001): once
+ * sync is enabled every local change goes to the SQLite outbox even if the iCloud folder is
+ * missing right now; the store reports "unavailable" (it never creates the container root
+ * itself) and push / pull retry on the interval. Only turning sync ON requires the folder.
+ */
+async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' | 'since-last' }): Promise<{ ok: boolean; reason?: string }> {
   if (engine) return { ok: true }
   const folder = resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId'))
   const containerRoot = folder.replace(/\/sync\/v1$/, '')
-  if (!existsSync(containerRoot)) {
-    return { ok: false, reason: `iCloud folder not found: ${containerRoot} — open Berean on your iPhone once so iCloud creates the container, or choose a folder inside iCloud Drive.` }
-  }
+  const missing = `iCloud folder not found: ${containerRoot} — open Berean on your iPhone once so iCloud creates the container, or choose a folder inside iCloud Drive.`
+  if (opts.requireAvailable && !existsSync(containerRoot)) return { ok: false, reason: missing }
   const deviceId = await deviceIdFor()
-  store = new FsSyncStore(folder, deviceId)
-  const st = await store.status()
-  if (!st.available) { store = null; return { ok: false, reason: st.reason } }
+  store = new FsSyncStore(folder, deviceId, containerRoot)
+  if (opts.requireAvailable) {
+    const st = await store.status()
+    if (!st.available) { store = null; return { ok: false, reason: st.reason } }
+  }
   engine = await SyncEngine.open({
     db: serviceContext().userDb, store, events: serviceContext().events, deviceId,
     deviceName: hostname().replace(/\.local$/, ''), platform: process.platform === 'win32' ? 'win32' : process.platform === 'linux' ? 'linux' : 'darwin',
@@ -88,6 +94,10 @@ async function startEngine(): Promise<{ ok: boolean; reason?: string }> {
   engine.start()
   const adopted = await engine.adoptExisting()
   if (adopted) log.info(`[sync] adopted ${adopted} existing records`)
+  try {
+    const n = await engine.reconcileLocal(opts.reconcile === 'full')
+    if (n) log.info(`[sync] reconciled ${n} local change(s) not captured before`)
+  } catch (err) { log.warn('[sync] local reconciliation failed', err) }
   unwatch = store.watch?.(() => { void syncNow('watch') }) ?? null
   timer = setInterval(() => { void syncNow('interval') }, INTERVAL_MS)
   void syncNow('start')
@@ -115,7 +125,7 @@ export async function initSyncHost(): Promise<void> {
   }))
   ipcMain.handle('sync:syncNow', async () => { await syncNow('manual'); return lastStatus })
   ipcMain.handle('sync:enable', async () => {
-    const r = await startEngine()
+    const r = await startEngine({ requireAvailable: true, reconcile: 'full' })
     if (r.ok) await services().settings.set('icloudSyncEnabled', true)
     return r
   })
@@ -140,7 +150,7 @@ export async function initSyncHost(): Promise<void> {
   })
 
   if ((await setting<boolean>('icloudSyncEnabled')) === true) {
-    const r = await startEngine()
+    const r = await startEngine({ requireAvailable: false, reconcile: 'since-last' })
     if (!r.ok) log.warn(`[sync] not started: ${r.reason}`)
   }
 

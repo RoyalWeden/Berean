@@ -1,6 +1,6 @@
 import { useAppStore, type AppState } from './index'
 import { buildSnapshot, hydrateFromRows, emptyKeyMaps, type OrderKeyMaps, type HydratedState, SPACES } from './tabPersistence'
-import type { SpaceId, TabType } from '../types'
+import type { SpaceId, Tab, TabType } from '../types'
 import { splitTabState, mergeTabState, isKnownTabType } from '../platform/sync/tabFields'
 
 /**
@@ -23,6 +23,56 @@ import { splitTabState, mergeTabState, isKnownTabType } from '../platform/sync/t
 const DEBOUNCE_MS = 400
 
 let keys: OrderKeyMaps = emptyKeyMaps()
+
+/**
+ * Remote changes to the tab ON SCREEN are held back (DATA-TAB-001): another device navigating the
+ * same synced tab must never move what the user is reading right now. The held remote tab is
+ * applied when the user leaves that tab; if the user changes the tab meanwhile, their change
+ * wins (it is newer) and the held remote state is dropped. While held, snapshots write the
+ * REMOTE state for that tab back unchanged, so this device never re-publishes its stale view.
+ */
+const deferred = new Map<string, { kept: string; remote: Tab }>()
+const syncSig = (t: Tab) => JSON.stringify([t.type, splitTabState(isKnownTabType(t.type) ? t.type : 'bible', t.state).sync])
+function onScreenTabId(s: AppState): string | null { return s.activeTabId[s.activeSpace] ?? null }
+function replaceTab(tabs: AppState['tabs'], id: string, next: Tab): AppState['tabs'] {
+  const out = { ...tabs }
+  for (const sp of SPACES) if ((out[sp] ?? []).some((t) => t.id === id)) out[sp] = out[sp].map((t) => (t.id === id ? next : t))
+  return out
+}
+function findTab(tabs: AppState['tabs'], id: string): Tab | undefined {
+  for (const sp of SPACES) { const t = (tabs[sp] ?? []).find((x) => x.id === id); if (t) return t }
+  return undefined
+}
+/** The store as it should be WRITTEN: held tabs carry their remote state (or the user's own newer change). */
+function writableState(s: AppState): AppState {
+  let tabs = s.tabs
+  for (const [id, d] of [...deferred]) {
+    const mine = findTab(tabs, id)
+    if (!mine) { deferred.delete(id); continue }
+    if (syncSig(mine) !== d.kept) { deferred.delete(id); continue }   // the user changed it: theirs wins
+    if (mine.type === d.remote.type) tabs = replaceTab(tabs, id, { ...d.remote, state: mergeTabState(mine.type, splitTabState(mine.type, d.remote.state).sync, splitTabState(mine.type, mine.state).local) })
+  }
+  return tabs === s.tabs ? s : { ...s, tabs }
+}
+/** The user left a held tab: show the remote state now (unless they changed the tab meanwhile). */
+function releaseDeferred(): void {
+  if (!deferred.size) return
+  const s = useAppStore.getState()
+  const onScreen = onScreenTabId(s)
+  let tabs = s.tabs
+  for (const [id, d] of [...deferred]) {
+    if (id === onScreen) continue
+    deferred.delete(id)
+    const mine = findTab(tabs, id)
+    if (!mine || syncSig(mine) !== d.kept) continue
+    const type: TabType = isKnownTabType(d.remote.type) ? d.remote.type : 'bible'
+    tabs = replaceTab(tabs, id, { ...d.remote, state: mergeTabState(type, d.remote.state as unknown as Record<string, unknown>, type === mine.type ? splitTabState(type, mine.state).local : {}) })
+  }
+  if (tabs !== s.tabs) {
+    applyingExternal = true
+    try { useAppStore.setState({ tabs }) } finally { applyingExternal = false }
+  }
+}
 let lastSnapshotSig = ''
 let applyingExternal = false
 let installed = false
@@ -41,7 +91,7 @@ function pickState(s: AppState) {
 async function writeSnapshot(): Promise<void> {
   const sessionsApi = api()
   if (!sessionsApi) return
-  const s = useAppStore.getState()
+  const s = writableState(useAppStore.getState())
   const built = buildSnapshot(pickState(s), keys)
   keys = built.keys
   const sig = JSON.stringify(built.snapshot)
@@ -63,10 +113,11 @@ async function writeSnapshot(): Promise<void> {
 }
 
 /** Merge hydrated sessions into the store, keeping this window's view. */
-function applyHydrated(h: HydratedState, opts: { keepLocalTabState: boolean }): void {
+function applyHydrated(h: HydratedState, opts: { keepLocalTabState: boolean; holdOnScreen?: boolean }): void {
   applyingExternal = true
   try {
     useAppStore.setState((s) => {
+      const onScreen = opts.holdOnScreen ? onScreenTabId(s) : null
       const sessions = h.sessions.map((inc) => {
         if (!opts.keepLocalTabState) return inc
         // Keep per-tab local view state this window already has (scroll, cursor, pane sizes).
@@ -78,6 +129,12 @@ function applyHydrated(h: HydratedState, opts: { keepLocalTabState: boolean }): 
           tabs[sp] = inc.tabs[sp].map((t) => {
             const mine = byId.get(t.id)
             if (!mine) return t
+            // The tab on screen keeps what the user is looking at; the remote state waits.
+            if (t.id === onScreen && inc.id === s.currentSessionId && syncSig(t) !== syncSig(mine)) {
+              const held = deferred.get(t.id)
+              deferred.set(t.id, { kept: held?.kept ?? syncSig(mine), remote: t })
+              return mine
+            }
             // Synced fields come from the rows; this device's in-memory LOCAL fields (scroll,
             // cursor, pane sizes) are newer than whatever local_state_json was last mirrored.
             const type: TabType = isKnownTabType(mine.type) ? mine.type : 'bible'
@@ -136,6 +193,7 @@ export function installTabPersistence(): () => void {
   }
 
   const unsub = useAppStore.subscribe((s, p) => {
+    if (s.activeTabId !== p.activeTabId || s.activeSpace !== p.activeSpace) releaseDeferred()
     if (s.sessions !== p.sessions || s.tabs !== p.tabs || s.sessionDisplayOrders !== p.sessionDisplayOrders
       || s.archivedGroups !== p.archivedGroups || s.activeTabId !== p.activeTabId || s.currentSessionId !== p.currentSessionId) {
       schedule()
@@ -145,14 +203,19 @@ export function installTabPersistence(): () => void {
   const flush = () => { if (timer) { clearTimeout(timer); timer = null; void writeSnapshot() } }
   window.addEventListener('pagehide', flush)
   window.addEventListener('beforeunload', flush)
+  // iOS rarely fires pagehide on backgrounding; the app can then be killed while suspended.
+  const onHidden = () => { if (document.visibilityState === 'hidden') flush() }
+  document.addEventListener('visibilitychange', onHidden)
 
   void (async () => {
     try {
       if (await sessionsApi.hasAny()) {
         const h = await loadRows()
         keys = h.keys
-        applyHydrated(h, { keepLocalTabState: true })
-        lastSnapshotSig = JSON.stringify(buildSnapshot(pickState(useAppStore.getState()), keys).snapshot)
+        // The tab the user was reading when the app closed stays where it was, even if another
+        // device moved it meanwhile (held until they leave it — see `deferred`).
+        applyHydrated(h, { keepLocalTabState: true, holdOnScreen: true })
+        lastSnapshotSig = JSON.stringify(buildSnapshot(pickState(writableState(useAppStore.getState())), keys).snapshot)
       } else {
         // Legacy import: the localStorage-restored store is the only copy; make it durable.
         const s = useAppStore.getState()
@@ -175,6 +238,7 @@ export function installTabPersistence(): () => void {
     unsub()
     window.removeEventListener('pagehide', flush)
     window.removeEventListener('beforeunload', flush)
+    document.removeEventListener('visibilitychange', onHidden)
     flush()
     installed = false
   }
@@ -185,8 +249,8 @@ export async function applyExternalSessions(): Promise<void> {
   if (!api()) return
   const h = await loadRows()
   keys = h.keys
-  applyHydrated(h, { keepLocalTabState: true })
-  lastSnapshotSig = JSON.stringify(buildSnapshot(pickState(useAppStore.getState()), keys).snapshot)
+  applyHydrated(h, { keepLocalTabState: true, holdOnScreen: true })
+  lastSnapshotSig = JSON.stringify(buildSnapshot(pickState(writableState(useAppStore.getState())), keys).snapshot)
 }
 
 /** Test-only: reset module state between installs. */
@@ -195,4 +259,5 @@ export function __resetTabPersistence(): void {
   lastSnapshotSig = ''
   applyingExternal = false
   installed = false
+  deferred.clear()
 }

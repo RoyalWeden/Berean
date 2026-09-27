@@ -20,15 +20,21 @@ export class FsSyncStore implements SyncStore {
   readonly root: string
   private downloadRequested = new Map<string, number>()
 
-  constructor(root: string, deviceId: string) {
+  /** When set, the store is unavailable until this folder exists — it never creates the iCloud
+   *  container itself (that would sync to a plain local folder and look like it worked). */
+  private readonly requiredParent: string | null
+
+  constructor(root: string, deviceId: string, requiredParent: string | null = null) {
     this.root = root
     this.deviceId = deviceId
+    this.requiredParent = requiredParent
   }
 
   private devicesDir(): string { return join(this.root, 'devices') }
   private ownDir(): string { return join(this.devicesDir(), this.deviceId) }
 
   async status(): Promise<SyncStoreStatus> {
+    if (this.requiredParent && !existsSync(this.requiredParent)) return { available: false, reason: `iCloud folder not found: ${this.requiredParent}` }
     try {
       await fs.mkdir(this.ownDir(), { recursive: true })
       const readme = join(this.root, 'README.txt')

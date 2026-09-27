@@ -61,13 +61,20 @@ final class ShareViewController: UIViewController {
         return dir
     }
 
+    /// One file per shared item (`item-<uuid>.json`, written atomically): nothing is ever read and
+    /// rewritten, so a share arriving while the app drains the inbox can never be lost, and every
+    /// item has a stable id the app acknowledges only after it has been handled (DATA-SHARE-001).
     private func write(_ items: [[String: Any]]) {
         guard let dir = inboxDir() else { return }
-        let file = dir.appendingPathComponent("pending.json")
-        var existing: [[String: Any]] = []
-        if let data = try? Data(contentsOf: file), let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] { existing = arr }
-        existing.append(contentsOf: items.map { var i = $0; i["receivedAt"] = Date().timeIntervalSince1970 * 1000; return i })
-        if let data = try? JSONSerialization.data(withJSONObject: existing) { try? data.write(to: file, options: .atomic) }
+        for item in items {
+            let id = UUID().uuidString.lowercased()
+            var i = item
+            i["id"] = id
+            i["receivedAt"] = Date().timeIntervalSince1970 * 1000
+            if let data = try? JSONSerialization.data(withJSONObject: i) {
+                try? data.write(to: dir.appendingPathComponent("item-\(id).json"), options: .atomic)
+            }
+        }
     }
 
     /// Extensions may not reference `UIApplication.shared`, but `UIScene.open(_:options:)` is

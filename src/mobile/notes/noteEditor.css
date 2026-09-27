@@ -35,6 +35,8 @@ html[data-keyboard] .m-note-insert.is-viewport { bottom: calc(var(--m-keyboard-h
 
 .m-note-insert-menu {
   min-width: 220px; max-width: calc(100vw - 32px); padding: 6px;
+  /* Height comes from useAnchoredMenu (never cropped); scrolls inside only when it must. */
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   border-radius: var(--m-radius-card, 16px);
   background: var(--m-glass-thick); border: 0.5px solid var(--m-hairline);
   -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
@@ -42,6 +44,8 @@ html[data-keyboard] .m-note-insert.is-viewport { bottom: calc(var(--m-keyboard-h
   transform-origin: bottom left; animation: m-note-insert-in 0.16s ease-out;
 }
 @keyframes m-note-insert-in { from { opacity: 0; transform: scale(0.92) translateY(6px); } to { opacity: 1; transform: none; } }
+.m-note-insert-menu.is-below { order: 2; transform-origin: top left; }
+.m-note-insert-menu.is-scrolling { box-shadow: inset 0 -12px 12px -12px rgb(0 0 0 / 0.18), inset 0 0.5px 0 var(--m-edge-highlight); }
 .m-note-insert-row {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0 12px;
   border: 0; border-radius: 10px; background: none; color: rgb(var(--color-text-primary));

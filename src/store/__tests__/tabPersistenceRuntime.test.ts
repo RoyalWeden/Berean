@@ -106,8 +106,9 @@ describe('installTabPersistence', () => {
     const t1 = (await svc.listTabs()).find((t) => t.id === 't1')!
     await svc.upsertTab({ ...t1, sync_state_json: JSON.stringify({ bookId: 'GEN', chapter: 7, translation: 'kjva', showStrongs: true }), local_state_json: JSON.stringify({ scrollPosition: 999 }) })
     await svc.upsertTab({ id: 'remote', session_id: 'default', space_id: 'scripture', type: 'bible', title: 'Exo 1', is_pinned: 0, order_key: 'a5', display_order_key: 'a5', origin_tab_id: null, origin_space_id: null, sync_state_json: JSON.stringify({ bookId: 'EXO', chapter: 1, translation: 'kjva', showStrongs: false }), local_state_json: '{}' })
-    // meanwhile this device scrolled t1
+    // meanwhile this device scrolled t1 — and then looked at another space, so t1 is not on screen
     useAppStore.getState().updateTabState('scripture', 't1', { scrollPosition: 55 })
+    useAppStore.setState({ activeSpace: 'notes' })
     await applyExternalSessions()
     const st = useAppStore.getState()
     expect(st.tabs.scripture.map((t) => t.id)).toEqual(['t1', 'remote'])
@@ -115,5 +116,49 @@ describe('installTabPersistence', () => {
     expect(local.chapter).toBe(7)          // synced field adopted
     expect(local.showStrongs).toBe(true)
     expect(local.scrollPosition).toBe(55)  // this device's newer local view state wins over the mirrored row
+  })
+
+  // DATA-TAB-001 — the reading position on screen is never moved by another device.
+  async function remoteMovesT1To(chapter: number) {
+    const t1 = (await svc.listTabs()).find((t) => t.id === 't1')!
+    await svc.upsertTab({ ...t1, sync_state_json: JSON.stringify({ bookId: 'GEN', chapter, translation: 'kjva', showStrongs: false }) })
+  }
+  const t1 = () => useAppStore.getState().tabs.scripture.find((t) => t.id === 't1')!.state as { chapter: number }
+  const row = async () => JSON.parse((await svc.listTabs()).find((t) => t.id === 't1')!.sync_state_json) as { chapter: number }
+
+  it('a remote change to the tab ON SCREEN waits until the user leaves it', async () => {
+    useAppStore.getState().addTab(bibleTab('t1', 1), 'end')
+    teardown = installTabPersistence()
+    await settle()
+    await remoteMovesT1To(10)
+    await applyExternalSessions()
+    expect(t1().chapter).toBe(1)               // still what the user is reading
+    useAppStore.setState({ activeSpace: 'notes' })   // they leave the tab
+    expect(t1().chapter).toBe(10)              // now the remote destination applies
+  })
+
+  it('while held, this device never writes its stale view back over the remote change', async () => {
+    useAppStore.getState().addTab(bibleTab('t1', 1), 'end')
+    teardown = installTabPersistence()
+    await settle()
+    await remoteMovesT1To(10)
+    await applyExternalSessions()
+    useAppStore.getState().addTab(bibleTab('t2', 2), 'end')   // an unrelated change triggers a snapshot…
+    useAppStore.setState({ activeTabId: { ...useAppStore.getState().activeTabId, scripture: 't1' } })
+    await settle()
+    expect((await row()).chapter).toBe(10)     // …which keeps the remote destination in the row
+  })
+
+  it('if the user navigates the held tab, their newer change wins', async () => {
+    useAppStore.getState().addTab(bibleTab('t1', 1), 'end')
+    teardown = installTabPersistence()
+    await settle()
+    await remoteMovesT1To(10)
+    await applyExternalSessions()
+    useAppStore.getState().updateTabState('scripture', 't1', { chapter: 3 })
+    await settle()
+    expect((await row()).chapter).toBe(3)
+    useAppStore.setState({ activeSpace: 'notes' })
+    expect(t1().chapter).toBe(3)               // the dropped remote state is not re-applied later
   })
 })

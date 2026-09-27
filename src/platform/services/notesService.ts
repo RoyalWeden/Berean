@@ -160,7 +160,13 @@ export function createNotesService(ctx: ServiceContext) {
   async function create(data: {
     type?: string; title?: string; content?: string; verseRef?: string; color?: string; icon?: string; status?: string | null; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) {
-    const id = ctx.uuid()
+    // A daily note's identity is its DATE (DATA-DAILY-001): two devices creating the same day's
+    // note while apart create the same record, which sync merges (one note + a conflict copy)
+    // instead of leaving two "Daily — 2026-09-27" notes. An older random-id daily note for that
+    // date, or a trashed one holding the id, keeps the random-id path (no PK clash).
+    const dateKey = data.type === 'daily' && data.title ? dailyTitleDateKey(data.title) : null
+    const dailyId = dateKey ? `daily-${dateKey}` : null
+    const id = dailyId && !(await db().get('SELECT 1 FROM notes WHERE id = ?', [dailyId])) ? dailyId : ctx.uuid()
     const now = ctx.now()
     // Apply the user's configured default only when the caller didn't explicitly pass a
     // status (including explicitly passing null/'' to mean "no status") — centralized here

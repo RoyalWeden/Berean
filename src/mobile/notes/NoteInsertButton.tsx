@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import type { EditorView } from 'prosemirror-view'
 import { NOTE_INSERT_ITEMS, runNoteInsert, insertLink, type NoteInsertId } from './noteInsertCommands'
 import { haptic } from '../primitives/haptics'
+import { useAnchoredMenu } from '../primitives/anchoredMenu'
 import './noteEditor.css'
 
 /** z-index just above the sheet `anchor` sits in (Sheet.tsx sets it inline), or null outside a sheet. */
@@ -57,6 +58,11 @@ export function NoteInsertButton({ view, placement = 'inline', hidden = false }:
   const anchorRef = useRef<HTMLSpanElement>(null)
   const z = useSheetOverlayZ(anchorRef)
   const scrolledAway = useHiddenOnScrollDown(view)
+  const fabRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // Every option stays reachable (UI-MENU-001): the menu takes only the room between the +
+  // and the top safe area — above the keyboard when it is up — and scrolls when it must.
+  const layout = useAnchoredMenu(open, fabRef, menuRef, 'above')
 
   const close = () => { setOpen(false); setLinkMode(false); setUrl('') }
   useEffect(() => {
@@ -87,7 +93,8 @@ export function NoteInsertButton({ view, placement = 'inline', hidden = false }:
       style={placement === 'viewport' && z != null ? { zIndex: z } : undefined}
     >
       {open && (
-        <div className="m-note-insert-menu" role="menu" aria-label="Insert">
+        <div ref={menuRef} className={`m-note-insert-menu${layout?.placement === 'below' ? ' is-below' : ''}${layout?.scroll ? ' is-scrolling' : ''}`} role="menu" aria-label="Insert"
+          style={layout ? { maxHeight: layout.maxHeight } : { visibility: 'hidden' }}>
           {linkMode ? (
             <form className="m-note-insert-link" onSubmit={(e) => { e.preventDefault(); submitLink() }}>
               <input
@@ -105,6 +112,7 @@ export function NoteInsertButton({ view, placement = 'inline', hidden = false }:
         </div>
       )}
       <button
+        ref={fabRef}
         type="button"
         className="m-note-insert-fab"
         aria-label="Insert"

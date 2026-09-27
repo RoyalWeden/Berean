@@ -1,6 +1,6 @@
 # Berean iPhone — iCloud Synchronisation Design
 
-Status: **engine implemented and integration-tested with an in-memory transport (Phase 6, 2026-09-21)**; iCloud Drive transports (Electron fs, iOS BereanCloud) and device runs are Phases 7–9/21. Decision record: `decisions.md` D-004, D-006. Code: `src/platform/sync/{types,journal,entities,engine,hlc,fractional,tabFields}.ts`, tests in `src/platform/sync/__tests__/`.
+Status: **engine implemented and integration-tested with an in-memory transport (Phase 6, 2026-09-21); hardened 2026-09-27 (DATA-SYNC-*, see [sync.md](sync.md) — capture independent of transport, startup reconciliation, concurrent delete-vs-edit → Trash with the edit, on-screen tab held, deterministic daily-note / highlight ids, diagnostics)**; iCloud Drive transports (Electron fs, iOS BereanCloud) and device runs are Phases 7–9/21. Decision record: `decisions.md` D-004, D-006. Code: `src/platform/sync/{types,journal,entities,engine,hlc,fractional,tabFields}.ts`, tests in `src/platform/sync/__tests__/`.
 Requirements: R050–R066.
 
 ---
@@ -110,7 +110,10 @@ Applied identically on every device when replaying another device's journal:
    which matches how the app writes (every save writes the whole row). Capture hashes the synced
    fields, so a bulk re-capture (reorder, empty trash) only journals records that actually changed.
 3. **Delete vs upsert:** a tombstone wins over any op with a smaller `hlc` and loses to any op with
-   a greater `hlc` (an edit after a delete resurrects the record — the user clearly wanted it).
+   a greater `hlc`. **Notes, since 2026-09-27 (DATA-SYNC-002):** when the delete (Trash or purge)
+   and the edit were concurrent (the op's `base` is not the receiver's record HLC), the note ends up
+   IN THE TRASH carrying the edited content on every device — neither a silent resurrection nor a
+   silent loss; a delete that had seen the edit is an ordinary delete.
    Trash semantics are preserved: `notes.deleted_at` is a *soft* delete field on the record, so
    "move to trash" is an `upsert` with `deleted_at` set, and only "purge" is a `delete` op.
    Sessions/tabs/archived groups keep their tombstone rows; other entities are hard-deleted and the
@@ -184,6 +187,7 @@ Applied identically on every device when replaying another device's journal:
 | `pdfs`, `pdf_highlights`, `pdf_bookmarks` (v46) | **SYNC metadata** ✔ | the PDF bytes are **not** journaled. `pdfs.file_hash` (SHA-256, v46) lets the other device attach the same file on import instead of duplicating the row; until then the platform's `pdf.list/get` report `fileMissing` (desktop: "file not on this device — import it to read" in the picker, and a plain message in the viewer). Bookmarks moved from localStorage to `pdf_bookmarks` (one-time import on first open) |
 | `trail_*` (study trail: sessions, nodes, connections, notes, tags) | **SYNC** ✔ except `trail_collapse` (LOCAL) and `trail_embeddings` (LOCAL, derived) | `trail_session` is an aggregate (row + paused intervals + tag ids); `trail_node`, `trail_connection`, `trail_note`, `trail_tag` are records. `resumeSession` was rewritten without `UPDATE … ORDER BY … LIMIT` (needs `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`, absent on iOS/system SQLite) |
 | `history` | **LOCAL** | device navigation history (brief: reading position stays local) |
+| search history (`recentSearchQueries`, zustand) | **LOCAL** | recent searches of this device |
 | `settings` | **LOCAL** | |
 | `youtube_videos`, `youtube_sync`, `youtube_transcripts*` | **LOCAL** (cache/seed) | `youtube_user` (v45) ✔ = stars + resume positions; the service writes it alongside `youtube_videos.is_starred` / `youtube_watch_history`, a remote row is mirrored back into them, and a star for a video not fetched yet is applied when the video arrives (`upsertVideos`, `mergeYouTubeSeed`). Stars survive "clear video cache" |
 | `note_heading_collapse`, `note_thread_collapse` | **LOCAL** | UI fold state |
@@ -236,7 +240,9 @@ other device; *how far it was scrolled and how wide a pane was* is device presen
   with progress, but the app is usable (Bible reading never waits on sync).
 - **iCloud unavailable / signed out:** `BereanCloud.status()` reports it; the app keeps journaling
   to a local outbox (`sync_outbox`) and flushes when the container becomes available. Settings
-  show the state plainly.
+  show the state plainly. Since 2026-09-27 this is true even when iCloud is unavailable at LAUNCH
+  (the engine and its capture start regardless; earlier builds only started when iCloud was
+  reachable), and a watermark reconciliation at every start re-captures anything missed.
 
 ## 8. Compaction — implemented (`engine.compact` / `pruneCompacted` / `applySnapshot`)
 

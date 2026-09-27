@@ -3182,7 +3182,7 @@ export const useAppStore = create<AppState>()(
         const tab = state.tabs[spaceId].find(t => t.id === tabId)
         if (!tab) return
         const group: ArchivedGroup = {
-          id: `arch-${Date.now()}`,
+          id: `arch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           label: tab.title,
           archivedAt: Date.now(),
           tabs: [tab],
@@ -3201,7 +3201,7 @@ export const useAppStore = create<AppState>()(
         if (allTabs.length === 0) return
         const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
         const group: ArchivedGroup = {
-          id: `arch-${Date.now()}`,
+          id: `arch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           label: label ?? `Archive — ${ts}`,
           archivedAt: Date.now(),
           tabs: allTabs,

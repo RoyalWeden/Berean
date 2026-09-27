@@ -434,7 +434,7 @@ export default function AiLookupPanel() {
       updateTabState('scripture', activeScripture.id, { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, endVerse: r.endVerse, scrollPosition: 0, translation: r.textId.toUpperCase() })
     } else {
       addTab({
-        id: `bible-${Date.now()}`,
+        id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         spaceId: 'scripture', type: 'bible', title,
         state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, endVerse: r.endVerse, translation: r.textId.toUpperCase(), showStrongs: false, scrollPosition: 0 },
       })

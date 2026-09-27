@@ -162,11 +162,11 @@ describe('sync engine — two devices', () => {
     expect((await phone.services.verseTags.getForChapter('EXO', 19)).verseTags[5]?.length).toBe(1)
   })
 
-  it('G/H: deletions propagate; an edit made after a trash or purge wins (never silently loses work)', async () => {
+  it('G/H: deletions propagate; a delete concurrent with an edit neither resurrects nor destroys: the note lands in the Trash with the edit (DATA-SYNC-002)', async () => {
     const a = await mac.services.notes.create({ type: 'general', title: 'Doomed', content: 'x' })
     const b = await mac.services.notes.create({ type: 'general', title: 'Edited later', content: 'y' })
     await syncAll(mac, phone)
-    // G: purge on mac while phone is offline
+    // G: purge on mac while phone is offline (phone did not touch it) → gone everywhere
     phone.store.setOnline(false)
     tick(); await mac.services.notes.delete(a.note!.id); await mac.services.notes.purgeTrashItem(a.note!.id)
     await mac.engine.sync()
@@ -174,15 +174,18 @@ describe('sync engine — two devices', () => {
     phone.store.setOnline(true)
     await syncAll(mac, phone)
     expect(await noteById(phone, a.note!.id)).toBeNull()
-    // H: mac trashes b, phone edits b LATER (offline) → the edit wins and b is back out of the trash
+    // H: mac trashes b, phone edits b while apart → b is in the Trash on BOTH, holding the edit
     phone.store.setOnline(false)
     tick(); await mac.services.notes.delete(b.note!.id)
     tick(); await phone.services.notes.update(b.note!.id, { content: 'y2' })
     phone.store.setOnline(true)
     await syncAll(mac, phone)
-    expect((await noteById(mac, b.note!.id))!.content).toBe('y2')
-    expect((await mac.services.notes.listTrash()).map((n) => n.id)).not.toContain(b.note!.id)
-    // and the mirror case: phone edits EARLIER than mac's purge → purge wins on both
+    for (const d of [mac, phone]) {
+      expect((await noteById(d, b.note!.id))!.content).toBe('y2')
+      expect((await d.services.notes.listTrash()).map((n) => n.id)).toContain(b.note!.id)
+    }
+    // the purge case, either timing: phone edits c while mac purges it → c comes back INTO THE
+    // TRASH with the phone's edit on both devices (restorable), never silently gone
     const c = await mac.services.notes.create({ type: 'general', title: 'C', content: 'c' })
     await syncAll(mac, phone)
     phone.store.setOnline(false)
@@ -190,8 +193,14 @@ describe('sync engine — two devices', () => {
     tick(); await mac.services.notes.delete(c.note!.id); await mac.services.notes.purgeTrashItem(c.note!.id)
     phone.store.setOnline(true)
     await syncAll(mac, phone)
-    expect(await noteById(mac, c.note!.id)).toBeNull()
-    expect(await noteById(phone, c.note!.id)).toBeNull()
+    for (const d of [mac, phone]) {
+      expect((await noteById(d, c.note!.id))!.content).toBe('c2')
+      expect((await d.services.notes.listTrash()).map((n) => n.id)).toContain(c.note!.id)
+    }
+    // a delete the other device HAD seen is an ordinary delete: restore + edit afterwards is live
+    tick(); await mac.services.notes.restore(c.note!.id)
+    await syncAll(mac, phone)
+    expect((await phone.services.notes.listTrash()).map((n) => n.id)).not.toContain(c.note!.id)
   })
 
   it('J: a journal file that is not downloaded yet stops that device\'s stream at the gap; later files are applied in order once it arrives', async () => {
@@ -313,6 +322,130 @@ describe('sync engine — two devices', () => {
     phone.store.containerMissing = false
     await syncAll(mac, phone)
     expect(await noteTitles(mac)).toEqual(['N', 'Queued'])
+  })
+})
+
+describe('sync engine — local reconciliation (DATA-SYNC-001)', () => {
+  it('edits made while nothing was capturing (sync off / killed before capture) are reconciled at start, then sync', async () => {
+    const n = await mac.services.notes.create({ type: 'general', title: 'N', content: 'v1' })
+    const f = await mac.services.notes.folderCreate('Folder')
+    await syncAll(mac, phone)
+    mac.engine.stop()                                   // no capture: sync switched off, or killed mid-capture
+    tick(); await mac.services.notes.update(n.note!.id, { content: 'offline edit' })
+    await mac.services.notes.folderRename(f.id, 'Renamed')   // note_folders has no updated_at: the full compare finds it
+    mac = await restart(mac)
+    expect(await mac.engine.reconcileLocal()).toBe(2)
+    expect(await mac.engine.reconcileLocal()).toBe(0)   // idempotent: nothing new the second time
+    await syncAll(mac, phone)
+    expect((await noteById(phone, n.note!.id))!.content).toBe('offline edit')
+    expect((await phone.services.notes.folderList()).map((x) => x.name)).toContain('Renamed')
+  })
+
+  it('a missed local edit is not overwritten by a remote edit — it becomes a preserved conflict', async () => {
+    const n = await mac.services.notes.create({ type: 'general', title: 'N', content: 'base' })
+    await syncAll(mac, phone)
+    mac.engine.stop()
+    tick(); await mac.services.notes.update(n.note!.id, { content: 'mac, missed by capture' })
+    tick(); await phone.services.notes.update(n.note!.id, { content: 'phone edit' })
+    mac = await restart(mac)
+    await mac.engine.reconcileLocal()
+    await syncAll(mac, phone)
+    const versions = async (d: Device) => (await d.db.all<{ content: string }>("SELECT content FROM note_versions WHERE note_id = ? AND kind = 'conflict'", [n.note!.id])).map((v) => v.content)
+    for (const d of [mac, phone]) {
+      const current = (await noteById(d, n.note!.id))!.content
+      expect([current, ...(await versions(d))].sort()).toEqual(['mac, missed by capture', 'phone edit'])
+    }
+  })
+
+  it('a full reconciliation of a never-synced database journals every record once (sync enabled later)', async () => {
+    mac.engine.stop()
+    await mac.services.notes.create({ type: 'general', title: 'A', content: 'a' })
+    await mac.services.notes.create({ type: 'general', title: 'B', content: 'b' })
+    mac = await restart(mac)
+    expect(await mac.engine.reconcileLocal(true)).toBe(2)
+    await syncAll(mac, phone)
+    expect(await noteTitles(phone)).toEqual(['A', 'B'])
+  })
+
+  it('pending operations survive an app restart while iCloud is unavailable (the outbox is in SQLite, not memory)', async () => {
+    phone.store.containerMissing = true            // signed out / container unavailable
+    await phone.services.notes.create({ type: 'general', title: 'Offline note', content: 'x' })
+    await phone.engine.sync()
+    expect((await phone.engine.status()).pendingOutbox).toBeGreaterThan(0)
+    expect((await phone.engine.status()).lastError).toMatch(/not available/)
+    phone = await restart(phone)
+    expect((await phone.engine.status()).pendingOutbox).toBeGreaterThan(0)
+    phone.store.containerMissing = false
+    await syncAll(phone, mac)
+    expect(await noteTitles(mac)).toEqual(['Offline note'])
+  })
+})
+
+describe('sync engine — daily notes (DATA-DAILY-001)', () => {
+  it("the same day's daily note created on two devices while apart is ONE note after sync (the other text kept as a conflict copy)", async () => {
+    phone.store.setOnline(false)
+    const m = await mac.services.notes.create({ type: 'daily', title: 'Daily — 2026-09-27', content: 'mac thoughts' })
+    tick()
+    const p = await phone.services.notes.create({ type: 'daily', title: 'Daily — 2026-09-27', content: 'phone thoughts' })
+    expect(m.note!.id).toBe('daily-2026-09-27')
+    expect(p.note!.id).toBe('daily-2026-09-27')
+    phone.store.setOnline(true)
+    await syncAll(mac, phone)
+    for (const d of [mac, phone]) {
+      const dailies = (await d.services.notes.getAll()).filter((n) => n.title === 'Daily — 2026-09-27')
+      expect(dailies).toHaveLength(1)
+      const conflict = await d.db.all<{ content: string }>("SELECT content FROM note_versions WHERE note_id = 'daily-2026-09-27' AND kind = 'conflict'")
+      expect([dailies[0].content, ...conflict.map((c) => c.content)].sort()).toEqual(['mac thoughts', 'phone thoughts'])
+    }
+  })
+})
+
+describe('sync engine — user data round trips (DATA-ENT-*)', () => {
+  const hl = async (d: Device) => (await d.db.all<{ id: string; color: string }>("SELECT id, color FROM highlights WHERE book_id = 'JHN' AND chapter = 3 AND verse_num = 16"))
+  it('highlights: create / recolour / remove sync; the same verse highlighted on both devices while apart is ONE highlight', async () => {
+    await mac.services.highlights.toggle({ bookId: 'JHN', chapter: 3, verseNum: 16, color: 'yellow' })
+    await syncAll(mac, phone)
+    expect(await hl(phone)).toEqual([{ id: 'hl-kjva-JHN-3-16-v', color: 'yellow' }])
+    tick(); await phone.services.highlights.toggle({ bookId: 'JHN', chapter: 3, verseNum: 16, color: 'green' })
+    await syncAll(mac, phone)
+    expect((await hl(mac))[0].color).toBe('green')
+    tick(); await mac.services.highlights.toggle({ bookId: 'JHN', chapter: 3, verseNum: 16, color: 'green' })   // same colour → removes
+    await syncAll(mac, phone)
+    expect(await hl(phone)).toEqual([])
+    // apart: both highlight Genesis 1:1 in different colours → one highlight, the later colour
+    phone.store.setOnline(false)
+    await mac.services.highlights.toggle({ bookId: 'GEN', chapter: 1, verseNum: 1, color: 'blue' })
+    tick(); await phone.services.highlights.toggle({ bookId: 'GEN', chapter: 1, verseNum: 1, color: 'purple' })
+    phone.store.setOnline(true)
+    await syncAll(mac, phone)
+    for (const d of [mac, phone]) expect(await d.db.all("SELECT color FROM highlights WHERE book_id = 'GEN' AND chapter = 1 AND verse_num = 1")).toEqual([{ color: 'purple' }])
+  })
+
+  it('folders: nesting, moving a note in and out, renaming — the tree and the note survive on the other device', async () => {
+    const parent = await mac.services.notes.folderCreate('Torah')
+    const child = await mac.services.notes.folderCreate('Feasts', parent.id)
+    const n = await mac.services.notes.create({ type: 'general', title: 'Sukkot', content: 'Lev 23:34' })
+    await mac.services.notes.setFolder(n.note!.id, child.id)
+    await syncAll(mac, phone)
+    const tree = await phone.services.notes.folderList()
+    expect(tree.find((f) => f.name === 'Feasts')!.parentId).toBe(parent.id)
+    expect((await noteById(phone, n.note!.id))!.folderId ?? (await phone.db.get<{ folder_id: string }>('SELECT folder_id FROM notes WHERE id = ?', [n.note!.id]))!.folder_id).toBe(child.id)
+    tick(); await phone.services.notes.setFolder(n.note!.id, null)
+    await phone.services.notes.folderRename(child.id, 'Appointed times')
+    await syncAll(mac, phone)
+    expect((await mac.db.get<{ folder_id: string | null }>('SELECT folder_id FROM notes WHERE id = ?', [n.note!.id]))!.folder_id).toBeNull()
+    expect((await mac.services.notes.folderList()).map((f) => f.name)).toContain('Appointed times')
+  })
+
+  it('workspaces: a workspace saved on one device (with its tabs snapshot) appears on the other and loads the same tabs', async () => {
+    const state = JSON.stringify({ tabs: { scripture: [{ id: 't1', type: 'bible', state: { bookId: 'MAT', chapter: 10 } }] } })
+    const w = await mac.services.workspaces.save('Study', '{}', state)
+    await syncAll(mac, phone)
+    expect((await phone.services.workspaces.list()).map((x) => x.name)).toEqual(['Study'])
+    expect((await phone.services.workspaces.load(w.id))!.state_json).toBe(state)
+    tick(); await phone.services.workspaces.rename(w.id, 'Deep study')
+    await syncAll(mac, phone)
+    expect((await mac.services.workspaces.list()).map((x) => x.name)).toEqual(['Deep study'])
   })
 })
 
