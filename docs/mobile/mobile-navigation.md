@@ -55,14 +55,14 @@ tab; a Notes tab reopens its note) — T23-009.
 
 ## 2. Plus (bottom center)
 
-A floating search sheet built for frequent Bible use (S1 screenshot). The query is classified
-(`classifyNewTabQuery`): a reference ("John 3:16", "Psalm 23:1-6") → Open in a new Scripture tab
-(or the current one) via the shared `navigateToVerse`; a Strong's number → Lexicon. While typing,
-**"Search … in a new Search tab"** opens a DEDICATED Search tab (never reuses the current one) —
-T23-010. With an empty query: one tile per **genuine tab type**, each creating a real, independent
-tab — Scripture, Note, Today's daily note, Lexicon, YouTube, History, Settings, and Compare when the
-current passage has an LXX ↔ KJV counterpart (T23-009); then navigation that is not a tab (More,
-Workspaces), then recent history. There is no Search tile — a Search tab starts from what you type.
+Floating Search on the iPhone — **"Search Berean"**, the same surface as the caret's search field
+(`SearchSurface`, SRCH-003; see [../navigation-contract.md](../navigation-contract.md) §3): one field,
+a scope control (All · Scripture · Strong's · Notes), one Filters entry (text · individual books ·
+match) and results grouped like the desktop's Floating Search (Go to · Verses · Lexicon · Notes),
+searched as you type. **Picks open in a NEW tab** (long press: Open in This Tab); "All N verses …"
+opens a new Search tab with the full list. With an empty query: recent searches (shared with every
+search), one compact row of the major experiences as new tabs (+ More), and Recent places (a
+recent place opens in a new tab). No Compare, no Workspaces tile (Sessions live in More).
 
 ## 3. Caret (bottom right) — command registry
 
@@ -137,7 +137,7 @@ the per-item verification.
 | Caret: Previous / Next chapter rows | change chapter | edge taps, swipe, title |
 | Caret: "Font, theme and more reading options…" | font, theme, size, line height… | caret Reading group inline; Font and Color in-caret |
 | Tab cards: Reorder button | reorder tabs | press, hold and drag a card; Move earlier / later in a card's actions |
-| New Tab: Search tile | open a Search tab | type, then "Search … in a new Search tab" |
+| New Tab: Search tile | open a Search tab | type, then "All N verses …" (or Return) — a new Search tab with the full list |
 | New Tab: History / Settings rows (pages) | open History / Settings | History / Settings tiles create real tabs; More still lists both |
 | Search header: filter button | open the filter sheet | Search caret → Match / Scripture filters / Sort |
 | Compare: Add text, Go to, "(KJVA+)" / column chips | pick more texts | Compare is LXX ↔ KJV only; title = passage picker |
@@ -268,3 +268,18 @@ Ledger: [testing-backlog-2026-09-26b.md](testing-backlog-2026-09-26b.md).
   tab's Today). Long press on any Calendar / Today control opens the calendar overlay.
 - **Several verses** share the one-verse sheet's layout: Copy · Notes · Refs · Strong's; Notes lists
   every note of the selection once; the compact position keeps one verse's height.
+
+## 12. Search Berean and the current-tab contract (2026-09-27)
+
+Ledger: [testing-backlog-2026-09-27.md](testing-backlog-2026-09-27.md); contract and audit table:
+[../navigation-contract.md](../navigation-contract.md).
+
+- The caret's search field is the same global search as the plus, on EVERY tab type (Scripture,
+  Notes, Lexicon, YouTube, History, Calendar, Search …) — it no longer means "search this tab's
+  kind of content" (the Notes caret was a notes-only finder). Picks change THIS tab.
+- Every navigation states an intent — current tab · new tab · existing tab — through
+  `openDestination` (src/lib/navigation/destination.ts). A destination of another type changes the
+  current tab in place (same slot, history carried, ‹ returns); nothing creates a tab except the
+  plus, "Open in New Tab", duplicate, and an empty workspace.
+- The Search tab's default scope is **All** (grouped results); Scripture · Strong's · Notes narrow it.
+

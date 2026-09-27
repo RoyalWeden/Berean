@@ -952,6 +952,8 @@ export interface AppState {
   // Recent search queries (persisted, max 10)
   recentSearchQueries: string[]
   addRecentSearchQuery: (q: string) => void
+  /** Clear the recent searches (shared by every search entry point — SRCH-006). */
+  clearRecentSearchQueries: () => void
   openSettings: () => void
   openSettingsToSessions: () => void
   openSettingsToAbout: () => void
@@ -2839,6 +2841,7 @@ export const useAppStore = create<AppState>()(
       setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(360, width)) }),
 
       recentSearchQueries: [] as string[],
+      clearRecentSearchQueries: () => set({ recentSearchQueries: [] }),
       addRecentSearchQuery: (q) => {
         const trimmed = q.trim()
         if (!trimmed || trimmed.length < 2) return

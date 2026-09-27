@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { BookOpen, CornerDownLeft, Hash, Search, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { parseRef, bookName, isStrongsRef } from '@/lib/parseRef'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { openDestination } from '@/lib/navigation/destination'
 import { displayChapter } from '@/lib/chapterNumbering'
 import { haptic } from '../primitives/haptics'
 import { EXPERIENCES, experienceOfTab, matchExperiences, runExperience, type ExperienceId } from './experiences'
@@ -112,33 +112,24 @@ function baseDestinationSpecs(query: string, target: DestinationTarget): Destina
   }
 }
 
-/** A NEW Search tab (never the current one) with this query (T23-010). */
+/** A NEW Search tab (never the current one) with this query (T23-010) — searches everything. */
 export function openQueryInNewSearchTab(query: string): void {
-  const s = useAppStore.getState()
-  s.createTab('search')
-  const id = useAppStore.getState().activeTabId.search
-  if (id) {
-    s.updateTabState('search', id, { query, scope: 'scripture' })
-    s.renameTab('search', id, `“${query.trim()}”`)
-  }
-  s.addRecentSearchQuery(query.trim())
-  s.addHistoryEntry({ type: 'search', title: `"${query.trim()}"`, query: query.trim() })
+  openDestination({ kind: 'search', query: query.trim(), scope: 'all' }, 'new-tab')
 }
 
 /** Perform one destination. `target` matters for experience destinations (change this tab / new tab). */
 export function runDestination(id: DestinationId, query: string, target: DestinationTarget): void {
   if (id.startsWith('exp-')) { runExperience(id.slice(4) as ExperienceId, target); return }
   const q = classifyNewTabQuery(query)
-  const s = useAppStore.getState()
+  // Every destination states its intent (NAV-001): 'new-tab' creates, 'current-tab' changes THIS tab.
   switch (id) {
     case 'ref-new-tab':
     case 'ref-current-tab':
       if (q.kind !== 'ref') return
-      if (id === 'ref-new-tab') s.createTab('bible')
-      navigateToVerse({ bookId: q.bookId, chapter: q.chapter, verse: q.verse, endVerse: q.endVerse, origin: { kind: 'search-result', query } })
+      openDestination({ kind: 'passage', bookId: q.bookId, chapter: q.chapter, verse: q.verse, endVerse: q.endVerse }, id === 'ref-new-tab' ? 'new-tab' : 'current-tab', { origin: { kind: 'search-result', query } })
       return
     case 'strongs-open':
-      if (q.kind === 'strongs') s.openLexiconEntry(q.num)
+      if (q.kind === 'strongs') openDestination({ kind: 'strongs', num: q.num }, target)
       return
     case 'search-new-tab': {
       const text = q.kind === 'strongs' ? q.num : query.trim()
@@ -148,8 +139,7 @@ export function runDestination(id: DestinationId, query: string, target: Destina
     case 'search-current-tab': {
       const text = q.kind === 'strongs' ? q.num : query.trim()
       if (!text) return
-      s.addRecentSearchQuery(text)
-      s.openSearchTab(text)
+      openDestination({ kind: 'search', query: text, scope: 'all' }, 'current-tab')
       return
     }
   }

@@ -224,7 +224,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       location: {
         // ⌘L (SEP25): the same destinations as Floating Search, landing in THIS tab.
         label: `${ref} · ${textLabel}`, placeholder: 'Go to a passage or search',
-        view: () => ({ title: 'Go to', render: (a) => <CaretGoTo api={a} textId={textId} bookId={state.bookId} onGo={goToDest}
+        view: () => ({ title: 'Search', render: (a) => <CaretGoTo api={a} textId={textId} bookId={state.bookId} onGo={goToDest}
           browse={() => ({ title: 'Library', render: (b) => <PassagePicker textId={textId} bookId={state.bookId} chapter={state.chapter} onPick={(d) => { b.close(); goToDest(d) }} onChapter={goToChapter} /> })} /> }),
       },
       sections: [

@@ -5,10 +5,11 @@ import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import type { CaretScope } from './caretRegistry'
 import { createElement } from 'react'
 import { CaretGoTo } from './CaretGoTo'
+import { openDestination } from '@/lib/navigation/destination'
 
 /** The caret header every tab shares (SEP25): a ⌘L-style go-to for the current tab + ‹ ›. */
 function goToLocation(label: string): NonNullable<CaretScope['location']> {
-  return { label, placeholder: 'Go to a passage or search', view: () => ({ title: 'Go to', render: (api) => createElement(CaretGoTo, { api }) }) }
+  return { label, placeholder: 'Search Berean', view: () => ({ title: 'Search', render: (api) => createElement(CaretGoTo, { api }) }) }
 }
 
 /** Destinations the static providers can reach without importing pages (supplied by the shell). */
@@ -31,7 +32,7 @@ export function staticCaretScope(space: SpaceId, tab: Tab | null, shell: ShellNa
         { id: 'quick', style: 'tiles', commands: [
           { kind: 'action', id: 'open-num', label: "Open number", icon: Hash, run: () => { const n = prompt("Strong's number (e.g. H7225, G3056)")?.trim().toUpperCase(); if (n) st().openLexiconEntry(n) } },
           { kind: 'action', id: 'copy', label: 'Copy entry', icon: Copy, disabled: !num, run: () => { if (num) void window.lexicon.getEntry(num).then((e) => { if (e) void navigator.clipboard.writeText(buildLexiconCopyText(e)) }) } },
-          { kind: 'action', id: 'search', label: 'In Scripture', icon: Search, disabled: !num, run: () => { if (num) st().openSearchTab(num) } },
+          { kind: 'action', id: 'search', label: 'In Scripture', icon: Search, disabled: !num, run: () => { if (num) openDestination({ kind: 'search', query: num, scope: 'scripture' }, 'current-tab') } },
         ] },
         { id: 'tabs', title: 'Lexicon', commands: [
           { kind: 'action', id: 'copy-num', label: "Copy Strong's number", icon: Hash, disabled: !num, run: () => { if (num) void navigator.clipboard.writeText(num) } },

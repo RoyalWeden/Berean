@@ -45,7 +45,7 @@ export function searchSnapshot(st: Partial<SearchTabState> | undefined): SearchS
   const f = { ...DEFAULT_SEARCH_FILTERS, ...((st?.filters ?? {}) as Partial<SearchFilterState>) }
   return {
     query: (st?.query ?? '').trim(),
-    scope: st?.scope ?? 'scripture',
+    scope: st?.scope ?? 'all',
     filters: {
       textId: f.textId, wordMode: f.wordMode, books: [...f.books], tagIds: [...f.tagIds],
       tagMatchAll: f.tagMatchAll, sort: f.sort, direction: f.direction,

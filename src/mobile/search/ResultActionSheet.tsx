@@ -2,6 +2,7 @@ import React from 'react'
 import { ArrowUpRight, SquarePlus, Hash, Copy, Share2, NotepadText, Highlighter, X, Eraser, BookMarked, Trash2, type LucideIcon } from 'lucide-react'
 import type { HighlightColor, LexiconEntry, Note } from '@/types'
 import { useAppStore } from '@/store'
+import { openDestination, type NavIntent } from '@/lib/navigation/destination'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -75,11 +76,11 @@ function HighlightChoices({ hit, api }: { hit: ScriptureHit; api: SheetApi }) {
  * are the page's own tap behaviours, so "Open" is exactly what a tap does.
  */
 export function useSearchResultActions(page: {
-  openHit: (h: ScriptureHit) => void
+  openHit: (h: ScriptureHit, intent?: NavIntent) => void
   openNote: (n: Note) => void
   openEntry: (e: LexiconEntry) => void
   runRecent: (q: string) => void
-  scope: 'scripture' | 'notes' | 'lexicon'
+  scope: 'all' | 'scripture' | 'notes' | 'lexicon'
 }) {
   const sheet = useActionSheet()
   const st = () => useAppStore.getState()
@@ -90,7 +91,7 @@ export function useSearchResultActions(page: {
     const display = () => buildVerseDisplayText(h.text, h.text_tagged ?? null, h.textId, st().wordReplacerEnabled, st().wordReplacerRules)
     sheet(`search-hit-${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`, label, toActions('scripture', {
       'open': () => page.openHit(h),
-      'open-new-tab': () => { st().createTab('bible'); page.openHit(h) },
+      'open-new-tab': () => page.openHit(h, 'new-tab'),
       'copy-ref': () => { copyVerseRef(h.book_id, h.chapter, h.verse_num, lxx); void haptic.success() },
       'copy-verse': () => { copyVerse(h.book_id, h.chapter, h.verse_num, display(), lxx); void haptic.success() },
       'share': () => { void share(label, `${label} ${display()}`) },
@@ -99,7 +100,8 @@ export function useSearchResultActions(page: {
           if (!r.success || !r.note) return
           const s = st()
           s.bumpNoteToken(); s.bumpVerseNoteToken(); void haptic.success()
-          s.setActiveSpace('notes'); s.requestOpenNote(r.note.id)
+          // The new note opens in THIS tab (NAV-002); ‹ returns to the results.
+          openDestination({ kind: 'note', noteId: r.note.id }, 'current-tab')
         }).catch(() => {})
       },
     }, () => ({ key: 'highlight', title: 'Highlight', render: (api: SheetApi) => <HighlightChoices hit={h} api={api} /> })))
@@ -109,7 +111,7 @@ export function useSearchResultActions(page: {
     const title = n.title || 'Untitled'
     sheet(`search-note-${n.id}`, title, toActions('note', {
       'open': () => page.openNote(n),
-      'open-new-tab': () => { const s = st(); s.createTab('note'); s.requestOpenNote(n.id) },
+      'open-new-tab': () => { openDestination({ kind: 'note', noteId: n.id }, 'new-tab') },
       'copy-title': () => copyText(title),
       'share': () => { void share(title, `${title}\n\n${stripMarkdownFormatting(n.content ?? '').trim()}`) },
     }))
@@ -118,7 +120,7 @@ export function useSearchResultActions(page: {
   const entry = (e: LexiconEntry) => {
     sheet(`search-lex-${e.strongsNum}`, `${e.strongsNum}${e.lemma ? ` · ${e.lemma}` : ''}`, toActions('lexicon', {
       'open': () => page.openEntry(e),
-      'open-lexicon-tab': () => { const s = st(); s.createTab('lexicon'); s.openLexiconEntry(e.strongsNum) },
+      'open-lexicon-tab': () => { openDestination({ kind: 'strongs', num: e.strongsNum }, 'new-tab') },
       'copy-strongs': () => copyText(e.strongsNum),
     }))
   }
@@ -126,12 +128,7 @@ export function useSearchResultActions(page: {
   const recent = (q: string) => {
     sheet(`search-recent-${q}`, q, toActions('recent', {
       'open': () => page.runRecent(q),
-      'search-new-tab': () => {
-        const s = st()
-        s.createTab('search')
-        const id = useAppStore.getState().activeTabId.search
-        if (id) { s.updateTabState('search', id, { query: q, scope: page.scope }); s.renameTab('search', id, `“${q}”`) }
-      },
+      'search-new-tab': () => { openDestination({ kind: 'search', query: q, scope: page.scope }, 'new-tab') },
       'copy-query': () => copyText(q),
     }))
   }

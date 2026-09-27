@@ -135,6 +135,12 @@ autosave is downstream, and native text input (autocorrect, dictation, IME, the 
 left to WebKit wherever possible. Contract, action matrix, lifecycle and the external-update policy:
 [notes-editor-ios.md](notes-editor-ios.md).
 
+### Search and navigation
+
+One search system (`src/lib/search/*` over the shared search services) and one navigation contract
+(`openDestination(destination, intent)` — current tab · new tab · existing tab):
+[../navigation-contract.md](../navigation-contract.md).
+
 ## 6. Sync engine
 
 `src/platform/sync/` — `hlc.ts`, `fractional.ts`, `journal.ts` (encode/decode/rotate),

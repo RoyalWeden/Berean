@@ -29,7 +29,7 @@ describe('Search steps', () => {
   it('snapshots are normalised (defaults filled, trimmed query, stable key order)', () => {
     const a = searchSnapshot({ query: ' grace ', filters: { books: ['GEN'] } })
     expect(a.query).toBe('grace')
-    expect(a.scope).toBe('scripture')
+    expect(a.scope).toBe('all') // SRCH-001: the default searches everything
     expect(Object.keys(a.filters)).toEqual(['textId', 'wordMode', 'books', 'tagIds', 'tagMatchAll', 'sort', 'direction'])
     expect(searchStep(a)).toMatchObject({ type: 'search', title: '“grace”' })
     expect(searchStep(searchSnapshot(undefined)).title).toBe('Search')

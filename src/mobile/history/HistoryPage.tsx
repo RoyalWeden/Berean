@@ -4,7 +4,8 @@ import type { HistoryEntry, Tab } from '@/types'
 import { useHistoryNavigate } from '@/components/shell/HistoryModal'
 import { HISTORY_CATEGORIES, HISTORY_TYPE_LABEL, countByCategory, filterHistory, shouldLoadMoreHistory, type HistoryCategory } from '@/lib/historyModel'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { openDestination } from '@/lib/navigation/destination'
+import { historyDestination } from '@/lib/navigation/historyDestination'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useActionSheet } from '../primitives/ActionSheet'
 import { haptic } from '../primitives/haptics'
@@ -59,19 +60,20 @@ const NEW_TAB_TYPE: Partial<Record<HistoryEntry['type'], 'bible' | 'note' | 'lex
 function useHistoryRowActions(onNavigated?: () => void) {
   const navigate = useHistoryNavigate()
   const sheet = useActionSheet()
-  // Open = the CURRENT tab of the entry's space (a new tab is the long-press "Open in New Tab").
-  // Scripture goes through navigateToVerse so a PDF / tags-graph tab is never overwritten.
-  const open = (h: HistoryEntry) => {
+  // Open = THIS tab (NAV-002): the History tab (or the tab under a History sheet) becomes the
+  // entry — ‹ returns. "Open in New Tab" is the long press. It used to reuse the active tab of the
+  // entry's space, i.e. a different tab. Entries with no destination form keep the desktop path.
+  const open = (h: HistoryEntry, intent: 'current-tab' | 'new-tab' = 'current-tab') => {
     onNavigated?.()
-    if ((h.type === 'bible' || h.type === 'compare') && h.bookId) {
-      navigateToVerse({ bookId: h.bookId, chapter: h.chapter ?? 1, verse: h.verse, translationOverride: h.translation, origin: { kind: 'history-revisit' } })
-    } else navigate(h)
+    const d = historyDestination(h)
+    if (d) openDestination(d, intent, { origin: { kind: 'history-revisit' } })
+    else navigate(h)
   }
   const menu = (h: HistoryEntry) => {
     const s = useAppStore.getState()
     sheet(`history-${h.id}`, h.title, specsToActions(historyEntryActions(h.type), {
       'open': () => open(h),
-      'open-new-tab': () => { const t = NEW_TAB_TYPE[h.type]; if (t) s.createTab(t); open(h) },
+      'open-new-tab': () => { if (NEW_TAB_TYPE[h.type]) open(h, 'new-tab') },
       'copy-ref': () => copyText(h.bookId ? bookChapterVerseLabel(h.bookId, h.chapter ?? 1, h.verse) : h.title),
       'copy-strongs': () => copyText(h.strongsNum ?? h.title),
       'copy-query': () => copyText(h.query ?? h.title),

@@ -8,7 +8,7 @@ import type { SearchSortMode, SearchSortDirection } from '@/lib/scriptureSearch'
  * filters are active (the count badge) and the short summary the entry shows. SearchPage's
  * caret uses the same count so the two never disagree.
  */
-export type SearchScope = 'scripture' | 'notes' | 'lexicon'
+export type SearchScope = 'all' | 'scripture' | 'notes' | 'lexicon'
 
 /** Everything the filter sheet edits. Tags and sort are applied client-side to the hit list;
  *  text / match / books change the query itself (same split as ScriptureSearchView). */

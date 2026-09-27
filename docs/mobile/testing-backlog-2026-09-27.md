@@ -1,0 +1,22 @@
+# Testing backlog — 2026-09-27, Search Berean + current-tab contract (ids SRCH-*, NAV-*)
+
+Source: the developer's search / navigation architecture brief. Design and full pathway audit:
+[../navigation-contract.md](../navigation-contract.md). "Sim" = iOS simulator via the probe harness;
+**Dev** = physical iPhone.
+
+| ID | Requirement | Implementation | Files | Platform | Tests | Manual | Status |
+|---|---|---|---|---|---|---|---|
+| SRCH-001 | One search over the whole library (KJV + Apocrypha, LXX, Enoch, Jubilees, every library text, Strong's H/G, notes); the tab type never narrows it | `runUnifiedSearch` over the shared services; Search tab default scope All | lib/search/unifiedSearch.ts, mobile/search/SearchPage.tsx, types | both (lib) / iPhone | unifiedSearch (8) | Sim: "kingdom" from Scripture → Verses 843 · Lexicon 14 · Notes 1 | COMPLETE |
+| SRCH-002 | Deterministic query understanding | `parseSearchIntent` (references, books, collections, Strong's incl. "strong 430", source prefixes, phrases, notes); desktop's `detectTranslationPrefix` moved here unchanged and imported by FloatingSearch | lib/search/searchIntent.ts, components/shell/FloatingSearch.tsx | both | searchIntent (12) | — | COMPLETE |
+| SRCH-003 | Caret search = floating search = one experience | `SearchSurface` (field, scope, Filters, grouped results, recent, long-press alternatives); plus → new tab, caret (every tab type, incl. Notes, which was a notes-only finder) → this tab | mobile/search/SearchSurface.tsx, navigation/NewTabSheet.tsx, commands/CaretGoTo.tsx, notes/NotesHomePage.tsx, notes/NoteEditorPage.tsx, commands/staticCommands.ts | iPhone | searchSurface (7) | Sim | COMPLETE (Dev: feel) |
+| SRCH-004 | Desktop-like results | Go to · Verses · Lexicon · Notes groups, source badges, highlighted snippets, counts, "All N …", loading / empty states; shared with the Search tab's All scope | mobile/search/UnifiedResults.tsx, search.css | iPhone | searchSurface | Sim screenshots | COMPLETE |
+| SRCH-005 | Search input: no forced caps, never loses the query (keyboard, scope, filters, sub-views) | state in `useSearchSurface`; one input; no autocapitalize; sheet expands to full height | mobile/search/searchSurfaceState.ts | iPhone | searchSurface, inputCapitalization | Sim | COMPLETE |
+| SRCH-006 | One search history | `recentSearchQueries` for every entry point + `clearRecentSearchQueries` | store | both | searchSurface | — | COMPLETE |
+| SRCH-007 | Filters: text, individual books, match; existing Search-tab filters kept | surface Filters view (BooksFilterView); Search tab: All scope honours text / books / match, plus tags and sort as before | SearchSurface.tsx, SearchPage.tsx, searchFilters.ts | iPhone | unifiedSearch (books, text, phrase) | — | COMPLETE |
+| SRCH-008 | Docs | navigation-contract.md; ux-principles §2; mobile-navigation §2 / §12; feature matrix; progress; architecture | docs/* | — | — | — | COMPLETE |
+| NAV-001 | Explicit destination + intent API | `openDestination(dest, 'current-tab' / 'new-tab' / 'existing-tab')`; `historyDestination` | lib/navigation/destination.ts, historyDestination.ts | both (lib) | destination (12) | — | COMPLETE |
+| NAV-002 | Current-tab actions never create / switch to another tab | Search-tab results, note verse links, Strong's sheet, Open in Notes, History rows, Add note, Study Trail, Lexicon "In Scripture" → current tab (type change in place, ‹ returns) | SearchPage, ResultActionSheet, NoteEditorPage, StrongsSheet, verseSheets, VerseNotesSheet, HistoryPage, trailPhoneNav, staticCommands, destinationQuery | iPhone | destination, searchSurface | Sim: Scripture → note result: 17 tabs before and after, ‹ → Matthew 12; Notes → H430: 19 → 19 | COMPLETE |
+| NAV-003 | Plus = new tab | plus results / Recent places → new tab (Recent used to change the tab behind) | NewTabSheet.tsx | iPhone | searchSurface | Sim: 17 → 18 | COMPLETE |
+| NAV-004 | Overlays / sheets create no tab or history | presentations only; unchanged Calendar overlay test | — | iPhone | calendar (overlay) | — | COMPLETE |
+| NAV-005 | Duplication: independent histories after search → result → duplicate | covered | store | both | destination (duplication) | Dev | COMPLETE |
+| NAV-006 | External entry points keep defined semantics | deep links / Spotlight / Siri / Share: existing-tab (unchanged, documented); desktop unchanged; dead `openCompareForVerse` (new tab) removed | lib/deepLinkTarget.ts, reader/ComparePage.tsx | both | — | — | COMPLETE |

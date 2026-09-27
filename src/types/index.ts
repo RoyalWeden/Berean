@@ -213,7 +213,7 @@ export interface SearchTabState {
   scrollTop?: number
   /** iPhone Search page: what this tab searches and its Scripture filters (per tab, so several
    *  Search tabs keep their own state — T23-009). Opaque to desktop. */
-  scope?: 'scripture' | 'notes' | 'lexicon'
+  scope?: 'all' | 'scripture' | 'notes' | 'lexicon'
   filters?: Record<string, unknown>
 }
 

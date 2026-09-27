@@ -265,7 +265,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
           )
         })}
         <button type="button" className="mobile-tab-card is-new" aria-label="New tab"
-          onClick={() => api.push({ key: 'new-tab', title: 'New Tab', render: (a) => <NewTabSheet close={a.close} openMore={(r) => { a.close(); openMore(r) }} /> })}>
+          onClick={() => api.push({ key: 'new-tab', title: 'New Tab', render: (a) => <NewTabSheet api={a} openMore={(r) => { a.close(); openMore(r) }} /> })}>
           <Plus size={24} aria-hidden /><span>New tab</span>
         </button>
       </div>

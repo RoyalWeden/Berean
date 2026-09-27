@@ -154,7 +154,7 @@ function NotesHomePreview({ token }: { token: number }) {
   )
 }
 
-const SCOPE_LABEL = { scripture: 'Scripture', notes: 'Notes', lexicon: 'Lexicon' } as const
+const SCOPE_LABEL = { all: 'All', scripture: 'Scripture', notes: 'Notes', lexicon: "Strong's" } as const
 
 function SearchPreview({ state }: { state: SearchTabState }) {
   const q = (state.query ?? '').trim()

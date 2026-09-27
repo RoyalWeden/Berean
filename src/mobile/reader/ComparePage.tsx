@@ -220,7 +220,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
     // (‹ from Compare returns to the plain reader).
     location: {
       label: `${bookName(lead.bookId)} ${displayChapter(lead.bookId, lead.chapter)} · Compare`, placeholder: 'Go to a passage or search',
-      view: () => ({ title: 'Go to', render: (a) => <CaretGoTo api={a} textId={lead.textId} bookId={lead.bookId} onGo={(d) => goTo(d.bookId, d.chapter, d.verse)}
+      view: () => ({ title: 'Search', render: (a) => <CaretGoTo api={a} textId={lead.textId} bookId={lead.bookId} onGo={(d) => goTo(d.bookId, d.chapter, d.verse)}
         browse={() => ({ title: 'Library', render: (b) => <PassagePicker textId={lead.textId} bookId={lead.bookId} chapter={lead.chapter} onPick={(d) => { b.close(); goTo(d.bookId, d.chapter, d.verse) }} onChapter={(d) => goTo(d.bookId, d.chapter)} /> })} /> }),
     },
     sections: [
@@ -309,17 +309,6 @@ export function ComparePage({ tab }: { tab: Tab }) {
       </RadixTooltip.Provider>
     </Page>
   )
-}
-
-/** "Compare this verse" from the reader: opens a NEW compare tab (the reader's text vs its LXX /
- *  KJVA counterpart at that verse) and makes it the active scripture tab; the reader tab is left
- *  as it was. */
-export function openCompareForVerse(fromTab: Tab, verse?: number): string {
-  const s = useAppStore.getState()
-  const tab = makeCompareTab(fromTab.state as BibleTabState, verse)
-  s.addTab(tab)
-  s.setActiveSpace('scripture')
-  return tab.id
 }
 
 export { makeCompareTabState, makeCompareTab } from './compareState'

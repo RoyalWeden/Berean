@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { isInOwnSurface } from './sheetEditingGuards'
+import { openDestination } from '@/lib/navigation/destination'
 import { useAppStore } from '@/store'
 import type { VerseActionContext, VerseInteraction } from '@/components/bible/verseInteraction'
 import { navigateToVerse } from '@/lib/verseNavigation'
@@ -54,17 +55,15 @@ export function keepVerseAboveSheet(bookId: string, chapter: number, verse: numb
 export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () => void } = {}) {
   const sheets = useSheets()
   const { tabId } = opts
-  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const lowPx = VERSE_SHEET_LOW_PX + safeAreaBottom()
   /** The compact position for the remembered mode (a text selection always uses the brief one). */
   const lowFor = (mode: 'tap' | 'selection') => (mode === 'selection' ? VERSE_SHEET_LOW_PX : verseSheetLowPx(getVerseSheetMode(), VERSE_SHEET_LOW_PX)) + safeAreaBottom()
 
+  // "Open in Notes" (verse notes sheet, selection bar): the note opens in THIS tab (NAV-002) —
+  // ‹ returns to the passage. It used to jump to (or create) a tab in the Notes space.
   const openNoteInNotesSpace = useCallback((noteId: string) => {
-    setActiveSpace('notes')
-    useAppStore.getState().ensureTab('note')
-    requestOpenNote(noteId)
-  }, [setActiveSpace, requestOpenNote])
+    openDestination({ kind: 'note', noteId }, 'current-tab')
+  }, [])
   // A Strong's number tapped in the reader text itself opens its own sheet; from inside the verse
   // sheet it is a sub-view of that sheet (see pushStrongs).
   const openStrongs = useCallback((num: string) => {

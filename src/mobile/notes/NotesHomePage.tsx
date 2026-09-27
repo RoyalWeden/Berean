@@ -19,7 +19,7 @@ import { useLongPress } from '../primitives/useLongPress'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { noteIsMovable } from '@/lib/noteMovability'
 import { FolderPicker } from './FolderPicker'
-import { NoteFinder } from './NoteFinder'
+import { CaretGoTo } from '../commands/CaretGoTo'
 import './notes.css'
 import { NoteEditorPage } from './NoteEditorPage'
 import { TrashPage } from './TrashPage'
@@ -155,7 +155,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   // Notes' caret (TEST-033): new note / today first, then the former "…" menu (moved, not copied).
   useCaretCommands(() => ({
     title: 'Notes',
-    location: { label: 'Notes', placeholder: 'Find a note', view: () => ({ title: 'Find a note', render: (a: SheetApi) => <NoteFinder api={a} /> }) },
+    location: { label: 'Notes', placeholder: 'Search Berean', view: () => ({ title: 'Search', render: (a: SheetApi) => <CaretGoTo api={a} /> }) },
     sections: [
       { id: 'quick', style: 'tiles', commands: [
         { kind: 'action', id: 'new', label: 'New note', icon: Plus, run: () => { void create({}) } },

@@ -8,7 +8,7 @@ import { aggregateVerseNotes, type AggregatedNote } from '@/lib/verseNotesAggreg
 import { verseRefDisplay } from '@/lib/parseRef'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { openDestination } from '@/lib/navigation/destination'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { NoteInsertButton, useSheetOverlayZ } from '../notes/NoteInsertButton'
@@ -162,7 +162,7 @@ export function SheetNoteEditor({ noteId, api, onOpenInNotes }: { noteId: string
         notes={[]}
         lastSavedAt={lastSavedAt}
         onWikilinkClick={() => onOpenInNotes(note.id)}
-        onVerseRefClick={(ref) => { api.close(); navigateToVerse({ bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null, origin: { kind: 'note-wikilink', noteId: note.id, noteTitle: note.title ?? '' } }) }}
+        onVerseRefClick={(ref) => { api.close(); openDestination({ kind: 'passage', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null }, 'current-tab', { origin: { kind: 'note-wikilink', noteId: note.id, noteTitle: note.title ?? '' } }) }}
         onLexiconRefClick={(id) => api.push({ key: `strongs-${id}`, title: id, render: (a) => <StrongsSheet strongsNum={id} api={a} /> })}
         placeholder="Write…"
         className="mobile-pm"

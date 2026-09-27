@@ -36,15 +36,16 @@ like Safari / an interactive web thing"). Requirement ledger:
 
 | Gesture | Mac | iPhone | Effect |
 |---|---|---|---|
-| Change the current tab | Cmd+L, floating search in "edit current tab" mode | the caret's search field | navigates THIS tab (same parser / destinations as floating search) |
-| New tab | Cmd+T | the plus (floating search) | creates a tab |
+| Change the current tab | Cmd+L, floating search in "edit current tab" mode | the caret's search field — "Search Berean", global on every tab type | navigates THIS tab; a destination of another type changes this tab's type (‹ returns) |
+| New tab | Cmd+T | the plus (floating search — the same search surface) | creates a tab |
 | Tap a result / reference | click | tap | opens in the current tab |
 | Open elsewhere | menu → Open in New Tab | long-press → Open in New Tab | new tab, explicit |
 
 **Rule:** an action that starts inside an existing tab changes that tab unless it is explicitly
 labelled as creating a new one (Advanced Scripture Search from a Scripture tab, Compare this verse,
 a cross reference, a note's verse link, back/forward). There is no label explaining the caret
-field — it is learned by use.
+field — it is learned by use. The tab's type never narrows what a search finds; the contract and
+the full pathway audit are in [navigation-contract.md](navigation-contract.md).
 
 ## 3. Interaction depth audit (iPhone, taps after the app is open)
 

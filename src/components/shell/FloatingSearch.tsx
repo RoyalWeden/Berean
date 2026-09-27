@@ -8,6 +8,7 @@ import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName, type ParsedRef } from '@/lib/parseRef'
 import { parseMultiBookQuery } from '@/lib/multiBookSearch'
+import { detectTranslationPrefix } from '@/lib/search/searchIntent'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
@@ -110,24 +111,6 @@ function replaceWordPreservingAffixes(word: string, replacement: string): string
   return lead + replacement + (poss ? "'s" : '') + (trail ?? '')
 }
 
-const TRANSLATION_PREFIXES: Array<[string[], string]> = [
-  [['lxx:', 'lxx ', 'septuagint:', 'septuagint ', 'brenton:', 'brenton '], 'lxx'],
-  [['enoch:', 'enoch ', '1 enoch:', '1 enoch '], 'enoch'],
-  [['jubilees:', 'jubilees '], 'jubilees'],
-  [['hermas:', 'hermas '], 'hermas'],
-  [['barnabas:', 'barnabas ', 'ep barnabas:', 'epistle of barnabas '], 'ep_barnabas'],
-  [['ascension of isaiah:', 'asc isaiah:', 'asc_isaiah '], 'asc_isaiah'],
-  [['recognitions:', 'recog_clement ', 'roc:', 'roc '], 'recog_clement'],
-  [['apoc elijah:', 'apocalypse of elijah '], 'apoc_elijah'],
-  [['t12p:', 'testaments:', 'twelve patriarchs '], 't12p'],
-  [['gad the seer:', 'gad seer:', 'words of gad '], 'gad'],
-  [['testament of job:', 'test job:', 'tjob '], 't_job'],
-  [['1 clement:', '1clement:', '1clem '], '1clement'],
-  [['apoc abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
-  [['testament of jacob:', 'test jacob:', 'tjac '], 't_jacob'],
-  [['2 baruch:', '2baruch:', 'apocalypse of baruch '], '2baruch'],
-]
-
 /** All extra-book text IDs searched automatically in parallel for keyword queries */
 const EXTRA_TEXT_IDS: Record<string, string> = {
   enoch:         '1 Enoch',
@@ -145,36 +128,6 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   apoc_abraham:  'Apoc. Abraham',
   t_jacob:       'T. Jacob',
   '2baruch':     '2 Baruch',
-}
-
-function detectTranslationPrefix(q: string): { textId: string; cleanQuery: string } | null {
-  const lower = q.trim().toLowerCase()
-  // A space-only prefix (no colon) is ambiguous whenever the book itself is
-  // named that way — "jubilees 17", "enoch 5", "hermas 3" are meant as a
-  // REFERENCE into that dedicated text, not "search the word '17' within
-  // the jubilees translation". If the untouched query already resolves as a
-  // real reference on its own, prefer that reading over stripping it down
-  // to a query fragment that (as with a bare chapter number) often fails to
-  // parse as anything at all. Colon-qualified prefixes ("jubilees:creation")
-  // are unambiguous and always meant as a translation-scoped keyword search,
-  // so they skip this check.
-  if (parseRef(q.trim())) return null
-  // Check leading prefix form: "lxx creation", "enoch 1"
-  for (const [patterns, id] of TRANSLATION_PREFIXES) {
-    for (const pat of patterns) {
-      if (lower.startsWith(pat)) {
-        return { textId: id, cleanQuery: q.slice(pat.length).trim() }
-      }
-    }
-  }
-  // Check trailing qualifier form: "isa 28 lxx", "genesis 1 enoch" (not super common but user reported it)
-  const trailingMatch = lower.match(/^(.+)\s+(lxx|enoch|jubilees|septuagint|brenton)$/)
-  if (trailingMatch) {
-    const qualifier = trailingMatch[2]
-    const textId = qualifier === 'septuagint' || qualifier === 'brenton' ? 'lxx' : qualifier
-    return { textId, cleanQuery: q.slice(0, q.lastIndexOf(trailingMatch[2])).trim() }
-  }
-  return null
 }
 
 // ── Diagnostics ────────────────────────────────────────────────────────────────

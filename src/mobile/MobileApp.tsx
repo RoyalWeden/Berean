@@ -161,7 +161,7 @@ function useShellSheets({ openMore }: { openMore: (r: MoreRoute) => void }) {
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activeTab = useAppStore((s) => s.tabs[s.activeSpace].find((t) => t.id === s.activeTabId[s.activeSpace]) ?? null)
 
-  const openPlus = useCallback(() => sheets.open({ id: 'new-tab', detents: [0.92], render: (api) => <NewTabSheet close={api.close} openMore={(r) => openMore(r)} /> }), [sheets, openMore])
+  const openPlus = useCallback(() => sheets.open({ id: 'new-tab', detents: [0.92], render: (api) => <NewTabSheet api={api} openMore={(r) => openMore(r)} /> }), [sheets, openMore])
   // Tab cards: workspaces, tab actions and New tab all open INSIDE this sheet ("‹ Tabs", T23-012).
   const openTabs = useCallback(() => sheets.open({ id: 'tabs', title: undefined, rootTitle: 'Tabs', detents: [0.62, 0.92], render: (api) => (
     <TabCardsSheet api={api} openMore={(r) => openMore(r as MoreRoute)} />

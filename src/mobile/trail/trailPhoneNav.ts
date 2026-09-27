@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
-import { useAppStore } from '@/store'
-import { navigateToVerse } from '@/lib/verseNavigation'
-import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
+import { openDestination } from '@/lib/navigation/destination'
+import { getTranslationForBook } from '@/lib/parseRef'
 import { installTrailNavigator, type TrailRef } from '@/components/studyTrail/trailNav'
 import type { SpaceId } from '@/types'
 
@@ -12,24 +11,16 @@ import type { SpaceId } from '@/types'
  * plain tap counts as "open" (there is no ⌘ key on a phone, see trailNav.ts).
  */
 export function navigateTrailRefOnPhone(ref: TrailRef, newTab: boolean, onOpenSpace?: (space: SpaceId) => void): void {
-  const s = useAppStore.getState()
+  // The trail page sits over a tab: a plain tap changes THAT tab, the "new tab" gesture opens one
+  // (NAV-002). It used to reuse the Scripture / Lexicon space's own tab — a different tab.
+  const intent = newTab ? 'new-tab' : 'current-tab'
   if (ref.kind === 'lexicon') {
-    if (newTab) s.createTab('lexicon'); else s.ensureTab('lexicon')
-    s.openLexiconEntry(ref.strongsNum)
-    s.setActiveSpace('lexicon')
+    openDestination({ kind: 'strongs', num: ref.strongsNum }, intent)
     onOpenSpace?.('lexicon')
     return
   }
-  if (newTab) {
-    const translation = (getTranslationForBook(ref.bookId) ?? 'kjva').toUpperCase()
-    s.addTab({
-      id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title: bookChapterVerseLabel(ref.bookId, ref.chapter),
-      state: { bookId: ref.bookId, chapter: ref.chapter, targetVerse: ref.verse, translation, showStrongs: false, scrollPosition: 0 },
-    })
-  } else {
-    navigateToVerse({ bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, origin: { kind: 'other', label: 'study-trail' } })
-  }
-  useAppStore.getState().setActiveSpace('scripture')
+  const textId = getTranslationForBook(ref.bookId) ?? undefined
+  openDestination({ kind: 'passage', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, ...(textId ? { textId: textId.toLowerCase() } : {}) }, intent, { origin: { kind: 'other', label: 'study-trail' } })
   onOpenSpace?.('scripture')
 }
 

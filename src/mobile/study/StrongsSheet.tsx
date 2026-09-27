@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { ExternalLink, Copy, Check } from 'lucide-react'
 import type { LexiconEntry } from '@/types'
-import { useAppStore } from '@/store'
 import { DerivationText, stripBracketNotation, buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { openDestination } from '@/lib/navigation/destination'
 import type { SheetApi } from '../primitives/Sheet'
 
 /**
@@ -17,7 +16,6 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
   const [related, setRelated] = useState<Array<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }>>([])
   const [occ, setOcc] = useState<Array<{ book_id: string; chapter: number; verse_num: number; text: string }>>([])
   const [num, setNum] = useState(strongsNum)
-  const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const [copied, setCopied] = useState(false)
   const lang: 'H' | 'G' = num.startsWith('G') ? 'G' : 'H'
 
@@ -30,10 +28,12 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
     return () => { alive = false }
   }, [num])
 
+  // An occurrence / "Open in Lexicon" changes the tab the sheet was opened over (NAV-002) — a
+  // Scripture tab navigates, any other tab becomes Scripture / the Lexicon in place (‹ returns).
   const go = (bookId: string, chapter: number, verse: number) => {
     api.close()
+    openDestination({ kind: 'passage', bookId, chapter, verse }, 'current-tab', { origin: { kind: 'lexicon-occurrence', strongsNum: num } })
     onNavigate?.()
-    navigateToVerse({ bookId, chapter, verse, origin: { kind: 'lexicon-occurrence', strongsNum: num } })
   }
 
   if (entry === undefined) return <div className="mobile-sheet-loading">Loading {num}…</div>
@@ -50,7 +50,7 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
           <button type="button" className="mobile-chip" onClick={() => { navigator.clipboard.writeText(buildLexiconCopyText(entry)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600) }).catch(() => {}) }}>
             {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />} {copied ? 'Copied' : 'Copy'}
           </button>
-          <button type="button" className="mobile-chip" onClick={() => { api.close(); openLexiconEntry(num) }}>
+          <button type="button" className="mobile-chip" onClick={() => { api.close(); openDestination({ kind: 'strongs', num }, 'current-tab') }}>
             <ExternalLink size={16} aria-hidden /> Open in Lexicon
           </button>
         </div>
@@ -88,7 +88,7 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
             </li>
           ))}
         </ul>
-        <button type="button" className="mobile-link-button" onClick={() => { api.close(); openLexiconEntry(num) }}>
+        <button type="button" className="mobile-link-button" onClick={() => { api.close(); openDestination({ kind: 'strongs', num }, 'current-tab') }}>
           <ExternalLink size={14} aria-hidden /> Open in Lexicon
         </button>
       </section>

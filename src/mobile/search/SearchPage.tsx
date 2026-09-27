@@ -8,7 +8,11 @@ import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyFindHighlight } from '@/lib/highlight'
 import { buildAllWordsSnippet } from '@/components/bible/ScriptureSearchView'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { openDestination, type NavIntent } from '@/lib/navigation/destination'
+import { runUnifiedSearch, resolvePlace, type UnifiedResults } from '@/lib/search/unifiedSearch'
+import { UnifiedResultsList, type UnifiedPick } from './UnifiedResults'
+import { SCOPE_OPTIONS } from './SearchSurface'
+import { runExperience } from '../navigation/experiences'
 import { resolveTagColor } from '@/lib/tagPalette'
 import {
   runScriptureSearch, runStrongsSearch, groupHitsByBook, filterHitsByVerseTags, takeGroupRows,
@@ -35,7 +39,7 @@ import { buildSearchPreview, samePreview, type SearchPreviewSummary } from './re
 import { commitSearchStep, isSearchCommitted, markSearchCommitted, searchSnapshot } from './searchHistory'
 import './search.css'
 
-type Scope = 'scripture' | 'notes' | 'lexicon'
+type Scope = 'all' | 'scripture' | 'notes' | 'lexicon'
 
 export { DEFAULT_SEARCH_FILTERS, type SearchFilterState }
 const naturalDirection = (sort: SearchSortMode): SearchSortDirection => (sort === 'relevance' ? 'desc' : 'asc')
@@ -90,7 +94,8 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const sheets = useSheets()
   const tabId = tab.id
   const st = tab.state as SearchTabState
-  const scope: Scope = st.scope ?? 'scripture'
+  // Default: everything (SRCH-001) — a scope only narrows when the user picks one.
+  const scope: Scope = st.scope ?? 'all'
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
   const setScope = useCallback((v: Scope) => { commitSearch(tabId, { scope: v }); updateTabState('search', tabId, { scope: v }) }, [updateTabState, tabId])
@@ -147,14 +152,12 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const [hits, setHits] = useState<ScriptureHit[] | null>(null)
   const [notes, setNotes] = useState<Note[] | null>(null)
   const [entries, setEntries] = useState<LexiconEntry[] | null>(null)
+  const [unified, setUnified] = useState<UnifiedResults | null>(null)
   const [loading, setLoading] = useState(false)
   const recent = useAppStore((s) => s.recentSearchQueries)
   const addRecent = useAppStore((s) => s.addRecentSearchQuery)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
-  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
-  const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const verseTags = useAppStore((s) => s.verseTags)
   const verseTagChangeToken = useAppStore((s) => s.verseTagChangeToken)
   const seq = useRef(0)
@@ -163,7 +166,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const clearSearchQuery = useAppStore((s) => s.clearSearchQuery)
   useEffect(() => {
     if (!pendingSearchQuery) return
-    setScope('scripture'); setQuery(pendingSearchQuery); clearSearchQuery()
+    setScope('all'); setQuery(pendingSearchQuery); clearSearchQuery()
   }, [pendingSearchQuery, clearSearchQuery])
 
   // The tag filter needs the tag list; App.tsx loads it at launch on desktop — make sure the
@@ -188,21 +191,24 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const run = useCallback(async (q: string) => {
     const trimmed = q.trim()
     const my = ++seq.current
-    if (trimmed.length < 2) { setHits(null); setNotes(null); setEntries(null); return }
+    if (!trimmed || (trimmed.length < 2 && scope !== 'all')) { setHits(null); setNotes(null); setEntries(null); setUnified(null); return }
     setLoading(true)
     try {
-      if (scope === 'notes') {
+      if (scope === 'all') {
+        const r = await runUnifiedSearch(trimmed, { scope: 'all', filters: { textId, wordMode, books }, wordReplacerEnabled, wordReplacerRules })
+        if (my === seq.current) { setUnified(r); setHits(null); setNotes(null); setEntries(null) }
+      } else if (scope === 'notes') {
         const r = await window.notes.searchNotes(trimmed, 200, wordMode)
-        if (my === seq.current) { setNotes(r); setHits(null); setEntries(null) }
+        if (my === seq.current) { setNotes(r); setHits(null); setEntries(null); setUnified(null) }
       } else if (scope === 'lexicon') {
         const r = await window.lexicon.search(trimmed, 'all')
-        if (my === seq.current) { setEntries(r); setHits(null); setNotes(null) }
+        if (my === seq.current) { setEntries(r); setHits(null); setNotes(null); setUnified(null) }
       } else {
         const t0 = performance.now()
         const strongs = await runStrongsSearch(trimmed)
         const r = strongs ?? await runScriptureSearch(trimmed, { textId, wordMode, bookIds: books.length ? books : undefined, wordReplacerEnabled, wordReplacerRules })
         console.debug(`[perf] search "${trimmed}" (${textId}) → ${r.length} hits in ${Math.round(performance.now() - t0)}ms`)
-        if (my === seq.current) { setHits(r); setNotes(null); setEntries(null) }
+        if (my === seq.current) { setHits(r); setNotes(null); setEntries(null); setUnified(null) }
       }
     } catch { if (my === seq.current) { setHits([]); setNotes([]); setEntries([]) } }
     finally { if (my === seq.current) setLoading(false) }
@@ -234,19 +240,19 @@ export function SearchPage({ tab }: { tab: Tab }) {
     if (!trimmed) return
     addRecent(trimmed)
     commitQuery(query)
-    const ref = scope === 'scripture' ? parseRef(trimmed) : null
-    if (ref) { void haptic.light(); setActiveSpace('scripture'); navigateToVerse({ bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null, origin: { kind: 'search-result', query: trimmed } }) }
+    const ref = scope === 'scripture' || scope === 'all' ? parseRef(trimmed) : null
+    // A reference opens in THIS tab (it becomes Scripture; ‹ returns to the search — NAV-002).
+    if (ref) { void haptic.light(); openDestination({ kind: 'passage', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null }, 'current-tab', { origin: { kind: 'search-result', query: trimmed } }) }
   }
-  // A tap opens the hit in the CURRENT Scripture tab (SEP25): navigateToVerse picks that tab (or
-  // the most recent Bible tab when the current one is a PDF / tags graph) — the find-highlight
-  // state is then written to the tab it actually landed in, never to a non-Bible tab.
-  const openHit = (h: ScriptureHit) => {
+  // A tap opens the hit in THIS tab (NAV-002): the Search tab becomes Scripture at the verse, with
+  // the find highlight; ‹ comes back to these results. (It used to land in whichever Scripture tab
+  // was active in the Scripture space — or a brand-new one — leaving this tab behind.)
+  // Long press → Open in New Tab.
+  const openHit = (h: ScriptureHit, intent: NavIntent = 'current-tab') => {
     const q = query.trim()
     if (q) addRecent(q)
-    navigateToVerse({ bookId: h.book_id, chapter: h.chapter, verse: h.verse_num, translationOverride: h.textId.toUpperCase(), origin: { kind: 'search-result', query: q || tagIds.map((id) => verseTags.find((t) => t.id === id)?.name ?? id).join(', ') } })
-    const s = useAppStore.getState()
-    const landed = s.activeTabId.scripture
-    if (landed) s.updateTabState('scripture', landed, { targetVerseQuery: h.strongsWords || browsing ? undefined : q, targetVerseWordMode: wordMode, targetVerseStrongsWords: h.strongsWords })
+    const origin = { kind: 'search-result' as const, query: q || tagIds.map((id) => verseTags.find((t) => t.id === id)?.name ?? id).join(', ') }
+    openDestination({ kind: 'passage', bookId: h.book_id, chapter: h.chapter, verse: h.verse_num, textId: h.textId, highlight: { query: h.strongsWords || browsing ? undefined : q, wordMode, strongsWords: h.strongsWords } }, intent, { origin })
   }
 
   // Tag filter + sort are client-side passes over the hit list, so flipping them never re-queries.
@@ -256,7 +262,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const { limit, grow, sentinelRef } = useIncrementalLimit(groups, RESULT_CHUNK)
   const page = useMemo(() => takeGroupRows(groups, limit), [groups, limit])
 
-  const openNote = (n: Note) => { addRecent(query.trim()); setActiveSpace('notes'); requestOpenNote(n.id) }
+  const openNote = (n: Note) => { addRecent(query.trim()); openDestination({ kind: 'note', noteId: n.id }, 'current-tab') }
   // Once results for a restored step have loaded, put the list back where it was.
   useEffect(() => {
     if (loading || pendingScroll.current == null) return
@@ -265,11 +271,31 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const y = pendingScroll.current
     pendingScroll.current = null
     requestAnimationFrame(() => { body.scrollTop = y })
-  }, [loading, hits, browseHits, notes, entries])
+  }, [loading, hits, browseHits, notes, entries, unified])
   const runRecent = (r: string) => { setQuery(r); commitQuery(r) }
-  const openEntry = (e: LexiconEntry) => sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={e.strongsNum} api={api} onNavigate={() => setActiveSpace('scripture')} /> })
+  const openEntry = (e: LexiconEntry) => sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={e.strongsNum} api={api} /> })
   // Long-press menus (SEP24): the same Open as a tap, plus new tab / copy / share / note / highlight.
   const resultActions = useSearchResultActions({ openHit, openNote, openEntry, runRecent, scope })
+  // The All scope's grouped rows (the same list as the plus / caret search sheet).
+  const pickUnified = (p: UnifiedPick) => {
+    switch (p.kind) {
+      case 'verse': openHit(p.hit); return
+      case 'note': openNote(p.note); return
+      case 'entry': openEntry(p.entry); return
+      case 'goto': {
+        const item = p.item
+        addRecent(query.trim())
+        if (item.kind === 'notes') { runExperience('notes', 'current-tab'); return }
+        void (item.destination ? Promise.resolve(item.destination) : item.place ? resolvePlace(item.place) : Promise.resolve(null))
+          .then((d) => { if (d) openDestination(d, 'current-tab', { origin: { kind: 'search-result', query: query.trim() } }) })
+      }
+    }
+  }
+  const longPickUnified = (p: UnifiedPick) => {
+    if (p.kind === 'verse') resultActions.scripture(p.hit)
+    else if (p.kind === 'note') resultActions.note(p.note)
+    else if (p.kind === 'entry') resultActions.entry(p.entry)
+  }
 
   // Tab-card preview (T23-011): a tiny summary of what this tab currently shows, saved into the
   // tab's LOCAL state (tabFields.ts — never synced) once results settle, so the card needs no
@@ -280,10 +306,13 @@ export function SearchPage({ tab }: { tab: Tab }) {
       const rows = groups.flatMap((g) => g.hits.slice(0, 3)).slice(0, 3)
       return buildSearchPreview(q, filteredHits.length, rows.map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(h.text, snippetQueryFor(q), 120).text })))
     }
+    if (scope === 'all' && unified?.verses && unified.verses.length && q.length >= 2) {
+      return buildSearchPreview(q, unified.verses.length, unified.verses.slice(0, 3).map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(h.text, snippetQueryFor(q), 120).text })))
+    }
     if (scope === 'notes' && notes && q.length >= 2) return buildSearchPreview(q, notes.length, notes.map((n) => ({ ref: n.title || 'Untitled', text: stripMarkdownFormatting(n.content ?? '') })))
     if (scope === 'lexicon' && entries && q.length >= 2) return buildSearchPreview(q, entries.length, entries.map((e) => ({ ref: `${e.strongsNum} ${e.lemma ?? ''}`.trim(), text: e.gloss ?? '' })))
     return null
-  }, [scope, filteredHits, groups, notes, entries, query, browsing])
+  }, [scope, filteredHits, groups, notes, entries, unified, query, browsing])
   useEffect(() => {
     if (loading) return
     const t = setTimeout(() => {
@@ -299,7 +328,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
   useCaretCommands(() => {
     const live = liveSearchState(tabId)
     const f = tabFilters(live)
-    const sc: Scope = live?.scope ?? 'scripture'
+    const sc: Scope = live?.scope ?? 'all'
     const q = (live?.query ?? query).trim()
     const count = activeFilterCount(f)
     const textLabel = textFilterLabel(f.textId)
@@ -314,7 +343,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
         { id: 'match', title: 'Match', commands: [
           { kind: 'segmented', id: 'word-mode', label: 'Words', icon: Type, value: f.wordMode, options: [['all', 'All'], ['any', 'Any'], ['phrase', 'Phrase']], set: (v) => patchSearchFilters(tabId, { wordMode: v as WordMode }) },
         ] },
-        ...(sc === 'scripture' ? [
+        ...(sc === 'scripture' || sc === 'all' ? [
           { id: 'filters', title: count ? `Scripture filters · ${count}` : 'Scripture filters', commands: [
             { kind: 'view' as const, id: 'text', label: 'Text', icon: Languages, value: textLabel, view: () => ({ title: 'Text', render: (a: SheetApi) => <SearchTextChoices tabId={tabId} api={a} /> }) },
             { kind: 'view' as const, id: 'books', label: 'Books', icon: Library, value: booksLabel, view: () => ({ title: 'Books', render: () => <SearchBooksFilter tabId={tabId} /> }) },
@@ -351,11 +380,11 @@ export function SearchPage({ tab }: { tab: Tab }) {
           <form className="mobile-search-row" onSubmit={submit}>
             <Search size={16} aria-hidden />
             <input className="mobile-search-input" type="search" enterKeyHint="search" autoCorrect="off"
-              placeholder={scope === 'scripture' ? 'Word, phrase, reference or H7225…' : scope === 'notes' ? 'Search notes…' : 'Word, transliteration or Strong\'s number…'}
+              placeholder={scope === 'all' ? 'Search Berean' : scope === 'scripture' ? 'Word, phrase, reference or H7225…' : scope === 'notes' ? 'Search notes…' : 'Word, transliteration or Strong\'s number…'}
               value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
             {query && <button type="button" className="mobile-search-clear" aria-label="Clear" onClick={() => setQuery('')}><X size={16} aria-hidden /></button>}
           </form>
-          <div className="mobile-search-scope"><Segmented value={scope} options={[['scripture', 'Scripture'], ['notes', 'Notes'], ['lexicon', 'Lexicon']]} onChange={(v) => setScope(v as Scope)} /></div>
+          <div className="mobile-search-scope"><Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as Scope)} /></div>
           {scopeHasFilters(scope) && <FiltersEntry filters={filters} scope={scope} onOpen={openFilters} />}
         </>
       }
@@ -367,7 +396,11 @@ export function SearchPage({ tab }: { tab: Tab }) {
           {recent.map((r) => <LongPressResult key={r} onLongPress={() => resultActions.recent(r)}><Row leading={<Clock size={16} aria-hidden />} title={r} onClick={() => runRecent(r)} /></LongPressResult>)}
         </ListSection>
       )}
-      {!query.trim() && !browsing && recent.length === 0 && <div className="mobile-empty">Search every text, your notes, or the lexicon. Type a reference to jump straight to it.</div>}
+      {!query.trim() && !browsing && recent.length === 0 && <div className="mobile-empty">Search every text, Strong's and your notes. Type a reference to jump straight to it.</div>}
+      {scope === 'all' && query.trim() && (
+        <UnifiedResultsList full results={unified} query={query} wordMode={unified?.intent.phrase ? 'phrase' : wordMode} loading={loading && !unified}
+          onPick={pickUnified} onLongPick={longPickUnified} onSeeAll={(sc) => setScope(sc)} />
+      )}
       {scope === 'scripture' && filteredHits && (
         filteredHits.length === 0 ? ((query.trim().length >= 2 || browsing) && !loading ? <div className="mobile-empty">{tagIds.length && shownHits && shownHits.length > 0 ? 'No matches in the selected tags.' : browsing ? 'Nothing tagged yet.' : 'No matches.'}</div> : null) : (
           <>
@@ -415,7 +448,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
             <LongPressResult key={e.strongsNum} onLongPress={() => resultActions.entry(e)}><Row chevron title={<><span className="mobile-strongs-num">{e.strongsNum}</span> {e.lemma} <span className="mobile-muted">{e.transliteration}</span></>} subtitle={e.gloss}
               onClick={() => openEntry(e)} /></LongPressResult>
           ))}
-          {entries.length > 0 && <Row title="Open in Lexicon space" onClick={() => { setActiveSpace('lexicon'); openLexiconEntry(entries[0].strongsNum) }} />}
+          {entries.length > 0 && <Row title="Open in Lexicon" onClick={() => openDestination({ kind: 'strongs', num: entries[0].strongsNum }, 'current-tab')} />}
         </ListSection>
       )}
     </Page>

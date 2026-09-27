@@ -5,7 +5,7 @@ import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
 import { resolveBookToken, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { openDestination, type NavIntent } from '@/lib/navigation/destination'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -15,7 +15,7 @@ import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { useActionSheet, ChoiceList } from '../primitives/ActionSheet'
 import { useNavigation } from '../navigation/NavigationStack'
 import { FolderPicker } from './FolderPicker'
-import { NoteFinder } from './NoteFinder'
+import { CaretGoTo } from '../commands/CaretGoTo'
 import { noteIsMovable } from '@/lib/noteMovability'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -59,14 +59,14 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     return () => { alive = false }
   }, [noteId])
 
-  const openVerse = useCallback((ref: ParsedRef & { forcedTranslation?: string }) => {
+  // A verse link changes THIS tab (NAV-002): the note tab becomes Scripture with a "← note" pill,
+  // and ‹ returns to the note. (It used to jump to — or create — another Scripture tab.)
+  const openVerse = useCallback((ref: ParsedRef & { forcedTranslation?: string }, intent: NavIntent = 'current-tab') => {
     const s = useAppStore.getState()
-    s.setActiveSpace('scripture')
-    s.ensureTab('bible')
-    const tabId = useAppStore.getState().activeTabId.scripture
     const translation = ref.forcedTranslation ?? getTranslationForBook(ref.bookId) ?? s.defaultBibleTranslation
-    if (tabId) s.updateTabState('scripture', tabId, { translation: translation.toUpperCase() })
-    navigateToVerse({ bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null, origin: { kind: 'note-wikilink', noteId, noteTitle: latest.current?.title ?? '' } })
+    const title = latest.current?.title ?? ''
+    openDestination({ kind: 'passage', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null, textId: translation.toLowerCase(), noteBack: { noteId, title } },
+      intent, { origin: { kind: 'note-wikilink', noteId, noteTitle: title } })
   }, [noteId])
   const openWikilink = useCallback((title: string) => {
     const target = title.replace(/\|.*$/, '').trim()
@@ -104,7 +104,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
           })()
         } },
         { id: 'ref', label: 'Copy reference', onSelect: () => copyVerseRef(parsed.bookId, parsed.chapter, parsed.verse ?? 1, isLxx, parsed.endVerse) },
-        { id: 'newtab', label: 'Open in new tab', onSelect: () => { const st = useAppStore.getState(); st.createTab('bible'); openVerse(ref) } },
+        { id: 'newtab', label: 'Open in new tab', onSelect: () => openVerse(ref, 'new-tab') },
       ])
       return
     }
@@ -116,12 +116,12 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
       actions('note-strongs', id, [
         { id: 'open', label: "Open Strong's entry", onSelect: () => openLexicon(id) },
         { id: 'copy', label: 'Copy number', onSelect: () => { navigator.clipboard.writeText(id).catch(() => {}) } },
-        { id: 'lexicon', label: 'Open in Lexicon space', onSelect: () => { useAppStore.getState().openLexiconEntry(id, { noteId, title: latest.current?.title ?? '' }) } },
+        { id: 'lexicon', label: 'Open in Lexicon', onSelect: () => { openDestination({ kind: 'strongs', num: id }, 'current-tab') } },
       ])
     }
   })
   const openLexicon = useCallback((strongsId: string) => {
-    sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={strongsId} api={api} onNavigate={() => setActiveSpace('scripture')} /> })
+    sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={strongsId} api={api} /> })
   }, [sheets, setActiveSpace])
 
   // A YouTube video tab open (its player stays mounted while this page shows — MobileApp parks
@@ -155,7 +155,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     title: latest.current?.title || 'Untitled note',
     subtitle: 'Note',
     // Same header as every caret (SEP24-008): this note / find another, and the tab's ‹ › history.
-    location: { label: latest.current?.title || 'Untitled note', placeholder: 'Find a note', view: () => ({ title: 'Find a note', render: (a: SheetApi) => <NoteFinder api={a} /> }) },
+    location: { label: latest.current?.title || 'Untitled note', placeholder: 'Search Berean', view: () => ({ title: 'Search', render: (a: SheetApi) => <CaretGoTo api={a} /> }) },
     sections: [
       ...fromSheetActions(actionList(), { tiles: ['pin', 'share', 'copy', 'print'], tileLabels: { copy: 'Copy', print: 'Print / PDF', share: 'Share' }, title: 'Note' }),
       // Word count / characters / reading time live here, not on the editor surface (TEST25-NOTES-003).
