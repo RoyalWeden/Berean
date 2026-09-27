@@ -106,6 +106,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('notes:countTagRefs', (_event, name: string) => notes().countTagRefs(name))
   ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => notes().getByChapter(bookId, chapter, textId))
+  ipcMain.handle('notes:getDailyDates', () => notes().getDailyDates())
   ipcMain.handle('notes:getChapterCounts', (_event, bookId: string, chapter: number, textId = 'kjva') => notes().getChapterCounts(bookId, chapter, textId))
 
   ipcMain.handle('notes:createVersion', (_event, noteId: string, title: string, content: string, kind = 'auto') =>

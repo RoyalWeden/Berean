@@ -1,3 +1,4 @@
+import { dailyTitleDateKey } from '../../lib/noteUtils'
 import { placeholders } from '../db/DatabaseAdapter'
 import type { ServiceContext } from './context'
 import { numberTokenAlternates } from '../../lib/numberWords'
@@ -401,6 +402,26 @@ export function createNotesService(ctx: ServiceContext) {
     return { success: true }
   }
 
+  /** Dates that have a daily note — for calendars' note dots (SEP27-CAL-002). Reads only
+   *  id / title / type and the content LENGTH (never note bodies); one entry per date (the
+   *  longest note wins when a date has several). Day semantics are the title's date, i.e. the
+   *  daily-note day (which already begins at sunrise — dailyNoteToday). */
+  async function getDailyDates(): Promise<Array<{ dateKey: string; noteId: string; length: number }>> {
+    const rows = await db().all<{ id: string; title: string | null; type: string; len: number | null }>(
+      "SELECT id, title, type, length(content) AS len FROM notes WHERE deleted_at IS NULL AND (type IN ('daily', 'journal') OR title LIKE 'Daily — %' OR title LIKE 'Journal — %')",
+      [],
+    )
+    const byDate = new Map<string, { dateKey: string; noteId: string; length: number }>()
+    for (const r of rows) {
+      const key = dailyTitleDateKey(r.title ?? '')
+      if (!key) continue
+      const cur = byDate.get(key)
+      const len = r.len ?? 0
+      if (!cur || len > cur.length) byDate.set(key, { dateKey: key, noteId: r.id, length: len })
+    }
+    return [...byDate.values()].sort((a, b) => (a.dateKey < b.dateKey ? -1 : 1))
+  }
+
   async function getAll(limit = 200, offset = 0) {
     const rows = await db().all<NoteRow>('SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ? OFFSET ?', [limit, offset])
     return rows.map(rowToNote)
@@ -708,7 +729,7 @@ export function createNotesService(ctx: ServiceContext) {
     create, update, listIdioms, delete: del, restore, listTrash, purgeTrashItem, emptyTrash,
     folderList, folderCreate, folderRename, folderDelete, folderDeleteDeep, folderSetParent,
     setFolder, setPinned, deleteAll, getAll, getByVerse, getOne, search, deleteByTag, countTagRefs,
-    getByChapter, getChapterCounts,
+    getByChapter, getChapterCounts, getDailyDates,
     createVersion, getVersions, restoreVersion,
     getCollapsedHeadings, setHeadingCollapsed, getCollapsedThreads, setThreadCollapsed,
   }

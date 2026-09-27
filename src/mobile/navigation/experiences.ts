@@ -1,14 +1,19 @@
-import { BookOpen, NotepadText, CalendarDays, BookMarked, Youtube, Search, History, Settings, Columns2, FileText, Tags, type LucideIcon } from 'lucide-react'
+import { BookOpen, NotepadText, CalendarDays, CalendarCheck, BookMarked, Youtube, Search, History, Settings, Columns2, FileText, Tags, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Tab, TabType } from '@/types'
 import { makeCompareTab, makeCompareTabState } from '../reader/compareState'
+import { dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { openDailyNoteInCurrentTab } from '@/lib/dailyNotes'
 
 /**
  * The major experiences a tab can be (TEST25-NAV-001) — one vocabulary for the top-left tab-type
  * switcher, the caret's "Go to" row, the plus sheet's destination row and typed commands in both
  * searches ("notes", "strong's", "today" …).
  *
- * The set: Scripture, Notes, Today, Lexicon, YouTube, Search, History, Settings. Compare is a
+ * The set: Scripture, Notes, Calendar, Lexicon, YouTube, Search, History, Settings (SEP27: Calendar
+ * replaced Today in the switcher — the switcher's Calendar is a CONTEXTUAL overlay, handled by the
+ * switcher itself; a typed "calendar" / a Go-to Calendar opens the persistent Calendar TAB).
+ * "Today" stays a typed command and a destination: today's daily note. Compare is a
  * Scripture MODE (a Scripture tab with compare columns), so it is not a switcher option — but it is
  * a typed command. PDFs and the Tags graph are not standalone destinations (a PDF needs a document
  * from the library; Tags opens from More / a tag), so they have icons but are never offered.
@@ -16,14 +21,15 @@ import { makeCompareTab, makeCompareTabState } from '../reader/compareState'
  *   target 'current-tab' → the current tab CHANGES into the experience (store.transformTab);
  *   target 'new-tab'     → a new tab (History / Settings focus their tab, as elsewhere).
  */
-export type ExperienceId = 'scripture' | 'notes' | 'today' | 'lexicon' | 'youtube' | 'search' | 'history' | 'settings' | 'compare'
+export type ExperienceId = 'scripture' | 'notes' | 'today' | 'calendar' | 'lexicon' | 'youtube' | 'search' | 'history' | 'settings' | 'compare'
 
 export interface Experience { id: ExperienceId; label: string; icon: LucideIcon; tabType: TabType }
 
 export const EXPERIENCES: Record<ExperienceId, Experience> = {
   scripture: { id: 'scripture', label: 'Scripture', icon: BookOpen, tabType: 'bible' },
   notes: { id: 'notes', label: 'Notes', icon: NotepadText, tabType: 'note' },
-  today: { id: 'today', label: 'Today', icon: CalendarDays, tabType: 'note' },
+  today: { id: 'today', label: 'Today', icon: CalendarCheck, tabType: 'note' },
+  calendar: { id: 'calendar', label: 'Calendar', icon: CalendarDays, tabType: 'calendar' },
   lexicon: { id: 'lexicon', label: 'Lexicon', icon: BookMarked, tabType: 'lexicon' },
   youtube: { id: 'youtube', label: 'YouTube', icon: Youtube, tabType: 'youtube' },
   search: { id: 'search', label: 'Search', icon: Search, tabType: 'search' },
@@ -33,7 +39,7 @@ export const EXPERIENCES: Record<ExperienceId, Experience> = {
 }
 
 /** The switcher / "Go to" rows, in this order. */
-export const SWITCHER_EXPERIENCES: ExperienceId[] = ['scripture', 'notes', 'today', 'lexicon', 'youtube', 'search', 'history', 'settings']
+export const SWITCHER_EXPERIENCES: ExperienceId[] = ['scripture', 'notes', 'calendar', 'lexicon', 'youtube', 'search', 'history', 'settings']
 
 /** What experience a tab is (null for PDF / Tags, which are not destinations of their own). */
 export function experienceOfTab(tab: Pick<Tab, 'type' | 'state'> | null | undefined): ExperienceId | null {
@@ -46,6 +52,7 @@ export function experienceOfTab(tab: Pick<Tab, 'type' | 'state'> | null | undefi
     case 'search': return 'search'
     case 'history': return 'history'
     case 'settings': return 'settings'
+    case 'calendar': return 'calendar'
     default: return null
   }
 }
@@ -59,7 +66,7 @@ export function tabTypeFace(tab: Pick<Tab, 'type' | 'state'> | null | undefined)
 }
 
 /** The experiences to offer from a tab: every switcher experience except the one it already is
- *  (Today stays — it opens today's note even from a Notes tab; a Compare tab offers Scripture). */
+ *  (a Compare tab offers Scripture). */
 export function otherExperiences(tab: Pick<Tab, 'type' | 'state'> | null | undefined): ExperienceId[] {
   const cur = experienceOfTab(tab)
   return SWITCHER_EXPERIENCES.filter((e) => e !== cur)
@@ -71,6 +78,7 @@ const KEYWORDS: Array<[string, ExperienceId]> = [
   ['scripture', 'scripture'], ['bible', 'scripture'],
   ['notes', 'notes'], ['note', 'notes'],
   ['today', 'today'], ['daily', 'today'], ['daily note', 'today'],
+  ['calendar', 'calendar'], ['dates', 'calendar'],
   ['lexicon', 'lexicon'], ["strong's", 'lexicon'], ['strongs', 'lexicon'],
   ['youtube', 'youtube'], ['videos', 'youtube'], ['video', 'youtube'],
   ['history', 'history'],
@@ -112,12 +120,13 @@ export function runExperience(id: ExperienceId, target: 'current-tab' | 'new-tab
     }
     // Scripture from a Compare tab leaves Compare (same tab).
     if (id === 'scripture' && cur.type === 'bible') { s.updateTabState('scripture', cur.id, { compareMode: false }); return }
+    // Today = today's daily note, in this tab (the shared daily-note destination).
+    if (id === 'today') { void openDailyNoteInCurrentTab(dailyNoteToday()); return }
     s.transformTab(cur.id, EXPERIENCES[id].tabType)
-    if (id === 'today') useAppStore.getState().requestDailyNote()
     return
   }
   switch (id) {
-    case 'today': s.requestDailyNote(); return
+    case 'today': s.createTab('note'); void openDailyNoteInCurrentTab(dailyNoteToday()); return
     case 'history': case 'settings': s.ensureTab(id); return
     case 'compare': {
       const st = scriptureStateFor(cur)

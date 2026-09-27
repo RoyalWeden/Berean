@@ -25,9 +25,11 @@ export function atScrollTop(b: ScrollBounds): boolean { return b.scrollTop <= EP
 export function atScrollBottom(b: ScrollBounds): boolean { return b.scrollTop + b.clientHeight >= b.scrollHeight - EPS }
 
 /** Should this finger movement (dy > 0 = down, per move) be taken over by the sheet? */
-export function sheetTakesOver(dy: number, bounds: ScrollBounds, atTopDetent: boolean): boolean {
+export function sheetTakesOver(dy: number, bounds: ScrollBounds, atTopDetent: boolean, nested = false): boolean {
   if (dy > 0) return atScrollTop(bounds)
-  if (dy < 0) return !atTopDetent
+  // A scroller NESTED inside the sheet body (e.g. the several-verse Strong's block at the compact
+  // position, SEP27-VERSE-003) scrolls first; the sheet takes over at its bottom.
+  if (dy < 0) return !atTopDetent && (!nested || atScrollBottom(bounds))
   return false
 }
 

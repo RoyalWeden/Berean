@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Pin, Layers, BookOpen, NotepadText, BookMarked, Youtube, Search, FileText, Tags, Archive, Plus, History, Settings as SettingsIcon, type LucideIcon } from 'lucide-react'
+import { X, Pin, Layers, BookOpen, NotepadText, BookMarked, Youtube, Search, FileText, Tags, Archive, Plus, History, Settings as SettingsIcon, type LucideIcon, CalendarDays } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { haptic } from '../primitives/haptics'
@@ -27,6 +27,7 @@ export function tabKind(t: Tab): { icon: LucideIcon; label: string } {
   if (t.type === 'youtube') return { icon: Youtube, label: 'YouTube' }
   if (t.type === 'history') return { icon: History, label: 'History' }
   if (t.type === 'settings') return { icon: SettingsIcon, label: 'Settings' }
+  if (t.type === 'calendar') return { icon: CalendarDays, label: 'Calendar' }
   return { icon: Search, label: 'Search' }
 }
 

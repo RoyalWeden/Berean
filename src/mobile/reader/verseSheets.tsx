@@ -134,9 +134,9 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
       id: VERSE_SHEET_ID, lowDetent: lowPx, detents: [0.55, 0.92], initialDetent: 0, undimmedThrough: 1,
       rootTitle: 'Verses',
       onClose: () => { useAppStore.getState().clearVerseSelection(tid) },
-      render: (api) => <MultiVerseSheet tabId={tid} api={api} />,
+      render: (api) => <MultiVerseSheet tabId={tid} api={api} onOpenNote={openNoteInNotesSpace} />,
     })
-  }, [sheets, lowPx])
+  }, [sheets, lowPx, openNoteInNotesSpace])
 
   // Row registry for native text selection → verse sheet.
   const registry = useRef(new Map<string, () => VerseActionContext>())

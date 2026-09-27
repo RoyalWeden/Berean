@@ -43,6 +43,8 @@ interface NotesAPI {
   getNote: (id: string) => Promise<Note | null>
   getChapterNotes: (bookId: string, chapter: number, textId?: string) => Promise<Note[]>
   getChapterCounts: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, number>>
+  /** Dates with a daily note (calendar dots) — ids / titles / lengths only. */
+  getDailyDates: () => Promise<Array<{ dateKey: string; noteId: string; length: number }>>
   searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') => Promise<Note[]>
   setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
   setNotePinned: (noteId: string, pinned: boolean) => Promise<{ success: boolean }>

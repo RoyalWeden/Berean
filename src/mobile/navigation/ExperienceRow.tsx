@@ -1,6 +1,8 @@
 import React from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { haptic } from '../primitives/haptics'
+import { useLongPress } from '../primitives/useLongPress'
+import { useCalendarOverlay } from '../calendar/CalendarOverlay'
 import { EXPERIENCES, runExperience, type ExperienceId } from './experiences'
 import './experiences.css'
 
@@ -20,17 +22,15 @@ export function ExperienceRow({ items, target, onDone, onMore, label }: {
   label?: string
 }) {
   const go = (id: ExperienceId) => { void haptic.light(); onDone?.(); runExperience(id, target) }
+  const openCalendar = useCalendarOverlay()
   return (
     <div className="m-exp-row" role="group" aria-label={label ?? (target === 'current-tab' ? 'Change this tab to' : 'New tab')}>
       {items.map((id) => {
         const e = EXPERIENCES[id]
         const spoken = target === 'current-tab' ? `Change this tab to ${e.label}` : id === 'today' ? "Today's daily note" : `New ${e.label} tab`
-        return (
-          <button key={id} type="button" className="m-exp-tile" onClick={() => go(id)} aria-label={spoken}>
-            <e.icon size={21} aria-hidden />
-            <span aria-hidden>{e.label}</span>
-          </button>
-        )
+        return <ExpTile key={id} id={id} spoken={spoken} onClick={() => go(id)}
+          // Calendar: a long press opens the contextual calendar over this tab (SEP27-CAL-006).
+          onLongPress={id === 'calendar' ? () => { void haptic.medium(); onDone?.(); openCalendar() } : undefined} />
       })}
       {onMore && (
         <button type="button" className="m-exp-tile is-more" onClick={() => { void haptic.light(); onMore() }} aria-label="More — study trail, tags, queue, PDFs, sessions">
@@ -39,5 +39,16 @@ export function ExperienceRow({ items, target, onDone, onMore, label }: {
         </button>
       )}
     </div>
+  )
+}
+
+function ExpTile({ id, spoken, onClick, onLongPress }: { id: ExperienceId; spoken: string; onClick: () => void; onLongPress?: () => void }) {
+  const e = EXPERIENCES[id]
+  const lp = useLongPress(() => onLongPress?.())
+  return (
+    <button type="button" className="m-exp-tile" onClick={onClick} aria-label={spoken} {...(onLongPress ? lp : {})}>
+      <e.icon size={21} aria-hidden />
+      <span aria-hidden>{e.label}</span>
+    </button>
   )
 }

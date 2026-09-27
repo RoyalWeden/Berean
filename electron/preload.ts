@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('notes', {
   getNote: (id: string) => ipcRenderer.invoke('notes:getOne', id),
   getChapterNotes: (bookId: string, chapter: number, textId?: string) =>
     ipcRenderer.invoke('notes:getByChapter', bookId, chapter, textId),
+  getDailyDates: () => ipcRenderer.invoke('notes:getDailyDates'),
   getChapterCounts: (bookId: string, chapter: number, textId?: string) =>
     ipcRenderer.invoke('notes:getChapterCounts', bookId, chapter, textId),
   searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') =>

@@ -68,10 +68,14 @@ describe('destinationSpecs with experiences', () => {
 })
 
 describe('switcher set', () => {
-  it('offers every other experience; Today stays on Notes; Compare offers Scripture', () => {
-    expect(SWITCHER_EXPERIENCES).toEqual(['scripture', 'notes', 'today', 'lexicon', 'youtube', 'search', 'history', 'settings'])
+  it('offers every other experience — Calendar in place of Today (SEP27-CAL-004); Compare offers Scripture', () => {
+    expect(SWITCHER_EXPERIENCES).toEqual(['scripture', 'notes', 'calendar', 'lexicon', 'youtube', 'search', 'history', 'settings'])
+    expect(SWITCHER_EXPERIENCES).not.toContain('today')
     expect(otherExperiences(bible)).not.toContain('scripture')
-    expect(otherExperiences(note)).toEqual(['scripture', 'today', 'lexicon', 'youtube', 'search', 'history', 'settings'])
+    expect(otherExperiences(note)).toEqual(['scripture', 'calendar', 'lexicon', 'youtube', 'search', 'history', 'settings'])
+    const cal = { id: 'c1', spaceId: 'notes', type: 'calendar', title: 'Calendar', state: {} } as Tab
+    expect(experienceOfTab(cal)).toBe('calendar')
+    expect(otherExperiences(cal)).not.toContain('calendar')
     const compare = { ...bible, state: { ...bible.state, compareMode: true } } as Tab
     expect(experienceOfTab(compare)).toBe('compare')
     expect(otherExperiences(compare)).toContain('scripture')
@@ -92,13 +96,16 @@ describe('running experiences', () => {
     expect(count()).toBe(3)
     expect(active().type).toBe('lexicon')
   })
-  it('Today changes this tab into Notes and asks for the daily note', () => {
+  it('typed "calendar" (caret) turns this tab into the persistent Calendar tab; the plus opens a new one', () => {
+    expect(matchExperiences('cal')).toEqual(['calendar'])
     reset(bible)
-    const token = useAppStore.getState().dailyNoteRequestToken
-    runExperience('today', 'current-tab')
+    runExperience('calendar', 'current-tab')
     expect(count()).toBe(2)
-    expect(active().type).toBe('note')
-    expect(useAppStore.getState().dailyNoteRequestToken).toBe(token + 1)
+    expect(active().type).toBe('calendar')
+    reset(bible)
+    runExperience('calendar', 'new-tab')
+    expect(count()).toBe(3)
+    expect(active().type).toBe('calendar')
   })
   it('Compare turns a Notes tab into a Scripture compare tab; Scripture leaves Compare in place', () => {
     reset(note)

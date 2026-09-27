@@ -274,7 +274,7 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
       g.lastY = t.clientY
       const sc = g.scroller
       if (g.mode === 'content') {
-        if (sheetTakesOver(step, sc, L.atTop)) {
+        if (sheetTakesOver(step, sc, L.atTop, sc !== el)) {
           g.mode = 'sheet'; g.dir = step > 0 ? 1 : -1
           y.stop(); g.baseY = y.get(); g.fingerAt = t.clientY - step; g.samples = []
           blurActiveEditable()

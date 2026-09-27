@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { MoreHorizontal, Eye, Pencil } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
@@ -132,22 +132,22 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     const n = latest.current
     if (!n) return []
     return [
-      { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { replace({ ...n, pinned: !n.pinned }); bumpNoteToken() }) } },
+      { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', icon: n.pinned ? PinOff : Pin, onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { replace({ ...n, pinned: !n.pinned }); bumpNoteToken() }) } },
       // Status, icon and folder open INSIDE the caret ("‹ <note>") — T23-006.
-      { id: 'status', label: 'Status', value: n.status ? (NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status) : 'None', onSelect: () => {},
+      { id: 'status', label: 'Status', icon: CircleDot, value: n.status ? (NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status) : 'None', onSelect: () => {},
         view: () => ({ title: 'Status', render: (api: SheetApi) => <ChoiceList api={api} value={latest.current?.status ?? 'none'} options={[{ id: 'none', label: 'No status' }, ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label }))]} onSelect={(id) => persist({ status: id === 'none' ? null : (id as NonNullable<Note['status']>) })} /> }) },
-      { id: 'icon', label: 'Icon', value: n.icon ?? undefined, onSelect: () => {},
+      { id: 'icon', label: 'Icon', icon: Smile, value: n.icon ?? undefined, onSelect: () => {},
         view: () => ({ title: 'Note icon', render: (api: SheetApi) => <IconPicker current={latest.current?.icon ?? null} onPick={(emoji) => { persist({ icon: emoji }); void haptic.light(); api.pop() }} /> }) },
       // Only notes that live in a user folder can move (T23-030; same rule as desktop).
-      ...(noteIsMovable(n) ? [{ id: 'folder', label: 'Move to folder', onSelect: () => {},
+      ...(noteIsMovable(n) ? [{ id: 'folder', label: 'Move to folder', icon: FolderInput, onSelect: () => {},
         view: () => ({ title: 'Folder', render: (api: SheetApi) => <FolderPicker current={latest.current?.folderId ?? null} onPick={(id) => { window.notes.setNoteFolder(n.id, id).then(() => { replace({ ...(latest.current ?? n), folderId: id }); bumpNoteToken(); api.pop() }) }} /> }) }] : []),
-      { id: 'versions', label: 'Version history…', onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { replace({ ...(latest.current ?? n), content }); bumpNoteToken() }} />) },
-      ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
-      { id: 'copy', label: 'Copy as Markdown', onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },
-      { id: 'print', label: 'Print / Export PDF…', onSelect: () => setPrintOpen(true) },
-      { id: 'share', label: 'Share…', onSelect: () => { void shareNote(n) } },
-      { id: 'export-md', label: 'Export Markdown file…', onSelect: () => { void exportNoteFile(n) } },
-      { id: 'trash', label: 'Move to trash', destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { bumpNoteToken(); onBack() }) } },
+      { id: 'versions', label: 'Version history…', icon: History, onSelect: () => nav.push(`versions-${n.id}`, <VersionsPage noteId={n.id} onBack={nav.pop} onRestored={(content) => { replace({ ...(latest.current ?? n), content }); bumpNoteToken() }} />) },
+      ...(ytVideoOpen ? [{ id: 'timestamp', label: 'Insert video timestamp', icon: Clock, onSelect: () => { setMode('edit'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')); void haptic.light() } }] : []),
+      { id: 'copy', label: 'Copy as Markdown', icon: Copy, onSelect: () => { navigator.clipboard.writeText(`# ${n.title}\n\n${n.content}`).catch(() => {}); void haptic.light() } },
+      { id: 'print', label: 'Print / Export PDF…', icon: Printer, onSelect: () => setPrintOpen(true) },
+      { id: 'share', label: 'Share…', icon: Share2, onSelect: () => { void shareNote(n) } },
+      { id: 'export-md', label: 'Export Markdown file…', icon: FileDown, onSelect: () => { void exportNoteFile(n) } },
+      { id: 'trash', label: 'Move to trash', icon: Trash2, destructive: true, onSelect: () => { window.notes.deleteNote(n.id).then(() => { bumpNoteToken(); onBack() }) } },
     ]
   }
   // The note's caret (TEST-033): the former "…" note actions, the frequent ones as tiles.

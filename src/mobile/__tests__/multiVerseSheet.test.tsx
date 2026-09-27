@@ -15,6 +15,7 @@ let host: HTMLDivElement | null = null
 const writeText = vi.fn(async () => {})
 
 beforeEach(() => {
+  ;(window as unknown as { notes: unknown }).notes = { getVerseNotes: async () => [] }
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
   writeText.mockClear()
   useAppStore.setState({ selectedVersesByTab: { t1: [
@@ -24,10 +25,10 @@ beforeEach(() => {
 })
 afterEach(() => { if (root) act(() => root!.unmount()); host?.remove() })
 
-async function openSheet() {
+async function openSheet(initialDetent = 0) {
   function Opener() {
     const sheets = useSheets()
-    React.useEffect(() => { sheets.open({ id: 'verse', lowDetent: 150, detents: [0.55, 0.92], initialDetent: 0, render: (api) => <MultiVerseSheet tabId="t1" api={api} /> }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    React.useEffect(() => { sheets.open({ id: 'verse', lowDetent: 150, detents: [0.55, 0.92], initialDetent, render: (api) => <MultiVerseSheet tabId="t1" api={api} /> }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
     return null
   }
   host = document.createElement('div'); document.body.appendChild(host)
@@ -43,15 +44,14 @@ describe('several-verse sheet', () => {
     expect(sheet.querySelector('.mobile-verse-actions-ref')?.textContent).toMatch(/Matthew 23:12.13/)
     expect(sheet.textContent).not.toMatch(/2 verses/)
     const actions = [...sheet.querySelectorAll('.mobile-verse-primary .mobile-verse-action')].map((b) => b.textContent?.trim())
-    expect(actions[0]).toBe('Copy')
-    expect(actions).toContain('Copy refs')
-    expect(actions).toContain("Strong's")
+    // The same four slots as one verse (SEP27-VERSE-001): Notes, not Copy refs, beside Copy.
+    expect(actions).toEqual(['Copy', 'Notes', 'Refs', "Strong's"])
     expect([...sheet.querySelectorAll('button')].some((b) => /^clear$/i.test(b.textContent?.trim() ?? '') || /clear selection/i.test(b.getAttribute('aria-label') ?? ''))).toBe(false)
   })
 
-  it('Copy refs copies the shared multi-verse reference format', async () => {
-    await openSheet()
-    const btn = [...document.querySelectorAll('.mobile-verse-action')].find((b) => b.textContent?.includes('Copy refs')) as HTMLButtonElement
+  it('Copy references (expanded list) copies the shared multi-verse reference format', async () => {
+    await openSheet(1)
+    const btn = [...document.querySelectorAll('.mobile-action-row')].find((b) => b.textContent?.includes('Copy references')) as HTMLButtonElement
     await act(async () => { btn.click(); await Promise.resolve() })
     expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/Matthew 23:12.13/))
   })

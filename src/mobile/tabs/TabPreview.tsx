@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { History, Search, Youtube, Tags, FileText, NotepadText, BookMarked, Clock } from 'lucide-react'
 import { useAppStore } from '@/store'
-import type { BibleTabState, LexiconEntry, LexiconTabState, Note, Tab, Verse, SearchTabState, YouTubeTabState, PdfTabState } from '@/types'
+import type { BibleTabState, LexiconEntry, LexiconTabState, Note, Tab, Verse, SearchTabState, YouTubeTabState, PdfTabState, CalendarTabState } from '@/types'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { themePresetLabel } from '../settings/ThemePresetPage'
+import { monthFromKey, monthGrid, monthLabel } from '@/lib/calendarModel'
+import { dailyNoteToday, toDateKey } from '@/lib/dailyNoteUtils'
+import { useDailyNoteDates } from '../calendar/useDailyNoteDates'
 import type { SearchPreviewSummary } from '../search/resultActions'
 import './tabPreview.css'
 import { readerScrollMemory } from '../reader/readerScrollMemory'
@@ -31,6 +34,7 @@ export function TabPreview({ tab }: { tab: Tab }) {
     case 'youtube': return <YouTubePreview state={tab.state as YouTubeTabState} />
     case 'history': return <HistoryPreview />
     case 'settings': return <SettingsPreview />
+    case 'calendar': return <CalendarPreview state={tab.state as CalendarTabState} />
     case 'pdf': return <IconPreview icon={FileText} lines={[(tab.state as PdfTabState).title, (tab.state as PdfTabState).page ? `Page ${(tab.state as PdfTabState).page}` : '']} />
     case 'tags': return <IconPreview icon={Tags} lines={['Verse tags', 'Tag graph']} />
     default: return null
@@ -268,6 +272,25 @@ function IconPreview({ icon: Icon, lines }: { icon: typeof History; lines: strin
     <div className="mobile-tab-preview is-icon">
       <Icon size={26} aria-hidden />
       {lines.filter(Boolean).map((l) => <div key={l} className="mobile-tab-preview-line">{l}</div>)}
+    </div>
+  )
+}
+
+/** A Calendar tab's card: its month in miniature, with the note dots (same index as the calendar). */
+function CalendarPreview({ state }: { state: CalendarTabState }) {
+  const month = monthFromKey(state.month, dailyNoteToday())
+  const dates = useDailyNoteDates()
+  const todayKey = toDateKey(dailyNoteToday())
+  return (
+    <div className="mobile-tab-preview is-calendar">
+      <div className="mobile-tab-preview-passage">{monthLabel(month)}</div>
+      <div className="tab-preview-cal">
+        {monthGrid(month).flat().map((d) => (
+          <span key={d.key} className={`tab-preview-cal-day${d.inMonth ? '' : ' is-out'}${d.key === todayKey ? ' is-today' : ''}${d.key === state.selected ? ' is-selected' : ''}`}>
+            {d.date.getDate()}{dates?.has(d.key) && <i aria-hidden />}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }

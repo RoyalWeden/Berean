@@ -25,6 +25,7 @@ const SYNC_FIELDS: Record<TabType, readonly string[]> = {
   tags: ['selectedTagId'],
   history: ['category', 'studyOnly'],
   settings: ['section'],
+  calendar: ['month', 'selected'],
 }
 
 const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
@@ -42,13 +43,14 @@ const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
   tags: [],
   history: [],
   settings: [],
+  calendar: [],
 }
 
 /** Nested keys inside otherwise-synced objects that are device presentation. */
 const NESTED_LOCAL: Record<TabType, Record<string, readonly string[]>> = {
   bible: { compareColumns: ['scrollPos'] },
   note: { homeView: ['previewNoteId', 'previewFolderId'] },
-  lexicon: {}, youtube: {}, search: {}, pdf: {}, tags: {}, history: {}, settings: {},
+  lexicon: {}, youtube: {}, search: {}, pdf: {}, tags: {}, history: {}, settings: {}, calendar: {},
 }
 
 export interface SplitTabState { sync: Record<string, unknown>; local: Record<string, unknown> }

@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import { haptic } from '../primitives/haptics'
 import { useChromeState } from './chromeState'
 import { EXPERIENCES, otherExperiences, runExperience, tabTypeFace } from './experiences'
+import { useCalendarOverlay } from '../calendar/CalendarOverlay'
 import './experiences.css'
 
 /**
@@ -44,11 +45,18 @@ export function TabTypeSwitcher({ hidden }: { hidden?: boolean }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  const openCalendar = useCalendarOverlay()
   if (!present) return null
   const face = tabTypeFace(tab)
   const items = otherExperiences(tab)
   const close = () => setOpen(false)
-  const choose = (id: (typeof items)[number]) => { void haptic.light(); setOpen(false); runExperience(id, 'current-tab') }
+  // Calendar here is CONTEXTUAL (SEP27-CAL-004): an overlay over this tab, not a tab change —
+  // dismissing it leaves the tab untouched; choosing a day opens that day's daily note.
+  const choose = (id: (typeof items)[number]) => {
+    void haptic.light(); setOpen(false)
+    if (id === 'calendar') { openCalendar(); return }
+    runExperience(id, 'current-tab')
+  }
 
   return (
     <>

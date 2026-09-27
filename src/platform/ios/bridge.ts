@@ -54,6 +54,7 @@ export function installIosBridge(s: Services): void {
     getNote: (id) => s.notes.getOne(id) as ReturnType<Window['notes']['getNote']>,
     getChapterNotes: (bookId, chapter, textId) => s.notes.getByChapter(bookId, chapter, textId) as ReturnType<Window['notes']['getChapterNotes']>,
     getChapterCounts: (bookId, chapter, textId) => s.notes.getChapterCounts(bookId, chapter, textId),
+    getDailyDates: () => s.notes.getDailyDates(),
     searchNotes: (query, limit, mode) => s.notes.search(query, limit, mode) as ReturnType<Window['notes']['searchNotes']>,
     setNoteFolder: (noteId, folderId) => s.notes.setFolder(noteId, folderId),
     setNotePinned: (noteId, pinned) => s.notes.setPinned(noteId, pinned),

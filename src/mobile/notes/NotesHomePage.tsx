@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { verseRefDisplay } from '@/lib/parseRef'
 import { pushNotesListHistory } from './notesHistory'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { Plus, CalendarDays, Folder, FolderPlus, FolderInput, Pin, Trash2, Search, Rows3, ArrowDownUp } from 'lucide-react'
+import { Plus, CalendarDays, Folder, FolderPlus, FolderInput, Pin, Trash2, Search, Rows3, ArrowDownUp, FileUp, Printer } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
-import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { openDailyNoteInCurrentTab } from '@/lib/dailyNotes'
+import { useCalendarOverlay } from '../calendar/CalendarOverlay'
 import { ensureDailyNoteLocation } from '@/platform/ios/location'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
@@ -145,9 +147,9 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     input.click()
   }
   const homeActionList = () => [
-    { id: 'import', label: 'Import Markdown file…', onSelect: importMarkdown },
-    ...(hasIdioms ? [{ id: 'idioms', label: 'Export all idioms (PDF)…', onSelect: () => setIdiomsOpen(true) }] : []),
-    { id: 'folder', label: 'New folder…', onSelect: () => { void newFolder(null) } },
+    { id: 'import', label: 'Import Markdown file…', icon: FileUp, onSelect: importMarkdown },
+    ...(hasIdioms ? [{ id: 'idioms', label: 'Export all idioms (PDF)…', icon: Printer, onSelect: () => setIdiomsOpen(true) }] : []),
+    { id: 'folder', label: 'New folder…', icon: FolderPlus, onSelect: () => { void newFolder(null) } },
   ]
   const view = useNoteHomeView()
   // Notes' caret (TEST-033): new note / today first, then the former "…" menu (moved, not copied).
@@ -157,7 +159,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     sections: [
       { id: 'quick', style: 'tiles', commands: [
         { kind: 'action', id: 'new', label: 'New note', icon: Plus, run: () => { void create({}) } },
-        { kind: 'action', id: 'daily', label: 'Today', icon: CalendarDays, run: () => { void openDaily() } },
+        { kind: 'action', id: 'daily', label: 'Today', icon: CalendarDays, run: () => { void openDaily() }, longPress: () => openCalendar() },
       ] },
       // The desktop's list / folder / board views, as native groupings of the home list.
       { id: 'view', title: 'View', commands: [
@@ -194,15 +196,14 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     const r = await window.notes.createNote({ type: 'general', title: '', content: '', ...data })
     if (r.success && r.note) { useAppStore.getState().bumpNoteToken(); void haptic.success(); open(r.note) }
   }
+  // Today = today's daily note, through the shared daily-note destination (SEP27-CAL-003): found
+  // or created, and opened as a step of this Notes tab's history. Press and hold: the calendar.
   const openDaily = async () => {
     // Sunrise day boundary needs a location fix; the first daily-note open is where iOS asks.
     await ensureDailyNoteLocation({ prompt: true })
-    const title = dailyNoteTitle(dailyNoteToday())
-    const existing = notes.find((n) => n.title === title && n.type === 'daily')
-      ?? (await window.notes.searchNotes(title, 5).catch(() => [] as Note[])).find((n) => n.title === title && n.type === 'daily')
-    if (existing) open(existing)
-    else await create({ title, type: 'daily' })
+    await openDailyNoteInCurrentTab(dailyNoteToday())
   }
+  const openCalendar = useCalendarOverlay()
   // `berean:openDailyNote` (desktop sidebar button, ⌘⇧D, the `berean://daily` deep link / App
   // Intent) is received by NotesSpace, which bumps `dailyRequest` once this page is on screen.
   const openDailyRef = useRef(openDaily)
@@ -212,7 +213,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   return (
     <Page
       title="Notes"
-      left={<IconTap icon={CalendarDays} label="Today's daily note" onClick={() => void openDaily()} />}
+      left={<IconTap icon={CalendarDays} label="Today's daily note. Press and hold for the calendar" onClick={() => void openDaily()} onLongPress={openCalendar} />}
       right={<IconTap icon={Plus} label="New note" onClick={() => void create({})} />}
       headerBelow={
         <div className="mobile-search-row">

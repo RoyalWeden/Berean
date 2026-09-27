@@ -20,7 +20,7 @@ export type ScriptureLayout =
 
 /** 'history' / 'settings' are dedicated tabs created from the iPhone New Tab sheet (T23-009); they
  *  live in the search space ("tools") and desktop shows a small fallback panel for them. */
-export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags' | 'history' | 'settings'
+export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags' | 'history' | 'settings' | 'calendar'
 
 export interface BibleTabState {
   bookId: string
@@ -224,6 +224,15 @@ export interface HistoryTabState {
 }
 
 /** A dedicated Settings tab (T23-009). */
+/** The persistent Calendar experience (SEP27-CAL-005): the month shown and the day picked last.
+ *  Date navigation only — choosing a day opens that day's daily note (in this same tab). */
+export interface CalendarTabState {
+  /** "YYYY-MM" */
+  month?: string
+  /** "YYYY-MM-DD" — the day last chosen (highlighted when the tab is shown again). */
+  selected?: string | null
+}
+
 export interface SettingsTabState {
   /** Reserved for a deep-linked settings section. */
   section?: string
@@ -289,6 +298,7 @@ export type TabState =
   | TagsTabState
   | HistoryTabState
   | SettingsTabState
+  | CalendarTabState
 
 export interface Tab {
   id: string

@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, Hash, Tag as TagIcon, Volume2, Eraser, Check, GitFork, Share2, Link2 } from 'lucide-react'
+import { Copy, Hash, Tag as TagIcon, Volume2, Eraser, Check, GitFork, Share2, Link2, NotepadText } from 'lucide-react'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { Verse } from '@/types'
 import { fetchVerse } from '@/components/bible/VerseSelectionBar'
@@ -12,6 +12,9 @@ import { CrossRefsSheet } from './CrossRefsSheet'
 import { Action, VERSE_SHEET_LOW_PX } from './VerseActionSheet'
 import { StrongsVerse } from './VerseStudy'
 import { StrongsSheet } from './StrongsSheet'
+import { MultiVerseNotesSheet } from './VerseNotesSheet'
+import { aggregateVerseNotes } from '@/lib/verseNotesAggregate'
+import { useAppStore } from '@/store'
 import { setVerseSheetMode, useVerseSheetMode, verseSheetLowPx } from './verseSheetMode'
 import './study.css'
 
@@ -25,25 +28,36 @@ import './study.css'
  * slot because a note attaches to one verse. No Clear button: dismissing the sheet clears the
  * selection; tapping another verse updates this same sheet (same detent).
  */
-export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }) {
+export function MultiVerseSheet({ tabId, api, onOpenNote }: { tabId: string; api: SheetApi; onOpenNote?: (noteId: string) => void }) {
+  const openNote = (id: string) => onOpenNote?.(id)
   const { sel, label, copyVerses, share, applyHighlight, removeHighlights, tagRanges, play } = useVerseSelectionActions(tabId)
   const [copied, setCopied] = useState<'verses' | 'refs' | null>(null)
   const sheets = useSheets()
   const mode = useVerseSheetMode()
   const oneChapter = sel.length > 0 && sel.every((v) => v.bookId === sel[0].bookId && v.chapter === sel[0].chapter && v.textId === sel[0].textId)
-  const showStrongs = mode === 'strongs' && api.atLow
+  // Strong's mode shows every selected verse with its numbers — at the compact position (inner
+  // scroll) and expanded (flowing in the sheet).
+  const showStrongs = mode === 'strongs'
   const verses = useSelectedVerses(sel, showStrongs)
   const rootRef = useRef<HTMLDivElement>(null)
-  // Strong's mode fits every selected verse (capped at 60 % of the screen) — as for one verse.
+  // LOW position = the same compact height as one verse's sheet in the same mode (SEP27-VERSE-003):
+  // never taller just because more verses are selected. What does not fit scrolls INSIDE the
+  // Strong's block; expanded, the block has no cap and simply flows in the sheet's own scroll.
+  const strongsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    sheets.update('verse', { lowDetent: verseSheetLowPx(mode, VERSE_SHEET_LOW_PX) + safeAreaBottom() })
+  }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
-    if (!showStrongs) return
-    const el = rootRef.current
-    const sheetEl = el?.closest('.mobile-sheet') as HTMLElement | null
-    if (!el || !sheetEl) return
-    const chrome = el.getBoundingClientRect().top - sheetEl.getBoundingClientRect().top
-    const want = Math.min(Math.round(chrome + el.scrollHeight + 10), Math.round(window.innerHeight * 0.6))
-    sheets.update('verse', { lowDetent: want + safeAreaBottom() })
-  }, [showStrongs, verses, label]) // eslint-disable-line react-hooks/exhaustive-deps
+    const block = strongsRef.current
+    if (!block) return
+    if (!api.atLow) { block.style.maxHeight = ''; return }
+    const sheetEl = block.closest('.mobile-sheet') as HTMLElement | null
+    if (!sheetEl) return
+    const visible = verseSheetLowPx(mode, VERSE_SHEET_LOW_PX) // before the safe area
+    const offset = block.getBoundingClientRect().top - sheetEl.getBoundingClientRect().top
+    block.style.maxHeight = `${Math.max(56, Math.round(visible - offset - 8))}px`
+  }, [api.atLow, mode, verses]) // eslint-disable-line react-hooks/exhaustive-deps
+  const noteCount = useSelectedNoteCount(sel)
 
   if (sel.length < 2) return null
   const copy = async (refsOnly: boolean) => {
@@ -63,6 +77,10 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
     api.push({ key: 'crossrefs', title: 'Cross references', render: (a) => <CrossRefsSheet bookId={f.bookId} chapter={f.chapter} verses={sel.map((v) => v.verse)} textId={f.textId} label={label} api={a} /> })
     if (api.atLow) api.setDetent(1)
   }
+  const showNotes = () => {
+    api.push({ key: 'notes', title: 'Notes', render: (a) => <MultiVerseNotesSheet verses={sel} label={label} api={a} onOpenNote={openNote} /> })
+    if (api.atLow) api.setDetent(1)
+  }
   const tag = () => {
     const { ranges, label: l } = tagRanges()
     api.push({ key: 'tag', title: 'Tag verses', render: (a) => <TagPickerSheet ranges={ranges} label={l} kind="verses" api={a} /> })
@@ -75,15 +93,16 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
         <div className="mobile-verse-actions-ref">{label}</div>
       </div>
 
+      {/* The same four slots as one verse (SEP27-VERSE-001): Copy · Notes · Refs · Strong's. */}
       <div className="mobile-verse-primary" role="group" aria-label={`Actions for ${label}`}>
         <Action icon={copied === 'verses' ? Check : Copy} label={copied === 'verses' ? 'Copied' : 'Copy'} onClick={() => { void copy(false) }} />
-        <Action icon={copied === 'refs' ? Check : Link2} label={copied === 'refs' ? 'Copied' : 'Copy refs'} onClick={() => { void copy(true) }} />
+        <Action icon={NotepadText} label="Notes" badge={noteCount} onClick={showNotes} />
         {oneChapter && <Action icon={GitFork} label="Refs" onClick={showRefs} />}
         {api.atLow && <Action icon={Hash} label="Strong's" pressed={mode === 'strongs'} onClick={toggleStrongs} />}
       </div>
 
       {showStrongs && (
-        <div className="mobile-verse-strongs is-multi">
+        <div ref={strongsRef} className={`mobile-verse-strongs is-multi${api.atLow ? ' is-capped' : ''}`}>
           {verses === null ? <div className="mobile-muted">Loading…</div> : verses.map((v) => (
             <div key={`${v.book_id}.${v.chapter}.${v.verse_num}`} className="mobile-verse-strongs-item">
               <span className="mobile-verse-strongs-num">{v.verse_num}</span>
@@ -93,7 +112,7 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
         </div>
       )}
 
-      {!showStrongs && (
+      {!(showStrongs && api.atLow) && (
         <div className="mobile-swatch-row is-scroll" role="group" aria-label="Highlight selected verses" data-no-sheet-drag>
           {HIGHLIGHT_COLOR_IDS.map((c) => (
             <button key={c} type="button" className="mobile-swatch" style={{ backgroundColor: highlightDotColor(c) }} aria-label={`${HIGHLIGHT_LABELS[c]} (${sel.length} verses)`} onClick={() => void applyHighlight(c)} />
@@ -106,6 +125,7 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
 
       {!api.atLow && (
         <div className="mobile-action-list">
+          <button type="button" className="mobile-action-row" onClick={() => { void copy(true) }}>{copied === 'refs' ? <Check size={20} aria-hidden /> : <Link2 size={20} aria-hidden />}<span>{copied === 'refs' ? 'Copied' : 'Copy references'}</span></button>
           <button type="button" className="mobile-action-row" onClick={() => { void share() }}><Share2 size={20} aria-hidden /><span>Share…</span></button>
           <button type="button" className="mobile-action-row" onClick={() => { play(); api.close() }}><Volume2 size={20} aria-hidden /><span>{oneChapter ? 'Read aloud' : 'Read aloud from the first verse'}</span></button>
           <button type="button" className="mobile-action-row" onClick={tag}><TagIcon size={20} aria-hidden /><span>Tag verses…</span><span className="mobile-action-row-chevron" aria-hidden>›</span></button>
@@ -133,4 +153,20 @@ function useSelectedVerses(sel: ReadonlyArray<{ bookId: string; chapter: number;
     return () => { alive = false }
   }, [key, enabled]) // eslint-disable-line react-hooks/exhaustive-deps
   return verses
+}
+
+/** How many distinct notes the selected verses have (the Notes badge). */
+function useSelectedNoteCount(sel: ReadonlyArray<{ bookId: string; chapter: number; verse: number; textId: string }>): number {
+  const [n, setN] = useState(0)
+  const token = useAppStore((s) => s.noteChangeToken)
+  const key = sel.map((v) => `${v.textId}|${v.bookId}.${v.chapter}.${v.verse}`).join(',')
+  useEffect(() => {
+    let alive = true
+    void Promise.all(sel.map(async (v) => {
+      const ref = `${v.bookId}.${v.chapter}.${v.verse}`
+      return { ref, notes: await window.notes.getVerseNotes(ref, v.textId).catch(() => []) }
+    })).then((per) => { if (alive) setN(aggregateVerseNotes(per).length) })
+    return () => { alive = false }
+  }, [key, token]) // eslint-disable-line react-hooks/exhaustive-deps
+  return n
 }

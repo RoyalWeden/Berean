@@ -14,3 +14,11 @@
 .tab-preview-row:last-child { border-bottom: 0; }
 .tab-preview-value { overflow: hidden; text-overflow: ellipsis; color: rgb(var(--color-text-muted)); }
 .mobile-tab-preview.is-list .mobile-tab-preview-line { color: rgb(var(--color-text-primary) / 0.85); }
+
+/* Calendar tab card: the month in miniature with note dots. */
+.tab-preview-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px 0; margin-top: 6px; }
+.tab-preview-cal-day { position: relative; text-align: center; font-size: 10px; line-height: 16px; color: rgb(var(--color-text-secondary)); font-variant-numeric: tabular-nums; }
+.tab-preview-cal-day.is-out { opacity: 0.35; }
+.tab-preview-cal-day.is-today { color: rgb(var(--color-accent)); font-weight: 700; }
+.tab-preview-cal-day.is-selected { color: #fff; background: rgb(var(--color-accent)); border-radius: 8px; }
+.tab-preview-cal-day i { position: absolute; left: 50%; bottom: -1px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: rgb(var(--color-accent)); }

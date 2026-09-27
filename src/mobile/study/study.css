@@ -49,6 +49,10 @@
 .mobile-verse-strongs-item { display: flex; gap: 6px; align-items: baseline; }
 .mobile-verse-strongs-item + .mobile-verse-strongs-item { margin-top: 6px; }
 .mobile-verse-strongs-num { flex: none; min-width: 1.4em; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); }
-/* Several long verses can exceed the compact position's 60 % cap: the block scrolls itself then
-   (one verse always fits whole). */
-.mobile-verse-strongs.is-multi { max-height: calc(60vh - 190px); overflow-y: auto; overscroll-behavior: contain; }
+/* Several verses at the COMPACT position: the sheet keeps one verse's height and the block scrolls
+   (its max-height is measured to the visible space); expanded, it flows in the sheet — no cap. */
+.mobile-verse-strongs.is-multi.is-capped { overflow-y: auto; overscroll-behavior: contain; }
+/* The heading row's uppercase / bold type must not reach the segment labels ("TSK/e", "My Notes"). */
+.mobile-study-refs-head.is-bare { text-transform: none; letter-spacing: normal; font-weight: 400; }
+/* The full cross-references view: the reference on its own line, the source control full width. */
+.mobile-crossrefs .mobile-crossrefs-head { flex-direction: column; align-items: stretch; padding-right: 0; }

@@ -21,3 +21,4 @@ html[data-contrast="more"] .m-verse-note-card { box-shadow: 0 0 0 1px var(--m-ha
 
 /* A quiet link after a verse's notes: add a further note (the + only shows with no notes). */
 .m-verse-note-add { align-self: flex-start; margin: 2px 4px 0; padding: 10px 4px; min-height: 44px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); }
+.m-verse-note-card-refs { display: block; margin-top: 4px; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-accent)); }

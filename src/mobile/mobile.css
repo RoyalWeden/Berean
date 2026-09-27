@@ -680,3 +680,8 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
 /* Caret go-to (⌘L, SEP25). */
 .mobile-caret-goto { padding: 0 0 16px; }
 .mobile-caret-goto-icon { flex: none; margin-right: 10px; color: rgb(var(--color-accent)); }
+
+/* Full-width segmented control (SEP27-XREF-001): one unified control, equal segments, each fully
+   tappable (≥ 36 pt tall), labels centred — e.g. TSK/e · Classic · My Notes everywhere. */
+.mobile-segmented.is-full { display: flex; width: 100%; align-self: stretch; }
+.mobile-segmented.is-full button { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

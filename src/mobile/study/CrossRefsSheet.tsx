@@ -19,7 +19,7 @@ export function shortRefLabel(r: { bookId: string; chapter: number; verse: numbe
 export function CrossRefSourcePicker() {
   const source = useAppStore((s) => s.crossRefSource)
   const setSource = useAppStore((s) => s.setCrossRefSource)
-  return <Segmented value={source} options={CROSS_REF_SOURCES} onChange={(v) => setSource(v as CrossRefSourceId)} />
+  return <Segmented full label="Cross-reference source" value={source} options={CROSS_REF_SOURCES} onChange={(v) => setSource(v as CrossRefSourceId)} />
 }
 
 /**

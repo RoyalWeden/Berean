@@ -80,4 +80,9 @@ describe('scroll owner', () => {
     Object.defineProperty(inner, 'clientHeight', { value: 300 })
     expect(scrollOwner(leaf, root)).toBe(inner)
   })
+  it('a scroller nested in the body scrolls up first; the sheet takes over at its bottom (SEP27-VERSE-003)', () => {
+    expect(sheetTakesOver(-4, b(100, 600, 200), false, true)).toBe(false)
+    expect(sheetTakesOver(-4, b(400, 600, 200), false, true)).toBe(true)
+    expect(sheetTakesOver(4, b(0, 600, 200), false, true)).toBe(true)
+  })
 })

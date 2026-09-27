@@ -187,6 +187,7 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   tags: 'notes',      // the singleton Tags graph opens as a tab within the Notes space
   history: 'search',  // dedicated History / Settings tabs (iPhone New Tab, T23-009) group with Search
   settings: 'search',
+  calendar: 'notes',  // the persistent Calendar (date navigation → daily notes) groups with Notes
 }
 
 /** The one and only Tags graph tab id (singleton — see openTagsGraph). */
@@ -259,6 +260,7 @@ function blankTabOfType(type: TabType, id: string, s: AppState): Tab {
     case 'tags': return { id, spaceId, type, title: 'Tags', state: { selectedTagId: null } as TagsTabState }
     case 'history': return { id, spaceId, type, title: 'History', state: {} }
     case 'settings': return { id, spaceId, type, title: 'Settings', state: {} }
+    case 'calendar': return { id, spaceId, type, title: 'Calendar', state: {} }
     case 'pdf': return { id, spaceId, type, title: 'PDF', state: {} as TabState }
     default: return { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
   }
@@ -284,8 +286,16 @@ function typeChangeEntryFor(tab: Tab, extraState?: Record<string, unknown>): Omi
     const b = tab.state as BibleTabState
     return { type: 'bible', title: tab.title, bookId: b.bookId, chapter: b.chapter, translation: b.translation, switchType: true, ...(extraState ? { state: extraState } : {}) }
   }
+  // A list-like tab is recorded as its list (`home`) only when nothing is open in it; a Notes tab
+  // showing a note IS that note (SEP27: a calendar day → its daily note, ‹ / › land on the note).
+  const st = { ...navSnapshotOf(tab.state), ...(extraState ?? {}) } as Record<string, unknown>
+  const opened =
+    tab.type === 'note' && typeof st.noteId === 'string' ? { noteId: st.noteId }
+    : tab.type === 'lexicon' && typeof st.strongsNum === 'string' ? { strongsNum: st.strongsNum }
+    : tab.type === 'youtube' && typeof st.videoId === 'string' ? { videoId: st.videoId }
+    : null
   const listLike = tab.type === 'note' || tab.type === 'lexicon' || tab.type === 'youtube'
-  return { type: tab.type, title: tab.title, switchType: true, ...(listLike ? { home: true } : {}), state: { ...navSnapshotOf(tab.state), ...(extraState ?? {}) } }
+  return { type: tab.type, title: tab.title, switchType: true, ...(opened ?? (listLike ? { home: true } : {})), state: st }
 }
 
 /**
@@ -2279,6 +2289,8 @@ export const useAppStore = create<AppState>()(
           tab = { id, spaceId, type, title: 'History', state: {} }
         } else if (type === 'settings') {
           tab = { id, spaceId, type, title: 'Settings', state: {} }
+        } else if (type === 'calendar') {
+          tab = { id, spaceId, type, title: 'Calendar', state: {} }
         } else {
           tab = { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
         }

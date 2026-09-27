@@ -1,3 +1,4 @@
+import { useLongPress } from '../primitives/useLongPress'
 import React, { useReducer, useState } from 'react'
 import { ChevronRight, ChevronLeft, ChevronDown, Search } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -83,11 +84,7 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
               )
             }
             if (c.kind !== 'action') return null
-            return (
-              <button key={c.id} type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={act(c)} aria-label={c.a11yLabel}>
-                {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.detail && <small>{c.detail}</small>}
-              </button>
-            )
+            return <ActionTile key={c.id} c={c} onClick={act(c)} onLongPress={c.longPress ? () => { api.close(); c.longPress!() } : undefined} />
           })}
         </div>
       ) : (
@@ -147,7 +144,7 @@ function CaretRow({ c, onAction, onView, onChanged }: {
   return (
     <div className="mobile-caret-row is-stacked">
       <span className="mobile-caret-row-label">{lead}{c.label}</span>
-      <Segmented value={c.value} options={c.options} onChange={(v) => { c.set(v); onChanged() }} />
+      <Segmented full value={c.value} options={c.options} onChange={(v) => { c.set(v); onChanged() }} />
     </div>
   )
 }
@@ -189,5 +186,17 @@ function CaretLocationBar({ location, api, onChanged }: { location: NonNullable<
       <button type="button" className="mobile-caret-nav-btn" aria-label="Back" disabled={!nav.back} onClick={() => step('back')}><ChevronLeft size={20} aria-hidden /></button>
       <button type="button" className="mobile-caret-nav-btn" aria-label="Forward" disabled={!nav.forward} onClick={() => step('forward')}><ChevronRight size={20} aria-hidden /></button>
     </div>
+  )
+}
+
+/** An action tile; an optional long press (e.g. Today → the calendar) closes the caret first. */
+function ActionTile({ c, onClick, onLongPress }: { c: Extract<CaretCommand, { kind: 'action' }>; onClick: () => void; onLongPress?: () => void }) {
+  const Icon = c.icon
+  const lp = useLongPress(() => { if (onLongPress) { void haptic.medium(); onLongPress() } })
+  return (
+    <button type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={onClick} aria-label={c.a11yLabel}
+      {...(onLongPress ? lp : {})}>
+      {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.detail && <small>{c.detail}</small>}
+    </button>
   )
 }

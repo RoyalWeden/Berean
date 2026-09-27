@@ -41,6 +41,7 @@ import { YouTubeSettingsPage } from './settings/YouTubeSettingsPage'
 import { NotesHomePage } from './notes/NotesHomePage'
 import { pushNotesListHistory, currentNotesListState } from './notes/notesHistory'
 import { NoteEditorPage } from './notes/NoteEditorPage'
+import { CalendarTabPage } from './calendar/CalendarTabPage'
 import { SearchPage } from './search/SearchPage'
 import { AudioBar } from './audio/AudioBar'
 import { useChromeScrollCollapse } from './primitives/useChromeScrollCollapse'
@@ -219,10 +220,11 @@ function NotesSpace() {
       // The first note opened from the list: record the list itself as the step before it.
       if (!restoring && !(s.tabNavStacks[tid]?.stack.length)) pushNotesListHistory(tid, currentNotesListState(tid))
       s.updateTabState('notes', tid, { noteId: id, isNew: false })
-      if (!restoring) {
-        s.pushTabNav(tid, { type: 'note', title: 'Note', noteId: id })
-        void window.notes.getNote(id).then((n) => { if (n?.title) useAppStore.getState().retitleTabNav(tid, { noteId: id }, n.title) }).catch(() => {})
-      }
+      // Not when the tab's current step already IS this note (e.g. a type change to it — a calendar day).
+      const cur = s.tabNavStacks[tid]
+      const atThisNote = !!cur && cur.idx >= 0 && cur.stack[cur.idx]?.noteId === id
+      if (!restoring && !atThisNote) s.pushTabNav(tid, { type: 'note', title: 'Note', noteId: id })
+      if (!restoring) void window.notes.getNote(id).then((n) => { if (n?.title) useAppStore.getState().retitleTabNav(tid, { noteId: id }, n.title) }).catch(() => {})
     }
     const page = <NoteEditorPage key={id} noteId={id} onBack={() => nav.pop()} />
     if (nav.depth > 0) nav.replaceTop(`note-${id}`, page)
@@ -268,7 +270,7 @@ function NotesSpace() {
     // make one) and let that tab's page — mounted fresh for it — consume the request.
     const s0 = useAppStore.getState()
     const cur = s0.tabs.notes.find((t) => t.id === s0.activeTabId.notes)
-    if (cur?.type === 'tags') {
+    if (cur?.type === 'tags' || cur?.type === 'calendar') {
       const other = s0.tabs.notes.find((t) => t.type === 'note')
       if (other) s0.setActiveTab('notes', other.id); else s0.createTab('note')
       return
@@ -297,6 +299,7 @@ function NotesSpace() {
   }, [dailyToken, nav])
   // The tags graph lives in the notes space as a 'tags' tab; it is hosted until its phone page lands.
   if (active?.type === 'tags') return <HostedPanel type="tags"><Suspense fallback={null}><TagsGraphPanel /></Suspense></HostedPanel>
+  if (active?.type === 'calendar') return <CalendarTabPage tab={active} />
   return <NotesHomePage dailyRequest={dailyRequest} />
 }
 

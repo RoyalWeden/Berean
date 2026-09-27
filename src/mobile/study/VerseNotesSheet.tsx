@@ -4,6 +4,8 @@ import { Plus, ExternalLink } from 'lucide-react'
 import type { EditorView } from 'prosemirror-view'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
+import { aggregateVerseNotes, type AggregatedNote } from '@/lib/verseNotesAggregate'
+import { verseRefDisplay } from '@/lib/parseRef'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
 import { navigateToVerse } from '@/lib/verseNavigation'
@@ -81,6 +83,55 @@ export function VerseNotesSheet({ verseRef, textId, label, api, onOpenNote, onNe
           <Plus size={24} aria-hidden />
         </button>,
         document.body,
+      )}
+    </div>
+  )
+}
+
+/**
+ * Notes on SEVERAL selected verses (SEP27-VERSE-002) — the same cards and in-place editing as one
+ * verse, from the same notes store: every note attached to any selected verse, each note ONCE
+ * (with the verses it belongs to when that helps). A note attaches to one verse, so there is no +
+ * here — the empty state says how to add one.
+ */
+export function MultiVerseNotesSheet({ verses, label, api, onOpenNote, fullDetent = 2 }: {
+  verses: ReadonlyArray<{ bookId: string; chapter: number; verse: number; textId: string }>
+  label: string; api: SheetApi
+  onOpenNote: (noteId: string) => void
+  fullDetent?: number
+}) {
+  const [items, setItems] = useState<AggregatedNote[] | null>(null)
+  const token = useAppStore((s) => s.noteChangeToken)
+  const key = verses.map((v) => `${v.textId}|${v.bookId}.${v.chapter}.${v.verse}`).join(',')
+  useEffect(() => {
+    let alive = true
+    void Promise.all(verses.map(async (v) => {
+      const ref = `${v.bookId}.${v.chapter}.${v.verse}`
+      return { ref, notes: await window.notes.getVerseNotes(ref, v.textId).catch(() => [] as Note[]) }
+    })).then((per) => { if (alive) setItems(aggregateVerseNotes(per)) })
+    return () => { alive = false }
+  }, [key, token]) // eslint-disable-line react-hooks/exhaustive-deps
+  const textId = verses[0]?.textId
+  const edit = (id: string, context: string) => pushSheetNoteEditor(api, id, context, (nid) => { api.close(); onOpenNote(nid) }, fullDetent)
+  return (
+    <div className="mobile-verse-notes" aria-label={`Notes on ${label}`}>
+      {api.depth === 0 && <div className="m-verse-notes-context">{label}</div>}
+      {items === null && <div className="mobile-empty">Loading…</div>}
+      {items?.length === 0 && <div className="mobile-empty">No notes on these verses yet. Select one verse to add a note.</div>}
+      {items && items.length > 0 && (
+        <div className="m-verse-note-cards">
+          {items.map(({ note: n, refs }) => {
+            const preview = previewOf(n)
+            const where = refs.map((r) => verseRefDisplay(r, textId)).join(' · ')
+            return (
+              <button key={n.id} type="button" className="m-verse-note-card" onClick={() => edit(n.id, verseRefDisplay(refs[0], textId))}>
+                <span className="m-verse-note-card-title">{n.icon && <span aria-hidden>{n.icon} </span>}{n.title || 'Untitled'}</span>
+                {preview && <span className="m-verse-note-card-preview">{preview}</span>}
+                {verses.length > 1 && <span className="m-verse-note-card-refs">{where}</span>}
+              </button>
+            )
+          })}
+        </div>
       )}
     </div>
   )

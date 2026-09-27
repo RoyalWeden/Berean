@@ -8,9 +8,11 @@ import { ChevronDown } from 'lucide-react'
  * (outside Lane A's ownership) keeps working unchanged against its existing
  * `from '../settings/SettingsPage'` import.
  */
-export function Segmented({ value, options, onChange }: { value: string; options: Array<[string, string]>; onChange: (v: string) => void }) {
+/** iOS segmented control. `full`: one unified control across the available width, every segment
+ *  an equal, fully tappable share (SEP27-XREF-001 — e.g. TSK/e · Classic · My Notes). */
+export function Segmented({ value, options, onChange, full, label }: { value: string; options: Array<[string, string]>; onChange: (v: string) => void; full?: boolean; label?: string }) {
   return (
-    <div className="mobile-segmented" role="radiogroup">
+    <div className={`mobile-segmented${full ? ' is-full' : ''}`} role="radiogroup" aria-label={label}>
       {options.map(([v, label]) => (
         <button key={v} type="button" role="radio" aria-checked={v === value} className={v === value ? 'is-on' : ''} onClick={() => onChange(v)}>{label}</button>
       ))}

@@ -1,5 +1,6 @@
 import React from 'react'
 import { ChevronLeft, type LucideIcon } from 'lucide-react'
+import { useLongPress } from './useLongPress'
 
 /**
  * A full-height page with a safe-area-aware header (title, optional back, right-side actions)
@@ -43,9 +44,11 @@ export function Page({ title, onBack, backLabel, right, left, children, bodyClas
   )
 }
 
-export function IconTap({ icon: Icon, label, onClick, active, disabled }: { icon: LucideIcon; label: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
+export function IconTap({ icon: Icon, label, onClick, active, disabled, onLongPress }: { icon: LucideIcon; label: string; onClick: () => void; active?: boolean; disabled?: boolean; /** e.g. Today → the calendar (SEP27-CAL-006) */ onLongPress?: () => void }) {
+  const lp = useLongPress(() => onLongPress?.())
   return (
-    <button type="button" className={`mobile-icon-tap${active ? ' is-active' : ''}`} aria-label={label} aria-pressed={active} onClick={onClick} disabled={disabled}>
+    <button type="button" className={`mobile-icon-tap${active ? ' is-active' : ''}`} aria-label={label} aria-pressed={active} onClick={onClick} disabled={disabled}
+      {...(onLongPress ? lp : {})}>
       <Icon size={22} aria-hidden />
     </button>
   )
