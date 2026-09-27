@@ -476,3 +476,12 @@ as badges (section labels use `SectionLabel`).
   notes-editor floating toolbar (`material-popover rounded-menu`) and ChapterView's small pills were
   left as they are — the editor toolbar is a multi-row formatting surface, not a single action
   capsule, and changing it is outside this pass.
+
+
+## Notes folder tree (2026-09-26)
+
+Folder-view rows share one geometry (`src/components/notes/folderTreeGeometry.ts`): an item's
+icon sits at 40 + 18·depth px whatever its row type, so a note is one clear step right of its
+folder's icon and a subfolder lines up with its sibling notes. `ListRow` hover actions take real
+space when revealed (they grow from zero width), so meta such as a folder's note count stays
+visible and the title is the element that truncates.

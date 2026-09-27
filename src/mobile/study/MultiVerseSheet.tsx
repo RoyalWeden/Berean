@@ -83,7 +83,7 @@ export function MultiVerseSheet({ tabId, api }: { tabId: string; api: SheetApi }
       </div>
 
       {showStrongs && (
-        <div className="mobile-verse-strongs">
+        <div className="mobile-verse-strongs is-multi">
           {verses === null ? <div className="mobile-muted">Loading…</div> : verses.map((v) => (
             <div key={`${v.book_id}.${v.chapter}.${v.verse_num}`} className="mobile-verse-strongs-item">
               <span className="mobile-verse-strongs-num">{v.verse_num}</span>

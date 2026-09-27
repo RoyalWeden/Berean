@@ -153,3 +153,11 @@ html[data-floating-right] .mobile-hosted-panel .mobile-hosted-header > :first-ch
 /* Text width (TEST25-SCRIPTURE-008): the reading column's side margins. */
 html[data-reader-width="wide"] .mobile-reader .berean-reading-column { padding-left: 2px; padding-right: 6px; }
 html[data-reader-width="narrow"] .mobile-reader .berean-reading-column { padding-left: 16px; padding-right: 26px; }
+
+/* Continuous scroll on the phone: a chapter's heading is an in-flow divider label, not a sticky
+   opaque bar — pinned under the floating capsule it recreated the very header bar the capsule
+   replaced (the capsule already names the current chapter). */
+.mobile-reader [data-chapter-heading] {
+  position: static; background: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-bottom: 0; box-shadow: none; padding: 18px 12px 6px 6px;
+}

@@ -409,6 +409,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
                 else headingRefs.current.delete(ch)
               }}
               data-chapter={ch}
+              data-chapter-heading=""
               className="group sticky top-0 z-raised px-8 py-2 material-bar border-b border-separator flex items-center gap-2"
             >
               <SectionLabel className="select-none">

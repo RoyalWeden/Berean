@@ -237,3 +237,17 @@ Ledger: [testing-backlog-2026-09-25b.md](testing-backlog-2026-09-25b.md).
   below the top detent an upward drag expands the sheet first.
 - **Notes:** the phone editor has no permanent format bar — selection bubble, markdown, and a
   floating + for inserts; the editor is never fed its own saves (no lost keystrokes).
+
+## 10. Sept 26 pass
+
+Ledger: [testing-backlog-2026-09-26.md](testing-backlog-2026-09-26.md).
+
+- **Duplicate tab** (Mac menu, iPhone tab cards) is one store action, `duplicateTab`: a deep copy
+  of the tab's state, its complete history (same entries and position, new ids — independent from
+  then on) and per-tab scroll; the copy sits right after the original and becomes active.
+  Transient view state (verse selection, open sheets) is not copied.
+- **Scripture Find** uses one rule for every surface (`src/lib/scriptureFind.ts`): a verse matches
+  when its raw OR displayed (word-replaced) text contains the query, case-insensitively.
+- **Several verses** use the verse sheet's own layout (Copy first, reference title); dismissing the
+  sheet ends the selection — there is no Clear.
+- **Search fields** never force capitalization — the user's iOS setting decides.

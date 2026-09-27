@@ -49,3 +49,6 @@
 .mobile-verse-strongs-item { display: flex; gap: 6px; align-items: baseline; }
 .mobile-verse-strongs-item + .mobile-verse-strongs-item { margin-top: 6px; }
 .mobile-verse-strongs-num { flex: none; min-width: 1.4em; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); }
+/* Several long verses can exceed the compact position's 60 % cap: the block scrolls itself then
+   (one verse always fits whole). */
+.mobile-verse-strongs.is-multi { max-height: calc(60vh - 190px); overflow-y: auto; overscroll-behavior: contain; }
