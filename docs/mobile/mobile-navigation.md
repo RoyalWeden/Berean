@@ -84,7 +84,7 @@ reused through `fromSheetActions` (not re-implemented). The caret has **no low d
 |---|---|
 | Scripture | tiles: Strong's (toggle), **KJV ⇄ LXX switch** (only where the other text has this passage — `compareCounterpart`), **Compare** (only where `compareApplicable`), Read aloud · Reading: **All Translations  ‹current› ›** (in-caret list), Text size, Line height, Font › (in-caret), Appearance (Auto/Light/Dark), Color › (in-caret, previews), Continuous scroll, Verse numbers, Red letter text · Study: cross-reference source (TSKe/Classic), Tag this chapter › (in-caret), Study trail · Share: copy reference, share chapter. Opening the caret shows the top bar. No Go to / translation tile / KJV-LXX segmented / ‹ › chapter rows / "Font, theme and more…" — the title is the passage search, edge taps and swipes change chapter |
 | Compare | tiles: Strong's (both columns), **Sync Scrolling** (default on) · Swap sides, Exit compare |
-| Notes list | tiles: New note, Today · Notes: Import Markdown, Export idioms (when present), New folder, All views (desktop layout) |
+| Notes list | tiles: New note, Today (long press: calendar) · View: Group by, Sort · Notes: Import Markdown, Export idioms (when present), New folder |
 | Note editor | tiles: Pin, Share, Copy, Print / PDF · Note: Status › / Icon › / Move to folder › (in-caret; Move only for movable notes), version history, insert video timestamp (when a video is open), export Markdown, move to trash |
 | Search | Search in: Scripture / Notes / Lexicon · Match: All / Any / Phrase · Scripture filters: Text ›, Books ›, Verse tags › (in-caret), Reset · Sort: order + direction · Clear search, History. (No filter button in the header — T23-013) |
 | Lexicon | tiles: Open number, Copy entry (desktop copy semantics), In Scripture · Copy Strong's number, New lexicon tab |
@@ -98,7 +98,7 @@ reused through `fromSheetActions` (not re-implemented). The caret has **no low d
 | Old location | Action | New location |
 |---|---|---|
 | Bottom space bar | Scripture | Tab cards (any Scripture tab) · Plus → Scripture tile |
-| Bottom space bar | Notes | Tab cards · Plus → Note tile / Today tile |
+| Bottom space bar | Notes | Tab cards · Plus → Notes tile / Calendar tile (Today: Notes header) |
 | Bottom space bar | Search | Plus → search field / Search tile |
 | Bottom space bar | More | Plus → More (More page keeps every row: Lexicon, YouTube, Transcript packs, Verse tags, Study trail, Read Aloud queue, History, Workspaces, Archived tabs, PDF library, Settings, Diagnostics) · caret → More actions |
 | Tab pill | current tab title / tab count | Tab cards control (count) + the page title |
@@ -181,7 +181,7 @@ superscripts are 0.7em in the reader, the study view and Compare (T23-027/029).
   detent (the half-open Tabs sheet scrolls); a body drag moves the sheet only when the content can't
   scroll in that direction.
 - **History and Settings are tabs** everywhere: any request for them opens or focuses the tab.
-- **Plus / floating search**: one row of icon buttons (Scripture, Note, Today, Lexicon, YouTube,
+- **Plus / floating search** (superseded 2026-09-25/26 — now Scripture, Notes, Calendar, Lexicon, YouTube, Search, History, Settings + More): one row of icon buttons (Scripture, Note, Today, Lexicon, YouTube,
   History, Settings, More); no Compare or Workspaces; recent list scrolls and dismisses the keyboard.
 - **Passage picker** (title of the reader and Compare): Library → collection → book → chapter →
   optional verse in one sheet; search understands "LXX", book names and references.
@@ -224,8 +224,9 @@ Principles, the interaction-depth audit, the before/after map and the feature-pl
 
 Ledger: [testing-backlog-2026-09-25b.md](testing-backlog-2026-09-25b.md).
 
-- **Top-left switcher** changes what the CURRENT tab is (Scripture, Notes, Today, Lexicon,
-  YouTube, Search, History, Settings — never the current type). `transformTab` keeps the tab's
+- **Top-left switcher** changes what the CURRENT tab is (Scripture, Notes, Calendar, Lexicon,
+  YouTube, Search, History, Settings — never the current type; Calendar here opens the contextual
+  calendar overlay, see §11). `transformTab` keeps the tab's
   slot and carries its history; ‹ returns to the previous type and state. Typing an experience
   name ("notes", "history") in the caret does the same; in the plus it opens a new tab.
 - **Top-right audio button** (while audio is active) opens the audio sheet; the floating
@@ -251,3 +252,19 @@ Ledger: [testing-backlog-2026-09-26.md](testing-backlog-2026-09-26.md).
 - **Several verses** use the verse sheet's own layout (Copy first, reference title); dismissing the
   sheet ends the selection — there is no Clear.
 - **Search fields** never force capitalization — the user's iOS setting decides.
+
+
+## 11. Calendar (2026-09-26, second wave)
+
+Ledger: [testing-backlog-2026-09-26b.md](testing-backlog-2026-09-26b.md).
+
+- **Calendar replaces Today in the top-left switcher.** There it is an OVERLAY (a sheet over the
+  current tab): dismissing leaves the tab and its history untouched; choosing a day opens that
+  day's daily note in the current tab (‹ returns).
+- **Calendar tab** — the persistent experience: plus / Go-to "Calendar" or typing "calendar". Its
+  month and last-chosen day are tab state (history, Duplicate, sync); choosing a day turns the tab
+  into that daily note, and ‹ returns to the calendar on its month.
+- **Today** is the daily-note destination (Notes header, Notes caret, typed "today", the Calendar
+  tab's Today). Long press on any Calendar / Today control opens the calendar overlay.
+- **Several verses** share the one-verse sheet's layout: Copy · Notes · Refs · Strong's; Notes lists
+  every note of the selection once; the compact position keeps one verse's height.

@@ -53,6 +53,9 @@ export interface SheetOptions {
   detents?: number[]
   /** Special low position (px of visible sheet) — verse-related sheets only. */
   lowDetent?: number
+  /** When this sheet id is already open, keep its current low position instead of `lowDetent`
+   *  (e.g. a second verse tapped: the several-verse view keeps the one-verse height). */
+  keepLowDetent?: boolean
   /** Index into the full detent list (low detent included) to open at. Default 0. */
   initialDetent?: number
   /** Highest detent index that keeps the page behind interactive. Default: 0 when a low detent exists, else -1. */
@@ -117,7 +120,12 @@ export function SheetHost({ children }: { children: React.ReactNode }) {
   const stackRef = useRef(stack)
   stackRef.current = stack
   const open = useCallback((o: SheetOptions) => {
-    setStack((s) => [...s.filter((x) => x.id !== o.id), o])
+    setStack((s) => {
+      const prev = s.find((x) => x.id === o.id)
+      // Re-opening the same sheet can keep the height its content gave its low position.
+      const next = o.keepLowDetent && prev?.lowDetent != null ? { ...o, lowDetent: prev.lowDetent } : o
+      return [...s.filter((x) => x.id !== o.id), next]
+    })
   }, [])
   const update = useCallback((id: string, patch: Partial<SheetOptions>) => {
     setStack((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)))

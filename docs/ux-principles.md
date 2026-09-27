@@ -75,7 +75,7 @@ field — it is learned by use.
 | 21 | Text size | 3 | 3 / pinch 1 | caret → Display → size |
 | 22 | Scripture colours | 4 (Settings → preset …) | 3 (caret → Display → Colour) | Scripture only now |
 | 23 | Lexicon entry by number | 2 | 2 | plus → "H7225" |
-| 24 | Today's note | 2 | 2 | plus → Today |
+| 24 | Today's note | 2 | 2 | Notes header Today (or caret → Today; typed "today") — plus now offers Calendar |
 | 25 | Change the current tab to another passage / note | 3+ (picker / finder) | 2 + typing (caret field) | Cmd+L equivalent |
 
 ## 4. Before / after navigation map
@@ -121,7 +121,7 @@ F Settings · G redundant entry removed · H other.
 | Compare / Workspaces in floating search | G (removed) |
 | "Why did you go to…?" prompt | G on iPhone (kept on macOS) |
 | Notes list views ("All views, desktop layout") | G (native groupings in the caret) |
-| Daily / Today | plus · Notes caret |
+| Daily / Today | Notes header · Notes caret · typed "today"; Calendar: switcher (overlay), plus / Go-to (tab), long press on Calendar / Today |
 | Settings | A (Settings tab) via plus |
 
 ## 6. New user vs power user

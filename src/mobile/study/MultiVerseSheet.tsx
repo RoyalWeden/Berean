@@ -44,19 +44,21 @@ export function MultiVerseSheet({ tabId, api, onOpenNote }: { tabId: string; api
   // never taller just because more verses are selected. What does not fit scrolls INSIDE the
   // Strong's block; expanded, the block has no cap and simply flows in the sheet's own scroll.
   const strongsRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    sheets.update('verse', { lowDetent: verseSheetLowPx(mode, VERSE_SHEET_LOW_PX) + safeAreaBottom() })
-  }, [mode]) // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const block = strongsRef.current
     if (!block) return
     if (!api.atLow) { block.style.maxHeight = ''; return }
-    const sheetEl = block.closest('.mobile-sheet') as HTMLElement | null
-    if (!sheetEl) return
-    const visible = verseSheetLowPx(mode, VERSE_SHEET_LOW_PX) // before the safe area
-    const offset = block.getBoundingClientRect().top - sheetEl.getBoundingClientRect().top
-    block.style.maxHeight = `${Math.max(56, Math.round(visible - offset - 8))}px`
-  }, [api.atLow, mode, verses]) // eslint-disable-line react-hooks/exhaustive-deps
+    const measure = () => {
+    // What the sheet actually shows on screen at its compact position (whatever height one verse
+    // gave it), minus the home-indicator inset: the block fills exactly the rest and scrolls.
+    const visibleBottom = window.innerHeight - safeAreaBottom()
+    block.style.maxHeight = `${Math.max(56, Math.round(visibleBottom - block.getBoundingClientRect().top - 10))}px`
+    }
+    measure()
+    // Again once the sheet has settled (it may still be sliding into place).
+    const t = setTimeout(measure, 320)
+    return () => clearTimeout(t)
+  }, [api.atLow, api.detent, mode, verses]) // eslint-disable-line react-hooks/exhaustive-deps
   const noteCount = useSelectedNoteCount(sel)
 
   if (sel.length < 2) return null

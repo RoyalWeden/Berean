@@ -125,6 +125,15 @@ never competes with the words behind it. Backdrop-filtered circles use a hairlin
 highlight, never an outer drop shadow (WKWebView renders it as a square). Opening the switcher
 dims the page slightly (14 % light / 32 % dark) to separate the fan from the text.
 
+## Segmented controls and the calendar (2026-09-26, second wave)
+
+- `Segmented full`: one unified control across the available width, equal segments, each fully
+  tappable (≥ 36 pt), centred labels — used for TSK/e · Classic · My Notes everywhere and for
+  segmented caret rows.
+- Calendar: month title (20 pt bold) with ‹ › and a Today pill; 48 pt day rows, 36 pt day circles;
+  today ringed in the accent, the chosen day filled; one 5 px accent dot under any day with a daily
+  note (6 px with Increase Contrast); days outside the month dimmed.
+
 ## Open items
 
 - None blocking. Glass strength and the notch shape need a look on a physical device.

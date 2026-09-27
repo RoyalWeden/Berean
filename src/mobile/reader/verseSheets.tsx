@@ -131,7 +131,9 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
     if (!tid) return
     sheetVerseKey.current = null
     sheets.open({
-      id: VERSE_SHEET_ID, lowDetent: lowPx, detents: [0.55, 0.92], initialDetent: 0, undimmedThrough: 1,
+      // The sheet is already open when a second verse is tapped, and keeps its height (SEP27-VERSE-003);
+      // opened directly, it starts at the mode's usual compact height.
+      id: VERSE_SHEET_ID, lowDetent: lowFor('tap'), keepLowDetent: true, detents: [0.55, 0.92], initialDetent: 0, undimmedThrough: 1,
       rootTitle: 'Verses',
       onClose: () => { useAppStore.getState().clearVerseSelection(tid) },
       render: (api) => <MultiVerseSheet tabId={tid} api={api} onOpenNote={openNoteInNotesSpace} />,
