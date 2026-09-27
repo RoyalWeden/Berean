@@ -1,3 +1,4 @@
+import { withoutContextualFilters } from '@/lib/scriptureContextFilters'
 import { verseRange } from '@/lib/verseSelection'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -900,6 +901,12 @@ export interface AppState {
   /** `position` defaults to 'after-active' (Cmd+T/"+"/"open in new tab" from content) —
    *  pass 'end' only for the double-click-empty-tab-bar-space case. */
   addTab: (tab: Tab, position?: 'top' | 'after-active' | 'end') => void
+  /** Duplicate a tab (SEP26-TABS-001…003): an independent deep copy of its meaningful state AND
+   *  its complete navigation history (same entries, same current position — new ids, no shared
+   *  objects), placed right after the original and made active. Transient, per-view state is not
+   *  copied (verse selection, sheets); a duplicated Scripture tab starts with clean contextual
+   *  filters. Shared by the Mac tab menu and the iPhone tab cards. Returns the new tab id. */
+  duplicateTab: (spaceId: SpaceId, tabId: string) => string | null
   createTab: (type: TabType, position?: 'top' | 'after-active' | 'end') => void
   ensureTab: (type: TabType) => void
   /** Change tab `tabId` into a tab of `toType` without creating another tab (iPhone tab-type
@@ -2418,6 +2425,33 @@ export const useAppStore = create<AppState>()(
             sessionDisplayOrders: { ...state.sessionDisplayOrders, [state.currentSessionId]: newOrder },
           })
         }
+      },
+
+      duplicateTab: (spaceId, tabId) => {
+        const s = get()
+        const src = s.tabs[spaceId]?.find((t) => t.id === tabId)
+        if (!src) return null
+        // Leaving a live reader: fold its scroll into state / history first, so the copy opens there.
+        if (s.activeSpace === spaceId && s.activeTabId[spaceId] === tabId) captureActiveScrollIntoNavEntry(get, tabId, spaceId)
+        const fresh = get()
+        const cur = fresh.tabs[spaceId].find((t) => t.id === tabId) ?? src
+        const id = `${cur.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const clone = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)) as T)
+        const state = clone(cur.state)
+        const copy: Tab = { ...clone(cur), id, state: (cur.type === 'bible' ? withoutContextualFilters(state as BibleTabState) : state) as TabState }
+        // Right after the original: the original becomes the active tab, then the copy goes after it.
+        set({ activeTabId: { ...fresh.activeTabId, [spaceId]: tabId } })
+        get().addTab(copy, 'after-active')
+        const stack = fresh.tabNavStacks[tabId]
+        const scroll = fresh.scrollByTab[tabId]
+        set((st) => ({
+          ...(stack ? { tabNavStacks: { ...st.tabNavStacks, [id]: {
+            idx: stack.idx,
+            stack: stack.stack.map((e, i) => ({ ...clone(e), id: `tnav-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}` })),
+          } } } : {}),
+          ...(scroll != null ? { scrollByTab: { ...st.scrollByTab, [id]: scroll } } : {}),
+        }))
+        return id
       },
 
       transformTab: (tabId, toType, opts = {}) => {

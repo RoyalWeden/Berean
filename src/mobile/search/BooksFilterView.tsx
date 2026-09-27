@@ -35,7 +35,7 @@ export function BooksFilterView({ value, onChange }: { value: string[]; onChange
 
       <div className="mobile-search-field mobile-books-search">
         <Search size={17} aria-hidden />
-        <input className="mobile-search-input" type="search" inputMode="text" autoCorrect="off" autoCapitalize="words"
+        <input className="mobile-search-input" type="search" inputMode="text" autoCorrect="off"
           placeholder="Find a book" aria-label="Find a book" value={query} onChange={(e) => setQuery(e.target.value)} />
         {query && (
           <button type="button" className="mobile-books-search-clear" aria-label="Clear search" onClick={() => setQuery('')}><X size={16} /></button>

@@ -47,7 +47,7 @@ export function CaretGoTo({ api, textId = 'kjva', bookId, onGo = goInScripture, 
     <div className="mobile-caret-goto" onTouchMove={dismissKeyboard} onWheel={dismissKeyboard}>
       <form className="m-pp-search" role="search" onSubmit={(e) => { e.preventDefault(); submit() }}>
         <Search size={17} aria-hidden />
-        <input ref={inputRef} type="search" autoCorrect="off" autoCapitalize="words" enterKeyHint="go" spellCheck={false}
+        <input ref={inputRef} type="search" autoCorrect="off" enterKeyHint="go" spellCheck={false}
           placeholder="Passage, word, Strong's number…" value={query} onChange={(e) => setQuery(e.target.value)}
           aria-label="Go to a passage or search, in this tab" data-no-sheet-drag />
       </form>

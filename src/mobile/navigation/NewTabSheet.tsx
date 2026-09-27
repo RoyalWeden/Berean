@@ -49,7 +49,7 @@ export function NewTabSheet({ close, openMore }: { close: () => void; openMore: 
     <div className="mobile-newtab" onTouchMove={dismissKeyboard} onWheel={dismissKeyboard}>
       <form className="mobile-search-field" role="search" onSubmit={(e) => { e.preventDefault(); runPrimaryDestination(query, 'new-tab', closeSheet) }}>
         <Search size={17} aria-hidden />
-        <input ref={inputRef} className="mobile-search-input" type="search" enterKeyHint="go" autoCorrect="off" autoCapitalize="words"
+        <input ref={inputRef} className="mobile-search-input" type="search" enterKeyHint="go" autoCorrect="off"
           placeholder="Reference, Strong's or words" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Open or search" />
         {query && (
           <button type="button" className="mobile-newtab-clear" aria-label="Clear" onClick={() => { setQuery(''); inputRef.current?.focus() }}>

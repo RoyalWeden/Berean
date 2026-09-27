@@ -111,7 +111,7 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
         else if (matched[0]) setPickBook(matched[0])
       }}>
         <Search size={18} aria-hidden />
-        <input ref={inputRef} className="mobile-search-input" type="search" inputMode="text" autoCorrect="off" autoCapitalize="words" enterKeyHint="go"
+        <input ref={inputRef} className="mobile-search-input" type="search" inputMode="text" autoCorrect="off" enterKeyHint="go"
           placeholder="John 3:16, Genesis 1, Psalm 23:1-6…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Book, chapter or verse" />
       </form>
       {parsed && (

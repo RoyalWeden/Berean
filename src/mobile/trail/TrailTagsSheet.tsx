@@ -41,7 +41,7 @@ export function TrailTagsSheet({ sessionId, api }: { sessionId: string; api: She
   return (
     <div className="m-trail-tags">
       <form className="m-trail-tags-new" onSubmit={(e) => { e.preventDefault(); void create() }}>
-        <input className="mobile-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="New tag" aria-label="New tag name" autoCapitalize="none" />
+        <input className="mobile-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="New tag" aria-label="New tag name" />
         <button type="submit" className="mobile-chip is-on" disabled={!name.trim()}><Plus size={16} aria-hidden /> Add</button>
       </form>
       {tags.length === 0 && <div className="mobile-empty">No trail tags yet.</div>}

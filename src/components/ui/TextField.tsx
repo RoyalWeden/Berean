@@ -89,7 +89,8 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
       onKeyDown={(e) => { onKeyDown?.(e); if (!e.defaultPrevented && e.key === 'Escape' && value) { e.stopPropagation(); clear() } }}
       spellCheck={false}
       autoCorrect="off"
-      autoCapitalize="off"
+      // No autoCapitalize (SEP26-SEARCH-001): the user's iOS keyboard setting decides — the app
+      // never forces capitalization on (or off) in a search field. Desktop has no auto-capitalization.
       trailing={value ? (
         <button type="button" aria-label="Clear" tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={clear}
           className="flex items-center justify-center w-4 h-4 rounded-control bg-text-muted/60 text-surface-1 hover:bg-text-muted transition-colors">

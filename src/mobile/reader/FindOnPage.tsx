@@ -4,6 +4,7 @@ import { useAppStore } from '@/store'
 import type { Verse } from '@/types'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { verseMatchesFind } from '@/lib/scriptureFind'
 import { haptic } from '../primitives/haptics'
 
 export interface BookFindMatch { chapter: number; verse: number }
@@ -30,12 +31,11 @@ function loadBook(textId: string, bookId: string, chapters: number): Promise<Ver
 /** Pure matcher (exported for tests): every verse whose displayed text contains the query
  *  (case-insensitive; all words when several are typed), in book order. */
 export function findInVerses(verses: ReadonlyArray<{ chapter: number; verse_num: number; text: string }>, query: string, display: (v: { text: string }) => string = (v) => v.text): BookFindMatch[] {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  if (!words.length) return []
+  if (!query.trim()) return []
   const out: BookFindMatch[] = []
+  // The shared rule (src/lib/scriptureFind.ts): raw AND displayed text, case-insensitive.
   for (const v of verses) {
-    const t = display(v).toLowerCase()
-    if (words.every((w) => t.includes(w))) out.push({ chapter: v.chapter, verse: v.verse_num })
+    if (verseMatchesFind(v.text, display(v), query, 'all')) out.push({ chapter: v.chapter, verse: v.verse_num })
   }
   return out.sort((a, b) => a.chapter - b.chapter || a.verse - b.verse)
 }
@@ -74,7 +74,7 @@ export function FindOnPageBar({ textId, bookId, chapters, query, onQuery, onGo, 
     <div className="mobile-find-bar m-glass" role="search" aria-label="Find in this book">
       <form className="mobile-find-field" onSubmit={(e) => { e.preventDefault(); go(idx + (m ? 1 : 0)) }}>
         <Search size={15} aria-hidden />
-        <input ref={inputRef} type="search" enterKeyHint="search" autoCorrect="off" autoCapitalize="none" placeholder="Find in this book"
+        <input ref={inputRef} type="search" enterKeyHint="search" autoCorrect="off" placeholder="Find in this book"
           value={query} onChange={(e) => onQuery(e.target.value)} aria-label="Find in this book" />
         <span className="mobile-find-status" aria-live="polite">{status}{m && query.trim() ? <small> · {bookChapterVerseLabel(bookId, m.chapter, m.verse)}</small> : null}</span>
       </form>

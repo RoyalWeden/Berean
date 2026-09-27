@@ -327,7 +327,7 @@ function PickerSearch({ textId, bookId, placeholder, children }: { textId: strin
     <>
       <form className="m-pp-search" role="search" onSubmit={(e) => { e.preventDefault(); if (results[0]) open(results[0]) }}>
         <Search size={17} aria-hidden />
-        <input type="search" inputMode="text" autoCorrect="off" autoCapitalize="words" enterKeyHint="go" spellCheck={false}
+        <input type="search" inputMode="text" autoCorrect="off" enterKeyHint="go" spellCheck={false}
           placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)}
           aria-label="Go to a collection, book or passage" data-no-sheet-drag />
       </form>

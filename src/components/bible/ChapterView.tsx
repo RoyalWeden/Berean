@@ -1,3 +1,4 @@
+import { verseMatchesFind } from '@/lib/scriptureFind'
 import { isAudioFollowPaused } from '@/mobile/audio/followState'
 import { useState, useEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
 import { flushSync, createPortal } from 'react-dom'
@@ -370,20 +371,9 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
   )
 }
 
-/** Same predicate VerseRow.isFindMatch applies per row — hoisted here so ChapterView can hand
- *  `findQuery` ONLY to the (usually few) rows that actually match. Non-matching rows then keep a
- *  stable `findQuery=''` across keystrokes, so memo(VerseRow) bails them out instead of
- *  re-rendering all ~176 rows of a long chapter on every character typed into the find bar. */
-function verseMatchesFind(text: string, findQuery: string, findWordMode: 'phrase' | 'all' | 'any'): boolean {
-  const q = findQuery.trim().toLowerCase()
-  if (!q) return false
-  const t = text.toLowerCase()
-  if (findWordMode === 'phrase') return t.includes(q)
-  const words = q.split(/\s+/).filter(Boolean)
-  if (findWordMode === 'all') return words.every((w) => t.includes(w))
-  return words.some((w) => t.includes(w))
-}
-
+/** Rows receive `findQuery` ONLY when they match (the shared rule in src/lib/scriptureFind.ts —
+ *  raw AND displayed text, case-insensitive), so non-matching rows keep a stable `findQuery=''`
+ *  across keystrokes and memo(VerseRow) bails them out instead of re-rendering every row. */
 function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
@@ -1280,7 +1270,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
         // verseMatchesFind's note) — non-matching rows keep findQuery='' and memo out.
         const rowFindQuery = isSearchNavTarget && flashVerse?.query
           ? flashVerse.query
-          : (findQuery && verseMatchesFind(renderVerse.text, findQuery, findWordMode) ? findQuery : '')
+          : (findQuery && verseMatchesFind(renderVerse.text, buildVerseDisplayText(renderVerse.text, renderVerse.text_tagged, textId ?? 'kjva', wordReplacerEnabled, wordReplacerRules), findQuery, findWordMode) ? findQuery : '')
         const rowFindWordMode = isSearchNavTarget && flashVerse?.query ? (flashVerse.wordMode ?? 'phrase') : findWordMode
         const rowHighlightStrongsWords = isSearchNavTarget ? flashVerse?.strongsWords : undefined
         const rowHighlightStrongsExtraWords = isSearchNavTarget ? flashVerse?.strongsExtraWords : undefined

@@ -350,7 +350,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
         <>
           <form className="mobile-search-row" onSubmit={submit}>
             <Search size={16} aria-hidden />
-            <input className="mobile-search-input" type="search" enterKeyHint="search" autoCorrect="off" autoCapitalize="none"
+            <input className="mobile-search-input" type="search" enterKeyHint="search" autoCorrect="off"
               placeholder={scope === 'scripture' ? 'Word, phrase, reference or H7225…' : scope === 'notes' ? 'Search notes…' : 'Word, transliteration or Strong\'s number…'}
               value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
             {query && <button type="button" className="mobile-search-clear" aria-label="Clear" onClick={() => setQuery('')}><X size={16} aria-hidden /></button>}

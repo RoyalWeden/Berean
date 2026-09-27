@@ -41,7 +41,7 @@ export function TagPickerSheet({ ranges, label, kind, api }: { ranges: VerseTagR
     <div className="mobile-tag-picker">
       <div className="mobile-verse-actions-ref">Tag {label}</div>
       <form onSubmit={(e) => { e.preventDefault(); exactExists ? void apply() : addCreated() }}>
-        <input className="mobile-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter or create…" aria-label="Filter or create tag" autoCorrect="off" autoCapitalize="none" />
+        <input className="mobile-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter or create…" aria-label="Filter or create tag" autoCorrect="off" />
       </form>
       <div className="mobile-list-group" style={{ marginTop: 8 }}>
         {created.map((name) => (

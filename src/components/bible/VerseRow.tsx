@@ -11,6 +11,7 @@ import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { navigateToVerse, recordNavigation } from '@/lib/verseNavigation'
 import { applyFindHighlight } from '@/lib/highlight'
+import { verseMatchesFind } from '@/lib/scriptureFind'
 import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
@@ -1100,12 +1101,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     // touch verse.text — are only present in renderedDisplayText, so testing verse.text
     // alone meant typing "yehovah" (or any replaced word) found nothing to highlight even
     // though the panel's match counter, which reads the rendered DOM, still counted it.
-    const t = `${verse.text}\n${renderedDisplayText}`.toLowerCase()
-    const q = findQuery.trim().toLowerCase()
-    if (findWordMode === 'phrase') return t.includes(q)
-    const words = q.split(/\s+/).filter(Boolean)
-    if (findWordMode === 'all') return words.every(w => t.includes(w))
-    return words.some(w => t.includes(w))
+    return verseMatchesFind(verse.text, renderedDisplayText, findQuery, findWordMode)
   }, [findQuery, findWordMode, verse.text, renderedDisplayText])
 
   const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })

@@ -285,7 +285,7 @@ function tabActionsView(space: SpaceId, t: Tab): SheetSubView {
   const st = () => useAppStore.getState()
   return actionListView(`tab-actions-${t.id}`, tabTitle(t), [
     { id: 'rename', label: 'Rename…', stay: true, onSelect: () => { const n = prompt('Tab name', t.title); if (n?.trim()) st().renameTab(space, t.id, n.trim()) } },
-    { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { st().addTab({ ...t, id: `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, state: JSON.parse(JSON.stringify(t.state)) }) } },
+    { id: 'duplicate', label: 'Duplicate tab', onSelect: () => { st().duplicateTab(space, t.id) } },
     { id: 'earlier', label: 'Move earlier', stay: true, disabled: k <= 0, onSelect: () => move(k - 1) },
     { id: 'later', label: 'Move later', stay: true, disabled: k < 0 || k >= order.length - 1, onSelect: () => move(k + 1) },
     ...(others.length ? [{ id: 'move', label: 'Move to session', onSelect: () => {}, view: () => actionListView(`tab-move-${t.id}`, 'Move to', others.map((x) => ({ id: x.id, label: x.name, onSelect: () => st().moveTabToSession(space, t.id, x.id) }))) }] : []),
