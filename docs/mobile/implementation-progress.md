@@ -7,6 +7,15 @@ Branch: `feature/ios-app` · Worktree: `/Users/roywe/Berean-ios` · Base: `main`
 
 ---
 
+## iCloud lifecycle, settings, production hygiene, glass — 2026-09-28 (DATA-UX-*)
+
+[icloud-lifecycle.md](icloud-lifecycle.md) + design-system.md §Glass. One shared sync UI state
+(lib/syncUi) with honest progress from the engine; iPhone Settings: compact iCloud row + iCloud page;
+first-sync panel on both apps; every synced kind now re-reads live (no reopen); tab-drag hold;
+production guards (probe-free device/archive builds, DEV-only debug switches, `npm run audit:prod`);
+shared glass levels + contrast audit (default palette muted/accent fixed). Physical devices: not yet
+run (plan in icloud-lifecycle.md §7).
+
 ## Data-safety audit 2026-09-28 (DATA-SAFE-*)
 
 Adversarial audit of persistence, sync, conflicts, deletion, migration and recovery —

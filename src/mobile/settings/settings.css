@@ -56,4 +56,9 @@
 /* Compact iCloud row (DATA-UX-001): tap the text → the iCloud page; the switch toggles in place. */
 .m-icloud-row { gap: 8px; }
 .m-icloud-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; min-height: 44px; }
-.m-icloud-page { padding: 12px 16px 32px; }
+.m-icloud-page { padding: 12px 16px calc(var(--m-nav-h, 64px) + 32px); }
+/* iOS grouped look for the shared iCloud section on the phone. */
+.m-icloud-page .icloud-group { background: var(--m-card-bg); border-radius: var(--radius-card, 16px); padding: 12px 14px; }
+.m-icloud-page .icloud-section { font-size: calc(15px * var(--m-type-scale, 1)); }
+.m-icloud-page .text-caption { font-size: calc(13px * var(--m-type-scale, 1)); }
+.m-icloud-page .text-subhead { font-size: calc(17px * var(--m-type-scale, 1)); }

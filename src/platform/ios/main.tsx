@@ -15,6 +15,7 @@ import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/na
 import { BereanSpeech } from './plugins'
 import MobileApp from '../../mobile/MobileApp'
 import '../../styles/global.css'
+import '../../styles/glass.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 
 /**

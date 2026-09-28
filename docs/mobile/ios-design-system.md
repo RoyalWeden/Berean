@@ -5,6 +5,14 @@ classes live at the end of `src/mobile/mobile.css` ("iOS material system"). Adde
 after developer feedback that Floating Search felt busy and the sheets / chrome did not feel
 iOS-native or glassy enough.
 
+## Shared glass layer (2026-09-28)
+
+The semantic glass levels, shape scale, interaction states and accessibility variants now live in
+`src/styles/glass.css` for both apps — see docs/design-system.md §Glass. `--m-glass-filter` and
+`--m-glass-control` alias it; the Scripture header controls and the long-press scrim use it directly.
+The iOS switch's off track is now a text-colour fill (visible on any card; outlined under Increase
+Contrast).
+
 ## References and stance
 
 - Apple HIG: Materials, Sheets, Toolbars, Search fields; iOS 26 "Liquid Glass" (translucent

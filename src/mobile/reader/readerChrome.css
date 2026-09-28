@@ -94,9 +94,10 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
 .mobile-page.is-scripture-chrome .mobile-page-header-row > *, .mobile-page.is-scripture-chrome .mobile-page-header > :not(.mobile-page-header-row) { pointer-events: auto; }
 .mobile-page.is-scripture-chrome .mobile-title-button,
 .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
-  height: 40px; border: 0.5px solid rgb(var(--color-text-primary) / 0.1);
-  background: rgb(var(--color-surface-2) / 0.62);
-  -webkit-backdrop-filter: saturate(1.9) blur(18px); backdrop-filter: saturate(1.9) blur(18px);
+  /* Level 1 functional glass over the Bible text (src/styles/glass.css). */
+  height: 40px; border: 0.5px solid var(--glass-border);
+  background: var(--glass-regular-bg);
+  -webkit-backdrop-filter: var(--glass-filter-regular); backdrop-filter: var(--glass-filter-regular);
   /* No outer drop shadow: WKWebView paints an outer shadow under a backdrop-filtered element as a
      square behind the rounded shape (verified in the simulator). Edge + specular line instead. */
   box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.6), inset 0 -0.5px 0 rgb(0 0 0 / 0.04);
@@ -125,7 +126,7 @@ html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-page-header 
 /* Compare under the same chrome: column labels as small glass chips, columns start below them. */
 .mobile-page.is-compare { --m-compare-top: calc(var(--m-reader-top) + 26px); }
 .mobile-page.is-compare .m-compare-labels { padding: 2px 12px 0; }
-.mobile-page.is-compare .m-compare-label { justify-self: start; padding: 2px 8px; border-radius: 8px; background: rgb(var(--color-surface-2) / 0.7); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.mobile-page.is-compare .m-compare-label { justify-self: start; padding: 2px 8px; border-radius: 8px; background: rgb(var(--color-surface-2) / 0.7); -webkit-backdrop-filter: var(--glass-filter-clear); backdrop-filter: var(--glass-filter-clear); }
 .mobile-page.is-compare .m-compare-col { padding-top: var(--m-compare-top); scroll-padding-top: var(--m-compare-top); }
 
 /* ── Bottom controls float over EVERY tab (SEP25, one central rule) ───────

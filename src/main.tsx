@@ -8,6 +8,7 @@ import StudyTrailApp from '@/components/studyTrail/StudyTrailApp'
 import VersePickerApp from '@/components/studyTrail/VersePickerApp'
 import { initScrollbarAutoHide } from '@/lib/scrollbarAutoHide'
 import './styles/global.css'
+import './styles/glass.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 
 initScrollbarAutoHide()

@@ -102,7 +102,7 @@ const ACTIVITY_KEY: Record<SyncProgress['activity'], SyncUiKey> = {
 }
 
 export function presentSync(config: SyncConfig | null, status: SyncStatusSnapshot | null, o: { setupInProgress?: boolean; busy?: boolean } = {}): SyncPresentation {
-  if (!config?.enabled) return { key: 'disabled', short: 'Off', detail: 'iCloud Sync is off on this device. Your data in iCloud stays in iCloud and on your other devices; nothing is deleted.', tone: 'neutral', busy: false }
+  if (!config?.enabled) return { key: 'disabled', short: 'Off', detail: 'iCloud Sync is off on this device. Nothing is deleted: your data stays in iCloud and on your other devices, and this device keeps its own copy. Turning it back on reconciles both.', tone: 'neutral', busy: false }
   if (o.busy && !status) return { key: 'initializing', short: 'Turning on…', detail: 'Connecting to iCloud…', tone: 'busy', busy: true }
   if (!status) return { key: 'initializing', short: 'Starting…', detail: 'Starting iCloud sync…', tone: 'busy', busy: true }
   const p = status.progress

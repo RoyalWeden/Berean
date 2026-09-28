@@ -84,7 +84,11 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-stepper button { width: 36px; height: 36px; border-radius: 10px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font-size: calc(20px * var(--m-type-scale, 1)); }
 .mobile-stepper button:disabled { opacity: 0.4; }
 .mobile-stepper span { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
-.mobile-toggle { position: relative; width: 51px; height: 31px; border-radius: 16px; border: 0; background: rgb(var(--color-surface-4)); transition: background 0.2s; }
+.mobile-toggle { position: relative; width: 51px; height: 31px; border-radius: 16px; border: 0; background: rgb(var(--color-text-primary) / 0.2); transition: background 0.2s; }
+/* The off track is a fill of the text colour (like the system fill), so it stays ≥ 3:1 visible on
+   any card in both schemes; Increase Contrast adds an outline (DATA-UX-071). */
+:root[data-contrast="more"] .mobile-toggle:not(.is-on), html[data-increase-contrast] .mobile-toggle:not(.is-on) { box-shadow: inset 0 0 0 1px rgb(var(--color-text-muted)); }
+@media (prefers-contrast: more) { .mobile-toggle:not(.is-on) { box-shadow: inset 0 0 0 1px rgb(var(--color-text-muted)); } }
 .mobile-toggle.is-on { background: rgb(52 199 89); }
 .mobile-toggle-knob { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: white; box-shadow: 0 2px 4px rgb(0 0 0 / 0.3); transition: transform 0.2s; }
 .mobile-toggle.is-on .mobile-toggle-knob { transform: translateX(20px); }
@@ -464,14 +468,15 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
    come last in the file on purpose: they refine the earlier per-surface backgrounds. */
 :root {
   /* Backdrop: saturate + blur, driven by the shared --glass-* knobs (Settings → Glass). */
-  --m-glass-filter: saturate(calc(var(--glass-saturate, 1.4) * 1.25)) blur(calc(26px * var(--glass-blur, 1)));
+  /* Aliases of the shared glass layer (src/styles/glass.css) — one source for both apps. */
+  --m-glass-filter: var(--glass-filter-regular);
   --m-glass-filter-thin: saturate(calc(var(--glass-saturate, 1.4) * 1.2)) blur(calc(16px * var(--glass-blur, 1)));
   /* Layers (α scaled by --glass-alpha-mult, capped so they never go fully clear/opaque). */
   --m-glass-thin: rgb(var(--color-surface-2) / min(0.92, calc(0.62 * var(--glass-alpha-mult, 1))));
   --m-glass-regular: rgb(var(--color-surface-2) / min(0.95, calc(0.76 * var(--glass-alpha-mult, 1))));
   --m-glass-thick: rgb(var(--color-surface-2) / min(0.98, calc(0.88 * var(--glass-alpha-mult, 1))));
   --m-glass-sheet: rgb(var(--color-surface-1) / min(0.98, calc(0.86 * var(--glass-alpha-mult, 1))));
-  --m-glass-control: rgb(var(--color-surface-3) / min(0.96, calc(0.72 * var(--glass-alpha-mult, 1))));
+  --m-glass-control: var(--glass-regular-bg);
   --m-glass-control-pressed: rgb(var(--color-surface-4) / 0.9);
   /* Opaque-looking bar for in-flow page headers (nothing scrolls under them). */
   --m-bar-bg: rgb(var(--color-surface-2) / 0.97);

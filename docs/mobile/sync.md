@@ -1,6 +1,6 @@
 # Sync — operational summary
 
-The full design (journal format, HLC, compaction) is [icloud.md](icloud.md). This page is what the
+The full design (journal format, HLC, compaction) is [icloud.md](icloud.md). Lifecycle, first-sync progress, the shared UI state and live UI: [icloud-lifecycle.md](icloud-lifecycle.md). This page is what the
 code does today, including the 2026-09-27 hardening (DATA-SYNC-*). Inventory: [data-architecture.md](data-architecture.md).
 
 ## Architecture (unchanged, verified)
@@ -24,7 +24,7 @@ code does today, including the 2026-09-27 hardening (DATA-SYNC-*). Inventory: [d
 | A request while a sync runs | one more pass right after (never lost, never overlapping) |
 | App foreground / Mac wake / network back (`online`) | sync |
 | Background / quit | push (best effort; the outbox persists) |
-| Every 60 s | sync — a **safety net only** |
+| Every 60 s | sync — a **safety net only** (NSMetadataQuery runs only in the foreground and coalesces; the pass reads manifests and applies only what is new — the change-token equivalent) |
 | Launch (sync on) | open the engine → capture → adopt → reconcile since the last capture → sync |
 | iCloud unavailable at launch | capture still runs; push / pull retry |
 

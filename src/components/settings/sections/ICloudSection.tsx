@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import React, { Fragment, useEffect, useState } from 'react'
 import { RefreshCcw, FolderOpen, Check, Circle, Loader2 } from 'lucide-react'
 import { Switch, Button } from '@/components/ui'
 import type { SyncStatusSnapshot, SyncTraceEntry } from '@/platform/sync/types'
@@ -80,7 +80,11 @@ export function SyncProgressPanel({ compact = false }: { compact?: boolean }) {
   )
 }
 
-export default function ICloudSection({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
+export default function ICloudSection({ variant = 'desktop', renderSwitch }: {
+  variant?: 'desktop' | 'mobile'
+  /** The platform's own switch (the iPhone passes its iOS-style toggle). */
+  renderSwitch?: (p: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) => React.ReactNode
+}) {
   const api = typeof window !== 'undefined' ? window.sync : undefined
   const { config, status, busy, error, setupInProgress, setEnabled, refresh } = useSyncUi()
   const [trace, setTrace] = useState<{ enabled: boolean; entries: SyncTraceEntry[] } | null>(null)
@@ -107,23 +111,27 @@ export default function ICloudSection({ variant = 'desktop' }: { variant?: 'desk
   const fmt = (t: number | null) => (t ? new Date(t).toLocaleTimeString() : '—')
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-subhead font-medium text-text-primary">iCloud Sync</p>
-          <p className="s-desc text-caption text-text-muted mt-0.5">
-            Keeps notes, highlights, verse tags, tabs and workspaces the same on every device signed into your iCloud account. Bible texts never sync — they ship with the app. Works offline.
-          </p>
+    <div className={`space-y-5 icloud-section is-${variant}`}>
+      <div className="icloud-group">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-subhead font-medium text-text-primary">iCloud Sync</p>
+            <p className="s-desc text-caption text-text-muted mt-0.5">
+              Keeps notes, highlights, verse tags, tabs and workspaces the same on every device signed into your iCloud account. Bible texts never sync — they ship with the app. Works offline.
+            </p>
+          </div>
+          <div className="shrink-0">
+            {renderSwitch
+              ? renderSwitch({ checked: on, onChange: (v) => void setEnabled(v), label: 'iCloud Sync', disabled: busy })
+              : <Switch checked={on} aria-label="iCloud Sync" onCheckedChange={() => void setEnabled(!on)} disabled={busy} />}
+          </div>
         </div>
-        <Switch checked={on} aria-label="iCloud Sync" onCheckedChange={() => void setEnabled(!on)} disabled={busy} />
-      </div>
-
-      {error && <p className="text-caption text-danger" role="alert">{error}</p>}
-
-      <div>
-        <p className="text-caption text-text-muted">Status</p>
-        <p className={`text-subhead font-medium ${toneClass}`}>{pres.short}</p>
-        <p className="text-caption text-text-muted">{pres.detail}</p>
+        {error && <p className="text-caption text-danger mt-2" role="alert">{error}</p>}
+        <div className="icloud-status mt-3">
+          <p className="text-caption text-text-muted">Status</p>
+          <p className={`text-subhead font-medium ${toneClass}`}>{pres.short}</p>
+          <p className="text-caption text-text-muted">{pres.detail}</p>
+        </div>
       </div>
 
       <SyncProgressPanel />
@@ -149,7 +157,7 @@ export default function ICloudSection({ variant = 'desktop' }: { variant?: 'desk
       })()}
 
       {on && status && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-caption">
+        <dl className="icloud-group grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-caption">
           <dt className="text-text-muted">Last synced</dt><dd className="text-text-secondary">{formatSyncedAt(status.lastSyncedAt)}</dd>
           <dt className="text-text-muted">Changes waiting</dt><dd className="text-text-secondary">{status.pendingOutbox}</dd>
           <dt className="text-text-muted">Conflicts kept</dt><dd className="text-text-secondary">{(status.conflicts ?? 0) + (status.mergeConflicts ?? 0)}{(status.conflicts ?? 0) > 0 ? ' — note conflicts are in each note’s Versions' : ''}</dd>
@@ -158,7 +166,7 @@ export default function ICloudSection({ variant = 'desktop' }: { variant?: 'desk
       )}
 
       {on && devices.length > 0 && (
-        <div>
+        <div className="icloud-group">
           <p className="text-caption text-text-muted mb-1">Devices</p>
           <ul className="text-caption space-y-1">
             {devices.map((d) => (
@@ -172,7 +180,6 @@ export default function ICloudSection({ variant = 'desktop' }: { variant?: 'desk
         </div>
       )}
 
-      {!on && <p className="text-caption text-text-muted">When you turn iCloud Sync off, nothing is deleted: your data stays in iCloud and on your other devices, and this device keeps its own copy. Turning it back on reconciles both.</p>}
 
       {variant === 'desktop' && (
         <div>
@@ -190,7 +197,7 @@ export default function ICloudSection({ variant = 'desktop' }: { variant?: 'desk
       )}
 
       {status && (
-        <details className="settings-advanced">
+        <details className="settings-advanced icloud-group">
           <summary className="text-subhead font-medium text-text-primary cursor-pointer">Advanced</summary>
           <div className="mt-2 flex items-center justify-end">
             <Button size="sm" variant="ghost" icon={RefreshCcw} onClick={() => void api.syncNow().then(refresh)}>Sync now</Button>

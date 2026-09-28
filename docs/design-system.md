@@ -53,6 +53,54 @@ are **rounded rectangles**, large/extra-large are **capsules**):
   reads as a circle (More, the inspector and sidebar toggles, the sidebar `+`). Only items that
   actually share a `ControlGroup` container render flat/square inside its capsule.
 
+## Glass (shared semantic layer, 2026-09-28 — `src/styles/glass.css`)
+
+One vocabulary for both apps, loaded by the Mac renderer (`src/main.tsx`) and the iPhone
+(`src/platform/ios/main.tsx`). It is inspired by Apple's Liquid Glass guidance (glass is a
+functional layer floating over content, never the content; regular glass by default; clear glass
+only over media), with Berean's own values derived from the theme colours. Apple sources:
+`docs/mobile/research/liquid-glass-progress-research-2026-09-28.md`.
+
+| Level | Use | Class / tokens |
+|---|---|---|
+| 0 Content | Bible text, notes, lists, search results | none — solid surfaces |
+| 1 Functional | bottom controls, floating search, Scripture header controls, tab / plus / caret | `.glass-surface-regular`, `.glass-control` · `--glass-regular-bg` (α .72), `--glass-filter-regular` |
+| 2 Contextual | sheets, popovers, menus, sync panel | `.glass-surface-elevated` · `--glass-elevated-bg` (α .9 / .88) |
+| 3 Critical | alerts, confirmations, sync errors | `.glass-surface-critical` (α .97, strong edge) |
+| clear | over media only (video) | `.glass-surface-clear` |
+
+- **Rules.**
+  - No glass on Level 0.
+  - No glass inside glass: a nested surface drops its own material (CSS rule).
+  - `backdrop-filter` is only on floating controls, bars and sheets, never on a scrolling content
+    surface (audited).
+- **Shape.** `--radius-capsule` (controls), `--radius-control` 12, `--radius-card` 16,
+  `--radius-sheet` 30.
+- **States.** `.glass-control` has normal, hover, pressed (scale .96, spring), selected
+  (`aria-pressed` / `.is-selected`: accent tint plus accent text, not colour alone), disabled and
+  focus-visible (ring).
+- **Accessibility.**
+  - Reduce Transparency (media query + `data-reduce-transparency`): every material is solid and
+    there is no blur.
+  - Increase Contrast (media query, `data-increase-contrast` on the Mac, `data-contrast="more"` on
+    iOS): near-opaque materials, visible edges, stronger secondary text.
+  - Reduce Motion: no scale or spring, and a steady progress fill.
+- **Contrast.** `src/styles/__tests__/glassContrast.test.ts` computes WCAG ratios from the real
+  CSS. It checks content, Level 1 over any backdrop, Level 2, Increase Contrast and Reduce
+  Transparency, for the default light and dark palettes. Fixes it drove (2026-09-28):
+
+  | Token | Before | After |
+  |---|---|---|
+  | dark `text-muted` | 104 104 124 (3.3:1) | 136 136 154 |
+  | light `text-muted` | 140 140 160 (2.9:1) | 100 100 118 |
+  | dark `accent` | 100 120 220 (4.3:1) | 120 140 235 |
+  | light `accent` | 80 100 200 (4.3:1 on bars) | 70 90 190 |
+  | secondary text on glass | plain secondary | mixed 30 % toward primary |
+
+  The other 35 presets are user-chosen themes and are not enforced; they inherit the glass rules.
+- **iPhone aliases.** `--m-glass-filter` and `--m-glass-control` are aliases of the shared tokens;
+  the remaining `--m-*` tokens stay as documented in docs/mobile/ios-design-system.md.
+
 ## Tokens
 
 ### Palette (per theme — the ONLY vars a theme block defines)

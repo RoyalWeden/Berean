@@ -33,7 +33,7 @@ export function ICloudRow({ onOpen }: { onOpen: () => void }) {
 export function ICloudSettingsPage({ onBack }: { onBack: () => void }) {
   return (
     <Page title="iCloud" onBack={onBack} backLabel="Settings">
-      <div className="mobile-embedded-section m-icloud-page"><ICloudSection variant="mobile" /></div>
+      <div className="m-icloud-page"><ICloudSection variant="mobile" renderSwitch={(p) => <Toggle checked={p.checked} onChange={p.onChange} label={p.label} />} /></div>
     </Page>
   )
 }

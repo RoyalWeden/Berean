@@ -127,8 +127,8 @@ html[data-keyboard] .m-notes-float { bottom: calc(var(--m-keyboard-h, 0px) + 8px
 
 /* ── long-press preview ── */
 .m-peek {
-  position: fixed; inset: 0; z-index: 400; background: rgb(0 0 0 / 0.28);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  position: fixed; inset: 0; z-index: 400; background: var(--glass-scrim-bg);
+  -webkit-backdrop-filter: var(--glass-scrim-filter); backdrop-filter: var(--glass-scrim-filter);
   padding: calc(var(--m-safe-top, 0px) + 12px) 16px calc(var(--m-safe-bottom, 0px) + 12px);
   display: flex; flex-direction: column; animation: m-peek-fade 0.18s ease-out;
 }

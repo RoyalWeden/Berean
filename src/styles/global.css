@@ -10,10 +10,10 @@
   --color-surface-2: 31 31 37;
   --color-surface-3: 27 27 32;
   --color-surface-4: 48 48 58;
-  --color-accent: 100 120 220;
+  --color-accent: 120 140 235;          /* 5.5:1 on content (was 100 120 220, 4.3:1) — DATA-UX-071 */
   --color-text-primary: 230 230 238;
   --color-text-secondary: 150 150 170;
-  --color-text-muted: 104 104 124;
+  --color-text-muted: 136 136 154;      /* ≥ 4.5:1 on every surface (was 104 104 124, 3.3:1) */
   --color-red-letter: 248 113 113;
   --font-size-base: 16px;
   --line-height-comfortable: 1.75;
@@ -27,10 +27,10 @@
   --color-surface-2: 232 232 238;
   --color-surface-3: 255 255 255;
   --color-surface-4: 214 214 224;
-  --color-accent: 80 100 200;
+  --color-accent: 70 90 190;            /* ≥ 4.9:1 on bars and content (was 80 100 200, 4.3:1) — DATA-UX-071 */
   --color-text-primary: 20 20 28;
   --color-text-secondary: 80 80 100;
-  --color-text-muted: 140 140 160;
+  --color-text-muted: 100 100 118;      /* ≥ 4.5:1 on every surface (was 140 140 160, 2.9:1) — DATA-UX-071 */
   --color-red-letter: 214 40 40;
   --selection-bg: rgba(80, 100, 200, 0.35);
   --verse-highlight-bg: rgba(80, 100, 200, 0.1);

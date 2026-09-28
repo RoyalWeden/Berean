@@ -10,7 +10,7 @@ const prog = (p: Partial<SyncProgress>): SyncProgress => ({ activity: 'applying'
 describe('presentSync', () => {
   it('off / up to date / waiting / offline / unavailable / held / error', () => {
     expect(presentSync(cfg(false), null).key).toBe('disabled')
-    expect(presentSync(cfg(false), null).detail).toMatch(/nothing is deleted/)
+    expect(presentSync(cfg(false), null).detail).toMatch(/Nothing is deleted/)
     expect(presentSync(cfg(true), base).key).toBe('upToDate')
     expect(presentSync(cfg(true), { ...base, state: 'pending', pendingOutbox: 3 }).short).toBe('3 changes waiting')
     expect(presentSync(cfg(true), { ...base, state: 'offline' }).key).toBe('offline')
