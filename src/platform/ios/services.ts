@@ -60,7 +60,12 @@ export async function initIosServices(): Promise<Services> {
   if (_initPromise) return _initPromise
   _initPromise = (async () => {
     const userDb = await CapacitorSqliteAdapter.open('appsupport:berean.db', { label: 'berean.db' })
-    const applied = await runMigrations(userDb)
+    // Before an upgrade migrates berean.db: integrity check (a damaged file is never migrated) and
+    // a consistent backup, newest 3 kept (DATA-SAFE-070).
+    const applied = await runMigrations(userDb, undefined, {
+      beforeMigrate: async (from, to) => { const p = await userDb.backup(`berean-v${from}-to-v${to}-${Date.now()}.db`, 3); console.log(`[ios-services] backup before migration: ${p}`) },
+      onBackupFailed: (err) => console.warn('[ios-services] backup before migration failed', err),
+    })
     if (applied.length) console.log(`[ios-services] berean.db migrated: applied v${applied.join(', v')}`)
 
     const ctx: ServiceContext = {

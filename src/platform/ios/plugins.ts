@@ -17,13 +17,15 @@ export interface BereanSQLitePlugin {
   batch(opts: { handle: number; statements: Array<{ sql: string; params?: SqliteJsonValue[]; kind?: 'run' | 'query' }> }): Promise<{ results: Array<{ changes?: number; lastInsertRowid?: number; rows?: Record<string, SqliteJsonValue>[] }> }>
   attach(opts: { handle: number; path: string; alias: string }): Promise<void>
   detach(opts: { handle: number; alias: string }): Promise<void>
-  fileInfo(opts: { path: string }): Promise<{ exists: boolean; size: number; readOnly: boolean }>
+  fileInfo(opts: { path: string }): Promise<{ exists: boolean; size: number; readOnly: boolean; created?: number }>
+  /** Consistent copy (VACUUM INTO) of an open database into Application Support/Berean/backups. */
+  backup(opts: { handle: number; name: string; keep?: number }): Promise<{ path: string; kept: number }>
 }
 
 export const BereanSQLite = registerPlugin<BereanSQLitePlugin>('BereanSQLite')
 
 export interface CloudEntry { name: string; isDir: boolean; downloaded: boolean }
-export interface CloudStatus { available: boolean; signedIn: boolean; reason?: string; containerId: string; path?: string; deviceName: string }
+export interface CloudStatus { available: boolean; signedIn: boolean; reason?: string; containerId: string; path?: string; deviceName: string; /** Hash of the ubiquity identity token (account identity). */ identity?: string }
 export interface CloudChange { paths: string[]; initial: boolean; downloadsRequested?: number }
 
 /** iCloud Drive container access for the sync journal (ios/App/BereanNative/.../BereanCloudPlugin.swift).

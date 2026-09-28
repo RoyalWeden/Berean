@@ -71,6 +71,11 @@ export class CapacitorSqliteAdapter implements DatabaseAdapter {
     await BereanSQLite.exec({ handle: this.handle, sql })
   }
 
+  /** Consistent backup of this database (VACUUM INTO) into Application Support/Berean/backups. */
+  async backup(name: string, keep = 3): Promise<string> {
+    return (await BereanSQLite.backup({ handle: this.handle, name, keep })).path
+  }
+
   async all<T = Record<string, unknown>>(sql: string, params?: SqlParams): Promise<T[]> {
     await this.txTail
     return this.allNow<T>(sql, params)

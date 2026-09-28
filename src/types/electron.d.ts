@@ -360,6 +360,9 @@ interface SyncAPI {
   /** Diagnostic log (metadata only) — DATA-SYNC-006. */
   getTrace?: () => Promise<{ enabled: boolean; entries: import('../platform/sync/types').SyncTraceEntry[] }>
   setDiagnostics?: (on: boolean) => Promise<void>
+  /** Answer a hold (DATA-SAFE-020/041): restore missing items from iCloud, confirm they were
+   *  deleted here, or publish this device's data to the iCloud now signed in. */
+  resolveHold?: (choice: 'restore' | 'delete' | 'republish') => Promise<{ ok: boolean; reason?: string }>
 }
 
 interface PlaylistsAPI {

@@ -32,6 +32,11 @@ export interface SyncOp {
   base?: string
   /** berean.db schema version the writer was on. */
   schema: number
+  /** Per-field clocks (merge.ts): the version that last changed each field. Absent = every field
+   *  at `hlc` (ops written before v47). */
+  fh?: Record<string, string>
+  /** Versions this one descends from (newest LINEAGE_SEND). Absent = unknown (before v47). */
+  lin?: string[]
 }
 
 export interface DeviceManifest {
@@ -75,6 +80,8 @@ export interface SnapshotRecord {
   hlc: string
   op: SyncOpKind
   fields?: Record<string, unknown>
+  fh?: Record<string, string>
+  lin?: string[]
 }
 
 export interface SyncStoreStatus {
@@ -107,6 +114,9 @@ export interface SyncStore {
 /**
  * What the Settings → iCloud state means (DATA-SYNC-005). Precedence, first match wins:
  *  unavailable  iCloud / the sync folder is not reachable (changes are kept locally)
+ *  held         sync is deliberately holding back (records missing locally, a different iCloud
+ *               account or container, a damaged database) until the user decides — nothing
+ *               destructive happens meanwhile
  *  attention    an error, unreadable entries or changes that failed to apply
  *  reconciling  applying other devices' changes right now
  *  uploading    local changes are in our journal, but iCloud has not accepted them yet
@@ -116,7 +126,7 @@ export interface SyncStore {
  *  pending      local changes are waiting to be written to the journal
  *  synced       none of the above: nothing waiting in either direction that we can see
  */
-export type SyncState = 'synced' | 'pending' | 'offline' | 'uploading' | 'downloading' | 'reconciling' | 'unavailable' | 'attention'
+export type SyncState = 'synced' | 'pending' | 'offline' | 'uploading' | 'downloading' | 'reconciling' | 'unavailable' | 'attention' | 'held'
 
 /** One diagnostic event — metadata only, never content (DATA-SYNC-006). */
 export interface SyncTraceEntry { t: number; event: string; meta?: Record<string, string | number | boolean | null> }
@@ -151,6 +161,15 @@ export interface SyncStatusSnapshot {
   pendingUploads?: number
   /** Last time this device was told about a remote change (container watch event). */
   lastNotifiedAt?: number | null
+  /** Why sync is holding back, if it is (DATA-SAFE-020/040/041): nothing destructive happens
+   *  while held. `entities` = counts of records missing locally that were NOT deleted from iCloud. */
+  hold?: { kind: 'quarantine' | 'container' | 'account' | 'database'; at: number; entities?: Record<string, number>; detail?: string } | null
+  /** Values a merge could not keep (sync_conflicts): field conflicts and edits that met a deletion. */
+  mergeConflicts?: number
+  /** Times this database's device identity was forked (restored / copied database). */
+  forks?: number
+  /** Last full local reconciliation (hash compare of every record). */
+  lastFullReconcile?: number | null
 }
 
 export const SYNC_FORMAT_VERSION = 1

@@ -579,6 +579,7 @@ contextBridge.exposeInMainWorld('sync', {
   useDefaultFolder: () => ipcRenderer.invoke('sync:useDefaultFolder'),
   getTrace: () => ipcRenderer.invoke('sync:getTrace'),
   setDiagnostics: (on: boolean) => ipcRenderer.invoke('sync:setDiagnostics', on),
+  resolveHold: (choice: 'restore' | 'delete' | 'republish') => ipcRenderer.invoke('sync:resolveHold', choice),
   onStatus: (cb: (status: unknown) => void) => {
     const handler = (_e: unknown, status: unknown) => cb(status)
     ipcRenderer.on('sync:status', handler)

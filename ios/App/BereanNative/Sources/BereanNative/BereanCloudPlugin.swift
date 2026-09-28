@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import Capacitor
+import CryptoKit
 
 /// Capacitor plugin exposing the app's iCloud Drive ubiquity container to the shared sync engine
 /// (src/platform/ios/cloudSyncStore.ts; docs/mobile/icloud.md §2). The Mac side reads the same
@@ -35,6 +36,9 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     private let queue = DispatchQueue(label: "app.berean.cloud", qos: .utility)
     private var cachedRoot: URL?
     private var rootResolved = false
+    /// The account the cached root belongs to: a different ubiquity identity (another Apple
+    /// Account signed in, or iCloud Drive turned off and on) re-resolves the container.
+    private var cachedToken: (NSObjectProtocol & NSCopying & NSSecureCoding)?
     private var query: NSMetadataQuery?
     private var observers: [NSObjectProtocol] = []
     private var downloadRequested: [String: Date] = [:]
@@ -63,14 +67,18 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// `url(forUbiquityContainerIdentifier:)` may block and must not be called on the main
-    /// thread; every plugin call already runs on `queue`. Cached after the first resolution
-    /// (the container URL does not change while the app runs; account changes relaunch the app's
-    /// data anyway and are reported by `status`).
+    /// thread; every plugin call already runs on `queue`. Cached per ubiquity identity: Apple
+    /// documents that the container URL must be resolved again after an account change
+    /// (NSUbiquityIdentityDidChange), so a cached URL is only reused for the same account.
     private func syncRoot() throws -> URL {
-        if rootResolved, let r = cachedRoot { return r }
-        guard FileManager.default.ubiquityIdentityToken != nil else {
+        let token = FileManager.default.ubiquityIdentityToken
+        if rootResolved, let r = cachedRoot, let t = token, let c = cachedToken, t.isEqual(c) { return r }
+        rootResolved = false
+        cachedRoot = nil
+        guard let token else {
             throw CloudError.unavailable("not signed in to iCloud (or iCloud Drive is off for Berean)")
         }
+        cachedToken = token
         guard let container = FileManager.default.url(forUbiquityContainerIdentifier: BereanCloudPlugin.configuredContainerId) else {
             throw CloudError.unavailable("container not available — check the iCloud capability / container id (docs/mobile/ios-build.md §2)")
         }
@@ -108,14 +116,25 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
             let deviceName = DispatchQueue.main.sync { UIDevice.current.name }
             do {
                 let root = try self.syncRoot()
-                return ["available": true, "signedIn": signedIn,
+                var out: [String: Any] = ["available": true, "signedIn": signedIn,
                         "containerId": BereanCloudPlugin.configuredContainerId ?? "(entitlements default)",
                         "path": root.path, "deviceName": deviceName]
+                if let id = BereanCloudPlugin.identityHash() { out["identity"] = id }
+                return out
             } catch {
                 return ["available": false, "signedIn": signedIn, "reason": error.localizedDescription,
                         "containerId": BereanCloudPlugin.configuredContainerId ?? "(entitlements default)", "deviceName": deviceName]
             }
         }
+    }
+
+    /// A stable, opaque identifier of the signed-in iCloud account for THIS app: SHA-256 of the
+    /// archived ubiquityIdentityToken (the token itself is opaque; only equality matters). Lets
+    /// the sync engine notice another account and hold instead of mixing data (DATA-SAFE-040).
+    static func identityHash() -> String? {
+        guard let token = FileManager.default.ubiquityIdentityToken,
+              let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined().prefix(32).description
     }
 
     @objc func mkdir(_ call: CAPPluginCall) {

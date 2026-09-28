@@ -1193,8 +1193,70 @@ export const BEREAN_MIGRATIONS: Migration[] = [
       if (!(await hasColumn(db, 'pdfs', 'file_hash'))) await db.exec('ALTER TABLE pdfs ADD COLUMN file_hash TEXT')
       console.log('[berean-db] v46: pdf_bookmarks + pdfs.file_hash')
     }
+  },
+  {
+    // v47 (DATA-SAFE-*, docs/mobile/sync.md "Merge model"): per-field merge instead of
+    // whole-record last-writer-wins.
+    //   sync_record_meta.field_hlc   JSON {field: hlc} — the version that last changed each field
+    //   sync_record_meta.field_hash  JSON {field: hash} — detects which fields a local write changed
+    //   sync_record_meta.lineage     JSON [hlc…] — versions the current one descends from (NULL =
+    //                                recorded before v47: unknown, the pre-v47 rules apply)
+    //   sync_conflicts               values a merge could not keep (both devices changed the same
+    //                                field, or an edit met a deletion). Durable and local; nothing
+    //                                a merge decides is thrown away without a row here or a note
+    //                                version.
+    version: 47,
+    up: async (db) => {
+      if (!(await hasColumn(db, 'sync_record_meta', 'field_hlc'))) await db.exec('ALTER TABLE sync_record_meta ADD COLUMN field_hlc TEXT')
+      if (!(await hasColumn(db, 'sync_record_meta', 'field_hash'))) await db.exec('ALTER TABLE sync_record_meta ADD COLUMN field_hash TEXT')
+      if (!(await hasColumn(db, 'sync_record_meta', 'lineage'))) await db.exec('ALTER TABLE sync_record_meta ADD COLUMN lineage TEXT')
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS sync_conflicts (
+          id          TEXT PRIMARY KEY,
+          entity      TEXT NOT NULL,
+          key         TEXT NOT NULL,
+          field       TEXT,
+          kind        TEXT NOT NULL,
+          kept_hlc    TEXT,
+          lost_hlc    TEXT NOT NULL,
+          lost_device TEXT,
+          lost_value  TEXT,
+          created_at  INTEGER NOT NULL,
+          resolved_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_sync_conflicts_record ON sync_conflicts(entity, key);
+      `)
+      console.log('[berean-db] v47: per-field sync clocks, lineage, sync_conflicts')
+    }
   }
 ]
+
+export interface MigrationHooks {
+  /** Called once before migrating an existing database (hosts take a backup here). */
+  beforeMigrate?: (fromVersion: number, toVersion: number) => Promise<void>
+  /** The backup failed: the migration still runs (each step is transactional), but it is logged. */
+  onBackupFailed?: (err: unknown) => void
+}
+
+/** The database failed its integrity check: it must not be migrated, synced or overwritten. */
+export class DatabaseDamagedError extends Error {
+  constructor(readonly detail: string) { super(`berean.db failed its integrity check: ${detail}`); this.name = 'DatabaseDamagedError' }
+}
+
+/**
+ * SQLite's quick structural check (DATA-SAFE-071). Used before a migration and before sync
+ * starts: a damaged database must never be read as "these records are gone".
+ */
+export async function checkDatabase(db: DatabaseAdapter): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const rows = await db.all<Record<string, unknown>>('PRAGMA quick_check')
+    const msgs = rows.map((r) => String(Object.values(r)[0]))
+    const ok = msgs.length === 1 && msgs[0] === 'ok'
+    return { ok, detail: ok ? 'ok' : msgs.slice(0, 5).join('; ') }
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) }
+  }
+}
 
 /** Highest migration version this build knows about. */
 export const BEREAN_SCHEMA_VERSION = BEREAN_MIGRATIONS[BEREAN_MIGRATIONS.length - 1].version
@@ -1210,9 +1272,20 @@ export async function currentSchemaVersion(db: DatabaseAdapter): Promise<number>
  * (a failure leaves the DB at the previous version, exactly as the desktop runner always did).
  * Returns the versions applied.
  */
-export async function runMigrations(db: DatabaseAdapter, migrations: Migration[] = BEREAN_MIGRATIONS): Promise<number[]> {
+export async function runMigrations(db: DatabaseAdapter, migrations: Migration[] = BEREAN_MIGRATIONS, hooks: MigrationHooks = {}): Promise<number[]> {
   const current = await currentSchemaVersion(db)
   const applied: number[] = []
+  const pending = migrations.filter((m) => m.version > current)
+  // Upgrading an existing database (DATA-SAFE-070): refuse to touch a damaged one, and take a
+  // consistent backup first. A new database (current = 0) has nothing to protect.
+  if (pending.length && current > 0) {
+    const health = await checkDatabase(db)
+    if (!health.ok) throw new DatabaseDamagedError(health.detail)
+    if (hooks.beforeMigrate) {
+      try { await hooks.beforeMigrate(current, pending[pending.length - 1].version) }
+      catch (err) { hooks.onBackupFailed?.(err) }
+    }
+  }
   for (const migration of migrations) {
     if (migration.version > current) {
       await db.transaction(async (tx) => {

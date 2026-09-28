@@ -74,6 +74,8 @@ export function isValidOp(x: unknown): x is SyncOp {
   if (o.op === 'upsert' && (!o.fields || typeof o.fields !== 'object' || Array.isArray(o.fields))) return false
   if (o.base !== undefined && typeof o.base !== 'string') return false
   if (typeof o.schema !== 'number') return false
+  if (o.fh !== undefined && (!o.fh || typeof o.fh !== 'object' || Array.isArray(o.fh) || !Object.values(o.fh).every((v) => typeof v === 'string'))) return false
+  if (o.lin !== undefined && (!Array.isArray(o.lin) || !o.lin.every((v) => typeof v === 'string'))) return false
   return true
 }
 

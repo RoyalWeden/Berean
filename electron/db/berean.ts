@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
-import { mkdirSync, existsSync } from 'fs'
+import { mkdirSync, existsSync, renameSync, readdirSync, statSync, rmSync } from 'fs'
 import { SyncSqliteAdapter } from './adapters/syncSqliteAdapter'
 import { runMigrations } from '../../src/platform/db/bereanMigrations'
 
@@ -116,7 +116,21 @@ export function initBereanDb(): Promise<DB> {
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')
 
-    await runMigrations(new SyncSqliteAdapter(db, 'berean.db'))
+    // Before an upgrade migrates berean.db: integrity check and a consistent backup (VACUUM INTO,
+    // WAL-safe), newest 3 kept in userData/backups (DATA-SAFE-070).
+    await runMigrations(new SyncSqliteAdapter(db, 'berean.db'), undefined, {
+      beforeMigrate: async (from, to) => {
+        const dir = join(userDataPath, 'backups')
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+        const tmp = join(dir, `berean-v${from}-to-v${to}-${Date.now()}.db`)
+        db.prepare('VACUUM INTO ?').run(tmp + '.tmp')
+        renameSync(tmp + '.tmp', tmp)
+        const old = readdirSync(dir).filter((f) => f.endsWith('.db')).map((f) => ({ f, t: statSync(join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t)
+        for (const o of old.slice(3)) rmSync(join(dir, o.f), { force: true })
+        console.log(`[berean-db] backup before migration: ${tmp}`)
+      },
+      onBackupFailed: (err) => console.warn('[berean-db] backup before migration failed', err),
+    })
 
     _db = db
     return db

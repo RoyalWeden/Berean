@@ -99,8 +99,11 @@ export class MemorySyncStore implements SyncStore {
   }
   async readManifest(device: string): Promise<DeviceManifest | null> {
     if (device === this.deviceId && !this.online) {
+      // Own files are local on iCloud Drive: offline, this device still sees what it wrote last.
       const q = [...this.queued].reverse().find((x) => x.kind === 'manifest')
       if (q && q.kind === 'manifest') return structuredClone(q.manifest)
+      const mine = this.cloud.manifests.get(device)
+      if (mine) return structuredClone(mine)
     }
     const m = this.source().manifests.get(device)
     return m ? structuredClone(m) : null

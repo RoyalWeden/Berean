@@ -17,6 +17,18 @@ const STATE_LABEL: Record<NonNullable<SyncStatusSnapshot['state']>, string> = {
   reconciling: 'Applying changes from another device…',
   unavailable: 'iCloud unavailable — changes are kept on this device and sync when it returns',
   attention: 'Needs attention (see below)',
+  held: 'Paused to protect your data — see below',
+}
+
+/** What each hold means, in plain words (DATA-SAFE-020/040/041/060). Nothing was deleted. */
+function holdText(h: NonNullable<SyncStatusSnapshot['hold']>): { title: string; body: string } {
+  if (h.kind === 'quarantine') {
+    const n = Object.values(h.entities ?? {}).reduce((a, b) => a + b, 0)
+    return { title: `${n} item${n === 1 ? ' is' : 's are'} missing on this device`, body: 'They were NOT deleted from iCloud. If you did not delete them here, restore them from iCloud. Only choose “They were deleted” if you removed them yourself.' }
+  }
+  if (h.kind === 'account') return { title: 'A different iCloud account is signed in', body: 'Sync is paused so this device’s notes are not mixed into another account and nothing is deleted. Signing back into the previous account resumes sync by itself.' }
+  if (h.kind === 'container') return { title: 'Berean’s iCloud data is not where it was', body: 'This device’s sync history is not in iCloud (another account, iCloud Drive turned off, or Berean’s data removed from iCloud). Nothing on this device was changed. Sync resumes by itself when it reappears.' }
+  return { title: 'This device’s database needs repair', body: h.detail ?? 'Sync is paused so a damaged database is never sent to iCloud.' }
 }
 
 export default function ICloudSection() {
@@ -99,6 +111,26 @@ export default function ICloudSection() {
         </div>
       </div>
 
+      {status?.hold && (() => {
+        const t = holdText(status.hold)
+        const act = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn() } finally { setBusy(false); await refresh() } }
+        return (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 space-y-2" role="alert">
+            <p className="text-subhead font-medium text-text-primary">{t.title}</p>
+            <p className="text-caption text-text-secondary">{t.body}</p>
+            <div className="flex flex-wrap gap-2">
+              {status.hold.kind === 'quarantine' && api.resolveHold && (<>
+                <Button size="sm" disabled={busy} onClick={() => void act(() => api.resolveHold!('restore'))}>Restore from iCloud</Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (confirm('Delete these items from iCloud and every device? Only do this if you deleted them yourself.')) void act(() => api.resolveHold!('delete')) }}>They were deleted</Button>
+              </>)}
+              {(status.hold.kind === 'account' || status.hold.kind === 'container') && api.resolveHold && (
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (confirm('Upload everything on this device to the iCloud account that is signed in now? Nothing is deleted anywhere.')) void act(() => api.resolveHold!('republish')) }}>Use this iCloud for this device’s data…</Button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {status && (
         <div>
           <div className="flex items-center justify-between">
@@ -114,6 +146,9 @@ export default function ICloudSection() {
             {status.lastNotifiedAt != null && (<><dt className="text-text-muted">Last iCloud notification</dt><dd className="text-text-secondary">{fmt(status.lastNotifiedAt)}</dd></>)}
             {status.lastApplied && (<><dt className="text-text-muted">Last received</dt><dd className="text-text-secondary">{status.lastApplied.count} change{status.lastApplied.count === 1 ? '' : 's'} · {fmt(status.lastApplied.at)}</dd></>)}
             {!!status.conflicts && (<><dt className="text-text-muted">Conflict copies</dt><dd className="text-text-secondary">{status.conflicts} — kept in each note's Versions</dd></>)}
+            {!!status.mergeConflicts && (<><dt className="text-text-muted">Merge conflicts kept</dt><dd className="text-text-secondary">{status.mergeConflicts} — values two devices changed at once; the other value is kept</dd></>)}
+            {!!status.forks && (<><dt className="text-text-muted">Restored / copied database</dt><dd className="text-text-secondary">detected {status.forks}× — resynced as a new device</dd></>)}
+            {status.lastFullReconcile != null && (<><dt className="text-text-muted">Last full check</dt><dd className="text-text-secondary">{new Date(status.lastFullReconcile).toLocaleString()}</dd></>)}
             {!!status.failedOps && (<><dt className="text-text-muted">Changes not applied</dt><dd className="text-danger">{status.failedOps} (retrying)</dd></>)}
             <dt className="text-text-muted">Last push / pull</dt><dd className="text-text-secondary">{fmt(status.lastPushAt)} / {fmt(status.lastPullAt)}</dd>
             <dt className="text-text-muted">This device</dt><dd className="text-text-secondary font-mono">{status.deviceId}</dd>

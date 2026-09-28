@@ -2,9 +2,9 @@ import { SyncEngine } from '../sync/engine'
 import type { SyncStatusSnapshot } from '../sync/types'
 import { createSyncHostCore, type SyncHostCore } from '../sync/hostCore'
 import { createSyncTrace } from '../sync/trace'
-import { BEREAN_SCHEMA_VERSION } from '../db/bereanMigrations'
+import { BEREAN_SCHEMA_VERSION, checkDatabase } from '../db/bereanMigrations'
 import { CloudSyncStore } from './cloudSyncStore'
-import { BereanCloud } from './plugins'
+import { BereanCloud, BereanSQLite } from './plugins'
 import { iosServices, iosServiceContext } from './services'
 import type { SyncConfig } from '../../types/electron'
 
@@ -49,11 +49,6 @@ function randomHex(bytes: number): string {
   return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-async function deviceIdFor(): Promise<string> {
-  const row = await iosServiceContext().userDb.get<{ value: string }>("SELECT value FROM sync_state WHERE key = 'device_id'")
-  return row?.value ?? randomHex(8)
-}
-
 function publish(s: SyncStatusSnapshot | null): void {
   lastStatus = s
   for (const cb of statusListeners) cb(s)
@@ -74,14 +69,30 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
   if (engine) return { ok: true }
   const cloud = await BereanCloud.status().catch((err: unknown) => ({ available: false, signedIn: false, reason: String(err), containerId: DEFAULT_CONTAINER, deviceName: '' }))
   if (opts.requireAvailable && !cloud.available) return { ok: false, reason: cloud.reason ?? 'iCloud unavailable' }
-  const deviceId = await deviceIdFor()
+  const userDb = iosServiceContext().userDb
+  // Data-safety gates (docs/mobile/sync.md "Data safety"):
+  //  - integrity: a damaged berean.db holds sync instead of being read as "records deleted";
+  //  - identity: a restored / copied berean.db gets a fresh device id (DATA-SAFE-030);
+  //  - account: the database remembers which iCloud account it synced with (DATA-SAFE-040).
+  const health = await checkDatabase(userDb)
+  if (!health.ok) console.error('[sync] berean.db failed its integrity check — sync held', health.detail)
+  const file = await BereanSQLite.fileInfo({ path: 'appsupport:berean.db' }).catch(() => null)
+  const { deviceId, forked } = await SyncEngine.resolveDeviceId(userDb, {
+    newId: () => randomHex(8),
+    storageIdentity: file?.created ? `ios:${file.created}` : null,
+    peekManifest: cloud.available ? (id) => new CloudSyncStore(id).readManifest(id) : undefined,
+    log: { info: (m) => console.log(m), warn: (m) => console.warn(m), error: (m) => console.error(m) },
+  })
+  if (forked) console.warn(`[sync] this database was restored or copied (${forked}) — syncing as a new device`)
   store = new CloudSyncStore(deviceId)
   if (opts.requireAvailable) {
     const st = await store.status()
     if (!st.available) { store = null; return { ok: false, reason: st.reason } }
   }
   engine = await SyncEngine.open({
-    db: iosServiceContext().userDb, store, events: iosServiceContext().events, deviceId,
+    accountIdentity: cloud.available ? (cloud as { identity?: string }).identity ?? null : null,
+    databaseProblem: health.ok ? null : health.detail,
+    db: userDb, store, events: iosServiceContext().events, deviceId,
     deviceName: cloud.deviceName || 'iPhone', platform: 'ios',
     appVersion: import.meta.env.VITE_APP_VERSION ?? '0', schema: BEREAN_SCHEMA_VERSION,
     // Ids and entity names only — never note content (the engine logs nothing else).
@@ -94,15 +105,43 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     online: () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
   })
   engine.start()
-  const adopted = await engine.adoptExisting()
-  if (adopted) console.log(`[sync] adopted ${adopted} existing records`)
+  if (health.ok) {
+    const adopted = await engine.adoptExisting()
+    if (adopted) console.log(`[sync] adopted ${adopted} existing records`)
+    const republished = await engine.republishIfRequested()
+    if (republished) console.log(`[sync] republished ${republished} records`)
+  }
   try {
     const n = await engine.reconcileLocal(opts.reconcile === 'full')
     if (n) console.log(`[sync] reconciled ${n} local change(s) not captured before`)
   } catch (err) { console.warn('[sync] local reconciliation failed', errText(err)) }
-  core = createSyncHostCore({ engine, store, trace, onStatus: publish, log: { error: (m, ...r) => console.error(m, ...r.map(errText)) } })
+  accountAtStart = cloud.available ? (cloud as { identity?: string }).identity ?? null : null
+  core = createSyncHostCore({
+    engine, store, trace, onStatus: publish, log: { error: (m, ...r) => console.error(m, ...r.map(errText)) },
+    // A copy / rollback detected while running: reopen, which forks the device id.
+    onForkDetected: () => { void restartEngine('fork') },
+  })
   core.requestSync('start')
   return { ok: true }
+}
+
+let accountAtStart: string | null = null
+
+async function restartEngine(reason: string): Promise<void> {
+  console.warn(`[sync] restarting the engine (${reason})`)
+  stopEngine()
+  const r = await startEngine({ requireAvailable: false, reconcile: 'since-last' })
+  if (!r.ok) console.warn(`[sync] not restarted: ${r.reason}`)
+  await publishStatus()
+}
+
+/** iCloud account changed while running (NSUbiquityIdentityDidChange — checked on foreground):
+ *  reopen, so the engine compares the new identity and holds if it is another account. */
+async function checkAccount(): Promise<void> {
+  if (!engine) return
+  const cloud = await BereanCloud.status().catch(() => null)
+  const identity = cloud?.available ? (cloud as { identity?: string }).identity ?? null : null
+  if (identity && accountAtStart && identity !== accountAtStart) await restartEngine('iCloud account changed')
 }
 
 function stopEngine(): void {
@@ -119,7 +158,7 @@ function installLifecycle(): void {
   lifecycleInstalled = true
   document.addEventListener('visibilitychange', () => {
     if (!core) return
-    if (document.visibilityState === 'visible') core.requestSync('foreground')
+    if (document.visibilityState === 'visible') { void checkAccount(); core?.requestSync('foreground') }
     else void core.pushNow('background')
   })
   window.addEventListener('online', () => core?.requestSync('online'))
@@ -163,6 +202,19 @@ export function installIosSyncBridge(): void {
     disable: async () => {
       stopEngine()
       await iosServices().settings.set('icloudSyncEnabled', false)
+      await publishStatus()
+      return { ok: true }
+    },
+    resolveHold: async (choice) => {
+      if (!engine) return { ok: false, reason: 'sync is off' }
+      if (choice === 'republish') {
+        await engine.resolveHold('republish')
+        await restartEngine('republish')
+        return { ok: true }
+      }
+      await engine.resolveQuarantine(choice)
+      core?.requestSync('hold-resolved')
+      await core?.idle()
       await publishStatus()
       return { ok: true }
     },

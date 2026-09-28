@@ -6,6 +6,7 @@ import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter, type Ent
 import type { DeviceManifest, JournalFileInfo, SnapshotFile, SnapshotRecord, SyncOp, SyncState, SyncStatusSnapshot, SyncStore } from './types'
 import { shortId, type SyncTrace } from './trace'
 import { SYNC_FORMAT_VERSION } from './types'
+import { childLineage, contains, editSurvivesDelete, fieldHashes, LINEAGE_SEND, mergeConcurrent, parseJsonOr, relate, trimLineage, LINEAGE_KEEP, type VersionInfo } from './merge'
 
 /**
  * The sync engine (docs/mobile/icloud.md). Transport-agnostic: it only talks to `SyncStore`.
@@ -50,10 +51,37 @@ export interface SyncEngineOptions {
   trace?: SyncTrace
   /** Network reachability, when the host knows it (only used to word the status). */
   online?: () => boolean
+  /** Opaque identity of the signed-in iCloud account (iOS: hash of ubiquityIdentityToken). */
+  accountIdentity?: string | null
+  /** berean.db failed its integrity check (checkDatabase): sync holds, and nothing is inferred
+   *  from what the database appears to be missing. */
+  databaseProblem?: string | null
 }
 
 interface OutboxRow { seq: number; entity: string; key: string; op_json: string }
-interface MetaRow { hlc: string; device: string; deleted: number; hash?: string | null }
+interface MetaRow { hlc: string; device: string; deleted: number; hash?: string | null; field_hlc?: string | null; field_hash?: string | null; lineage?: string | null }
+const META_COLS = 'hlc, device, deleted, hash, field_hlc, field_hash, lineage'
+
+function versionOfMeta(m: MetaRow): VersionInfo {
+  return { hlc: m.hlc, lineage: m.lineage == null ? null : parseJsonOr<string[]>(m.lineage, []), fieldHlc: parseJsonOr<Record<string, string> | null>(m.field_hlc, null) }
+}
+function versionOfOp(op: Pick<SyncOp, 'hlc' | 'lin' | 'base' | 'fh'>): VersionInfo {
+  return { hlc: op.hlc, lineage: op.lin ?? (op.base ? [op.base] : null), fieldHlc: op.fh ?? null }
+}
+/** Lineage of a version that has seen both `a` and `b` (the result of a merge or of learning about a delete). */
+function unionLineage(a: VersionInfo, b: VersionInfo, exclude: string): string[] {
+  return trimLineage([...(a.lineage ?? []), a.hlc, ...(b.lineage ?? []), b.hlc].filter((h) => h !== exclude), LINEAGE_KEEP)
+}
+
+/** Why sync is holding back (fail closed — DATA-SAFE-020…): nothing is pushed or deleted until resolved. */
+export type SyncHold =
+  | { kind: 'quarantine'; entities: Record<string, number>; at: number }
+  | { kind: 'container'; at: number }
+  | { kind: 'account'; at: number }
+  | { kind: 'database'; at: number; detail: string }
+
+/** A reconciliation never infers more deletions than this from rows that are missing locally. */
+export const VANISH_LIMIT = { absolute: 20, fraction: 0.25 }
 
 const STATE = {
   deviceId: 'device_id',
@@ -67,10 +95,25 @@ const STATE = {
   snapshot: 'own_snapshot',
   /** Wall time of the last completed capture — the reconciliation's watermark. */
   capturedAt: 'captured_at',
+  /** Identity of the database file this state belongs to (creation time of berean.db): a copy or
+   *  a restored backup has a different one → the device id is forked (DATA-SAFE-030). */
+  storageIdentity: 'storage_identity',
+  /** Identity of the iCloud account last synced with (iOS ubiquityIdentityToken hash). */
+  accountIdentity: 'account_identity',
+  /** Deletions inferred from missing rows that were NOT sent (DATA-SAFE-020). */
+  quarantine: 'quarantine',
+  /** Last full (hash-compare) reconciliation. */
+  lastFullReconcile: 'last_full_reconcile',
+  appVersion: 'app_version',
+  /** Forks of this database's device identity (diagnostics). */
+  forks: 'forks',
+  /** Set by resolveHold('republish'): publish every record on the next start. */
+  republish: 'republish',
 } as const
 
 /** A reconciliation looks this far behind the watermark (clock adjustments, in-flight writes). */
 const RECONCILE_MARGIN_MS = 10 * 60 * 1000
+const FULL_RECONCILE_EVERY_MS = 7 * 24 * 60 * 60 * 1000
 
 export class SyncEngine {
   readonly deviceId: string
@@ -97,6 +140,7 @@ export class SyncEngine {
   private lastApplied: { at: number; count: number } | null = null
   private unsubscribe: (() => void) | null = null
   private syncing: Promise<void> | null = null
+  private hold: SyncHold | null = null
 
   private constructor(opts: SyncEngineOptions, deviceId: string, clock: HybridLogicalClock) {
     this.opts = opts
@@ -108,6 +152,62 @@ export class SyncEngine {
     this.clock = clock
     this.now = opts.now ?? (() => Date.now())
     this.uuid = opts.uuid ?? defaultUuid
+  }
+
+  /**
+   * The device id this database may write under (DATA-SAFE-030). A device's journal is a single
+   * append-only stream, so two databases must never write as the same device. That happens when
+   * berean.db is copied (Migration Assistant, a copied Mac profile) or rolled back (an iPhone or
+   * Time Machine backup restored): the copy still holds the old device id and an OLDER own
+   * sequence number, so its next ops would reuse numbers other devices have already applied — and
+   * be skipped there — and its manifest would drop files the original wrote after the copy.
+   * Evidence of a fork, any of:
+   *   - the database file's identity (its creation time, passed by the host) changed;
+   *   - this device's manifest in iCloud is AHEAD of the sequence number stored here.
+   * A fork gets a fresh device id and journal. Nothing local is discarded; the old device's
+   * journal stays in iCloud and is pulled like any other device's, which brings back edits made
+   * after the backup was taken.
+   */
+  static async resolveDeviceId(db: DatabaseAdapter, o: {
+    newId: () => string
+    storageIdentity?: string | null
+    /** Reads a device's manifest from the transport; null when unknown / unavailable. */
+    peekManifest?: (deviceId: string) => Promise<DeviceManifest | null>
+    log?: ServiceLogger
+  }): Promise<{ deviceId: string; forked: null | 'storage' | 'manifest-ahead' }> {
+    const get = async (k: string) => (await db.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [k]))?.value
+    const set = (k: string, v: string) => db.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [k, v])
+    const current = await get(STATE.deviceId)
+    const storedIdentity = await get(STATE.storageIdentity)
+    if (!current) {
+      const id = o.newId()
+      await set(STATE.deviceId, id)
+      if (o.storageIdentity) await set(STATE.storageIdentity, o.storageIdentity)
+      return { deviceId: id, forked: null }
+    }
+    let reason: null | 'storage' | 'manifest-ahead' = null
+    if (o.storageIdentity && storedIdentity && storedIdentity !== o.storageIdentity) reason = 'storage'
+    if (!reason && o.peekManifest) {
+      const ownSeq = Number((await get(STATE.ownSeq)) ?? 0)
+      const m = await o.peekManifest(current).catch(() => null)
+      if (m && m.device === current && m.seq > ownSeq) reason = 'manifest-ahead'
+    }
+    if (o.storageIdentity && !storedIdentity) await set(STATE.storageIdentity, o.storageIdentity)
+    if (!reason) return { deviceId: current, forked: null }
+    const id = o.newId()
+    await db.transaction(async (tx) => {
+      const forks = parseJsonOr<Array<{ from: string; to: string; reason: string; at: number }>>((await tx.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [STATE.forks]))?.value, [])
+      forks.push({ from: current, to: id, reason, at: Date.now() })
+      // Everything this database was the last writer of is published again under the new id with
+      // its own version: devices that already have it recognise it; a version the copy pushed but
+      // that never became visible (both copies writing at once) is not lost.
+      for (const [k, v] of [[STATE.deviceId, id], [STATE.ownSeq, '0'], [STATE.ownFiles, '[]'], [STATE.snapshot, 'null'], [STATE.forks, JSON.stringify(forks.slice(-20))], [STATE.republish, `own:${current}`]] as const) {
+        await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [k, v])
+      }
+      if (o.storageIdentity) await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.storageIdentity, o.storageIdentity])
+    })
+    o.log?.warn(`[sync] device identity forked (${reason}): ${current.slice(0, 8)} → ${id.slice(0, 8)}`)
+    return { deviceId: id, forked: reason }
   }
 
   /** Load bookkeeping (device id, clock, own seq/files) and return a ready engine. */
@@ -125,8 +225,83 @@ export class SyncEngine {
     try { engine.ownSnapshot = JSON.parse((await get(STATE.snapshot)) ?? 'null') } catch { engine.ownSnapshot = null }
     engine.lastPushAt = numOrNull(await get(STATE.lastPushAt))
     engine.lastPullAt = numOrNull(await get(STATE.lastPullAt))
+    if (opts.databaseProblem) engine.hold = { kind: 'database', at: engine.now(), detail: opts.databaseProblem }
+    // Deletions held back by an earlier reconciliation stay held until the user decides.
+    const q = parseJsonOr<SyncHold | null>(await get(STATE.quarantine), null)
+    if (q && q.kind === 'quarantine' && !engine.hold) {
+      engine.hold = q
+      engine.quarantineKeys = parseJsonOr<Record<string, string[]>>(await get(STATE.quarantine + ':keys'), {})
+    }
+    // iCloud account (DATA-SAFE-040): the database belongs to the account it last synced with. A
+    // different account means another person's (or an empty) iCloud: never merge the two
+    // silently — hold until the user decides (switching back resumes on its own).
+    if (opts.accountIdentity && !engine.hold) {
+      const stored = await get(STATE.accountIdentity)
+      if (!stored) await set(STATE.accountIdentity, opts.accountIdentity)
+      else if (stored !== opts.accountIdentity) engine.hold = { kind: 'account', at: engine.now() }
+    }
+    // A new app version may understand ops an older one could not apply (an unknown entity, a
+    // failing constraint): give every parked op a fresh set of attempts (DATA-SAFE-050).
+    const lastVersion = await get(STATE.appVersion)
+    if (lastVersion !== opts.appVersion) {
+      await opts.db.run('UPDATE sync_failed SET attempts = 0')
+      await set(STATE.appVersion, opts.appVersion)
+    }
     return engine
   }
+
+  /**
+   * The user's answer to an account / container hold (DATA-SAFE-041/042):
+   *   'republish'  this IS the iCloud to use: this database gets a new device id and, after the
+   *                host reopens the engine, publishes every record it holds there (the other
+   *                container is left untouched). Nothing is deleted anywhere.
+   * Waiting is the other answer: switching back to the previous account (or the container
+   * reappearing) lifts the hold by itself.
+   */
+  async resolveHold(choice: 'republish'): Promise<{ restart: true }> {
+    void choice
+    const id = this.uuid().replace(/-/g, '').slice(0, 16)
+    await this.db.transaction(async (tx) => {
+      for (const [k, v] of [[STATE.deviceId, id], [STATE.ownSeq, '0'], [STATE.ownFiles, '[]'], [STATE.snapshot, 'null'], [STATE.republish, '1']] as const) {
+        await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [k, v])
+      }
+      if (this.opts.accountIdentity) await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.accountIdentity, this.opts.accountIdentity])
+    })
+    this.hold = null
+    this.trace('hold:resolved', { kind: 'republish' })
+    return { restart: true }
+  }
+
+  /** After `resolveHold('republish')` and a restart: journal every record as it stands, with its
+   *  own version (not a new one), so devices already holding it recognise it and new ones get it. */
+  async republishIfRequested(): Promise<number> {
+    const flag = (await this.db.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [STATE.republish]))?.value
+    if (!flag) return 0
+    let n = 0
+    const onlyDevice = flag.startsWith('own:') ? flag.slice(4) : null
+    const metas = onlyDevice
+      ? await this.db.all<MetaRow & { entity: string; key: string }>(`SELECT entity, key, ${META_COLS} FROM sync_record_meta WHERE device = ?`, [onlyDevice])
+      : await this.db.all<MetaRow & { entity: string; key: string }>(`SELECT entity, key, ${META_COLS} FROM sync_record_meta`)
+    for (const m of metas) {
+      const adapter = this.entities.get(m.entity)
+      if (!adapter) continue
+      const v = versionOfMeta(m)
+      const rec = m.deleted ? undefined : await adapter.read(this.db, m.key)
+      const op: Omit<SyncOp, 'seq' | 'device'> = {
+        id: this.uuid(), hlc: m.hlc, entity: m.entity, key: m.key, op: rec && !rec.deleted ? 'upsert' : 'delete',
+        ...(rec ? { fields: rec.fields } : {}), schema: this.opts.schema,
+        ...(v.fieldHlc ? { fh: v.fieldHlc } : {}), ...(v.lineage ? { lin: v.lineage.slice(-LINEAGE_SEND) } : {}),
+      }
+      await this.db.run('INSERT INTO sync_outbox (entity, key, op_json, created_at) VALUES (?, ?, ?, ?)', [m.entity, m.key, JSON.stringify(op), this.now()])
+      n++
+    }
+    await this.db.run('DELETE FROM sync_state WHERE key = ?', [STATE.republish])
+    this.opts.log.info(`[sync] republished ${n} record(s)`)
+    return n
+  }
+
+  /** What sync is holding back, if anything (Settings → iCloud shows it with its actions). */
+  getHold(): SyncHold | null { return this.hold }
 
   private trace(event: string, meta?: Parameters<SyncTrace['record']>[1]): void {
     try { this.opts.trace?.record(event, meta) } catch { /* diagnostics never break sync */ }
@@ -175,7 +350,7 @@ export class SyncEngine {
       if (!direct) {
         // A bulk change (reorder, emptyTrash, merge…) — re-capture every live key of the entity.
         // Cheap for the entity sizes involved and keeps the outbox precise.
-        await this.recaptureAll(c.entity, hlc)
+        await this.recaptureAll(c.entity, hlc, { guarded: false })
       } else {
         await this.captureRecord(c.entity, direct.id, { hlc, rec: await direct.rec, direct: true })
       }
@@ -183,8 +358,8 @@ export class SyncEngine {
         // A delete or bulk change can take other rows with it without their own events (a purged
         // note's versions, a deleted tag's members, a deleted trail session's nodes and
         // connections, a deleted folder's notes moved to the root): find what vanished or changed.
-        await this.captureVanished(c.entity, hlc)
-        for (const dep of adapter.dependents ?? []) await this.recaptureAll(dep, hlc)
+        await this.captureVanished(c.entity, hlc, { guarded: false })
+        for (const dep of adapter.dependents ?? []) await this.recaptureAll(dep, hlc, { guarded: false })
       }
       this.trace('local:captured', { entity: c.entity, op: c.op, id: shortId(c.id) })
       try { this.opts.onLocalChange?.(); this.localChangeListener?.() } catch { /* host callback */ }
@@ -195,22 +370,94 @@ export class SyncEngine {
 
   /** Re-read every live record of an entity (only records whose synced fields changed produce ops)
    *  and tombstone the ones that are gone. */
-  private async recaptureAll(entity: string, hlc: string): Promise<void> {
+  private async recaptureAll(entity: string, hlc: string, o: { guarded?: boolean } = {}): Promise<void> {
     const adapter = this.entities.get(entity)
     if (!adapter) return
     for (const key of await adapter.listKeys(this.db)) await this.captureRecord(entity, key, { hlc })
-    await this.captureVanished(entity, hlc)
+    await this.captureVanished(entity, hlc, o)
   }
 
-  /** Records we told other devices about that no longer exist locally (hard-deleted) → delete ops. */
-  private async captureVanished(entity: string, hlc: string): Promise<void> {
+  /**
+   * Records we told other devices about that no longer exist locally (hard-deleted) → delete ops.
+   *
+   * Deletion INFERRED from absence is the one place local state alone could delete cloud data, so
+   * it is guarded (DATA-SAFE-020, "an empty or partial local database is never the user deleting
+   * everything"): when a pass would infer more than VANISH_LIMIT deletions for an entity — or the
+   * entity's table is empty while records are known — nothing is sent, the keys are recorded
+   * as quarantined and sync reports it. The user then restores them from iCloud or confirms the
+   * deletion (`resolveQuarantine`). A user's own delete of a record arrives as a direct event
+   * and is never inferred; `guarded: false` is only used for the cascades of an explicit delete
+   * the user just made, with the same empty-table stop.
+   */
+  private async captureVanished(entity: string, hlc: string, o: { guarded?: boolean } = {}): Promise<number> {
     const adapter = this.entities.get(entity)
-    if (!adapter) return
+    if (!adapter) return 0
+    if (this.hold?.kind === 'database') return 0   // a damaged database proves nothing about deletions
     const known = await this.db.all<{ key: string }>('SELECT key FROM sync_record_meta WHERE entity = ? AND deleted = 0', [entity])
-    if (known.length === 0) return
-    const live = new Set(await adapter.listKeys(this.db))
-    for (const r of known) if (!live.has(r.key)) await this.captureRecord(entity, r.key, { hlc })
+    if (known.length === 0) return 0
+    const liveKeys = await adapter.listKeys(this.db)
+    const live = new Set(liveKeys)
+    const held = this.quarantinedKeys(entity)
+    const vanished = known.map((r) => r.key).filter((k) => !live.has(k) && !held.has(k))
+    if (vanished.length === 0) return 0
+    const guarded = o.guarded !== false
+    const tableEmpty = liveKeys.length === 0 && known.length >= 3
+    const tooMany = vanished.length > Math.max(VANISH_LIMIT.absolute, Math.ceil(known.length * VANISH_LIMIT.fraction))
+    if (tableEmpty || (guarded && tooMany)) {
+      await this.quarantine(entity, vanished)
+      return 0
+    }
+    for (const k of vanished) await this.captureRecord(entity, k, { hlc })
+    return vanished.length
   }
+
+  private quarantinedKeys(entity: string): Set<string> {
+    return new Set(this.quarantineKeys[entity] ?? [])
+  }
+  private quarantineKeys: Record<string, string[]> = {}
+
+  private async quarantine(entity: string, keys: string[]): Promise<void> {
+    const merged = new Set([...(this.quarantineKeys[entity] ?? []), ...keys])
+    this.quarantineKeys[entity] = [...merged]
+    const entities = Object.fromEntries(Object.entries(this.quarantineKeys).map(([e, k]) => [e, k.length]))
+    this.hold = { kind: 'quarantine', entities, at: this.now() }
+    await this.db.transaction(async (tx) => {
+      await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.quarantine, JSON.stringify(this.hold)])
+      await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.quarantine + ':keys', JSON.stringify(this.quarantineKeys)])
+    })
+    this.opts.log.warn(`[sync] ${keys.length} ${entity} record(s) missing locally — NOT deleted from iCloud (held for review)`)
+    this.trace('hold:quarantine', { entity, count: keys.length })
+  }
+
+  /**
+   * The user's answer to a quarantine:
+   *   'restore'  bring the missing records back from iCloud (the default, safe answer): their
+   *              bookkeeping is cleared and every journal — this device's own included — is
+   *              replayed; everything already present is recognised and skipped
+   *   'delete'   they really were deleted here: send the deletions
+   */
+  async resolveQuarantine(choice: 'restore' | 'delete'): Promise<number> {
+    const keys = this.quarantineKeys
+    let n = 0
+    if (choice === 'delete') {
+      const hlc = this.clock.tick()
+      this.quarantineKeys = {}
+      for (const [entity, list] of Object.entries(keys)) for (const k of list) { await this.captureRecord(entity, k, { hlc }); n++ }
+    } else {
+      await this.db.transaction(async (tx) => {
+        for (const [entity, list] of Object.entries(keys)) for (const k of list) { await tx.run('DELETE FROM sync_record_meta WHERE entity = ? AND key = ?', [entity, k]); n++ }
+        await tx.run('DELETE FROM sync_applied')
+      })
+      this.quarantineKeys = {}
+      this.replayOwn = true
+    }
+    if (this.hold?.kind === 'quarantine') this.hold = null
+    await this.db.run('DELETE FROM sync_state WHERE key IN (?, ?)', [STATE.quarantine, STATE.quarantine + ':keys'])
+    this.trace('hold:resolved', { choice, count: n })
+    return n
+  }
+  /** Next pull also replays this device's own journal (recovery after a quarantine). */
+  private replayOwn = false
 
   /**
    * Read the record's current state and queue an op for it (coalescing with a pending unflushed
@@ -221,7 +468,7 @@ export class SyncEngine {
     const adapter = this.entities.get(entity)
     if (!adapter) return
     const rec = at && 'rec' in at ? at.rec : await adapter.read(this.db, key)
-    const meta = await this.db.get<MetaRow>('SELECT hlc, device, deleted, hash FROM sync_record_meta WHERE entity = ? AND key = ?', [entity, key])
+    const meta = await this.db.get<MetaRow>(`SELECT ${META_COLS} FROM sync_record_meta WHERE entity = ? AND key = ?`, [entity, key])
     const op: SyncOp['op'] = !rec || rec.deleted ? 'delete' : 'upsert'
     // Nothing to tell other devices about a record they never knew or already saw deleted.
     if (op === 'delete' && (!meta || meta.deleted)) return
@@ -235,9 +482,10 @@ export class SyncEngine {
       // time — an earlier capture may have read state that this later event produced.
       if (at?.direct && pending && compareHlc(hlc, meta.hlc) > 0) {
         const prev = JSON.parse(pending.op_json) as SyncOp
+        const lineage = childLineage(versionOfMeta(meta))
         await this.db.transaction(async (tx) => {
-          await tx.run('UPDATE sync_outbox SET op_json = ? WHERE seq = ?', [JSON.stringify({ ...prev, hlc }), pending.seq])
-          await tx.run('UPDATE sync_record_meta SET hlc = ? WHERE entity = ? AND key = ?', [hlc, entity, key])
+          await tx.run('UPDATE sync_outbox SET op_json = ? WHERE seq = ?', [JSON.stringify({ ...prev, hlc, lin: lineage.slice(-LINEAGE_SEND) }), pending.seq])
+          await tx.run('UPDATE sync_record_meta SET hlc = ?, lineage = ? WHERE entity = ? AND key = ?', [hlc, JSON.stringify(lineage), entity, key])
           await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.hlc, this.clock.latest()])
         })
       }
@@ -245,6 +493,24 @@ export class SyncEngine {
     }
     // Coalescing keeps the EARLIEST base so the other side still sees the true divergence point.
     const base = pending ? (JSON.parse(pending.op_json) as Partial<SyncOp>).base : meta?.hlc
+    // The new version descends from what this device had (DATA-SAFE-001): its lineage is the
+    // previous version plus that version's ancestors. A record recreated after a deletion this
+    // device saw descends from the tombstone, so other devices recognise it as a recreation.
+    const prev = meta ? versionOfMeta(meta) : null
+    const lineage = childLineage(prev)
+    // Per-field clocks: fields whose value this write changed get the new clock; the rest keep the
+    // version that last changed them — so a device that only pinned a note does not claim to have
+    // written its text.
+    let fh: Record<string, string> | undefined
+    let fHash: Record<string, string> | undefined
+    if (op === 'upsert') {
+      fHash = fieldHashes(rec!.fields)
+      const prevHash = meta && !meta.deleted ? parseJsonOr<Record<string, string> | null>(meta.field_hash, null) : null
+      fh = {}
+      for (const f of Object.keys(rec!.fields)) {
+        fh[f] = prevHash && prevHash[f] === fHash[f] ? (prev?.fieldHlc?.[f] ?? prev!.hlc) : hlc
+      }
+    }
     // Tombstone rows (sessions/tabs) carry their deleted_at so the receiver records the same time.
     const fields = op === 'upsert' ? rec!.fields : (rec?.deleted ? rec.fields : undefined)
     const syncOp: Omit<SyncOp, 'seq' | 'device'> = {
@@ -252,6 +518,8 @@ export class SyncEngine {
       ...(fields ? { fields } : {}),
       ...(base ? { base } : {}),
       schema: this.opts.schema,
+      ...(fh ? { fh } : {}),
+      lin: lineage.slice(-LINEAGE_SEND),
     }
     await this.db.transaction(async (tx) => {
       if (pending) {
@@ -259,10 +527,17 @@ export class SyncEngine {
       } else {
         await tx.run('INSERT INTO sync_outbox (entity, key, op_json, created_at) VALUES (?, ?, ?, ?)', [entity, key, JSON.stringify(syncOp), this.now()])
       }
-      await tx.run('INSERT OR REPLACE INTO sync_record_meta (entity, key, hlc, device, deleted, hash) VALUES (?, ?, ?, ?, ?, ?)', [entity, key, hlc, this.deviceId, op === 'delete' ? 1 : 0, hash])
+      await this.writeMeta(tx, entity, key, { hlc, device: this.deviceId, deleted: op === 'delete', hash, fieldHlc: fh ?? null, fieldHash: fHash ?? null, lineage })
       await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.hlc, this.clock.latest()])
       await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.capturedAt, String(this.now())])
     })
+  }
+
+  private async writeMeta(tx: DatabaseAdapter, entity: string, key: string, m: { hlc: string; device: string; deleted: boolean; hash: string | null; fieldHlc: Record<string, string> | null; fieldHash: Record<string, string> | null; lineage: string[] | null }): Promise<void> {
+    await tx.run(
+      `INSERT OR REPLACE INTO sync_record_meta (entity, key, hlc, device, deleted, hash, field_hlc, field_hash, lineage) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [entity, key, m.hlc, m.device, m.deleted ? 1 : 0, m.hash, m.fieldHlc ? JSON.stringify(m.fieldHlc) : null, m.fieldHash ? JSON.stringify(m.fieldHash) : null, m.lineage ? JSON.stringify(m.lineage) : null],
+    )
   }
 
   /**
@@ -279,7 +554,13 @@ export class SyncEngine {
    */
   async reconcileLocal(full = false): Promise<number> {
     await this.captureQueue
+    if (this.hold?.kind === 'database') return 0
     const started = this.now()
+    // The watermark pass trusts each table's timestamp column; a write that does not bump it
+    // (a pin, a colour) and whose capture was cut off by a kill would be missed forever. A full
+    // hash compare every week closes that gap (DATA-SAFE-011).
+    const lastFull = numOrNull((await this.db.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [STATE.lastFullReconcile]))?.value)
+    if (!full && (lastFull == null || started - lastFull > FULL_RECONCILE_EVERY_MS)) full = true
     const mark = full ? null : numOrNull((await this.db.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [STATE.capturedAt]))?.value)
     const hlc = this.clock.tick()
     const before = (await this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n ?? 0
@@ -300,6 +581,7 @@ export class SyncEngine {
       await this.captureVanished(adapter.kind, hlc)
     }
     await this.setState(STATE.capturedAt, String(started))
+    if (full) await this.setState(STATE.lastFullReconcile, String(started))
     await this.persistClock()
     const after = (await this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox'))?.n ?? 0
     return Math.max(0, after - before)
@@ -324,10 +606,12 @@ export class SyncEngine {
         const ts = pickTimestamp(rec.fields) ?? this.now()
         const hlc = formatHlc({ wallMs: Math.min(ts, this.now()), counter: 0, deviceId: this.deviceId })
         this.clock.receive(hlc)
-        const syncOp: Omit<SyncOp, 'seq' | 'device'> = { id: this.uuid(), hlc, entity: adapter.kind, key, op: 'upsert', fields: rec.fields, schema: this.opts.schema }
+        // A pre-sync record is a creation (no ancestry): per-field clocks all at its own time.
+        const fh = Object.fromEntries(Object.keys(rec.fields).map((f) => [f, hlc]))
+        const syncOp: Omit<SyncOp, 'seq' | 'device'> = { id: this.uuid(), hlc, entity: adapter.kind, key, op: 'upsert', fields: rec.fields, schema: this.opts.schema, fh, lin: [] }
         await this.db.transaction(async (tx) => {
           await tx.run('INSERT INTO sync_outbox (entity, key, op_json, created_at) VALUES (?, ?, ?, ?)', [adapter.kind, key, JSON.stringify(syncOp), this.now()])
-          await tx.run('INSERT OR REPLACE INTO sync_record_meta (entity, key, hlc, device, deleted, hash) VALUES (?, ?, ?, ?, 0, ?)', [adapter.kind, key, hlc, this.deviceId, hashFields(rec.fields)])
+          await this.writeMeta(tx, adapter.kind, key, { hlc, device: this.deviceId, deleted: false, hash: hashFields(rec.fields), fieldHlc: fh, fieldHash: fieldHashes(rec.fields), lineage: [] })
         })
         count++
       }
@@ -339,16 +623,69 @@ export class SyncEngine {
 
   // ── push ──────────────────────────────────────────────────────────────────────────────────
 
+  /** Holds that stop all transport traffic (a quarantine only withholds the inferred deletions). */
+  private blocked(): boolean {
+    return !!this.hold && this.hold.kind !== 'quarantine'
+  }
+  /** Holds only the user can lift (a container hold is re-checked on every pass and lifts itself). */
+  private blockedHard(): boolean {
+    return !!this.hold && (this.hold.kind === 'account' || this.hold.kind === 'database')
+  }
+
+  /** Set when this database turned out to be a copy / rollback while running: the host must
+   *  reopen the engine, which forks the device id (resolveDeviceId). */
+  forkDetected = false
+
+  /**
+   * Is the container still the one this database has been syncing with (DATA-SAFE-041)? After
+   * this device has published, its own manifest must be there. If neither it nor any device we
+   * ever received from is visible, iCloud is a different (or wiped, or signed-out) container:
+   * pushing would publish this device's changes into someone else's iCloud and pulling would
+   * merge theirs into this database, so sync holds until they reappear or the user decides.
+   * Returns this device's manifest (null when absent).
+   */
+  private async checkContainer(): Promise<DeviceManifest | null | undefined> {
+    let own: DeviceManifest | null
+    try { own = await this.store.readManifest(this.deviceId) } catch { return undefined }
+    if (own && own.seq > this.ownSeq) {
+      // Another database is writing as this device (copy / restored backup still running).
+      this.forkDetected = true
+      this.lastError = 'This device\'s iCloud history is ahead of its database (restored or copied). Berean will resync as a new device.'
+      this.trace('hold:fork', { seq: own.seq, local: this.ownSeq })
+      return own
+    }
+    if (this.hold?.kind === 'container' && own) { this.hold = null; this.trace('hold:resolved', { kind: 'container' }) }
+    if (own || this.ownSeq === 0) return own
+    const listed = new Set(await this.store.listDevices().catch(() => [] as string[]))
+    const known = (await this.db.all<{ device: string }>('SELECT DISTINCT device FROM sync_applied')).map((r) => r.device)
+    if (known.some((d) => d !== this.deviceId && listed.has(d))) return own
+    if (this.hold?.kind !== 'container') {
+      this.hold = { kind: 'container', at: this.now() }
+      this.opts.log.warn('[sync] iCloud container does not hold this device\'s history — sync paused')
+      this.trace('hold:container')
+    }
+    return own
+  }
+
   async push(): Promise<number> {
     await this.captureQueue
+    if (this.blockedHard() || this.forkDetected) { this.trace('push:held', { hold: this.hold?.kind ?? 'fork' }); return 0 }
     const rows = await this.db.all<OutboxRow>('SELECT seq, entity, key, op_json FROM sync_outbox ORDER BY seq ASC')
+    const status = await this.store.status()
+    if (!status.available) {
+      if (rows.length) { this.lastError = status.reason ?? 'transport unavailable'; this.trace('push:skipped', { reason: 'unavailable', pending: rows.length }) }
+      return 0
+    }
+    const own = await this.checkContainer()
+    if (this.blocked() || this.forkDetected) return 0
     if (rows.length === 0) {
-      // Nothing new — but journal files waiting on other devices' acknowledgement may be prunable now.
+      // Nothing new. A crash after the outbox was committed but before the manifest was written
+      // leaves published files unlisted — other devices would never read them (DATA-SAFE-033).
+      if (own && own.seq < this.ownSeq) { try { await this.writeManifest(); this.trace('push:manifest-repaired', { seq: this.ownSeq }) } catch (err) { this.opts.log.warn('[sync] manifest repair failed', err) } }
+      // Journal files waiting on other devices' acknowledgement may be prunable now.
       try { await this.pruneCompacted() } catch (err) { this.opts.log.warn('[sync] prune failed', err) }
       return 0
     }
-    const status = await this.store.status()
-    if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; this.trace('push:skipped', { reason: 'unavailable', pending: rows.length }); return 0 }
     this.phase = 'uploading'
     this.trace('push:start', { ops: rows.length })
     const ops: SyncOp[] = rows.map((r, i) => ({ ...(JSON.parse(r.op_json) as Omit<SyncOp, 'seq' | 'device'>), seq: this.ownSeq + i + 1, device: this.deviceId }))
@@ -381,7 +718,7 @@ export class SyncEngine {
 
   private async writeManifest(): Promise<void> {
     const applied: Record<string, number> = {}
-    for (const r of await this.db.all<{ device: string; seq: number }>('SELECT device, MAX(seq) AS seq FROM sync_applied GROUP BY device')) applied[r.device] = r.seq
+    for (const r of await this.db.all<{ device: string; seq: number }>('SELECT device, MAX(seq) AS seq FROM sync_applied GROUP BY device')) if (r.device !== this.deviceId) applied[r.device] = r.seq
     await this.store.writeOwnManifest({
       device: this.deviceId, name: this.opts.deviceName, platform: this.opts.platform, appVersion: this.opts.appVersion, schema: this.opts.schema,
       seq: this.ownSeq, files: this.ownFiles, applied, ...(this.ownSnapshot ? { snapshot: this.ownSnapshot } : {}), updatedAt: this.now(),
@@ -409,14 +746,16 @@ export class SyncEngine {
     if (!force && live.ops < COMPACT_AFTER_OPS && live.bytes < COMPACT_AFTER_BYTES) return false
     if (this.ownSnapshot && this.ownSnapshot.seq >= this.ownSeq) return false
     const records: SnapshotRecord[] = []
-    const metas = await this.db.all<{ entity: string; key: string; hlc: string; deleted: number }>('SELECT entity, key, hlc, deleted FROM sync_record_meta WHERE device = ? ORDER BY entity, key', [this.deviceId])
+    const metas = await this.db.all<MetaRow & { entity: string; key: string }>(`SELECT entity, key, ${META_COLS} FROM sync_record_meta WHERE device = ? ORDER BY entity, key`, [this.deviceId])
     for (const m of metas) {
-      if (m.deleted) { records.push({ entity: m.entity, key: m.key, hlc: m.hlc, op: 'delete' }); continue }
+      const v = versionOfMeta(m)
+      const extra = { ...(v.fieldHlc ? { fh: v.fieldHlc } : {}), ...(v.lineage ? { lin: v.lineage.slice(-LINEAGE_SEND) } : {}) }
+      if (m.deleted) { records.push({ entity: m.entity, key: m.key, hlc: m.hlc, op: 'delete', ...extra }); continue }
       const adapter = this.entities.get(m.entity)
       if (!adapter) continue
       const rec = await adapter.read(this.db, m.key)
       if (!rec) continue
-      records.push(rec.deleted ? { entity: m.entity, key: m.key, hlc: m.hlc, op: 'delete', fields: rec.fields } : { entity: m.entity, key: m.key, hlc: m.hlc, op: 'upsert', fields: rec.fields })
+      records.push(rec.deleted ? { entity: m.entity, key: m.key, hlc: m.hlc, op: 'delete', fields: rec.fields, ...extra } : { entity: m.entity, key: m.key, hlc: m.hlc, op: 'upsert', fields: rec.fields, ...extra })
     }
     const file: SnapshotFile = { format: SYNC_FORMAT_VERSION, device: this.deviceId, seq: this.ownSeq, schema: this.opts.schema, writtenAt: this.now(), records }
     const name = snapshotFileName(this.ownSeq)
@@ -475,8 +814,8 @@ export class SyncEngine {
     let applied = 0
     for (const r of file.records) {
       if (!r || typeof r.entity !== 'string' || typeof r.key !== 'string' || typeof r.hlc !== 'string') { this.unreadable++; continue }
-      const op: SyncOp = { id: `${device}-snapshot-${snap.seq}-${r.entity}-${r.key}`, seq: snap.seq, hlc: r.hlc, device, entity: r.entity, key: r.key, op: r.op, ...(r.fields ? { fields: r.fields } : {}), schema: file.schema }
-      try { await this.applyOne(op, touched, { recordApplied: false }); applied++ } catch (err) {
+      const op: SyncOp = { id: `${device}-snapshot-${snap.seq}-${r.entity}-${r.key}`, seq: snap.seq, hlc: r.hlc, device, entity: r.entity, key: r.key, op: r.op, ...(r.fields ? { fields: r.fields } : {}), schema: file.schema, ...(r.fh ? { fh: r.fh } : {}), ...(r.lin ? { lin: r.lin } : {}) }
+      try { await this.applyOne(op, touched, { recordApplied: false, replay: true }); applied++ } catch (err) {
         this.opts.log.error(`[sync] snapshot apply failed ${r.entity}/${r.key} from ${device}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
@@ -489,8 +828,11 @@ export class SyncEngine {
   // ── pull ──────────────────────────────────────────────────────────────────────────────────
 
   async pull(): Promise<number> {
+    if (this.blockedHard() || this.forkDetected) { this.trace('pull:held', { hold: this.hold?.kind ?? 'fork' }); return 0 }
     const status = await this.store.status()
     if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; this.trace('pull:skipped', { reason: 'unavailable' }); return 0 }
+    await this.checkContainer()
+    if (this.blocked() || this.forkDetected) return 0
     this.phase = 'reconciling'
     try { return await this.pullInner() } finally { this.phase = 'idle' }
   }
@@ -504,8 +846,11 @@ export class SyncEngine {
     let snapshotApplied = 0
     let waiting = 0
     this.trace('pull:start')
+    const replay = this.replayOwn
+    this.replayOwn = false
     for (const device of await this.store.listDevices()) {
-      if (device === this.deviceId) continue
+      // This device's own journal is only read back in a recovery replay (resolveQuarantine).
+      if (device === this.deviceId && !replay) continue
       let manifest: DeviceManifest | null
       try { manifest = await this.store.readManifest(device) } catch { continue }
       if (!manifest) { waiting++; this.trace('pull:waiting', { device: shortId(device), file: 'manifest' }); continue }
@@ -549,7 +894,7 @@ export class SyncEngine {
       const already = await this.db.get('SELECT 1 FROM sync_applied WHERE device = ? AND seq = ?', [op.device, op.seq])
       if (already) continue
       try {
-        await this.applyOne(op, touched)
+        await this.applyOne(op, touched, { replay })
         applied++
         this.trace('remote:applied', { entity: op.entity, op: op.op, id: shortId(op.key), device: shortId(op.device), seq: op.seq })
       } catch (err) {
@@ -572,51 +917,36 @@ export class SyncEngine {
     return applied
   }
 
-  /** Apply one remote op under the merge rules. Runs in its own transaction. */
-  private async applyOne(op: SyncOp, touched: Set<string>, o: { recordApplied?: boolean } = {}): Promise<void> {
+  /**
+   * Apply one remote op under the merge model (merge.ts). Runs in its own transaction, and the
+   * op is recorded as applied in the SAME transaction — so a kill mid-pull never leaves an op
+   * half-applied or recorded without its effect, and a redelivered op is recognised twice over
+   * (sync_applied and the record's lineage).
+   */
+  private async applyOne(op: SyncOp, touched: Set<string>, o: { recordApplied?: boolean; replay?: boolean } = {}): Promise<void> {
     const adapter = this.entities.get(op.entity)
     const recordApplied = o.recordApplied !== false
     this.clock.receive(op.hlc)
     await this.db.transaction(async (tx) => {
       if (!adapter) {
-        // Unknown entity (a newer build's data) — remember we saw it so it is not retried forever.
-        if (recordApplied) await tx.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [op.device, op.seq])
+        // Unknown entity (a newer build's data): never dropped (DATA-SAFE-050). Parked in
+        // sync_failed with its attempts used up; the next app version re-arms it (open()).
+        if (recordApplied) await tx.run(`INSERT INTO sync_failed (device, seq, error, attempts) VALUES (?, ?, ?, ?) ON CONFLICT(device, seq) DO UPDATE SET error = excluded.error, attempts = excluded.attempts`, [op.device, op.seq, `unknown entity ${op.entity}`, this.opts.maxAttempts ?? 5])
         return
       }
-      const meta = await tx.get<MetaRow>('SELECT hlc, device, deleted FROM sync_record_meta WHERE entity = ? AND key = ?', [op.entity, op.key])
-      const newer = !meta || compareHlc(op.hlc, meta.hlc) > 0
-      // Both sides changed this note since they last agreed (the op's base is not what we have).
-      const noteDiverged = op.entity === 'note' && !!meta && op.base !== meta.hlc
-      if (noteDiverged && (op.op === 'delete' || meta!.deleted || await this.eitherSideTrashed(tx, op))) {
-        await this.resolveNoteDeleteConflict(tx, op, meta!, touched)
-      } else if (op.op === 'delete') {
-        if (newer) {
-          const deletedAt = Number((op.fields as { deleted_at?: unknown } | undefined)?.deleted_at) || parseHlc(op.hlc).wallMs
-          await adapter.applyDelete(tx, op.key, deletedAt)
-          await tx.run('INSERT OR REPLACE INTO sync_record_meta (entity, key, hlc, device, deleted, hash) VALUES (?, ?, ?, ?, 1, NULL)', [op.entity, op.key, op.hlc, op.device])
-          touched.add(op.entity)
-          this.emitRemote(op.entity, op.key, 'delete')
-        }
+      const meta = await tx.get<MetaRow>(`SELECT ${META_COLS} FROM sync_record_meta WHERE entity = ? AND key = ?`, [op.entity, op.key])
+      const remote = versionOfOp(op)
+      if (!meta) {
+        await this.applyFresh(tx, adapter, op, remote, touched)
       } else {
-        const fields = op.fields ?? {}
-        if (noteDiverged) {
-          // Diverged edits: the higher HLC becomes the note's content and the other content is
-          // preserved as a conflict version (deterministic id → both devices create exactly one
-          // identical row).
-          const local = await tx.get<{ content: string; title: string | null }>('SELECT content, title FROM notes WHERE id = ?', [op.key])
-          const remoteContent = typeof fields.content === 'string' ? fields.content : ''
-          if (local && local.content !== remoteContent) {
-            const loser = newer ? { content: local.content, title: local.title, hlc: meta!.hlc } : { content: remoteContent, title: (fields.title as string | null) ?? null, hlc: op.hlc }
-            await this.writeConflictCopy(tx, op.key, loser, touched)
-          }
-        }
-        if (newer) {
-          await adapter.applyUpsert(tx, op.key, fields)
-          const applied = await adapter.read(tx, op.key)
-          await tx.run('INSERT OR REPLACE INTO sync_record_meta (entity, key, hlc, device, deleted, hash) VALUES (?, ?, ?, ?, 0, ?)', [op.entity, op.key, op.hlc, op.device, applied && !applied.deleted ? hashFields(applied.fields) : null])
-          touched.add(op.entity)
-          this.emitRemote(op.entity, op.key, 'upsert')
-        }
+        const local = versionOfMeta(meta)
+        // A replay (recovery pass, snapshot overlapping journals) of an op older than a record
+        // recorded before v47 is history this device already incorporated.
+        const replayedLegacy = !!o.replay && local.lineage === null && compareHlc(op.hlc, meta.hlc) <= 0
+        const rel = replayedLegacy ? 'known' : relate(local, remote)
+        if (rel === 'descends') await this.applyForward(tx, adapter, op, local, remote, touched)
+        else if (rel === 'concurrent') await this.applyConcurrent(tx, adapter, op, meta, local, remote, touched)
+        // 'known': this device already has this version (or a later one built on it) — nothing to do.
       }
       if (recordApplied) {
         await tx.run('INSERT OR IGNORE INTO sync_applied (device, seq) VALUES (?, ?)', [op.device, op.seq])
@@ -625,11 +955,149 @@ export class SyncEngine {
     })
   }
 
-  /** The op or the local note is in the Trash (a soft delete carried as a field). */
-  private async eitherSideTrashed(db: DatabaseAdapter, op: SyncOp): Promise<boolean> {
-    if (op.op === 'upsert' && (op.fields as { deleted_at?: unknown } | undefined)?.deleted_at != null) return true
-    const local = await db.get<{ deleted_at: unknown }>('SELECT deleted_at FROM notes WHERE id = ?', [op.key])
-    return !!local && local.deleted_at != null
+  private fieldClocksOf(op: SyncOp): Record<string, string> {
+    return op.fh ?? Object.fromEntries(Object.keys(op.fields ?? {}).map((f) => [f, op.hlc]))
+  }
+
+  /** First time this device hears of the record. */
+  private async applyFresh(tx: DatabaseAdapter, adapter: EntityAdapter, op: SyncOp, remote: VersionInfo, touched: Set<string>): Promise<void> {
+    if (op.op === 'delete') {
+      // Remember the tombstone so a stale copy arriving later cannot resurrect the record.
+      await adapter.applyDelete(tx, op.key, deletedAtOf(op))
+      await this.writeMeta(tx, op.entity, op.key, { hlc: op.hlc, device: op.device, deleted: true, hash: null, fieldHlc: null, fieldHash: null, lineage: remote.lineage ?? [] })
+      touched.add(op.entity)
+      this.emitRemote(op.entity, op.key, 'delete')
+      return
+    }
+    await adapter.applyUpsert(tx, op.key, op.fields ?? {})
+    await this.recordApplied(tx, adapter, op.entity, op.key, { hlc: op.hlc, device: op.device, fieldHlc: this.fieldClocksOf(op), lineage: remote.lineage ?? [] })
+    touched.add(op.entity)
+    this.emitRemote(op.entity, op.key, 'upsert')
+  }
+
+  /** The remote version was made on top of ours: it replaces ours. */
+  private async applyForward(tx: DatabaseAdapter, adapter: EntityAdapter, op: SyncOp, local: VersionInfo, remote: VersionInfo, touched: Set<string>): Promise<void> {
+    const lineage = unionLineage(local, { ...remote, hlc: op.hlc }, op.hlc)
+    if (op.op === 'delete') {
+      await adapter.applyDelete(tx, op.key, deletedAtOf(op))
+      await this.writeMeta(tx, op.entity, op.key, { hlc: op.hlc, device: op.device, deleted: true, hash: null, fieldHlc: null, fieldHash: null, lineage })
+      touched.add(op.entity)
+      this.emitRemote(op.entity, op.key, 'delete')
+      return
+    }
+    // An op from an older build may lack columns this build has: those keep their local values.
+    await adapter.applyUpsert(tx, op.key, op.fields ?? {})
+    const fieldHlc = { ...(local.fieldHlc ?? {}), ...this.fieldClocksOf(op) }
+    await this.recordApplied(tx, adapter, op.entity, op.key, { hlc: op.hlc, device: op.device, fieldHlc, lineage })
+    touched.add(op.entity)
+    this.emitRemote(op.entity, op.key, 'upsert')
+  }
+
+  /** Made apart from ours: merge without losing either side (DATA-SAFE-002…). */
+  private async applyConcurrent(tx: DatabaseAdapter, adapter: EntityAdapter, op: SyncOp, meta: MetaRow, local: VersionInfo, remote: VersionInfo, touched: Set<string>): Promise<void> {
+    const cur = meta.deleted ? undefined : await adapter.read(tx, op.key)
+    const localDeleted = !!meta.deleted || !!cur?.deleted
+    const winnerHlc = compareHlc(op.hlc, meta.hlc) > 0 ? op.hlc : meta.hlc
+    const winnerDevice = winnerHlc === op.hlc ? op.device : meta.device
+    const lineage = unionLineage(local, remote, winnerHlc)
+
+    // ── both deleted ──
+    if (localDeleted && op.op === 'delete') {
+      await this.writeMeta(tx, op.entity, op.key, { hlc: winnerHlc, device: winnerDevice, deleted: true, hash: null, fieldHlc: null, fieldHash: null, lineage })
+      return
+    }
+    // ── a note deleted (purged) on one side and changed on the other: Trash with the edit ──
+    // (Unless one side is a fresh creation under the same id — e.g. today's daily note made anew
+    // after the old one was purged: that is new data, handled by the creation rule below.)
+    const unrelatedCreation = local.lineage !== null && remote.lineage !== null && (op.op === 'delete' ? !!cur && editSurvivesDelete(local, remote) : editSurvivesDelete(remote, local))
+    if (op.entity === 'note' && (localDeleted || op.op === 'delete') && !unrelatedCreation) {
+      await this.resolveNoteDeleteConflict(tx, op, meta, touched, lineage)
+      return
+    }
+    // ── an edit and a deletion made apart (other entities) ──
+    if (op.op === 'delete') {
+      if (cur && editSurvivesDelete(local, remote)) {
+        // Our record is a creation the deleting device never saw (same deterministic id): it stays.
+        await tx.run('UPDATE sync_record_meta SET lineage = ? WHERE entity = ? AND key = ?', [JSON.stringify(trimLineage([...(local.lineage ?? []), op.hlc, ...(remote.lineage ?? [])], LINEAGE_KEEP)), op.entity, op.key])
+        return
+      }
+      if (cur) await this.logConflict(tx, { entity: op.entity, key: op.key, field: null, kind: 'edit-deleted', keptHlc: op.hlc, lostHlc: meta.hlc, lostDevice: meta.device, lostValue: cur.fields })
+      await adapter.applyDelete(tx, op.key, deletedAtOf(op))
+      await this.writeMeta(tx, op.entity, op.key, { hlc: winnerHlc, device: winnerDevice, deleted: true, hash: null, fieldHlc: null, fieldHash: null, lineage })
+      touched.add(op.entity)
+      this.emitRemote(op.entity, op.key, 'delete')
+      return
+    }
+    if (localDeleted || !cur) {
+      if (!localDeleted && !cur) {
+        // Bookkeeping says live but the row is gone (damaged or externally changed database):
+        // the remote version is the only copy we have — restore it rather than lose it.
+        await this.applyForward(tx, adapter, op, local, remote, touched)
+        return
+      }
+      if (editSurvivesDelete(remote, local)) {
+        await adapter.applyUpsert(tx, op.key, op.fields ?? {})
+        await this.recordApplied(tx, adapter, op.entity, op.key, { hlc: winnerHlc, device: winnerDevice, fieldHlc: this.fieldClocksOf(op), lineage })
+        touched.add(op.entity)
+        this.emitRemote(op.entity, op.key, 'upsert')
+        return
+      }
+      // A stale edit of a record deleted here: the deletion stands; the edit is kept as a conflict.
+      await this.logConflict(tx, { entity: op.entity, key: op.key, field: null, kind: 'edit-deleted', keptHlc: meta.hlc, lostHlc: op.hlc, lostDevice: op.device, lostValue: op.fields ?? null })
+      await this.writeMeta(tx, op.entity, op.key, { hlc: winnerHlc, device: winnerDevice, deleted: true, hash: null, fieldHlc: null, fieldHash: null, lineage })
+      return
+    }
+    // ── both edited: field by field ──
+    const merged = mergeConcurrent({ ...local, fields: cur.fields }, { ...remote, fields: op.fields ?? {} }, { preferNonEmpty: op.entity === 'note' ? ['content', 'title'] : [] })
+    if (merged.conflicts.length) await this.preserveConflicts(tx, op, meta, cur.fields, merged.conflicts, touched)
+    if (merged.changed.length) {
+      await adapter.applyUpsert(tx, op.key, merged.fields)
+      touched.add(op.entity)
+      this.emitRemote(op.entity, op.key, 'upsert')
+    }
+    await this.recordApplied(tx, adapter, op.entity, op.key, { hlc: merged.hlc, device: winnerDevice, fieldHlc: merged.fieldHlc, lineage: merged.lineage })
+  }
+
+  /** Meta after an upsert was applied: hashes of what is actually stored now. */
+  private async recordApplied(tx: DatabaseAdapter, adapter: EntityAdapter, entity: string, key: string, m: { hlc: string; device: string; fieldHlc: Record<string, string>; lineage: string[] }): Promise<void> {
+    const applied = await adapter.read(tx, key)
+    const live = applied && !applied.deleted
+    await this.writeMeta(tx, entity, key, { hlc: m.hlc, device: m.device, deleted: !live && !!applied?.deleted, hash: live ? hashFields(applied!.fields) : null, fieldHlc: m.fieldHlc, fieldHash: live ? fieldHashes(applied!.fields) : null, lineage: m.lineage })
+  }
+
+  /**
+   * Values the merge could not keep. A note's text or title → a conflict copy in the note's
+   * Versions (deterministic id: every device creates the same single row); anything else → a
+   * sync_conflicts row with the lost value. Nothing is dropped.
+   */
+  private async preserveConflicts(tx: DatabaseAdapter, op: SyncOp, meta: MetaRow, localFields: Record<string, unknown>, conflicts: ReturnType<typeof mergeConcurrent>['conflicts'], touched: Set<string>): Promise<void> {
+    const noteText = op.entity === 'note' ? conflicts.filter((c) => c.field === 'content' || c.field === 'title') : []
+    if (noteText.length) {
+      // One copy per losing side, holding that side's text and title.
+      for (const side of ['local', 'remote'] as const) {
+        const lost = noteText.filter((c) => c.lostSide === side)
+        if (!lost.length) continue
+        const src = side === 'local' ? localFields : (op.fields ?? {})
+        const clock = (lost.find((c) => c.field === 'content') ?? lost[0]).lostClock
+        await this.writeConflictCopy(tx, op.key, { content: String(src.content ?? ''), title: (src.title as string | null) ?? null, hlc: clock }, touched)
+      }
+    }
+    for (const c of conflicts) {
+      const kept = op.entity === 'note' && (c.field === 'content' || c.field === 'title')
+      await this.logConflict(tx, {
+        entity: op.entity, key: op.key, field: c.field, kind: kept ? 'note-version' : 'field',
+        keptHlc: c.keptClock, lostHlc: c.lostClock, lostDevice: c.lostSide === 'local' ? meta.device : op.device,
+        lostValue: kept ? null : c.lostValue,
+      })
+    }
+  }
+
+  private async logConflict(tx: DatabaseAdapter, c: { entity: string; key: string; field: string | null; kind: string; keptHlc: string | null; lostHlc: string; lostDevice: string | null; lostValue: unknown }): Promise<void> {
+    await tx.run(
+      `INSERT OR IGNORE INTO sync_conflicts (id, entity, key, field, kind, kept_hlc, lost_hlc, lost_device, lost_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [`${c.entity}:${c.key}:${c.field ?? '*'}:${c.lostHlc}`, c.entity, c.key, c.field, c.kind, c.keptHlc, c.lostHlc, c.lostDevice, c.lostValue === null || c.lostValue === undefined ? null : JSON.stringify(c.lostValue), parseHlc(c.lostHlc).wallMs],
+    )
+    this.trace('merge:conflict', { entity: c.entity, id: shortId(c.key), field: c.field ?? '*', kind: c.kind })
   }
 
   /**
@@ -641,7 +1109,7 @@ export class SyncEngine {
    * record, the same deleted_at (the deleting side's) and the same record HLC (the greater), so
    * they converge whichever order the ops arrive in.
    */
-  private async resolveNoteDeleteConflict(tx: DatabaseAdapter, op: SyncOp, meta: MetaRow, touched: Set<string>): Promise<void> {
+  private async resolveNoteDeleteConflict(tx: DatabaseAdapter, op: SyncOp, meta: MetaRow, touched: Set<string>, lineage: string[]): Promise<void> {
     const adapter = this.entities.get('note')!
     const localRow = meta.deleted ? undefined : (await adapter.read(tx, op.key))?.fields
     const remoteRow = op.op === 'upsert' ? (op.fields ?? {}) : undefined
@@ -669,7 +1137,12 @@ export class SyncEngine {
     const hlc = compareHlc(op.hlc, meta.hlc) > 0 ? op.hlc : meta.hlc
     const device = hlc === op.hlc ? op.device : meta.device
     const after = await adapter.read(tx, op.key)
-    await tx.run('INSERT OR REPLACE INTO sync_record_meta (entity, key, hlc, device, deleted, hash) VALUES (?, ?, ?, ?, ?, ?)', [op.entity, op.key, hlc, device, after ? 0 : 1, after ? hashFields(after.fields) : null])
+    await this.writeMeta(tx, op.entity, op.key, {
+      hlc, device, deleted: !after, hash: after ? hashFields(after.fields) : null,
+      fieldHlc: after ? Object.fromEntries(Object.keys(after.fields).map((f) => [f, hlc])) : null,
+      fieldHash: after ? fieldHashes(after.fields) : null, lineage,
+    })
+    if (op.op === 'delete' || meta.deleted) await this.logConflict(tx, { entity: 'note', key: op.key, field: null, kind: 'note-trashed', keptHlc: hlc, lostHlc: op.op === 'delete' ? op.hlc : meta.hlc, lostDevice: op.op === 'delete' ? op.device : meta.device, lostValue: null })
     touched.add('note')
   }
 
@@ -720,7 +1193,11 @@ export class SyncEngine {
     // Changes other devices published (their manifests) that this device has not applied yet.
     let behind = 0
     for (const d of devices) if (d.device !== this.deviceId) behind += Math.max(0, d.seq - d.applied)
-    const state: SyncState = !transport.available ? 'unavailable'
+    const mergeConflicts = (await this.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_conflicts WHERE resolved_at IS NULL').catch(() => undefined))?.n ?? 0
+    const forks = parseJsonOr<unknown[]>((await this.db.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [STATE.forks]))?.value, []).length
+    const lastFullReconcile = numOrNull((await this.db.get<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [STATE.lastFullReconcile]))?.value)
+    const state: SyncState = this.hold || this.forkDetected ? 'held'
+      : !transport.available ? 'unavailable'
       : (this.lastError || this.unreadable || failedOps) ? 'attention'
       : this.phase === 'reconciling' ? 'reconciling'
       : this.phase === 'uploading' || (pendingUploads ?? 0) > 0 ? 'uploading'
@@ -733,6 +1210,7 @@ export class SyncEngine {
       lastApplied: this.lastApplied, schema: this.opts.schema, remoteBehind: behind, pendingUploads, lastNotifiedAt: this.lastNotifiedAt,
       lastPushAt: this.lastPushAt, lastPullAt: this.lastPullAt, lastError: this.lastError, devices, unreadable: this.unreadable,
       journal: { files: this.ownFiles.length, bytes: this.ownFiles.reduce((n, f) => n + (f.bytes ?? 0), 0) + (this.ownSnapshot?.bytes ?? 0), snapshotSeq: this.ownSnapshot?.seq ?? null },
+      hold: this.hold ? { ...this.hold } : null, mergeConflicts, forks, lastFullReconcile,
     }
   }
 
@@ -753,6 +1231,10 @@ export function hashFields(fields: Record<string, unknown>): string {
     h = Math.imul(h, 0x01000193) >>> 0
   }
   return h.toString(16).padStart(8, '0') + json.length.toString(16)
+}
+
+function deletedAtOf(op: SyncOp): number {
+  return Number((op.fields as { deleted_at?: unknown } | undefined)?.deleted_at) || parseHlc(op.hlc).wallMs
 }
 
 function numOrNull(v: string | undefined): number | null {

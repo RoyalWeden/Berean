@@ -42,6 +42,9 @@ export function createSyncHostCore(o: {
   fallbackIntervalMs?: number | null
   /** Start the watch (default true). */
   watch?: boolean
+  /** The engine found this database writing as a device whose history is ahead of it (a copy /
+   *  restored backup): the host must reopen the engine, which forks the device id. */
+  onForkDetected?: () => void
 }): SyncHostCore {
   let running: Promise<void> | null = null
   let dirty = false
@@ -66,6 +69,7 @@ export function createSyncHostCore(o: {
           dirty = false
           try { await o.engine.sync() } catch (err) { o.log?.error(`[sync] sync (${reason}) failed`, err) }
           await publish()
+          if (o.engine.forkDetected) { stopped = true; o.onForkDetected?.(); break }
         } while (dirty && !stopped)
       } finally {
         running = null

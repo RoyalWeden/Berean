@@ -25,6 +25,7 @@ public class BereanSQLitePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "attach", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "detach", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "fileInfo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "backup", returnType: CAPPluginReturnPromise),
     ]
 
     private struct Handle {
@@ -214,13 +215,47 @@ public class BereanSQLitePlugin: CAPPlugin, CAPBridgedPlugin {
 
     /// Existence + size of a symbolic path (used by the self-test screen and the bundled-data
     /// inventory check at startup).
+    /// A consistent copy of an open database (`VACUUM INTO`, safe with WAL — never a raw file
+    /// copy) into Application Support/Berean/backups/<name>, keeping the newest `keep` copies.
+    /// Written to a temporary name and renamed, so a kill never leaves a half backup looking whole.
+    /// The folder is excluded from device backups (the device backup already has berean.db).
+    @objc func backup(_ call: CAPPluginCall) {
+        guard let name = call.getString("name"), !name.contains("/"), !name.contains("..") else { call.reject("bad backup name"); return }
+        let keep = max(1, call.getInt("keep") ?? 3)
+        withHandle(call) { conn in
+            let (dbURL, _) = try BereanSQLitePlugin.resolve(path: "appsupport:berean.db")
+            let dir = dbURL.deletingLastPathComponent().appendingPathComponent("backups", isDirectory: true)
+            let fm = FileManager.default
+            if !fm.fileExists(atPath: dir.path) {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                var values = URLResourceValues(); values.isExcludedFromBackup = true
+                var mutable = dir; try? mutable.setResourceValues(values)
+            }
+            let tmp = dir.appendingPathComponent(name + ".tmp")
+            let dest = dir.appendingPathComponent(name)
+            try? fm.removeItem(at: tmp)
+            try conn.exec("VACUUM INTO '\(tmp.path.replacingOccurrences(of: "'", with: "''"))'")
+            try? fm.removeItem(at: dest)
+            try fm.moveItem(at: tmp, to: dest)
+            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey]))?
+                .filter { $0.pathExtension == "db" }
+                .sorted { ((try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast) > ((try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast) } ?? []
+            for old in files.dropFirst(keep) { try? fm.removeItem(at: old) }
+            return ["path": "appsupport:backups/\(name)", "kept": min(files.count, keep)]
+        }
+    }
+
     @objc func fileInfo(_ call: CAPPluginCall) {
         guard let path = call.getString("path") else { call.reject("missing path"); return }
         do {
             let (url, readOnly) = try BereanSQLitePlugin.resolve(path: path)
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
             let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
-            call.resolve(["exists": attrs != nil, "size": size, "readOnly": readOnly])
+            var out: [String: Any] = ["exists": attrs != nil, "size": size, "readOnly": readOnly]
+            // Creation time identifies this copy of the file: a restored backup or a copy is a new
+            // file (the sync engine forks its device id on a change — DATA-SAFE-030).
+            if let created = attrs?[.creationDate] as? Date { out["created"] = Int64(created.timeIntervalSince1970 * 1000) }
+            call.resolve(out)
         } catch {
             call.resolve(["exists": false, "size": 0, "readOnly": false])
         }
