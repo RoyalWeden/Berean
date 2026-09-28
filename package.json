@@ -27,7 +27,7 @@
     "data:publish": "node scripts/publish-data.js",
     "embeddings:build": "node scripts/build-embedding-index.js",
     "ios:build:web": "vite build -c vite.ios.config.ts",
-    "ios:sync": "npm run ios:build:web && node scripts/ios/version.mjs && cap sync ios && node scripts/ios/patch-xcodeproj.mjs",
+    "ios:sync": "( [ -f data/youtube_index.db ] || node scripts/data/split-youtube-seed.mjs ) && npm run ios:build:web && node scripts/ios/version.mjs && cap sync ios && node scripts/ios/patch-xcodeproj.mjs",
     "ios:open": "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cap open ios",
     "ios:build": "bash scripts/ios/build.sh simulator",
     "ios:device": "bash scripts/ios/build.sh device",
