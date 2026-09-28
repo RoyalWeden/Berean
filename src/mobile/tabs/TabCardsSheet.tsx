@@ -14,6 +14,7 @@ import { NewTabSheet, type MorePageRoute } from '../navigation/NewTabSheet'
 import { moveInOrder, workspaceOrder } from './tabOrder'
 import { displayedOrder, applyManualReorder, type TabSortMode } from './tabSort'
 import './tabCards.css'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 export const SPACE_ORDER: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
 
@@ -34,6 +35,8 @@ export function tabKind(t: Tab): { icon: LucideIcon; label: string } {
 export function tabTitle(t: Tab): string {
   // An empty YouTube tab keeps the hosted player's transient "Loading…" title — name it by kind.
   if (t.type === 'youtube' && !(t.state as { videoId?: string | null }).videoId && /^loading/i.test(t.title)) return tabKind(t).label
+  // A note tab named after a vault verse note reads "Matthew 5:3", not "Matthew 5.3" (NOTES-REF-001).
+  if (t.type === 'note' && t.title) return displayNoteTitle(t.title)
   return t.title || tabKind(t).label
 }
 

@@ -4,6 +4,7 @@ import type { TrailStickyNote, TrailSessionDetail } from '@/types/studyTrail'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 /**
  * Sticky notes of one session (R042): section headers and annotations, listed with the stop each
@@ -75,7 +76,7 @@ export function TrailNotesSheet({ sessionId, api }: { sessionId: string; api: Sh
                   <button type="button" className="mobile-icon-tap" aria-label="Delete" onClick={() => void remove(n)}><Trash2 size={18} aria-hidden /></button>
                 </span>
               </div>
-              {n.title && <div className="m-trail-note-title">{n.title}</div>}
+              {n.title && <div className="m-trail-note-title">{displayNoteTitle(n.title)}</div>}
               {n.body && <div className="m-trail-note-text">{n.body}</div>}
             </>
           )}

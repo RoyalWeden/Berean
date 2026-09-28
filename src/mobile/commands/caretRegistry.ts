@@ -26,6 +26,9 @@ export type CaretCommand =
   | { kind: 'toggle'; id: string; label: string; icon?: LucideIcon; detail?: string; value: boolean; set: (v: boolean) => void }
   | { kind: 'stepper'; id: string; label: string; icon?: LucideIcon; value: number; unit?: string; min: number; max: number; set: (v: number) => void }
   | { kind: 'segmented'; id: string; label: string; icon?: LucideIcon; value: string; options: Array<[string, string]>; set: (v: string) => void }
+  /** Inline content rendered in the sheet's own scroll (no nested scroller) — e.g. the Cross References
+   *  cards inside a collapsible section (XREF-003). `render` receives the sheet so it can close it. */
+  | { kind: 'content'; id: string; label: string; icon?: LucideIcon; render: (api: SheetApi) => React.ReactNode }
 
 export interface CaretSection {
   id: string

@@ -34,7 +34,7 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
   onShowCrossRefs: () => void
   onTag: (scope: 'verse' | 'chapter') => void
   onStrongs: (num: string) => void
-  onNavigateRef: (r: XRef, source: CrossRefSourceId) => void
+  onNavigateRef: (r: XRef, source: CrossRefSourceId, intent: 'current-tab' | 'new-tab') => void
 }) {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -140,7 +140,7 @@ export function VerseActionSheet({ ctx, api, onShowNotes, onShowCrossRefs, onTag
 
       {!api.atLow && (
         <>
-          <VerseStudy verse={ctx.verse} textId={ctx.textId} showVerse={!showVerseInline} onStrongs={onStrongs} onNavigate={(r, source) => { api.close(); onNavigateRef(r, source) }} />
+          <VerseStudy verse={ctx.verse} textId={ctx.textId} showVerse={!showVerseInline} onStrongs={onStrongs} onNavigate={(r, source, intent) => { api.close(); onNavigateRef(r, source, intent) }} />
           <div className="mobile-action-list">
             {sel && <button type="button" className="mobile-action-row" onClick={run(ctx.copyVerse)}><Copy size={20} aria-hidden /><span>Copy whole verse</span></button>}
             <button type="button" className="mobile-action-row" onClick={run(ctx.copyReference)}><Hash size={20} aria-hidden /><span>Copy reference</span></button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store'
 import { filterNoteCrossRefs, loadChapterNoteCrossRefs } from '@/lib/notesCrossRefs'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 export type CrossRefSourceId = 'tske' | 'classic' | 'notes'
 export interface XRef { bookId: string; chapter: number; verse: number; endVerse?: number | null; text?: string; votes?: number; lxx?: boolean; noteTitle?: string }
@@ -31,7 +32,7 @@ export function useVerseCrossRefs(bookId: string, chapter: number, verses: reado
           const mentions = all.indirect.filter((m) => m.verses.includes(v))
           const groups: XRefGroup[] = []
           if (direct.length) groups.push({ refs: direct.map((r) => ({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse ?? null, lxx: r.lxx, noteTitle: r.sourceNoteTitle })) })
-          if (mentions.length) groups.push({ heading: 'Mentioned in', refs: [], mentions: mentions.map((m) => m.note.title || 'Untitled') })
+          if (mentions.length) groups.push({ heading: 'Mentioned in', refs: [], mentions: mentions.map((m) => displayNoteTitle(m.note.title)) })
           return { verse: v, groups }
         })
       }

@@ -29,6 +29,7 @@ import { BarChart3 } from 'lucide-react'
 import { computeWordStats } from '@/lib/wordCount'
 import { NoteInsertButton } from './NoteInsertButton'
 import { renderPhoneSelectionToolbar, noteStatsLine, showVerseContextLine } from './phoneEditorChrome'
+import { displayNoteTitle, storedNoteTitle } from '@/lib/noteTitle'
 
 /**
  * Note editor page (Phase 13, R084): the shared ProseMirror editor (`NoteEditorPM`) full-screen,
@@ -170,10 +171,10 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     <Page
       noScroll
       onBack={onBack}
-      title={<span className="mobile-title-wrap">{note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}<input className="mobile-title-input" value={note.title} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: e.target.value })} /></span>}
+      title={<span className="mobile-title-wrap">{note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}<input className="mobile-title-input" value={displayNoteTitle(note.title, '')} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: storedNoteTitle(e.target.value, note.title) })} /></span>}
       right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /></>}
     >
-      {printOpen && <PrintPreviewModal title={note.title || 'Untitled'} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
+      {printOpen && <PrintPreviewModal title={displayNoteTitle(note.title)} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
       <div className="mobile-note-editor" {...refLongPress}>
         {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
         <NoteEditorPM

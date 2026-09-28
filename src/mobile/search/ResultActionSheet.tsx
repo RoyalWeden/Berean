@@ -108,7 +108,7 @@ export function useSearchResultActions(page: {
   }
 
   const note = (n: Note) => {
-    const title = n.title || 'Untitled'
+    const title = displayNoteTitle(n.title)
     sheet(`search-note-${n.id}`, title, toActions('note', {
       'open': () => page.openNote(n),
       'open-new-tab': () => { openDestination({ kind: 'note', noteId: n.id }, 'new-tab') },
@@ -143,3 +143,5 @@ export function LongPressResult({ onLongPress, children }: { onLongPress: () => 
   const lp = useLongPress(() => { void haptic.medium(); onLongPress() })
   return <div className="search-result-lp" {...lp} onContextMenu={(e) => e.preventDefault()}>{children}</div>
 }
+
+import { displayNoteTitle } from '@/lib/noteTitle'

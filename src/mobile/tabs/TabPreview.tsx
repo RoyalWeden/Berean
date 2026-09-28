@@ -14,6 +14,7 @@ import type { SearchPreviewSummary } from '../search/resultActions'
 import './tabPreview.css'
 import { readerScrollMemory } from '../reader/readerScrollMemory'
 import { columnsForState, translationLabel } from '../reader/compareState'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 /**
  * What a tab card shows (T23-011): a small, REAL preview of the tab's last state — never a
@@ -132,7 +133,7 @@ function NotePreview({ tab }: { tab: Tab }) {
   const body = note ? stripMarkdownFormatting(note.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 260) : ''
   return (
     <div className="mobile-tab-preview is-note">
-      <div className="mobile-tab-preview-passage">{note?.icon ? `${note.icon} ` : ''}{note?.title || 'Untitled'}</div>
+      <div className="mobile-tab-preview-passage">{note?.icon ? `${note.icon} ` : ''}{displayNoteTitle(note?.title)}</div>
       <p className="mobile-tab-preview-text is-sans">{body}</p>
     </div>
   )
@@ -148,7 +149,7 @@ function NotesHomePreview({ token }: { token: number }) {
     <div className="mobile-tab-preview is-note is-list">
       <div className="mobile-tab-preview-passage">Notes</div>
       {rows.map((n) => (
-        <div key={n.id} className="mobile-tab-preview-line"><span aria-hidden>{n.icon ?? (n.type === 'verse' ? '📖' : n.type === 'daily' ? '📅' : '📝')}</span> {n.title || 'Untitled'}</div>
+        <div key={n.id} className="mobile-tab-preview-line"><span aria-hidden>{n.icon ?? (n.type === 'verse' ? '📖' : n.type === 'daily' ? '📅' : '📝')}</span> {displayNoteTitle(n.title)}</div>
       ))}
     </div>
   )

@@ -191,7 +191,7 @@ function labelOf(p: UnifiedPick): string {
     case 'goto': return p.item.label
     case 'verse': return bookChapterVerseLabel(p.hit.book_id, p.hit.chapter, p.hit.verse_num)
     case 'entry': return p.entry.strongsNum
-    case 'note': return p.note.title || 'Untitled'
+    case 'note': return displayNoteTitle(p.note.title)
   }
 }
 
@@ -235,3 +235,5 @@ function SurfaceBooks() {
 export function useSurfaceContext(textId?: string, bookId?: string): IntentContext | undefined {
   return useMemo(() => (textId || bookId ? { textId, bookId } : undefined), [textId, bookId])
 }
+
+import { displayNoteTitle } from '@/lib/noteTitle'

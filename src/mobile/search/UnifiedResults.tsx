@@ -10,6 +10,7 @@ import type { ScriptureHit } from '@/lib/scriptureSearch'
 import type { WordMode } from '@/lib/scriptureHighlight'
 import { hitSourceLabel, type GoToItem, type UnifiedResults as Results, type UnifiedScope } from '@/lib/search/unifiedSearch'
 import { LongPressResult } from './ResultActionSheet'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 /** What a row opens — the surface decides WHERE (current tab / new tab). */
 export type UnifiedPick =
@@ -81,7 +82,7 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
       {notes && notes.length > 0 && (
         <Group title="Notes" count={notes.length}>
           {notes.slice(0, rows(GROUP_ROWS.notes)).map((n) => wrap({ kind: 'note', note: n }, (
-            <Row icon={NotepadText} onClick={() => onPick({ kind: 'note', note: n })} title={n.title || 'Untitled'}
+            <Row icon={NotepadText} onClick={() => onPick({ kind: 'note', note: n })} title={displayNoteTitle(n.title)}
               sub={applyFindHighlight(stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 110), text, wordMode)} />
           ), n.id))}
           {notes.length > rows(GROUP_ROWS.notes) && <SeeAll label={`All ${notes.length} notes`} onClick={() => onSeeAll('notes')} />}

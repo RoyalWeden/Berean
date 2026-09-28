@@ -44,7 +44,7 @@ export function VerseStudy({ verse, textId, showVerse = true, onStrongs, onNavig
   textId: string
   showVerse?: boolean
   onStrongs: (num: string) => void
-  onNavigate: (r: XRef, source: CrossRefSourceId) => void
+  onNavigate: (r: XRef, source: CrossRefSourceId, intent: 'current-tab' | 'new-tab') => void
 }) {
   return (
     <div className="mobile-study">

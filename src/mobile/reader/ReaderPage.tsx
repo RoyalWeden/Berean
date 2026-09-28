@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChapterNotesView, useChapterNotes } from '../study/ChapterNotesView'
+import { CaretCrossRefs } from '../study/CrossRefsSheet'
 import { isEditingInSheet } from './sheetEditingGuards'
 import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
@@ -255,8 +256,12 @@ export function ReaderPage({ tab }: { tab: Tab }) {
           { kind: 'toggle', id: 'verse-numbers', label: 'Verse numbers', icon: Hash, value: st.showVerseNumbers, set: st.setShowVerseNumbers },
           { kind: 'toggle', id: 'red-letters', label: 'Red letter text', icon: Type, value: st.showRedLetters, set: st.setShowRedLetters },
         ] },
+        // Cross References (XREF-003): collapsed by default; expands in place into the shared cards
+        // for the chapter (no selection) or the selected verses — the source picker moved inside.
+        { id: 'xrefs', collapsible: { label: 'Cross References', icon: GitFork, summary: selectedHere.length ? (selectedHere.length === 1 ? `v. ${selectedHere[0]}` : `${selectedHere.length} verses`) : 'Chapter' }, commands: [
+          { kind: 'content', id: 'xref-list', label: 'Cross references', render: (a) => <CaretCrossRefs bookId={state.bookId} chapter={state.chapter} verses={selectedHere} textId={textId} api={a} /> },
+        ] },
         { id: 'study', title: 'Study', commands: [
-          { kind: 'segmented', id: 'xref-source', label: 'Cross references', icon: GitFork, value: st.crossRefSource, options: [['tske', 'TSK/e'], ['classic', 'Classic'], ['notes', 'My Notes']], set: (v) => st.setCrossRefSource(v as 'tske' | 'classic' | 'notes') },
           // My Notes for THIS context (NOTES-CH-001): the chapter's notes with no verse selected
           // (they no longer show as a banner over the text), the selected verses' otherwise.
           { kind: 'view', id: 'my-notes', label: 'My Notes', icon: NotepadText,

@@ -4,6 +4,7 @@ import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import type { SheetApi } from '../primitives/Sheet'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 /**
  * The Notes carets' location view (SEP24-008): find a note by title or text and open it in THIS
@@ -29,7 +30,7 @@ export function NoteFinder({ api }: { api: SheetApi }) {
       <div className="mobile-choice-list">
         {rows.map((n) => (
           <button key={n.id} type="button" className="mobile-choice-row" onClick={() => { api.close(); useAppStore.getState().requestOpenNote(n.id) }}>
-            <span className="mobile-choice-label">{n.icon ? `${n.icon} ` : ''}{n.title || 'Untitled'}<small>{stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)}</small></span>
+            <span className="mobile-choice-label">{n.icon ? `${n.icon} ` : ''}{displayNoteTitle(n.title)}<small>{stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)}</small></span>
           </button>
         ))}
         {rows.length === 0 && <div className="mobile-empty">{q.trim() ? 'No notes match.' : 'No notes yet.'}</div>}

@@ -309,7 +309,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
     if (scope === 'all' && unified?.verses && unified.verses.length && q.length >= 2) {
       return buildSearchPreview(q, unified.verses.length, unified.verses.slice(0, 3).map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(h.text, snippetQueryFor(q), 120).text })))
     }
-    if (scope === 'notes' && notes && q.length >= 2) return buildSearchPreview(q, notes.length, notes.map((n) => ({ ref: n.title || 'Untitled', text: stripMarkdownFormatting(n.content ?? '') })))
+    if (scope === 'notes' && notes && q.length >= 2) return buildSearchPreview(q, notes.length, notes.map((n) => ({ ref: displayNoteTitle(n.title), text: stripMarkdownFormatting(n.content ?? '') })))
     if (scope === 'lexicon' && entries && q.length >= 2) return buildSearchPreview(q, entries.length, entries.map((e) => ({ ref: `${e.strongsNum} ${e.lemma ?? ''}`.trim(), text: e.gloss ?? '' })))
     return null
   }, [scope, filteredHits, groups, notes, entries, unified, query, browsing])
@@ -437,7 +437,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
         <ListSection title={`${notes.length} note${notes.length === 1 ? '' : 's'}`}>
           {notes.length === 0 && <div className="mobile-empty">No notes match.</div>}
           {notes.map((n) => (
-            <LongPressResult key={n.id} onLongPress={() => resultActions.note(n)}><Row chevron title={n.title || 'Untitled'} subtitle={applyFindHighlight(stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 140), query, wordMode)} onClick={() => openNote(n)} /></LongPressResult>
+            <LongPressResult key={n.id} onLongPress={() => resultActions.note(n)}><Row chevron title={displayNoteTitle(n.title)} subtitle={applyFindHighlight(stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 140), query, wordMode)} onClick={() => openNote(n)} /></LongPressResult>
           ))}
         </ListSection>
       )}
@@ -572,3 +572,5 @@ function SearchFiltersSheet({ tabId, scope, api }: { tabId: string; scope: Scope
     </div>
   )
 }
+
+import { displayNoteTitle } from '@/lib/noteTitle'

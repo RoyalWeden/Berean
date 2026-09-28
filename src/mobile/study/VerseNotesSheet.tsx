@@ -16,6 +16,7 @@ import { renderPhoneSelectionToolbar } from '../notes/phoneEditorChrome'
 import '../notes/verseNotes.css'
 import { useNoteAutosave } from '../notes/useNoteAutosave'
 import { StrongsSheet } from './StrongsSheet'
+import { displayNoteTitle, storedNoteTitle } from '@/lib/noteTitle'
 
 /** Push the in-place editor for a note into the current sheet, at its full height. */
 export function pushSheetNoteEditor(api: SheetApi, noteId: string, context: string, onOpenInNotes: (id: string) => void, fullDetent: number) {
@@ -67,7 +68,7 @@ export function VerseNotesSheet({ verseRef, textId, label, api, onOpenNote, onNe
             const preview = previewOf(n)
             return (
               <button key={n.id} type="button" className="m-verse-note-card" onClick={() => edit(n.id)}>
-                <span className="m-verse-note-card-title">{n.icon && <span aria-hidden>{n.icon} </span>}{n.title || 'Untitled'}</span>
+                <span className="m-verse-note-card-title">{n.icon && <span aria-hidden>{n.icon} </span>}{displayNoteTitle(n.title)}</span>
                 {preview && <span className="m-verse-note-card-preview">{preview}</span>}
               </button>
             )
@@ -125,7 +126,7 @@ export function MultiVerseNotesSheet({ verses, label, api, onOpenNote, fullDeten
             const where = refs.map((r) => verseRefDisplay(r, textId)).join(' · ')
             return (
               <button key={n.id} type="button" className="m-verse-note-card" onClick={() => edit(n.id, verseRefDisplay(refs[0], textId))}>
-                <span className="m-verse-note-card-title">{n.icon && <span aria-hidden>{n.icon} </span>}{n.title || 'Untitled'}</span>
+                <span className="m-verse-note-card-title">{n.icon && <span aria-hidden>{n.icon} </span>}{displayNoteTitle(n.title)}</span>
                 {preview && <span className="m-verse-note-card-preview">{preview}</span>}
                 {verses.length > 1 && <span className="m-verse-note-card-refs">{where}</span>}
               </button>
@@ -148,7 +149,7 @@ export function SheetNoteEditor({ noteId, api, onOpenInNotes }: { noteId: string
   return (
     <div className="mobile-sheet-note">
       <div className="mobile-sheet-note-head">
-        <input className="mobile-sheet-note-title" value={note.title} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: e.target.value })} />
+        <input className="mobile-sheet-note-title" value={displayNoteTitle(note.title, '')} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: storedNoteTitle(e.target.value, note.title) })} />
         <button type="button" className="mobile-sheet-note-open" onClick={() => onOpenInNotes(note.id)} aria-label="Open in Notes">
           <ExternalLink size={17} aria-hidden />
         </button>

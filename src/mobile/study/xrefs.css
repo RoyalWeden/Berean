@@ -1,0 +1,52 @@
+/* Cross-reference cards (XREF-002) — shared by every iPhone cross-reference surface.
+   Reference + full text as one flowing paragraph; long passages clamp and expand in place.
+   Sizes scale with Dynamic Type (--m-type-scale); no nested scroller — the sheet scrolls. */
+.m-xref-list { display: flex; flex-direction: column; gap: 14px; }
+.m-xref-list.is-compact { gap: 10px; }
+.m-xref-section > div[role='list'] { display: flex; flex-direction: column; gap: 6px; }
+.m-xref-heading {
+  margin: 0 4px 6px; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600;
+  letter-spacing: 0.02em; text-transform: uppercase; color: rgb(var(--color-text-muted));
+}
+.m-xref {
+  padding: 10px 12px; border-radius: 12px; background: var(--m-card-bg);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.m-xref.is-compact { padding: 8px 11px; }
+.m-xref.is-current { box-shadow: inset 3px 0 0 rgb(var(--color-accent) / 0.7); }
+.m-xref-body {
+  margin: 0; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.42; color: rgb(var(--color-text-primary));
+  font-family: var(--m-scripture-font, inherit);
+}
+.m-xref.is-compact .m-xref-body { font-size: calc(14px * var(--m-type-scale, 1)); line-height: 1.38; }
+.m-xref-body.is-clamped { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.m-xref.is-compact .m-xref-body.is-clamped { -webkit-line-clamp: 2; }
+.m-xref-ref {
+  display: inline; padding: 0; border: 0; background: none; font: inherit; font-weight: 600;
+  font-family: -apple-system, system-ui, sans-serif; color: rgb(var(--color-accent));
+  -webkit-tap-highlight-color: transparent;
+  /* ≥ 44 pt tap target without changing the line box */
+  position: relative;
+}
+.m-xref-ref::after { content: ''; position: absolute; inset: -12px -6px; }
+.m-xref-text { cursor: default; }
+.m-xref-text[role='button'] { cursor: pointer; }
+.m-xref-text.is-muted { color: rgb(var(--color-text-muted)); font-style: italic; }
+.m-xref-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; min-height: 22px; }
+.m-xref-meta { flex: 1; min-width: 0; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-xref-toggle {
+  flex: none; margin-left: auto; width: 44px; height: 30px; margin-right: -8px; border: 0; background: none;
+  display: inline-flex; align-items: center; justify-content: center; color: rgb(var(--color-text-muted));
+}
+.m-xref-toggle svg { transition: transform 0.18s ease; }
+.m-xref.is-open .m-xref-toggle svg { transform: rotate(180deg); }
+.m-xref-mentions { margin: 0 4px; font-size: calc(14px * var(--m-type-scale, 1)); color: rgb(var(--color-text-secondary)); }
+@media (prefers-reduced-motion: reduce) { .m-xref-toggle svg { transition: none; } }
+/* My Notes, chapter context: notes, then chapter-level cross references, in the sheet's one scroll. */
+.m-chapter-notes-wrap { display: flex; flex-direction: column; gap: 18px; padding: 4px 16px 16px; }
+.m-chapter-notes-wrap .mobile-newtab { padding: 0; }
+.m-chapter-notes-heading { margin-top: 4px; }
+/* The caret's collapsible Cross References: cards sit inside the grouped section. */
+.mobile-caret-content { padding: 8px 12px 12px; }
+.mobile-caret-content .m-xref { background: rgb(var(--color-text-primary) / 0.05); }
+.m-caret-xrefs { display: flex; flex-direction: column; gap: 10px; }

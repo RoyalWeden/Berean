@@ -115,9 +115,11 @@ export function useVerseSheets(opts: { tabId?: string | null; onNavigated?: () =
           onShowCrossRefs={() => pushCrossRefs(api, ctx)}
           onTag={(scope) => pushTagPicker(api, ctx, scope)}
           onStrongs={(num) => pushStrongs(api, num)}
-          onNavigateRef={(r, source) => {
+          onNavigateRef={(r, source, intent) => {
             opts.onNavigated?.()
-            navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, origin: { kind: 'cross-ref', source, fromVerse: ctx.verse.verse_num } })
+            const origin = { kind: 'cross-ref' as const, source, fromVerse: ctx.verse.verse_num }
+            if (intent === 'new-tab') openDestination({ kind: 'passage', bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse ?? null, ...(r.lxx ? { textId: 'lxx' } : {}) }, 'new-tab', { origin })
+            else navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, origin })
           }} />
       ),
     })

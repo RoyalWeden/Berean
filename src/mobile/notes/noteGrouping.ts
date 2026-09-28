@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { Note, NoteFolder } from '@/types'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 /**
  * iPhone presentations of the desktop Notes views (list / folder / board). The phone never hosts
@@ -29,7 +30,7 @@ export interface NoteGroup { id: string; title: string; notes: Note[] }
 
 export function sortNotes(notes: Note[], sort: NoteSortMode): Note[] {
   const out = [...notes]
-  if (sort === 'name') out.sort((a, b) => (a.title || 'Untitled').localeCompare(b.title || 'Untitled', undefined, { sensitivity: 'base' }))
+  if (sort === 'name') out.sort((a, b) => displayNoteTitle(a.title).localeCompare(displayNoteTitle(b.title), undefined, { sensitivity: 'base' }))
   else if (sort === 'created') out.sort((a, b) => b.createdAt - a.createdAt)
   else out.sort((a, b) => b.updatedAt - a.updatedAt)
   return out
@@ -81,11 +82,26 @@ export function groupNotes(notes: Note[], grouping: NoteGrouping, sort: NoteSort
 }
 
 // ── session store for the chosen presentation ──────────────────────────────────────────────
-let current: { grouping: NoteGrouping; sort: NoteSortMode } = { grouping: 'none', sort: 'modified' }
+// Persisted on the device (NOTES-HOME-004: the chosen sort / grouping survives relaunch).
+const VIEW_KEY = 'berean.notesHome.view.v1'
+function readView(): { grouping: NoteGrouping; sort: NoteSortMode } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VIEW_KEY) ?? 'null') as { grouping?: string; sort?: string } | null
+    return {
+      grouping: NOTE_GROUPING_OPTIONS.some((o) => o.id === raw?.grouping) ? raw!.grouping as NoteGrouping : 'none',
+      sort: NOTE_SORT_OPTIONS.some((o) => o.id === raw?.sort) ? raw!.sort as NoteSortMode : 'modified',
+    }
+  } catch { return { grouping: 'none', sort: 'modified' } }
+}
+let current: { grouping: NoteGrouping; sort: NoteSortMode } = readView()
 const listeners = new Set<() => void>()
 export const noteHomeView = {
   get: () => current,
-  set(patch: Partial<typeof current>) { current = { ...current, ...patch }; for (const l of listeners) l() },
+  set(patch: Partial<typeof current>) {
+    current = { ...current, ...patch }
+    try { localStorage.setItem(VIEW_KEY, JSON.stringify(current)) } catch { /* session only */ }
+    for (const l of listeners) l()
+  },
   subscribe(l: () => void) { listeners.add(l); return () => { listeners.delete(l) } },
 }
 export function useNoteHomeView() {

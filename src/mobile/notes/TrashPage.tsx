@@ -3,6 +3,7 @@ import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useActionSheet } from '../primitives/ActionSheet'
+import { displayNoteTitle } from '@/lib/noteTitle'
 
 /** Notes trash on the phone: restore or delete permanently; empty trash. */
 export function TrashPage({ onBack }: { onBack: () => void }) {
@@ -16,7 +17,7 @@ export function TrashPage({ onBack }: { onBack: () => void }) {
       <ListSection>
         {items.length === 0 && <div className="mobile-empty">Trash is empty.</div>}
         {items.map((n) => (
-          <Row key={n.id} title={n.title || 'Untitled'} subtitle={n.deletedAt ? `Deleted ${new Date(n.deletedAt).toLocaleString()}` : undefined} chevron onClick={() => actions(`trash-${n.id}`, n.title || 'Untitled', [
+          <Row key={n.id} title={displayNoteTitle(n.title)} subtitle={n.deletedAt ? `Deleted ${new Date(n.deletedAt).toLocaleString()}` : undefined} chevron onClick={() => actions(`trash-${n.id}`, displayNoteTitle(n.title), [
             { id: 'restore', label: 'Restore', onSelect: () => { window.notes.restoreNote(n.id).then(() => bump()) } },
             { id: 'purge', label: 'Delete permanently', destructive: true, onSelect: () => { if (confirm('Delete this note permanently?')) window.notes.purgeTrashItem(n.id).then(() => bump()) } },
           ])} />

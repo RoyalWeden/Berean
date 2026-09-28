@@ -59,7 +59,9 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
             </button>
             {expanded[sec.id] && (
               <div className="mobile-caret-disclosure-body">
-                {sec.commands.map((c) => <CaretRow key={c.id} c={c} onAction={act} onView={open} onChanged={bump} />)}
+                {sec.commands.map((c) => c.kind === 'content'
+                  ? <div key={c.id} className="mobile-caret-content">{c.render(api)}</div>
+                  : <CaretRow key={c.id} c={c} onAction={act} onView={open} onChanged={bump} />)}
               </div>
             )}
           </div>
@@ -91,7 +93,9 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
         <section key={sec.id} className="mobile-caret-group" aria-label={sec.title}>
           {sec.title && <h3 className="mobile-caret-group-title">{sec.title}</h3>}
           <div className="mobile-caret-group-body">
-            {sec.commands.map((c) => <CaretRow key={c.id} c={c} onAction={act} onView={open} onChanged={bump} />)}
+            {sec.commands.map((c) => c.kind === 'content'
+              ? <div key={c.id} className="mobile-caret-content">{c.render(api)}</div>
+              : <CaretRow key={c.id} c={c} onAction={act} onView={open} onChanged={bump} />)}
           </div>
         </section>
       ))}
@@ -141,6 +145,7 @@ function CaretRow({ c, onAction, onView, onChanged }: {
       </div>
     )
   }
+  if (c.kind === 'content') return null
   return (
     <div className="mobile-caret-row is-stacked">
       <span className="mobile-caret-row-label">{lead}{c.label}</span>
