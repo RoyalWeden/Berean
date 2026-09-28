@@ -15,6 +15,7 @@ import { moveInOrder, workspaceOrder } from './tabOrder'
 import { displayedOrder, applyManualReorder, type TabSortMode } from './tabSort'
 import './tabCards.css'
 import { displayNoteTitle } from '@/lib/noteTitle'
+import { setTabInteraction } from '@/store/tabPersistenceRuntime'
 
 export const SPACE_ORDER: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
 
@@ -126,6 +127,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
 
   const reset = () => {
     if (g.current?.timer) clearTimeout(g.current.timer)
+    if (g.current?.lifted) setTabInteraction(false)
     g.current = null
     setLiftedId(null)
     setLiveOrder(null)
@@ -140,6 +142,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
     st.timer = setTimeout(() => {
       if (g.current !== st) return
       st.lifted = true
+      setTabInteraction(true)
       try { card.setPointerCapture(st.pointerId) } catch { /* pointer already released */ }
       window.getSelection()?.removeAllRanges()
       void haptic.medium()

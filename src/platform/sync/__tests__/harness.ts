@@ -25,7 +25,7 @@ export interface SimDevice {
   cloud: MemoryCloud
   opts: DeviceOpts
 }
-export interface DeviceOpts { accountIdentity?: string | null; storageIdentity?: string | null; appVersion?: string; databaseProblem?: string | null }
+export interface DeviceOpts { accountIdentity?: string | null; storageIdentity?: string | null; appVersion?: string; databaseProblem?: string | null; onProgress?: (p: import('../types').SyncProgress | null) => void; onApplied?: (entities: Set<string>) => void }
 
 export class Sim {
   clock = 1_700_000_000_000
@@ -60,7 +60,7 @@ export class Sim {
     const quiet = { info: () => {}, warn: () => {}, error: () => {} }
     const engine = await SyncEngine.open({
       db, store, events: rec.events, deviceId, deviceName: name, platform: 'ios', appVersion: o.appVersion ?? '1.0', schema: BEREAN_SCHEMA_VERSION,
-      log: quiet, now: () => this.clock, uuid: this.uuid, accountIdentity: o.accountIdentity ?? null, databaseProblem: o.databaseProblem ?? null,
+      log: quiet, now: () => this.clock, uuid: this.uuid, accountIdentity: o.accountIdentity ?? null, databaseProblem: o.databaseProblem ?? null, onProgress: o.onProgress, onApplied: o.onApplied,
     })
     engine.start()
     if (!o.databaseProblem) { await engine.adoptExisting(); await engine.republishIfRequested() }

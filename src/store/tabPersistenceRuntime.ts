@@ -245,8 +245,25 @@ export function installTabPersistence(): () => void {
 }
 
 /** Sync engine hook (Phase 6+): re-read the tables after remote ops were applied. */
+/**
+ * A tab gesture in progress (drag-reorder on the Mac tab bar, lift-and-drag on the iPhone tab
+ * cards): remote tab changes that arrive meanwhile are applied once the gesture ends, so the list
+ * never reshuffles under the user's finger (DATA-TAB-002).
+ */
+let interacting = 0
+let pendingExternal = false
+let interactionTimer: ReturnType<typeof setTimeout> | null = null
+export function setTabInteraction(active: boolean): void {
+  interacting = Math.max(0, interacting + (active ? 1 : -1))
+  // A lost pointer / missed drag-end must never hold remote tab changes forever.
+  if (interactionTimer) { clearTimeout(interactionTimer); interactionTimer = null }
+  if (interacting > 0) interactionTimer = setTimeout(() => { interacting = 1; setTabInteraction(false) }, 30_000)
+  if (interacting === 0 && pendingExternal) { pendingExternal = false; void applyExternalSessions() }
+}
+
 export async function applyExternalSessions(): Promise<void> {
   if (!api()) return
+  if (interacting > 0) { pendingExternal = true; return }
   const h = await loadRows()
   keys = h.keys
   applyHydrated(h, { keepLocalTabState: true, holdOnScreen: true })
@@ -260,4 +277,6 @@ export function __resetTabPersistence(): void {
   applyingExternal = false
   installed = false
   deferred.clear()
+  interacting = 0
+  pendingExternal = false
 }

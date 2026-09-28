@@ -53,3 +53,7 @@
 .theme-editor-sample sup { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7em; margin-left: 1px; }
 .theme-editor-well { display: inline-flex; align-items: center; gap: 8px; }
 .theme-editor-auto { min-height: 32px; padding: 0 10px; border: 0; border-radius: 16px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-accent)); font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); }
+/* Compact iCloud row (DATA-UX-001): tap the text → the iCloud page; the switch toggles in place. */
+.m-icloud-row { gap: 8px; }
+.m-icloud-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; min-height: 44px; }
+.m-icloud-page { padding: 12px 16px 32px; }

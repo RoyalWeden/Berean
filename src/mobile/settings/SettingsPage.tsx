@@ -3,7 +3,7 @@ import { useAppStore } from '@/store'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { THEME_PRESETS } from '@/lib/themePresets'
 import { FONT_MAP } from '@/lib/fontFamilies'
-import ICloudSection from '@/components/settings/sections/ICloudSection'
+import { ICloudRow, ICloudSettingsPage } from './ICloudSettingsPage'
 import AboutSection from '@/components/settings/sections/AboutSection'
 import { YouTubeSettingsPage } from './YouTubeSettingsPage'
 import { NotesSettingsPage } from './NotesSettingsPage'
@@ -53,6 +53,7 @@ function routeElement(route: SettingsRoute, back: () => void): React.ReactNode {
     case 'audio': return <AudioSettingsPage onBack={back} />
     case 'youtube': return <YouTubeSettingsPage onBack={back} />
     case 'data': return <DataSettingsPage onBack={back} />
+    case 'icloud': return <ICloudSettingsPage onBack={back} />
     case 'experimental': return <ExperimentalSettingsPage onBack={back} />
   }
 }
@@ -204,7 +205,7 @@ export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }
       </ListSection>
 
       <ListSection title="iCloud">
-        <div className="mobile-embedded-section"><ICloudSection /></div>
+        <ICloudRow onOpen={() => routes.open('icloud')} />
         <Row title="Export all notes" subtitle="Every note as a Markdown file, to Files or AirDrop — your own copy, independent of iCloud" chevron
           onClick={() => { void import('@/platform/ios/exportNotes').then((m) => m.exportAllNotesAsMarkdown()).catch((err) => alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)) }} />
       </ListSection>

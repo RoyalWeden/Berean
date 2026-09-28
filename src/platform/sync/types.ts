@@ -128,6 +128,27 @@ export interface SyncStore {
  */
 export type SyncState = 'synced' | 'pending' | 'offline' | 'uploading' | 'downloading' | 'reconciling' | 'unavailable' | 'attention' | 'held'
 
+/**
+ * What a sync pass is doing right now (DATA-UX-010). Honest: `total` is null when the engine
+ * cannot know it yet (then the UI shows an indeterminate indicator, never an invented percent).
+ *   checking   iCloud reachable? own history there? (account / container checks)
+ *   fetching   reading other devices' manifests and journal files (total = devices when known)
+ *   applying   merging received changes into this device's database (total = changes, exact)
+ *   uploading  writing this device's changes to its journal (total = changes, exact)
+ *   finalizing publishing merge results, updating the manifest, refreshing the UI
+ */
+export type SyncActivity = 'checking' | 'fetching' | 'applying' | 'uploading' | 'finalizing'
+export interface SyncProgress {
+  activity: SyncActivity
+  done: number
+  total: number | null
+  /** Per synced entity kind, for the stage list ("Notes ✓"): only kinds present in this pass. */
+  byEntity: Record<string, { done: number; total: number }>
+  /** This device has never received anything yet: the first sync after turning iCloud on. */
+  firstSync: boolean
+  startedAt: number
+}
+
 /** One diagnostic event — metadata only, never content (DATA-SYNC-006). */
 export interface SyncTraceEntry { t: number; event: string; meta?: Record<string, string | number | boolean | null> }
 
@@ -170,6 +191,10 @@ export interface SyncStatusSnapshot {
   forks?: number
   /** Last full local reconciliation (hash compare of every record). */
   lastFullReconcile?: number | null
+  /** The pass in progress (null when idle). */
+  progress?: SyncProgress | null
+  /** When a complete sync pass (push + pull + push) last finished without error. */
+  lastSyncedAt?: number | null
 }
 
 export const SYNC_FORMAT_VERSION = 1

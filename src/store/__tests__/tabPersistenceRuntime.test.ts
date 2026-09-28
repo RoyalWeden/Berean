@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useAppStore } from '@/store'
-import { installTabPersistence, applyExternalSessions, __resetTabPersistence } from '@/store/tabPersistenceRuntime'
+import { installTabPersistence, applyExternalSessions, __resetTabPersistence, setTabInteraction } from '@/store/tabPersistenceRuntime'
 import { createSessionsService } from '@/platform/services/sessionsService'
 import { makeContext, migratedUserDb } from '@/platform/db/__tests__/testDb'
 import type { SpaceId, Tab } from '@/types'
@@ -116,6 +116,19 @@ describe('installTabPersistence', () => {
     expect(local.chapter).toBe(7)          // synced field adopted
     expect(local.showStrongs).toBe(true)
     expect(local.scrollPosition).toBe(55)  // this device's newer local view state wins over the mirrored row
+  })
+
+  it('DATA-TAB-002: a remote tab change arriving during a tab drag is applied when the drag ends', async () => {
+    useAppStore.getState().addTab(bibleTab('t1', 1), 'end')
+    teardown = installTabPersistence()
+    await settle()
+    await svc.upsertTab({ id: 'remote', session_id: 'default', space_id: 'scripture', type: 'bible', title: 'Exo 1', is_pinned: 0, order_key: 'a5', display_order_key: 'a5', origin_tab_id: null, origin_space_id: null, sync_state_json: JSON.stringify({ bookId: 'EXO', chapter: 1, translation: 'kjva', showStrongs: false }), local_state_json: '{}' })
+    setTabInteraction(true)
+    await applyExternalSessions()
+    expect(useAppStore.getState().tabs.scripture.map((t) => t.id)).toEqual(['t1'])        // held during the drag
+    setTabInteraction(false)
+    await settle()
+    expect(useAppStore.getState().tabs.scripture.map((t) => t.id)).toEqual(['t1', 'remote'])  // applied once it ends
   })
 
   // DATA-TAB-001 — the reading position on screen is never moved by another device.

@@ -14,6 +14,7 @@ export const SETTINGS_ROUTE_TITLES = {
   'audio': 'Read Aloud',
   'youtube': 'YouTube',
   'data': 'Data',
+  'icloud': 'iCloud',
   'experimental': 'Experimental',
 } as const
 export type SettingsRoute = keyof typeof SETTINGS_ROUTE_TITLES

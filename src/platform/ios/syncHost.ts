@@ -102,6 +102,12 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
       for (const cb of appliedListeners) cb([...entities])
     },
     trace,
+    // Live progress of the pass in progress (DATA-UX-010): merged into the last full status so the
+    // Settings row, the iCloud page and the first-sync panel all read one snapshot.
+    onProgress: (p) => {
+      if (lastStatus) { publish({ ...lastStatus, progress: p }); return }
+      void engine?.status().then((st) => publish({ ...st, progress: p })).catch(() => {})
+    },
     online: () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
   })
   engine.start()

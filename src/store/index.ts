@@ -509,6 +509,10 @@ export interface AppState {
   // Highlight change notifications
   highlightChangeToken: number
   bumpHighlightToken: () => void
+  /** Remote-change epochs for views that load a list once (playlists, PDFs, YouTube stars/resume,
+   *  AI chats): bumped by lib/syncInvalidation, so those views re-read without being reopened. */
+  dataEpochs: { playlists: number; pdfs: number; youtube: number; aiChats: number }
+  bumpDataEpoch: (kind: 'playlists' | 'pdfs' | 'youtube' | 'aiChats') => void
 
   // Verse tags (SQLite-backed; this is a cached copy of window.verseTags.list()).
   verseTags: VerseTag[]
@@ -2980,6 +2984,8 @@ export const useAppStore = create<AppState>()(
       clearRightPanelVerseFilter: () => set({ pendingRightPanelVerseFilter: null }),
       clearRightPanelCrossRef: () => set({ pendingRightPanelCrossRefVerse: null }),
       bumpHighlightToken: () => set((s) => ({ highlightChangeToken: s.highlightChangeToken + 1 })),
+      dataEpochs: { playlists: 0, pdfs: 0, youtube: 0, aiChats: 0 },
+      bumpDataEpoch: (kind) => set((s) => ({ dataEpochs: { ...s.dataEpochs, [kind]: s.dataEpochs[kind] + 1 } })),
       setVerseTags: (tags) => set((s) => ({ verseTags: tags, verseTagChangeToken: s.verseTagChangeToken + 1 })),
       bumpVerseTagToken: () => set((s) => ({ verseTagChangeToken: s.verseTagChangeToken + 1 })),
       refreshVerseTags: async () => {

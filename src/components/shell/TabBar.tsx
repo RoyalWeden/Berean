@@ -7,6 +7,7 @@ import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
 import { IconButton, ListRow, MenuItem, MenuSeparator, MenuLabel, RefChip, useContextMenu, cx } from '@/components/ui'
+import { setTabInteraction } from '@/store/tabPersistenceRuntime'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -112,6 +113,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   // ── Drag handlers ──────────────────────────────────────────────────────
 
   function handleDragStart(e: React.DragEvent, idx: number) {
+    setTabInteraction(true)
     draggingIdxRef.current = idx
     draggingTabRef.current = tabs[idx] ?? null
     leftWindowRef.current  = false
@@ -509,6 +511,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   }
 
   function handleDragEnd(e: React.DragEvent) {
+    setTabInteraction(false)
     // Use coordinate check: if cursor is within window bounds at dragend, user dragged back — cancel float
     const insideWindow = e.clientX > 0 && e.clientX < window.innerWidth &&
                          e.clientY > 0 && e.clientY < window.innerHeight

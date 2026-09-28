@@ -3,7 +3,7 @@ import { defaultUuid, type ServiceEvents, type ServiceLogger, type DataChange } 
 import { HybridLogicalClock, compareHlc, formatHlc, parseHlc } from './hlc'
 import { chunkForFiles, decodeJournal, parseJournalFileName, snapshotFileName, COMPACT_AFTER_BYTES, COMPACT_AFTER_OPS, COMPACT_SILENT_MS } from './journal'
 import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter, type EntityRecord } from './entities'
-import type { DeviceManifest, JournalFileInfo, SnapshotFile, SnapshotRecord, SyncOp, SyncState, SyncStatusSnapshot, SyncStore } from './types'
+import type { DeviceManifest, JournalFileInfo, SnapshotFile, SnapshotRecord, SyncOp, SyncProgress, SyncState, SyncStatusSnapshot, SyncStore } from './types'
 import { shortId, type SyncTrace } from './trace'
 import { SYNC_FORMAT_VERSION } from './types'
 import { childLineage, fieldHashes, LINEAGE_SEND, mergeConcurrent, parseJsonOr, relate, trimLineage, LINEAGE_KEEP, type VersionInfo } from './merge'
@@ -53,6 +53,8 @@ export interface SyncEngineOptions {
   online?: () => boolean
   /** Opaque identity of the signed-in iCloud account (iOS: hash of ubiquityIdentityToken). */
   accountIdentity?: string | null
+  /** Progress of the pass in progress (DATA-UX-010) — hosts forward it to the UI (throttled). */
+  onProgress?: (p: SyncProgress | null) => void
   /** berean.db failed its integrity check (checkDatabase): sync holds, and nothing is inferred
    *  from what the database appears to be missing. */
   databaseProblem?: string | null
@@ -104,6 +106,7 @@ const STATE = {
   quarantine: 'quarantine',
   /** Last full (hash-compare) reconciliation. */
   lastFullReconcile: 'last_full_reconcile',
+  lastSyncedAt: 'last_synced_at',
   appVersion: 'app_version',
   /** Forks of this database's device identity (diagnostics). */
   forks: 'forks',
@@ -141,6 +144,9 @@ export class SyncEngine {
   private unsubscribe: (() => void) | null = null
   private syncing: Promise<void> | null = null
   private hold: SyncHold | null = null
+  private progress: SyncProgress | null = null
+  private lastSyncedAt: number | null = null
+  private firstSync = false
   private madeConflictCopies = new Set<string>()
   private resolutions = new Set<string>()
 
@@ -227,6 +233,7 @@ export class SyncEngine {
     try { engine.ownSnapshot = JSON.parse((await get(STATE.snapshot)) ?? 'null') } catch { engine.ownSnapshot = null }
     engine.lastPushAt = numOrNull(await get(STATE.lastPushAt))
     engine.lastPullAt = numOrNull(await get(STATE.lastPullAt))
+    engine.lastSyncedAt = numOrNull(await get(STATE.lastSyncedAt))
     if (opts.databaseProblem) engine.hold = { kind: 'database', at: engine.now(), detail: opts.databaseProblem }
     // Deletions held back by an earlier reconciliation stay held until the user decides.
     const q = parseJsonOr<SyncHold | null>(await get(STATE.quarantine), null)
@@ -699,10 +706,12 @@ export class SyncEngine {
     }
     this.phase = 'uploading'
     this.trace('push:start', { ops: rows.length })
+    this.setProgress({ activity: 'uploading', done: 0, total: rows.length }, true)
     const ops: SyncOp[] = rows.map((r, i) => ({ ...(JSON.parse(r.op_json) as Omit<SyncOp, 'seq' | 'device'>), seq: this.ownSeq + i + 1, device: this.deviceId }))
     const files = chunkForFiles(ops)
     try {
-      for (const f of files) await this.store.writeOwnFile(f.info.name, f.content)
+      let written = 0
+      for (const f of files) { await this.store.writeOwnFile(f.info.name, f.content); written += f.info.seqTo - f.info.seqFrom + 1; this.setProgress({ activity: 'uploading', done: written, total: rows.length }) }
       this.ownFiles = [...this.ownFiles, ...files.map((f) => f.info)]
       this.ownSeq = ops[ops.length - 1].seq
       await this.db.transaction(async (tx) => {
@@ -823,7 +832,9 @@ export class SyncEngine {
     try { file = JSON.parse(text) as SnapshotFile } catch { this.unreadable++; return 0 }
     if (!file || file.device !== device || !Array.isArray(file.records)) { this.unreadable++; return 0 }
     let applied = 0
+    let seen = 0
     for (const r of file.records) {
+      this.setProgress({ activity: 'applying', done: ++seen, total: file.records.length })
       if (!r || typeof r.entity !== 'string' || typeof r.key !== 'string' || typeof r.hlc !== 'string') { this.unreadable++; continue }
       const op: SyncOp = { id: `${device}-snapshot-${snap.seq}-${r.entity}-${r.key}`, seq: snap.seq, hlc: r.hlc, device, entity: r.entity, key: r.key, op: r.op, ...(r.fields ? { fields: r.fields } : {}), schema: file.schema, ...(r.fh ? { fh: r.fh } : {}), ...(r.lin ? { lin: r.lin } : {}) }
       try { await this.applyOne(op, touched, { recordApplied: false, replay: true }); applied++ } catch (err) {
@@ -859,7 +870,12 @@ export class SyncEngine {
     this.trace('pull:start')
     const replay = this.replayOwn
     this.replayOwn = false
-    for (const device of await this.store.listDevices()) {
+    const devices = await this.store.listDevices()
+    const others = devices.filter((d) => d !== this.deviceId || replay)
+    let devicesRead = 0
+    this.setProgress({ activity: 'fetching', done: 0, total: others.length, byEntity: {} }, true)
+    for (const device of devices) {
+      if (device !== this.deviceId || replay) this.setProgress({ activity: 'fetching', done: devicesRead++, total: others.length })
       // This device's own journal is only read back in a recovery replay (resolveQuarantine).
       if (device === this.deviceId && !replay) continue
       let manifest: DeviceManifest | null
@@ -901,7 +917,15 @@ export class SyncEngine {
     pending.sort((a, b) => compareHlc(a.hlc, b.hlc) || (a.device < b.device ? -1 : a.device > b.device ? 1 : a.seq - b.seq))
     const touched = touchedBySnapshot
     let applied = snapshotApplied
+    // Applying: the exact number of changes is known now — determinate progress, per entity.
+    const byEntity: Record<string, { done: number; total: number }> = {}
+    for (const op of pending) (byEntity[op.entity] ??= { done: 0, total: 0 }).total++
+    let doneOps = 0
+    if (pending.length) this.setProgress({ activity: 'applying', done: 0, total: pending.length, byEntity }, true)
     for (const op of pending) {
+      doneOps++
+      byEntity[op.entity].done++
+      if (pending.length) this.setProgress({ activity: 'applying', done: doneOps, total: pending.length, byEntity })
       const already = await this.db.get('SELECT 1 FROM sync_applied WHERE device = ? AND seq = ?', [op.device, op.seq])
       if (already) continue
       try {
@@ -914,6 +938,8 @@ export class SyncEngine {
         await this.db.run('INSERT INTO sync_failed (device, seq, error, attempts) VALUES (?, ?, ?, 1) ON CONFLICT(device, seq) DO UPDATE SET error = excluded.error, attempts = attempts + 1', [op.device, op.seq, msg])
       }
     }
+    if (pending.length) this.setProgress({ activity: 'applying', done: pending.length, total: pending.length, byEntity }, true)
+    this.setProgress({ activity: 'finalizing', done: 0, total: null, byEntity }, true)
     await this.publishResolutions()
     if (this.madeConflictCopies.size) {
       const hlc = this.clock.tick()
@@ -1197,15 +1223,43 @@ export class SyncEngine {
 
   // ── orchestration ─────────────────────────────────────────────────────────────────────────
 
+  // ── progress (DATA-UX-010) ────────────────────────────────────────────────────────────────
+  private lastProgressEmit = 0
+  private setProgress(p: Partial<SyncProgress> & { activity: SyncProgress['activity'] }, force = false): void {
+    this.progress = { done: 0, total: null, byEntity: {}, firstSync: this.firstSync, startedAt: this.progress?.startedAt ?? this.now(), ...this.progress, ...p }
+    const t = Date.now()
+    if (!force && t - this.lastProgressEmit < 120) return
+    this.lastProgressEmit = t
+    try { this.opts.onProgress?.({ ...this.progress, byEntity: { ...this.progress.byEntity } }) } catch { /* UI callback */ }
+  }
+  private clearProgress(): void {
+    this.progress = null
+    try { this.opts.onProgress?.(null) } catch { /* UI callback */ }
+  }
+  /** The pass in progress, if any. */
+  getProgress(): SyncProgress | null { return this.progress }
+
   /** push then pull; serialised so overlapping timers/watch callbacks never interleave. */
   sync(): Promise<void> {
     if (this.syncing) return this.syncing
     this.syncing = (async () => {
       try {
+        // First sync = this device has never received anything from any other device.
+        this.firstSync = this.lastSyncedAt == null && !(await this.db.get('SELECT 1 FROM sync_applied LIMIT 1'))
+        this.progress = null
+        this.setProgress({ activity: 'checking', startedAt: this.now() }, true)
+        const errorBefore = this.lastError
         await this.push()
         await this.pull()
         await this.push()   // ops captured while pulling (e.g. conflict versions) go out at once
+        this.setProgress({ activity: 'finalizing', done: 0, total: null, byEntity: this.getProgress()?.byEntity ?? {} }, true)
+        if (!this.lastError && !this.blocked() && !this.forkDetected && (await this.store.status()).available) {
+          this.lastSyncedAt = this.now()
+          await this.setState(STATE.lastSyncedAt, String(this.lastSyncedAt))
+        }
+        void errorBefore
       } finally {
+        this.clearProgress()
         this.syncing = null
       }
     })()
@@ -1248,6 +1302,7 @@ export class SyncEngine {
       lastPushAt: this.lastPushAt, lastPullAt: this.lastPullAt, lastError: this.lastError, devices, unreadable: this.unreadable,
       journal: { files: this.ownFiles.length, bytes: this.ownFiles.reduce((n, f) => n + (f.bytes ?? 0), 0) + (this.ownSnapshot?.bytes ?? 0), snapshotSeq: this.ownSnapshot?.seq ?? null },
       hold: this.hold ? { ...this.hold } : null, mergeConflicts, forks, lastFullReconcile,
+      progress: this.progress ? { ...this.progress, byEntity: { ...this.progress.byEntity } } : null, lastSyncedAt: this.lastSyncedAt,
     }
   }
 

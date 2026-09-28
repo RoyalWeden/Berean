@@ -36,10 +36,14 @@ function definePersistentDebugFlag(prop: '__bereanPresenterDebug' | '__bereanTra
     },
   })
 }
-definePersistentDebugFlag('__bereanPresenterDebug', 'berean-debug-presenter')
-definePersistentDebugFlag('__bereanTrailDebug', 'berean-debug-trail')
-if (window.__bereanPresenterDebug) console.log('[Debug] __bereanPresenterDebug is ON (persisted from a previous session)')
-if (window.__bereanTrailDebug) console.log('[Debug] __bereanTrailDebug is ON (persisted from a previous session)')
+// Development builds only (DATA-UX-060): a packaged app never defines these switches, so the
+// logging they enable can never be turned on in production.
+if (import.meta.env.DEV) {
+  definePersistentDebugFlag('__bereanPresenterDebug', 'berean-debug-presenter')
+  definePersistentDebugFlag('__bereanTrailDebug', 'berean-debug-trail')
+  if (window.__bereanPresenterDebug) console.log('[Debug] __bereanPresenterDebug is ON (persisted from a previous session)')
+  if (window.__bereanTrailDebug) console.log('[Debug] __bereanTrailDebug is ON (persisted from a previous session)')
+}
 
 // Very first line of renderer JS — confirms the bundle is executing.
 

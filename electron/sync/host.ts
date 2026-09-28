@@ -97,6 +97,12 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     log: { info: (m, ...r) => log.info(m, ...r), warn: (m, ...r) => log.warn(m, ...r), error: (m, ...r) => log.error(m, ...r) },
     onApplied: (entities) => { trace.record('ui:invalidate', { entities: [...entities].sort().join(',') }); broadcast('sync:applied', [...entities]) },
     trace,
+    // Live progress of the pass in progress (DATA-UX-010): merged into the last full status so the
+    // Settings row, the iCloud page and the first-sync panel all read one snapshot.
+    onProgress: (p) => {
+      if (lastStatus) { publish({ ...lastStatus, progress: p }); return }
+      void engine?.status().then((st) => publish({ ...st, progress: p })).catch(() => {})
+    },
     online: () => net.isOnline(),
   })
   engine.start()

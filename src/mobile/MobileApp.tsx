@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { applySyncInvalidation } from '@/lib/syncInvalidation'
+import { wireSyncUi } from '@/lib/syncUi'
 import { HistoryPage } from './history/HistoryPage'
 import { Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -403,7 +404,8 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
 
 function PdfLibraryPage({ onBack, onOpen }: { onBack: () => void; onOpen: () => void }) {
   const [pdfs, setPdfs] = useState<import('@/types').PdfDoc[]>([])
-  useEffect(() => { window.pdf.list().then(setPdfs).catch(() => setPdfs([])) }, [])
+  const pdfsEpoch = useAppStore((s) => s.dataEpochs.pdfs)
+  useEffect(() => { window.pdf.list().then(setPdfs).catch(() => setPdfs([])) }, [pdfsEpoch])
   const openPdf = useAppStore((s) => s.openPdf)
   return (
     <Page title="PDF library" onBack={onBack}>
@@ -496,6 +498,7 @@ function useBoot() {
     window.app?.getResourceMode?.().then((mode) => useAppStore.getState().setResourceMode(mode)).catch(() => {})
     window.app?.onResourceModeChanged?.((mode) => useAppStore.getState().setResourceMode(mode))
     // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
+    wireSyncUi()   // the shared iCloud status store (Settings row, iCloud page, progress) — DATA-UX-001
     const disposeSync = window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
     return () => { disposeSettings(); disposeTabs?.(); disposeSync?.() }
   }, [])

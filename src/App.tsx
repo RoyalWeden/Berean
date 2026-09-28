@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
 import { applySyncInvalidation } from '@/lib/syncInvalidation'
+import { wireSyncUi } from '@/lib/syncUi'
 import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -419,6 +420,7 @@ export default function App() {
     // iCloud sync (docs/mobile/icloud.md): after the sync host applies changes from another
     // device, refresh whatever those entities feed. Notes already arrive via notes:changed above.
     // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
+    wireSyncUi()   // the shared iCloud status store (Settings row, iCloud page, progress) — DATA-UX-001
     return window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
   }, [])
 

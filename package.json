@@ -31,11 +31,12 @@
     "ios:open": "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cap open ios",
     "ios:build": "bash scripts/ios/build.sh simulator",
     "ios:device": "bash scripts/ios/build.sh device",
-    "ios:archive": "bash scripts/ios/build.sh archive",
+    "ios:archive": "npm run ios:sync && bash scripts/ios/build.sh archive",
     "ios:run": "bash scripts/ios/run.sh",
     "ios:dev": "vite -c vite.ios.config.ts",
     "ios:test": "bash scripts/ios/test.sh",
-    "ios:bump-build": "node scripts/ios/version.mjs --bump-build"
+    "ios:bump-build": "node scripts/ios/version.mjs --bump-build",
+    "audit:prod": "node scripts/audit-production.mjs"
   },
   "dependencies": {
     "@lezer/highlight": "^1.2.3",

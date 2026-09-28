@@ -37,7 +37,8 @@ export function QueuePage({ onBack }: { onBack: () => void }) {
   const [playlists, setPlaylists] = useState<SavedPlaylist[]>([])
   const [refInput, setRefInput] = useState('')
   const [refError, setRefError] = useState(false)
-  useEffect(() => { window.playlists.list().then(setPlaylists).catch(() => setPlaylists([])) }, [])
+  const playlistsEpoch = useAppStore((s) => s.dataEpochs.playlists)
+  useEffect(() => { window.playlists.list().then(setPlaylists).catch(() => setPlaylists([])) }, [playlistsEpoch])
 
   const defaultTextId = (audioPlayback?.textId ?? activeState?.translation?.toLowerCase() ?? 'kjva')
   const addCurrentChapter = () => {

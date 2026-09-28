@@ -46,4 +46,30 @@ describe('applySyncInvalidation', () => {
     expect(setSavedWorkspaces).toHaveBeenCalledWith([{ id: 'w', name: 'Deep study' }])
     expect(useAppStore.getState().verseNoteToken).toBe(verseNote + 1)   // reader verse-note dots too
   })
+
+  it('no synced kind needs the view reopened: library lists re-read on their epochs (DATA-LIVE-002)', () => {
+    expect(Object.values(INVALIDATES)).not.toContain('on-open')
+    const before = { ...useAppStore.getState().dataEpochs }
+    applySyncInvalidation(['playlist', 'pdf_bookmark', 'youtube_user', 'ai_chat'])
+    const after = useAppStore.getState().dataEpochs
+    expect(after).toEqual({ playlists: before.playlists + 1, pdfs: before.pdfs + 1, youtube: before.youtube + 1, aiChats: before.aiChats + 1 })
+  })
+
+  it('a mounted Scripture side-panel note list follows a remote change with no reopen', () => {
+    let notes = ['Gen 1:1 study']
+    function SidePanel() {
+      const token = useAppStore((s) => s.noteChangeToken)
+      const verseToken = useAppStore((s) => s.verseNoteToken)
+      const [shown, setShown] = React.useState<string[]>([])
+      React.useEffect(() => { setShown([...notes]) }, [token, verseToken])
+      return <ul>{shown.map((n) => <li key={n}>{n}</li>)}</ul>
+    }
+    const host = document.createElement('div'); document.body.appendChild(host)
+    const root = createRoot(host)
+    act(() => root.render(<SidePanel />))
+    notes = ['Gen 1:1 study', 'Added on the Mac']
+    act(() => applySyncInvalidation(['note']))
+    expect(host.textContent).toBe('Gen 1:1 studyAdded on the Mac')
+    act(() => root.unmount()); host.remove()
+  })
 })

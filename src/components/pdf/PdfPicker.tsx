@@ -26,7 +26,8 @@ export default function PdfPicker({ anchor, onClose }: Props) {
   function reload() {
     window.pdf.list().then(setPdfs).catch(() => {})
   }
-  useEffect(() => { reload() }, [])
+  const pdfsEpoch = useAppStore((s) => s.dataEpochs.pdfs)
+  useEffect(() => { reload() }, [pdfsEpoch])
 
   // Close on outside click / escape
   useEffect(() => {

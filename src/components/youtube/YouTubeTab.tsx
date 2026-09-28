@@ -1396,6 +1396,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (!hasLoadedRef.current) { hasLoadedRef.current = true; loadFromDb() }
   }, [loadFromDb])
+  // Stars / resume positions changed on another device: re-read the list (no refresh from YouTube).
+  const youtubeEpoch = useAppStore((s) => s.dataEpochs.youtube)
+  useEffect(() => {
+    if (!youtubeEpoch) return
+    void window.youtube.loadAll().then(setVideos).catch(() => {})
+  }, [youtubeEpoch])
 
   const doRefresh = useCallback(async () => {
     setLoading(true)
