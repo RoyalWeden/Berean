@@ -135,6 +135,9 @@ export interface NoteEditorPMProps {
   // The live EditorView once mounted (null on unmount) — lets a host run the editor's own
   // commands (slashCommands.ts) from its own chrome without duplicating command logic.
   onEditorReady?: (view: EditorView | null) => void
+  /** A same-note content prop arrived while an IME / autocorrect / dictation composition was in
+   *  progress and was NOT applied (the composition wins). The host keeps it (DATA-LIVE-001). */
+  onExternalDeferred?: (content: string) => void
 }
 
 /** Verse text for the ref hover-preview / verse-block insertion, run through the same word
@@ -173,6 +176,7 @@ export default function NoteEditorPM({
   chrome = 'desktop',
   renderSelectionToolbar,
   onEditorReady,
+  onExternalDeferred,
   findQuery = '',
   findMode = 'phrase',
   importSource,
@@ -189,6 +193,8 @@ export default function NoteEditorPM({
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onEditorReadyRef = useRef(onEditorReady)
+  const onExternalDeferredRef = useRef(onExternalDeferred)
+  onExternalDeferredRef.current = onExternalDeferred
   onEditorReadyRef.current = onEditorReady
   const phoneChrome = chrome === 'phone'
   const onChangeRef = useRef(onChange)
@@ -855,8 +861,15 @@ export default function NoteEditorPM({
     // the live document because more typing (or an iOS autocorrect / composition flush) landed
     // before the re-render. Replacing the doc with it used to wipe the newest keystrokes. The
     // same goes for any same-note update while the IME is composing.
-    if (!isDifferentNote && (emittedRef.current.has(content) || view.composing)) {
+    if (!isDifferentNote && emittedRef.current.has(content)) {
       lastContentPropRef.current = content
+      return
+    }
+    // A composition in progress is never interrupted: the outside content is handed back to the
+    // host (which keeps it as a version) instead of being silently dropped.
+    if (!isDifferentNote && view.composing) {
+      lastContentPropRef.current = content
+      if (content !== serializeToMarkdown(view.state.doc)) onExternalDeferredRef.current?.(content)
       return
     }
     const current = serializeToMarkdown(view.state.doc)
@@ -876,6 +889,9 @@ export default function NoteEditorPM({
       return
     }
     lastContentPropRef.current = content
+    // An outside document replaces ours: our earlier outputs are no longer echoes (else a later
+    // outside change that happens to equal one of them — e.g. a revert — would be skipped).
+    if (!isDifferentNote) emittedRef.current.clear()
     // Defensive: preserve the cursor's rough position across this reset instead of leaving it
     // at EditorState.create's document-start default — but only for a same-note external
     // content update (e.g. the noteChangeToken refetch effect in NotesPanel). A genuinely

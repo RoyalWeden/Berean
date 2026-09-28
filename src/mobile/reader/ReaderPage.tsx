@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChapterNotesView, useChapterNotes } from '../study/ChapterNotesView'
 import { isEditingInSheet } from './sheetEditingGuards'
 import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
-import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat, MoveHorizontal } from 'lucide-react'
+import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat, MoveHorizontal, NotepadText } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
 import ChapterView from '@/components/bible/ChapterView'
@@ -169,6 +170,9 @@ export function ReaderPage({ tab }: { tab: Tab }) {
 
   // ── verse model (tap / long-press / verse sheet) ────────────────────────────────────────
   const { verseInteraction, openStrongs, openNoteInNotesSpace } = useVerseSheets({ tabId: tab.id })
+  const chapterNotes = useChapterNotes(state.bookId, state.chapter)
+  const selectedHere = useAppStore((s) => (s.selectedVersesByTab[tab.id] ?? []).filter((v) => v.bookId === state.bookId && v.chapter === state.chapter).map((v) => v.verse).sort((a, b) => a - b).join(','))
+    .split(',').filter(Boolean).map(Number)
   // Leaving a chapter clears a tapped-verse selection's sheet — unless the user is typing in it
   // (a verse note edited in the sheet): the keyboard resizing the reader can move continuous
   // scroll across a chapter boundary, and that must never close the editor (NOTES-IOS-002).
@@ -253,6 +257,11 @@ export function ReaderPage({ tab }: { tab: Tab }) {
         ] },
         { id: 'study', title: 'Study', commands: [
           { kind: 'segmented', id: 'xref-source', label: 'Cross references', icon: GitFork, value: st.crossRefSource, options: [['tske', 'TSK/e'], ['classic', 'Classic'], ['notes', 'My Notes']], set: (v) => st.setCrossRefSource(v as 'tske' | 'classic' | 'notes') },
+          // My Notes for THIS context (NOTES-CH-001): the chapter's notes with no verse selected
+          // (they no longer show as a banner over the text), the selected verses' otherwise.
+          { kind: 'view', id: 'my-notes', label: 'My Notes', icon: NotepadText,
+            value: selectedHere.length ? `${selectedHere.length === 1 ? `v. ${selectedHere[0]}` : `${selectedHere.length} verses`}` : chapterNotes == null ? '' : chapterNotes.length ? String(chapterNotes.length) : 'None',
+            view: () => ({ title: 'My Notes', render: (a) => <ChapterNotesView bookId={state.bookId} chapter={state.chapter} textId={textId} selectedVerses={selectedHere} api={a} onOpenInNotes={(id) => { a.close(); openNoteInNotesSpace(id) }} /> }) },
           { kind: 'view', id: 'tag-chapter', label: `Tag ${ref}`, icon: TagIcon, view: () => { const ranges = chapterRanges(state.bookId, state.chapter); return { title: `Tag ${ref}`, render: (a) => <TagPickerSheet ranges={ranges} label={rangesLabel(ranges)} kind="chapter" api={a} /> } } },
           { kind: 'action', id: 'trail', label: 'Study trail', icon: Route, run: () => requestMore('trail') },
         ] },
@@ -406,7 +415,7 @@ function ReaderPane({ width, target, textId, showStrongs, preview, held, waitFor
     <div className={`mobile-reader-pane${held ? ' is-held' : ''}`} style={{ width, visibility: ready || held ? undefined : 'hidden' }} aria-hidden={preview || held || undefined}>
       {target ? (
         <div ref={scrollRef} className="mobile-reader-scroll" onScroll={onScroll}>
-          <ChapterView bookId={target.bookId} chapter={target.chapter} textId={textId} showStrongs={showStrongs}
+          <ChapterView bookId={target.bookId} chapter={target.chapter} textId={textId} showStrongs={showStrongs} chapterNotesBanner={false}
             targetVerse={targetVerse} onTargetVerseConsumed={onTargetVerseConsumed} onStrongsClick={onStrongsClick} tabId={tabId}
             findQuery={findQuery} findWordMode="all"
             onVersesLoaded={preview ? undefined : onVersesLoaded} />

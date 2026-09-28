@@ -42,7 +42,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const nav = useNavigation()
   const sheets = useSheets()
   const actions = useActionSheet()
-  const { note, latest, persist, replace, lastSavedAt, editorContent } = useNoteAutosave(noteId)
+  const { note, latest, persist, replace, lastSavedAt, editorContent, deferredWhileComposing } = useNoteAutosave(noteId)
   const [notes, setNotes] = useState<Note[]>([])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
   const [printOpen, setPrintOpen] = useState(false)
@@ -179,6 +179,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
         <NoteEditorPM
           content={editorContent}
           noteId={note.id}
+          onExternalDeferred={deferredWhileComposing}
           onChange={(content) => persist({ content })}
           mode={mode}
           typingLook={typingLook}

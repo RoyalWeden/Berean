@@ -189,6 +189,10 @@ interface ChapterViewProps {
   onSlowLoadChange?: (loading: boolean) => void
   /** Tighter padding + no max width — used for compare columns. */
   compact?: boolean
+  /** Show the chapter-level notes banner at the top (notes citing this whole chapter). Default
+   *  true (desktop). The iPhone reader passes false: those notes live in the caret's My Notes
+   *  instead of an indicator over the text (NOTES-CH-001). */
+  chapterNotesBanner?: boolean
   /** Verse numbers to show as selected without any store entry — a compare column echoing
    *  another column's (KJV's) verse selection for side-by-side comparison. Display only. */
   forceSelectedVerses?: Set<number>
@@ -374,7 +378,7 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
 /** Rows receive `findQuery` ONLY when they match (the shared rule in src/lib/scriptureFind.ts —
  *  raw AND displayed text, case-insensitive), so non-matching rows keep a stable `findQuery=''`
  *  across keystrokes and memo(VerseRow) bails them out instead of re-rendering every row. */
-function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses }: ChapterViewProps) {
+function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses, chapterNotesBanner }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -1207,7 +1211,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
       {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter.
           Auto-updates: the crossRef effect re-runs on noteChangeToken. Keyed by book/chapter so
           its expand state resets on navigation. */}
-      {chapterSources.length > 0 && (
+      {chapterNotesBanner !== false && chapterSources.length > 0 && (
         <ChapterCrossRefBanner
           key={`${bookId}:${chapter}`}
           sources={chapterSources}

@@ -28,11 +28,14 @@ export function CrossRefSourcePicker() {
  * TSK/e headings kept, My Notes showing the notes that mention the verse. Tapping a reference
  * navigates the current tab (shared navigateToVerse; LXX → New Testament opens in KJV).
  */
-export function CrossRefList({ bookId, chapter, verses, textId, onNavigate }: {
+export function CrossRefList({ bookId, chapter, verses, textId, onNavigate, source: forced }: {
   bookId: string; chapter: number; verses: readonly number[]; textId: string
   onNavigate: (r: XRef, source: CrossRefSourceId) => void
+  /** Show this source regardless of the app-wide choice (the caret's My Notes). */
+  source?: CrossRefSourceId
 }) {
-  const source = useAppStore((s) => s.crossRefSource) as CrossRefSourceId
+  const chosen = useAppStore((s) => s.crossRefSource) as CrossRefSourceId
+  const source = forced ?? chosen
   const data = useVerseCrossRefs(bookId, chapter, verses, textId, source)
   if (data === null) return <div className="mobile-muted mobile-study-pad">Loading…</div>
   if (data.every((v) => v.groups.length === 0)) return <div className="mobile-muted mobile-study-pad">{emptyText(source, bookId, chapter, verses)}</div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
+import { useLiveNote, ACTIVE_EDIT_MS } from '@/lib/notes/liveNote'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -241,8 +242,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // in the last 2 s. While true, an external change is preserved as a version, not applied.
   const savePendingRef = useRef(false)
   const lastLocalEditAtRef = useRef(0)
-  const preservedExternalRef = useRef<string | null>(null)
-  const externalRecheckRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Fluid-feel polish #2.3 (quiet autosave "Saved" indicator, Toolbar.tsx) — a timestamp
   // bumped only when the debounced autosave's OWN save IPC call actually resolves (chained
   // onto the same window.notes.updateNote(...) promise handleContentChange/handleTitleChange
@@ -815,50 +815,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // save, this bump is that save echoing back — a no-op — regardless of how
   // far the user has typed since. Only a fetch that differs from BOTH our
   // last save AND the live ref is a genuine external edit.
-  const reconcileOpenNote = useRef<() => void>(() => {})
-  reconcileOpenNote.current = () => {
-    const current = activeNoteRef.current
-    if (!current) return
-    window.notes.getNote(current.id).then((note) => {
-      const cur = activeNoteRef.current
-      if (!note || !cur) return
-      // Identity guard — this fetch was kicked off for whatever note was active WHEN THE EFFECT
-      // FIRED, but noteChangeToken bumps for ANY note anywhere in the app (saves, creates,
-      // deletes, status changes elsewhere), and NotesPanel is a single shared instance reused
-      // across every open Notes tab. If the user switches tabs before this IPC round-trip
-      // resolves, `cur` (re-read live above) is now a DIFFERENT note than the one we fetched.
-      // Content/updatedAt will almost always differ between two unrelated notes, so without this
-      // check the comparison below would look like a legitimate "changed externally" edit and
-      // clobber the newly-active, correct note with stale data from whatever was open earlier —
-      // the root cause of Notes tabs intermittently showing another note's content.
-      if (note.id !== cur.id) return
+  // Live open note (DATA-LIVE-001, shared rule — lib/notes/liveNote.ts): a change made elsewhere
+  // (another device, another window) shows in THIS mounted editor when it is clean; while the user
+  // is typing it is kept as a version and looked at again when they pause. Our own saves coming
+  // back (lastSelfSaveRef) are ignored — see the race note above.
+  const { deferredWhileComposing } = useLiveNote({
+    noteId: activeNote?.id,
+    getLocal: () => activeNoteRef.current,
+    isDirty: () => savePendingRef.current || Date.now() - lastLocalEditAtRef.current < ACTIVE_EDIT_MS,
+    isOwnEcho: (note) => {
       const lastSave = lastSelfSaveRef.current
-      const isOwnSaveEcho = lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
-      if (isOwnSaveEcho) return
-      const changedExternally = note.updatedAt !== cur.updatedAt && (note.content !== cur.content || note.title !== cur.title)
-      if (!changedExternally) return
-      // The user is typing (a save is pending, or a keystroke in the last 2 s): never replace the
-      // document under them. Keep the outside text as a version (so their next save cannot
-      // silently destroy it) and look again once they pause — a clean editor gets it at once.
-      const dirty = savePendingRef.current || Date.now() - lastLocalEditAtRef.current < 2000
-      if (dirty) {
-        if (preservedExternalRef.current !== note.content) {
-          preservedExternalRef.current = note.content
-          window.notes.createNoteVersion(note.id, note.title || '', note.content, 'external').catch(() => {})
-        }
-        if (externalRecheckRef.current) clearTimeout(externalRecheckRef.current)
-        externalRecheckRef.current = setTimeout(() => { externalRecheckRef.current = null; reconcileOpenNote.current() }, 2200)
-        return
-      }
-      preservedExternalRef.current = null
-      setActiveNote(note)
-    }).catch(() => {})
-  }
-  useEffect(() => {
-    reconcileOpenNote.current()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteChangeToken])
-  useEffect(() => () => { if (externalRecheckRef.current) clearTimeout(externalRecheckRef.current) }, [])
+      return lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
+    },
+    onApply: (note) => { if (activeNoteRef.current?.id === note.id) setActiveNote(note) },
+  })
 
   // Restore the note that was open when this tab was last active. Re-runs on every
   // notesTabId change (not just mount) — NotesPanel is a single shared instance across all
@@ -1847,6 +1817,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               <NoteEditor
                 content={activeNote.content}
                 noteId={activeNote.id}
+                onExternalDeferred={deferredWhileComposing}
                 tabId={notesTabId ?? undefined}
                 onChange={handleContentChange}
                 lastSavedAt={lastAutosaveAt}

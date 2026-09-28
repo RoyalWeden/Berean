@@ -37,9 +37,22 @@ code does today, including the 2026-09-27 hardening (DATA-SYNC-*). Inventory: [d
   and notifies JS → `engine.noteNotified` + sync → files present → HLC-ordered apply into
   `berean.db` → `data:changed(remote)` + `onApplied(entities)` → `applySyncInvalidation` → tokens,
   tab mirror, tags, workspaces → views re-read the database → re-render.
-- **Open note:** the host's external-update policy (clean: apply now, even focused; dirty: keep as a
-  version, apply when typing pauses) → the editor's content prop → ProseMirror (a composition is never
-  interrupted).
+- **Open note (DATA-LIVE-001, one rule — `src/lib/notes/liveNote.ts`)** — every surface that shows an
+  open note follows it, in the SAME mounted editor (no remount, no reopen):
+  - Mac Notes panel and **Mac Scripture right panel**, via `useLiveNote`. The right panel's note used
+    to be a snapshot fetched once when opened, so remote edits showed only after reopening it.
+  - iPhone Notes tab and **iPhone Scripture verse-sheet** editor, via `useNoteAutosave`, the same rule.
+
+  The rule:
+  - clean (no save pending, no keystroke for 2 s) → the new text and title apply at once, the cursor
+    stays at the same offset, and the keyboard stays up;
+  - dirty → the remote text is kept as an "external" version and applied after the pause, unless
+    the user's own newer save supersedes it;
+  - a composition in progress → the editor hands the content back to the host
+    (`onExternalDeferred`), which keeps it as a version.
+
+  Also fixed: incoming text equal to an older local state (e.g. a revert) was mistaken for our own
+  echo and skipped, and a title-only change was ignored.
 - **On-screen tab:** held until the user leaves it (DATA-TAB-001), then applied.
 
 ### Timing you should expect on real devices

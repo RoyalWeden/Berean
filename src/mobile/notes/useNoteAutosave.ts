@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
+import { ACTIVE_EDIT_MS, decideExternal, preserveExternal } from '@/lib/notes/liveNote'
 
 const SAVE_DEBOUNCE_MS = 500
 const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
-/** A keystroke this recent still counts as "the user is typing" for the external-update policy. */
-const ACTIVE_EDIT_MS = 2000
 
 
 export type NotePatch = Partial<Omit<Note, 'status' | 'icon'>> & { status?: Note['status'] | null; icon?: string | null }
@@ -54,39 +53,45 @@ export function useNoteAutosave(noteId: string) {
 
   /**
    * An outside change to this note (another device via iCloud, the desktop app, a vault file, a
-   * second editor of the same note). The live editor is authoritative while the user is editing:
-   *  • our own saves coming back are ignored;
-   *  • DIRTY — a save pending or a keystroke in the last 2 s — the outside content is NOT applied:
-   *    it is kept as a note version ("external") so the local save that follows can never silently
-   *    destroy it, and the note is re-checked automatically once typing pauses (DATA-SYNC-010);
-   *  • CLEAN — the editor holds exactly what is saved — the outside content replaces the editor's
-   *    document right away, even while the editor has focus and the keyboard is up (a clean editor
-   *    has nothing to lose; before, focus alone held the update until the user left the field).
-   *    An IME composition in progress is protected by the editor itself (NoteEditorPM).
+   * second editor of the same note) — the shared rule (lib/notes/liveNote.ts, DATA-LIVE-001):
+   *  • ignore: nothing visible changed, or it is one of OUR saves coming back (a save made since
+   *    the last outside version was shown — an older copy of our own typing is never "new");
+   *  • apply (CLEAN: no save pending, no keystroke in the last 2 s): the new title / text go into
+   *    the SAME mounted editor — even with focus and the keyboard up; no reopen needed;
+   *  • defer (DIRTY): kept as an "external" version, looked at again when typing pauses.
+   * A composition in progress is protected by the editor, which hands the content back
+   * (`deferredWhileComposing`).
    */
   const considerExternal = useCallback((n: Note) => {
     const cur = latest.current
-    if (!cur || n.id !== cur.id) return
-    if (n.content === cur.content || ownContents.current.has(n.content)) {
-      if (n.content === cur.content) preservedExternal.current = null
+    const dirty = saveTimer.current != null || Date.now() - lastEditAt.current < ACTIVE_EDIT_MS
+    const decision = decideExternal(n, cur, { dirty, ownEcho: n.content !== cur?.content && ownContents.current.has(n.content) && (n.title ?? '') === (cur?.title ?? '') })
+    if (decision === 'ignore') {
+      if (cur && n.content === cur.content) preservedExternal.current = null
       return
     }
-    const dirty = saveTimer.current != null || Date.now() - lastEditAt.current < ACTIVE_EDIT_MS
-    if (dirty) {
-      if (preservedExternal.current !== n.content) {
-        preservedExternal.current = n.content
-        window.notes.createNoteVersion?.(n.id, n.title || '', n.content, 'external').catch(() => {})
-      }
+    if (decision === 'defer') {
+      preserveExternal(n, preservedExternal)
       if (recheckTimer.current) clearTimeout(recheckTimer.current)
       recheckTimer.current = setTimeout(() => { recheckTimer.current = null; recheckRef.current() }, ACTIVE_EDIT_MS + 200)
       return
     }
     preservedExternal.current = null
-    latest.current = { ...cur, ...n }
+    const contentChanged = n.content !== cur!.content
+    latest.current = { ...cur!, ...n }
     lastSnapshot.current = n.content
+    // What we saved before this outside version is no longer an "echo" of anything current.
+    ownContents.current.clear()
     remember(n.content)
     setNote(latest.current)
-    setEditorContent(n.content)
+    if (contentChanged) setEditorContent(n.content)
+  }, [])
+
+  /** The editor could not apply an outside version during a composition (NoteEditorPM
+   *  `onExternalDeferred`): keep it as a version — the user's composition wins, nothing is lost. */
+  const deferredWhileComposing = useCallback((content: string) => {
+    const cur = latest.current
+    if (cur) preserveExternal({ id: cur.id, content, title: cur.title }, preservedExternal)
   }, [])
 
   useEffect(() => {
@@ -112,7 +117,8 @@ export function useNoteAutosave(noteId: string) {
     const updated = { ...n, ...patch, status: patch.status === null ? undefined : (patch.status ?? n.status), icon: patch.icon === null ? undefined : (patch.icon ?? n.icon), updatedAt: Date.now() } as Note
     latest.current = updated
     setNote(updated)
-    if ('content' in patch && typeof patch.content === 'string') { lastEditAt.current = Date.now(); remember(patch.content) }
+    if ('content' in patch || 'title' in patch) lastEditAt.current = Date.now()
+    if ('content' in patch && typeof patch.content === 'string') remember(patch.content)
     // Patches ACCUMULATE until the debounced save runs (TEST25-NOTES-001): a title edit within
     // the debounce window used to replace a pending content patch, so that save lost the text.
     pending.current = { ...pending.current, ...patch }
@@ -157,5 +163,5 @@ export function useNoteAutosave(noteId: string) {
     return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', flush); flush(); if (snapshotTimer.current) clearTimeout(snapshotTimer.current) }
   }, [bumpNoteToken, snapshot])
 
-  return { note, latest, persist, replace, lastSavedAt, editorContent }
+  return { note, latest, persist, replace, lastSavedAt, editorContent, deferredWhileComposing }
 }

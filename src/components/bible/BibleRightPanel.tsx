@@ -1,4 +1,5 @@
 import { loadChapterNoteCrossRefs } from '@/lib/notesCrossRefs'
+import { useLiveNote, ACTIVE_EDIT_MS } from '@/lib/notes/liveNote'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, NotepadText, Copy, Hash, ScanSearch, Check as CheckIcon, PanelRightOpen, Columns2 } from 'lucide-react'
@@ -1348,6 +1349,11 @@ export default function BibleRightPanel({
 
   // Track the current sidebar note in a ref so the unmount cleanup can access it
   const sidebarNoteRef = useRef<Note | null>(null)
+  // Live open note (DATA-LIVE-001): the side panel's note used to be a snapshot fetched when it
+  // was opened and never re-read — a change from another device showed only after reopening it.
+  const sidebarSavePendingRef = useRef(false)
+  const sidebarLastEditAtRef = useRef(0)
+  const sidebarLastSelfSaveRef = useRef<{ content: string; title: string | null | undefined } | null>(null)
 
   // ── Side-panel item right-click context menu ──
   type SideCtxData = { type: 'note'; note: Note } | { type: 'verse'; bookId: string; chapter: number; verse: number }
@@ -1545,12 +1551,28 @@ export default function BibleRightPanel({
     const updated = { ...sidebarNote, content, updatedAt: Date.now() }
     setSidebarNote(updated)
     setNotes((prev) => prev.map((n) => (n.id === sidebarNote.id ? updated : n)))
+    sidebarLastEditAtRef.current = Date.now()
+    sidebarSavePendingRef.current = true
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      sidebarSavePendingRef.current = false
+      sidebarLastSelfSaveRef.current = { content, title: updated.title }
       window.notes.updateNote(sidebarNote.id, { content }).catch(() => {})
       bumpNoteToken()
     }, 500)
   }
+
+  const { deferredWhileComposing: sidebarDeferredWhileComposing } = useLiveNote({
+    noteId: sidebarNote?.id,
+    getLocal: () => sidebarNoteRef.current,
+    isDirty: () => sidebarSavePendingRef.current || Date.now() - sidebarLastEditAtRef.current < ACTIVE_EDIT_MS,
+    isOwnEcho: (n) => { const s = sidebarLastSelfSaveRef.current; return !!s && n.content === s.content && (n.title ?? '') === (s.title ?? '') },
+    onApply: (n) => {
+      if (sidebarNoteRef.current?.id !== n.id) return
+      setSidebarNote(n)
+      setNotes((prev) => prev.map((x) => (x.id === n.id ? n : x)))
+    },
+  })
 
   function handleSidebarLexiconRefClick(strongsId: string) {
     const store = useAppStore.getState()
@@ -1598,8 +1620,12 @@ export default function BibleRightPanel({
     const updated = { ...sidebarNote, title, updatedAt: Date.now() }
     setSidebarNote(updated)
     setNotes((prev) => prev.map((n) => (n.id === sidebarNote.id ? updated : n)))
+    sidebarLastEditAtRef.current = Date.now()
+    sidebarSavePendingRef.current = true
     if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current)
     titleSaveTimer.current = setTimeout(() => {
+      sidebarSavePendingRef.current = false
+      sidebarLastSelfSaveRef.current = { content: updated.content, title }
       window.notes.updateNote(sidebarNote.id, { title }).catch(() => {})
       bumpNoteToken()
     }, 500)
@@ -1825,6 +1851,8 @@ export default function BibleRightPanel({
           <div className="flex-1 overflow-hidden">
             <NoteEditor
               content={sidebarNote.content ?? ''}
+              noteId={sidebarNote.id}
+              onExternalDeferred={sidebarDeferredWhileComposing}
               onChange={handleNoteChange}
               onVerseRefClick={handleVerseRefClick}
               onLexiconRefClick={handleSidebarLexiconRefClick}

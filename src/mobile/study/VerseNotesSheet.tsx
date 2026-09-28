@@ -140,7 +140,7 @@ export function MultiVerseNotesSheet({ verses, label, api, onOpenNote, fullDeten
 /** A note edited inside a sheet — the same editor and save semantics as the Notes tab. The sheet's
  *  own title already names the verse, so it is not repeated under the note title. */
 export function SheetNoteEditor({ noteId, api, onOpenInNotes }: { noteId: string; context?: string; api: SheetApi; onOpenInNotes: (id: string) => void }) {
-  const { note, persist, lastSavedAt, editorContent } = useNoteAutosave(noteId)
+  const { note, persist, lastSavedAt, editorContent, deferredWhileComposing } = useNoteAutosave(noteId)
   const typingLook = useAppStore((s) => s.noteTypingLook)
   const [editorView, setEditorView] = useState<EditorView | null>(null)
   if (note === undefined) return <div className="mobile-empty">Loading…</div>
@@ -156,6 +156,7 @@ export function SheetNoteEditor({ noteId, api, onOpenInNotes }: { noteId: string
       <NoteEditorPM
         content={editorContent}
         noteId={note.id}
+        onExternalDeferred={deferredWhileComposing}
         onChange={(content) => persist({ content })}
         mode="edit"
         typingLook={typingLook}

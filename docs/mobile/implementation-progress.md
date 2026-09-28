@@ -373,3 +373,38 @@ Symptom (the developer, on real devices): changes did not appear on the other de
 - **Honest status:** uploading, downloading, reconciling, offline, pending, up to date.
 - **Metadata-only diagnostic log**, switchable in Settings → iCloud (Xcode console / main-process log).
 
+## Open-note live updates + iPhone chapter notes — 2026-09-27
+
+**Live note update — where the stale state was:** not iCloud, and not the database; each device had
+the new row. The stale copies were in the mounted UI:
+1. **Mac Scripture right panel:** `sidebarNote` was fetched when opened and never re-read. That is the
+   "close and reopen" symptom on the Mac.
+2. **iPhone (Notes tab and Scripture sheet), `useNoteAutosave`:** an incoming text equal to any of the
+   last 32 local saves counted as our own echo, so a revert or a returning text was skipped, and a
+   title-only change was ignored.
+3. **`NoteEditorPM`:** its echo set never forgot old outputs, so a later outside text equal to one was
+   skipped. An outside change arriving during a composition was dropped permanently, yet the host
+   believed it applied, so the next local save lost it.
+
+The earlier live-sync fix (the Mac Notes panel and iPhone focus rule) had covered the rest.
+
+**Fix:**
+- One rule, `lib/notes/liveNote.ts`: `decideExternal` for all four surfaces, and `useLiveNote` for the
+  Mac Notes panel and the Scripture right panel.
+- Echo detection is limited to saves made since the last outside version.
+- Titles apply.
+- The editor clears its echo set when it applies an outside document, and hands composition-time
+  content back to the host (`onExternalDeferred` → an "external" version).
+- Verified in the simulator: an open verse-sheet note changed in place, in the same editor, with its
+  formatting kept.
+
+**iPhone chapter notes:** the top-of-reader indicator was the shared `ChapterView` chapter cross-ref
+banner (`crossRefIndex.chapterCrossRefSources`: notes citing the whole chapter). The iPhone reader now
+passes `chapterNotesBanner={false}`; the desktop is unchanged. Chapter notes live in the Scripture
+caret's **My Notes** row (`study/ChapterNotesView.tsx`, over `lib/chapterNotes.ts`):
+- with no verse selected: chapter notes (`verseRef` = `BOOK.CH`) plus notes citing the whole chapter,
+  each once, live, and editable in the same sheet;
+- with verses selected: the existing selected-verse My Notes (notes source), unchanged.
+
+Verse-specific indicators and multi-verse notes are untouched.
+
