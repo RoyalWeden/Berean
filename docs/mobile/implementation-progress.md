@@ -7,6 +7,19 @@ Branch: `feature/ios-app` · Worktree: `/Users/roywe/Berean-ios` · Base: `main`
 
 ---
 
+## Data-safety audit 2026-09-28 (DATA-SAFE-*)
+
+Adversarial audit of persistence, sync, conflicts, deletion, migration and recovery —
+[data-safety.md](data-safety.md) (threat model T1–T27, entity policies, invariants, limitations,
+real-device plan). Root cause of the reported multi-device overwrite: whole-record LWW with
+full-record ops (T1) → per-field merge with lineage (schema v47). New: quarantine of inferred
+deletions, restored/copied-database fork, account/container holds, integrity check + pre-migration
+backups, share-inbox never drops, iPhone Export all notes. Tests: merge unit, 30 data-safety
+scenarios, seeded chaos suite (5,000 seeds passed; 8 regression seeds). Real iCloud / physical
+devices: **not yet run** (plan in data-safety.md §8).
+
+---
+
 ## Testing wave 2026-09-22 (post-migration backlog)
 
 Source: the developer's 2026-09-22 device/desktop testing notes → `testing-backlog-2026-09-22.md`

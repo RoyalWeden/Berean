@@ -63,23 +63,41 @@ seconds on Wi-Fi and can take longer on cellular, in Low Power Mode, or after th
 foregrounded (the metadata query only runs in the foreground). There are no background pushes. The
 diagnostic log shows each step with a timestamp, so the Apple part can be measured.
 
-## Merge rules (summary)
+## Merge rules (summary — since 2026-09-28, DATA-SAFE-*; full model in [data-safety.md](data-safety.md) §3)
 
-- Records: last writer wins by hybrid logical clock (HLC), whole-record.
-- Tombstones stop an older edit from resurrecting a deleted record; ops are idempotent per
-  `(device, seq)`; each device's stream is applied in order, stopping at gaps.
-- **Note edited on both devices while apart:** the later HLC is current; the other text becomes a
-  conflict copy (`note_versions`, kind `conflict`).
-- **Note deleted (Trash or purge) on one device while edited on another, neither having seen the
-  other (DATA-SYNC-002):** the note ends up **in the Trash with the edited content** on every
-  device. The deletion is honoured and the work is recoverable with Restore; neither is silent.
-  If the deleting device had already seen the edit, it is an ordinary delete.
-- Same-name verse tags created apart → "Name (2)" deterministically.
-- **Same-range highlights created apart → one record** (id = range, DATA-HL-001).
-- **Same-day daily notes created apart → one note** (id `daily-<date>`, DATA-DAILY-001).
+- **Per-field merge, not whole-record last-writer-wins.** Every version carries its lineage and a
+  clock per field. A version the receiver already contains is skipped; one built on the receiver's
+  version replaces it. Versions made apart merge field by field: a pin on one device and an edit on
+  another BOTH survive. This was the cause of "changes appear overridden".
+- Only a field both devices changed can conflict. The higher field clock wins on every device and
+  the other value is kept: note text/title → a conflict copy in Versions (journaled, so every device
+  has it); other records → `sync_conflicts` (counted in Settings → iCloud).
+- **Deletion vs change made apart:** a note stays in the **Trash with the change** (every arrival
+  order, and the resolving device publishes the outcome); any other record is deleted and the
+  change's values are kept in `sync_conflicts`. A record re-created after its deletion was seen is
+  applied normally.
+- A merge's outcome is a new version; tombstones keep the deleting op's version (deterministic).
+- Idempotent twice over: `(device, seq)` in `sync_applied` AND lineage ("already have it").
+  Replaying every journal changes nothing.
+- Same-name verse tags created apart → "Name (2)". Same-range highlights → one record
+  (DATA-HL-001). Same-day daily notes → one note (DATA-DAILY-001).
 - Tabs: union membership, fractional order. **The tab on screen never moves under the user**
-  (DATA-TAB-001): a remote change to it is held until they leave it, and their own newer change
-  wins.
+  (DATA-TAB-001).
+
+## Data safety (DATA-SAFE-*, [data-safety.md](data-safety.md))
+
+| Protection | What it does |
+|---|---|
+| Deletions are never inferred from a partial database | missing rows beyond 20 / 25 % of an entity, or an emptied table, are **held** (quarantine) — Settings: *Restore from iCloud* / *They were deleted* |
+| Reinstall = new device | an empty database has no sync bookkeeping, so it can only receive; tested: publishes nothing, deletes nothing |
+| Restored / copied database | detected (file creation time, or own manifest ahead) → new device id + republish; the old device's journal brings back later edits |
+| Account / container change | iOS identity hash + "own history missing" check → **held**, nothing crosses; switching back resumes |
+| Damaged database | `PRAGMA quick_check` before sync and before a migration → held / not migrated |
+| Migration | consistent backup (`VACUUM INTO`) before upgrading, newest 3 kept |
+| Unknown / failing ops | parked, never dropped; re-armed on the next app version |
+| Crash windows | outbox cleared only after all files are written; a manifest missing after a crash is repaired; each op applied + recorded in one transaction; weekly full reconciliation |
+| Share inbox | never acknowledges an unhandled item; idempotent note creation (`share-<item>`) |
+| Emergency copy | iPhone Settings → iCloud → **Export all notes** (Markdown, Files / AirDrop) |
 
 ## Reconciliation (DATA-SYNC-001)
 
@@ -105,6 +123,7 @@ Hash-guarded, so an unchanged record produces nothing, and idempotent. Without i
 | Applying changes | a pull is applying other devices' changes |
 | iCloud unavailable | not signed in, or the container is missing (capture continues) |
 | Needs attention | an error, unreadable entries, or changes that failed to apply |
+| Paused to protect your data | a hold (see Data safety): records missing locally, another iCloud account or container, a damaged database — nothing is pushed, pulled or deleted until resolved |
 
 A device only knows another device is ahead once that device's manifest has arrived here. Until
 then, "Up to date" means up to date with everything iCloud has delivered to this device.
@@ -139,8 +158,10 @@ read.
   real engine, services and schema over the in-memory transport, plus the simulator. Real iCloud
   Drive upload / download timing, eviction, account changes and a second physical device need the
   device plan in [testing-backlog-2026-09-27b.md](testing-backlog-2026-09-27b.md).
-- There is no automatic rich-text merge. Concurrent note edits keep both texts (current + conflict
-  copy), and the user chooses in Versions.
+- There is no automatic rich-text merge. Concurrent edits of the same note's TEXT keep both texts
+  (current + conflict copy), and the user chooses in Versions. (Different fields — pin, folder,
+  title vs text — merge automatically.)
+- What never reached iCloud is lost with the device or the app (uninstall): see data-safety.md §6.
 - Push on backgrounding is best effort (the WebView may be suspended first). The outbox persists,
   and the next launch or foreground pushes.
 - A note that arrives before its folder briefly shows at the root until the folder arrives.

@@ -47,6 +47,14 @@ const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
 // (theme, fonts, preferences — read from the shared blob) but starts with a
 // fresh, blank workspace (its own default session + no tabs), takes no part in
 // cross-window sync, and writes nothing. See the onRehydrateStorage reset below.
+/** Random part of locally generated ids (tabs, history entries): crypto-random, so ids made on
+ *  different devices in the same millisecond cannot collide (DATA-SAFE-110). */
+function randomIdPart(): string {
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto
+  if (c?.getRandomValues) return Array.from(c.getRandomValues(new Uint8Array(6)), (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 10)
+  return Math.random().toString(36).slice(2, 12)
+}
+
 export const IS_INDEPENDENT_WINDOW = typeof window !== 'undefined' && (() => {
   try { return new URLSearchParams(window.location.search).get('independent') === '1' } catch { return false }
 })()
@@ -316,7 +324,7 @@ function swapTabType(
   if (!fromSpace) return null
   const old = s.tabs[fromSpace].find((t) => t.id === tabId)!
   const toSpace = TYPE_TO_SPACE[toType]
-  const id = `${toType}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const id = `${toType}-${Date.now()}-${randomIdPart()}`
   const base = blankTabOfType(toType, id, s)
   const tab: Tab = {
     ...base,
@@ -1484,7 +1492,7 @@ export const useAppStore = create<AppState>()(
         const currentSession = state.sessions.find(s => s.id === state.currentSessionId)
         const newEntry: HistoryEntry = {
           ...entry,
-          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: `hist-${Date.now()}-${randomIdPart()}`,
           timestamp: Date.now(),
           sessionId: state.currentSessionId,
           sessionName: currentSession?.name,
@@ -2180,7 +2188,7 @@ export const useAppStore = create<AppState>()(
         for (const sp of SPACES_ALL) {
           tabs[sp] = snapshot.tabs[sp].map((t) => {
             if (!openIds.has(t.id) && !idMap.has(t.id)) return t
-            const fresh = `${t.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+            const fresh = `${t.type}-${Date.now()}-${randomIdPart()}`
             idMap.set(t.id, fresh)
             return { ...t, id: fresh }
           })
@@ -2268,7 +2276,7 @@ export const useAppStore = create<AppState>()(
 
       createTab: (type, position = 'after-active') => {
         const spaceId = TYPE_TO_SPACE[type]
-        const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const id = `${type}-${Date.now()}-${randomIdPart()}`
         let tab: Tab
         if (type === 'bible') {
           const defTranslation = get().defaultBibleTranslation.toUpperCase()
@@ -2449,7 +2457,7 @@ export const useAppStore = create<AppState>()(
         if (s.activeSpace === spaceId && s.activeTabId[spaceId] === tabId) captureActiveScrollIntoNavEntry(get, tabId, spaceId)
         const fresh = get()
         const cur = fresh.tabs[spaceId].find((t) => t.id === tabId) ?? src
-        const id = `${cur.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const id = `${cur.type}-${Date.now()}-${randomIdPart()}`
         const clone = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)) as T)
         const state = clone(cur.state)
         const copy: Tab = { ...clone(cur), id, state: (cur.type === 'bible' ? withoutContextualFilters(state as BibleTabState) : state) as TabState }
@@ -3118,7 +3126,7 @@ export const useAppStore = create<AppState>()(
         }
         const state = get()
         // Always create a fresh tab — never reuse an existing search tab
-        const id = `scripture-search-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const id = `scripture-search-${Date.now()}-${randomIdPart()}`
         const tab: Tab = {
           id,
           spaceId: 'scripture',
@@ -3182,7 +3190,7 @@ export const useAppStore = create<AppState>()(
         const tab = state.tabs[spaceId].find(t => t.id === tabId)
         if (!tab) return
         const group: ArchivedGroup = {
-          id: `arch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: `arch-${Date.now()}-${randomIdPart()}`,
           label: tab.title,
           archivedAt: Date.now(),
           tabs: [tab],
@@ -3201,7 +3209,7 @@ export const useAppStore = create<AppState>()(
         if (allTabs.length === 0) return
         const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
         const group: ArchivedGroup = {
-          id: `arch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: `arch-${Date.now()}-${randomIdPart()}`,
           label: label ?? `Archive — ${ts}`,
           archivedAt: Date.now(),
           tabs: allTabs,

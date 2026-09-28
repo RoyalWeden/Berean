@@ -94,6 +94,12 @@ never need partial reads).
 
 ## 4. Merge rules (shared TypeScript: `src/platform/sync/engine.ts` + `entities.ts`)
 
+> **Superseded in part on 2026-09-28 (DATA-SAFE-*).** Record-level LWW (rule 2) and the single-`base`
+> divergence test (rule 4) were replaced by per-field merge with lineage (`merge.ts`); deletes vs
+> changes follow data-safety.md §3.4. The rules below remain accurate for ordering, tombstones,
+> aggregates, fractional order, idempotence and schema versions. Current model:
+> [data-safety.md](data-safety.md) §3.
+
 Bookkeeping (migration v44, all device-local): `sync_record_meta(entity, key, hlc, device,
 deleted, hash)` holds every synced record's current HLC, the device that produced it, whether it
 is a tombstone, and a hash of its synced fields; `sync_applied(device, seq)` records what has been
@@ -235,6 +241,10 @@ other device; *how far it was scrolled and how wide a pane was* is device presen
   devices adopting the same note is impossible unless it was synced earlier by another means).
   Tabs/sessions currently in localStorage are migrated into the new SQLite tables first (Phase 5),
   then adopted.
+- **Reinstall safety (DATA-SAFE, verified by tests):** a reinstall starts with an empty database:
+  a new device id and no sync bookkeeping, so it cannot produce a single deletion — it only
+  receives. A restored or copied database forks its device id (data-safety.md T7/T8); another
+  iCloud account holds sync (T9).
 - **New device / reinstall:** reads every device's latest snapshot (if any) then journals after it;
   applies in HLC order. Until the first full pass completes the UI shows "Restoring from iCloud…"
   with progress, but the app is usable (Bible reading never waits on sync).

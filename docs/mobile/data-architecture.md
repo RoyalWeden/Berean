@@ -1,7 +1,7 @@
 # Berean data architecture — inventory, ownership, classification
 
 Audit of 2026-09-27 (ids `DATA-*`, ledger [testing-backlog-2026-09-27b.md](testing-backlog-2026-09-27b.md)).
-Everything here was checked against the code, not only the design docs. Sync design and merge rules:
+Everything here was checked against the code, not only the design docs. **Merge and safety model since 2026-09-28: [data-safety.md](data-safety.md)** — every synced record merges per field (the "Conflictable" column below: LWW now means per-field, with the other value kept). Sync design and merge rules:
 [icloud.md](icloud.md) · operational summary: [sync.md](sync.md) · schema: [database.md](database.md).
 
 ## 1. Where data lives (every persistent store in the repo)
@@ -80,8 +80,9 @@ LOCAL = this device only · SYNC = iCloud journal · BUNDLED = shipped read-only
    (NSMetadataQuery / fs.watch) and the 60 s interval → pull → hybrid logical clock (HLC) ordered
    apply → UI refresh (`sync.onApplied` → tokens). If the note is open and being typed in on the
    receiving device, the external change is kept as a version, not applied under the cursor.
-4. **Both edit the same note offline:** the later HLC becomes the note; the other text becomes a
-   conflict copy in Versions, identical on every device.
+4. **Both edit the same note offline:** changes to different fields both survive; if both changed
+   the text, the later one is current and the other text is a conflict copy in Versions, identical
+   on every device (data-safety.md §3).
 5. **Folder → move note → sync:** the folder row, `parent_id` and `notes.folder_id` are
    independent records. Out-of-order arrival is harmless (a note may briefly point to a folder not
    yet received; the folder list shows it when it lands).
