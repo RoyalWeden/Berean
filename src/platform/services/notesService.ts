@@ -158,6 +158,9 @@ export function createNotesService(ctx: ServiceContext) {
   }
 
   async function create(data: {
+    /** A caller-chosen stable id (e.g. `share-<item>` for the Share Extension inbox) makes the
+     *  creation idempotent: if a note with it exists already, it is returned as is. */
+    id?: string
     type?: string; title?: string; content?: string; verseRef?: string; color?: string; icon?: string; status?: string | null; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) {
     // A daily note's identity is its DATE (DATA-DAILY-001): two devices creating the same day's
@@ -166,7 +169,11 @@ export function createNotesService(ctx: ServiceContext) {
     // date, or a trashed one holding the id, keeps the random-id path (no PK clash).
     const dateKey = data.type === 'daily' && data.title ? dailyTitleDateKey(data.title) : null
     const dailyId = dateKey ? `daily-${dateKey}` : null
-    const id = dailyId && !(await db().get('SELECT 1 FROM notes WHERE id = ?', [dailyId])) ? dailyId : ctx.uuid()
+    if (data.id) {
+      const existing = await db().get<{ id: string }>('SELECT id FROM notes WHERE id = ?', [data.id])
+      if (existing) return { success: true as const, note: (await getOne(data.id))!, existed: true }
+    }
+    const id = data.id ?? (dailyId && !(await db().get('SELECT 1 FROM notes WHERE id = ?', [dailyId])) ? dailyId : ctx.uuid())
     const now = ctx.now()
     // Apply the user's configured default only when the caller didn't explicitly pass a
     // status (including explicitly passing null/'' to mean "no status") — centralized here
@@ -404,7 +411,9 @@ export function createNotesService(ctx: ServiceContext) {
 
   async function deleteAll() {
     await db().run('DELETE FROM notes')
-    ctx.events.emit('data:changed', { entity: 'note', op: 'bulk' })
+    // scope 'explicit-delete-all': the user's confirmed "Delete all notes" — sync propagates it
+    // (every other mass disappearance of rows is held for review, DATA-SAFE-020).
+    ctx.events.emit('data:changed', { entity: 'note', op: 'bulk', scope: 'explicit-delete-all' })
     return { success: true }
   }
 

@@ -38,7 +38,7 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     private var rootResolved = false
     /// The account the cached root belongs to: a different ubiquity identity (another Apple
     /// Account signed in, or iCloud Drive turned off and on) re-resolves the container.
-    private var cachedToken: (NSObjectProtocol & NSCopying & NSSecureCoding)?
+    private var cachedToken: (any NSCoding & NSCopying & NSObjectProtocol)?
     private var query: NSMetadataQuery?
     private var observers: [NSObjectProtocol] = []
     private var downloadRequested: [String: Date] = [:]
@@ -133,7 +133,7 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     /// the sync engine notice another account and hold instead of mixing data (DATA-SAFE-040).
     static func identityHash() -> String? {
         guard let token = FileManager.default.ubiquityIdentityToken,
-              let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else { return nil }
+              let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false) else { return nil }
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined().prefix(32).description
     }
 

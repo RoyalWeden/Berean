@@ -205,6 +205,8 @@ export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }
 
       <ListSection title="iCloud">
         <div className="mobile-embedded-section"><ICloudSection /></div>
+        <Row title="Export all notes" subtitle="Every note as a Markdown file, to Files or AirDrop — your own copy, independent of iCloud" chevron
+          onClick={() => { void import('@/platform/ios/exportNotes').then((m) => m.exportAllNotesAsMarkdown()).catch((err) => alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)) }} />
       </ListSection>
 
       <ListSection title="Video">

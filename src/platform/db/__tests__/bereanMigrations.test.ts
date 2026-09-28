@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { memoryDb } from './testDb'
-import { BEREAN_MIGRATIONS, BEREAN_SCHEMA_VERSION, currentSchemaVersion, runMigrations, type Migration } from '../bereanMigrations'
+import { DatabaseDamagedError, checkDatabase, BEREAN_MIGRATIONS, BEREAN_SCHEMA_VERSION, currentSchemaVersion, runMigrations, type Migration } from '../bereanMigrations'
 
 const EXPECTED_TABLES = [
   'notes', 'notes_fts', 'highlights', 'settings', 'workspaces', 'youtube_videos', 'youtube_sync',
@@ -25,7 +25,7 @@ describe('bereanMigrations (shared runner)', () => {
     const versions = BEREAN_MIGRATIONS.map((m) => m.version)
     expect(versions[0]).toBe(1)
     expect(versions).not.toContain(18)
-    expect(BEREAN_SCHEMA_VERSION).toBe(46)
+    expect(BEREAN_SCHEMA_VERSION).toBe(47)
     // strictly increasing
     for (let i = 1; i < versions.length; i++) expect(versions[i]).toBeGreaterThan(versions[i - 1])
   })
@@ -34,7 +34,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     const applied = await runMigrations(db)
     expect(applied.length).toBe(BEREAN_MIGRATIONS.length)
-    expect(await currentSchemaVersion(db)).toBe(46)
+    expect(await currentSchemaVersion(db)).toBe(47)
     const names = await tableNames(db)
     for (const t of EXPECTED_TABLES) expect(names, `missing table ${t}`).toContain(t)
     // v1 seeded defaults are present and JSON-encoded
@@ -71,7 +71,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     await runMigrations(db)
     expect(await runMigrations(db)).toEqual([])
-    expect(await currentSchemaVersion(db)).toBe(46)
+    expect(await currentSchemaVersion(db)).toBe(47)
   })
 
   it('upgrades a database left at an intermediate version', async () => {
@@ -82,7 +82,7 @@ describe('bereanMigrations (shared runner)', () => {
     await db.run("INSERT INTO notes (id, title, content, created_at, updated_at, tags) VALUES ('n1', 'Old', 'kept', 1, 1, '[]')")
     const applied = await runMigrations(db)
     expect(applied[0]).toBe(21)
-    expect(await currentSchemaVersion(db)).toBe(46)
+    expect(await currentSchemaVersion(db)).toBe(47)
     expect(await db.get('SELECT title FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Old' })
   })
 
@@ -134,5 +134,44 @@ describe('bereanMigrations (shared runner)', () => {
     await runMigrations(db)
     const slots = (await db.all<{ color_slot: number }>('SELECT color_slot FROM verse_tags ORDER BY sort_order')).map((r) => r.color_slot)
     expect(slots).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1])
+  })
+
+  it('v47 adds per-field sync clocks, lineage and sync_conflicts without touching existing sync rows', async () => {
+    const db = memoryDb()
+    await runMigrations(db, BEREAN_MIGRATIONS.filter((m) => m.version <= 46))
+    await db.run("INSERT INTO sync_record_meta (entity, key, hlc, device, deleted, hash) VALUES ('note', 'n1', 'h', 'd', 0, 'x')")
+    await runMigrations(db)
+    expect(await db.get('SELECT hlc, lineage, field_hlc FROM sync_record_meta WHERE key = ?', ['n1'])).toEqual({ hlc: 'h', lineage: null, field_hlc: null })
+    expect(await tableNames(db)).toContain('sync_conflicts')
+  })
+
+  it('upgrading an existing database: backup hook runs first; a failed backup is reported, not fatal', async () => {
+    const db = memoryDb()
+    await runMigrations(db, BEREAN_MIGRATIONS.filter((m) => m.version <= 45))
+    const calls: Array<[number, number]> = []
+    await runMigrations(db, BEREAN_MIGRATIONS, { beforeMigrate: async (from, to) => { calls.push([from, to]) } })
+    expect(calls).toEqual([[45, BEREAN_SCHEMA_VERSION]])
+    const db2 = memoryDb()
+    await runMigrations(db2, BEREAN_MIGRATIONS.filter((m) => m.version <= 45))
+    let reported = false
+    await runMigrations(db2, BEREAN_MIGRATIONS, { beforeMigrate: async () => { throw new Error('disk full') }, onBackupFailed: () => { reported = true } })
+    expect(reported).toBe(true)
+    expect(await currentSchemaVersion(db2)).toBe(BEREAN_SCHEMA_VERSION)
+  })
+
+  it('a fresh database takes no backup; a damaged one is never migrated', async () => {
+    const calls: number[] = []
+    await runMigrations(memoryDb(), BEREAN_MIGRATIONS, { beforeMigrate: async (from) => { calls.push(from) } })
+    expect(calls).toEqual([])
+    const db = memoryDb()
+    await runMigrations(db, BEREAN_MIGRATIONS.filter((m) => m.version <= 45))
+    const broken = new Proxy(db, {
+      get: (t, k) => (k === 'all'
+        ? async (sql: string, p?: unknown[]) => (/quick_check/.test(sql) ? [{ quick_check: 'row 3 missing from index' }] : t.all(sql, p as never))
+        : (typeof (t as never)[k] === 'function' ? ((t as never)[k] as (...a: unknown[]) => unknown).bind(t) : (t as never)[k])),
+    })
+    await expect(runMigrations(broken)).rejects.toThrow(DatabaseDamagedError)
+    expect(await currentSchemaVersion(db)).toBe(45)
+    expect(await checkDatabase(db)).toEqual({ ok: true, detail: 'ok' })
   })
 })

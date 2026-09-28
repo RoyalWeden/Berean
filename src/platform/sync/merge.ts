@@ -38,8 +38,8 @@ export interface VersionInfo {
 }
 
 /** Lineage kept per record (local) and carried per op (smaller: ops are journaled). */
-export const LINEAGE_KEEP = 64
-export const LINEAGE_SEND = 24
+export const LINEAGE_KEEP = 256
+export const LINEAGE_SEND = 64
 
 export function contains(v: VersionInfo, h: Hlc | undefined | null): boolean {
   if (!h) return false
@@ -121,10 +121,16 @@ export function mergeConcurrent(
     let conflict = false
     if (!(f in local.fields)) takeRemote = true
     else if (same(lv, rv)) { fieldHlc[f] = newerClock; continue }
-    else if (contains(local, rc)) takeRemote = false
-    else if (contains(remote, lc)) takeRemote = true
-    else if (o.preferNonEmpty?.includes(f) && blank(lv) !== blank(rv)) takeRemote = blank(lv)
-    else { takeRemote = compareHlc(rc, lc) > 0; conflict = true }
+    else {
+      const localSawRemote = contains(local, rc), remoteSawLocal = contains(remote, lc)
+      if (localSawRemote && !remoteSawLocal) takeRemote = false
+      else if (remoteSawLocal && !localSawRemote) takeRemote = true
+      // Each side has seen the other's write (e.g. an older value resurfaced through a Trash
+      // resolution): the causally later write — the higher HLC — is the current value.
+      else if (localSawRemote && remoteSawLocal) takeRemote = compareHlc(rc, lc) > 0
+      else if (o.preferNonEmpty?.includes(f) && blank(lv) !== blank(rv)) takeRemote = blank(lv)
+      else { takeRemote = compareHlc(rc, lc) > 0; conflict = true }
+    }
     if (takeRemote) { fields[f] = rv; fieldHlc[f] = rc; changed.push(f) } else fieldHlc[f] = lc
     if (conflict && !isBookkeepingField(f)) {
       conflicts.push(takeRemote
@@ -136,22 +142,6 @@ export function mergeConcurrent(
   const lower = hlc === remote.hlc ? local.hlc : remote.hlc
   const lineage = trimLineage([...(local.lineage ?? []), ...(remote.lineage ?? []), lower].filter((h) => h !== hlc), LINEAGE_KEEP)
   return { fields, fieldHlc, hlc, lineage, changed, conflicts }
-}
-
-/**
- * An edit and a deletion made apart (the delete never saw the edit, or the edit never saw the
- * delete). Who survives:
- *   - a CREATION the deleting device never saw (no ancestry in common — a deterministic id such as
- *     today's daily note or a highlight's range, made fresh) survives: it is new data, not an edit
- *     of what was deleted;
- *   - an EDIT of the deleted record loses to the deletion (a stale device cannot resurrect it) — the
- *     edit's values are kept as a conflict row; notes have their own rule (Trash with the edit).
- */
-export function editSurvivesDelete(edit: VersionInfo, del: VersionInfo): boolean {
-  if (edit.lineage === null || del.lineage === null) return compareHlc(edit.hlc, del.hlc) > 0   // pre-v47 rule
-  const delKnows = new Set([del.hlc, ...del.lineage])
-  const shared = edit.lineage.some((h) => delKnows.has(h))
-  return edit.lineage.length === 0 || !shared
 }
 
 /** Per-field hashes of a record, to see which fields a local write changed. */

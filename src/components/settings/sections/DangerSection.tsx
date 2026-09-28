@@ -107,7 +107,7 @@ export default function DangerSection() {
     {
       id: 'delete-all-notes',
       title: 'Delete all notes',
-      description: 'Permanently deletes every note — verse notes, general notes, YouTube timestamp notes, and daily notes. This cannot be undone.',
+      description: 'Permanently deletes every note — verse notes, general notes, YouTube timestamp notes, and daily notes — on this device and, with iCloud sync on, on every device and in iCloud. This cannot be undone.',
       confirmWord: 'notes',
       buttonLabel: 'Delete all notes',
       onConfirm: async () => {

@@ -18,7 +18,9 @@ const YT = /(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11
 /** Ids handled already (a kill between handling and ack must not create the note twice). */
 const DONE_KEY = 'shareInboxHandled'
 const DONE_MAX = 200
-/** An item that keeps failing is given up (and acked) after this many drains. */
+/** An item that keeps failing stops being retried in this session after this many drains. It is
+ *  NEVER acknowledged (acking deletes it from the App Group): it waits in the inbox for the next
+ *  launch — a shared item is never dropped (DATA-SAFE-080). */
 const MAX_ATTEMPTS = 3
 const attempts = new Map<string, number>()
 let draining: Promise<number> | null = null
@@ -39,14 +41,15 @@ export function drainShareInbox(): Promise<number> {
     const ack: string[] = [], files: string[] = []
     for (const it of items) {
       const id = it.id ?? `${it.kind}-${it.receivedAt ?? 0}`
+      if (!done.has(id) && (attempts.get(id) ?? 0) >= MAX_ATTEMPTS) continue   // retried next launch
       if (!done.has(id)) {
         try {
-          await routeItem(it)
+          await routeItem(it, id)
         } catch (err) {
           const n = (attempts.get(id) ?? 0) + 1
           attempts.set(id, n)
-          console.warn(`[share-inbox] item failed (attempt ${n})`, err instanceof Error ? err.message : String(err))
-          if (n < MAX_ATTEMPTS) continue
+          console.warn(`[share-inbox] item failed (attempt ${n}) — kept in the inbox`, err instanceof Error ? err.message : String(err))
+          continue
         }
         done.add(id)
         await settings.set(DONE_KEY, [...done].slice(-DONE_MAX)).catch(() => {})
@@ -60,13 +63,13 @@ export function drainShareInbox(): Promise<number> {
   return draining
 }
 
-async function routeItem(it: ShareInboxItem): Promise<void> {
+async function routeItem(it: ShareInboxItem, itemId: string): Promise<void> {
   if (it.kind === 'url' && it.url) {
     const m = it.url.match(YT)
     if (m) { openIosDeepLink(formatDeepLink({ kind: 'video', videoId: m[1] })); return }
     const ref = parseRef(it.url)
     if (ref) { openIosDeepLink(formatDeepLink({ kind: 'verse', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse })); return }
-    await noteFrom('Shared link', it.url); return
+    await noteFrom('Shared link', it.url, itemId); return
   }
   if (it.kind === 'text' && it.text) {
     const t = it.text.trim()
@@ -74,7 +77,7 @@ async function routeItem(it: ShareInboxItem): Promise<void> {
     if (ref && t.length < 40) { openIosDeepLink(formatDeepLink({ kind: 'verse', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse })); return }
     const m = t.match(YT)
     if (m && t.length < 120) { openIosDeepLink(formatDeepLink({ kind: 'video', videoId: m[1] })); return }
-    await noteFrom(t.split('\n')[0].slice(0, 80), t); return
+    await noteFrom(t.split('\n')[0].slice(0, 80), t, itemId); return
   }
   if (it.kind === 'pdf' && it.file) {
     const { base64, bytes } = await BereanShareInbox.readFile({ file: it.file })
@@ -93,8 +96,10 @@ async function routeItem(it: ShareInboxItem): Promise<void> {
   }
 }
 
-async function noteFrom(title: string, body: string): Promise<void> {
-  const r = await iosServices().notes.create({ type: 'general', title, content: body })
+async function noteFrom(title: string, body: string, itemId: string): Promise<void> {
+  // A deterministic id: a kill after the note was written but before the item was recorded as
+  // handled finds the same note on the next drain instead of creating a second one.
+  const r = await iosServices().notes.create({ id: `share-${itemId.replace(/[^A-Za-z0-9_-]/g, '')}`, type: 'general', title, content: body })
   if (r.success && r.note) openIosDeepLink(formatDeepLink({ kind: 'note', noteId: r.note.id }))
 }
 

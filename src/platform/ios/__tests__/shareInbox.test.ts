@@ -50,4 +50,20 @@ describe('drainShareInbox', () => {
     expect(createNote).not.toHaveBeenCalled()
     expect(inbox.acked).toEqual(['k'])
   })
+
+  it('an item that keeps failing is never acknowledged (never dropped) — it waits for the next launch', async () => {
+    inbox.items = [{ id: 'f', kind: 'text', text: 'keeps failing' }]
+    createNote.mockRejectedValue(new Error('db unavailable'))
+    for (let i = 0; i < 6; i++) await drainShareInbox()
+    expect(inbox.acked).toEqual([])
+    expect(createNote).toHaveBeenCalledTimes(3)   // then no more retries this session
+    createNote.mockReset()
+  })
+
+  it('shared text becomes a note with a stable id, so a kill between writing and recording it cannot duplicate it', async () => {
+    createNote.mockImplementation(async (d: { title: string }) => ({ success: true, note: { id: `note-${d.title}` } }))
+    inbox.items = [{ id: 'dup-1', kind: 'text', text: 'once only' }]
+    await drainShareInbox()
+    expect(createNote.mock.calls[0][0]).toMatchObject({ id: 'share-dup-1' })
+  })
 })

@@ -49,7 +49,7 @@ export function DataSettingsPage({ onBack }: { onBack?: () => void }) {
     {
       id: 'delete-all-notes',
       title: 'Delete all notes',
-      description: 'Permanently deletes every note — verse notes, general notes, and daily notes.',
+      description: 'Permanently deletes every note — verse notes, general notes, and daily notes — on this device and, with iCloud sync on, on every device and in iCloud. Export your notes first if you may want them back.',
       buttonLabel: 'Delete all notes',
       onConfirm: async () => { await window.notes.deleteAllNotes(); bumpNoteToken() },
     },

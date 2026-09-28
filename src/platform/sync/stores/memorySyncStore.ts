@@ -11,9 +11,16 @@ import type { DeviceManifest, SyncStore, SyncStoreStatus } from '../types'
  */
 type Folder = Map<string, string>
 
+type Queued = { kind: 'file'; name: string; content: string } | { kind: 'delete'; name: string } | { kind: 'manifest'; manifest: DeviceManifest }
+
 export class MemoryCloud {
   readonly folders = new Map<string, Folder>()
   readonly manifests = new Map<string, DeviceManifest>()
+  /** Per device: writes made offline, still on that device's disk (they survive an app restart
+   *  and upload when it is online again — as iCloud Drive does). */
+  readonly pending = new Map<string, Queued[]>()
+  /** Devices currently offline (the network state belongs to the device, not the app process). */
+  readonly offline = new Set<string>()
   private evicted = new Set<string>()
 
   folder(device: string): Folder {
@@ -42,9 +49,13 @@ export class MemoryCloud {
 export class MemorySyncStore implements SyncStore {
   readonly deviceId: string
   private readonly cloud: MemoryCloud
-  private online = true
-  /** Own writes made while offline, uploaded on reconnect (in order). */
-  private queued: Array<{ kind: 'file'; name: string; content: string } | { kind: 'delete'; name: string } | { kind: 'manifest'; manifest: DeviceManifest }> = []
+  private get online(): boolean { return !this.cloud.offline.has(this.deviceId) }
+  /** Own writes made while offline, uploaded on reconnect (in order) — kept on the device's disk. */
+  private get queued(): Queued[] {
+    let q = this.cloud.pending.get(this.deviceId)
+    if (!q) { q = []; this.cloud.pending.set(this.deviceId, q) }
+    return q
+  }
   /** Snapshot of the cloud as last seen while online (what an offline device can still read). */
   private view: { folders: Map<string, Folder>; manifests: Map<string, DeviceManifest> } = { folders: new Map(), manifests: new Map() }
   /** Optional fault injection: throw on the next N writes. */
@@ -71,9 +82,9 @@ export class MemorySyncStore implements SyncStore {
         else if (q.kind === 'delete') this.cloud.folder(this.deviceId).delete(q.name)
         else this.cloud.manifests.set(this.deviceId, structuredClone(q.manifest))
       }
-      this.queued = []
+      this.cloud.pending.set(this.deviceId, [])
     }
-    this.online = on
+    if (on) this.cloud.offline.delete(this.deviceId); else this.cloud.offline.add(this.deviceId)
     if (on) { this.refreshView(); for (const w of this.watchers) w() }
   }
   isOnline(): boolean { return this.online }
