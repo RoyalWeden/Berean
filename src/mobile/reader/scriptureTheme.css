@@ -1,0 +1,32 @@
+/* Scripture theme (SEP25) — iPhone colour presets colour ONLY the reading surface.
+   --scripture-{bg,text,verse-num,strongs} (full colours) and --scripture-*-rgb (triples, used
+   below) are injected, scoped to the reader/compare and their page roots, by
+   src/mobile/settings/scriptureTheme.ts; html[data-scripture-theme] is present only while a
+   preset other than Default is chosen. The shared ChapterView/VerseRow read the app's palette
+   tokens, so inside the reading surface (and nowhere else) those tokens are re-pointed at the
+   Scripture colours. Surfaces, accent, selection and every sheet/bar stay the app's own. */
+
+html[data-scripture-theme] :is(.mobile-reader, .m-compare) {
+  background-color: rgb(var(--scripture-bg-rgb));
+  color: rgb(var(--scripture-text-rgb));
+  --color-text-primary: var(--scripture-text-rgb);
+  --color-text-secondary: var(--scripture-text-secondary-rgb);
+  --color-text-muted: var(--scripture-text-muted-rgb);
+  /* The verse-number badge's resting colour (text-text-quaternary). */
+  --color-text-quaternary: rgb(var(--scripture-verse-num-rgb));
+  --color-red-letter: var(--scripture-red-letter-rgb);
+}
+
+html[data-scripture-theme] :is(.mobile-reader, .m-compare) :is(.strongs-sup, .mobile-study-strongs) {
+  color: rgb(var(--scripture-strongs-rgb));
+}
+html[data-scripture-theme] :is(.mobile-reader, .m-compare) .mobile-study-strongs {
+  text-decoration-color: rgb(var(--scripture-strongs-rgb) / 0.4);
+}
+html[data-scripture-theme] :is(.mobile-reader, .m-compare) .strongs-sup.is-paren {
+  color: rgb(var(--scripture-text-muted-rgb));
+}
+/* Compare's column divider reads against the Scripture ground rather than the app surface. */
+html[data-scripture-theme] .m-compare-col + .m-compare-col {
+  border-left-color: rgb(var(--scripture-text-rgb) / 0.14);
+}

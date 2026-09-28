@@ -1,0 +1,43 @@
+/* Tab-type switcher + "Go to" experience row (TEST25-NAV-001). Glass follows mobile.css tokens.
+   WKWebView paints an OUTER box-shadow under a backdrop-filtered element as a square, so the
+   glass here uses a hairline border + inset highlight only. */
+
+/* ── floating top-left switcher ─────────────────────────────────────────── */
+.m-tabswitch { position: fixed; top: calc(var(--m-safe-top) + ((var(--m-header-h, 44px) - 40px) / 2)); left: 10px; z-index: 9;
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.m-tabswitch.is-away { opacity: 0; transform: translateY(-14px) scale(0.9); pointer-events: none; }
+.m-tabswitch-scrim { position: fixed; inset: 0; z-index: 9; background: rgb(0 0 0 / 0.14); animation: m-tabswitch-dim 0.18s ease both; }
+@keyframes m-tabswitch-dim { from { opacity: 0 } to { opacity: 1 } }
+html.scheme-dark .m-tabswitch-scrim { background: rgb(0 0 0 / 0.32); }
+@media (prefers-reduced-motion: reduce) { .m-tabswitch-scrim { animation: none; } }
+.m-tabswitch-button, .m-tabswitch-item {
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  color: rgb(var(--color-text-primary)); font: inherit;
+}
+.m-tabswitch-button { width: 40px; height: 40px; padding: 0; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; }
+.m-tabswitch-button:active, .m-tabswitch-item:active { background: var(--m-glass-control-pressed); transform: scale(0.96); }
+.m-tabswitch-button.is-open { color: rgb(var(--color-accent)); }
+.m-tabswitch-menu { position: absolute; top: 48px; left: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.m-tabswitch-item { display: inline-flex; align-items: center; gap: 9px; height: 40px; padding: 0 16px 0 12px; border-radius: 20px;
+  font-size: calc(15px * min(var(--m-type-scale, 1), 1.3)); font-weight: 600; white-space: nowrap; transform-origin: top left; }
+.m-tabswitch-item svg { color: rgb(var(--color-accent)); flex: none; }
+html[data-reduce-transparency] .m-tabswitch-button, html[data-reduce-transparency] .m-tabswitch-item {
+  background: rgb(var(--color-surface-2)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-contrast="more"] .m-tabswitch-button, html[data-contrast="more"] .m-tabswitch-item {
+  background: rgb(var(--color-surface-2) / 0.97); border-color: rgb(var(--color-text-muted) / 0.7); }
+@media (prefers-reduced-motion: reduce) { .m-tabswitch { transition: opacity 0.1s linear; } .m-tabswitch.is-away { transform: none; } }
+
+/* ── "Go to" experience row (caret field, plus sheet) ───────────────────── */
+.m-exp-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 2px; margin: 0 0 18px; padding: 4px; background: var(--m-card-bg, rgb(var(--color-surface-2))); border-radius: var(--m-radius-card, 12px); -webkit-user-select: none; user-select: none; }
+.m-exp-tile { min-width: 0; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 10px; background: none; color: rgb(var(--color-text-primary)); font: inherit; }
+.m-exp-tile svg { color: rgb(var(--color-accent)); }
+.m-exp-tile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(11px * min(var(--m-type-scale, 1), 1.3)); color: rgb(var(--color-text-secondary)); }
+.m-exp-tile:active { background: var(--m-fill-pressed, rgb(var(--color-surface-4) / 0.5)); }
+.m-exp-tile.is-more svg { color: rgb(var(--color-text-secondary)); }
+.mobile-caret-goto .m-exp-row { margin: 10px 0 0; }
+
+/* The fanned options are read over Scripture: a thicker material than the resting button. */
+.m-tabswitch-item { background: rgb(var(--color-surface-2) / 0.9); }
+html.scheme-dark .m-tabswitch-item { background: rgb(var(--color-surface-3) / 0.88); }

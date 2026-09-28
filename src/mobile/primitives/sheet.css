@@ -1,0 +1,14 @@
+/* In-sheet navigation slide (Sheet.push / pop). Keyframes, not a JS spring: the animation always
+   finishes, so a view can never stay shifted sideways (SEP24-011). */
+.mobile-sheet-view { min-height: 100%; }
+.mobile-sheet-view.is-forward { animation: m-sheet-view-in-fwd 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.mobile-sheet-view.is-back { animation: m-sheet-view-in-back 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes m-sheet-view-in-fwd { from { transform: translateX(22%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes m-sheet-view-in-back { from { transform: translateX(-22%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mobile-sheet-view.is-forward, .mobile-sheet-view.is-back { animation-duration: 0.01s; } }
+
+/* No rubber-banding inside a sheet (SEP25 SHEET-GESTURE): at a scroll boundary the drag belongs to
+   the sheet itself (Sheet.tsx / sheetGesture.ts), so neither the body nor any nested vertical
+   scroller bounces or chains the scroll to the page behind. */
+.mobile-sheet-body { overscroll-behavior: none; }
+.mobile-sheet-body * { overscroll-behavior-y: none; }

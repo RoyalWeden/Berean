@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, Hash, NotepadText, Files, GitFork, Volume2, Palette, Tag, X, Check } from 'lucide-react'
 import { IconButton, Toolbar, Divider, ColorSwatchRow, Button, type Swatch } from '@/components/ui'
+import { selectionAllows, selectionKind, selectionLabel } from '@/lib/verseSelection'
 import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
+import { displayChapter } from '@/lib/chapterNumbering'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { selectionToRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
@@ -22,7 +24,7 @@ const HIGHLIGHT_SWATCHES: Swatch[] = HIGHLIGHT_COLORS.map((c) => ({ id: c.id, rg
  * verse is selected; everything else applies to every selected verse.
  */
 
-function sortSelection(sel: SelectedVerseRef[]): SelectedVerseRef[] {
+export function sortSelection(sel: SelectedVerseRef[]): SelectedVerseRef[] {
   return [...sel].sort((a, b) =>
     a.textId.localeCompare(b.textId) ||
     a.bookId.localeCompare(b.bookId) ||
@@ -35,7 +37,7 @@ const lxxSuffix = (textId: string) => (textId === 'lxx' ? ' LXX' : '')
 
 /** "Genesis 1:3, 5-7" style label when every ref shares one book+chapter+text, else a
  *  comma-joined list of full refs. */
-function refLabel(sel: SelectedVerseRef[]): string {
+export function refLabel(sel: SelectedVerseRef[]): string {
   const first = sel[0]
   const sameChapter = sel.every(
     (r) => r.textId === first.textId && r.bookId === first.bookId && r.chapter === first.chapter,
@@ -50,14 +52,14 @@ function refLabel(sel: SelectedVerseRef[]): string {
       parts.push(start === prev ? `${start}` : `${start}-${prev}`)
       if (i < nums.length) { start = nums[i]; prev = nums[i] }
     }
-    return `${bookName(first.bookId)} ${first.chapter}:${parts.join(', ')}${lxxSuffix(first.textId)}`
+    return `${bookName(first.bookId)} ${displayChapter(first.bookId, first.chapter)}:${parts.join(', ')}${lxxSuffix(first.textId)}`
   }
   return sel
     .map((r) => `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${lxxSuffix(r.textId)}`)
     .join(', ')
 }
 
-async function fetchVerse(r: SelectedVerseRef) {
+export async function fetchVerse(r: SelectedVerseRef) {
   const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse, r.textId)
   return v ? { ...r, text: v.text, textTagged: v.text_tagged ?? null } : null
 }
@@ -143,7 +145,9 @@ export default function VerseSelectionBar() {
     flashCopied('verses')
   }, [sel, wordReplacerEnabled, wordReplacerRules, flashCopied])
 
+  const canAddNote = selectionAllows(sel, 'add-note')
   const addNote = useCallback(async () => {
+    if (!selectionAllows(sel, 'add-note')) return
     const anchor = sel[0]
     const result = await window.notes.createNote({
       type: 'verse', title: refLabel(sel), verseRef: `${anchor.bookId}.${anchor.chapter}.${anchor.verse}`, content: '', textId: anchor.textId,
@@ -175,7 +179,7 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-popover rounded-row px-1.5 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
+        className={`fixed left-1/2 bottom-5 -translate-x-1/2 material-floating-bar pl-1 pr-1 py-1 ${modalOpen ? 'z-raised' : 'z-overlay'}`}
         // While a full-screen overlay (floating search / settings / history) is up, drop to
         // z-raised: still above every bit of app chrome so it stays visible in the dimmed/
         // blurred background, but behind the overlay itself — same token PresenterControls
@@ -183,28 +187,29 @@ export default function VerseSelectionBar() {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <Toolbar material="none" edge="none" size="sm" itemVariant="ghost" className="px-0 gap-0.5 h-auto">
-          <span className="px-2 text-footnote font-medium text-text-secondary whitespace-nowrap">{sel.length} selected</span>
-          <Divider orientation="vertical" className="mx-0.5" />
+          <span className="pl-2.5 pr-1.5 text-footnote font-medium text-text-secondary whitespace-nowrap tabular-nums" title={`${sel.length} selected`}>{selectionKind(sel) === 'multiple' ? `${sel.length} selected` : selectionLabel(sel)}</span>
+          <Divider orientation="vertical" className="mx-1" />
 
-          <IconButton size={28} label={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}
+          <IconButton shape="round" size={28} label={copied === 'verses' ? 'Copied' : sel.length > 1 ? 'Copy verses' : 'Copy verse'} onClick={() => copyVerses(false)}
             icon={copied === 'verses' ? Check : Copy} iconClassName={copied === 'verses' ? 'text-success' : undefined} />
-          <IconButton size={28} label={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}
+          <IconButton shape="round" size={28} label={copied === 'refs' ? 'Copied' : sel.length > 1 ? 'Copy references' : 'Copy reference'} onClick={() => copyVerses(true)}
             icon={copied === 'refs' ? Check : Hash} iconClassName={copied === 'refs' ? 'text-success' : undefined} />
-          <IconButton size={28} label="Add note" icon={NotepadText} onClick={addNote} />
-          <IconButton size={28} label={single ? 'Show notes for this verse' : 'Select a single verse'} icon={Files} disabled={!single}
+          {/* A verse note anchors to ONE verse — no "note on all selected verses" (TEST-007). */}
+          <IconButton shape="round" size={28} label={canAddNote ? 'Add note' : 'Select a single verse to add a note'} icon={NotepadText} disabled={!canAddNote} onClick={() => { if (canAddNote) void addNote() }} />
+          <IconButton shape="round" size={28} label={single ? 'Show notes for this verse' : 'Select a single verse'} icon={Files} disabled={!single}
             onClick={() => single && filterBiblePanelByVerse(`${single.bookId}.${single.chapter}.${single.verse}`)} />
-          <IconButton size={28} label={single ? 'Show cross references' : 'Select a single verse'} icon={GitFork} disabled={!single}
+          <IconButton shape="round" size={28} label={single ? 'Show cross references' : 'Select a single verse'} icon={GitFork} disabled={!single}
             onClick={() => single && openCrossRefsInBiblePanel(`${single.bookId}.${single.chapter}.${single.verse}`)} />
-          <IconButton size={28} label="Play audio from here" icon={Volume2}
+          <IconButton shape="round" size={28} label="Play audio from here" icon={Volume2}
             onClick={() => startPlaybackFrom(sel[0].bookId, sel[0].chapter, sel[0].verse, sel[0].textId)} />
 
-          <Divider orientation="vertical" className="mx-0.5" />
-          <IconButton ref={tagBtnRef} size={28} label="Tag verses" icon={Tag}
+          <Divider orientation="vertical" className="mx-1" />
+          <IconButton ref={tagBtnRef} shape="round" size={28} label="Tag verses" icon={Tag}
             onClick={() => setTagAnchor(tagAnchor ? null : tagBtnRef.current?.getBoundingClientRect() ?? null)} />
-          <IconButton ref={colorBtnRef} size={28} label="Highlight" icon={Palette} onClick={() => setColorOpen((v) => !v)} />
+          <IconButton ref={colorBtnRef} shape="round" size={28} label="Highlight" icon={Palette} onClick={() => setColorOpen((v) => !v)} />
 
-          <Divider orientation="vertical" className="mx-0.5" />
-          <IconButton size={28} label="Clear selection" icon={X} onClick={clearVerseSelection} />
+          <Divider orientation="vertical" className="mx-1" />
+          <IconButton shape="round" size={28} label="Clear selection" icon={X} onClick={clearVerseSelection} />
         </Toolbar>
       </div>
 
@@ -261,7 +266,7 @@ function ColorGridPopover({ anchorRect, onPick, onRemove, onClose }: {
       style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <ColorSwatchRow swatches={HIGHLIGHT_SWATCHES} value={null} onChange={(id) => id && onPick(id as HighlightColor)} className="max-w-[136px]" />
+      <ColorSwatchRow swatches={HIGHLIGHT_SWATCHES} value={undefined} onChange={(id) => id && onPick(id as HighlightColor)} rows={2} />
       <Button variant="ghost" size="sm" icon={X} onClick={onRemove} className="mt-2 w-full text-text-muted hover:text-destructive">
         Remove highlights
       </Button>

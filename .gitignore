@@ -23,3 +23,18 @@ sample-pdfs/
 # node_modules is symlinked across worktrees, so this must not live under it).
 .vite/
 .vite-test/
+.vite-ios/
+
+# iOS developer-specific signing (docs/mobile/ios-build.md)
+ios/App/Signing.xcconfig
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/DerivedData/
+ios/App/build/
+ios/App/BereanNative/.build/
+data/youtube_transcripts/
+
+# Per-user Xcode state (never shared)
+xcuserdata/
+*.xcuserstate

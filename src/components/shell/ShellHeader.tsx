@@ -253,7 +253,12 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
     <>
       <div
         ref={headerRef}
-        className="no-drag flex-shrink-0 material-bar"
+        // NEW-17: flex column + justify-center vertically centres the fixed-height (44px) inner
+        // Toolbar inside the HEADER_HEIGHT (52px) bar, so the gap above and below the 36px
+        // controls is equal (8/8) and their centre line (26px) is the traffic lights' centre
+        // (trafficLightPosition y 20 + 12/2). Before, the Toolbar sat at the top of the taller
+        // bar: 4px above the controls, 12px below, and 4px above the traffic-light centre.
+        className="no-drag flex-shrink-0 material-bar flex flex-col justify-center"
         // No permanent `border-b` — scroll-edge (macOS 26/27's seamless-at-rest toolbar) owns the
         // hairline instead, appearing only once the content beneath has actually scrolled. Full
         // wiring (a `scrolled` boolean driven by a `scrollEdge` store slice, passed to `Toolbar`

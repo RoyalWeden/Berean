@@ -1,0 +1,31 @@
+/* iPhone Books filter (BooksFilterView) — individual-book multi-select. Same tokens as
+   mobile.css; every tappable row is ≥44pt. */
+.mobile-books-filter { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 8px; }
+
+.mobile-books-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 14px; border-radius: var(--m-radius, 12px); background: rgb(var(--color-surface-3)); }
+.mobile-books-summary-text { display: flex; flex-direction: column; min-width: 0; }
+.mobile-books-summary-label { color: rgb(var(--color-text-muted)); font-size: calc(12px * var(--m-type-scale, 1)); }
+.mobile-books-summary-value { color: rgb(var(--color-text-primary)); font-size: calc(16px * var(--m-type-scale, 1)); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mobile-books-link { flex: none; min-height: 44px; padding: 0 6px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); }
+
+.mobile-books-search { margin-bottom: 0; }
+.mobile-books-search-clear { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: -10px; border: 0; background: none; color: rgb(var(--color-text-muted)); }
+
+.mobile-books-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.mobile-books-empty { padding: 24px 8px; text-align: center; }
+
+.mobile-books-section { display: flex; flex-direction: column; gap: 4px; }
+.mobile-books-section-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 0 14px; }
+.mobile-books-section-title { color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+.mobile-books-section-count { font-weight: 400; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.mobile-books-section-actions { display: inline-flex; align-items: center; gap: 4px; }
+
+.mobile-books-list { list-style: none; margin: 0; padding: 0; border-radius: var(--m-radius, 12px); overflow: hidden; background: rgb(var(--color-surface-3)); }
+.mobile-books-list li + li .mobile-books-row { border-top: 1px solid rgb(var(--color-surface-4) / 0.6); }
+.mobile-books-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-books-row:active { background: rgb(var(--color-surface-4) / 0.6); }
+.mobile-books-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-books-row-check { display: inline-flex; flex: none; width: 20px; color: rgb(var(--color-accent)); }
+.mobile-books-row.is-on .mobile-books-row-name { font-weight: 500; }

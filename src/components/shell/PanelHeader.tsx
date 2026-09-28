@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, type ReactNode } from 'react'
 import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
 import { Toolbar, ToolbarSpacer } from '@/components/ui'
 
@@ -35,6 +35,14 @@ import { Toolbar, ToolbarSpacer } from '@/components/ui'
  * function's own comment). A panel that never issues a `zone="actions"` call (every panel but
  * PDFViewer, for now) simply leaves that container empty — harmless, no layout effect.
  */
+/**
+ * Where the panel is being shown. 'phone' = a desktop panel hosted full-screen by the iPhone shell
+ * (MobileApp's hosted-panel wrapper): no macOS traffic-light inset, no window drag, and the phone's
+ * header metrics (--m-header-h) so hosted tabs (Lexicon, YouTube, PDF, tags) line up with every
+ * native phone page instead of showing a squeezed Mac title bar under the notch (T23-001/002).
+ */
+export const PanelChromeContext = createContext<'desktop' | 'phone'>('desktop')
+
 export default function PanelHeader({
   floating = false,
   children,
@@ -44,10 +52,22 @@ export default function PanelHeader({
   children: ReactNode
   className?: string
 }) {
+  const chrome = useContext(PanelChromeContext)
   const onMouseDown = useWindowDrag(isInteractiveDragTarget)
   const actionsRef = useCallback((el: HTMLDivElement | null) => {
     publishFloatingActionsSlot(el)
   }, [])
+  if (chrome === 'phone') {
+    return (
+      <div className={`mobile-hosted-header flex-shrink-0 select-none material-bar border-b border-separator ${className}`}>
+        <Toolbar size="md" edge="none" material="none">
+          <div className="flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
+          <ToolbarSpacer />
+          <div ref={actionsRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+        </Toolbar>
+      </div>
+    )
+  }
   return (
     <div
       onMouseDown={onMouseDown}

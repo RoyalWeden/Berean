@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag,
-} from 'lucide-react'
+  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag, Cloud } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import type { ScriptureLayout } from '@/types'
@@ -14,6 +13,7 @@ import SectionAnchorChips from './SectionAnchorChips'
 import YtLayoutSetting from './sections/YtLayoutSetting'
 import WordReplacerSection from './sections/WordReplacerSection'
 import AudioSection from './sections/AudioSection'
+import ICloudSection from './sections/ICloudSection'
 import HistorySection from './sections/HistorySection'
 import UpdatesSection from './sections/UpdatesSection'
 import PrintExportSection from './sections/PrintExportSection'
@@ -26,6 +26,9 @@ import ExperimentalSection from './sections/ExperimentalSection'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { THEME_PRESETS } from '@/lib/themePresets'
 import ThemePicker from './ThemePicker'
+import CustomThemesSection from './sections/CustomThemesSection'
+import { ThemePreviewCard } from './ThemePreviewCard'
+import { findCustomTheme, previewColors } from '@/lib/customTheme'
 
 const FONT_FAMILY_OPTIONS = [
   { value: 'system', label: 'System default' },
@@ -149,7 +152,7 @@ const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
 
 
-type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
+type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'icloud' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -171,6 +174,7 @@ export default function SettingsModal() {
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const customThemes = useAppStore((s) => s.customThemes)
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   const setThemePreset = useAppStore((s) => s.setThemePreset)
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
@@ -442,7 +446,8 @@ export default function SettingsModal() {
     { id: 'appearance', label: 'Appearance', icon: Palette,   keywords: ['theme', 'font', 'color', 'dark', 'light', 'preset', 'typography', 'ui'] },
     { id: 'reading',    label: 'Reading',    icon: BookOpen,  keywords: ['strongs', 'inline', 'verse', 'zoom', 'layout', 'line height', 'scripture', 'bible', 'translation', 'red letter', 'hermas'] },
     { id: 'notes',      label: 'Notes',      icon: NotepadText,  keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'print', 'export', 'pdf', 'margin', 'daily', 'tags', 'verse tags'] },
-    { id: 'vault',      label: 'Sync',       icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
+    { id: 'vault',      label: 'Vault',      icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'folder', 'path', 'markdown'] },
+    { id: 'icloud',     label: 'iCloud',     icon: Cloud, keywords: ['sync', 'icloud', 'iphone', 'devices', 'notes', 'highlights', 'tabs', 'sessions', 'workspaces'] },
     { id: 'youtube',    label: 'YouTube',    icon: Youtube,   keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions', 'layout'] },
     { id: 'audio',      label: 'Audio',      icon: Volume2,   keywords: ['audio', 'read aloud', 'tts', 'text to speech', 'voice', 'speak', 'speech', 'listen', 'narration'] },
     { id: 'shortcuts',  label: 'Shortcuts',  icon: Keyboard,  keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
@@ -467,8 +472,10 @@ export default function SettingsModal() {
   // The currently-active preset object — used by both the Theme summary card and the ambient-
   // animation section below (to detect when the active theme carries its own curated
   // `animationStyle`, which locks that section's toggle on).
+  const activeCustomTheme = findCustomTheme(themePreset, customThemes)
+  const basePresetId = activeCustomTheme ? activeCustomTheme.basedOn : themePreset
   const activePreset = THEME_PRESETS.find((p) =>
-    themePreset === p.id || themePreset === `${p.id}-dark` || themePreset === `${p.id}-light`
+    basePresetId === p.id || basePresetId === `${p.id}-dark` || basePresetId === `${p.id}-light`
   ) ?? THEME_PRESETS[0]
   const curatedAnimationActive = !!activePreset.animationStyle
 
@@ -592,7 +599,7 @@ export default function SettingsModal() {
                       const accent = isSystemAccent ? (systemAccentColor ?? THEME_PRESETS[0].dark.accent) : null
                       const swatchColors = theme === 'system' ? null : (previewVariant === 'dark' ? activePreset.dark : activePreset.light)
                       const bg = swatchColors?.bg ?? activePreset.dark.bg
-                      const label = isSystemAccent ? 'System' : activePreset.label
+                      const label = isSystemAccent ? 'System' : (activeCustomTheme?.name ?? activePreset.label)
                       return (
                         <ListRow
                           className="control-glass rounded-card"
@@ -600,14 +607,18 @@ export default function SettingsModal() {
                           onClick={() => setThemePickerOpen(true)}
                           leading={
                             <div className="w-14 h-10 rounded-md overflow-hidden relative flex-shrink-0 border border-border">
-                              {theme === 'system' && !isSystemAccent ? (
+                              {activeCustomTheme || (theme !== 'system' && !isSystemAccent) ? (
+                                <ThemePreviewCard {...previewColors(themePreset, customThemes, previewVariant)} width="100%" height="100%" style={{ position: 'absolute', inset: 0, borderRadius: 0, fontSize: 7, padding: '0 4px' }} />
+                              ) : theme === 'system' && !isSystemAccent ? (
                                 <div className="absolute inset-0" style={{
                                   background: `linear-gradient(135deg, rgb(${activePreset.dark.bg}) 50%, rgb(${activePreset.light.bg}) 50%)`
                                 }} />
                               ) : (
                                 <div className="absolute inset-0" style={{ background: `rgb(${bg})` }} />
                               )}
-                              <div className="absolute inset-y-0 left-0 w-2.5" style={{ background: `rgb(${accent ?? swatchColors?.accent ?? activePreset.dark.accent})` }} />
+                              {!(activeCustomTheme || (theme !== 'system' && !isSystemAccent)) && (
+                                <div className="absolute inset-y-0 left-0 w-2.5" style={{ background: `rgb(${accent ?? swatchColors?.accent ?? activePreset.dark.accent})` }} />
+                              )}
                             </div>
                           }
                           title={label}
@@ -618,6 +629,8 @@ export default function SettingsModal() {
                       )
                     })()}
                   </div>
+
+                  <CustomThemesSection />
 
                   {/* Glass appearance — Berean's version of macOS 27's system transparency slider.
                       Scales every translucent material's opacity (menus, popovers, side panel,
@@ -1383,6 +1396,8 @@ export default function SettingsModal() {
                 </>
               )}
 
+              {section === 'icloud' && <ICloudSection />}
+
               {section === 'youtube' && (
                 <>
                   {/* Default YouTube layout */}
@@ -1651,7 +1666,7 @@ export default function SettingsModal() {
                     <HistorySection />
                   </div>
                   <div className="pt-4 border-t border-separator">
-                    <SectionLabel className="mb-3">Workspaces</SectionLabel>
+                    <SectionLabel className="mb-3">Saved sessions</SectionLabel>
                     <WorkspacesSection />
                   </div>
                   <div className="pt-4 border-t border-separator">

@@ -8,8 +8,9 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { runRawScriptureSearch } from '@/lib/scriptureSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
+import { toggleBook, bookPassesFilter, isGroupActive, bookSections, booksSummary, selectGroup, clearGroup, groupSelectionState, type BookSection } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
@@ -24,6 +25,7 @@ import {
   Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
   RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics,
 } from '@/components/ui'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
  *  combined Strong's+word query like "G5485 god" — any plain word from that same query
@@ -86,6 +88,7 @@ const ALL_TEXTS = [
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
   { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' as const },
   { id: '2baruch',       label: '2 Baruch',          category: 'pseudo' as const },
+  { id: 'didache_hoole', label: 'Didache',           category: 'pseudo' as const },
 ]
 
 // Module-level cache: this view remounts every time the search tab is (re)opened (BiblePanel
@@ -579,7 +582,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, previewTextId)
       .then((v) => {
         if (v) {
-          setVersePreview({ ref: `${bookName(parsed.bookId)} ${parsed.chapter}:${parsed.verse}${refSuffix}`, text: v.text })
+          setVersePreview({ ref: `${bookName(parsed.bookId)} ${displayChapter(parsed.bookId, parsed.chapter)}:${parsed.verse}${refSuffix}`, text: v.text })
         } else {
           setVersePreview(null)
         }
@@ -619,45 +622,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // Shared by runSearch's main (possibly book-scoped) query and its book-filter-agnostic
   // second query below — same variant/text-target double loop, same dedup, same phrase-mode
   // post-filter, just parameterized on which bookIds restriction (if any) to apply.
+  // The FTS pass (per text × per word-replacer variant, deduped, phrase post-filter) is the
+  // shared src/lib/scriptureSearch.ts implementation — the same function the phone's search
+  // page runs — mapped onto this view's `_textId` row shape.
   const runRawSearch = useCallback(async (
     trimmed: string, tid: string, effectiveWordMode: WordMode, variants: string[], scopedBookIds: string[] | undefined,
   ): Promise<RawResult[]> => {
-    const textTargets = tid === 'all' ? ALL_TEXTS.map((t) => t.id) : [tid]
-    const seen = new Set<string>()
-    let raw: RawResult[] = []
-    for (const textId of textTargets) {
-      for (const variant of variants) {
-        let res: RawResult[]
-        try {
-          res = (await window.bible.searchText(variant, textId, effectiveWordMode, scopedBookIds)) as unknown as RawResult[]
-        } catch { continue }
-        for (const r of res) {
-          const key = `${textId}|${r.book_id}|${r.chapter}|${r.verse_num}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          raw.push({ ...r, _textId: textId })
-        }
-      }
-    }
-    // ── Phrase mode: JS post-filter guarantees only exact-phrase matches ──────
-    // FTS5 phrase search is correct in most cases, but this catches edge cases
-    // and makes the filtering strict regardless of FTS5 tokenizer quirks. Checked
-    // against every VARIANT phrase (not just the user's literal typed text) — a
-    // result found via the substituted-wording variant (e.g. "jesus christ") will
-    // never literally contain the user's own typed phrase ("yeshua messiah"), so
-    // checking only the original phrase here would silently discard exactly the
-    // bidirectional matches the variant search above exists to surface.
-    if (effectiveWordMode === 'phrase') {
-      // Ignore commas and semicolons on BOTH sides of the comparison: a phrase search for
-      // "faith hope charity" should still keep a verse that writes it "faith, hope, charity",
-      // and typing the phrase WITH punctuation should still match a verse without it. Strip
-      // ,/; and collapse whitespace before the substring test (this used to be a bare
-      // t.includes(p), which silently dropped every verse that punctuated between the words).
-      const stripPunct = (s: string) => s.toLowerCase().replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim()
-      const phrases = variants.map(stripPunct)
-      raw = raw.filter((r) => { const t = stripPunct(r.text); return phrases.some((p) => t.includes(p)) })
-    }
-    return raw
+    const raw = await runRawScriptureSearch(trimmed, tid, effectiveWordMode, variants, scopedBookIds)
+    return raw.map(({ textId: t, strongsWords: _sw, ...r }) => ({ ...r, _textId: t }))
   }, [])
 
   const runSearch = useCallback(async (q: string, tid: string, wMode?: WordMode) => {
@@ -1142,12 +1114,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           const scopeParts: string[] = []
           if (currentTextEntry) scopeParts.push(currentTextEntry.label)
           if (testamentFilter !== 'all') scopeParts.push(testamentFilter)
-          if (selectedBooks.length === 1) scopeParts.push(bookNameOf(selectedBooks[0]))
-          else if (selectedBooks.length > 1) scopeParts.push(`${selectedBooks.length} books`)
+          if (selectedBooks.length > 0) scopeParts.push(booksSummary(selectedBooks, bookNameOf))
           const scopeSummary = scopeParts.length > 0 ? scopeParts.join(' · ') : 'All scripture'
           return (
             <Button
               variant="secondary" size="sm" selected={isFiltered}
+              shape="capsule"
               icon={BookOpen}
               onClick={() => openScopePalette()}
               tooltip="Scope: edition, testament, and books"
@@ -1391,7 +1363,22 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         const testamentNav = useRovingGridNav({ itemCount: scopeOptions.length, columns: 1 })
         const editionItemCount = (showAllEditionsOption ? 1 : 0) + filteredEditions.length
         const editionNav = useRovingGridNav({ itemCount: editionItemCount, columns: 1 })
-        const canonNav = useRovingGridNav({ itemCount: filteredCanonBooks.length, columns: 3 })
+        // Canon books are listed individually under testament section headers (OT /
+        // Apocrypha / NT — the shared BOOK_SECTIONS order from scriptureSearchFilters), each
+        // with Select all / Clear quick-select that only adds/removes those individual ids.
+        // Anything a text ships that isn't in a known section lands in "More books".
+        const canonNameById = new Map(filteredCanonBooks.map((b) => [b.id, b.name]))
+        const canonSections: BookSection[] = bookSections({ available: canonNameById.keys(), nameOf: (id) => canonNameById.get(id) ?? bookName(id) })
+        const sectionedIds = new Set(canonSections.flatMap((sec) => sec.books.map((b) => b.id)))
+        const leftoverCanon = filteredCanonBooks.filter((b) => !sectionedIds.has(b.id))
+        if (leftoverCanon.length > 0) canonSections.push({ id: 'more', label: 'More books', books: leftoverCanon.map((b) => ({ id: b.id, name: b.name })) })
+        const sectionCount = (id: string) => canonSections.find((sec) => sec.id === id)?.books.length ?? 0
+        const canonSectionNav: Record<string, ReturnType<typeof useRovingGridNav>> = {
+          ot: useRovingGridNav({ itemCount: sectionCount('ot'), columns: 3 }),
+          apocrypha: useRovingGridNav({ itemCount: sectionCount('apocrypha'), columns: 3 }),
+          nt: useRovingGridNav({ itemCount: sectionCount('nt'), columns: 3 }),
+          more: useRovingGridNav({ itemCount: sectionCount('more'), columns: 3 }),
+        }
         // "Other Books" multi-book groups (T12P, Hermas, Recognitions of Clement) are a
         // fixed, known set — each gets its own independent sub-grid nav instance. No
         // cross-group edge-of-grid handoff between different groups' sub-grids (deferred
@@ -1518,18 +1505,37 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       <div className="mx-3 my-1 h-px bg-surface-4" />
                     )}
 
-                    {/* ── Canon Books — flat grid, no OT/NT/Apocrypha sub-headers: the scope
-                         pill row above already tells you what you're looking at when it's
-                         narrowed, and when it's "All" the testament order (OT then NT then
-                         Apocrypha, canonBooksAll's own natural order) still reads fine
-                         without a label repeating what's visually obvious from scrolling. ── */}
-                    {hasCanonMatch && (
-                      <div className="grid grid-cols-3 gap-0.5 px-2 py-1">
-                        {filteredCanonBooks.map((book, i) =>
-                          scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false, canonNav.getItemProps(i))
-                        )}
-                      </div>
-                    )}
+                    {/* ── Canon Books — individual books under testament section headers. The
+                         selection is always a set of individual book ids; the header's
+                         Select all / Clear are quick-select helpers over that section's
+                         (currently visible) books. ── */}
+                    {hasCanonMatch && canonSections.map((sec) => {
+                      const ids = sec.books.map((b) => b.id)
+                      const state = groupSelectionState(selectedBooks, ids)
+                      const picked = ids.filter((id) => selectedBooks.includes(id)).length
+                      return (
+                        <div key={sec.id} role="group" aria-label={sec.label}>
+                          <div className="flex items-center gap-2 px-3 pt-1.5 pb-0.5">
+                            <p className="flex-1 text-caption2 font-medium text-text-muted">
+                              {sec.label}{picked > 0 && <span className="ml-1.5 tabular-nums">· {picked} of {ids.length}</span>}
+                            </p>
+                            {state !== 'all' && (
+                              <Button variant="ghost" size="sm" className="h-auto px-1.5 py-0.5 text-caption2"
+                                onClick={() => setSelectedBooks((cur) => selectGroup(cur, ids))}>Select all</Button>
+                            )}
+                            {state !== 'none' && (
+                              <Button variant="ghost" size="sm" className="h-auto px-1.5 py-0.5 text-caption2"
+                                onClick={() => setSelectedBooks((cur) => clearGroup(cur, ids))}>Clear</Button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-0.5 px-2 pb-1.5">
+                            {sec.books.map((book, i) =>
+                              scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false, canonSectionNav[sec.id]?.getItemProps(i))
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
 
                     {hasCanonMatch && hasOtherMatch && (
                       <div className="mx-3 my-1 h-px bg-separator" />
@@ -1554,7 +1560,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 <Button
                                   variant="ghost" size="sm" selected={wholeGroupSelected}
                                   className="h-auto px-1.5 py-0.5 text-caption2"
-                                  onClick={() => setSelectedBooks((cur) => toggleGroup(cur, group))}
+                                  onClick={() => setSelectedBooks((cur) => wholeGroupSelected ? clearGroup(cur, group.books) : selectGroup(cur, group.books))}
                                 >
                                   {wholeGroupSelected ? 'Clear all' : 'Select all'}
                                 </Button>
@@ -1572,7 +1578,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   </div>
 
                   <Toolbar size="sm" material="none" edge="top" className="justify-between">
-                    <span className="text-caption2 text-text-muted">Esc to close</span>
+                    <span className="min-w-0 truncate text-caption2 text-text-muted" aria-live="polite">
+                      Books: <span className="text-text-secondary">{booksSummary(selectedBooks, bookNameOf)}</span>
+                      {selectedBooks.length > 0 && (
+                        <Button variant="ghost" size="sm" className="ml-1.5 h-auto px-1.5 py-0.5 text-caption2"
+                          onClick={() => setSelectedBooks([])}>Clear books</Button>
+                      )}
+                      <span className="ml-2">· Esc to close</span>
+                    </span>
                     <Button
                       variant="primary" size="sm"
                       onClick={() => { setScopePaletteOpen(false); setScopeSearch('') }}
@@ -1620,8 +1633,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             <div className="divide-y divide-separator">
               {crossRefs.map((r, i) => {
                 const ref = r.endVerse
-                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`
+                  ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                  : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`
                 const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
                 return (
                   <ListRow

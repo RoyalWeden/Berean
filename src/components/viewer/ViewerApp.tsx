@@ -178,11 +178,12 @@ export default function ViewerApp() {
   // override (the OTHER two viewerTheme options) deliberately still ignores the preset/animation
   // — that's for presenting on a projector with plain, predictable contrast regardless of
   // whatever colorful theme the main window happens to be on, not a bug to fix here.
+  const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
     if (viewerTheme === 'system') {
       applyThemeToDocument({
         theme, themePreset, systemIsDark, systemAccentColor,
-        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes,
       })
       return
     }
@@ -195,7 +196,7 @@ export default function ViewerApp() {
     const effectiveDark = viewerTheme === 'dark'
     html.classList.toggle('dark', effectiveDark)
     html.classList.toggle('light', !effectiveDark)
-  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
+  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
 
   // Keep the ref in sync every render so handleContent (stable, deps []) sees the latest payload.
   payloadRef.current = payload
@@ -209,6 +210,13 @@ export default function ViewerApp() {
     if (next.kind === 'bible' && typeof next.scrollPercent === 'number') {
       viewerScrollPctRef.current = next.scrollPercent
       viewerScrollTargetKeyRef.current = `${next.bookId}:${next.chapter}`
+    }
+    // A verse with NO percent means "centre on this verse" (a search / cross-ref jump — the main
+    // window holds the percent back until the user scrolls). Release the live percent so the rAF
+    // loop stops re-applying the previous position over the centring (TEST-004: the loop pulled
+    // the presenter straight back to where an earlier visit to the chapter had left it).
+    else if (next.kind === 'bible' && next.scrollPercent == null && next.verse != null) {
+      viewerScrollPctRef.current = null
     }
     // Skip the re-render when ONLY the chapter scroll position moved — the ref update above is
     // enough, the loop picks it up. Everything else (chapter nav, verse, annotations, side

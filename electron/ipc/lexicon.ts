@@ -1,6 +1,7 @@
 import type { IpcMain } from 'electron'
 import { getHebrewDb, getGreekDb } from '../db/lexicon'
 import { getTextDb } from '../db/bible'
+import { services } from '../services'
 
 interface DbEntry {
   strongs_id: string
@@ -30,7 +31,10 @@ function mapEntry(row: DbEntry) {
 
 /** Looks up a single Strong's entry (word/gloss/definition/etc) — exported as a plain function,
  *  not just an IPC handler, so other main-process modules (electron/ipc/aiLookup.ts, verifying
- *  a Strong's number before using it) can reuse it without a second DB-access path. */
+ *  a Strong's number before using it) can reuse it without a second DB-access path.
+ *  @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts and
+ *  electron/ipc/studyTrail.ts until they go async. The async equivalent (same logic, same SQL)
+ *  is src/platform/services/lexiconService.ts's `getEntry`. */
 export function getLexiconEntry(strongsNum: string): ReturnType<typeof mapEntry> | null {
   const num = strongsNum.trim().toUpperCase()
   try {
@@ -76,7 +80,10 @@ export interface LexiconOccurrence {
  *  "when I open a lexicon tab, the occurrence stuff should show immediately and [the rest]
  *  after a second" — this two-phase split (quick pass first, full pass right behind it) is
  *  that: LexiconPanel.tsx calls this once with a small quickLimit for the instant render, then
- *  again with no limit for the complete set once the panel is already showing something. */
+ *  again with no limit for the complete set once the panel is already showing something.
+ *  @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts until it goes async.
+ *  The async equivalent (same logic, same SQL, same book-scoping fix) is
+ *  src/platform/services/lexiconService.ts's `getOccurrences`. */
 export function getLexiconOccurrences(strongsNum: string, bookId?: string, quickLimit?: number): LexiconOccurrence[] {
   const num = strongsNum.trim().toUpperCase()
   try {
@@ -307,7 +314,10 @@ export function getLexiconOccurrences(strongsNum: string, bookId?: string, quick
  *  below (same query, unchanged) into a standalone exported function so aiLookup.ts's Strong's
  *  gloss bridge (Team B item 2c) can reuse the exact same matching/ranking logic the on-demand
  *  Lexicon tab already uses, instead of re-deriving a second search path against the same two
- *  tables. */
+ *  tables.
+ *  @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts until it goes async.
+ *  The async equivalent is src/platform/services/lexiconService.ts's `search`
+ *  (aliased there as `searchLexiconGloss`). */
 export function searchLexiconGloss(query: string, lang: 'H' | 'G' | 'all'): ReturnType<typeof mapEntry>[] {
   const q = `%${query.trim()}%`
   const sql = `
@@ -358,6 +368,9 @@ export function searchLexiconGloss(query: string, lang: 'H' | 'G' | 'all'): Retu
  * Fixed by not routing through SQL LIKE for this specific lookup at all: both lexicons are small
  * (low thousands of rows), so this pulls just `strongs_id`/`transliteration` for the whole table
  * and does the normalized comparison in JS, once, per call.
+ *
+ * @deprecated — desktop-only sync path, kept for electron/ipc/aiLookup.ts until it goes async.
+ * The async equivalent is src/platform/services/lexiconService.ts's `findByNormalizedTransliteration`.
  */
 export function findByNormalizedTransliteration(
   normalizedQuery: string,
@@ -376,30 +389,16 @@ export function findByNormalizedTransliteration(
   return null
 }
 
+/**
+ * Thin IPC layer (Phase 1/3): every channel delegates to the shared lexiconService
+ * (src/platform/services/lexiconService.ts), which carries the SQL that used to live here. The
+ * synchronous exports above are retained ONLY for electron/ipc/aiLookup.ts and
+ * electron/ipc/studyTrail.ts until their async conversion lands; they are not used by any handler.
+ */
 export function registerLexiconHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => getLexiconEntry(strongsNum))
-
-  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string, quickLimit?: number) => getLexiconOccurrences(strongsNum, undefined, quickLimit))
-
-  ipcMain.handle('lexicon:getRelated', (_e, strongsNum: string) => {
-    const num = strongsNum.trim().toUpperCase()
-    const q = `%${num}%`
-    const sql = `SELECT strongs_id, word, transliteration, short_def FROM entries WHERE derivation LIKE ? AND strongs_id != ? LIMIT 12`
-    const results: Pick<DbEntry, 'strongs_id' | 'word' | 'transliteration' | 'short_def'>[] = []
-    try {
-      if (num.startsWith('H')) {
-        results.push(...getHebrewDb().prepare(sql).all(q, num) as typeof results)
-      } else if (num.startsWith('G')) {
-        results.push(...getGreekDb().prepare(sql).all(q, num) as typeof results)
-      }
-    } catch { /* ignore */ }
-    return results.map((r) => ({
-      strongsNum: r.strongs_id,
-      lemma: r.word ?? '',
-      transliteration: r.transliteration ?? '',
-      gloss: r.short_def ?? '',
-    }))
-  })
-
-  ipcMain.handle('lexicon:search', (_e, query: string, lang: 'H' | 'G' | 'all') => searchLexiconGloss(query, lang))
+  ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => services().lexicon.getEntry(strongsNum))
+  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string, quickLimit?: number) =>
+    services().lexicon.getOccurrences(strongsNum, undefined, quickLimit))
+  ipcMain.handle('lexicon:getRelated', (_e, strongsNum: string) => services().lexicon.getRelated(strongsNum))
+  ipcMain.handle('lexicon:search', (_e, query: string, lang: 'H' | 'G' | 'all') => services().lexicon.search(query, lang))
 }

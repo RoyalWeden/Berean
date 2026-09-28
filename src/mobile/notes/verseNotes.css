@@ -1,0 +1,24 @@
+/* Verse notes inside the verse sheet (VerseNotesSheet, TEST25-NOTES-003): preview cards, and a
+   lone floating + at the sheet's bottom-right when the verse has no note. */
+.m-verse-notes-context { margin: 2px 16px 10px; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); }
+.m-verse-note-cards { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 16px; }
+.m-verse-note-card {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 12px 14px;
+  border: 0; border-radius: var(--m-radius-card, 16px); background: var(--m-card-bg);
+  color: rgb(var(--color-text-primary)); font: inherit; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-verse-note-card:active { background: var(--m-card-pressed); }
+.m-verse-note-card-title { font-size: calc(16px * var(--m-type-scale, 1)); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-verse-note-card-preview {
+  font-size: calc(14px * var(--m-type-scale, 1)); line-height: 1.35; color: rgb(var(--color-text-secondary));
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+}
+html[data-contrast="more"] .m-verse-note-card { box-shadow: 0 0 0 1px var(--m-hairline); }
+/* Fixed to the screen = the bottom-anchored sheet's visible bottom-right at every detent. */
+.m-verse-notes-fab { position: fixed; right: 16px; bottom: calc(var(--m-safe-bottom, 0px) + 16px); z-index: 150; }
+.m-verse-notes-fab:disabled { opacity: 0.6; }
+
+/* A quiet link after a verse's notes: add a further note (the + only shows with no notes). */
+.m-verse-note-add { align-self: flex-start; margin: 2px 4px 0; padding: 10px 4px; min-height: 44px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); }
+.m-verse-note-card-refs { display: block; margin-top: 4px; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-accent)); }

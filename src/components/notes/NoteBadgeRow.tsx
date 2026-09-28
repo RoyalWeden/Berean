@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import type { Note } from '@/types'
 import { bookName } from '@/lib/parseRef'
 import { noteStatusMeta } from '@/lib/noteStatus'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 // Shared badge logic/rendering so every "note preview" surface (list rows, board/Kanban cards,
 // and anywhere else a note gets summarized) shows exactly the same badges, styled exactly the
@@ -36,7 +37,8 @@ export function formatVerseRef(ref: string): string {
   }
   const [bookId, chapter, verse] = ref.split('.')
   const name = bookId ? bookName(bookId) : ref
-  return verse ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
+  const ch = bookId && chapter ? displayChapter(bookId, Number(chapter)) : chapter
+  return verse ? `${name} ${ch}:${verse}` : `${name} ${ch}`
 }
 
 const PILL = 'text-caption2 font-medium px-1.5 py-0.5 rounded-chip leading-none'

@@ -1,0 +1,692 @@
+/* iPhone shell (src/mobile). Layered on the same design-system variables as desktop
+   (src/styles/global.css); nothing here restyles shared content components. Safe areas come
+   from env(); touch targets are ≥ 44 pt (R080). */
+
+:root {
+  --m-safe-top: env(safe-area-inset-top, 0px);
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --m-bar-h: 50px;          /* bottom navigation row */
+  --m-header-h: 48px;
+  --m-radius: 14px;
+}
+
+html[data-platform="ios"], html[data-platform="ios"] body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  background: rgb(var(--color-surface-1));
+  color: rgb(var(--color-text-primary));
+}
+html[data-platform="ios"] #root { height: 100%; }
+
+.mobile-root { position: fixed; inset: 0; display: flex; flex-direction: column; background: rgb(var(--color-surface-1)); padding-bottom: var(--m-keyboard-h, 0px); }
+/* With the keyboard up, the bottom navigation steps aside (the keyboard's own Done/next
+   controls take that role); the page keeps its header and the editor toolbar stays visible. */
+html[data-keyboard] .mobile-bottom-nav { display: none; }
+.mobile-main { flex: 1; min-height: 0; position: relative; }
+/* The YouTube space when another space is showing: kept mounted so playback continues, but out
+   of the way (visibility keeps the layout, so the native player's rect stays valid). */
+.mobile-space-live { position: absolute; inset: 0; }
+.mobile-space-parked { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+
+/* ── navigation stack ─────────────────────────────────────────────────── */
+.mobile-nav-stack { position: absolute; inset: 0; overflow: hidden; }
+.mobile-nav-page { position: absolute; inset: 0; background: rgb(var(--color-surface-1)); display: flex; flex-direction: column; }
+.mobile-nav-page.is-under { pointer-events: none; visibility: hidden; transition: visibility 0s 0.3s; }
+.mobile-nav-page.is-pushed { box-shadow: -8px 0 24px rgb(0 0 0 / 0.18); }
+
+/* ── page ─────────────────────────────────────────────────────────────── */
+.mobile-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mobile-page-header { flex: none; padding-top: var(--m-safe-top); background: rgb(var(--color-surface-2)); border-bottom: 1px solid rgb(var(--color-surface-4) / 0.6); }
+.mobile-page-header-row { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; height: var(--m-header-h); padding: 0 6px; }
+.mobile-page-header-side { display: flex; align-items: center; gap: 2px; min-width: 44px; }
+.mobile-page-header-side.is-right { justify-content: flex-end; }
+.mobile-page-title { margin: 0; font-size: calc(17px * var(--m-type-scale, 1)); font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-page-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 16px; }
+.mobile-page-body.is-static { overflow: hidden; padding-bottom: 0; }
+.mobile-back { display: inline-flex; align-items: center; height: 44px; padding: 0 6px 0 2px; color: rgb(var(--color-accent)); background: none; border: 0; font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); }
+.mobile-icon-tap { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: none; border: 0; color: rgb(var(--color-text-secondary)); }
+.mobile-icon-tap.is-active { color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.14); }
+.mobile-title-button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 18px; background: rgb(var(--color-surface-3)); border: 0; color: inherit; font: inherit; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1)); max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── lists ────────────────────────────────────────────────────────────── */
+.mobile-list-section { padding: 14px 16px 0; }
+.mobile-list-section-title { margin: 0 0 6px 12px; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.mobile-list-group { background: rgb(var(--color-surface-2)); border-radius: var(--m-radius); overflow: hidden; }
+.mobile-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 8px 14px; background: none; border: 0; color: inherit; font: inherit; text-align: left; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); }
+.mobile-row:last-child { border-bottom: 0; }
+button.mobile-row:active { background: rgb(var(--color-surface-3)); }
+.mobile-row.is-destructive { color: rgb(220 70 70); }
+.mobile-row-leading { display: inline-flex; color: rgb(var(--color-accent)); }
+.mobile-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mobile-row-title { font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-row-subtitle { font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-row-right { flex: none; color: rgb(var(--color-text-secondary)); }
+.mobile-row-chevron { color: rgb(var(--color-text-muted)); font-size: calc(22px * var(--m-type-scale, 1)); line-height: 1; }
+.mobile-empty { padding: 28px 20px; text-align: center; color: rgb(var(--color-text-muted)); font-size: calc(15px * var(--m-type-scale, 1)); }
+.mobile-muted { color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-embedded-section { padding: 8px 12px; font-size: calc(14px * var(--m-type-scale, 1)); }
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+.mobile-button { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); font-weight: 500; }
+.mobile-button.is-primary { background: rgb(var(--color-accent)); color: white; }
+.mobile-link-button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px; background: none; border: 0; color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); }
+.mobile-input { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid rgb(var(--color-surface-4)); background: rgb(var(--color-surface-2)); color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-inline-form { display: flex; gap: 8px; padding: 12px 16px; }
+.mobile-segmented { display: inline-flex; background: rgb(var(--color-surface-3)); border-radius: 10px; padding: 2px; }
+.mobile-segmented button { min-height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: rgb(var(--color-text-secondary)); font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-segmented button.is-on { background: rgb(var(--color-surface-1)); color: rgb(var(--color-text-primary)); box-shadow: 0 1px 3px rgb(0 0 0 / 0.2); }
+.mobile-stepper { display: inline-flex; align-items: center; gap: 4px; }
+.mobile-stepper button { width: 36px; height: 36px; border-radius: 10px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font-size: calc(20px * var(--m-type-scale, 1)); }
+.mobile-stepper button:disabled { opacity: 0.4; }
+.mobile-stepper span { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+.mobile-toggle { position: relative; width: 51px; height: 31px; border-radius: 16px; border: 0; background: rgb(var(--color-text-primary) / 0.2); transition: background 0.2s; }
+/* The off track is a fill of the text colour (like the system fill), so it stays ≥ 3:1 visible on
+   any card in both schemes; Increase Contrast adds an outline (DATA-UX-071). */
+:root[data-contrast="more"] .mobile-toggle:not(.is-on), html[data-increase-contrast] .mobile-toggle:not(.is-on) { box-shadow: inset 0 0 0 1px rgb(var(--color-text-muted)); }
+@media (prefers-contrast: more) { .mobile-toggle:not(.is-on) { box-shadow: inset 0 0 0 1px rgb(var(--color-text-muted)); } }
+.mobile-toggle.is-on { background: rgb(52 199 89); }
+.mobile-toggle-knob { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: white; box-shadow: 0 2px 4px rgb(0 0 0 / 0.3); transition: transform 0.2s; }
+.mobile-toggle.is-on .mobile-toggle-knob { transform: translateX(20px); }
+.mobile-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 18px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(14px * var(--m-type-scale, 1)); }
+.mobile-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.mobile-tab-grid-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 12px; }
+.mobile-session-icon { font-size: calc(18px * var(--m-type-scale, 1)); }
+
+/* ── sheets ───────────────────────────────────────────────────────────── */
+.mobile-sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); }
+.mobile-sheet { position: fixed; left: 0; right: 0; top: 0; display: flex; flex-direction: column; background: rgb(var(--color-surface-2)); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgb(0 0 0 / 0.3); touch-action: none; }
+.mobile-sheet-grabber-area { position: relative; flex: none; min-height: 30px; padding: 12px 16px 10px; touch-action: none; }
+/* ✕ exists only at a verse sheet's special low position (TEST-026 / TEST-040). */
+.mobile-sheet-close { position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border-radius: 16px; border: 0; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-secondary)); display: inline-flex; align-items: center; justify-content: center; }
+.mobile-sheet-grabber { width: 40px; height: 5px; margin: 0 auto; border-radius: 3px; background: rgb(var(--color-text-muted) / 0.55); }
+.mobile-sheet.is-low { box-shadow: 0 -4px 18px rgb(0 0 0 / 0.28); }
+.mobile-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.mobile-sheet-title { margin-top: 8px; text-align: center; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1)); }
+/* In-sheet navigation (Sheet.push/pop): contextual back at the top of the same sheet. */
+.mobile-sheet-nav { position: relative; margin-top: 6px; min-height: 32px; display: flex; align-items: center; justify-content: center; }
+.mobile-sheet-back { position: absolute; left: -6px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 0; max-width: 42%; min-height: 44px; padding: 0 6px 0 0; border: 0; background: none; color: rgb(var(--color-accent)); font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-sheet-back span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-sheet-title.is-nav { margin-top: 0; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-sheet-view { min-height: 100%; }
+.mobile-sheet-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: calc(var(--m-safe-bottom) + 16px); touch-action: pan-y; }
+.mobile-sheet-loading { padding: 20px; color: rgb(var(--color-text-muted)); }
+.mobile-action-list { padding: 4px 12px 8px; }
+.mobile-action-title { padding: 6px 8px 10px; text-align: center; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-action-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 0 14px; margin-bottom: 6px; border: 0; border-radius: 12px; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-action-row.is-destructive { color: rgb(220 70 70); }
+.mobile-action-row:disabled { opacity: 0.4; }
+
+/* ── reader ───────────────────────────────────────────────────────────── */
+.mobile-reader { position: relative; height: 100%; overflow: hidden; touch-action: pan-y pinch-zoom; }
+.mobile-reader-track { position: absolute; top: 0; bottom: 0; display: flex; }
+.mobile-reader-pane { height: 100%; flex: none; }
+/* framer-motion's drag (the chapter pager) sets `user-select: none` inline on the track, which made
+   Scripture text impossible to select on the phone. The panes re-enable it so a long-press gives the
+   native iOS text selection with handles (TEST-039); chrome inside keeps its own `select-none`. */
+.mobile-reader-pane { -webkit-user-select: text; user-select: text; }
+/* Continuous scroll (TEST-023): the shared ContinuousChapterScroll root is `flex-1 min-h-0` — it
+   only gets a height (and therefore scrolls) inside a flex column. In a block pane it grew to its
+   full content height, so the placeholder for the chapters above the current one pushed the text
+   out of the clipped pane and the reader looked empty. */
+.mobile-reader-pane.is-continuous { display: flex; flex-direction: column; min-height: 0; }
+.mobile-reader-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding: 4px 4px 0; }
+.mobile-reader-end { height: 80px; }
+.mobile-reader-boundary { display: flex; align-items: center; justify-content: center; height: 100%; color: rgb(var(--color-text-muted)); }
+.mobile-pinch-badge { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 14px; background: rgb(0 0 0 / 0.65); color: white; font-size: calc(13px * var(--m-type-scale, 1)); pointer-events: none; }
+.mobile-hosted-panel { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: var(--m-safe-top); background: rgb(var(--color-surface-2)); }
+/* A hosted desktop panel's header in phone chrome (PanelChromeContext 'phone'): the same height
+   and side padding as a native Page header — T23-001/002. */
+.mobile-hosted-header { height: var(--m-header-h); padding: 0 12px; display: flex; align-items: center; }
+.mobile-hosted-header > * { flex: 1; min-width: 0; }
+.mobile-hosted-panel > * { flex: 1; min-height: 0; position: relative; }
+
+/* ── reference picker ─────────────────────────────────────────────────── */
+.mobile-ref-picker { padding: 8px 16px 24px; }
+.mobile-ref-picker form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.mobile-book-group h3 { margin: 12px 0 6px; font-size: calc(13px * var(--m-type-scale, 1)); text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.mobile-book-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mobile-book-cell, .mobile-grid-cell { min-height: 44px; border-radius: 10px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(14px * var(--m-type-scale, 1)); }
+.mobile-book-cell.is-current, .mobile-grid-cell.is-current { background: rgb(var(--color-accent)); color: white; }
+.mobile-grid-numbers { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 8px 0 12px; }
+.mobile-grid-cell.is-wide { grid-column: 1 / -1; }
+
+/* ── Strong's sheet ───────────────────────────────────────────────────── */
+.mobile-strongs { padding: 0 16px 24px; }
+.mobile-strongs-head { padding-bottom: 8px; }
+.mobile-strongs-lemma { font-size: calc(30px * var(--m-type-scale, 1)); line-height: 1.2; }
+.mobile-strongs-meta { color: rgb(var(--color-text-secondary)); font-size: calc(14px * var(--m-type-scale, 1)); margin-top: 2px; }
+.mobile-strongs-num { font-variant-numeric: tabular-nums; color: rgb(var(--color-accent)); font-weight: 600; }
+.mobile-strongs-gloss { margin-top: 8px; font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-strongs-section { margin-top: 14px; }
+.mobile-strongs-section h3 { margin: 0 0 4px; font-size: calc(13px * var(--m-type-scale, 1)); text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.mobile-strongs-section p { margin: 0 0 8px; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.5; }
+.mobile-strongs-extended { white-space: pre-wrap; }
+.mobile-occurrence-list { list-style: none; margin: 0; padding: 0; }
+.mobile-occurrence-list button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 44px; padding: 8px 0; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; text-align: left; }
+.mobile-occurrence-ref { color: rgb(var(--color-accent)); font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; }
+.mobile-occurrence-text { font-size: calc(14px * var(--m-type-scale, 1)); color: rgb(var(--color-text-secondary)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-toggle, .mobile-toggle-knob { transition: none; }
+}
+
+/* ── verse action sheet / notes / cross refs / tag picker ─────────────── */
+.mobile-verse-actions { padding: 0 12px 16px; }
+.mobile-verse-actions-head { padding: 0 44px 10px 4px; }
+.mobile-verse-actions-ref { font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-accent)); text-transform: uppercase; letter-spacing: 0.04em; }
+.mobile-verse-actions-text { margin-top: 4px; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.4; color: rgb(var(--color-text-secondary)); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.mobile-verse-actions-section { padding: 6px 4px 10px; }
+.mobile-verse-actions-label { display: flex; align-items: center; gap: 6px; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); margin-bottom: 8px; }
+.mobile-swatch-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.mobile-swatch { width: 40px; height: 40px; border-radius: 20px; border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12); }
+.mobile-swatch.is-on { border-color: rgb(var(--color-text-primary)); }
+.mobile-swatch.is-clear { background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-secondary)); display: inline-flex; align-items: center; justify-content: center; }
+.mobile-crossrefs { padding: 0 16px 16px; }
+.mobile-crossrefs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 44px 8px 0; flex-wrap: wrap; }
+.mobile-crossrefs-group h3 { margin: 12px 0 4px; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-tag-picker { padding: 0 16px 16px; }
+.mobile-tag-picker form { margin-top: 8px; }
+.mobile-tag-dot { width: 12px; height: 12px; border-radius: 6px; background: rgb(var(--color-text-muted) / 0.4); flex: none; }
+.mobile-tag-picker-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+
+/* ── selection bar ────────────────────────────────────────────────────── */
+.mobile-selection-bar { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 6px; border-radius: 16px; background: rgb(var(--color-surface-2)); box-shadow: 0 6px 24px rgb(0 0 0 / 0.25); border: 1px solid rgb(var(--color-surface-4) / 0.6); }
+.mobile-selection-actions { display: flex; align-items: center; gap: 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.mobile-selection-count { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 14px; background: rgb(var(--color-accent)); color: white; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; margin-right: 4px; flex: none; }
+.mobile-selection-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; border: 0; border-radius: 12px; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(14px * var(--m-type-scale, 1)); flex: none; }
+.mobile-selection-palette { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px; }
+
+/* ── reader options sheet ─────────────────────────────────────────────── */
+.mobile-reader-options { padding: 0 16px 16px; }
+.mobile-option-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-option-row > span:first-child { display: flex; flex-direction: column; }
+.mobile-option-row small { font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-option-label { margin: 14px 0 8px; font-size: calc(13px * var(--m-type-scale, 1)); text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.mobile-chip.is-on { background: rgb(var(--color-accent)); color: white; }
+
+/* ── notes ────────────────────────────────────────────────────────────── */
+.mobile-search-row { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 0 12px; height: 38px; border-radius: 12px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-muted)); }
+.mobile-search-input { flex: 1; min-width: 0; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); outline: none; }
+.mobile-chip-row-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 8px 16px 2px; scrollbar-width: none; }
+.mobile-chip-row-scroll::-webkit-scrollbar { display: none; }
+.mobile-chip-row-scroll .mobile-chip { flex: none; }
+.mobile-note-icon { font-size: calc(18px * var(--m-type-scale, 1)); width: 24px; text-align: center; }
+.mobile-title-input { width: 100%; max-width: 56vw; border: 0; background: none; color: inherit; font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); font-weight: 600; text-align: center; outline: none; }
+.mobile-note-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mobile-note-meta { padding: 6px 16px 0; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-accent)); font-weight: 600; }
+.mobile-note-editor .mobile-pm { flex: 1; min-height: 0; }
+
+/* ── search ───────────────────────────────────────────────────────────── */
+.mobile-search-clear { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 16px; background: none; color: rgb(var(--color-text-muted)); }
+.mobile-search-scope { display: flex; justify-content: center; padding: 0 12px 8px; }
+.mobile-search-scope .mobile-segmented { width: 100%; }
+.mobile-search-scope .mobile-segmented button { flex: 1; min-height: 34px; }
+.mobile-search-snippet mark { background: rgb(var(--color-accent) / 0.25); color: inherit; border-radius: 3px; }
+.mobile-search-filters { padding: 0 16px 16px; }
+
+/* Chrome is not selectable text: a long-press on a tab card, action row, bar or list row must
+   never raise iOS's text-selection handles. Inputs keep their own selection; reader/editor
+   content is untouched. */
+.mobile-bottom-nav, .mobile-tab-cards-sheet, .mobile-caret, .mobile-newtab-tiles, .mobile-newtab-nav, .mobile-action-list, .mobile-list-group,
+.mobile-selection-bar, .mobile-sheet-grabber-area, .mobile-verse-actions-head, .mobile-verse-actions-section,
+.mobile-book-grid, .mobile-grid-numbers, .mobile-chip-row, .mobile-segmented, .mobile-stepper, .mobile-page-title,
+.mobile-icon-tap, .mobile-title-button, .mobile-back, .mobile-crossrefs-head, .mobile-strongs-head {
+  -webkit-user-select: none; user-select: none;
+}
+.mobile-title-input, .mobile-search-input, .mobile-input { -webkit-user-select: text; user-select: text; }
+
+/* ── Read Aloud bar + sheet ───────────────────────────────────────────── */
+
+/* Settings → YouTube (watch history, pack server) */
+.mobile-field-label { display: block; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-secondary)); margin: 4px 0 6px; }
+.mobile-field-hint { font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); margin: 6px 0 2px; line-height: 1.4; }
+.mobile-thumb { width: 56px; height: 36px; object-fit: cover; border-radius: 6px; background: rgb(var(--color-surface-4)); flex-shrink: 0; }
+.mobile-row-group { font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+
+/* Note icon picker (editor "Icon…") + icon beside the title */
+.mobile-title-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mobile-icon-picker { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 24px; }
+.mobile-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; }
+.mobile-emoji-grid button { height: 44px; font-size: calc(26px * var(--m-type-scale, 1)); background: none; border: 0; border-radius: 10px; }
+.mobile-emoji-grid button:active { background: rgb(var(--color-surface-3)); }
+
+/* R102: iOS "Increase Contrast" → stronger separators and secondary text on the phone shell. */
+@media (prefers-contrast: more) {
+  .mobile-root { --contrast-boost: 1; }
+  .mobile-list-section-title, .mobile-muted, .mobile-field-hint, .mobile-row-group { color: rgb(var(--color-text-secondary)); }
+  .mobile-chip, .mobile-input, .mobile-onboarding-option, .mobile-emoji-grid button { border: 1px solid rgb(var(--color-text-muted) / 0.6); }
+  .mobile-page-header, .mobile-bottom-nav, .mobile-tab-row { border-color: rgb(var(--color-text-muted) / 0.6); }
+}
+
+/* Tab grid reorder mode (drag rows) */
+.mobile-tab-grid-head { display: flex; align-items: center; gap: 10px; }
+.mobile-tab-grid-head .mobile-muted { margin-left: auto; }
+
+/* Read Aloud queue page */
+.mobile-queue-add { display: flex; gap: 8px; padding: 4px 0 8px; }
+.mobile-queue-add .mobile-input { flex: 1; min-width: 0; }
+.mobile-queue-add .mobile-button { flex: none; width: 48px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.mobile-queue-item { display: flex; align-items: baseline; gap: 8px; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 12px 0; }
+.mobile-queue-item small { font-size: calc(11px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-queue-actions { display: flex; gap: 8px; padding-top: 10px; }
+.mobile-queue-actions .mobile-button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* Accessibility switches (BereanA11y): Bold Text thickens the chrome; Increase Contrast mirrors
+   the prefers-contrast rules for devices that report it only through UIAccessibility. */
+:root[data-bold-text] .mobile-root { font-weight: 600; }
+:root[data-contrast="more"] .mobile-list-section-title, :root[data-contrast="more"] .mobile-muted, :root[data-contrast="more"] .mobile-field-hint { color: rgb(var(--color-text-secondary)); }
+:root[data-contrast="more"] .mobile-chip, :root[data-contrast="more"] .mobile-input { border: 1px solid rgb(var(--color-text-muted) / 0.6); }
+
+
+/* ── compact Scripture presentation (TEST-036 / TEST-044, e-Sword-inspired) ───────────────────
+   More Scripture, less empty space: the verse number sits near the left edge and the text spans
+   ~90% of the width. Compactness comes from spacing and layout, never from shrinking the text —
+   the font size stays the user's (Dynamic Type scaled) Reading size. */
+/* Density (SEP25): tighter verse rhythm and margins — the user's own line-height setting still
+   governs the lines themselves; tap targets stay the whole verse row. */
+.mobile-reader .berean-reading-column { padding: 2px 12px 8px 4px; max-width: none; }
+.mobile-reader [data-verse-row] { gap: 4px; margin-bottom: 1px; padding: 2px 2px 2px 0; border-radius: 8px; }
+.mobile-reader [data-verse-badge] { font-size: 0.7em; }
+.mobile-reader-scroll { padding: 0; }
+
+/* Strong's numbers on touch: inline superscript after the word, accent coloured — distinct but
+   integrated (TEST-038). The hit area is enlarged invisibly so a fingertip can open the sheet. */
+.strongs-sup-stack { display: inline; }
+.strongs-sup { position: relative; display: inline; vertical-align: super; font-size: 0.92em; /* TEST25-SCRIPTURE-006: ≈1.5× the original 10 px (≈14.7 px on 16 px text), still a superscript */ line-height: 0; margin: 0 0.12em 0 0.05em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: rgb(var(--color-accent)); opacity: 0.9; letter-spacing: -0.02em; -webkit-user-select: none; user-select: none; }
+.strongs-sup::after { content: ''; position: absolute; inset: -6px -4px; }
+.strongs-sup.is-secondary { opacity: 0.6; margin-left: 0.2em; }
+.strongs-sup.is-paren { color: rgb(var(--color-text-muted)); opacity: 0.75; }
+html[data-contrast="more"] .strongs-sup { opacity: 1; }
+
+/* Scripture chrome (reader + Compare, SEP25): see reader/readerChrome.css — the header floats
+   over the text (a glass passage capsule, no bar behind it) and hides on downward scroll. */
+.mobile-page.is-scripture-chrome .mobile-reader-scroll > :first-child,
+.mobile-page.is-scripture-chrome .mobile-reader-pane.is-continuous [data-scroll-root] > :first-child { margin-top: var(--m-reader-top); }
+.mobile-page.is-scripture-chrome .mobile-reader-boundary { padding-top: var(--m-reader-top); }
+
+/* Chapter edge taps (TEST-037): thin invisible strips at the far left/right of the reader. */
+.mobile-reader-edge { position: absolute; top: 0; bottom: 0; width: 22px; z-index: 3; background: transparent; border: 0; padding: 0; }
+.mobile-reader-edge.is-left { left: 0; }
+.mobile-reader-edge.is-right { right: 0; }
+
+/* ── verse sheet (TEST-035/039/040/043) ─────────────────────────────────────────────────── */
+.mobile-verse-sheet { padding: 0 12px 16px; }
+.mobile-verse-sheet .mobile-verse-actions-head { padding: 0 44px 8px 4px; }
+.mobile-swatch-row.is-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 8px; padding: 2px 4px 10px; scrollbar-width: none; }
+.mobile-swatch-row.is-scroll::-webkit-scrollbar { display: none; }
+.mobile-swatch-row.is-scroll .mobile-swatch { flex: none; width: 34px; height: 34px; }
+.mobile-tile-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; padding: 0 4px 10px; }
+.mobile-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 58px; border: 0; border-radius: 14px; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); -webkit-user-select: none; user-select: none; }
+.mobile-tile:active { background: rgb(var(--color-surface-4)); }
+
+/* study view — e-Sword-inspired dense lower pane */
+.mobile-study { margin: 2px 4px 12px; padding: 10px 12px; border-radius: 14px; background: rgb(var(--color-surface-1)); }
+.mobile-study-verse { margin: 0 0 10px; font-family: var(--font-scripture); font-size: calc(16px * var(--m-type-scale, 1)); line-height: 1.55; }
+.mobile-study-strongs { display: inline; padding: 0 1px; margin: 0 0 0 1px; border: 0; background: none; vertical-align: super; font-size: 0.85em; line-height: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: rgb(var(--color-accent)); text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.4); position: relative; }
+.mobile-study-strongs::after { content: ''; position: absolute; inset: -10px -4px; }
+.mobile-study-red { color: rgb(var(--highlight-red, 220 70 70)); }
+.mobile-study-italic { font-style: italic; opacity: 0.8; }
+.mobile-study-refs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0 6px; border-top: 1px solid rgb(var(--color-surface-4) / 0.6); font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); text-transform: uppercase; letter-spacing: 0.03em; }
+.mobile-study-refs { margin: 0 0 8px; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.7; }
+.mobile-study-refs-heading { font-size: 0.8em; color: rgb(var(--color-text-muted)); font-style: italic; }
+.mobile-study-ref { display: inline; padding: 0; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.35); text-underline-offset: 2px; }
+.mobile-study-pad { padding: 4px 0 8px; }
+.mobile-strongs-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* passage navigator (TEST-041) */
+.mobile-search-field { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px; margin-bottom: 10px; border-radius: 14px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-muted)); }
+.mobile-search-field .mobile-search-input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); outline: none; }
+.mobile-ref-picker form.mobile-search-field { flex-direction: row; }
+.mobile-ref-go { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px; margin-bottom: 12px; border: 0; border-radius: 14px; background: rgb(var(--color-accent)); color: white; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-book-list { display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: rgb(var(--color-surface-2)); }
+.mobile-book-row { min-height: 46px; padding: 0 14px; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-book-row:last-child { border-bottom: 0; }
+.mobile-book-row.is-current { color: rgb(var(--color-accent)); font-weight: 600; }
+.mobile-ref-hint { margin: 4px 2px 0; }
+
+
+/* ── bottom navigation: tab cards · plus · caret (TEST-030/031/032/033) ───────────────────── */
+.mobile-bottom-nav { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 8px 18px calc(8px + var(--m-safe-bottom)); background: rgb(var(--color-surface-2) / 0.96); border-top: 1px solid rgb(var(--color-surface-4) / 0.5); -webkit-user-select: none; user-select: none; touch-action: pan-y; }
+.mobile-nav-tabs, .mobile-nav-caret { width: 48px; height: 48px; border: 0; background: none; color: rgb(var(--color-text-primary)); display: inline-flex; align-items: center; justify-content: center; }
+.mobile-nav-tabs { justify-self: start; }
+.mobile-nav-caret { justify-self: end; border-radius: 24px; background: rgb(var(--color-surface-3)); }
+.mobile-nav-plus { width: 120px; height: 46px; border-radius: 23px; border: 0; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-primary)); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+.mobile-nav-plus:active, .mobile-nav-caret:active { background: rgb(var(--color-surface-4)); }
+.mobile-nav-tabs-stack { position: relative; width: 30px; height: 30px; }
+.mobile-nav-tabs-card { position: absolute; inset: 2px 2px 0 4px; border-radius: 6px; border: 2px solid currentColor; background: rgb(var(--color-surface-2)); display: inline-flex; align-items: center; justify-content: center; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.mobile-nav-tabs-card.is-back { inset: 0 4px 4px 0; transform: rotate(-8deg); opacity: 0.45; }
+.mobile-title-sub { margin-left: 6px; font-size: 0.72em; font-weight: 600; color: rgb(var(--color-text-muted)); }
+
+/* tab cards sheet */
+.mobile-tab-cards-sheet { padding: 0 16px 24px; }
+.mobile-tab-grid-head-actions { display: flex; gap: 6px; }
+
+/* caret sheet */
+.mobile-caret { padding: 0 14px 20px; }
+.mobile-caret-head { padding: 0 4px 10px; }
+.mobile-caret-title { font-weight: 700; font-size: calc(17px * var(--m-type-scale, 1)); }
+.mobile-caret-subtitle { font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-caret-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+.mobile-caret-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 8px 4px; border: 0; border-radius: 16px; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); text-align: center; }
+.mobile-caret-tile small { font-size: 0.85em; color: rgb(var(--color-text-muted)); }
+.mobile-caret-tile.is-on { background: rgb(var(--color-accent) / 0.18); color: rgb(var(--color-accent)); }
+.mobile-caret-tile:disabled { opacity: 0.4; }
+.mobile-caret-group { margin-bottom: 14px; }
+.mobile-caret-group-title { margin: 0 0 6px 6px; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgb(var(--color-text-muted)); }
+.mobile-caret-group-body { border-radius: 16px; overflow: hidden; background: rgb(var(--color-surface-3)); }
+.mobile-caret-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 6px 14px; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-caret-row:last-child { border-bottom: 0; }
+.mobile-caret-row.is-stacked { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 14px; }
+.mobile-caret-row.is-stacked .mobile-segmented { align-self: stretch; display: flex; }
+.mobile-caret-row.is-stacked .mobile-segmented button { flex: 1; }
+.mobile-caret-row.is-destructive { color: rgb(220 70 70); }
+.mobile-caret-row:disabled { opacity: 0.4; }
+.mobile-caret-row-icon { flex: none; color: rgb(var(--color-accent)); }
+.mobile-caret-row-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mobile-caret-row-label small { font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-caret-row.is-stacked .mobile-caret-row-label { flex-direction: row; align-items: center; gap: 12px; }
+.mobile-caret-row-chevron { color: rgb(var(--color-text-muted)); }
+.mobile-caret-row-value { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); font-size: calc(15px * var(--m-type-scale, 1)); }
+
+/* plus / new tab sheet */
+
+/* Dynamic Type for Scripture (TEST-044 / brief §32, §38): the reader's text size setting is in
+   px (pinch changes it); the iOS text-size preference scales the whole reading column on top, so
+   the compact layout never depends on small text for users who need larger type. */
+.mobile-reader .berean-reading-column { zoom: var(--m-type-scale, 1); }
+
+/* Choice sub-view (ChoiceList): one tappable row per option, check on the current one. */
+.mobile-choice-list { margin: 4px 14px 16px; border-radius: 16px; overflow: hidden; background: rgb(var(--color-surface-3)); }
+.mobile-choice-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 8px 16px; border: 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.5); background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-choice-row:last-child { border-bottom: 0; }
+.mobile-verse-actions-count { font-weight: 400; color: rgb(var(--color-text-muted)); }
+.mobile-choice-row.is-on { font-weight: 600; }
+.mobile-choice-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mobile-choice-label small { font-weight: 400; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.mobile-choice-check { flex: none; color: rgb(var(--color-accent)); }
+.mobile-color-choices { padding-bottom: 8px; }
+.mobile-color-more { display: block; margin: 0 14px; width: calc(100% - 28px); }
+.mobile-action-row-chevron { margin-left: auto; color: rgb(var(--color-text-muted)); }
+
+/* ── tab cards (T23-005/007/008/011) ─────────────────────────────────────
+   A spatial grid of preview cards: depth (shadow), a clear active ring, a press that sinks and a
+   hold that lifts. The whole surface is chrome — never text-selectable, no callout. */
+.mobile-tab-cards-sheet { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mobile-tab-cards { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding-bottom: 8px; }
+.mobile-tab-cards.is-dragging { touch-action: none; }
+.mobile-tab-card { position: relative; display: flex; flex-direction: column; aspect-ratio: 3 / 4; min-height: 0; border-radius: 18px; overflow: hidden;
+  background: rgb(var(--color-surface-1)); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12), 0 6px 18px rgb(0 0 0 / 0.14);
+  outline: 2px solid transparent; outline-offset: 2px; transition: box-shadow 0.2s, outline-color 0.2s; touch-action: pan-y; -webkit-touch-callout: none; }
+.mobile-tab-card.is-active { outline-color: rgb(var(--color-accent)); }
+.mobile-tab-card.is-lifted { box-shadow: 0 18px 44px rgb(0 0 0 / 0.35); cursor: grabbing; }
+.mobile-tab-card-main { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.mobile-tab-card-main:active { transform: scale(0.98); }
+.mobile-tab-card-head { flex: none; display: flex; align-items: center; gap: 5px; padding: 9px 34px 8px 10px; background: rgb(var(--color-surface-2)); border-bottom: 1px solid rgb(var(--color-surface-4) / 0.6); font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-secondary)); }
+.mobile-tab-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: rgb(var(--color-text-primary)); }
+.mobile-tab-card-badge { flex: none; padding: 1px 5px; border-radius: 6px; background: rgb(var(--color-accent) / 0.16); color: rgb(var(--color-accent)); font-size: 0.85em; font-weight: 700; letter-spacing: 0.02em; }
+.mobile-tab-card-preview { position: relative; flex: 1; min-height: 0; overflow: hidden; pointer-events: none; }
+.mobile-tab-card-preview::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: linear-gradient(transparent, rgb(var(--color-surface-1))); }
+.mobile-tab-card-close { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 15px; border: 0; background: rgb(var(--color-surface-3) / 0.9); color: rgb(var(--color-text-secondary)); }
+.mobile-tab-card-close::after { content: ''; position: absolute; inset: -7px; }
+.mobile-tab-card.is-new { align-items: center; justify-content: center; gap: 6px; background: none; box-shadow: none; border: 2px dashed rgb(var(--color-surface-4)); color: rgb(var(--color-text-muted)); font: inherit; }
+/* Preview content: miniature of the tab's own content. */
+.mobile-tab-preview { padding: 8px 10px; font-size: 9.5px; line-height: 1.45; color: rgb(var(--color-text-secondary)); }
+.mobile-tab-preview-passage { font-weight: 700; font-size: 11px; color: rgb(var(--color-text-primary)); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-tab-preview-text { margin: 0; font-family: var(--font-scripture, Georgia, serif); color: rgb(var(--color-text-primary) / 0.85); }
+.mobile-tab-preview-text.is-sans { font-family: inherit; }
+.mobile-tab-preview-text sup { font-size: 0.75em; color: rgb(var(--color-accent)); margin-right: 1px; }
+.mobile-tab-preview-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mobile-tab-preview-cols small { display: block; font-weight: 700; font-size: 8.5px; color: rgb(var(--color-text-muted)); }
+.mobile-tab-preview-searchbar { display: flex; align-items: center; gap: 4px; padding: 4px 6px; margin-bottom: 6px; border-radius: 8px; background: rgb(var(--color-surface-3)); font-size: 10px; color: rgb(var(--color-text-primary)); overflow: hidden; white-space: nowrap; }
+.mobile-tab-preview-lemma { font-weight: 400; font-family: var(--font-scripture, serif); }
+.mobile-tab-preview.is-youtube { padding: 0; }
+.mobile-tab-preview.is-youtube img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.mobile-tab-preview-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 0; border-bottom: 1px solid rgb(var(--color-surface-4) / 0.4); }
+.mobile-tab-preview.is-icon { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 100%; color: rgb(var(--color-text-muted)); }
+.mobile-tab-preview.is-icon .mobile-tab-preview-line { border: 0; }
+.mobile-tab-preview-swatch { padding: 8px; border-radius: 8px; margin-bottom: 6px; font-family: var(--font-scripture, serif); font-size: 10px; }
+@media (prefers-reduced-motion: reduce) { .mobile-tab-card-main:active { transform: none; } }
+
+
+
+/* Strong's superscripts (NEW-009): ≈1.5× the previous 0.7em (reader, study view, compare). Digits in
+   the monospace face at 1em superscript read like the reference numbers of a print study Bible; the
+   line box doesn't grow (line-height: 0) and the tap target (::after) is unchanged. */
+
+/* Floating search destinations (NEW-013): one compact row of icon buttons (44 pt targets). */
+
+/* ══ iOS material system (2026-09-24) ════════════════════════════════════════════════════
+   Restrained, Apple-like translucent materials for the phone shell. Tokens first, then the
+   utility classes, then their application to existing surfaces (visual only). Decisions and
+   the accessibility fallbacks are documented in docs/mobile/ios-design-system.md. Rules here
+   come last in the file on purpose: they refine the earlier per-surface backgrounds. */
+:root {
+  /* Backdrop: saturate + blur, driven by the shared --glass-* knobs (Settings → Glass). */
+  /* Aliases of the shared glass layer (src/styles/glass.css) — one source for both apps. */
+  --m-glass-filter: var(--glass-filter-regular);
+  --m-glass-filter-thin: saturate(calc(var(--glass-saturate, 1.4) * 1.2)) blur(calc(16px * var(--glass-blur, 1)));
+  /* Layers (α scaled by --glass-alpha-mult, capped so they never go fully clear/opaque). */
+  --m-glass-thin: rgb(var(--color-surface-2) / min(0.92, calc(0.62 * var(--glass-alpha-mult, 1))));
+  --m-glass-regular: rgb(var(--color-surface-2) / min(0.95, calc(0.76 * var(--glass-alpha-mult, 1))));
+  --m-glass-thick: rgb(var(--color-surface-2) / min(0.98, calc(0.88 * var(--glass-alpha-mult, 1))));
+  --m-glass-sheet: rgb(var(--color-surface-1) / min(0.98, calc(0.86 * var(--glass-alpha-mult, 1))));
+  --m-glass-control: var(--glass-regular-bg);
+  --m-glass-control-pressed: rgb(var(--color-surface-4) / 0.9);
+  /* Opaque-looking bar for in-flow page headers (nothing scrolls under them). */
+  --m-bar-bg: rgb(var(--color-surface-2) / 0.97);
+  /* Grouped cards / fields. Light: white cards on the grey sheet (surface-3 is white). */
+  --m-card-bg: rgb(var(--color-surface-3) / 0.92);
+  --m-card-pressed: rgb(var(--color-surface-4) / 0.7);
+  --m-fill: rgb(var(--color-text-primary) / 0.07);           /* search field / segmented track */
+  --m-fill-pressed: rgb(var(--color-text-primary) / 0.12);
+  /* Edges. */
+  --m-hairline: rgb(var(--color-text-primary) / 0.1);
+  --m-separator: rgb(var(--color-text-primary) / 0.08);
+  --m-edge-highlight: rgb(255 255 255 / 0.1);              /* inset top edge on glass */
+  /* Radii. */
+  --m-radius-sheet: 30px;
+  --m-radius-card: 16px;
+  --m-radius-control: 12px;
+  --m-radius-field: 12px;
+  /* Shadows. */
+  --m-shadow-float: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 20px rgb(0 0 0 / 0.14);
+  --m-shadow-sheet: 0 -1px 0 var(--m-hairline), 0 -10px 36px rgb(0 0 0 / 0.22);
+  --m-backdrop-dim: rgb(0 0 0 / 0.3);
+}
+/* Dark: cards lift above the sheet (iOS secondary grouped), hairlines slightly brighter. */
+html.scheme-dark {
+  --m-card-bg: color-mix(in srgb, rgb(var(--color-surface-2) / 0.9) 90%, rgb(var(--color-text-primary)) 10%);
+  --m-card-pressed: color-mix(in srgb, rgb(var(--color-surface-2)) 82%, rgb(var(--color-text-primary)) 18%);
+  --m-glass-sheet: rgb(var(--color-surface-2) / min(0.98, calc(0.86 * var(--glass-alpha-mult, 1))));
+  --m-fill: rgb(var(--color-text-primary) / 0.1);
+  --m-fill-pressed: rgb(var(--color-text-primary) / 0.16);
+  --m-hairline: rgb(var(--color-text-primary) / 0.12);
+  --m-edge-highlight: rgb(255 255 255 / 0.07);
+  --m-shadow-float: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
+  --m-backdrop-dim: rgb(0 0 0 / 0.45);
+}
+
+/* Utility classes. */
+.m-glass, .m-glass-thick, .m-glass-thin, .m-glass-control {
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+}
+.m-glass { background: var(--m-glass-regular); }
+.m-glass-thick { background: var(--m-glass-thick); }
+.m-glass-thin { background: var(--m-glass-thin); -webkit-backdrop-filter: var(--m-glass-filter-thin); backdrop-filter: var(--m-glass-filter-thin); }
+.m-glass-control { background: var(--m-glass-control); border: 0.5px solid var(--m-hairline); box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-float); }
+.m-glass-card { background: var(--m-card-bg); border-radius: var(--m-radius-card); overflow: hidden; }
+
+/* ── sheets ── */
+.mobile-sheet-backdrop { background: var(--m-backdrop-dim); }
+.mobile-sheet {
+  background: var(--m-glass-sheet);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  border-radius: var(--m-radius-sheet) var(--m-radius-sheet) 0 0;
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-sheet);
+}
+.mobile-sheet.is-low { box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), 0 -1px 0 var(--m-hairline), 0 -6px 22px rgb(0 0 0 / 0.2); }
+.mobile-sheet-grabber-area { padding-top: 7px; }
+.mobile-sheet-grabber { width: 36px; height: 5px; border-radius: 2.5px; background: rgb(var(--color-text-primary) / 0.22); }
+.mobile-sheet-close { background: var(--m-fill); }
+.mobile-sheet-title { font-size: calc(17px * var(--m-type-scale, 1)); }
+
+/* Grouped cards (in sheets and on pages): one radius, one fill, hairline separators. */
+.mobile-list-group, .mobile-caret-group-body, .mobile-choice-list { background: var(--m-card-bg); border-radius: var(--m-radius-card); }
+.mobile-row, .mobile-caret-row, .mobile-choice-row { border-bottom-color: var(--m-separator); }
+.mobile-row:last-child, .mobile-caret-row:last-child, .mobile-choice-row:last-child { border-bottom-color: transparent; }
+button.mobile-row:active, .mobile-caret-row:active, .mobile-choice-row:active { background: var(--m-card-pressed); }
+.mobile-caret-tile { background: var(--m-card-bg); border-radius: var(--m-radius-card); }
+.mobile-caret-tile:active { background: var(--m-card-pressed); }
+.mobile-caret-tile.is-on { background: rgb(var(--color-accent) / 0.16); }
+.mobile-caret-group-title, .mobile-list-section-title { font-weight: 500; letter-spacing: 0.02em; }
+.mobile-action-row { background: var(--m-card-bg); border-radius: var(--m-radius-control); }
+.mobile-action-row:active { background: var(--m-card-pressed); }
+.mobile-sheet .mobile-button:not(.is-primary) { background: var(--m-card-bg); }
+
+/* ── page headers: material bar with a hairline (the Scripture header floats — readerChrome.css) ── */
+.mobile-page-header { background: var(--m-bar-bg); border-bottom-color: var(--m-hairline); }
+.mobile-title-button { background: var(--m-fill); }
+.mobile-icon-tap:active { background: var(--m-fill); }
+
+/* ── bottom navigation: floating glass controls (iOS 26 toolbar style) ──
+   The bar itself carries no fill: tabs (circle) · plus (capsule, largest) · caret (circle) float
+   as individual glass controls. Padding stays owned by reader/readerChrome.css. */
+.mobile-bottom-nav { background: transparent; border-top: 0; }
+.mobile-root.has-overlay-nav .mobile-bottom-nav { background: linear-gradient(to top, rgb(var(--color-surface-1) / 0.55), rgb(var(--color-surface-1) / 0)); }
+.mobile-nav-tabs, .mobile-nav-caret, .mobile-nav-plus {
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-float);
+}
+.mobile-nav-tabs, .mobile-nav-caret { width: 48px; height: 48px; border-radius: 24px; }
+.mobile-nav-plus { width: 112px; height: 48px; border-radius: 24px; color: rgb(var(--color-accent)); }
+.mobile-nav-tabs:active, .mobile-nav-caret:active, .mobile-nav-plus:active { background: var(--m-glass-control-pressed); transform: scale(0.96); }
+.mobile-nav-tabs-stack { width: 26px; height: 26px; }
+.mobile-nav-tabs-card { border-width: 1.75px; border-radius: 5px; background: rgb(var(--color-surface-3)); font-size: calc(11px * var(--m-type-scale, 1)); }
+@media (prefers-reduced-motion: reduce) { .mobile-nav-tabs:active, .mobile-nav-caret:active, .mobile-nav-plus:active { transform: none; } }
+
+/* ── search fields: iOS filled rounded field ── */
+.mobile-search-field, .mobile-search-row { background: var(--m-fill); border-radius: var(--m-radius-field); color: rgb(var(--color-text-muted)); }
+.mobile-search-row { height: 36px; }
+.mobile-search-field { min-height: 44px; }
+.mobile-search-field .mobile-search-input { height: 42px; }
+
+/* ── chips, segmented controls, tiles ── */
+.mobile-chip { min-height: 36px; padding: 0 13px; border-radius: 18px; background: var(--m-fill); }
+.mobile-chip:active { background: var(--m-fill-pressed); }
+.mobile-chip.is-on { background: rgb(var(--color-accent)); color: #fff; }
+.mobile-segmented { background: var(--m-fill); border-radius: 9px; }
+.mobile-segmented button { border-radius: 7px; }
+.mobile-segmented button.is-on { background: var(--m-card-bg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.14), 0 0 0 0.5px var(--m-hairline); }
+html.scheme-dark .mobile-segmented button.is-on { background: rgb(var(--color-text-primary) / 0.2); }
+.mobile-button:not(.is-primary) { border-radius: var(--m-radius-control); }
+
+/* ── tab cards ── */
+.mobile-tab-card { border-radius: var(--m-radius-card); box-shadow: 0 0 0 0.5px var(--m-hairline), var(--m-shadow-float); }
+.mobile-tab-card-head { background: var(--m-glass-thick); border-bottom-color: var(--m-hairline); }
+.mobile-tab-card-close { background: var(--m-fill); }
+.mobile-tab-card.is-new { border: 1.5px dashed rgb(var(--color-text-primary) / 0.18); box-shadow: none; }
+
+/* ── Floating Search / new-tab surface (NewTabSheet) ── */
+.mobile-newtab { padding: 0 16px 24px; }
+.mobile-newtab .mobile-search-field { margin-bottom: 12px; }
+.mobile-newtab-clear { flex: none; width: 30px; height: 30px; margin-right: -6px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 15px; background: none; color: rgb(var(--color-text-muted)); }
+.mobile-newtab-clear::after { content: ''; position: absolute; inset: -7px; }
+.mobile-newtab-clear { position: relative; }
+/* Destinations: one quiet grouped capsule of icon-only 44 pt buttons. */
+.mobile-newtab-dests { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); margin: 0 0 18px; padding: 2px; background: var(--m-card-bg); border-radius: var(--m-radius-card); }
+.mobile-newtab-dest { height: 44px; min-width: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: none; color: rgb(var(--color-text-primary)); }
+.mobile-newtab-dest:active { background: var(--m-fill-pressed); }
+.mobile-newtab-dest.is-more { color: rgb(var(--color-text-secondary)); }
+/* Inset grouped lists (results, recent). */
+.mobile-newtab-section { margin-bottom: 18px; }
+.mobile-newtab-section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 4px 6px 14px; }
+.mobile-newtab-section-head h3 { margin: 0; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; color: rgb(var(--color-text-muted)); }
+.mobile-newtab-more { min-height: 44px; margin: -12px 0 -12px; padding: 0 10px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); }
+.mobile-newtab-list { display: flex; flex-direction: column; background: var(--m-card-bg); border-radius: var(--m-radius-card); overflow: hidden; }
+.mobile-newtab-list .mobile-newtab-row { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 6px 14px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-newtab-list .mobile-newtab-row + .mobile-newtab-row::before { content: ''; position: absolute; top: 0; right: 0; left: 50px; border-top: 0.5px solid var(--m-separator); }
+.mobile-newtab-list .mobile-newtab-row:active { background: var(--m-card-pressed); }
+.mobile-newtab-row-icon { flex: none; width: 24px; display: inline-flex; justify-content: center; color: rgb(var(--color-text-muted)); }
+.mobile-newtab-row.is-primary .mobile-newtab-row-icon { color: rgb(var(--color-accent)); }
+.mobile-newtab-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mobile-newtab-row-text > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobile-newtab-row-text > small { color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-newtab-row.is-primary .mobile-newtab-row-text > span { font-weight: 600; }
+.mobile-newtab-row-meta { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-newtab-dests, .mobile-newtab-list { -webkit-user-select: none; user-select: none; }
+
+/* ── accessibility fallbacks ──
+   Reduce Transparency → every material becomes opaque and blur is dropped. The media query is
+   honoured where WebKit supports it; html[data-reduce-transparency] is the native hook (set from
+   UIAccessibility.isReduceTransparencyEnabled). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --m-glass-filter: none; --m-glass-filter-thin: none;
+    --m-glass-thin: rgb(var(--color-surface-2)); --m-glass-regular: rgb(var(--color-surface-2)); --m-glass-thick: rgb(var(--color-surface-2));
+    --m-glass-sheet: rgb(var(--color-surface-1)); --m-glass-control: rgb(var(--color-surface-3)); --m-bar-bg: rgb(var(--color-surface-2));
+    --m-card-bg: rgb(var(--color-surface-3));
+  }
+  html.scheme-dark { --m-glass-sheet: rgb(var(--color-surface-2)); --m-card-bg: color-mix(in srgb, rgb(var(--color-surface-2)) 90%, rgb(var(--color-text-primary)) 10%); }
+  .mobile-root.has-overlay-nav .mobile-bottom-nav { background: none; }
+}
+html[data-reduce-transparency] {
+  --m-glass-filter: none; --m-glass-filter-thin: none;
+  --m-glass-thin: rgb(var(--color-surface-2)); --m-glass-regular: rgb(var(--color-surface-2)); --m-glass-thick: rgb(var(--color-surface-2));
+  --m-glass-sheet: rgb(var(--color-surface-1)); --m-glass-control: rgb(var(--color-surface-3)); --m-bar-bg: rgb(var(--color-surface-2));
+  --m-card-bg: rgb(var(--color-surface-3));
+}
+html.scheme-dark[data-reduce-transparency] { --m-glass-sheet: rgb(var(--color-surface-2)); --m-card-bg: color-mix(in srgb, rgb(var(--color-surface-2)) 90%, rgb(var(--color-text-primary)) 10%); }
+html[data-reduce-transparency] .mobile-root.has-overlay-nav .mobile-bottom-nav { background: none; }
+/* Increase Contrast → near-opaque materials and visible edges. */
+@media (prefers-contrast: more) {
+  :root { --m-hairline: rgb(var(--color-text-muted) / 0.6); --m-separator: rgb(var(--color-text-muted) / 0.45); --m-glass-sheet: rgb(var(--color-surface-1) / 0.98); --m-glass-regular: rgb(var(--color-surface-2) / 0.97); --m-glass-control: rgb(var(--color-surface-3) / 0.98); }
+  html.scheme-dark { --m-glass-sheet: rgb(var(--color-surface-2) / 0.98); --m-hairline: rgb(var(--color-text-muted) / 0.6); }
+}
+html[data-contrast="more"] { --m-hairline: rgb(var(--color-text-muted) / 0.6); --m-separator: rgb(var(--color-text-muted) / 0.45); --m-glass-sheet: rgb(var(--color-surface-1) / 0.98); --m-glass-regular: rgb(var(--color-surface-2) / 0.97); --m-glass-control: rgb(var(--color-surface-3) / 0.98); }
+html.scheme-dark[data-contrast="more"] { --m-glass-sheet: rgb(var(--color-surface-2) / 0.98); }
+html[data-contrast="more"] .mobile-newtab-dests, html[data-contrast="more"] .mobile-newtab-list, html[data-contrast="more"] .mobile-list-group,
+html[data-contrast="more"] .mobile-caret-group-body, html[data-contrast="more"] .mobile-choice-list, html[data-contrast="more"] .mobile-search-field,
+html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-hairline); }
+
+/* ── caret navigation header (SEP24-008) and inline disclosure (SEP24-010) ── */
+.mobile-caret-nav { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
+.mobile-caret-nav-field { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; gap: 7px; padding: 0 12px; border: 0; border-radius: var(--m-radius-field, 12px); background: var(--m-fill, rgb(var(--color-surface-3))); color: rgb(var(--color-text-muted)); font: inherit; text-align: left; }
+.mobile-caret-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-primary)); font-weight: 600; font-size: calc(15px * var(--m-type-scale, 1)); }
+.mobile-caret-nav-btn { flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 20px; background: var(--m-fill, rgb(var(--color-surface-3))); color: rgb(var(--color-accent)); }
+.mobile-caret-nav-btn:disabled { color: rgb(var(--color-text-muted) / 0.45); }
+.mobile-caret-disclosure-chevron { transition: transform 0.2s ease; }
+.mobile-caret-disclosure-chevron.is-open { transform: rotate(180deg); }
+.mobile-caret-disclosure-body { border-top: 1px solid var(--m-separator, rgb(var(--color-surface-4) / 0.5)); animation: m-disclose 0.2s ease both; }
+@keyframes m-disclose { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mobile-caret-disclosure-body { animation: none; } .mobile-caret-disclosure-chevron { transition: none; } }
+
+/* Strong's superscripts (SEP24-020): one balanced size everywhere on the phone — 0.75 of the verse
+   text (12 px at 16 px). The desktop chip wrapper carries a fixed caption size (text-caption2,
+   10 px); on the phone the wrapper inherits the verse size so the em value means what it says. */
+.strongs-sup-stack > .text-caption2 { font-size: inherit; }
+
+/* SEP24: action sheets read as one iOS inset-grouped menu — contiguous rows with hairline
+   separators, rounded only at the group's ends; Cancel stands apart as its own rounded row. */
+.mobile-action-list .mobile-action-row { margin: 0; border-radius: 0; box-shadow: inset 0 -0.5px 0 var(--m-separator); }
+.mobile-action-list .mobile-action-row:first-of-type { border-top-left-radius: var(--m-radius-card); border-top-right-radius: var(--m-radius-card); }
+.mobile-action-list .mobile-action-row:last-of-type,
+.mobile-action-list .mobile-action-row:has(+ .mobile-action-row[data-id="cancel"]) { border-bottom-left-radius: var(--m-radius-card); border-bottom-right-radius: var(--m-radius-card); box-shadow: none; }
+.mobile-action-list .mobile-action-row[data-id="cancel"] { margin-top: 8px; border-radius: var(--m-radius-card); box-shadow: none; justify-content: center; font-weight: 600; }
+.mobile-action-list .mobile-action-row[data-id="cancel"] > svg { display: none; }
+
+/* Caret go-to (⌘L, SEP25). */
+.mobile-caret-goto { padding: 0 0 16px; }
+.mobile-caret-goto-icon { flex: none; margin-right: 10px; color: rgb(var(--color-accent)); }
+
+/* Full-width segmented control (SEP27-XREF-001): one unified control, equal segments, each fully
+   tappable (≥ 36 pt tall), labels centred — e.g. TSK/e · Classic · My Notes everywhere. */
+.mobile-segmented.is-full { display: flex; width: 100%; align-self: stretch; }
+.mobile-segmented.is-full button { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

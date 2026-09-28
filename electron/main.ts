@@ -64,7 +64,9 @@ if (is.dev) {
     }
   } catch { /* will be caught if file not yet created */ }
 }
-import { getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
+import { initBereanDb, getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
+import { initDesktopServices } from './servicesHost'
+import { initSyncHost } from './sync/host'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
@@ -85,6 +87,8 @@ import { registerHistoryHandlers } from './ipc/history'
 import { registerStudyTrailHandlers } from './ipc/studyTrail'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
 import { registerPlaylistsHandlers } from './ipc/playlists'
+import { registerNoteImageHandlers } from './ipc/noteImages'
+import { registerSessionsHandlers } from './ipc/sessions'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
 import { registerTTSAudioCacheHandlers } from './ipc/ttsAudioCache'
 import { registerTTSModelScheme, registerTTSModelProtocolHandler } from './ttsModelProtocol'
@@ -1048,9 +1052,12 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     // On Windows: frameless so we draw our own title bar in React
     frame: !isWinWin,
     titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
-    // Centered on the HEADER_HEIGHT (44px, src/lib/windowChrome.ts) bar: traffic
-    // lights are 12px tall, so y = (44 - 12) / 2 = 16 puts their centre on the bar's centre.
-    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 16 } } : {}),
+    // Centered on the HEADER_HEIGHT (52px, src/lib/windowChrome.ts) bar: traffic
+    // lights are 12px tall, so y = (52 - 12) / 2 = 20 puts their centre on the bar's centre.
+    // TEST-010: was 44/16 — only THIS (the main window) tracks HEADER_HEIGHT; the other
+    // BrowserWindow calls above (viewer/study-trail/verse-picker/floating tab) keep their own
+    // fixed { x: 12, y: 14 } — those are separate window chrome, not this bar.
+    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 20 } } : {}),
     // macOS: transparent + native vibrancy so the sidebar column can show a true
     // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
     // this in an opaque window — it only blurs the app's own content, not what's
@@ -1222,6 +1229,40 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
   log.info(`app window created (${appWindows.size} open), loading renderer...`)
 }
 
+// ── Deep links (berean://…; src/lib/deepLinks.ts is the single router) ────────────────────
+// macOS delivers URLs through `open-url` (possibly before any window exists); Windows/Linux pass
+// them as argv of a second instance. Either way the URL is queued until a window can take it,
+// then sent to the focused window, which parses + routes it in the renderer.
+const DEEP_LINK_SCHEMES = ['berean', 'berean-pdf']
+let pendingDeepLinks: string[] = []
+function deliverDeepLinks(): void {
+  if (pendingDeepLinks.length === 0) return
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+  if (!win || win.isDestroyed() || win.webContents.isLoading()) return
+  const urls = pendingDeepLinks; pendingDeepLinks = []
+  if (win.isMinimized()) win.restore()
+  win.focus()
+  for (const u of urls) win.webContents.send('app:deepLink', u)
+}
+function queueDeepLink(url: string): void {
+  if (!DEEP_LINK_SCHEMES.some((sch) => url.toLowerCase().startsWith(`${sch}:`))) return
+  log.info('[deep-link]', url)
+  pendingDeepLinks.push(url)
+  deliverDeepLinks()
+}
+function deepLinkInArgv(argv: string[]): string | undefined {
+  return argv.find((a) => DEEP_LINK_SCHEMES.some((sch) => a.toLowerCase().startsWith(`${sch}:`)))
+}
+app.on('open-url', (event, url) => { event.preventDefault(); queueDeepLink(url) })
+if (!is.dev || process.env.BEREAN_REGISTER_PROTOCOL) {
+  // Dev builds would otherwise hijack the scheme from the installed app.
+  for (const sch of DEEP_LINK_SCHEMES) app.setAsDefaultProtocolClient(sch)
+}
+const argvLink = deepLinkInArgv(process.argv)
+if (argvLink) pendingDeepLinks.push(argvLink)
+app.on('second-instance', (_e, argv) => { const u = deepLinkInArgv(argv); if (u) queueDeepLink(u); else deliverDeepLinks() })
+ipcMain.handle('app:takePendingDeepLinks', () => { const urls = pendingDeepLinks; pendingDeepLinks = []; return urls })
+
 app.whenReady().then(async () => {
   earlyLog('app.whenReady fired')
   log.info('app.whenReady fired')
@@ -1271,9 +1312,15 @@ app.whenReady().then(async () => {
 
   // Open app DB and run migrations before registering IPC handlers
   try {
-    getBereanDb()
+    await initBereanDb()
     earlyLog('berean.db opened OK')
     log.info('berean.db opened')
+    // Shared services (src/platform/services) over the just-opened DB — the thin IPC handlers
+    // registered below delegate to these. See docs/mobile/architecture.md §3.
+    initDesktopServices()
+    log.info('shared services initialised')
+    // iCloud sync engine (docs/mobile/icloud.md) — no-op until enabled in Settings → iCloud.
+    initSyncHost().catch((err) => log.error('[sync] host init failed', err))
     // NOTE: mergeYouTubeSeed is intentionally NOT run here. On a fresh install /
     // seed-version bump it attaches a 196MB seed DB and runs bulk inserts
     // synchronously, which would block first paint. It's deferred until after
@@ -1342,6 +1389,7 @@ app.whenReady().then(async () => {
   registerTTSAudioCacheHandlers(ipcMain)
   registerBibleHandlers(ipcMain)
   registerNotesHandlers(ipcMain)
+  registerNoteImageHandlers(ipcMain)
   log.info('[berean-main] Notes handlers registered')
   registerPdfHandlers(ipcMain)
   log.info('[berean-main] PDF handlers registered')
@@ -1372,6 +1420,7 @@ app.whenReady().then(async () => {
   registerStudyTrailHandlers(ipcMain)
   registerWorkspacesHandlers(ipcMain)
   registerPlaylistsHandlers(ipcMain)
+  registerSessionsHandlers(ipcMain)
 
   // Core app IPC
   // Diagnostic: renderer can call this to verify handler registration at runtime

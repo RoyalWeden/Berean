@@ -53,6 +53,54 @@ are **rounded rectangles**, large/extra-large are **capsules**):
   reads as a circle (More, the inspector and sidebar toggles, the sidebar `+`). Only items that
   actually share a `ControlGroup` container render flat/square inside its capsule.
 
+## Glass (shared semantic layer, 2026-09-28 — `src/styles/glass.css`)
+
+One vocabulary for both apps, loaded by the Mac renderer (`src/main.tsx`) and the iPhone
+(`src/platform/ios/main.tsx`). It is inspired by Apple's Liquid Glass guidance (glass is a
+functional layer floating over content, never the content; regular glass by default; clear glass
+only over media), with Berean's own values derived from the theme colours. Apple sources:
+`docs/mobile/research/liquid-glass-progress-research-2026-09-28.md`.
+
+| Level | Use | Class / tokens |
+|---|---|---|
+| 0 Content | Bible text, notes, lists, search results | none — solid surfaces |
+| 1 Functional | bottom controls, floating search, Scripture header controls, tab / plus / caret | `.glass-surface-regular`, `.glass-control` · `--glass-regular-bg` (α .72), `--glass-filter-regular` |
+| 2 Contextual | sheets, popovers, menus, sync panel | `.glass-surface-elevated` · `--glass-elevated-bg` (α .9 / .88) |
+| 3 Critical | alerts, confirmations, sync errors | `.glass-surface-critical` (α .97, strong edge) |
+| clear | over media only (video) | `.glass-surface-clear` |
+
+- **Rules.**
+  - No glass on Level 0.
+  - No glass inside glass: a nested surface drops its own material (CSS rule).
+  - `backdrop-filter` is only on floating controls, bars and sheets, never on a scrolling content
+    surface (audited).
+- **Shape.** `--radius-capsule` (controls), `--radius-control` 12, `--radius-card` 16,
+  `--radius-sheet` 30.
+- **States.** `.glass-control` has normal, hover, pressed (scale .96, spring), selected
+  (`aria-pressed` / `.is-selected`: accent tint plus accent text, not colour alone), disabled and
+  focus-visible (ring).
+- **Accessibility.**
+  - Reduce Transparency (media query + `data-reduce-transparency`): every material is solid and
+    there is no blur.
+  - Increase Contrast (media query, `data-increase-contrast` on the Mac, `data-contrast="more"` on
+    iOS): near-opaque materials, visible edges, stronger secondary text.
+  - Reduce Motion: no scale or spring, and a steady progress fill.
+- **Contrast.** `src/styles/__tests__/glassContrast.test.ts` computes WCAG ratios from the real
+  CSS. It checks content, Level 1 over any backdrop, Level 2, Increase Contrast and Reduce
+  Transparency, for the default light and dark palettes. Fixes it drove (2026-09-28):
+
+  | Token | Before | After |
+  |---|---|---|
+  | dark `text-muted` | 104 104 124 (3.3:1) | 136 136 154 |
+  | light `text-muted` | 140 140 160 (2.9:1) | 100 100 118 |
+  | dark `accent` | 100 120 220 (4.3:1) | 120 140 235 |
+  | light `accent` | 80 100 200 (4.3:1 on bars) | 70 90 190 |
+  | secondary text on glass | plain secondary | mixed 30 % toward primary |
+
+  The other 35 presets are user-chosen themes and are not enforced; they inherit the glass rules.
+- **iPhone aliases.** `--m-glass-filter` and `--m-glass-control` are aliases of the shared tokens;
+  the remaining `--m-*` tokens stay as documented in docs/mobile/ios-design-system.md.
+
 ## Tokens
 
 ### Palette (per theme — the ONLY vars a theme block defines)
@@ -104,6 +152,7 @@ scheme-specific values need one rule, not 73.
 | `.material-popover` | menus, context menus, dropdowns, tooltips, hover cards | surface-1 @ 0.86 + 14px blur + hairline + shadow-2 |
 | `.material-sheet` | dialogs / sheets | surface-1 @ 0.94 + 16px blur + border + shadow-3 |
 | `.material-control` | a lone floating capsule control | surface-2 @ 0.72 + 10px blur |
+| `.material-floating-bar` | free-floating action capsule over content (verse-selection bar) | surface-1 @ 0.66 + 24px blur + saturate+0.2, hairline, top highlight, two-layer lift shadow, capsule radius; opaque under Reduce Transparency |
 
 | `.material-inspector` | ATTACHED inspector pane (Scripture side panel, Notes side panel) | `--surface-inspector` (surface-2/3 mix), hairline-left, **no radius / blur / shadow**, width 260–420 |
 | `.material-elevated` | ⌘K, History, Tab Switcher, expanded rail | surface-1 @ 0.84 + 24px blur + hairline + shadow-3 |
@@ -175,8 +224,15 @@ timestamps, word counts and status — never stack `opacity-*` on muted text. `S
 uppercase recipe.
 
 ### Spacing
-4px grid (Tailwind default scale). Toolbar height 44 (`h-header`), traffic-light inset 76
-(`pl-traffic-lights`), controls 24/28/32, rows 28–32, panel padding 12–16.
+4px grid (Tailwind default scale). In-content toolbar height 44 (`h-header`); the window title
+bar (ShellHeader.tsx) is its own separate metric, `HEADER_HEIGHT` in `src/lib/windowChrome.ts` —
+**52** as of TEST-010 (was 44, bumped for more vertical breathing room around its controls; macOS
+traffic-light y in `electron/main.ts`'s main-window `trafficLightPosition` is derived from it,
+`(HEADER_HEIGHT - 12) / 2`). ShellHeader vertically centres its 44px inner `Toolbar` in the bar
+(flex column, `justify-center`), so the 36px controls have equal 8px gaps above and below and share
+the traffic lights' centre line (26px) — never top-align the Toolbar or offset individual controls
+(NEW-17: top-aligned it gave 4px above / 12px below). Traffic-light inset 76 (`pl-traffic-lights`), controls 24/28/32, rows
+28–32, panel padding 12–16.
 
 ### Icons
 `lucide-react` only. Scale 12 / 14 / 16 / 18 / 20 / 24; `IconButton` maps 20→12, 24→14, 28→16,
@@ -460,4 +516,20 @@ as badges (section labels use `SectionLabel`).
   property list. `Chip` gained the `tooltip` prop it was missing, and the last `title=` attributes
   on primitives became real tooltips.
   Verification note: `npm test` is `vitest` in WATCH mode and never exits — use `npx vitest run`.
+- 2026-09-24 — The desktop verse-selection action bar is a **floating capsule** in its own
+  `.material-floating-bar` material (clearer + more blurred than `.material-popover`, soft lift
+  shadow), not a 10px-radius popover rectangle: it floats over Scripture like the top bar's grouped
+  controls, so it takes their capsule shape. Items stay ghost (no glass-on-glass) and lone icon items
+  are circles (`shape="round"`), matching the "lone bar icon controls are circles" rule. Audited: the
+  notes-editor floating toolbar (`material-popover rounded-menu`) and ChapterView's small pills were
+  left as they are — the editor toolbar is a multi-row formatting surface, not a single action
+  capsule, and changing it is outside this pass.
 
+
+## Notes folder tree (2026-09-26)
+
+Folder-view rows share one geometry (`src/components/notes/folderTreeGeometry.ts`): an item's
+icon sits at 40 + 18·depth px whatever its row type, so a note is one clear step right of its
+folder's icon and a subfolder lines up with its sibling notes. `ListRow` hover actions take real
+space when revealed (they grow from zero width), so meta such as a folder's note count stays
+visible and the title is the element that truncates.

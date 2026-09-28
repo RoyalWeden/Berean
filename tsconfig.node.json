@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "CommonJS",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "moduleResolution": "node",
     "strict": true,
     "skipLibCheck": true,
@@ -11,8 +13,16 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["electron", "electron.vite.config.ts"]
+  "include": [
+    "electron",
+    "electron.vite.config.ts",
+    "vite.ios.config.ts",
+    "capacitor.config.ts",
+    "scripts/dump-user-schema.ts"
+  ]
 }

@@ -1,0 +1,53 @@
+/* Phone search page — filter sheet extras (verse tags, sort) and incremental result rows.
+   Uses the same tokens as mobile.css; nothing here overrides a mobile.css rule. */
+.mobile-search-tag-chip .mobile-tag-dot { width: 10px; height: 10px; border-radius: 5px; }
+.mobile-search-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.mobile-search-filter-row .mobile-segmented { flex: none; }
+.mobile-search-sort-dir { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 18px; border: 0; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(14px * var(--m-type-scale, 1)); }
+.mobile-search-more { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 8px 16px; color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.mobile-search-more button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-accent)); font: inherit; font-size: calc(14px * var(--m-type-scale, 1)); font-weight: 500; }
+.mobile-search-sentinel { height: 1px; }
+.mobile-search-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 16px; }
+.mobile-search-summary .mobile-link-button { min-height: 32px; font-size: calc(13px * var(--m-type-scale, 1)); }
+
+/* ── Filters entry (SEP25): one compact row under the scope switch; all Advanced options live
+   in its sheet. ─────────────────────────────────────────────────────────────── */
+.mobile-search-filters-entry { padding: 0 12px 8px; }
+.mobile-search-filters-button { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 10px; background: none; color: rgb(var(--color-text-secondary)); font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); text-align: left; }
+.mobile-search-filters-button:active { background: rgb(var(--color-surface-3)); }
+.mobile-search-filters-button svg { flex: none; color: rgb(var(--color-accent)); }
+.mobile-search-filters-label { flex: none; font-weight: 600; color: rgb(var(--color-accent)); }
+.mobile-search-filters-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); }
+.mobile-search-filters-button.is-active .mobile-search-filters-summary { color: rgb(var(--color-text-secondary)); }
+.mobile-search-filters-badge { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: rgb(var(--color-accent)); color: white; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.mobile-search-filter-sheet { padding-bottom: 16px; }
+.mobile-search-filter-sheet .mobile-row-right .mobile-segmented button { min-height: 30px; padding: 0 10px; }
+
+/* ── "Search Berean" surface + grouped results (SRCH-003/004) — the plus and caret search sheet
+   and the Search tab's All scope. Groups reuse the Floating Search inset lists (mobile.css). ── */
+.m-usearch-scope { margin: 0 0 8px; }
+.m-usearch-filters {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 14px; padding: 0 12px;
+  border: 0; border-radius: var(--m-radius-field, 12px); background: var(--m-card-bg); color: inherit; font: inherit;
+  font-size: calc(15px * var(--m-type-scale, 1)); text-align: left;
+}
+.m-usearch-filters:active { background: var(--m-card-pressed); }
+.m-usearch-filters > svg:first-child { flex: none; color: rgb(var(--color-text-muted)); }
+.m-usearch-filters-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-usearch-filters .mobile-muted { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-usearch-filters-badge { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: rgb(var(--color-accent)); color: #fff; font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+.m-usearch-chevron { flex: none; color: rgb(var(--color-text-muted)); }
+.m-usearch-count { text-transform: none; letter-spacing: 0; }
+.m-usearch-badge { margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--m-fill); color: rgb(var(--color-text-secondary)); font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 500; }
+.m-usearch-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; line-height: 1.35; }
+.mobile-newtab-row-text > .m-usearch-snippet { white-space: normal; }
+.m-usearch-snippet mark { background: rgb(var(--color-accent) / 0.18); color: inherit; border-radius: 3px; }
+.m-usearch-all .mobile-newtab-row-text > span { color: rgb(var(--color-accent)); }
+.m-usearch-status { display: flex; align-items: center; gap: 6px; margin: 0 4px 10px 14px; color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.m-usearch-spin { animation: m-usearch-spin 0.9s linear infinite; }
+@keyframes m-usearch-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .m-usearch-spin { animation: none; } }
+.m-usearch-filter-view { padding: 4px 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+.m-usearch-filter-view .m-usearch-filters { margin: 0; }
+.m-usearch-reset { align-self: flex-start; min-height: 44px; }
+.mobile-search-scope .mobile-segmented { width: 100%; }

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useMemo, memo, useDeferredValue, Fragment, type MouseEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid, ArrowDownWideNarrow, ArrowUpWideNarrow } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid, ArrowDownWideNarrow, ArrowUpWideNarrow, FileInput } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { IconButton, Toolbar, ListRow, Chip, RefChip, Button, SegmentedControl, SearchField, Select, TextField, SectionHeader, SectionLabel, Badge, cx } from '@/components/ui'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
+import { HISTORY_CATEGORIES, countByCategory, filterHistory, isRoutineRead, shouldLoadMoreHistory, typesForCategory, type HistoryCategory } from '@/lib/historyModel'
 import { getAllNotes } from '@/lib/notesCache'
 import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
 import { cachedLexiconTitle } from '@/lib/lexiconTitle'
@@ -111,17 +112,19 @@ const ALL_TYPES: EntryType[] = ['bible', 'note', 'lexicon', 'youtube', 'search',
 // granular per-type chips this modal used to expose as its only filter. `types:
 // null` means "no type filter" (the All tab) — 'import' entries (PDF imports)
 // have no dedicated tab since they're rare; they still show up under All.
-type HistoryTabKey = 'all' | 'scripture' | 'notes' | 'lexicon' | 'youtube' | 'search'
-const HISTORY_TABS: { key: HistoryTabKey; label: string; icon: typeof BookOpen | null; types: EntryType[] | null }[] = [
-  { key: 'all',       label: 'All',       icon: LayoutGrid,  types: null },
-  { key: 'scripture', label: 'Scripture', icon: BookOpen,    types: ['bible', 'compare'] },
-  { key: 'notes',     label: 'Notes',     icon: NotepadText, types: ['note'] },
-  { key: 'lexicon',   label: 'Lexicon',   icon: BookMarked,  types: ['lexicon', 'strongs-click'] },
-  { key: 'youtube',   label: 'YouTube',   icon: Youtube,     types: ['youtube'] },
-  { key: 'search',    label: 'Search',    icon: Search,      types: ['search'] },
-]
+// Categories and their types come from the shared history model (src/lib/historyModel.ts —
+// also used by the iPhone History page); only the icon is presentation. 'import' entries now
+// have their own category instead of being reachable only from All (TEST-002).
+type HistoryTabKey = HistoryCategory
+const CATEGORY_ICON: Record<HistoryCategory, typeof BookOpen> = {
+  all: LayoutGrid, scripture: BookOpen, notes: NotepadText, lexicon: BookMarked, youtube: Youtube, search: Search, imports: FileInput,
+}
+const HISTORY_TABS = HISTORY_CATEGORIES.map((c) => ({ ...c, icon: CATEGORY_ICON[c.key] }))
 
 // ── navigation ─────────────────────────────────────────────────────────────────
+
+/** Reopens a history entry (exported for the phone's History page, which shares this exactly). */
+export function useHistoryNavigate() { return useNavigate() }
 
 function useNavigate() {
   const store = useAppStore.getState
@@ -514,27 +517,27 @@ export default function HistoryModal() {
     // Study-only only ever refines the Scripture tab's own list — "All" must always
     // show every visit (including routine chapter-to-chapter reads) regardless of
     // this toggle's state, since it's the one view meant to be a complete record.
-    if (hideRoutineReading && deferredTab === 'scripture') entries = entries.filter(e => e.type !== 'bible')
+    // "Study only" hides routine chapter-to-chapter reads, not every Scripture visit — hiding
+    // all 'bible' entries left the Scripture category empty (TEST-002).
+    if (hideRoutineReading && deferredTab === 'scripture') entries = entries.filter(e => !isRoutineRead(e))
     return entries
   }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab, noteTitles, noteContents, chapterTextCache, lexiconDefCache])
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<HistoryTabKey, number> = { all: preTabFiltered.length, scripture: 0, notes: 0, lexicon: 0, youtube: 0, search: 0 }
-    for (const e of preTabFiltered) {
-      for (const tab of HISTORY_TABS) {
-        if (tab.types && tab.types.includes(e.type)) counts[tab.key]++
-      }
-    }
-    return counts
-  }, [preTabFiltered])
+  const tabCounts = useMemo(() => countByCategory(preTabFiltered), [preTabFiltered])
 
   // ── Filtered + sorted entries ───────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const activeTypes = HISTORY_TABS.find(t => t.key === deferredTab)?.types ?? null
-    let entries = activeTypes ? preTabFiltered.filter(e => activeTypes.includes(e.type)) : preTabFiltered
+    let entries = deferredTab === 'all' ? preTabFiltered : filterHistory(preTabFiltered, { category: deferredTab })
     if (!deferredSort) entries = [...entries].reverse()
     return entries
   }, [preTabFiltered, deferredTab, deferredSort])
+
+  // A narrowing filter can leave only a handful of rows from the loaded page while older pages
+  // still hold matches — keep paging in (TEST-002; paging used to stop whenever a filter was on).
+  const historyLoadingMore = useAppStore((s) => s.historyLoadingMore)
+  useEffect(() => {
+    if (historyOpen && (activeHistoryTab !== 'all' || typeFilters.size > 0 || !!dateFilter || !!searchQuery.trim()) && shouldLoadMoreHistory(filtered.length, historyHasMore, historyLoadingMore)) loadMoreHistory()
+  }, [historyOpen, filtered.length, historyHasMore, historyLoadingMore, loadMoreHistory]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Flat list — repeat visits to the same target are still collapsed into one row
   // (click to expand its timestamps), but there's no collapsible day/session
@@ -631,7 +634,7 @@ export default function HistoryModal() {
           <SegmentedControl
             aria-label="Filter by content type"
             value={activeHistoryTab}
-            onChange={setActiveHistoryTab}
+            onChange={(k) => { setActiveHistoryTab(k); setTypeFilters(new Set()) }}
             options={HISTORY_TABS.map((tab) => ({
               value: tab.key,
               icon: tab.icon ?? undefined,
@@ -703,7 +706,7 @@ export default function HistoryModal() {
             {/* Type chips */}
             <div className="flex items-center gap-1 flex-wrap">
               <SectionLabel className="w-10 flex-shrink-0">Type</SectionLabel>
-              {ALL_TYPES.map(t => (
+              {(activeHistoryTab === 'all' ? ALL_TYPES : typesForCategory(activeHistoryTab)).map(t => (
                 <Chip
                   key={t}
                   size="sm"
@@ -729,7 +732,7 @@ export default function HistoryModal() {
           onScroll={(e) => {
             // Lazy-load older pages from SQLite as the user nears the bottom.
             const el = e.currentTarget
-            if (historyHasMore && !filtersActive && el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+            if (historyHasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
               loadMoreHistory()
             }
           }}

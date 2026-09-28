@@ -1,5 +1,6 @@
 import { bookName, getTranslationForBook } from './parseRef'
 import { editionForTextId } from './bibleTexts'
+import { displayChapter } from './chapterNumbering'
 
 /** Recognitions of Clement (RCL1-10) has a genuine 3-level Book.Chapter.Verse addressing
  *  scheme, so its copy format spells out the edition's full name and book number
@@ -15,6 +16,7 @@ import { editionForTextId } from './bibleTexts'
  *  (see that file's comment), so this stays round-trippable for the notes auto-detection
  *  system, not just display. */
 function bookRefLabel(bookId: string, chapter: number, verse: number): string {
+  chapter = displayChapter(bookId, chapter) // RCL3 shows ANF numbering (chapterNumbering.ts)
   const rcl = bookId.match(/^RCL(\d{1,3})$/)
   if (rcl) {
     const textId = getTranslationForBook(bookId)

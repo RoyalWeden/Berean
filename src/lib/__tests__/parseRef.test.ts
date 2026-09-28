@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken, isExactBookToken, bookChapterVerseLabel } from '../parseRef'
+import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken, isExactBookToken, bookChapterVerseLabel, bookChapterHoverLabel, bookChapterLabel } from '../parseRef'
+import { formatVerseRef } from '../verseClipboard'
 
 // ─── parseRef ─────────────────────────────────────────────────────────────────
 
@@ -399,5 +400,31 @@ describe('isStrongsRef', () => {
     expect(isStrongsRef('Gen 1:1')).toBe(false)
     expect(isStrongsRef('H')).toBe(false)
     expect(isStrongsRef('X1234')).toBe(false)
+  })
+})
+
+// Recognitions Book III: stored 1..65, displayed/typed as ANF 1, 12..75 (chapterNumbering.ts, T23-035).
+describe('parseRef — Recognitions Book 3 ANF chapter numbering', () => {
+  it('maps typed ANF chapters to stored chapters', () => {
+    expect(parseRef('RCL3 55:2')).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
+    expect(parseRef('Recognitions, Book 3 12')).toMatchObject({ bookId: 'RCL3', chapter: 2 })
+    expect(parseRef('Recognitions of Clement, Book 3, Chapter 75:1')).toMatchObject({ bookId: 'RCL3', chapter: 65, verse: 1 })
+    expect(parseRef('rec clem 3 1:1')).toMatchObject({ bookId: 'RCL3', chapter: 1, verse: 1 })
+  })
+  it('rejects chapters omitted by Rufinus (2–11) and past the end', () => {
+    expect(parseRef('RCL3 5:1')).toBeNull()
+    expect(parseRef('RCL3 11')).toBeNull()
+    expect(parseRef('RCL3 76')).toBeNull()
+  })
+  it('leaves other Recognitions books unchanged', () => {
+    expect(parseRef('RCL2 5:1')).toMatchObject({ bookId: 'RCL2', chapter: 5, verse: 1 })
+  })
+  it('labels show ANF numbers and round-trip through parseRef', () => {
+    const label = bookChapterVerseLabel('RCL3', 45, 2)
+    expect(label).toBe('Recognitions of Clement, Book 3, Chapter 55:2')
+    expect(parseRef(label)).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
+    expect(bookChapterHoverLabel('RCL3', 2)).toBe('Recognitions of Clement 12, Book 3')
+    expect(bookChapterLabel('RCL3', 1)).toBe('Recognitions, Book 3 1')
+    expect(parseRef(formatVerseRef('RCL3', 45, 2))).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
   })
 })

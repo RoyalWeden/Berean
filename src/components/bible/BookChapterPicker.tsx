@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, FileUp } from 'lucide-react'
 import type { Book } from '@/types'
 import { normalizeBookQuery } from '@/lib/verseUtils'
+import { displayChapter, storedChapter, hasCustomChapterNumbering, chapterNumberingNote } from '@/lib/chapterNumbering'
 import { isHermasBook, getHermasSections, getHermasSection, hermasVariantForTextId, type HermasBookId } from '@/lib/hermasMap'
 import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { editionForTextId, type Edition } from '@/lib/bibleTexts'
@@ -219,6 +220,13 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   // use a plain truthy check here (0 is falsy in JS but a valid typed chapter).
   function clampSearchChapter(n: number, book: Book): number {
     const floor = hasPrologueChapter(book.id) ? 0 : 1
+    // Typed number is the DISPLAYED chapter (RCL3 uses ANF 1, 12..75 — chapterNumbering.ts);
+    // a skipped display number (RCL3 2–11) falls to the next real chapter.
+    if (hasCustomChapterNumbering(book.id)) {
+      let stored: number | null = null
+      for (let d = n; stored == null && d <= displayChapter(book.id, book.chapters_count); d++) stored = storedChapter(book.id, d)
+      n = stored ?? book.chapters_count
+    }
     return Math.max(floor, Math.min(n, book.chapters_count))
   }
 
@@ -300,7 +308,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         ) : currentBook && hasPrologueChapter(currentBook.id) && currentChapter === 0 ? (
           <span className="text-meta whitespace-nowrap">Prologue</span>
         ) : (
-          <span className="text-meta">{currentChapter}</span>
+          <span className="text-meta">{displayChapter(currentBookId, currentChapter)}</span>
         )}
         {/* Translation — a small static chip, not plain muted text, so it reads as a
             distinct piece of metadata rather than part of the title run. */}
@@ -487,6 +495,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                       Prologue
                     </button>
                   )}
+                  {chapterNumberingNote(activeBook.id) && (
+                    <p className="text-caption text-text-muted px-1 pb-1">{chapterNumberingNote(activeBook.id)}</p>
+                  )}
                   <div className="grid grid-cols-5 gap-1">
                     {Array.from({ length: activeBook.chapters_count }, (_, i) => i + 1).map((n) => (
                       <button
@@ -501,7 +512,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                           }
                         `}
                       >
-                        {n}
+                        {displayChapter(activeBook.id, n)}
                       </button>
                     ))}
                   </div>

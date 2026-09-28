@@ -1,0 +1,30 @@
+import UIKit
+import Capacitor
+import BereanNative
+
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+
+        window = UIWindow(windowScene: windowScene)
+        // Berean: the bridge subclass registers the local BereanNative plugins (capacitorDidLoad).
+        window?.rootViewController = BereanBridgeViewController()
+        window?.makeKeyAndVisible()
+
+        SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        for activity in connectionOptions.userActivities where BereanSpotlightPlugin.handleContinuation(activity) {}
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
+    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        // Spotlight results carry a berean:// deep link as their identifier (BereanSpotlightPlugin).
+        if BereanSpotlightPlugin.handleContinuation(userActivity) { return }
+        SceneDelegateProxy.shared.scene(scene, continue: userActivity)
+    }
+
+}

@@ -1,7 +1,7 @@
 import type { IpcMain } from 'electron'
 import { dialog, app } from 'electron'
-import { getBereanDb } from '../db/berean'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
+import { services } from '../services'
 import { existsSync, mkdirSync, copyFileSync, readFileSync, statSync, unlinkSync } from 'fs'
 import { join, basename, extname } from 'path'
 
@@ -12,35 +12,12 @@ function pdfsDir(): string {
   return dir
 }
 
-interface PdfRow {
-  id: string
-  title: string
-  filename: string
-  page_count: number
-  file_size: number
-  imported_at: number
-}
-
-function rowToPdf(r: PdfRow) {
-  return {
-    id: r.id, title: r.title, filename: r.filename,
-    pageCount: r.page_count, fileSize: r.file_size, importedAt: r.imported_at,
-  }
-}
-
-interface HlRow {
-  id: string; pdf_id: string; page: number; rects_json: string
-  color: string; text: string; note: string | null; created_at: number
-}
-
-function rowToHl(r: HlRow) {
-  return {
-    id: r.id, pdfId: r.pdf_id, page: r.page,
-    rects: JSON.parse(r.rects_json) as Array<{ x: number; y: number; w: number; h: number }>,
-    color: r.color, text: r.text, note: r.note, createdAt: r.created_at,
-  }
-}
-
+/**
+ * Thin IPC layer (Phase 1/3): the `pdfs` / `pdf_highlights` rows live in the shared pdfService
+ * (src/platform/services/pdfService.ts). File IO — the import dialog, copying into
+ * userData/pdfs, reading bytes for the viewer, unlinking on delete — stays here because it is
+ * Electron/Node-specific; iOS does the equivalent with a document picker + the app container.
+ */
 export function registerPdfHandlers(ipcMain: IpcMain): void {
 
   // Import: open a file dialog, copy the chosen PDF into userData/pdfs, insert a row.
@@ -55,6 +32,18 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
     const srcPath = result.filePaths[0]
     if (extname(srcPath).toLowerCase() !== '.pdf') return { error: 'Not a PDF file' }
 
+    // Metadata for this same file may already be here via iCloud sync (imported on another
+    // device): attach the file to that row instead of creating a second PDF.
+    let fileHash: string | null = null
+    try { fileHash = createHash('sha256').update(readFileSync(srcPath)).digest('hex') } catch { fileHash = null }
+    const existing = fileHash ? await services().pdf.findByHash(fileHash) : null
+    if (existing && !existsSync(join(pdfsDir(), existing.filename))) {
+      const storedName = `${existing.id}.pdf`
+      try { copyFileSync(srcPath, join(pdfsDir(), storedName)) } catch (err) { return { error: String(err) } }
+      const pdf = await services().pdf.attachFile(existing.id, storedName, statSync(join(pdfsDir(), storedName)).size, fileHash!)
+      return { success: true, pdf: pdf ?? existing, attached: true }
+    }
+
     const id = randomUUID()
     const storedName = `${id}.pdf`
     const destPath = join(pdfsDir(), storedName)
@@ -66,25 +55,18 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
     const size = statSync(destPath).size
     const title = basename(srcPath, '.pdf')
     const now = Date.now()
-    getBereanDb().prepare(
-      `INSERT INTO pdfs (id, title, filename, page_count, file_size, imported_at) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(id, title, storedName, 0, size, now)
-    return { success: true, pdf: { id, title, filename: storedName, pageCount: 0, fileSize: size, importedAt: now } }
+    const pdf = await services().pdf.insert({ id, title, filename: storedName, fileSize: size, importedAt: now, fileHash })
+    return { success: true, pdf }
   })
 
-  ipcMain.handle('pdf:list', () => {
-    const rows = getBereanDb().prepare('SELECT * FROM pdfs ORDER BY imported_at DESC').all() as PdfRow[]
-    return rows.map(rowToPdf)
-  })
-
-  ipcMain.handle('pdf:get', (_e, id: string) => {
-    const row = getBereanDb().prepare('SELECT * FROM pdfs WHERE id = ?').get(id) as PdfRow | undefined
-    return row ? rowToPdf(row) : null
-  })
+  // `fileMissing`: the row arrived through iCloud sync and the file has not been imported here.
+  const withPresence = <T extends { filename: string }>(p: T): T & { fileMissing: boolean } => ({ ...p, fileMissing: !existsSync(join(pdfsDir(), p.filename)) })
+  ipcMain.handle('pdf:list', async () => (await services().pdf.list()).map(withPresence))
+  ipcMain.handle('pdf:get', async (_e, id: string) => { const p = await services().pdf.get(id); return p ? withPresence(p) : null })
 
   // Read the raw bytes for rendering in the renderer (avoids file:// CSP issues)
-  ipcMain.handle('pdf:readBytes', (_e, id: string) => {
-    const row = getBereanDb().prepare('SELECT filename FROM pdfs WHERE id = ?').get(id) as { filename: string } | undefined
+  ipcMain.handle('pdf:readBytes', async (_e, id: string) => {
+    const row = await services().pdf.get(id)
     if (!row) { return null }
     const path = join(pdfsDir(), row.filename)
     if (!existsSync(path)) { return null }
@@ -94,59 +76,30 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
   })
 
   // Record the page count once the renderer has loaded the document
-  ipcMain.handle('pdf:setPageCount', (_e, id: string, pageCount: number) => {
-    getBereanDb().prepare('UPDATE pdfs SET page_count = ? WHERE id = ?').run(pageCount, id)
-    return { success: true }
-  })
+  ipcMain.handle('pdf:setPageCount', (_e, id: string, pageCount: number) => services().pdf.setPageCount(id, pageCount))
+  ipcMain.handle('pdf:rename', (_e, id: string, title: string) => services().pdf.rename(id, title))
 
-  ipcMain.handle('pdf:rename', (_e, id: string, title: string) => {
-    getBereanDb().prepare('UPDATE pdfs SET title = ? WHERE id = ?').run(title || 'Untitled', id)
-    return { success: true }
-  })
-
-  ipcMain.handle('pdf:delete', (_e, id: string) => {
-    const db = getBereanDb()
-    const row = db.prepare('SELECT filename FROM pdfs WHERE id = ?').get(id) as { filename: string } | undefined
+  ipcMain.handle('pdf:delete', async (_e, id: string) => {
+    const row = await services().pdf.deleteRow(id)
     if (row) {
       const path = join(pdfsDir(), row.filename)
       try { if (existsSync(path)) unlinkSync(path) } catch { /* ignore */ }
     }
-    db.transaction(() => {
-      db.prepare('DELETE FROM pdf_highlights WHERE pdf_id = ?').run(id)
-      db.prepare('DELETE FROM pdfs WHERE id = ?').run(id)
-    })()
     return { success: true }
   })
 
   // ── Highlights ───────────────────────────────────────────────────────────────
-  ipcMain.handle('pdf:highlights:list', (_e, pdfId: string) => {
-    const rows = getBereanDb()
-      .prepare('SELECT * FROM pdf_highlights WHERE pdf_id = ? ORDER BY page ASC, created_at ASC')
-      .all(pdfId) as HlRow[]
-    return rows.map(rowToHl)
-  })
-
+  ipcMain.handle('pdf:highlights:list', (_e, pdfId: string) => services().pdf.highlightsList(pdfId))
   ipcMain.handle('pdf:highlights:add', (_e, data: {
     pdfId: string; page: number; rects: Array<{ x: number; y: number; w: number; h: number }>
     color: string; text: string; note?: string | null
-  }) => {
-    const id = randomUUID()
-    const now = Date.now()
-    getBereanDb().prepare(
-      `INSERT INTO pdf_highlights (id, pdf_id, page, rects_json, color, text, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, data.pdfId, data.page, JSON.stringify(data.rects), data.color, data.text ?? '', data.note ?? null, now)
-    return { success: true, id }
-  })
+  }) => services().pdf.highlightsAdd(data))
+  ipcMain.handle('pdf:highlights:remove', (_e, id: string) => services().pdf.highlightsRemove(id))
+  // ── Bookmarks ────────────────────────────────────────────────────────────────
+  ipcMain.handle('pdf:bookmarks:list', (_e, pdfId: string) => services().pdf.bookmarksList(pdfId))
+  ipcMain.handle('pdf:bookmarks:add', (_e, pdfId: string, page: number, label: string) => services().pdf.bookmarksAdd(pdfId, page, label))
+  ipcMain.handle('pdf:bookmarks:remove', (_e, id: string) => services().pdf.bookmarksRemove(id))
+  ipcMain.handle('pdf:bookmarks:import', (_e, pdfId: string, entries: Array<{ page: number; label: string; createdAt?: number }>) => services().pdf.bookmarksImport(pdfId, entries))
 
-  ipcMain.handle('pdf:highlights:remove', (_e, id: string) => {
-    getBereanDb().prepare('DELETE FROM pdf_highlights WHERE id = ?').run(id)
-    return { success: true }
-  })
-
-  ipcMain.handle('pdf:highlights:setNote', (_e, id: string, note: string) => {
-    getBereanDb().prepare('UPDATE pdf_highlights SET note = ? WHERE id = ?').run(note, id)
-    return { success: true }
-  })
-
+  ipcMain.handle('pdf:highlights:setNote', (_e, id: string, note: string) => services().pdf.highlightsSetNote(id, note))
 }

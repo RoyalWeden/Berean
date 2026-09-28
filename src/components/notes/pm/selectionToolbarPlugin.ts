@@ -5,7 +5,7 @@ import { Plugin, PluginKey } from 'prosemirror-state'
 // "plugin reports via callback, React owns the popup state" pattern as
 // autocomplete.ts's trigger plugins.
 export interface SelectionToolbarState {
-  coords: { left: number; top: number; right: number }
+  coords: { left: number; top: number; right: number; /** Bottom of the selection — the phone bubble sits below it, clear of the iOS callout. */ bottom: number }
 }
 
 export const selectionToolbarKey = new PluginKey('berean-selection-toolbar')
@@ -30,7 +30,8 @@ export function createSelectionToolbarPlugin(onChange: (state: SelectionToolbarS
           const top = Math.min(start.top, end.top)
           const left = Math.min(start.left, end.left)
           const right = Math.max(start.right, end.right)
-          onChange({ coords: { left, top, right } })
+          const bottom = Math.max(start.bottom, end.bottom)
+          onChange({ coords: { left, top, right, bottom } })
         },
       }
     },

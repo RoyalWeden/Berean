@@ -20,9 +20,12 @@ export interface CrossRefSource {
   title: string
   /** All verse references found in the source note's content. */
   refs: NoteVerseRef[]
+  /** The source note's id (when the caller's notes carry one). */
+  noteId?: string
 }
 
 interface MinimalNote {
+  id?: string
   title: string | null
   content: string
   verseRef: string | null
@@ -39,7 +42,7 @@ export function buildCrossRefSources(notes: MinimalNote[]): CrossRefSource[] {
     if (!bId || !ch || !vs) continue
     const refs = extractRefsFromNote(note.content, note.title || 'Untitled')
     if (refs.length === 0) continue
-    sources.push({ homeBookId: bId, homeChapter: ch, homeVerse: vs, title: note.title || 'Untitled', refs })
+    sources.push({ homeBookId: bId, homeChapter: ch, homeVerse: vs, title: note.title || 'Untitled', refs, ...(note.id ? { noteId: note.id } : {}) })
   }
   return sources
 }

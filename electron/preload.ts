@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('notes', {
   getNote: (id: string) => ipcRenderer.invoke('notes:getOne', id),
   getChapterNotes: (bookId: string, chapter: number, textId?: string) =>
     ipcRenderer.invoke('notes:getByChapter', bookId, chapter, textId),
+  getDailyDates: () => ipcRenderer.invoke('notes:getDailyDates'),
   getChapterCounts: (bookId: string, chapter: number, textId?: string) =>
     ipcRenderer.invoke('notes:getChapterCounts', bookId, chapter, textId),
   searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') =>
@@ -133,6 +134,10 @@ contextBridge.exposeInMainWorld('pdf', {
   highlightsAdd: (data: unknown) => ipcRenderer.invoke('pdf:highlights:add', data),
   highlightsRemove: (id: string) => ipcRenderer.invoke('pdf:highlights:remove', id),
   highlightsSetNote: (id: string, note: string) => ipcRenderer.invoke('pdf:highlights:setNote', id, note),
+  bookmarksList: (pdfId: string) => ipcRenderer.invoke('pdf:bookmarks:list', pdfId),
+  bookmarksAdd: (pdfId: string, page: number, label: string) => ipcRenderer.invoke('pdf:bookmarks:add', pdfId, page, label),
+  bookmarksRemove: (id: string) => ipcRenderer.invoke('pdf:bookmarks:remove', id),
+  bookmarksImport: (pdfId: string, entries: unknown[]) => ipcRenderer.invoke('pdf:bookmarks:import', pdfId, entries),
 })
 
 contextBridge.exposeInMainWorld('app', {
@@ -161,6 +166,13 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('berean:menuAction')
     ipcRenderer.on('berean:menuAction', (_, action, payload) => cb(action, payload))
   },
+  // Deep links (berean://…): main queues URLs that arrive before the renderer is ready;
+  // the renderer drains them once on mount, then listens.
+  onDeepLink: (cb: (url: string) => void) => {
+    ipcRenderer.removeAllListeners('app:deepLink')
+    ipcRenderer.on('app:deepLink', (_, url: string) => cb(url))
+  },
+  takePendingDeepLinks: () => ipcRenderer.invoke('app:takePendingDeepLinks'),
   // Native File/View/Go/Help menu items (electron/main.ts's buildAppMenu) — sends a
   // src/lib/commands.ts command id, looked up and run by the renderer.
   onAppCommand: (cb: (id: string) => void) => {
@@ -185,6 +197,12 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:increaseContrast')
     ipcRenderer.on('app:increaseContrast', (_, on: boolean) => cb(on))
   },
+  // Notes-editor image actions (electron/ipc/noteImages.ts): native contextual menu, bitmap
+  // copy to the system clipboard, native Save As.
+  noteImageMenu: () => ipcRenderer.invoke('app:noteImageMenu') as Promise<'copy' | 'saveAs' | 'delete' | null>,
+  copyNoteImage: (dataUrl: string) => ipcRenderer.invoke('app:copyNoteImage', dataUrl) as Promise<{ success: boolean }>,
+  saveNoteImageAs: (dataUrl: string, alt?: string) =>
+    ipcRenderer.invoke('app:saveNoteImageAs', dataUrl, alt) as Promise<{ success: boolean; canceled?: boolean }>,
   openFolderDialog: () => ipcRenderer.invoke('app:openFolderDialog'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   isDev: () => ipcRenderer.invoke('app:isDev'),
@@ -428,6 +446,7 @@ contextBridge.exposeInMainWorld('youtube', {
   fetchTranscripts: (batchSize?: number, workerCount?: number) => ipcRenderer.invoke('youtube:fetchTranscripts', batchSize, workerCount),
   clearTranscripts: () => ipcRenderer.invoke('youtube:clearTranscripts'),
   getTranscriptStatus: () => ipcRenderer.invoke('youtube:getTranscriptStatus'),
+  getTranscriptAvailability: () => ipcRenderer.invoke('youtube:getTranscriptAvailability'),
   getTranscript: (videoId: string) => ipcRenderer.invoke('youtube:getTranscript', videoId),
   searchTranscripts: (query: string, videoLimit?: number, perVideoLimit?: number) => ipcRenderer.invoke('youtube:searchTranscripts', query, videoLimit, perVideoLimit),
   buildSeed: () => ipcRenderer.invoke('youtube:buildSeed'),
@@ -532,6 +551,45 @@ contextBridge.exposeInMainWorld('workspaces', {
   load: (id: string) => ipcRenderer.invoke('workspaces:load', id),
   delete: (id: string) => ipcRenderer.invoke('workspaces:delete', id),
   rename: (id: string, name: string) => ipcRenderer.invoke('workspaces:rename', id, name),
+})
+
+// Sessions/tabs persistence rows (iPhone migration, D-006) — consumed by src/store/tabPersistence.ts.
+contextBridge.exposeInMainWorld('sessions', {
+  hasAny: () => ipcRenderer.invoke('sessions:hasAny'),
+  listSessions: () => ipcRenderer.invoke('sessions:listSessions'),
+  listTabs: (sessionId?: string) => ipcRenderer.invoke('sessions:listTabs', sessionId),
+  listArchivedGroups: () => ipcRenderer.invoke('sessions:listArchivedGroups'),
+  getLocalState: (sessionId: string) => ipcRenderer.invoke('sessions:getLocalState', sessionId),
+  setLocalState: (sessionId: string, activeTab: unknown) => ipcRenderer.invoke('sessions:setLocalState', sessionId, activeTab),
+  applySnapshot: (snap: unknown) => ipcRenderer.invoke('sessions:applySnapshot', snap),
+  upsertSession: (s: unknown) => ipcRenderer.invoke('sessions:upsertSession', s),
+  upsertTab: (t: unknown) => ipcRenderer.invoke('sessions:upsertTab', t),
+  deleteSession: (id: string) => ipcRenderer.invoke('sessions:deleteSession', id),
+  deleteTab: (id: string) => ipcRenderer.invoke('sessions:deleteTab', id),
+})
+
+// iCloud sync (docs/mobile/icloud.md) — status/config/actions + push events from the sync host.
+contextBridge.exposeInMainWorld('sync', {
+  getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+  getConfig: () => ipcRenderer.invoke('sync:getConfig'),
+  syncNow: () => ipcRenderer.invoke('sync:syncNow'),
+  enable: () => ipcRenderer.invoke('sync:enable'),
+  disable: () => ipcRenderer.invoke('sync:disable'),
+  chooseFolder: () => ipcRenderer.invoke('sync:chooseFolder'),
+  useDefaultFolder: () => ipcRenderer.invoke('sync:useDefaultFolder'),
+  getTrace: () => ipcRenderer.invoke('sync:getTrace'),
+  setDiagnostics: (on: boolean) => ipcRenderer.invoke('sync:setDiagnostics', on),
+  resolveHold: (choice: 'restore' | 'delete' | 'republish') => ipcRenderer.invoke('sync:resolveHold', choice),
+  onStatus: (cb: (status: unknown) => void) => {
+    const handler = (_e: unknown, status: unknown) => cb(status)
+    ipcRenderer.on('sync:status', handler)
+    return () => ipcRenderer.removeListener('sync:status', handler)
+  },
+  onApplied: (cb: (entities: string[]) => void) => {
+    const handler = (_e: unknown, entities: string[]) => cb(entities)
+    ipcRenderer.on('sync:applied', handler)
+    return () => ipcRenderer.removeListener('sync:applied', handler)
+  },
 })
 
 contextBridge.exposeInMainWorld('playlists', {

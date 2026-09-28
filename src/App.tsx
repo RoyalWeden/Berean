@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import { applySyncInvalidation } from '@/lib/syncInvalidation'
+import { wireSyncUi } from '@/lib/syncUi'
 import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -33,6 +35,12 @@ import { applyThemeToDocument } from '@/lib/applyTheme'
 import '@/lib/knownTagsBridge'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
+import { installTabPersistence } from '@/store/tabPersistenceRuntime'
+import { openDeepLink } from '@/lib/deepLinkTarget'
+import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
+import { applyFontFamilies } from '@/lib/fontFamilies'
+import { useBibleLineHeight } from '@/hooks/useBibleLineHeight'
+import VerseDragIndicator from '@/components/bible/VerseDragIndicator'
 import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
@@ -82,8 +90,11 @@ export default function App() {
   useEffect(() => {
     if (IS_INDEPENDENT_WINDOW) return
     const teardownView = initPerWindowViewState()
+    // Sessions/tabs ⇄ SQLite mirror (docs/mobile/decisions.md D-006): hydrates from the durable
+    // rows after the per-window view is restored, then keeps them written as tabs change.
+    const teardownTabs = installTabPersistence()
     const teardownSync = initCrossWindowSync()
-    return () => { teardownSync(); teardownView() }
+    return () => { teardownSync(); teardownTabs(); teardownView() }
   }, [])
   // Answers Study Trail's "what chapter is actually open right now" request (used to seed a
   // new session's first node from the currently-active tab) — see electron/main.ts's
@@ -123,7 +134,7 @@ export default function App() {
         const title = bookChapterVerseLabel(payload.bookId, payload.chapter)
         const originTabId = s.activeTabId[s.activeSpace] ?? undefined
         s.addTab({
-          id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+          id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, spaceId: 'scripture', type: 'bible', title,
           state: { bookId: payload.bookId, chapter: payload.chapter, targetVerse: payload.verse, translation, showStrongs: false, scrollPosition: 0 },
           ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
         })
@@ -165,7 +176,6 @@ export default function App() {
   const scriptureFontFamily = useAppStore((s) => s.scriptureFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
   const uiFontFamily = useAppStore((s) => s.uiFontFamily)
-  const bibleLineHeight = useAppStore((s) => s.bibleLineHeight)
   const openSearch = useAppStore((s) => s.openSearch)
   const toggleSettings = useAppStore((s) => s.toggleSettings)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
@@ -400,6 +410,20 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Deep links (berean://…) from the OS: drain anything that arrived before mount, then listen.
+  useEffect(() => {
+    window.app?.takePendingDeepLinks?.().then((urls) => { for (const u of urls) openDeepLink(u) }).catch(() => {})
+    window.app?.onDeepLink?.((url) => { openDeepLink(url) })
+  }, [])
+
+  useEffect(() => {
+    // iCloud sync (docs/mobile/icloud.md): after the sync host applies changes from another
+    // device, refresh whatever those entities feed. Notes already arrive via notes:changed above.
+    // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
+    wireSyncUi()   // the shared iCloud status store (Settings row, iCloud page, progress) — DATA-UX-001
+    return window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
+  }, [])
+
   useEffect(() => {
     // Broadcast our tab state + theme to other windows whenever tabs or theme change.
     if (isBroadcastingRef.current) return // skip if we're applying an external update
@@ -528,11 +552,8 @@ export default function App() {
     setSwitcherIdx(idx)
   }
 
-  // Sync line-height CSS variable
-  useEffect(() => {
-    const values = { compact: '1.3', comfortable: '1.75', spacious: '2.1' }
-    document.documentElement.style.setProperty('--line-height-comfortable', values[bibleLineHeight])
-  }, [bibleLineHeight])
+  // Sync line-height CSS variable (shared with the iPhone shell)
+  useBibleLineHeight()
 
   // Relay nativeTheme IPC changes into a React-friendly state so the theme
   // effect below re-runs reliably when macOS switches dark/light mode.
@@ -605,39 +626,17 @@ export default function App() {
   // that mattered: a "Pop Out Tab" window or the presenter window used to silently fall back to
   // no preset at all for any theme added after their own copy was last updated).
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
+  const customThemes = useAppStore((s) => s.customThemes)
   useEffect(() => {
     applyThemeToDocument({
       theme, themePreset, systemIsDark, systemAccentColor,
-      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes,
     })
-  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance])
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
 
-  // Sync per-section font families
+  // Sync per-section font families (shared with the mobile shell — src/lib/fontFamilies.ts)
   useEffect(() => {
-    // The real OS UI font, not a web font — 'system' previously silently mapped to Inter
-    // for the UI font specifically (this constant), while scripture/notes used 'inherit'
-    // for the same choice. Both now resolve to the same native stack.
-    const NATIVE_FONT_STACK = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
-    const fontMap: Record<string, string> = {
-      system:     NATIVE_FONT_STACK,
-      serif:      'Georgia, "Times New Roman", Times, serif',
-      sansserif:  'Inter, ui-sans-serif, system-ui, sans-serif',
-      mono:       '"JetBrains Mono", "Fira Code", "Menlo", monospace',
-      garamond:   '"EB Garamond", Garamond, Georgia, serif',
-      palatino:   '"Palatino Linotype", Palatino, "Book Antiqua", serif',
-      merriweather: '"Merriweather", Georgia, serif',
-      lora:       '"Lora", Georgia, serif',
-      crimson:    '"Crimson Text", Georgia, serif',
-      sourceserif: '"Source Serif 4", Georgia, serif',
-      nunito:     '"Nunito", Inter, sans-serif',
-    }
-    document.documentElement.style.setProperty('--font-scripture', fontMap[scriptureFontFamily] ?? 'inherit')
-    document.documentElement.style.setProperty('--font-notes', fontMap[notesFontFamily] ?? 'inherit')
-    // UI font — applied to body so all chrome (sidebar, settings, tabs) inherits it;
-    // scripture and notes sections override it with their own vars.
-    const uiFont = uiFontFamily === 'system' ? NATIVE_FONT_STACK : (fontMap[uiFontFamily] ?? 'inherit')
-    document.body.style.fontFamily = uiFont
-    document.documentElement.style.setProperty('--font-ui', uiFont)
+    applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily })
   }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
 
   // ── On mount: load history, settings, check onboarding, vault reconcile ──
@@ -647,32 +646,8 @@ export default function App() {
       useAppStore.getState().setHistory(entries)
     }).catch(() => {})
 
-    // 2. Load settings from SQLite and hydrate the store
-    window.settings?.getAll().then((all) => {
-      const s = useAppStore.getState()
-      if (typeof all.theme === 'string' && ['dark','light','system'].includes(all.theme as string))
-        s.setTheme(all.theme as 'dark' | 'light' | 'system')
-      if (typeof all.themePreset === 'string') s.setThemePreset(all.themePreset)
-      if (typeof all.fontSize === 'number') s.setBibleFontSize(all.fontSize)
-      if (typeof all.lineHeight === 'string') s.setBibleLineHeight(all.lineHeight as 'compact' | 'comfortable' | 'spacious')
-      if (typeof all.defaultTranslation === 'string') s.setDefaultBibleTranslation(all.defaultTranslation)
-      if (typeof all.hermasTranslation === 'string') s.setHermasTranslation(all.hermasTranslation)
-      if (typeof all.scriptureFontFamily === 'string') s.setScriptureFontFamily(all.scriptureFontFamily)
-      if (typeof all.notesFontFamily === 'string') s.setNotesFontFamily(all.notesFontFamily)
-      if (typeof all.uiFontFamily === 'string') s.setUiFontFamily(all.uiFontFamily)
-      if (typeof all.autoPiP === 'boolean') s.setAutoPiP(all.autoPiP)
-      if (typeof all.noteVerseRefsEnabled === 'boolean') s.setNoteVerseRefsEnabled(all.noteVerseRefsEnabled)
-      if (typeof all.noteLexiconRefsEnabled === 'boolean') s.setNoteLexiconRefsEnabled(all.noteLexiconRefsEnabled)
-      if (typeof all.defaultScriptureLayout === 'string') s.setDefaultScriptureLayout(all.defaultScriptureLayout as import('@/types').ScriptureLayout)
-      if (typeof all.noteTransformLayout === 'string') s.setNoteTransformLayout(all.noteTransformLayout as 'right' | 'bottom' | 'left')
-      if (typeof all.crossRefSource === 'string') s.setCrossRefSource(all.crossRefSource as 'tske' | 'classic' | 'notes')
-      if (typeof all.autoCloseTabsAfter === 'number') s.setAutoCloseTabsAfter(all.autoCloseTabsAfter)
-      if (typeof all.wordReplacerEnabled === 'boolean') s.setWordReplacerEnabled(all.wordReplacerEnabled)
-      if (typeof all.noteScriptureBlock === 'boolean') s.setNoteScriptureBlock(all.noteScriptureBlock)
-      if (typeof all.sidePanelScriptureBlock === 'boolean') s.setSidePanelScriptureBlock(all.sidePanelScriptureBlock)
-      if (typeof all.noteScriptureBlockThreshold === 'number') s.setNoteScriptureBlockThreshold(all.noteScriptureBlockThreshold)
-      if (typeof all.autoEmDash === 'boolean') s.setAutoEmDash(all.autoEmDash)
-    }).catch(() => {})
+    // 2. Load settings from SQLite and hydrate the store (mapping shared with the mobile shell)
+    window.settings?.getAll().then((all) => hydrateSettingsIntoStore(all)).catch(() => {})
 
     // 3. Check onboarding status
     window.settings?.get('onboardingCompleted').then((completed) => {
@@ -697,82 +672,11 @@ export default function App() {
       useAppStore.getState().bumpNoteToken()
     })
 
-    // 5. Subscribe to store settings changes → debounce-write to SQLite
-    const DEBOUNCE = 800
-    let timer: ReturnType<typeof setTimeout> | undefined
-    // Previously the debounce's ONLY way to end early was `clearTimeout` — on unmount (app
-    // quit, including the auto-updater's quitAndInstall) or the window actually closing, that
-    // just CANCELLED the pending write outright rather than performing it, so a settings change
-    // (e.g. toggling noteScriptureBlock off) made within 800ms of quitting/restarting was
-    // silently lost — the next launch reloaded whatever was persisted BEFORE that change. Now a
-    // pending write is tracked so it can be flushed immediately instead of dropped, both on this
-    // effect's own cleanup and on the window's `beforeunload` (covers a plain quit, which doesn't
-    // necessarily unmount React first).
-    let pendingFlush: (() => void) | null = null
-    function flushPendingSettings() {
-      if (!pendingFlush) return
-      clearTimeout(timer)
-      pendingFlush()
-      pendingFlush = null
-    }
-    const unsub = useAppStore.subscribe((state, prev) => {
-      const changed =
-        state.theme !== prev.theme ||
-        state.themePreset !== prev.themePreset ||
-        state.bibleFontSize !== prev.bibleFontSize ||
-        state.bibleLineHeight !== prev.bibleLineHeight ||
-        state.defaultBibleTranslation !== prev.defaultBibleTranslation ||
-        state.hermasTranslation !== prev.hermasTranslation ||
-        state.scriptureFontFamily !== prev.scriptureFontFamily ||
-        state.notesFontFamily !== prev.notesFontFamily ||
-        state.uiFontFamily !== prev.uiFontFamily ||
-        state.autoPiP !== prev.autoPiP ||
-        state.noteVerseRefsEnabled !== prev.noteVerseRefsEnabled ||
-        state.noteLexiconRefsEnabled !== prev.noteLexiconRefsEnabled ||
-        state.defaultScriptureLayout !== prev.defaultScriptureLayout ||
-        state.noteTransformLayout !== prev.noteTransformLayout ||
-        state.crossRefSource !== prev.crossRefSource ||
-        state.autoCloseTabsAfter !== prev.autoCloseTabsAfter ||
-        state.wordReplacerEnabled !== prev.wordReplacerEnabled ||
-        state.noteScriptureBlock !== prev.noteScriptureBlock ||
-        state.sidePanelScriptureBlock !== prev.sidePanelScriptureBlock ||
-        state.noteScriptureBlockThreshold !== prev.noteScriptureBlockThreshold ||
-        state.autoEmDash !== prev.autoEmDash
-      if (!changed) return
-      clearTimeout(timer)
-      const writeNow = () => {
-        const s = useAppStore.getState()
-        const pairs: [string, unknown][] = [
-          ['theme', s.theme], ['themePreset', s.themePreset],
-          ['fontSize', s.bibleFontSize], ['lineHeight', s.bibleLineHeight],
-          ['defaultTranslation', s.defaultBibleTranslation],
-          ['hermasTranslation', s.hermasTranslation],
-          ['scriptureFontFamily', s.scriptureFontFamily],
-          ['notesFontFamily', s.notesFontFamily], ['uiFontFamily', s.uiFontFamily],
-          ['autoPiP', s.autoPiP],
-          ['noteVerseRefsEnabled', s.noteVerseRefsEnabled],
-          ['noteLexiconRefsEnabled', s.noteLexiconRefsEnabled],
-          ['defaultScriptureLayout', s.defaultScriptureLayout],
-          ['noteTransformLayout', s.noteTransformLayout],
-          ['crossRefSource', s.crossRefSource],
-          ['autoCloseTabsAfter', s.autoCloseTabsAfter],
-          ['wordReplacerEnabled', s.wordReplacerEnabled],
-          ['noteScriptureBlock', s.noteScriptureBlock],
-          ['sidePanelScriptureBlock', s.sidePanelScriptureBlock],
-          ['noteScriptureBlockThreshold', s.noteScriptureBlockThreshold],
-          ['autoEmDash', s.autoEmDash],
-        ]
-        pairs.forEach(([k, v]) => window.settings?.set(k, v).catch(() => {}))
-        pendingFlush = null
-      }
-      pendingFlush = writeNow
-      timer = setTimeout(writeNow, DEBOUNCE)
-    })
-    window.addEventListener('beforeunload', flushPendingSettings)
+    // 5. Subscribe to store settings changes → debounce-write to SQLite, flushing a pending
+    //    write on unmount / beforeunload instead of dropping it (src/lib/settingsBridge.ts).
+    const disposeSettingsPersist = persistSettingsFromStore()
     return () => {
-      flushPendingSettings()
-      window.removeEventListener('beforeunload', flushPendingSettings)
-      unsub()
+      disposeSettingsPersist()
       disposeVaultChange?.()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1174,6 +1078,7 @@ export default function App() {
       </TopBarSlotContext.Provider>
       </PopoverBoundaryContext.Provider>
       <FloatingSearch />
+      <VerseDragIndicator />
       <PresenterControls />
       <AudioPlayer />
       <LazyOnce when={settingsOpen}><SettingsModal /></LazyOnce>

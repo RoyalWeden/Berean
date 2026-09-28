@@ -290,7 +290,12 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
           bookId, chapter, verse, activeRefRectTop: r.top, activeRefRectBottom: r.bottom,
         })
       }
-      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // Instant, like the find-bar centering below: a verse change here is a discrete jump
+      // (search / cross reference / Scripture link), not a gesture. A smooth scroll is still
+      // gliding when the main window derives its outline band from our reported region — and in
+      // a presenter window Chromium may not animate it at all (observed: smooth stays at 0,
+      // 'auto' lands), which left the presenter at the top of the chapter (TEST-004).
+      activeRef.current.scrollIntoView({ behavior: 'auto', block: 'center' })
     } else if (window.__bereanPresenterDebug) {
       console.log('[PD viewer-center-effect] scrollPercent undefined but nothing to center on', { verse, hasActiveRef: !!activeRef.current })
     }

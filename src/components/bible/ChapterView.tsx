@@ -1,11 +1,14 @@
+import { verseMatchesFind } from '@/lib/scriptureFind'
+import { isAudioFollowPaused } from '@/mobile/audio/followState'
 import { useState, useEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
-import { flushSync } from 'react-dom'
+import { flushSync, createPortal } from 'react-dom'
 // Aliased away from the design system's `Tooltip` (@/components/ui/Tooltip) — only used here
 // as the shared per-chapter Radix Provider for StrongsTooltip.tsx's rich hover cards.
 import * as RadixTooltip from '@radix-ui/react-tooltip'
-import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2 } from 'lucide-react'
+import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2, ListChecks } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import { MenuSurface, MenuItem, MenuSeparator, EmptyState, RefChip, SectionLabel, Tooltip } from '@/components/ui'
+import { MenuSurface, MenuItem, MenuSeparator, EmptyState, RefChip, SectionLabel, Tooltip, ColorSwatchRow } from '@/components/ui'
+import { versesSpanned } from '@/lib/verseSelection'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
@@ -22,9 +25,12 @@ import { zoomedFontSize } from '@/lib/zoom'
 import { chapterCacheKey, getCachedVerses, setCachedVerses } from '@/lib/chapterCache'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 type HLColor = HighlightColor
 const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLORS.map(c => ({ id: c.id, dot: c.dot, label: c.label }))
+// Same swatch set/shape VerseRow's single-verse selection menu uses (one layout for both).
+const HL_SWATCHES = HIGHLIGHT_COLORS.map((c) => ({ id: c.id, rgb: `var(--highlight-${c.id})`, label: c.label }))
 
 // Last computed chapter-level cross-ref banner sources, keyed by note-token + chapter. Seeded
 // synchronously on ChapterView mount so revisiting/paging to a chapter shows its banner
@@ -183,6 +189,10 @@ interface ChapterViewProps {
   onSlowLoadChange?: (loading: boolean) => void
   /** Tighter padding + no max width — used for compare columns. */
   compact?: boolean
+  /** Show the chapter-level notes banner at the top (notes citing this whole chapter). Default
+   *  true (desktop). The iPhone reader passes false: those notes live in the caret's My Notes
+   *  instead of an indicator over the text (NOTES-CH-001). */
+  chapterNotesBanner?: boolean
   /** Verse numbers to show as selected without any store entry — a compare column echoing
    *  another column's (KJV's) verse selection for side-by-side comparison. Display only. */
   forceSelectedVerses?: Set<number>
@@ -213,10 +223,10 @@ function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement)
 /** Single clickable verse chip in the chapter banner — hover shows verse text, click navigates. */
 function ChapterRefChip({ source }: { source: CrossRefSource }) {
   const [verseText, setVerseText] = useState<string | null>(null)
-  const [tip, setTip] = useState<{ placeBelow: boolean } | null>(null)
+  const [tip, setTip] = useState<{ placeBelow: boolean; rect: DOMRect | null } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-  const verseStr = `${bookName(source.homeBookId)} ${source.homeChapter}:${source.homeVerse}`
+  const verseStr = `${bookName(source.homeBookId)} ${displayChapter(source.homeBookId, source.homeChapter)}:${source.homeVerse}`
   // Suppress the "· <title>" suffix whenever the note's title is really just its own verse
   // reference — in any punctuation form ("Romans 10:13", "Romans 10.13", "Romans_10_13"), and
   // ignoring any trailing import tag the note name carries ("Jeremiah 5.24 (bg-234)",
@@ -258,7 +268,7 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         const row = await window.bible.queryVerse(source.homeBookId, source.homeChapter, source.homeVerse).catch(() => null)
         if (row) setVerseText(row.text ?? null)
       }
-      setTip({ placeBelow })
+      setTip({ placeBelow, rect: rect ?? null })
     }, 280)
   }
 
@@ -298,15 +308,21 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         <span className="font-medium">{verseStr}</span>
         {!titleIsRef && <span className="opacity-60">· {cleanedTitle}</span>}
       </button>
-      {tip && verseText && (
+      {/* Portaled + fixed like every other popover: rendered inline inside the chapter it took
+          its material from the chapter's container and read differently from the app's
+          other hover cards (TEST-015 — same cause as the multi-verse menu, TEST-014). */}
+      {tip && verseText && tip.rect && createPortal(
         <div
-          className={`absolute left-0 z-popover w-[260px] material-popover rounded-menu px-3 py-2 pointer-events-none ${
-            tip.placeBelow ? 'top-full mt-1.5' : 'bottom-full mb-1.5'
-          }`}
+          className="fixed z-popover w-[260px] material-popover rounded-menu px-3 py-2 pointer-events-none"
+          style={{
+            left: Math.max(8, Math.min(tip.rect.left, window.innerWidth - 268)),
+            ...(tip.placeBelow ? { top: tip.rect.bottom + 6 } : { bottom: window.innerHeight - tip.rect.top + 6 }),
+          }}
         >
           <p className="text-micro font-mono font-semibold text-accent mb-1">{verseStr}</p>
           <p className="text-caption text-text-primary leading-snug line-clamp-4">{verseText}</p>
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   )
@@ -359,21 +375,10 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
   )
 }
 
-/** Same predicate VerseRow.isFindMatch applies per row — hoisted here so ChapterView can hand
- *  `findQuery` ONLY to the (usually few) rows that actually match. Non-matching rows then keep a
- *  stable `findQuery=''` across keystrokes, so memo(VerseRow) bails them out instead of
- *  re-rendering all ~176 rows of a long chapter on every character typed into the find bar. */
-function verseMatchesFind(text: string, findQuery: string, findWordMode: 'phrase' | 'all' | 'any'): boolean {
-  const q = findQuery.trim().toLowerCase()
-  if (!q) return false
-  const t = text.toLowerCase()
-  if (findWordMode === 'phrase') return t.includes(q)
-  const words = q.split(/\s+/).filter(Boolean)
-  if (findWordMode === 'all') return words.every((w) => t.includes(w))
-  return words.some((w) => t.includes(w))
-}
-
-function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses }: ChapterViewProps) {
+/** Rows receive `findQuery` ONLY when they match (the shared rule in src/lib/scriptureFind.ts —
+ *  raw AND displayed text, case-insensitive), so non-matching rows keep a stable `findQuery=''`
+ *  across keystrokes and memo(VerseRow) bails them out instead of re-rendering every row. */
+function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses, chapterNotesBanner }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -866,6 +871,9 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // on every verse change for as long as this chapter is the one actually playing.
   useEffect(() => {
     if (!audioPlayback || !containerRef.current) return
+    // iPhone: the user scrolled away from the spoken verse — don't pull them back until they
+    // resume following or the chapter changes (TEST25-AUDIO-007). Always false on the desktop.
+    if (isAudioFollowPaused()) return
     if (audioPlayback.bookId !== bookId || audioPlayback.chapter !== chapter || audioPlayback.textId !== textId) return
     const container = containerRef.current
     // containerRef itself is just the (naturally tall, unclipped) content div — its own rect
@@ -1088,6 +1096,26 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
     setMultiToolbar(null)
   }
 
+  // "Select verses" from a text selection spanning several verses (TEST-019): convert it into the
+  // shared verse selection (same model as clicking/dragging verse numbers) and drop the text
+  // selection so the verse-selection bar takes over.
+  function selectSpannedVerses() {
+    if (!multiToolbar) return
+    const vns = multiToolbar.verseNums
+    const tid = tabId ?? useAppStore.getState().activeTabId['scripture']
+    if (!tid || vns.length === 0) return
+    const available = verses.map((v) => v.verse_num)
+    const tid2 = textId ?? 'kjva'
+    const refs = versesSpanned(
+      { bookId, chapter, verse: Math.min(...vns), textId: tid2 },
+      { bookId, chapter, verse: Math.max(...vns), textId: tid2 },
+      available,
+    )
+    useAppStore.getState().setVerseSelection(tid, refs)
+    window.getSelection()?.removeAllRanges()
+    setMultiToolbar(null)
+  }
+
   async function addRangeNote() {
     if (!multiToolbar) return
     const vns = multiToolbar.verseNums
@@ -1183,7 +1211,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
       {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter.
           Auto-updates: the crossRef effect re-runs on noteChangeToken. Keyed by book/chapter so
           its expand state resets on navigation. */}
-      {chapterSources.length > 0 && (
+      {chapterNotesBanner !== false && chapterSources.length > 0 && (
         <ChapterCrossRefBanner
           key={`${bookId}:${chapter}`}
           sources={chapterSources}
@@ -1246,7 +1274,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
         // verseMatchesFind's note) — non-matching rows keep findQuery='' and memo out.
         const rowFindQuery = isSearchNavTarget && flashVerse?.query
           ? flashVerse.query
-          : (findQuery && verseMatchesFind(renderVerse.text, findQuery, findWordMode) ? findQuery : '')
+          : (findQuery && verseMatchesFind(renderVerse.text, buildVerseDisplayText(renderVerse.text, renderVerse.text_tagged, textId ?? 'kjva', wordReplacerEnabled, wordReplacerRules), findQuery, findWordMode) ? findQuery : '')
         const rowFindWordMode = isSearchNavTarget && flashVerse?.query ? (flashVerse.wordMode ?? 'phrase') : findWordMode
         const rowHighlightStrongsWords = isSearchNavTarget ? flashVerse?.strongsWords : undefined
         const rowHighlightStrongsExtraWords = isSearchNavTarget ? flashVerse?.strongsExtraWords : undefined
@@ -1338,38 +1366,34 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
           "Add note on range" menu (VerseRow.tsx has its own, separate word/phrase-
           selection toolbar). Now on the shared `MenuSurface` material/radius, same as
           every other menu in the app. */}
-      {multiToolbar && (
+      {/* Portaled to <body> like VerseRow's single-verse toolbar: rendered inline it sat inside
+          the chapter's scroll container, so its fixed position and backdrop material were
+          computed inside that container and it looked different from the single-verse menu
+          (TEST-014). Same two-row swatch layout as the single-verse menu (TEST-016). */}
+      {multiToolbar && createPortal(
         <MenuPositioner x={multiToolbar.x} y={multiToolbar.y}
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
-          <MenuSurface className="min-w-[200px] overflow-hidden !p-0 py-1">
-          {/* Color grid: 3 rows × 5 colors */}
-          <div className="px-3 py-2 space-y-1.5">
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="flex items-center gap-1.5">
-                {HL_COLORS.slice(row * 5, row * 5 + 5).map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => highlightRange(c.id)}
-                    title={`Highlight ${c.label}`}
-                    style={{ backgroundColor: c.dot }}
-                    className="w-4 h-4 rounded-full cursor-pointer transition-[filter,box-shadow] duration-fast hover:brightness-110 hover:ring-1 hover:ring-hairline flex-shrink-0"
-                  />
-                ))}
-                {row === 2 && selectionHasHighlights() && (
-                  <Tooltip label="Clear highlights from selection">
-                    <button
-                      onClick={clearRangeHighlights}
-                      className="ml-auto text-text-muted hover:text-destructive cursor-pointer"
-                    >
-                      <X size={12} />
-                    </button>
-                  </Tooltip>
-                )}
-              </div>
-            ))}
+          <MenuSurface className="min-w-[180px] overflow-hidden !p-0 py-1">
+          <div className="px-3 py-2">
+            <ColorSwatchRow
+              swatches={HL_SWATCHES}
+              value={undefined}
+              onChange={(id) => { if (id) highlightRange(id as HLColor); else clearRangeHighlights() }}
+              allowNone
+              noneLabel="Remove highlights from selection"
+              rows={2}
+              size={16}
+            />
           </div>
           <MenuSeparator />
+          {/* Turn the text selection into a verse selection (TEST-019) — the same selection
+              model the verse-number drag uses, so every verse-selection action applies. */}
+          <MenuItem
+            icon={ListChecks}
+            label={`Select verses ${multiToolbar.verseNums[0]}–${multiToolbar.verseNums[multiToolbar.verseNums.length - 1]}`}
+            onClick={selectSpannedVerses}
+          />
           <MenuItem
             icon={Copy}
             label="Copy verses"
@@ -1386,13 +1410,17 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
             onClick={copyText}
           />
           <MenuSeparator />
+          {/* A verse note anchors to one verse — the same rule as a multi-verse number
+              selection (TEST-007, selectionAllows 'add-note'): shown disabled with the reason. */}
           <MenuItem
             icon={NotepadText}
-            label="Add note on range"
+            label="Add note (select a single verse)"
+            disabled
             onClick={addRangeNote}
           />
           </MenuSurface>
-        </MenuPositioner>
+        </MenuPositioner>,
+        document.body,
       )}
     </div>
     </RadixTooltip.Provider>

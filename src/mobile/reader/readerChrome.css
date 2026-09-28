@@ -1,0 +1,164 @@
+/* Reader chrome owned by the Scripture reader (compact island/notch header, collapsing bottom
+   controls, text-switch double buffer). Kept apart from mobile.css (the shared design system). */
+
+/* ── compact Scripture header (NEW-007) ─────────────────────────────────
+   Joins the top cutout: a black shape the colour of the island / notch, with the passage under
+   it. Sizes follow the real cutout geometry (island ≈126 pt wide at y≈11; notch 0-≈32 pt). */
+/* The band behind the pill (SEP24-005): an OPAQUE surface from the top edge down to the pill's
+   bottom, then a short fade — never a blur, so nothing blurred sits next to the black cutout
+   shape; scrolled text passes under the band, not behind the pill's edges. */
+.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--m-safe-top) + 24px); background: var(--scripture-bg, rgb(var(--color-surface-1))); z-index: 6; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); }
+html[data-cutout="none"] .mobile-compact-band { height: calc(var(--m-safe-top) + 30px); }
+.mobile-compact-band.is-visible { opacity: 1; }
+.mobile-compact-pill { position: fixed; left: 50%; z-index: 7; display: flex; align-items: flex-end; justify-content: center; border: 0; padding: 0 14px 5px; background: #000; color: #fff;
+  font: inherit; font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25)); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
+  transform: translate(-50%, -8px) scaleY(0.6); opacity: 0; pointer-events: none; transform-origin: top center; transition: transform 0.22s ease, opacity 0.18s ease; }
+.mobile-compact-pill.is-visible { transform: translate(-50%, 0) scaleY(1); opacity: 1; pointer-events: auto; }
+/* Dynamic Island: starts at the island top edge with fully round ends (the island is a capsule; SEP24-005). */
+.mobile-compact-pill.is-island { top: 11px; min-width: 126px; height: calc(var(--m-safe-top) - 11px + 20px); border-radius: 999px; }
+/* Notch: attached to the top edge like the notch, rounded only at the bottom. */
+.mobile-compact-pill.is-notch { top: 0; min-width: 164px; height: calc(var(--m-safe-top) + 18px); border-radius: 0 0 32px 32px; }
+/* Home-button iPhones: a small pill just under the status bar. */
+.mobile-compact-pill.is-none { top: calc(var(--m-safe-top) + 2px); height: 24px; padding-bottom: 0; align-items: center; border-radius: 12px; }
+.mobile-compact-pill-badge { margin-left: 6px; font-size: 0.85em; opacity: 0.75; }
+.mobile-compact-pill-text { display: inline-flex; align-items: baseline; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .mobile-compact-pill, .mobile-compact-band { transition: opacity 0.1s linear; } }
+
+/* ── bottom controls (NEW-006 / NEW-012) ────────────────────────────────
+   Padding inside the home-indicator inset instead of on top of it: the controls end 12 px above
+   the inset's inner edge (the indicator itself sits in its lowest ~13 px), keeping clear of the
+   system gesture. On the reader the bar overlays the text and slides away while reading down. */
+.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform 0.24s ease; }
+.mobile-root.has-overlay-nav .mobile-bottom-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; }
+.mobile-root.has-overlay-nav.is-nav-collapsed .mobile-bottom-nav { transform: translateY(calc(100% + 2px)); }
+@media (prefers-reduced-motion: reduce) { .mobile-bottom-nav { transition: none; } }
+
+
+/* Text-switch double buffer (NEW-005A): the outgoing pane covers the incoming one until it is ready. */
+.mobile-reader-slot { position: relative; flex: none; height: 100%; }
+.mobile-reader-pane.is-held { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+
+/* Find on Page (SEP24-019): a glass bar under the reader header. */
+.mobile-find-bar { position: absolute; left: 10px; right: 10px; top: calc(var(--m-reader-top, 0px) + 6px); z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px 5px 5px 10px; border-radius: 16px; box-shadow: var(--m-shadow-float, 0 6px 20px rgb(0 0 0 / 0.18)); }
+.mobile-find-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; color: rgb(var(--color-text-muted)); }
+.mobile-find-field input { flex: 1; min-width: 0; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); outline: none; }
+.mobile-find-status { flex: none; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); white-space: nowrap; }
+.mobile-find-status small { font-size: 1em; }
+.mobile-find-btn { flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: none; color: rgb(var(--color-accent)); }
+.mobile-find-btn:disabled { opacity: 0.35; }
+.mobile-find-btn.is-done { color: rgb(var(--color-text-secondary)); }
+
+/* Continuous scroll under the overlay header: jumps land the chapter start below the bar. */
+.mobile-page.is-scripture-chrome .mobile-reader-pane.is-continuous [data-scroll-root] { scroll-padding-top: var(--m-reader-top); }
+
+/* Verse-number marks (SEP25) — annotations shown IN the verse number, never beside it:
+   notes → the note colour + a short underline; cross references in your notes → a small corner
+   dot; tags → a soft tint of the tag colour behind the number. A selected number keeps its
+   selected look. */
+[data-verse-badge][data-marks] { position: relative; }
+[data-verse-badge][data-marks~="note"]:not([aria-pressed="true"]) {
+  color: var(--vn-note); font-weight: 700;
+  text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--vn-note) 70%, transparent);
+}
+[data-verse-badge][data-marks~="tag"]:not([aria-pressed="true"]) {
+  background-color: color-mix(in srgb, var(--vn-tag) 24%, transparent); border-radius: 6px;
+}
+.verse-num-xref {
+  position: absolute; top: 0; right: -1px; width: 5px; height: 5px; border-radius: 50%;
+  background: rgb(var(--color-text-muted)); pointer-events: none;
+}
+[data-verse-badge][aria-pressed="true"] .verse-num-xref { background: #fff; }
+html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 1px var(--vn-tag); }
+
+/* ── Scripture chrome: floating glass passage capsule (SEP25) ─────────────
+   Reader and Compare share it. No bar behind the header: Scripture stays visible around the
+   capsule. The status-bar area is a SOLID band in the Scripture background with a short fade —
+   never a blur, so there is no blurred halo next to the island / notch. Scrolling down slides
+   the header away (the compact island / notch pill takes over); scrolling up brings it back.
+   The capsule is real material: WKWebView's backdrop-filter is composited by Core Animation (the
+   backdrop the system materials use), tinted like .systemThinMaterial, saturated for vibrancy,
+   with a hairline edge and a top specular line. */
+.mobile-page.is-scripture-chrome { position: relative; --m-header-h: 50px; --m-reader-top: calc(var(--m-safe-top) + var(--m-header-h)); }
+.mobile-page.is-scripture-chrome > .mobile-page-header {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5; border-bottom: 0; pointer-events: none;
+  background: linear-gradient(to bottom,
+    var(--scripture-bg, rgb(var(--color-surface-1))) 0,
+    var(--scripture-bg, rgb(var(--color-surface-1))) var(--m-safe-top),
+    transparent calc(var(--m-safe-top) + 12px));
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mobile-page.is-scripture-chrome.is-header-hidden > .mobile-page-header { transform: translateY(-100%); }
+.mobile-page.is-scripture-chrome .mobile-page-header-row > *, .mobile-page.is-scripture-chrome .mobile-page-header > :not(.mobile-page-header-row) { pointer-events: auto; }
+.mobile-page.is-scripture-chrome .mobile-title-button,
+.mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
+  /* Level 1 functional glass over the Bible text (src/styles/glass.css). */
+  height: 40px; border: 0.5px solid var(--glass-border);
+  background: var(--glass-regular-bg);
+  -webkit-backdrop-filter: var(--glass-filter-regular); backdrop-filter: var(--glass-filter-regular);
+  /* No outer drop shadow: WKWebView paints an outer shadow under a backdrop-filtered element as a
+     square behind the rounded shape (verified in the simulator). Edge + specular line instead. */
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.6), inset 0 -0.5px 0 rgb(0 0 0 / 0.04);
+  color: rgb(var(--color-text-primary));
+}
+.mobile-page.is-scripture-chrome .mobile-title-button { padding: 0 16px; border-radius: 20px; font-size: calc(16px * var(--m-type-scale, 1)); gap: 7px; }
+.mobile-page.is-scripture-chrome .mobile-title-button svg { color: rgb(var(--color-accent)); }
+.mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap { width: 40px; border-radius: 20px; }
+.mobile-page.is-scripture-chrome .mobile-title-button:active,
+.mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap:active { transform: scale(0.97); }
+html.scheme-dark .mobile-page.is-scripture-chrome .mobile-title-button,
+html.scheme-dark .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
+  background: rgb(var(--color-surface-3) / 0.55); border-color: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.14);
+}
+html[data-reduce-transparency] .mobile-page.is-scripture-chrome .mobile-title-button,
+html[data-reduce-transparency] .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
+  background: rgb(var(--color-surface-2)); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-title-button,
+html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
+  background: rgb(var(--color-surface-2) / 0.97); border-color: rgb(var(--color-text-muted) / 0.7);
+}
+@media (prefers-reduced-motion: reduce) { .mobile-page.is-scripture-chrome > .mobile-page-header { transition: none; } }
+
+/* Compare under the same chrome: column labels as small glass chips, columns start below them. */
+.mobile-page.is-compare { --m-compare-top: calc(var(--m-reader-top) + 26px); }
+.mobile-page.is-compare .m-compare-labels { padding: 2px 12px 0; }
+.mobile-page.is-compare .m-compare-label { justify-self: start; padding: 2px 8px; border-radius: 8px; background: rgb(var(--color-surface-2) / 0.7); -webkit-backdrop-filter: var(--glass-filter-clear); backdrop-filter: var(--glass-filter-clear); }
+.mobile-page.is-compare .m-compare-col { padding-top: var(--m-compare-top); scroll-padding-top: var(--m-compare-top); }
+
+/* ── Bottom controls float over EVERY tab (SEP25, one central rule) ───────
+   The content viewport is the whole screen; each scroller ends with room for the measured bar
+   (--m-nav-h) so nothing is permanently hidden behind the controls — no arbitrary padding. */
+.mobile-root.has-overlay-nav .mobile-page-body:not(.is-static) { padding-bottom: calc(var(--m-nav-h, 64px) + 16px); scroll-padding-bottom: var(--m-nav-h, 64px); }
+.mobile-root.has-overlay-nav .mobile-reader-end { height: calc(var(--m-nav-h, 64px) + 24px); }
+.mobile-root.has-overlay-nav .mobile-hosted-panel,
+.mobile-root.has-overlay-nav .mobile-note-editor { padding-bottom: var(--m-nav-h, 64px); box-sizing: border-box; }
+html[data-keyboard] .mobile-root.has-overlay-nav .mobile-note-editor,
+html[data-keyboard] .mobile-root.has-overlay-nav .mobile-hosted-panel { padding-bottom: 0; }
+/* Over Scripture the glass controls stand alone — no app-coloured fade that would haze a
+   Scripture colour theme (e.g. a black page in System Light). */
+.mobile-root.has-scripture-chrome .mobile-bottom-nav { background: none; }
+
+/* Floating top-left tab switcher / top-right audio button (TEST25-NAV / AUDIO): page headers keep
+   their buttons clear of them — one central rule instead of per-page offsets. Scripture views
+   have no header row content at the sides (centered capsule), so nothing moves there. */
+html[data-floating-left] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-left: 56px; }
+html[data-floating-right] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-right: 56px; }
+/* Hosted desktop panels (Lexicon, YouTube, PDF, tags graph) keep their first header row clear too. */
+html[data-floating-left] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-left: 56px; }
+html[data-floating-right] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-right: 56px; }
+
+/* Text width (TEST25-SCRIPTURE-008): the reading column's side margins. */
+html[data-reader-width="wide"] .mobile-reader .berean-reading-column { padding-left: 2px; padding-right: 6px; }
+html[data-reader-width="narrow"] .mobile-reader .berean-reading-column { padding-left: 16px; padding-right: 26px; }
+
+/* Continuous scroll on the phone: a chapter's heading is an in-flow divider label, not a sticky
+   opaque bar — pinned under the floating capsule it recreated the very header bar the capsule
+   replaced (the capsule already names the current chapter). */
+.mobile-reader [data-chapter-heading] {
+  position: static; background: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-bottom: 0; box-shadow: none; padding: 18px 12px 6px 6px;
+}

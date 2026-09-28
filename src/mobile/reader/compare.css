@@ -1,0 +1,22 @@
+/* Compare page (R088, T23-022…T23-027): LXX | KJV side by side, each column its own continuous
+   chapter and its own vertical scroller. Tokens from mobile.css; verses are the shared VerseRow. */
+.m-compare { position: relative; height: 100%; overflow: hidden; }
+.m-compare-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100%; }
+.m-compare-col { height: 100%; min-width: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding: 2px 6px 0 4px; }
+.m-compare-col + .m-compare-col { border-left: 1px solid rgb(var(--color-surface-4) / 0.7); padding-left: 6px; }
+
+/* One thin label row under the title bar, aligned with the two columns. */
+.m-compare-labels { display: grid; grid-template-columns: 1fr 1fr; padding: 0 10px 4px; }
+.m-compare-label { font-size: calc(11px * var(--m-type-scale, 1)); font-weight: 700; letter-spacing: 0.06em; color: rgb(var(--color-text-muted)); }
+.m-compare-label + .m-compare-label { padding-left: 8px; }
+.m-compare-label-ch { font-weight: 500; letter-spacing: 0; }
+
+/* Narrow columns: tighter verse rows (the text size stays the reader's). */
+.m-compare [data-verse-row] { gap: 4px; margin-bottom: 3px; padding: 3px 2px 3px 0; border-radius: 8px; }
+.m-compare [data-verse-badge] { font-size: 0.7em; }
+.m-compare-verse.is-target [data-verse-row] { background: rgb(var(--color-accent) / 0.08); }
+
+/* Strong's superscripts a touch larger than the reader's in compare. */
+
+.m-compare-status { padding: 16px 4px; font-size: calc(14px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
+.m-compare-empty { max-width: 32ch; margin: 0 auto; }

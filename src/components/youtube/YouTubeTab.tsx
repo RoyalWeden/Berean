@@ -11,6 +11,8 @@ import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { IconButton, Button, ControlGroup, OverflowGroup, OverflowSection, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
+import TouchYouTubePlayer from './TouchYouTubePlayer'
+import { capabilities } from '@/lib/platformCapabilities'
 import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
 import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
 import type { ParsedRef } from '@/lib/parseRef'
@@ -366,6 +368,31 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [videoDescription, setVideoDescription] = useState('')
   const [historyMap, setHistoryMap] = useState<Record<string, number>>({})
   const [videoEnded, setVideoEnded] = useState(false)
+  // Touch player (iPhone) callbacks — stable identities so the embed's message listener is not
+  // re-registered on every render. Position saves reuse the desktop rule (within 10 s of the
+  // end → 0, so the next open starts fresh).
+  const touchPosRef = useRef(0)
+  const touchPlayerReady = useCallback(() => setPlayerReady(true), [])
+  const touchPlayerBlocked = useCallback(() => { setPlayerReady(true); void import('@/platform/ios/plugins').then((m) => m.BereanWebView.hide()).catch(() => {}) }, [])
+  const touchPlayerEnded = useCallback(() => setVideoEnded(true), [])
+  const touchPlayerPosition = useCallback((seconds: number) => { touchPosRef.current = seconds }, [])
+  useEffect(() => {
+    if (!capabilities.nativeVideoPlayer || !activeVideoId) return
+    const id = activeVideoId
+    const save = () => {
+      const pos = touchPosRef.current
+      if (!(pos > 0)) return
+      const video = videos.find((v) => v.videoId === id)
+      const duration = video?.durationSeconds ?? 0
+      const effectivePos = duration > 0 && pos >= duration - 10 ? 0 : pos
+      historyMapRef.current = { ...historyMapRef.current, [id]: effectivePos }
+      window.youtube.savePosition(id, effectivePos, { title: video?.title ?? '', channelName: video?.channelName ?? '', thumbnailUrl: video?.thumbnailUrl ?? '' }).catch(() => {})
+    }
+    const timer = setInterval(save, 5000)
+    document.addEventListener('visibilitychange', save)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', save); save(); touchPosRef.current = 0 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeVideoId])
   const [showEndOverlay, setShowEndOverlay] = useState(false)
   const [recommendations, setRecommendations] = useState<VideoEntry[]>([])
   const [isPiPActive, setIsPiPActive] = useState(false)
@@ -389,6 +416,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // Ref keeps historyMap readable inside effects without causing re-runs
   const historyMapRef = useRef<Record<string, number>>({})
   useEffect(() => { historyMapRef.current = historyMap }, [historyMap])
+  // Resume point latched once per video open. Reading historyMapRef on every render would hand
+  // the player a new startTime after each 5 s position save and remount it (playback restarted).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const touchStartTime = useMemo(() => (activeVideoId ? historyMapRef.current[activeVideoId] ?? 0 : 0), [activeVideoId])
   // Persists across video changes within the session — skips embed attempt on revisit
   const embedBlockedRef = useRef<Set<string>>(new Set())
   // Always holds the latest saveCurrentPosition so unmount cleanup is never stale
@@ -1365,6 +1396,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (!hasLoadedRef.current) { hasLoadedRef.current = true; loadFromDb() }
   }, [loadFromDb])
+  // Stars / resume positions changed on another device: re-read the list (no refresh from YouTube).
+  const youtubeEpoch = useAppStore((s) => s.dataEpochs.youtube)
+  useEffect(() => {
+    if (!youtubeEpoch) return
+    void window.youtube.loadAll().then(setVideos).catch(() => {})
+  }, [youtubeEpoch])
 
   const doRefresh = useCallback(async () => {
     setLoading(true)
@@ -1436,7 +1473,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     if (!activeVideoId) return
     try {
       let secs = 0
-      if (mode === 'timestamp' && webviewRef.current) {
+      if (mode === 'timestamp' && capabilities.nativeVideoPlayer) {
+        secs = Math.floor(touchPosRef.current) // native player position (TouchYouTubePlayer)
+      } else if (mode === 'timestamp' && webviewRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rawPos = await (webviewRef.current as any).executeJavaScript(
           watchFallback
@@ -1760,7 +1799,20 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               behind it instead. Reusing the same opacity toggle already used for the
               playerReady loading state — confirmed to actually hide the webview, since the
               loading spinner already relies on it to cover the webview while loading. */}
-          {playerSrc && (
+          {/* iPhone: no <webview> in WKWebView — a plain IFrame embed reports state to this
+              window instead (TouchYouTubePlayer). webviewRef stays null, so every Electron-only
+              effect below (polls, executeJavaScript, PiP) no-ops. */}
+          {playerSrc && capabilities.nativeVideoPlayer && activeVideoId && (
+            <TouchYouTubePlayer
+              videoId={activeVideoId}
+              startTime={touchStartTime}
+              onReady={touchPlayerReady}
+              onEnded={touchPlayerEnded}
+              onPosition={touchPlayerPosition}
+              onEmbedBlocked={touchPlayerBlocked}
+            />
+          )}
+          {playerSrc && !capabilities.nativeVideoPlayer && (
             <webview
               ref={webviewRef}
               src={playerSrc}

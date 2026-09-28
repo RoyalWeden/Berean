@@ -5,6 +5,7 @@ import { originDisplayText } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import { IconButton, cx } from '@/components/ui'
 import type { TrailConnection, TrailNode } from '@/types/studyTrail'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 // Rich hover-card body — timestamp/duration plus a live-fetched verse or Strong's-gloss
 // preview, per the design spec's §3. Fetches lazily on mount (only happens once the card is
@@ -164,9 +165,9 @@ export function TrailConnectionHoverContent({ conn, onEditNote }: { conn: TrailC
   }, [conn.toKind, conn.toStrongsNum, conn.toBookId, conn.toChapter, conn.toVerse, conn.versePinFrom])
 
   const label = conn.toKind === 'lexicon' ? `Strong's ${conn.toStrongsNum}`
-    : conn.toKind === 'compare' ? `compare · ${bookName(conn.toBookId ?? '')} ${conn.toChapter}`
+    : conn.toKind === 'compare' ? `compare · ${bookName(conn.toBookId ?? '')} ${displayChapter(conn.toBookId ?? '', conn.toChapter)}`
     : conn.toKind === 'note' ? 'note' : conn.toKind === 'video' ? 'video'
-    : `${bookName(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
+    : `${bookName(conn.toBookId ?? '')} ${displayChapter(conn.toBookId ?? '', conn.toChapter)}${conn.toVerse ? `:${conn.toVerse}` : ''}`
 
   return (
     <div>

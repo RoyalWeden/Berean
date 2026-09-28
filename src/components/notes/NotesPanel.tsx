@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
+import { useLiveNote, ACTIVE_EDIT_MS } from '@/lib/notes/liveNote'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -12,6 +13,7 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import NotesList from './NotesList'
 import NoteEditor from './pm/NoteEditorPM'
 import PrintPreviewModal from './PrintPreviewModal'
+import { idiomExportEntries } from '@/lib/idiomsExport'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import NoteLookDropdown from './NoteLookDropdown'
@@ -236,6 +238,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // edit, without racing against the user having typed further in the
   // meantime. See that effect's comment for the full race it closes.
   const lastSelfSaveRef = useRef<{ content: string; title: string } | null>(null)
+  // Active-editing guard for remote changes (DATA-SYNC-010): a save is scheduled, or the user typed
+  // in the last 2 s. While true, an external change is preserved as a version, not applied.
+  const savePendingRef = useRef(false)
+  const lastLocalEditAtRef = useRef(0)
+
   // Fluid-feel polish #2.3 (quiet autosave "Saved" indicator, Toolbar.tsx) — a timestamp
   // bumped only when the debounced autosave's OWN save IPC call actually resolves (chained
   // onto the same window.notes.updateNote(...) promise handleContentChange/handleTitleChange
@@ -562,24 +569,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (next === 'folder') setNoteFilter('all')
   }, [])
 
-  /** Map idiom notes to export entries, auto-detecting the scripture references each cites. */
-  function idiomExportEntries() {
-    const fmt = (r: NoteVerseRef): string => {
-      if (r.isChapter || r.verse === 0) return bookChapterVerseLabel(r.bookId, r.chapter)
-      return `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${r.endVerse ? `-${r.endVerse}` : ''}`
-    }
-    return notes.filter((n) => n.type === 'idiom').map((n) => {
-      const d = n.idiomData ?? {}
-      // Examples aren't part of the export output, but they're still useful text to mine
-      // for scripture references the idiom note otherwise doesn't list explicitly.
-      const textForRefs = [...(d.examples ?? []), d.explanation ?? '', n.content ?? ''].join('\n')
-      const seen = new Set<string>()
-      const autoVerse = extractRefsFromNote(textForRefs, n.idiomTerm || n.title || '').map(fmt)
-      const verses = [...new Set([...(d.verses ?? []), ...autoVerse])].filter((v) => { const ok = !seen.has(v); seen.add(v); return ok })
-      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, aliases: n.idiomAliases, explanation: d.explanation, compare: d.compare, verses }
-    })
-  }
-
   /** Idioms → single PDF export control (button + options popover). Rendered in the notes
    *  header so it's reachable from both list and folder view; only shown when idioms exist. */
   function renderIdiomsExport() {
@@ -826,30 +815,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // save, this bump is that save echoing back — a no-op — regardless of how
   // far the user has typed since. Only a fetch that differs from BOTH our
   // last save AND the live ref is a genuine external edit.
-  useEffect(() => {
-    const current = activeNoteRef.current
-    if (!current) return
-    window.notes.getNote(current.id).then((note) => {
-      const cur = activeNoteRef.current
-      if (!note || !cur) return
-      // Identity guard — this fetch was kicked off for whatever note was active WHEN THE EFFECT
-      // FIRED, but noteChangeToken bumps for ANY note anywhere in the app (saves, creates,
-      // deletes, status changes elsewhere), and NotesPanel is a single shared instance reused
-      // across every open Notes tab. If the user switches tabs before this IPC round-trip
-      // resolves, `cur` (re-read live above) is now a DIFFERENT note than the one we fetched.
-      // Content/updatedAt will almost always differ between two unrelated notes, so without this
-      // check the comparison below would look like a legitimate "changed externally" edit and
-      // clobber the newly-active, correct note with stale data from whatever was open earlier —
-      // the root cause of Notes tabs intermittently showing another note's content.
-      if (note.id !== cur.id) return
+  // Live open note (DATA-LIVE-001, shared rule — lib/notes/liveNote.ts): a change made elsewhere
+  // (another device, another window) shows in THIS mounted editor when it is clean; while the user
+  // is typing it is kept as a version and looked at again when they pause. Our own saves coming
+  // back (lastSelfSaveRef) are ignored — see the race note above.
+  const { deferredWhileComposing } = useLiveNote({
+    noteId: activeNote?.id,
+    getLocal: () => activeNoteRef.current,
+    isDirty: () => savePendingRef.current || Date.now() - lastLocalEditAtRef.current < ACTIVE_EDIT_MS,
+    isOwnEcho: (note) => {
       const lastSave = lastSelfSaveRef.current
-      const isOwnSaveEcho = lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
-      if (isOwnSaveEcho) return
-      const changedExternally = note.updatedAt !== cur.updatedAt && (note.content !== cur.content || note.title !== cur.title)
-      if (changedExternally) setActiveNote(note)
-    }).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteChangeToken])
+      return lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
+    },
+    onApply: (note) => { if (activeNoteRef.current?.id === note.id) setActiveNote(note) },
+  })
 
   // Restore the note that was open when this tab was last active. Re-runs on every
   // notesTabId change (not just mount) — NotesPanel is a single shared instance across all
@@ -1263,10 +1242,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (!activeNote) return
     const updated = { ...activeNote, content, updatedAt: Date.now() }
     setActiveNote(updated)
+    lastLocalEditAtRef.current = Date.now()
+    savePendingRef.current = true
     // Signal meaningful edit (more than 20 chars means the user is actually writing)
     if (content.trim().length > 20) bumpNoteEditToken()
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      savePendingRef.current = false
       const id = activeNote.id
       lastSelfSaveRef.current = { content: updated.content, title: updated.title }
       window.notes.updateNote(id, { content })
@@ -1285,8 +1267,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (!activeNote) return
     const updated = { ...activeNote, title, updatedAt: Date.now() }
     setActiveNote(updated)
+    lastLocalEditAtRef.current = Date.now()
+    savePendingRef.current = true
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      savePendingRef.current = false
       lastSelfSaveRef.current = { content: updated.content, title: updated.title }
       window.notes.updateNote(activeNote.id, { title })
         .then(() => setLastAutosaveAt(Date.now()))
@@ -1832,6 +1817,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               <NoteEditor
                 content={activeNote.content}
                 noteId={activeNote.id}
+                onExternalDeferred={deferredWhileComposing}
                 tabId={notesTabId ?? undefined}
                 onChange={handleContentChange}
                 lastSavedAt={lastAutosaveAt}
@@ -2144,7 +2130,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         <PrintPreviewModal
           title="Idioms"
           content=""
-          idiomEntries={idiomExportEntries()}
+          idiomEntries={idiomExportEntries(notes)}
           onClose={() => setIdiomsModalOpen(false)}
         />
       )}

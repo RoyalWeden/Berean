@@ -1,3 +1,4 @@
+import { resolveDailyNoteId } from '@/lib/dailyNotes'
 import { Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
 import { motion } from 'framer-motion'
 import { PANEL_SLIDE } from '@/lib/motion'
@@ -256,19 +257,7 @@ export default function Sidebar() {
   // dispatch an event a frame later to swap in the real note) visibly flashed an empty "New Note"
   // tab before the daily note appeared. Resolving first means the tab is created already pointing
   // at the right note, so NotesPanel's restore effect loads it directly with no intermediate state.
-  async function resolveDailyNoteId(date: Date): Promise<string | null> {
-    const title = dailyNoteTitle(date)
-    let noteId: string | null = null
-    try {
-      const candidates = await window.notes.searchNotes(title, 5)
-      noteId = candidates.find(n => n.title === title && n.type === 'daily')?.id ?? null
-    } catch { /* fall through to create */ }
-    if (!noteId) {
-      const result = await window.notes.createNote({ title, content: '', type: 'daily' })
-      if (result.success && result.note) noteId = result.note.id
-    }
-    return noteId
-  }
+  // The shared find-or-create (src/lib/dailyNotes.ts) — the iPhone calendars use the same.
 
   async function openDailyNoteInTab(date: Date) {
     const noteId = await resolveDailyNoteId(date)
@@ -590,6 +579,7 @@ export default function Sidebar() {
                     icon={SessionIcon}
                     label={session.name}
                     active={session.id === currentSessionId}
+                    selectionStyle="highlight"
                     onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
                     onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
                   />
@@ -600,13 +590,11 @@ export default function Sidebar() {
                 icon={Plus}
                 label="New session"
                 shortcut="⌘⇧0"
-                active={false}
                 onClick={() => { createSession(); setSessionPopoverOpen(false) }}
               />
               <MenuItem
                 icon={Settings}
                 label="Manage sessions…"
-                active={false}
                 onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
               />
             </PopoverSurface>

@@ -1,3 +1,5 @@
+import { loadChapterNoteCrossRefs } from '@/lib/notesCrossRefs'
+import { useLiveNote, ACTIVE_EDIT_MS } from '@/lib/notes/liveNote'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, NotepadText, Copy, Hash, ScanSearch, Check as CheckIcon, PanelRightOpen, Columns2 } from 'lucide-react'
@@ -6,7 +8,10 @@ import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { SegmentedControl, Select, MenuSurface, MenuItem, IconButton, RefChip, SectionLabel, SectionHeader, EmptyState, Button, SearchField, TextField, Toolbar, DisclosureRow, ListRow, Divider, TabStrip, CompactMetrics } from '@/components/ui'
 import { LexiconEntryHeader, LangBadge, OccurrenceRow, DerivedTermRow } from '@/components/lexicon/parts'
-import { useAppStore } from '@/store'
+import { useKeyedScrollMemory } from '@/hooks/useKeyedScrollMemory'
+import { selectionLabel } from '@/lib/verseSelection'
+import { crossRefVerseNums } from '@/lib/scriptureContextFilters'
+import { useAppStore, type SelectedVerseRef } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { navigateToVerse, recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
@@ -20,9 +25,11 @@ import {
   getTSKeForChapterShared, getCrossRefsForChapterShared,
 } from '@/lib/panelDataCache'
 import { NOTE_DOT_COLOR } from './VerseRow'
+import SelectedVersesStrongs, { selectionSignature } from './SelectedVersesStrongs'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
 type NoteScope = 'all' | 'chapter'
@@ -109,9 +116,15 @@ function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; match
 interface SidebarLexiconProps {
   initialEntry?: string | null
   onEntryChange?: (entry: string | null) => void
+  /** The active Scripture tab's verse selection. While no Strong's entry is open (and the search
+   *  field is empty) the panel shows these verses with their Strong's numbers — see
+   *  SelectedVersesStrongs. An explicitly opened entry always wins; Back returns to the verses. */
+  selectedVerses?: SelectedVerseRef[]
 }
 
-function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
+const NO_SELECTION: SelectedVerseRef[] = []
+
+function SidebarLexicon({ initialEntry, onEntryChange, selectedVerses = NO_SELECTION }: SidebarLexiconProps) {
   const createTab = useAppStore((s) => s.createTab)
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
@@ -162,7 +175,38 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     onEntryChange?.(activeEntry?.strongsNum ?? null)
   }, [activeEntry?.strongsNum]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (!activeEntry) inputRef.current?.focus() }, [activeEntry])
+  const hasSelection = selectedVerses.length > 0
+  // Don't pull focus into the search field when the panel is showing the selected verses — the
+  // user is working in the reader, and a verse click must not steal its keyboard focus.
+  useEffect(() => { if (!activeEntry && !hasSelection) inputRef.current?.focus() }, [activeEntry]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A NEW verse selection (not the first render — a persisted entry must survive a restart)
+  // brings the panel back to the selected-verses view: selecting verses is the user asking to
+  // study those verses, which supersedes whatever entry was open before.
+  const selSignature = useMemo(() => selectionSignature(selectedVerses), [selectedVerses])
+  const prevSelSignatureRef = useRef(selSignature)
+  useEffect(() => {
+    if (prevSelSignatureRef.current === selSignature) return
+    prevSelSignatureRef.current = selSignature
+    if (!selSignature) return
+    setHistory([])
+    setActiveEntry(null)
+    setQuery('')
+    setResults([])
+  }, [selSignature])
+
+  // A Strong's number clicked in the selected-verses view opens that entry with an empty
+  // history, so Back (labelled "Verses") returns straight to the verses.
+  const openEntryFromVerses = useCallback((strongsNum: string) => {
+    getLexiconEntryShared(strongsNum)
+      .then((entry) => {
+        if (!entry) return
+        setHistory([])
+        setActiveEntry(entry)
+        recordLexiconConnection(strongsNum, 'click')
+      })
+      .catch(() => {})
+  }, [])
 
   // Respond to word-click searches from BiblePanel
   useEffect(() => {
@@ -272,7 +316,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     }
   }
 
-  const backLabel = history.length > 0 ? history[history.length - 1].strongsNum : 'Search'
+  const backLabel = history.length > 0 ? history[history.length - 1].strongsNum : hasSelection ? 'Verses' : 'Search'
 
   if (activeEntry) {
     const hasDerivation = (activeEntry.derivation?.trim().length ?? 0) > 0
@@ -481,7 +525,9 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           <EmptyState compact title={`No results for "${query}"`} />
         )}
         {!loading && results.length === 0 && query.trim().length < 2 && (
-          <EmptyState compact icon={Search} title="Search Strong's lexicon" />
+          hasSelection
+            ? <SelectedVersesStrongs refs={selectedVerses} onStrongsClick={openEntryFromVerses} />
+            : <EmptyState compact icon={Search} title="Search Strong's lexicon" />
         )}
         {!loading && (
           <div className="flex flex-col gap-0.5 p-1.5">
@@ -660,7 +706,22 @@ function VerseSection({
   )
 }
 
-function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; chapter: number; activeVerseNum: number | null }) {
+/** Shared "which verses is this cross-ref view scoped to" derivation (MAC-XREF-AUTO). One verse
+ *  keeps the existing verse-only layout (activeVerseNum); several keep the chapter view's
+ *  per-verse grouping, filtered to just those verses. */
+function useActiveVerses(activeVerseNums: number[] | null) {
+  const activeKey = activeVerseNums?.length ? activeVerseNums.join(',') : ''
+  const verseSet = useMemo(() => (activeKey ? new Set(activeKey.split(',').map(Number)) : null), [activeKey])
+  const activeVerseNum = activeVerseNums?.length === 1 ? activeVerseNums[0] : null
+  return { verseSet, activeVerseNum, activeKey }
+}
+
+function noRefsForVersesTitle(verseSet: Set<number>): string {
+  return verseSet.size === 1 ? 'No cross-references for this verse' : 'No cross-references for the selected verses'
+}
+
+function TSKeChapterView({ bookId, chapter, activeVerseNums }: { bookId: string; chapter: number; activeVerseNums: number[] | null }) {
+  const { verseSet, activeVerseNum, activeKey } = useActiveVerses(activeVerseNums)
   const [verseRefs, setVerseRefs] = useState<ChapterTSKeEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -678,10 +739,10 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
   }, [bookId, chapter, textId])
 
   useEffect(() => {
-    if (!loading && activeVerseNum && activeRef.current) {
+    if (!loading && activeKey && activeRef.current) {
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
-  }, [loading, activeVerseNum])
+  }, [loading, activeKey])
 
   function toggle(key: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -691,21 +752,23 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
   if (error) return <EmptyState compact title="TSKe data unavailable." hint="Restart the app if you just updated." />
   if (verseRefs.length === 0) return <EmptyState compact title="No cross-references found for this chapter" />
 
-  // When a verse is selected, show ONLY that verse's refs (full-width, expanded)
-  const visibleVerseRefs = activeVerseNum
-    ? verseRefs.filter(v => v.verseNum === activeVerseNum)
+  // When verses are selected/filtered, show ONLY their refs — one verse: full-width, expanded;
+  // several: grouped per verse exactly like the chapter view.
+  const visibleVerseRefs = verseSet
+    ? verseRefs.filter(v => verseSet.has(v.verseNum))
     : verseRefs
+  if (verseSet && visibleVerseRefs.length === 0) return <EmptyState compact title={noRefsForVersesTitle(verseSet)} />
 
   return (
     <div className="divide-y divide-separator">
       {visibleVerseRefs.map(({ verseNum, groups }) => {
-        const isActive = verseNum === activeVerseNum
+        const isActive = !!verseSet?.has(verseNum)
         const verseKey = `v${verseNum}`
         // Include ALL groups (main + reciprocal) — show reciprocal with a muted label
         const allRefs = groups.reduce((n, g) => n + g.refs.length, 0)
         const isCollapsed = !activeVerseNum && collapsed.has(verseKey)
         return (
-          <div key={verseNum} ref={isActive ? activeRef : undefined}>
+          <div key={verseNum} ref={isActive && verseNum === visibleVerseRefs[0]?.verseNum ? activeRef : undefined}>
             {activeVerseNum ? (
               // Verse-only mode: show all groups expanded with no collapse UI
               <div className="pb-1">
@@ -728,10 +791,10 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <CrossRefCard
                               key={ri}
                               refLabel={r.verse === 0
-                                ? `${bookName(r.bookId)} ${r.chapter}`
+                                ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
                                 : r.endVerse
-                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                                  ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                                  : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
                               bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                               onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })}
                               onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
@@ -771,10 +834,10 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <CrossRefCard
                               key={ri}
                               refLabel={r.verse === 0
-                                ? `${bookName(r.bookId)} ${r.chapter}`
+                                ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
                                 : r.endVerse
-                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                                  ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                                  : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
                               bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                               onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })}
                               onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
@@ -797,7 +860,8 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
 
 // ─── Chapter-level Classic view ───────────────────────────────────────────────
 
-function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; chapter: number; activeVerseNum: number | null }) {
+function ClassicChapterView({ bookId, chapter, activeVerseNums }: { bookId: string; chapter: number; activeVerseNums: number[] | null }) {
+  const { verseSet, activeVerseNum, activeKey } = useActiveVerses(activeVerseNums)
   const [verseRefs, setVerseRefs] = useState<ChapterCrossRefEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -815,23 +879,24 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
   }, [bookId, chapter, textId])
 
   useEffect(() => {
-    if (!loading && activeVerseNum && activeRef.current) {
+    if (!loading && activeKey && activeRef.current) {
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
-  }, [loading, activeVerseNum])
+  }, [loading, activeKey])
 
   if (loading) return <p className="text-caption text-text-muted text-center py-6 animate-pulse">Loading…</p>
   if (error) return <EmptyState compact title="Cross-reference data unavailable." hint="Restart the app if you just updated." />
   if (verseRefs.length === 0) return <EmptyState compact title="No cross-references found for this chapter" />
 
-  const visibleVerseRefs = activeVerseNum
-    ? verseRefs.filter(v => v.verseNum === activeVerseNum)
+  const visibleVerseRefs = verseSet
+    ? verseRefs.filter(v => verseSet.has(v.verseNum))
     : verseRefs
+  if (verseSet && visibleVerseRefs.length === 0) return <EmptyState compact title={noRefsForVersesTitle(verseSet)} />
 
   return (
     <div className="divide-y divide-separator">
       {visibleVerseRefs.map(({ verseNum, refs }) => {
-        const isActive = verseNum === activeVerseNum
+        const isActive = !!verseSet?.has(verseNum)
         const isCollapsed = !activeVerseNum && collapsed.has(verseNum)
         const refList = (
           <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
@@ -841,10 +906,10 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
                 <CrossRefCard
                   key={i}
                   refLabel={r.verse === 0
-                    ? `${bookName(r.bookId)} ${r.chapter}`
+                    ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
                     : r.endVerse
-                      ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                      : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                      ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
+                      : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
                   meta={<span className="text-micro text-text-tertiary tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
                   bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                   onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })}
@@ -855,7 +920,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
           </div>
         )
         return (
-          <div key={verseNum} ref={isActive ? activeRef : undefined}>
+          <div key={verseNum} ref={isActive && verseNum === visibleVerseRefs[0]?.verseNum ? activeRef : undefined}>
             {activeVerseNum ? (
               // Verse-only mode: show all refs expanded, no collapse header
               <div className="pb-1">{refList}</div>
@@ -878,13 +943,14 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
 // ─── Chapter-level User Notes view ───────────────────────────────────────────
 
 function UserNotesChapterView({
-  bookId, chapter, activeVerseNum, onNoteClick,
+  bookId, chapter, activeVerseNums, onNoteClick,
 }: {
   bookId: string
   chapter: number
-  activeVerseNum: number | null
+  activeVerseNums: number[] | null
   onNoteClick?: (note: Note) => void
 }) {
+  const { verseSet, activeVerseNum, activeKey } = useActiveVerses(activeVerseNums)
   const [verseNoteRefs, setVerseNoteRefs] = useState<Array<{ verseNum: number; refs: UserNoteRef[] }>>([])
   const [indirectNotes, setIndirectNotes] = useState<Array<{ note: Note; verses: number[] }>>([])
   const [indirectSectionOpen, setIndirectSectionOpen] = useState(false)
@@ -897,93 +963,18 @@ function UserNotesChapterView({
 
   useEffect(() => {
     setLoading(true)
-    function mergeNoteRefs(
-      byVerse: Map<number, UserNoteRef[]>,
-      note: Note,
-      verseNum: number,
-      skipBookId?: string,
-      skipChapter?: number,
-    ) {
-      const extracted = extractRefsFromNote(note.content, note.title || 'Untitled')
-      if (extracted.length === 0) return
-      if (!byVerse.has(verseNum)) byVerse.set(verseNum, [])
-      for (const ref of extracted) {
-        if (skipBookId && ref.bookId === skipBookId && ref.chapter === skipChapter && ref.verse === verseNum) continue
-        const existing = byVerse.get(verseNum)!
-        if (!existing.some(r => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse)) {
-          existing.push(ref)
-        }
-      }
-    }
-
-    function mergeVerseRef(byVerse: Map<number, UserNoteRef[]>, verseRefStr: string, verseNum: number, sourceTitle: string) {
-      const parts = verseRefStr.split('.')
-      const nbId = parts[0]
-      const nCh = parseInt(parts[1] ?? '0', 10)
-      const nVs = parseInt(parts[2] ?? '0', 10)
-      if (!nbId || !nCh || !nVs) return
-      if (!byVerse.has(verseNum)) byVerse.set(verseNum, [])
-      const arr = byVerse.get(verseNum)!
-      if (!arr.some(x => x.bookId === nbId && x.chapter === nCh && x.verse === nVs)) {
-        arr.push({ bookId: nbId, chapter: nCh, verse: nVs, sourceNoteTitle: sourceTitle, context: '' })
-      }
-    }
-
-    getChapterNotesShared(bookId, chapter, noteChangeToken, textId)
-      .then(async (verseNotes) => {
-        const byVerse = new Map<number, UserNoteRef[]>()
-        const indirect: Array<{ note: Note; verses: number[] }> = []
-
-        // 1) Direct verse notes attached to this chapter
-        for (const note of verseNotes) {
-          const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
-          if (!vn) continue
-          mergeNoteRefs(byVerse, note, vn, bookId, chapter)
-        }
-
-        // 2) Notes whose content mentions a verse in this chapter
-        const chapterLabel = `${bookName(bookId)} ${chapter}:`
-        try {
-          const candidates = await searchNotesShared(chapterLabel, 80, noteChangeToken)
-          const verseNoteIds = new Set(verseNotes.map(n => n.id))
-          for (const note of candidates) {
-            if (verseNoteIds.has(note.id)) continue
-            const refs = extractRefsFromNote(note.content, note.title || '')
-            const chapterRefs = refs.filter(r => r.bookId === bookId && r.chapter === chapter)
-            if (chapterRefs.length === 0) continue
-
-            if (note.verseRef) {
-              // Verse note on ANOTHER verse — treat as cross-ref (existing behaviour)
-              for (const r of chapterRefs) {
-                mergeVerseRef(byVerse, note.verseRef, r.verse, note.title || 'Untitled')
-                mergeNoteRefs(byVerse, note, r.verse, bookId, chapter)
-              }
-            } else {
-              // General / daily / topic note — surface separately so the user knows
-              // the connection is indirect (the note mentions the chapter but isn't
-              // attached to any specific verse).
-              const verses = [...new Set(chapterRefs.map(r => r.verse).filter(v => v > 0))].sort((a, b) => a - b)
-              if (!indirect.some(x => x.note.id === note.id)) {
-                indirect.push({ note, verses })
-              }
-            }
-          }
-        } catch { /* ignore search errors */ }
-
-        setVerseNoteRefs(
-          Array.from(byVerse.entries()).sort((a, b) => a[0] - b[0]).map(([verseNum, refs]) => ({ verseNum, refs }))
-        )
-        setIndirectNotes(indirect)
-      })
+    // The shared "My Notes" loader (src/lib/notesCrossRefs.ts) — the iPhone verse sheet uses the same.
+    loadChapterNoteCrossRefs(bookId, chapter, textId, noteChangeToken)
+      .then(({ byVerse, indirect }) => { setVerseNoteRefs(byVerse); setIndirectNotes(indirect) })
       .catch(() => { setVerseNoteRefs([]); setIndirectNotes([]) })
       .finally(() => setLoading(false))
   }, [bookId, chapter, noteChangeToken, textId])
 
   useEffect(() => {
-    if (!loading && activeVerseNum && activeRef.current) {
+    if (!loading && activeKey && activeRef.current) {
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
-  }, [loading, activeVerseNum])
+  }, [loading, activeKey])
 
   if (loading) return <p className="text-caption text-text-muted text-center py-6 animate-pulse">Loading…</p>
   if (verseNoteRefs.length === 0 && indirectNotes.length === 0) return (
@@ -994,8 +985,8 @@ function UserNotesChapterView({
     />
   )
 
-  const visibleVerseRefs = activeVerseNum
-    ? verseNoteRefs.filter(v => v.verseNum === activeVerseNum)
+  const visibleVerseRefs = verseSet
+    ? verseNoteRefs.filter(v => verseSet.has(v.verseNum))
     : verseNoteRefs
 
   return (
@@ -1077,7 +1068,7 @@ function UserNotesChapterView({
 
       {/* ── Verse-based cross-refs (direct verse notes) ────────────────────── */}
       {visibleVerseRefs.map(({ verseNum, refs }) => {
-        const isActive = verseNum === activeVerseNum
+        const isActive = !!verseSet?.has(verseNum)
         const isCollapsed = !activeVerseNum && collapsed.has(verseNum)
         const refList = (
           <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
@@ -1094,7 +1085,7 @@ function UserNotesChapterView({
           </div>
         )
         return (
-          <div key={verseNum} ref={isActive ? activeRef : undefined}>
+          <div key={verseNum} ref={isActive && verseNum === visibleVerseRefs[0]?.verseNum ? activeRef : undefined}>
             {activeVerseNum ? (
               <div className="pb-1">{refList}</div>
             ) : (
@@ -1116,20 +1107,21 @@ function UserNotesChapterView({
 // ─── Cross refs tab (chapter-first) ──────────────────────────────────────────
 
 function CrossRefsTab({
-  bookId, chapter, activeVerseRef, onClearVerseFilter, onNoteClick,
+  bookId, chapter, activeVerseNums, selectionText, onClearVerseFilter, onNoteClick,
 }: {
   bookId: string
   chapter: number
-  activeVerseRef: string | null
+  /** Verses the view is scoped to (reader selection, else manual verse filter); null = chapter. */
+  activeVerseNums: number[] | null
+  /** Set when the scope comes from the reader's verse selection — its human label. */
+  selectionText?: string | null
   onClearVerseFilter?: () => void
   onNoteClick?: (note: Note) => void
 }) {
   const crossRefSource = useAppStore((s) => s.crossRefSource)
   const setCrossRefSource = useAppStore((s) => s.setCrossRefSource)
 
-  const activeVerseNum = activeVerseRef
-    ? parseInt(activeVerseRef.split('.')[2] ?? '0', 10) || null
-    : null
+  const activeVerseNum = activeVerseNums?.length ? activeVerseNums[0] : null
 
   return (
     <div className="flex flex-col h-full">
@@ -1138,7 +1130,9 @@ function CrossRefsTab({
         {/* Chapter / verse label */}
         <span className="text-caption text-text-muted flex-1 truncate min-w-0">
           {bookName(bookId)} {chapter}
-          {activeVerseNum ? (
+          {selectionText ? (
+            <span className="text-accent font-medium"> · {selectionText}</span>
+          ) : activeVerseNum ? (
             <span className="text-accent font-medium"> · v{activeVerseNum}</span>
           ) : (
             <span className="opacity-50"> · all</span>
@@ -1147,7 +1141,7 @@ function CrossRefsTab({
 
         {/* Clear verse filter */}
         {activeVerseNum && onClearVerseFilter && (
-          <IconButton icon={X} label="Show all verses in chapter" size={20} onClick={onClearVerseFilter} />
+          <IconButton icon={X} label={selectionText ? 'Clear verse selection' : 'Show all verses in chapter'} size={20} onClick={onClearVerseFilter} />
         )}
 
         {/* Source toggle */}
@@ -1164,9 +1158,9 @@ function CrossRefsTab({
       </div>
 
       <div data-panel-scroll-root className="flex-1 overflow-y-auto">
-        {crossRefSource === 'tske' && <TSKeChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
-        {crossRefSource === 'classic' && <ClassicChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
-        {crossRefSource === 'notes' && <UserNotesChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} onNoteClick={onNoteClick} />}
+        {crossRefSource === 'tske' && <TSKeChapterView bookId={bookId} chapter={chapter} activeVerseNums={activeVerseNums} />}
+        {crossRefSource === 'classic' && <ClassicChapterView bookId={bookId} chapter={chapter} activeVerseNums={activeVerseNums} />}
+        {crossRefSource === 'notes' && <UserNotesChapterView bookId={bookId} chapter={chapter} activeVerseNums={activeVerseNums} onNoteClick={onNoteClick} />}
       </div>
     </div>
   )
@@ -1205,6 +1199,9 @@ interface Props {
    *  app) doesn't reset the side panel back to the top. */
   initialScrollTop?: number
   onScrollTopChange?: (top: number) => void
+  /** Per-sub-tab scroll offsets (device-local), so each sub-tab returns to its own position (TEST-008). */
+  initialScrollTops?: Partial<Record<PanelTab, number>>
+  onScrollTopsChange?: (tops: Partial<Record<PanelTab, number>>) => void
   /** Which of the two independent side-panel slots this instance renders — namespaces the
    *  tab-strip's sliding-pill layoutId (see the tab strip below) and identifies this instance
    *  in the pop-out/merge/drag-and-drop context menu. */
@@ -1244,6 +1241,8 @@ export default function BibleRightPanel({
   onScrollPercent,
   initialScrollTop,
   onScrollTopChange,
+  initialScrollTops,
+  onScrollTopsChange,
   slotId = 'A',
   onMoveTab,
   canPopOut,
@@ -1260,6 +1259,12 @@ export default function BibleRightPanel({
   const panelRootRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastScrollTopRef = useRef<number>(initialScrollTop ?? 0)
+  // Each sub-tab keeps its own offset across sub-tab and Scripture-tab switches (TEST-008).
+  const subTabScroll = useKeyedScrollMemory<PanelTab>({
+    rootRef: panelRootRef, activeKey: visibleTab,
+    initial: initialScrollTops ?? (initialScrollTop != null ? { [visibleTab]: initialScrollTop } as Partial<Record<PanelTab, number>> : undefined),
+    onChange: onScrollTopsChange,
+  })
   // Restore scroll into whichever sub-tab's container is initially mounted (only the active
   // visibleTab is rendered at mount, per mountedTabs above, so this selector is unambiguous).
   useEffect(() => {
@@ -1308,6 +1313,24 @@ export default function BibleRightPanel({
   const savedSort = useRef<NoteSort>(sort)
   const [selectedNoteIdx, setSelectedNoteIdx] = useState(-1)
   const [verseFilter, setVerseFilter] = useState<string | null>(initialVerseFilter ?? null)
+  // The reader's verse selection for this chapter (TEST-020). Read straight from the store so
+  // the filter IS the selection — clearing or changing the selection changes the list.
+  const activeScriptureTabId = useAppStore((s) => s.activeTabId['scripture'])
+  const selectedRaw = useAppStore((s) => (activeScriptureTabId ? s.selectedVersesByTab[activeScriptureTabId] : undefined))
+  const selectedInChapter = useMemo(
+    () => (selectedRaw ?? []).filter((r) => r.bookId === bookId && r.chapter === chapter),
+    [selectedRaw, bookId, chapter],
+  )
+  const selectionRefKeys = useMemo(
+    () => (selectedInChapter.length ? new Set(selectedInChapter.map((r) => `${r.bookId}.${r.chapter}.${r.verse}`)) : null),
+    [selectedInChapter],
+  )
+  // Cross References scope (MAC-XREF-AUTO): the reader's verse selection auto-filters it;
+  // clearing the selection falls back to a manual verse filter, then to the whole chapter.
+  const crossRefVerses = useMemo(
+    () => crossRefVerseNums(selectedInChapter, verseFilter, bookId, chapter),
+    [selectedInChapter, verseFilter, bookId, chapter],
+  )
   const [referencingNotes, setReferencingNotes] = useState<Note[]>([])
   const [chapterMentionNotes, setChapterMentionNotes] = useState<Note[]>([])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1326,6 +1349,11 @@ export default function BibleRightPanel({
 
   // Track the current sidebar note in a ref so the unmount cleanup can access it
   const sidebarNoteRef = useRef<Note | null>(null)
+  // Live open note (DATA-LIVE-001): the side panel's note used to be a snapshot fetched when it
+  // was opened and never re-read — a change from another device showed only after reopening it.
+  const sidebarSavePendingRef = useRef(false)
+  const sidebarLastEditAtRef = useRef(0)
+  const sidebarLastSelfSaveRef = useRef<{ content: string; title: string | null | undefined } | null>(null)
 
   // ── Side-panel item right-click context menu ──
   type SideCtxData = { type: 'note'; note: Note } | { type: 'verse'; bookId: string; chapter: number; verse: number }
@@ -1454,7 +1482,7 @@ export default function BibleRightPanel({
     const parts = verseFilter.split('.')
     if (parts.length < 3) { setReferencingNotes([]); return }
     const [bId, ch, vs] = parts
-    const humanRef = `${bookName(bId)} ${ch}:${vs}`
+    const humanRef = `${bookName(bId)} ${displayChapter(bId, Number(ch))}:${vs}`
     searchNotesShared(humanRef, 60, noteChangeToken)
       .then((candidates) => {
         const result: Note[] = []
@@ -1474,7 +1502,12 @@ export default function BibleRightPanel({
     let result = [...notes]
     // When scope === 'chapter', notes are already pre-filtered by getChapterNotes.
     // For 'all' scope, filter client-side (loaded set is already limited to 500).
-    if (verseFilter) {
+    // Selected verses in the reader narrow the list to those verses (TEST-020) — derived from
+    // the tab's live selection, never copied into panel state; the explicit single-verse filter
+    // applies when nothing is selected.
+    if (selectionRefKeys) {
+      result = result.filter((n) => !!n.verseRef && selectionRefKeys.has(n.verseRef))
+    } else if (verseFilter) {
       result = result.filter((n) => n.verseRef === verseFilter)
     }
     if (noteSearch.trim()) {
@@ -1493,7 +1526,7 @@ export default function BibleRightPanel({
       return b.createdAt - a.createdAt
     })
     return result
-  }, [notes, sort, verseFilter, noteSearch])
+  }, [notes, sort, verseFilter, noteSearch, selectionRefKeys])
 
   // Whole-chapter notes (verseRef has no verse segment, e.g. "GEN.1" vs "GEN.1.5")
   // vs verse-specific ones — see chapterNotesCollapsed above. When a specific
@@ -1518,12 +1551,28 @@ export default function BibleRightPanel({
     const updated = { ...sidebarNote, content, updatedAt: Date.now() }
     setSidebarNote(updated)
     setNotes((prev) => prev.map((n) => (n.id === sidebarNote.id ? updated : n)))
+    sidebarLastEditAtRef.current = Date.now()
+    sidebarSavePendingRef.current = true
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      sidebarSavePendingRef.current = false
+      sidebarLastSelfSaveRef.current = { content, title: updated.title }
       window.notes.updateNote(sidebarNote.id, { content }).catch(() => {})
       bumpNoteToken()
     }, 500)
   }
+
+  const { deferredWhileComposing: sidebarDeferredWhileComposing } = useLiveNote({
+    noteId: sidebarNote?.id,
+    getLocal: () => sidebarNoteRef.current,
+    isDirty: () => sidebarSavePendingRef.current || Date.now() - sidebarLastEditAtRef.current < ACTIVE_EDIT_MS,
+    isOwnEcho: (n) => { const s = sidebarLastSelfSaveRef.current; return !!s && n.content === s.content && (n.title ?? '') === (s.title ?? '') },
+    onApply: (n) => {
+      if (sidebarNoteRef.current?.id !== n.id) return
+      setSidebarNote(n)
+      setNotes((prev) => prev.map((x) => (x.id === n.id ? n : x)))
+    },
+  })
 
   function handleSidebarLexiconRefClick(strongsId: string) {
     const store = useAppStore.getState()
@@ -1557,7 +1606,7 @@ export default function BibleRightPanel({
   }
 
   async function createChapterNote() {
-    const title = verseFilter ? formatRef(verseFilter) : `${bookName(bookId)} ${chapter}`
+    const title = verseFilter ? formatRef(verseFilter) : `${bookName(bookId)} ${displayChapter(bookId, chapter)}`
     const verseRef = verseFilter ?? `${bookId}.${chapter}`
     const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '' })
     if (result.success && result.note) {
@@ -1571,8 +1620,12 @@ export default function BibleRightPanel({
     const updated = { ...sidebarNote, title, updatedAt: Date.now() }
     setSidebarNote(updated)
     setNotes((prev) => prev.map((n) => (n.id === sidebarNote.id ? updated : n)))
+    sidebarLastEditAtRef.current = Date.now()
+    sidebarSavePendingRef.current = true
     if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current)
     titleSaveTimer.current = setTimeout(() => {
+      sidebarSavePendingRef.current = false
+      sidebarLastSelfSaveRef.current = { content: updated.content, title }
       window.notes.updateNote(sidebarNote.id, { title }).catch(() => {})
       bumpNoteToken()
     }, 500)
@@ -1654,6 +1707,7 @@ export default function BibleRightPanel({
       // Scroll events don't bubble — use the capture phase so a scroll in ANY inner scroller
       // (note editor, cross-ref list, lexicon) is caught and mirrored to the presenter.
       onScrollCapture={(e) => {
+        subTabScroll.onScrollCapture(e)
         const el = e.target as HTMLElement
         const max = el.scrollHeight - el.clientHeight
         if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
@@ -1770,7 +1824,7 @@ export default function BibleRightPanel({
 
       {/* Notes tab — note open */}
       {mountedTabs.has('notes') && sidebarNote && (
-        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
+        <div data-scroll-key="notes" className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
           <Toolbar size="sm" material="none" edgeStyle="hard">
             <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={closeSidebarNote}>
               Notes
@@ -1797,6 +1851,8 @@ export default function BibleRightPanel({
           <div className="flex-1 overflow-hidden">
             <NoteEditor
               content={sidebarNote.content ?? ''}
+              noteId={sidebarNote.id}
+              onExternalDeferred={sidebarDeferredWhileComposing}
               onChange={handleNoteChange}
               onVerseRefClick={handleVerseRefClick}
               onLexiconRefClick={handleSidebarLexiconRefClick}
@@ -1814,7 +1870,7 @@ export default function BibleRightPanel({
 
       {/* Notes tab — list */}
       {mountedTabs.has('notes') && !sidebarNote && (
-        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
+        <div data-scroll-key="notes" className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
           {/* Two-row header: search (full width) on top, controls below. The previous
               single-row merge packed search + scope + sort + expand-all + new-note into
               one line, which went cramped/near-overflow well before the panel's resize
@@ -1872,8 +1928,16 @@ export default function BibleRightPanel({
             />
           </Toolbar>
 
+          {/* Selected-verses filter (TEST-020): ✕ clears the reader selection itself. */}
+          {selectionRefKeys && (
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-separator bg-accent-muted flex-shrink-0">
+              <Filter size={10} className="text-accent flex-shrink-0" />
+              <span className="text-caption2 text-accent flex-1 truncate">Selected: {selectionLabel(selectedInChapter)}</span>
+              <IconButton icon={X} label="Clear verse selection" size={20} onClick={() => useAppStore.getState().clearVerseSelection(activeScriptureTabId)} />
+            </div>
+          )}
           {/* Verse filter indicator — genuinely conditional context, not redundant chrome */}
-          {verseFilter && (
+          {verseFilter && !selectionRefKeys && (
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-separator bg-accent-muted flex-shrink-0">
               <Filter size={10} className="text-accent flex-shrink-0" />
               <span className="text-caption2 text-accent flex-1 truncate">{formatRef(verseFilter)}</span>
@@ -1884,7 +1948,7 @@ export default function BibleRightPanel({
           {/* Notes list */}
           <div data-panel-scroll-root className="flex-1 overflow-y-auto">
             {filtered.length === 0 && referencingNotes.length === 0 && chapterMentionNotes.length === 0 ? (
-              <EmptyState compact title={`No notes${verseFilter ? ' for this verse' : scope === 'chapter' ? ' for this chapter' : ''}`} />
+              <EmptyState compact title={`No notes${selectionRefKeys ? ' for the selected verses' : verseFilter ? ' for this verse' : scope === 'chapter' ? ' for this chapter' : ''}`} />
             ) : (
               <>
                 {/* General/daily/etc. notes that mention this chapter (indirect connections,
@@ -2022,22 +2086,26 @@ export default function BibleRightPanel({
 
       {/* Lexicon tab */}
       {mountedTabs.has('lexicon') && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'lexicon' ? undefined : 'none' }}>
+        <div data-scroll-key="lexicon" className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'lexicon' ? undefined : 'none' }}>
           <SidebarLexicon
             initialEntry={initialLexiconEntry}
             onEntryChange={onLexiconEntryChange}
+            selectedVerses={selectedRaw ?? NO_SELECTION}
           />
         </div>
       )}
 
       {/* Cross References tab */}
       {mountedTabs.has('crossrefs') && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'crossrefs' ? undefined : 'none' }}>
+        <div data-scroll-key="crossrefs" className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'crossrefs' ? undefined : 'none' }}>
           <CrossRefsTab
             bookId={bookId}
             chapter={chapter}
-            activeVerseRef={verseFilter ?? null}
-            onClearVerseFilter={onVerseFilterChange ? () => onVerseFilterChange(null) : undefined}
+            activeVerseNums={crossRefVerses}
+            selectionText={selectedInChapter.length ? selectionLabel(selectedInChapter) : null}
+            onClearVerseFilter={selectedInChapter.length
+              ? () => useAppStore.getState().clearVerseSelection(activeScriptureTabId)
+              : onVerseFilterChange ? () => onVerseFilterChange(null) : undefined}
             onNoteClick={(note) => { setVerseFilter(null); onTabChange('notes'); openSidebarNote(note) }}
           />
         </div>

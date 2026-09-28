@@ -1,0 +1,200 @@
+/**
+ * Sync engine types (docs/mobile/icloud.md).
+ *
+ *   Berean data model → local SQLite → SyncEngine → SyncStore (transport)
+ *
+ * The engine is written against `SyncStore`, a deliberately small "per-device folder of files"
+ * abstraction. The first transport is the iCloud Drive ubiquity container (Electron: plain fs;
+ * iOS: BereanCloud plugin); the in-memory store drives the two-device integration tests. Nothing
+ * outside `src/platform/sync/stores/*` knows which transport is in use.
+ */
+
+export type SyncOpKind = 'upsert' | 'delete'
+
+/** One journal line. Immutable once written. */
+export interface SyncOp {
+  /** Mutation id (uuid) — duplicate delivery is detected by (device, seq) but the id is kept for logs. */
+  id: string
+  /** Per-device, contiguous, monotonically increasing. */
+  seq: number
+  /** Hybrid logical clock timestamp (src/platform/sync/hlc.ts) — the global order. */
+  hlc: string
+  /** Originating device id. */
+  device: string
+  /** Entity kind (see entities.ts). */
+  entity: string
+  /** Record key within the entity (usually the row id). */
+  key: string
+  op: SyncOpKind
+  /** Full synced field set for an upsert (column-name keyed). Absent for deletes. */
+  fields?: Record<string, unknown>
+  /** The record's HLC as the writer last saw it before this change (conflict detection). */
+  base?: string
+  /** berean.db schema version the writer was on. */
+  schema: number
+  /** Per-field clocks (merge.ts): the version that last changed each field. Absent = every field
+   *  at `hlc` (ops written before v47). */
+  fh?: Record<string, string>
+  /** Versions this one descends from (newest LINEAGE_SEND). Absent = unknown (before v47). */
+  lin?: string[]
+}
+
+export interface DeviceManifest {
+  device: string
+  name: string
+  platform: 'darwin' | 'win32' | 'linux' | 'ios'
+  appVersion: string
+  schema: number
+  /** Highest seq this device has written. */
+  seq: number
+  /** Journal files currently present for this device, oldest first. */
+  files: JournalFileInfo[]
+  /** For every OTHER device: the highest seq this device has applied (drives compaction). */
+  applied: Record<string, number>
+  /** Latest compaction snapshot (docs/mobile/icloud.md §8): the state of every record this
+   *  device is the current writer of, as of `seq`. Journal files ≤ `seq` may be gone. */
+  snapshot?: { name: string; seq: number; records: number; bytes: number }
+  updatedAt: number
+}
+
+export interface JournalFileInfo {
+  name: string
+  seqFrom: number
+  seqTo: number
+  /** Encoded size; absent in manifests written before compaction existed. */
+  bytes?: number
+}
+
+/** `snapshot-<seq>.json` — one device's compacted history. */
+export interface SnapshotFile {
+  format: number
+  device: string
+  seq: number
+  schema: number
+  writtenAt: number
+  records: SnapshotRecord[]
+}
+export interface SnapshotRecord {
+  entity: string
+  key: string
+  hlc: string
+  op: SyncOpKind
+  fields?: Record<string, unknown>
+  fh?: Record<string, string>
+  lin?: string[]
+}
+
+export interface SyncStoreStatus {
+  available: boolean
+  reason?: string
+}
+
+/**
+ * Transport. Bound to one device id at construction; may only write inside that device's own
+ * folder. Reads see every device.
+ */
+export interface SyncStore {
+  readonly deviceId: string
+  status(): Promise<SyncStoreStatus>
+  listDevices(): Promise<string[]>
+  readManifest(device: string): Promise<DeviceManifest | null>
+  /** Returns null when the file exists but is not available locally yet (evicted / downloading);
+   *  throws when the read itself fails. */
+  readFile(device: string, name: string): Promise<string | null>
+  writeOwnFile(name: string, content: string): Promise<void>
+  writeOwnManifest(manifest: DeviceManifest): Promise<void>
+  deleteOwnFile(name: string): Promise<void>
+  /** Optional push notification of remote changes; the engine also polls. */
+  watch?(onChange: (info?: { paths: number }) => void): () => void
+  /** Own files the transport has written locally but the cloud has not accepted yet (iCloud
+   *  Drive: `ubiquitousItemIsUploaded == false`). Undefined = the transport cannot tell. */
+  pendingUploads?(): Promise<number | undefined>
+}
+
+/**
+ * What the Settings → iCloud state means (DATA-SYNC-005). Precedence, first match wins:
+ *  unavailable  iCloud / the sync folder is not reachable (changes are kept locally)
+ *  held         sync is deliberately holding back (records missing locally, a different iCloud
+ *               account or container, a damaged database) until the user decides — nothing
+ *               destructive happens meanwhile
+ *  attention    an error, unreadable entries or changes that failed to apply
+ *  reconciling  applying other devices' changes right now
+ *  uploading    local changes are in our journal, but iCloud has not accepted them yet
+ *  downloading  another device's manifest is ahead of what we applied, or its files are still
+ *               arriving on this device
+ *  offline      local changes are waiting and the device has no network
+ *  pending      local changes are waiting to be written to the journal
+ *  synced       none of the above: nothing waiting in either direction that we can see
+ */
+export type SyncState = 'synced' | 'pending' | 'offline' | 'uploading' | 'downloading' | 'reconciling' | 'unavailable' | 'attention' | 'held'
+
+/**
+ * What a sync pass is doing right now (DATA-UX-010). Honest: `total` is null when the engine
+ * cannot know it yet (then the UI shows an indeterminate indicator, never an invented percent).
+ *   checking   iCloud reachable? own history there? (account / container checks)
+ *   fetching   reading other devices' manifests and journal files (total = devices when known)
+ *   applying   merging received changes into this device's database (total = changes, exact)
+ *   uploading  writing this device's changes to its journal (total = changes, exact)
+ *   finalizing publishing merge results, updating the manifest, refreshing the UI
+ */
+export type SyncActivity = 'checking' | 'fetching' | 'applying' | 'uploading' | 'finalizing'
+export interface SyncProgress {
+  activity: SyncActivity
+  done: number
+  total: number | null
+  /** Per synced entity kind, for the stage list ("Notes ✓"): only kinds present in this pass. */
+  byEntity: Record<string, { done: number; total: number }>
+  /** This device has never received anything yet: the first sync after turning iCloud on. */
+  firstSync: boolean
+  startedAt: number
+}
+
+/** One diagnostic event — metadata only, never content (DATA-SYNC-006). */
+export interface SyncTraceEntry { t: number; event: string; meta?: Record<string, string | number | boolean | null> }
+
+export interface SyncStatusSnapshot {
+  enabled: boolean
+  deviceId: string
+  transport: SyncStoreStatus
+  pendingOutbox: number
+  lastPushAt: number | null
+  lastPullAt: number | null
+  lastError: string | null
+  devices: Array<{ device: string; name: string; platform: string; seq: number; applied: number; lastSeenAt?: number }>
+  unreadable: number
+  /** Own journal: files + bytes currently in the container, and the last compaction (if any). */
+  journal?: { files: number; bytes: number; snapshotSeq: number | null }
+  /** One-word state for the UI (DATA-SYNC-004): 'synced' nothing pending · 'pending' local changes
+   *  not in iCloud yet · 'unavailable' iCloud not reachable (changes are kept locally) · 'attention'
+   *  an error, an unreadable entry or a change that failed to apply. */
+  state?: SyncState
+  /** Notes' conflict copies kept by the merge (restorable from the note's Versions). */
+  conflicts?: number
+  /** Remote changes that failed to apply (retried; ids only in the log, never content). */
+  failedOps?: number
+  /** When the last pull applied something, and how many changes. */
+  lastApplied?: { at: number; count: number } | null
+  /** This database's schema version (a device refuses ops from a newer schema). */
+  schema?: number
+  /** Changes other devices published that this device has not applied yet (manifests we can read). */
+  remoteBehind?: number
+  /** Our journal files iCloud has not uploaded yet (undefined when the transport cannot tell). */
+  pendingUploads?: number
+  /** Last time this device was told about a remote change (container watch event). */
+  lastNotifiedAt?: number | null
+  /** Why sync is holding back, if it is (DATA-SAFE-020/040/041): nothing destructive happens
+   *  while held. `entities` = counts of records missing locally that were NOT deleted from iCloud. */
+  hold?: { kind: 'quarantine' | 'container' | 'account' | 'database'; at: number; entities?: Record<string, number>; detail?: string } | null
+  /** Values a merge could not keep (sync_conflicts): field conflicts and edits that met a deletion. */
+  mergeConflicts?: number
+  /** Times this database's device identity was forked (restored / copied database). */
+  forks?: number
+  /** Last full local reconciliation (hash compare of every record). */
+  lastFullReconcile?: number | null
+  /** The pass in progress (null when idle). */
+  progress?: SyncProgress | null
+  /** When a complete sync pass (push + pull + push) last finished without error. */
+  lastSyncedAt?: number | null
+}
+
+export const SYNC_FORMAT_VERSION = 1

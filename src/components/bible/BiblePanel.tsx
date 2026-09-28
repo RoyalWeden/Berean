@@ -19,8 +19,9 @@ import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { Button, IconButton, MenuItem, RefChip, ControlGroup, OverflowGroup, OverflowSection, ScrollContainer, ResizeHandle } from '@/components/ui'
-import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
+import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse, presenterJumpAnchor } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_START, VERSE_JUMP_ANIMATED_CENTER } from '@/lib/scrollToVerse'
@@ -40,6 +41,8 @@ import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { getPrevChapterRef, getNextChapterRef } from '@/lib/bibleNav'
 import { useChapterPullNav } from './useChapterPullNav'
 import ChapterPullIndicator from './ChapterPullIndicator'
+import { displayChapter } from '@/lib/chapterNumbering'
+import { verseFilterForChapter } from '@/lib/scriptureContextFilters'
 
 // Module-level cache of getBooks() results per textId, shared across every BiblePanel
 // instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
@@ -173,6 +176,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // presenter is mirroring the main panel proportionally). While set, the outline band is
   // computed from this verse's centered position instead of the main panel's scroll percent.
   const findCenterVerseRef = useRef<number | null>(null)
+  // True while a one-shot verse jump anchors the presenter to the jumped verse (useViewerSync's
+  // jump anchor, cleared by the user's own scrolling) — proportional pushes stand down (TEST-004).
+  // A verse jump that ChapterView has ALREADY landed and cleared. With a cached chapter,
+  // ChapterView scrolls to `targetVerse` and clears it in a child effect that runs BEFORE this
+  // panel's chapter-reset effect and its onVersesLoaded restore — both then saw no target and
+  // put the reader back at the top of the chapter (cross-chapter search / cross-ref jumps landed
+  // on verse 1; found while verifying TEST-004). A landed jump owns its passage for a moment.
+  const landedVerseRef = useRef<{ key: string; at: number } | null>(null)
+  const verseJumpJustLanded = () => {
+    const ts = tabStateRef.current
+    const l = landedVerseRef.current
+    return !!l && !!ts && l.key === `${ts.bookId}:${ts.chapter}` && Date.now() - l.at < 1500
+  }
+  const verseJumpOwnsPassage = () => !!tabStateRef.current?.targetVerse || verseJumpJustLanded()
+  const presenterAnchoredToJump = () => {
+    const a = presenterJumpAnchor()
+    return !!a && a.chapterKey === `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`
+  }
   // Virtual scroll percent driving the presenter — either purely from the wheel, when the
   // main panel's content fits entirely (no real scroll to mirror), or normalized from the
   // main panel's OWN scrollTop deltas otherwise (see handleBibleScroll below). In both cases
@@ -505,6 +526,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     presenterScrollCurRef.current = 0
   }
 
+  // ── Contextual side-panel filters never carry across chapters (MAC-FILTER) ─────────────────
+  // navigate()/onChapterChange already clear the verse filter, but other paths change
+  // tabState.bookId/chapter directly (cross-ref / wikilink / floating-search navigation, history,
+  // a persisted stale filter). One chapter-scoped rule for all of them: a verse filter that
+  // doesn't point into the tab's current chapter is dropped — locally during render (no flash of
+  // a filter for another chapter's verse) and in the persisted tab state just below.
+  const validFilterA = verseFilterForChapter(rightPanelVerseFilter, tabState.bookId, tabState.chapter)
+  const validFilterB = verseFilterForChapter(rightPanelVerseFilterB, tabState.bookId, tabState.chapter)
+  if (validFilterA !== rightPanelVerseFilter) setRightPanelVerseFilter(validFilterA)
+  if (validFilterB !== rightPanelVerseFilterB) setRightPanelVerseFilterB(validFilterB)
+  useEffect(() => {
+    if (!activeTab) return
+    const patch: Partial<Record<'rightPanelVerseFilter' | 'rightPanelVerseFilterB', null>> = {}
+    if (tabState.rightPanelVerseFilter && !verseFilterForChapter(tabState.rightPanelVerseFilter, tabState.bookId, tabState.chapter)) patch.rightPanelVerseFilter = null
+    if (tabState.rightPanelVerseFilterB && !verseFilterForChapter(tabState.rightPanelVerseFilterB, tabState.bookId, tabState.chapter)) patch.rightPanelVerseFilterB = null
+    if (Object.keys(patch).length) updateTabState('scripture', activeTab.id, patch)
+  }, [activeTab?.id, tabState.bookId, tabState.chapter, tabState.rightPanelVerseFilter, tabState.rightPanelVerseFilterB]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Publish the right-hand side panel's on-screen width to the store so the portaled Study
   // Trail arrival toast (pinned bottom-right) can slide left clear of it. Zero when closed,
   // in Advanced Search mode (that view owns its own right-edge rail), or when the Bible panel
@@ -577,7 +616,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // out that scroll immediately after it landed. Reading the ref instead still lets this
     // effect make the right call using the CURRENT targetVerse value when a genuine navigation
     // (book/chapter/tab/space change) fires it, without also firing on the pure consumption.
-    const hasTargetVerse = !!tabStateRef.current?.targetVerse
+    const hasTargetVerse = verseJumpOwnsPassage()
     // A translation switch that also remaps the chapter number (selectPickerTranslation,
     // e.g. LXX/KJV Psalms numbering) changes tabState.chapter, which fires this same effect
     // — but captureStrongsAnchor() already ran before that switch, and onVersesLoaded is
@@ -594,7 +633,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // until the rAF loop below lands that position, so there's nothing to flash, and forcing 0
     // here first only creates a race with that loop (and with ChapterView's own onVersesLoaded,
     // whose ordering vs. this effect flips depending on whether the chapter was already cached).
-    if (!restoringSaved) el.scrollTop = 0
+    // …nor when a verse jump has already LANDED in this passage (cached chapter: ChapterView
+    // scrolled to the verse before this effect ran) — resetting here undid the jump.
+    if (!restoringSaved && !verseJumpJustLanded()) el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
     // chapter's position to a freshly-loaded chapter before the new scroll fires — EXCEPT
     // when a specific targetVerse is pending (e.g. a search-navigation): forcing
@@ -738,8 +779,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // the centred model hasn't been seeded for it yet — seed it now from the panel's actual
       // scrollTop so the band + presenter jump straight to the right region (covers "presenter
       // opened while the chapter was already scrolled" and "region landed after a tab restore").
+      // NOT while a verse jump is pending or anchoring the band (targetVerse / findCenterVerse):
+      // the presenter now centres on the jumped verse instantly, so its region can arrive before
+      // this panel has scrolled to the verse — seeding from the pre-jump scrollTop then held the
+      // main reader (and the outline) at the top of the chapter (TEST-004). The jump's own
+      // settle ('verse-jump-settle') seeds the model once the reader has actually arrived.
       if (r.bookId === tabStateRef.current.bookId && r.chapter === tabStateRef.current.chapter
-        && centeredModelInitRef.current !== `${r.bookId}:${r.chapter}`) {
+        && centeredModelInitRef.current !== `${r.bookId}:${r.chapter}`
+        && tabStateRef.current.targetVerse == null && findCenterVerseRef.current == null) {
         syncCenteredModelToScrollRef.current('region-arrived')
       }
     })
@@ -1001,6 +1048,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // it fired. Keep it fully active for every legacy path (viewer paused, find-jump,
       // continuous mode).
       if (centeredModelEngaged()) return
+      // Not for a verse jump's own programmatic scroll: the band still describes the presenter's
+      // PREVIOUS region until the presenter centres on the jumped verse and reports back; clamping
+      // to it dragged the reader off the verse (TEST-004). The anchor ends at the user's own scroll.
+      if (verseJumpOwnsPassage() || presenterAnchoredToJump()) return
       const bandTop = band.top, bandBottom = band.top + band.height
       const viewTop = el.scrollTop, viewBottom = viewTop + el.clientHeight
       if (bandTop > viewBottom) {
@@ -1153,6 +1204,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const tab = activeTabRef.current
       const el = getScrollEl()
       if (!tab) return
+      // The event fires for EVERY switch, including one that returns TO Scripture from another
+      // space. This panel is then hidden (its layer is display:none), the browser has already
+      // dropped the scroller's offset to 0, and it is not the panel being left — its position
+      // was flushed when it WAS left. Writing now saved 0 over it (TEST-003).
+      if (el && el.getClientRects().length === 0) return
       const updates: Partial<import('@/types').BibleTabState> = {}
       if (el) {
         // A live read of the scroll container at flush time is authoritative — it is never the
@@ -1494,7 +1550,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     lastMainScrollTopRef.current = c.scrollTop
     setMainBibleScrollPercent(clampedP, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     const base = computeViewerPayload()
-    if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: clampedP })
+    if (base.kind === 'bible' && !presenterAnchoredToJump()) window.app.pushViewerContent?.({ ...base, scrollPercent: clampedP })
     computePresenterBandRef.current()
 
     // BUG 1: this scrollTop assignment is programmatic (programmaticScrollRef is set), so
@@ -1579,10 +1635,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabState.searchMode) return
     if (!currentBook) return
     const title = tabState.endChapter && tabState.endChapter > tabState.chapter
-      ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
+      ? `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}–${displayChapter(tabState.bookId, tabState.endChapter)}`
       : isHermasBook(tabState.bookId)
         ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
-        : `${currentBook.name} ${tabState.chapter}`
+        : `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`
     if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
     // Record navigation in history — the entry's own title gets a ":verse" suffix when a
     // specific verse was targeted (e.g. from search), distinct from the tab title (which
@@ -1634,9 +1690,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const refs = cols && cols.length > 0
       ? cols.map((c) => {
           const b = books.find((bk) => bk.id === c.bookId)
-          return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
+          return `${b?.name ?? bookName(c.bookId)} ${displayChapter(c.bookId, c.chapter)}`
         })
-      : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
+      : currentBook ? [`${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`] : []
     // No "Compare — " prefix — the tab's own icon already signals it's a compare tab.
     // Same book+chapter across every column (just different translations, e.g. KJV vs LXX
     // side by side): show the reference once, followed by each column's translation. Different
@@ -1668,10 +1724,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (last && last.bookId === tabState.bookId && last.chapter === tabState.chapter && last.verse === tabState.targetVerse) return
     lastVerseRecordRef.current = { bookId: tabState.bookId, chapter: tabState.chapter, verse: tabState.targetVerse }
     const title = tabState.endChapter && tabState.endChapter > tabState.chapter
-      ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
+      ? `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}–${displayChapter(tabState.bookId, tabState.endChapter)}`
       : isHermasBook(tabState.bookId)
         ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
-        : `${currentBook.name} ${tabState.chapter}`
+        : `${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`
     useAppStore.getState().addHistoryEntry({
       type: 'bible',
       title: `${title}:${tabState.targetVerse}`,
@@ -2082,9 +2138,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   function makeTitle(bookId: string, chapter: number, endChapter?: number) {
     const book = books.find((b) => b.id === bookId)
     // An individual psalm is singular ("Psalm 23"), even though the book is "Psalms".
-    const singular = (n: number) => bookId === 'PSA' ? `Psalm ${n}` : (book ? `${book.name} ${n}` : `${bookId} ${n}`)
+    const singular = (n: number) => bookId === 'PSA' ? `Psalm ${n}` : (book ? `${book.name} ${displayChapter(bookId, n)}` : `${bookId} ${displayChapter(bookId, n)}`)
     return endChapter
-      ? (bookId === 'PSA' ? `Psalm ${chapter}–${endChapter}` : book ? `${book.name} ${chapter}–${endChapter}` : `${bookId} ${chapter}–${endChapter}`)
+      ? (bookId === 'PSA' ? `Psalm ${chapter}–${endChapter}` : book ? `${book.name} ${displayChapter(bookId, chapter)}–${displayChapter(bookId, endChapter)}` : `${bookId} ${displayChapter(bookId, chapter)}–${displayChapter(bookId, endChapter)}`)
       : isHermasBook(bookId)
         ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(textId))}`
         : (hasPrologueChapter(bookId) && chapter === 0)
@@ -2120,9 +2176,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const list = cols && cols.length > 0
       ? cols.map((c) => {
           const b = books.find((bk) => bk.id === c.bookId)
-          return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
+          return `${b?.name ?? bookName(c.bookId)} ${displayChapter(c.bookId, c.chapter)}`
         })
-      : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
+      : currentBook ? [`${currentBook.name} ${displayChapter(tabState.bookId, tabState.chapter)}`] : []
     if (list.length === 0) return 'Compare with…'
     if (list.length === 1) return `Compare ${list[0]} with…`
     if (list.length === 2) return `Compare ${list[0]} and ${list[1]} with…`
@@ -2349,7 +2405,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ALSO skipped when the tab carries a saved scrollPosition (>1): the tab-switch effect's
       // own rAF loop is the authority for restoring that, and asserting 0 here would fight it
       // (this fires first on a cache-warm mount, before that loop starts).
-      if (!useAppStore.getState().continuousChapterScroll && !tabStateRef.current?.targetVerse && (tabStateRef.current?.scrollPosition ?? 0) <= 1) {
+      if (!useAppStore.getState().continuousChapterScroll && !verseJumpOwnsPassage() && (tabStateRef.current?.scrollPosition ?? 0) <= 1) {
         const el = getScrollEl()
         if (el && el.scrollTop !== 0) {
           el.scrollTop = 0
@@ -2373,7 +2429,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // paths that set targetVerse don't also clear scrollPosition (e.g. translation-switch-
     // with-verse-carryover, cross-ref/note/lexicon verse links), so pendingScrollRef can
     // still end up populated even when a verse jump is in flight — this is the backstop.
-    if (tabStateRef.current?.targetVerse) return
+    if (verseJumpOwnsPassage()) return
     const el = getScrollEl()
     if (el) {
       el.scrollTop = pos
@@ -2419,6 +2475,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // a recompute) or lands using a stale proportional guess.
     const jumpedVerse = tabStateRef.current.targetVerse
     if (jumpedVerse != null) findCenterVerseRef.current = jumpedVerse
+    if (jumpedVerse != null) landedVerseRef.current = { key: `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`, at: Date.now() }
     updateTabState('scripture', memoTabId, {
       targetVerse: undefined, targetVerseQuery: undefined, targetVerseWordMode: undefined,
       targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
@@ -2799,7 +2856,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             }
           }
           lastPushedDebugRef.current = { percent: scrollPercent, chapterKey: pushChapterKey }
-          window.app.pushViewerContent?.({ ...base, scrollPercent })
+          // A verse jump holds the presenter on the jumped verse until the user scrolls (TEST-004).
+          if (!presenterAnchoredToJump()) window.app.pushViewerContent?.({ ...base, scrollPercent })
         }
         // Coalesced into the same rAF as the push above (was previously unthrottled,
         // running its own getBoundingClientRect() pass over every verse on every raw
@@ -2884,7 +2942,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (!st2.viewerWindowOpen || st2.viewerPaused) return
       findCenterVerseRef.current = null
       const base = computeViewerPayload()
-      if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: settledPercent })
+      if (base.kind === 'bible' && !presenterAnchoredToJump()) window.app.pushViewerContent?.({ ...base, scrollPercent: settledPercent })
       computePresenterBand()
     }, 450)
   }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2989,7 +3047,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const book = books.find((b) => b.id === bookId)
             const title = isHermasBook(bookId)
               ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
-              : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
+              : book ? `${book.name} ${displayChapter(bookId, chapter)}` : `${bookId} ${displayChapter(bookId, chapter)}`
             // Record the search itself as a nav-stack entry BEFORE leaving it, so
             // Cmd+[ (navTabBack) from the verse we're about to open returns to
             // these search results (with the query restored) instead of
@@ -3023,8 +3081,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const book = books.find((b) => b.id === bookId)
             const title = isHermasBook(bookId)
               ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
-              : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
-            addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+              : book ? `${book.name} ${displayChapter(bookId, chapter)}` : `${bookId} ${displayChapter(bookId, chapter)}`
+            addTab({ id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, spaceId: 'scripture', type: 'bible', title,
               state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
             recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
           }}
@@ -3286,7 +3344,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       (the per-verse popover's "Tag chapter…" item still works too). */}
                   <IconButton
                     icon={TagIcon}
-                    label={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
+                    label={`Tag ${bookName(tabState.bookId)} ${displayChapter(tabState.bookId, tabState.chapter)} (whole chapter)`}
                     size={28}
                     active={!!chapterTagRect}
                     onMouseDown={() => { chapterTagWasOpenRef.current = !!chapterTagRect }}
@@ -3444,13 +3502,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             item) — hidden entirely in floating windows (layout is locked to
             'reading' there), same as before. */}
         {!floating && layoutPickerOpen && layoutPickerAnchor && createPortal(
-          // Zero-size anchor at the trigger row's bottom-right corner —
-          // LayoutPicker's own popover div positions itself with
-          // `absolute top-full right-0`, which resolves against THIS
-          // wrapper's box (its nearest positioned ancestor), landing the
-          // picker exactly where the old inline button used to anchor it,
-          // without needing to touch LayoutPicker's own internal styling.
-          <div style={{ position: 'fixed', left: layoutPickerAnchor.left, top: layoutPickerAnchor.top, width: 0, height: 0 }}>
+          // MenuPositioner owns the layer: the FIXED element itself carries --z-menu (a fixed
+          // element is its own stacking context, so a z-index on a child of an un-indexed fixed
+          // wrapper — the old zero-size anchor div — only ever competed inside that wrapper and
+          // lost to the side panel / "…" menu; TEST-006). Right edge hugs the menu row it was
+          // opened from; the positioner also clamps to the viewport.
+          <MenuPositioner x={layoutPickerAnchor.left} y={layoutPickerAnchor.top} align="right">
             <LayoutPicker
               current={currentLayout}
               onSelect={setLayout}
@@ -3458,7 +3515,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               defaultLayout={defaultScriptureLayout}
               onSaveDefault={setDefaultScriptureLayout}
             />
-          </div>,
+          </MenuPositioner>,
           document.body
         )}
         {/* Pause + laser + selection + close now live in the floating PresenterControls panel.
@@ -3843,6 +3900,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           initialScrollTop={slot === 'A' ? tabState.rightPanelScrollTop : tabState.rightPanelScrollTopB}
           onScrollTopChange={(top) => {
             if (activeTab) updateTabState('scripture', activeTab.id, slot === 'A' ? { rightPanelScrollTop: top } : { rightPanelScrollTopB: top })
+          }}
+          initialScrollTops={slot === 'A' ? tabState.rightPanelScrollTops : tabState.rightPanelScrollTopsB}
+          onScrollTopsChange={(tops) => {
+            if (activeTab) updateTabState('scripture', activeTab.id, slot === 'A' ? { rightPanelScrollTops: tops } : { rightPanelScrollTopsB: tops })
           }}
           onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()

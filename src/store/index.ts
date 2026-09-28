@@ -1,5 +1,8 @@
+import { withoutContextualFilters } from '@/lib/scriptureContextFilters'
+import { verseRange } from '@/lib/verseSelection'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { workspaceSessionId } from '@/lib/workspaceSnapshot'
 import type { SpaceId, Tab, TabState, TabType, TagsTabState, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
@@ -44,6 +47,14 @@ const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
 // (theme, fonts, preferences — read from the shared blob) but starts with a
 // fresh, blank workspace (its own default session + no tabs), takes no part in
 // cross-window sync, and writes nothing. See the onRehydrateStorage reset below.
+/** Random part of locally generated ids (tabs, history entries): crypto-random, so ids made on
+ *  different devices in the same millisecond cannot collide (DATA-SAFE-110). */
+function randomIdPart(): string {
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto
+  if (c?.getRandomValues) return Array.from(c.getRandomValues(new Uint8Array(6)), (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 10)
+  return Math.random().toString(36).slice(2, 12)
+}
+
 export const IS_INDEPENDENT_WINDOW = typeof window !== 'undefined' && (() => {
   try { return new URLSearchParams(window.location.search).get('independent') === '1' } catch { return false }
 })()
@@ -172,6 +183,8 @@ export interface Session {
   tabFilter?: TabType | 'all'   // session-specific tab type filter
 }
 
+const SPACES_ALL: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+
 const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   bible: 'scripture',
   note: 'notes',
@@ -180,6 +193,9 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   search: 'search',
   pdf: 'scripture',   // PDFs open as tabs within the Scripture space
   tags: 'notes',      // the singleton Tags graph opens as a tab within the Notes space
+  history: 'search',  // dedicated History / Settings tabs (iPhone New Tab, T23-009) group with Search
+  settings: 'search',
+  calendar: 'notes',  // the persistent Calendar (date navigation → daily notes) groups with Notes
 }
 
 /** The one and only Tags graph tab id (singleton — see openTagsGraph). */
@@ -220,6 +236,188 @@ function captureActiveScrollIntoNavEntry(get: () => AppState, tabId: string, spa
   stampNavEntryScroll(get, tabId, sp)
 }
 
+/** Shallow equality of two history-entry state snapshots (JSON-comparable values). */
+function sameNavState(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b) return !a && !b
+  try { return JSON.stringify(a) === JSON.stringify(b) } catch { return false }
+}
+
+// ── Tab-type change (transformTab, iPhone TEST25-NAV-001) ─────────────────────────────────────
+// Tabs live in per-type spaces, so "turn this tab into a Notes tab" is: a new tab of the target
+// type takes the old tab's place in the session's display order, inherits its per-tab history
+// (plus a step for where it was and one for where it went), and the old tab is removed — not
+// archived: it is not gone, it is the Back step. Back / forward across the change swap back.
+
+/** A blank tab of `type` — the same defaults as createTab. */
+function blankTabOfType(type: TabType, id: string, s: AppState): Tab {
+  const spaceId = TYPE_TO_SPACE[type]
+  switch (type) {
+    case 'bible': {
+      // Open Scripture where the user was last reading (the active Scripture tab), else Genesis 1.
+      const src = s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture && t.type === 'bible')
+      const st = src?.state as BibleTabState | undefined
+      return { id, spaceId, type, title: src && st ? src.title : 'Genesis 1', state: {
+        bookId: st?.bookId ?? 'GEN', chapter: st?.chapter ?? 1, translation: st?.translation ?? s.defaultBibleTranslation.toUpperCase(),
+        showStrongs: st?.showStrongs ?? false, scrollPosition: 0,
+      } }
+    }
+    case 'lexicon': return { id, spaceId, type, title: 'Lexicon', state: { strongsNum: null } }
+    case 'note': return { id, spaceId, type, title: 'Notes', state: { noteId: null, isNew: true } }
+    case 'youtube': return { id, spaceId, type, title: 'YouTube', state: { videoId: null, playlistId: null } }
+    case 'tags': return { id, spaceId, type, title: 'Tags', state: { selectedTagId: null } as TagsTabState }
+    case 'history': return { id, spaceId, type, title: 'History', state: {} }
+    case 'settings': return { id, spaceId, type, title: 'Settings', state: {} }
+    case 'calendar': return { id, spaceId, type, title: 'Calendar', state: {} }
+    case 'pdf': return { id, spaceId, type, title: 'PDF', state: {} as TabState }
+    default: return { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
+  }
+}
+
+/** A tab's state as a history snapshot (no bulky result lists — pages re-run their query). */
+function navSnapshotOf(state: TabState): Record<string, unknown> {
+  const { results: _r, ...rest } = state as unknown as Record<string, unknown>
+  return rest
+}
+
+/** The tab state a type-change entry recreates its tab with. */
+function entryTabSeed(entry: TabNavEntry): Record<string, unknown> {
+  return {
+    ...(entry.bookId ? { bookId: entry.bookId, chapter: entry.chapter ?? 1, ...(entry.translation ? { translation: entry.translation } : {}) } : {}),
+    ...(entry.state ?? {}),
+  }
+}
+
+/** The history step for a tab that has just become `tab.type`. */
+function typeChangeEntryFor(tab: Tab, extraState?: Record<string, unknown>): Omit<TabNavEntry, 'id'> {
+  if (tab.type === 'bible') {
+    const b = tab.state as BibleTabState
+    return { type: 'bible', title: tab.title, bookId: b.bookId, chapter: b.chapter, translation: b.translation, switchType: true, ...(extraState ? { state: extraState } : {}) }
+  }
+  // A list-like tab is recorded as its list (`home`) only when nothing is open in it; a Notes tab
+  // showing a note IS that note (SEP27: a calendar day → its daily note, ‹ / › land on the note).
+  const st = { ...navSnapshotOf(tab.state), ...(extraState ?? {}) } as Record<string, unknown>
+  const opened =
+    tab.type === 'note' && typeof st.noteId === 'string' ? { noteId: st.noteId }
+    : tab.type === 'lexicon' && typeof st.strongsNum === 'string' ? { strongsNum: st.strongsNum }
+    : tab.type === 'youtube' && typeof st.videoId === 'string' ? { videoId: st.videoId }
+    : null
+  const listLike = tab.type === 'note' || tab.type === 'lexicon' || tab.type === 'youtube'
+  return { type: tab.type, title: tab.title, switchType: true, ...(opened ?? (listLike ? { home: true } : {})), state: st }
+}
+
+/**
+ * Replace tab `tabId` by a new tab of `toType` in the same place: same session display position
+ * (and same per-space index when the space is the same), same pin / origin, its per-tab history
+ * moved over, the old tab's per-tab state pruned. Activates the new tab. Returns null when the
+ * tab does not exist.
+ */
+function swapTabType(
+  get: () => AppState,
+  set: (p: Partial<AppState>) => void,
+  tabId: string,
+  toType: TabType,
+  seed: { title?: string; state?: Record<string, unknown> } = {},
+): { space: SpaceId; id: string; tab: Tab } | null {
+  const s = get()
+  const fromSpace = SPACES_ALL.find((sp) => (s.tabs[sp] ?? []).some((t) => t.id === tabId))
+  if (!fromSpace) return null
+  const old = s.tabs[fromSpace].find((t) => t.id === tabId)!
+  const toSpace = TYPE_TO_SPACE[toType]
+  const id = `${toType}-${Date.now()}-${randomIdPart()}`
+  const base = blankTabOfType(toType, id, s)
+  const tab: Tab = {
+    ...base,
+    title: seed.title || base.title,
+    state: { ...(base.state as unknown as Record<string, unknown>), ...(seed.state ?? {}) } as unknown as TabState,
+    ...(old.isPinned ? { isPinned: true } : {}),
+    ...(old.originTabId ? { originTabId: old.originTabId, originSpaceId: old.originSpaceId } : {}),
+  }
+  const all = SPACES_ALL.flatMap((sp) => s.tabs[sp] ?? [])
+  const stored = s.sessionDisplayOrders[s.currentSessionId] ?? []
+  const live = [...stored.filter((x) => all.some((t) => t.id === x)), ...all.filter((t) => !stored.includes(t.id)).map((t) => t.id)]
+  const order = live.map((x) => (x === tabId ? id : x))
+  const tabs = { ...s.tabs }
+  const fromIdx = tabs[fromSpace].findIndex((t) => t.id === tabId)
+  if (fromSpace === toSpace) tabs[toSpace] = tabs[toSpace].map((t) => (t.id === tabId ? tab : t))
+  else { tabs[fromSpace] = tabs[fromSpace].filter((t) => t.id !== tabId); tabs[toSpace] = [...tabs[toSpace], tab] }
+  const activeTabId = { ...s.activeTabId, [toSpace]: id }
+  if (fromSpace !== toSpace && s.activeTabId[fromSpace] === tabId) {
+    // The space shows the tab the user was last in (MRU), not whichever neighbour is left.
+    const recent = s.tabMRUList.find((m) => m.spaceId === fromSpace && m.tabId !== tabId && tabs[fromSpace].some((t) => t.id === m.tabId))
+    activeTabId[fromSpace] = recent?.tabId ?? tabs[fromSpace][Math.max(0, fromIdx - 1)]?.id ?? null
+  }
+  const stack = s.tabNavStacks[tabId]
+  const pruned = prunePerTabState(s, fromSpace, tabId)
+  set({
+    tabs, activeTabId, activeSpace: toSpace,
+    tabMRUList: updateMRU(s.tabMRUList.filter((m) => m.tabId !== tabId), toSpace, id),
+    sessionDisplayOrders: { ...s.sessionDisplayOrders, [s.currentSessionId]: order },
+    ...pruned,
+    tabNavStacks: stack ? { ...pruned.tabNavStacks!, [id]: stack } : pruned.tabNavStacks!,
+    tabLastAccessed: { ...pruned.tabLastAccessed!, [`${toSpace}:${id}`]: Date.now() },
+    ...(toType === 'note' ? { pendingNoteId: null } : {}),
+  })
+  return { space: toSpace, id, tab }
+}
+
+/**
+ * Restore one per-tab history entry (back and forward share this). Order: a generic `state`
+ * snapshot is re-applied first (SEP25 — Search / Settings / Notes-list destinations and extra
+ * context); a `home` entry returns note / lexicon / YouTube tabs to their list view; then the
+ * typed destinations (search query, chapter, Strong's entry, note, video, PDF page).
+ */
+function restoreTabNavEntry(
+  get: () => AppState,
+  set: (p: Partial<AppState>) => void,
+  space: SpaceId,
+  tabId: string,
+  stackType: TabType | undefined,
+  entry: TabNavEntry,
+): void {
+  // A step recorded across a tab-type change (transformTab): turn this tab back into the entry's
+  // type first — same position, same history — then restore the entry on it.
+  if (entry.switchType && stackType && entry.type !== stackType) {
+    const moved = swapTabType(get, set, tabId, entry.type, { title: entry.title, state: entryTabSeed(entry) })
+    if (moved) { restoreTabNavEntry(get, set, moved.space, moved.id, entry.type, entry); return }
+  }
+  if (entry.state) get().updateTabState(space, tabId, entry.state as Partial<TabState>)
+  if (entry.home) {
+    if (stackType === 'note') get().bumpNotesHomeToken()
+    else if (stackType === 'lexicon') get().bumpLexiconHomeToken()
+    else if (stackType === 'youtube') get().bumpYouTubeHomeToken()
+    return
+  }
+  if (entry.query !== undefined && stackType === 'bible') {
+    get().updateTabState(space, tabId, { searchMode: true, scriptureSearchQuery: entry.query })
+  } else if (entry.bookId) {
+    // searchMode: false is required here — without it, landing on a bookId entry right after a
+    // query entry (stepping back INTO the reader from search results) updates bookId/chapter
+    // invisibly underneath the still-mounted ScriptureSearchView, since BiblePanel gates its
+    // render branch purely on tabState.searchMode.
+    get().updateTabState(space, tabId, {
+      bookId: entry.bookId, chapter: entry.chapter ?? 1,
+      ...(entry.translation ? { translation: entry.translation } : {}),
+      scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
+    })
+  } else if (entry.strongsNum) {
+    set({ pendingLexiconEntry: entry.strongsNum })
+  } else if (entry.noteId) {
+    if (space === 'notes') set({ pendingNoteId: entry.noteId })
+    else {
+      // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns to
+      // that note in the Notes space.
+      get().requestOpenNote(entry.noteId)
+      get().ensureTab('note')
+      get().setActiveSpace('notes')
+    }
+  } else if (entry.videoId) {
+    set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
+  } else if (entry.pdfId && entry.page) {
+    window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
+  }
+}
+
 export interface AppState {
   // Navigation
   activeSpace: SpaceId
@@ -253,6 +451,11 @@ export interface AppState {
   pendingNoteId: string | null
   requestOpenNote: (noteId: string) => void
   clearPendingNote: () => void
+  /** Bumped by `requestDailyNote()` — the phone's Notes space opens/creates today's note when it
+   *  changes (desktop keeps listening to the `berean:openDailyNote` window event, which the same
+   *  action also dispatches). */
+  dailyNoteRequestToken: number
+  requestDailyNote: () => void
   pendingVerseFilter: string | null
   filterNotesByVerse: (verseRef: string) => void
   clearVerseFilter: () => void
@@ -306,6 +509,10 @@ export interface AppState {
   // Highlight change notifications
   highlightChangeToken: number
   bumpHighlightToken: () => void
+  /** Remote-change epochs for views that load a list once (playlists, PDFs, YouTube stars/resume,
+   *  AI chats): bumped by lib/syncInvalidation, so those views re-read without being reopened. */
+  dataEpochs: { playlists: number; pdfs: number; youtube: number; aiChats: number }
+  bumpDataEpoch: (kind: 'playlists' | 'pdfs' | 'youtube' | 'aiChats') => void
 
   // Verse tags (SQLite-backed; this is a cached copy of window.verseTags.list()).
   verseTags: VerseTag[]
@@ -631,6 +838,12 @@ export interface AppState {
   theme: 'dark' | 'light' | 'system'
   themePreset: string  // '' = default, 'system-accent', or one of the preset class names
   setThemePreset: (preset: string) => void
+  /** User-made themes (src/lib/customTheme.ts), selected via themePreset = 'custom:<id>'. Per device. */
+  customThemes: import('@/lib/customTheme').CustomTheme[]
+  setCustomThemes: (themes: import('@/lib/customTheme').CustomTheme[]) => void
+  addCustomTheme: (theme: import('@/lib/customTheme').CustomTheme) => void
+  updateCustomTheme: (id: string, patch: Partial<Omit<import('@/lib/customTheme').CustomTheme, 'id'>>) => void
+  deleteCustomTheme: (id: string) => void
 
   // Ambient background animation — see src/lib/themePresets.ts's AnimationStyle/AnimationIntensity
   // comments and ThemePicker.tsx for how these combine with a preset's own curated
@@ -691,16 +904,38 @@ export interface AppState {
   renameSession: (id: string, name: string) => void
   setSessionIcon: (id: string, icon: string) => void
   deleteSession: (id: string) => void
+  /** Open a saved workspace (Settings → Workspaces, deep links, the iPhone workspaces page) as a
+   *  session: switches to it if it is already open, otherwise creates it from the saved snapshot —
+   *  tabs, per-space order, unified display order, active tabs — and switches. Never touches the
+   *  session the user is currently on. See src/lib/workspaceSnapshot.ts. */
+  openWorkspaceSession: (workspace: { id: string; name: string }, snapshot: import('@/lib/workspaceSnapshot').ParsedWorkspaceState) => void
   moveTabToSession: (spaceId: SpaceId, tabId: string, targetSessionId: string) => void
   reorderTabDisplay: (sessionId: string, fromId: string, toId: string, before: boolean) => void
+  /** Replace a session's whole custom display order (iPhone tab cards: a drag made while the
+   *  cards are sorted by Recent saves the dragged order as the new custom order). */
+  setTabDisplayOrder: (sessionId: string, order: string[]) => void
+  /** iPhone tab cards sort: most recently used first, or the custom (sessionDisplayOrders) order. */
+  mobileTabSort: 'recent' | 'custom'
+  setMobileTabSort: (v: 'recent' | 'custom') => void
 
   // Actions
   setActiveSpace: (space: SpaceId) => void
   /** `position` defaults to 'after-active' (Cmd+T/"+"/"open in new tab" from content) —
    *  pass 'end' only for the double-click-empty-tab-bar-space case. */
   addTab: (tab: Tab, position?: 'top' | 'after-active' | 'end') => void
+  /** Duplicate a tab (SEP26-TABS-001…003): an independent deep copy of its meaningful state AND
+   *  its complete navigation history (same entries, same current position — new ids, no shared
+   *  objects), placed right after the original and made active. Transient, per-view state is not
+   *  copied (verse selection, sheets); a duplicated Scripture tab starts with clean contextual
+   *  filters. Shared by the Mac tab menu and the iPhone tab cards. Returns the new tab id. */
+  duplicateTab: (spaceId: SpaceId, tabId: string) => string | null
   createTab: (type: TabType, position?: 'top' | 'after-active' | 'end') => void
   ensureTab: (type: TabType) => void
+  /** Change tab `tabId` into a tab of `toType` without creating another tab (iPhone tab-type
+   *  switcher / caret "Go to", TEST25-NAV-001): it keeps its place in the session's tab order and
+   *  its per-tab history — Back returns to the previous type and state. `state` seeds the new
+   *  tab (e.g. Compare). Same type → just activates it. Returns the (new) tab id, or null. */
+  transformTab: (tabId: string, toType: TabType, opts?: { state?: Record<string, unknown> }) => string | null
   closeTab: (spaceId: SpaceId, tabId: string) => void
   closeActiveTab: () => void
   setActiveTab: (spaceId: SpaceId, tabId: string) => void
@@ -729,6 +964,8 @@ export interface AppState {
   // Recent search queries (persisted, max 10)
   recentSearchQueries: string[]
   addRecentSearchQuery: (q: string) => void
+  /** Clear the recent searches (shared by every search entry point — SRCH-006). */
+  clearRecentSearchQueries: () => void
   openSettings: () => void
   openSettingsToSessions: () => void
   openSettingsToAbout: () => void
@@ -801,6 +1038,14 @@ export interface AppState {
   bumpVersePopoverToken: () => void
   /** `tabId` omitted/null → the active scripture tab. */
   toggleVerseSelection: (tabId: string | null | undefined, ref: SelectedVerseRef) => void
+  /** Replaces a tab's verse selection (range selection, "select these verses"). */
+  setVerseSelection: (tabId: string | null | undefined, refs: SelectedVerseRef[]) => void
+  /** Drag-to-select from a verse number (TEST-001): the live range is written into the tab's
+   *  selection while dragging (that IS the visible indicator), `before` restores on cancel. */
+  verseDrag: { tabId: string; anchor: SelectedVerseRef; current: SelectedVerseRef; before: SelectedVerseRef[]; pointer: { x: number; y: number } | null } | null
+  beginVerseDrag: (tabId: string, anchor: SelectedVerseRef, pointer?: { x: number; y: number }) => void
+  updateVerseDrag: (current: SelectedVerseRef | null, pointer?: { x: number; y: number }, available?: readonly number[]) => void
+  endVerseDrag: (commit: boolean) => void
   clearVerseSelection: (tabId?: string | null) => void
   remapVerseSelection: (tabId: string | null | undefined, remap: (ref: SelectedVerseRef) => SelectedVerseRef | null) => void
   bumpNoteEditToken: () => void
@@ -862,6 +1107,9 @@ export interface AppState {
   isNavJumping: boolean
   pushTabNav: (tabId: string, entry: Omit<TabNavEntry, 'id'>) => void
   navTabBack: () => void
+  /** Give the entries of a tab's history that match `match` a better title (e.g. a note's real
+   *  title once it has loaded). No new entry, no index change. */
+  retitleTabNav: (tabId: string, match: { noteId?: string }, title: string) => void
   navTabForward: () => void
   goToTabHome: () => void
   resetTabNavHome: (tabId: string) => void
@@ -1177,6 +1425,20 @@ export const useAppStore = create<AppState>()(
       theme: 'system' as const,
       themePreset: '',
       setThemePreset: (preset) => set({ themePreset: preset }),
+      customThemes: [],
+      setCustomThemes: (themes) => set({ customThemes: themes }),
+      addCustomTheme: (theme) => set((st) => ({ customThemes: [...st.customThemes.filter((t) => t.id !== theme.id), theme] })),
+      updateCustomTheme: (id, patch) => set((st) => ({
+        customThemes: st.customThemes.map((t) => (t.id === id ? { ...t, ...patch, id } : t)),
+      })),
+      // Deleting the active custom theme falls back to the preset it was based on.
+      deleteCustomTheme: (id) => set((st) => {
+        const gone = st.customThemes.find((t) => t.id === id)
+        return {
+          customThemes: st.customThemes.filter((t) => t.id !== id),
+          ...(st.themePreset === `custom:${id}` ? { themePreset: gone?.basedOn ?? '' } : {}),
+        }
+      }),
       backgroundAnimationEnabled: false,
       setBackgroundAnimationEnabled: (v) => set({ backgroundAnimationEnabled: v }),
       backgroundAnimationStyle: 'auto',
@@ -1234,7 +1496,7 @@ export const useAppStore = create<AppState>()(
         const currentSession = state.sessions.find(s => s.id === state.currentSessionId)
         const newEntry: HistoryEntry = {
           ...entry,
-          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: `hist-${Date.now()}-${randomIdPart()}`,
           timestamp: Date.now(),
           sessionId: state.currentSessionId,
           sessionName: currentSession?.name,
@@ -1348,6 +1610,37 @@ export const useAppStore = create<AppState>()(
           : [...cur, ref]
         return { selectedVersesByTab: { ...s.selectedVersesByTab, [tid]: next } }
       }),
+      setVerseSelection: (tabId, refs) => set((s) => {
+        const tid = tabId ?? s.activeTabId['scripture']
+        if (!tid) return {}
+        const nextMap = { ...s.selectedVersesByTab }
+        if (refs.length) nextMap[tid] = refs; else delete nextMap[tid]
+        return { selectedVersesByTab: nextMap }
+      }),
+      verseDrag: null,
+      beginVerseDrag: (tabId, anchor, pointer) => set((s) => ({
+        verseDrag: { tabId, anchor, current: anchor, before: s.selectedVersesByTab[tabId] ?? [], pointer: pointer ?? null },
+        selectedVersesByTab: { ...s.selectedVersesByTab, [tabId]: [anchor] },
+      })),
+      updateVerseDrag: (current, pointer, available) => set((s) => {
+        const d = s.verseDrag
+        if (!d) return {}
+        const next = current ?? d.current
+        const moved = next.verse !== d.current.verse || next.chapter !== d.current.chapter || next.bookId !== d.current.bookId
+        if (!moved) return pointer ? { verseDrag: { ...d, pointer } } : {}
+        return {
+          verseDrag: { ...d, current: next, pointer: pointer ?? d.pointer },
+          selectedVersesByTab: { ...s.selectedVersesByTab, [d.tabId]: verseRange(d.anchor, next, available) },
+        }
+      }),
+      endVerseDrag: (commit) => set((s) => {
+        const d = s.verseDrag
+        if (!d) return {}
+        if (commit) return { verseDrag: null }
+        const nextMap = { ...s.selectedVersesByTab }
+        if (d.before.length) nextMap[d.tabId] = d.before; else delete nextMap[d.tabId]
+        return { verseDrag: null, selectedVersesByTab: nextMap }
+      }),
       clearVerseSelection: (tabId) => set((s) => {
         const tid = tabId ?? s.activeTabId['scripture']
         if (!tid || !s.selectedVersesByTab[tid]?.length) return {}
@@ -1443,7 +1736,8 @@ export const useAppStore = create<AppState>()(
               top.noteId === full.noteId && top.strongsNum === full.strongsNum &&
               top.videoId === full.videoId &&
               top.pdfId === full.pdfId && top.page === full.page &&
-              top.query === full.query) return {}
+              top.query === full.query && !!top.home === !!full.home &&
+              sameNavState(top.state, full.state)) return {}
           const base = cur.stack.slice(0, cur.idx + 1)
           const maxStack = get().tabNavMaxStack ?? 100
           const newStack = [...base, full].slice(-maxStack)
@@ -1464,7 +1758,8 @@ export const useAppStore = create<AppState>()(
         // entry — "came here from note X" — which must not turn it into a notes tab).
         const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
         const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
-        if (tabStack.idx <= (supportsHome ? -1 : 0)) return
+        // A recorded home entry at 0 IS the list — nothing to step back to below it.
+        if (tabStack.idx <= (supportsHome && !tabStack.stack[0]?.home ? -1 : 0)) return
         // Remember where the reader is in the entry we're leaving, so Cmd+] forward restores it.
         captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx - 1
@@ -1476,37 +1771,7 @@ export const useAppStore = create<AppState>()(
           setTimeout(() => set({ isNavJumping: false }), 50)
           return
         }
-        const entry = tabStack.stack[newIdx]
-        if (entry.query !== undefined) {
-          get().updateTabState(s.activeSpace, activeTabId, { searchMode: true, scriptureSearchQuery: entry.query })
-        } else if (entry.bookId) {
-          // searchMode: false is required here — without it, landing on a bookId
-          // entry right after a query entry (i.e. stepping back INTO the reader
-          // from search results) updates bookId/chapter invisibly underneath the
-          // still-mounted ScriptureSearchView, since BiblePanel gates its render
-          // branch purely on tabState.searchMode. Confirmed bug: after visiting
-          // an Advanced Search entry once, back/forward looked like dead buttons.
-          get().updateTabState(s.activeSpace, activeTabId, {
-            bookId: entry.bookId, chapter: entry.chapter ?? 1,
-            ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
-          })
-        } else if (entry.strongsNum) {
-          set({ pendingLexiconEntry: entry.strongsNum })
-        } else if (entry.noteId) {
-          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
-          else {
-            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
-            // to that note in the Notes space (the pill that used to do this is gone).
-            get().requestOpenNote(entry.noteId)
-            get().ensureTab('note')
-            get().setActiveSpace('notes')
-          }
-        } else if (entry.videoId) {
-          set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
-        } else if (entry.pdfId && entry.page) {
-          window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
-        }
+        restoreTabNavEntry(get, set, s.activeSpace, activeTabId, stackType, tabStack.stack[newIdx])
         setTimeout(() => set({ isNavJumping: false }), 50)
       },
 
@@ -1518,35 +1783,9 @@ export const useAppStore = create<AppState>()(
         if (!tabStack || tabStack.idx >= tabStack.stack.length - 1) return
         captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx + 1
-        const entry = tabStack.stack[newIdx]
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
-        if (entry.query !== undefined) {
-          get().updateTabState(s.activeSpace, activeTabId, { searchMode: true, scriptureSearchQuery: entry.query })
-        } else if (entry.bookId) {
-          // searchMode: false — see the matching comment in navTabBack; without it,
-          // stepping forward out of a search entry into a bookId entry silently
-          // updates the tab underneath the still-mounted ScriptureSearchView.
-          get().updateTabState(s.activeSpace, activeTabId, {
-            bookId: entry.bookId, chapter: entry.chapter ?? 1,
-            ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: entry.scrollPosition ?? 0, targetVerse: entry.verse, searchMode: false,
-          })
-        } else if (entry.strongsNum) {
-          set({ pendingLexiconEntry: entry.strongsNum })
-        } else if (entry.noteId) {
-          if (s.activeSpace === 'notes') set({ pendingNoteId: entry.noteId })
-          else {
-            // Cross-tab entry: this Scripture/Lexicon tab was reached from a note — Back returns
-            // to that note in the Notes space (the pill that used to do this is gone).
-            get().requestOpenNote(entry.noteId)
-            get().ensureTab('note')
-            get().setActiveSpace('notes')
-          }
-        } else if (entry.videoId) {
-          set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
-        } else if (entry.pdfId && entry.page) {
-          window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
-        }
+        const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
+        restoreTabNavEntry(get, set, s.activeSpace, activeTabId, stackType, tabStack.stack[newIdx])
         setTimeout(() => set({ isNavJumping: false }), 50)
       },
 
@@ -1631,6 +1870,16 @@ export const useAppStore = create<AppState>()(
       setTabNavMaxStack: (n) => set({ tabNavMaxStack: Math.max(10, Math.min(1000, n)) }),
       setHistoryMaxEntries: (n) => set({ historyMaxEntries: Math.max(50, Math.min(10000, n)) }),
       clearAllTabNavStacks: () => set({ tabNavStacks: {} }),
+      retitleTabNav: (tabId, match, title) => {
+        const cur = get().tabNavStacks[tabId]
+        if (!cur || !title) return
+        let changed = false
+        const stack = cur.stack.map((e) => {
+          if (match.noteId && e.noteId === match.noteId && e.title !== title) { changed = true; return { ...e, title } }
+          return e
+        })
+        if (changed) set((s) => ({ tabNavStacks: { ...s.tabNavStacks, [tabId]: { ...cur, stack } } }))
+      },
 
       // ── Read Aloud (TTS playback) ──────────────────────────────────────────
       // Thin store actions — the actual speechSynthesis orchestration lives in
@@ -1849,6 +2098,9 @@ export const useAppStore = create<AppState>()(
       sessions: [DEFAULT_SESSION] as Session[],
       currentSessionId: 'default',
       sessionDisplayOrders: {} as Record<string, string[]>,
+      mobileTabSort: 'recent' as 'recent' | 'custom',
+      setMobileTabSort: (v) => set({ mobileTabSort: v }),
+      setTabDisplayOrder: (sessionId, order) => set((s) => ({ sessionDisplayOrders: { ...s.sessionDisplayOrders, [sessionId]: [...order] } })),
 
       createSession: (name) => {
         const state = get()
@@ -1917,6 +2169,55 @@ export const useAppStore = create<AppState>()(
         }
       },
 
+      openWorkspaceSession: (workspace, snapshot) => {
+        const state = get()
+        const sessionId = workspaceSessionId(workspace.id)
+        if (state.sessions.some((s) => s.id === sessionId)) {
+          get().switchSession(sessionId)
+          return
+        }
+        const currentSession: Session = {
+          id: state.currentSessionId,
+          name: state.sessions.find(s => s.id === state.currentSessionId)?.name ?? 'Session 1',
+          icon: state.sessions.find(s => s.id === state.currentSessionId)?.icon,
+          tabs: state.tabs,
+          activeTabId: state.activeTabId,
+        }
+        // A tab id may already be open in another session (the workspace was saved from it);
+        // tabs are per-session rows, so give the restored copies fresh ids to keep them distinct.
+        const idMap = new Map<string, string>()
+        const openIds = new Set(state.sessions.flatMap((s) => SPACES_ALL.flatMap((sp) => (s.tabs[sp] ?? []).map((t) => t.id))).concat(SPACES_ALL.flatMap((sp) => state.tabs[sp].map((t) => t.id))))
+        const remap = (id: string | null | undefined): string | null => (id ? (idMap.get(id) ?? id) : null)
+        const tabs: Record<SpaceId, Tab[]> = { scripture: [], notes: [], lexicon: [], youtube: [], search: [] }
+        for (const sp of SPACES_ALL) {
+          tabs[sp] = snapshot.tabs[sp].map((t) => {
+            if (!openIds.has(t.id) && !idMap.has(t.id)) return t
+            const fresh = `${t.type}-${Date.now()}-${randomIdPart()}`
+            idMap.set(t.id, fresh)
+            return { ...t, id: fresh }
+          })
+        }
+        const activeTabId = { scripture: null, notes: null, lexicon: null, youtube: null, search: null } as Record<SpaceId, string | null>
+        for (const sp of SPACES_ALL) activeTabId[sp] = remap(snapshot.activeTabId[sp]) ?? tabs[sp][0]?.id ?? null
+        const newSession: Session = {
+          id: sessionId,
+          name: workspace.name,
+          tabs,
+          activeTabId,
+          ...(snapshot.icon ? { icon: snapshot.icon } : {}),
+        }
+        const updatedSessions = state.sessions.length === 0
+          ? [currentSession, newSession]
+          : [...state.sessions.map(s => s.id === state.currentSessionId ? currentSession : s), newSession]
+        set({
+          sessions: updatedSessions,
+          currentSessionId: sessionId,
+          tabs,
+          activeTabId,
+          sessionDisplayOrders: { ...state.sessionDisplayOrders, [sessionId]: snapshot.displayOrder.map((id) => idMap.get(id) ?? id) },
+        })
+      },
+
       reorderTabDisplay: (sessionId, fromId, toId, before) => {
         set((s) => {
           const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
@@ -1979,7 +2280,7 @@ export const useAppStore = create<AppState>()(
 
       createTab: (type, position = 'after-active') => {
         const spaceId = TYPE_TO_SPACE[type]
-        const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const id = `${type}-${Date.now()}-${randomIdPart()}`
         let tab: Tab
         if (type === 'bible') {
           const defTranslation = get().defaultBibleTranslation.toUpperCase()
@@ -1998,6 +2299,12 @@ export const useAppStore = create<AppState>()(
           // The Tags graph is really a singleton opened via openTagsGraph() / TAGS_GRAPH_TAB_ID;
           // this branch only exists so a stray createTab('tags') can't fall through to a Search tab.
           tab = { id, spaceId, type, title: 'Tags', state: { selectedTagId: null } as TagsTabState }
+        } else if (type === 'history') {
+          tab = { id, spaceId, type, title: 'History', state: {} }
+        } else if (type === 'settings') {
+          tab = { id, spaceId, type, title: 'Settings', state: {} }
+        } else if (type === 'calendar') {
+          tab = { id, spaceId, type, title: 'Calendar', state: {} }
         } else {
           tab = { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
         }
@@ -2076,10 +2383,14 @@ export const useAppStore = create<AppState>()(
       ensureTab: (type) => {
         const spaceId = TYPE_TO_SPACE[type]
         const state = get()
-        if (state.tabs[spaceId].length === 0) {
+        // The search space also holds dedicated History / Settings tabs (T23-009): ensuring a tab
+        // of one of those types only counts tabs of that type.
+        const pool = spaceId === 'search' ? state.tabs.search.filter((t) => t.type === type) : state.tabs[spaceId]
+        if (pool.length === 0) {
           get().createTab(type)
         } else {
-          const currentId = state.activeTabId[spaceId] ?? state.tabs[spaceId][0].id
+          const active = state.activeTabId[spaceId]
+          const currentId = pool.some((t) => t.id === active) ? active! : pool[0].id
           set({
             activeSpace: spaceId,
             activeTabId: { ...state.activeTabId, [spaceId]: currentId },
@@ -2140,6 +2451,65 @@ export const useAppStore = create<AppState>()(
             sessionDisplayOrders: { ...state.sessionDisplayOrders, [state.currentSessionId]: newOrder },
           })
         }
+      },
+
+      duplicateTab: (spaceId, tabId) => {
+        const s = get()
+        const src = s.tabs[spaceId]?.find((t) => t.id === tabId)
+        if (!src) return null
+        // Leaving a live reader: fold its scroll into state / history first, so the copy opens there.
+        if (s.activeSpace === spaceId && s.activeTabId[spaceId] === tabId) captureActiveScrollIntoNavEntry(get, tabId, spaceId)
+        const fresh = get()
+        const cur = fresh.tabs[spaceId].find((t) => t.id === tabId) ?? src
+        const id = `${cur.type}-${Date.now()}-${randomIdPart()}`
+        const clone = <T,>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)) as T)
+        const state = clone(cur.state)
+        const copy: Tab = { ...clone(cur), id, state: (cur.type === 'bible' ? withoutContextualFilters(state as BibleTabState) : state) as TabState }
+        // Right after the original: the original becomes the active tab, then the copy goes after it.
+        set({ activeTabId: { ...fresh.activeTabId, [spaceId]: tabId } })
+        get().addTab(copy, 'after-active')
+        const stack = fresh.tabNavStacks[tabId]
+        const scroll = fresh.scrollByTab[tabId]
+        set((st) => ({
+          ...(stack ? { tabNavStacks: { ...st.tabNavStacks, [id]: {
+            idx: stack.idx,
+            stack: stack.stack.map((e, i) => ({ ...clone(e), id: `tnav-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}` })),
+          } } } : {}),
+          ...(scroll != null ? { scrollByTab: { ...st.scrollByTab, [id]: scroll } } : {}),
+        }))
+        return id
+      },
+
+      transformTab: (tabId, toType, opts = {}) => {
+        const s = get()
+        const fromSpace = SPACES_ALL.find((sp) => (s.tabs[sp] ?? []).some((t) => t.id === tabId))
+        if (!fromSpace) return null
+        const old = s.tabs[fromSpace].find((t) => t.id === tabId)!
+        if (old.type === toType) {
+          if (opts.state) get().updateTabState(fromSpace, tabId, opts.state as Partial<TabState>)
+          set({ activeSpace: fromSpace, activeTabId: { ...get().activeTabId, [fromSpace]: tabId } })
+          return tabId
+        }
+        if (s.activeSpace === fromSpace && s.activeTabId[fromSpace] === tabId) captureActiveScrollIntoNavEntry(get, tabId, fromSpace)
+        // History: where the tab was (merged into its current step when that step is of the old
+        // type, so Back lands there in one step), then where it went.
+        const snapshot = navSnapshotOf((get().tabs[fromSpace].find((t) => t.id === tabId) ?? old).state)
+        const cur = get().tabNavStacks[tabId] ?? { stack: [], idx: -1 }
+        const kept = cur.stack.slice(0, cur.idx + 1)
+        const top = kept[kept.length - 1]
+        const scrollPosition = typeof snapshot.scrollPosition === 'number' && snapshot.scrollPosition > 0 ? snapshot.scrollPosition : top?.scrollPosition
+        const from: TabNavEntry = top && top.type === old.type
+          ? { ...top, title: top.title || old.title, state: snapshot, switchType: true, ...(scrollPosition ? { scrollPosition } : {}) }
+          : { id: `tnav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type: old.type, title: old.title, state: snapshot, switchType: true, ...(scrollPosition ? { scrollPosition } : {}) }
+        const history = top && top.type === old.type ? [...kept.slice(0, -1), from] : [...kept, from]
+        set({ tabNavStacks: { ...get().tabNavStacks, [tabId]: { stack: history, idx: history.length - 1 } } })
+        const moved = swapTabType(get, set, tabId, toType, { state: opts.state })
+        if (!moved) return null
+        const to: TabNavEntry = { id: `tnav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, ...typeChangeEntryFor(moved.tab, opts.state) }
+        const maxStack = get().tabNavMaxStack ?? 100
+        const stack = [...history, to].slice(-maxStack)
+        set({ tabNavStacks: { ...get().tabNavStacks, [moved.id]: { stack, idx: stack.length - 1 } } })
+        return moved.id
       },
 
       closeTab: (spaceId, tabId) => {
@@ -2293,14 +2663,19 @@ export const useAppStore = create<AppState>()(
         // same search you left, not a reset to Genesis 1. (Previously searchMode was
         // force-cleared on every switch off such a tab, so re-visiting it fell through to
         // the reader at whatever bookId/chapter the tab last held — usually the default.)
-        const tabs = state.tabs[spaceId]
-
+        //
+        // Re-read the store AFTER the flush above: the outgoing panel's listener has just written
+        // its live scroll position (and other view state) into its tab. Committing from the
+        // pre-flush snapshot (`state`) — which this used to do, including a no-op rewrite of
+        // `tabs` — put the OLD tab state straight back, so every tab switch discarded the scroll
+        // position it had just saved (TEST-003: Ctrl+Tab / sidebar switch came back at the top).
+        // `tabs` isn't changed by an activation, so it is not written at all.
+        const fresh = get()
         set({
-          tabs: { ...state.tabs, [spaceId]: tabs },
-          activeTabId: { ...state.activeTabId, [spaceId]: tabId },
+          activeTabId: { ...fresh.activeTabId, [spaceId]: tabId },
           activeSpace: spaceId,
-          tabMRUList: updateMRU(state.tabMRUList, spaceId, tabId),
-          tabLastAccessed: { ...state.tabLastAccessed, [key]: Date.now() },
+          tabMRUList: updateMRU(fresh.tabMRUList, spaceId, tabId),
+          tabLastAccessed: { ...fresh.tabLastAccessed, [key]: Date.now() },
         })
       },
 
@@ -2403,12 +2778,20 @@ export const useAppStore = create<AppState>()(
               }
               // Compare mode toggle
               if ('compareMode' in ns && Boolean(ns.compareMode) !== Boolean(cur.compareMode)) {
+                // The entry carries the compare state (SEP25), and the entry being left is stamped
+                // with its own, so ‹ out of Compare returns to the plain reader (and › back in).
+                const st0 = get().tabNavStacks[tabId]
+                const top0 = st0 && st0.idx >= 0 ? st0.stack[st0.idx] : undefined
+                if (top0 && !(top0.state && 'compareMode' in top0.state)) {
+                  st0!.stack[st0!.idx] = { ...top0, state: { ...(top0.state ?? {}), compareMode: Boolean(cur.compareMode), compareColumns: cur.compareColumns } }
+                }
                 get().pushTabNav(tabId, {
                   type: 'bible',
                   title: ns.compareMode ? `Compare — ${currentTab.title}` : currentTab.title,
                   bookId: (ns.bookId ?? cur.bookId) as string | undefined,
                   chapter: (ns.chapter ?? cur.chapter) as number | undefined,
                   translation: (ns.translation ?? cur.translation) as string | undefined,
+                  state: { compareMode: Boolean(ns.compareMode), compareColumns: ns.compareMode ? (ns.compareColumns ?? cur.compareColumns) : undefined },
                 })
               }
             } else if (currentTab.type === 'note') {
@@ -2470,6 +2853,7 @@ export const useAppStore = create<AppState>()(
       setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(360, width)) }),
 
       recentSearchQueries: [] as string[],
+      clearRecentSearchQueries: () => set({ recentSearchQueries: [] }),
       addRecentSearchQuery: (q) => {
         const trimmed = q.trim()
         if (!trimmed || trimmed.length < 2) return
@@ -2495,6 +2879,11 @@ export const useAppStore = create<AppState>()(
         set({ pendingNoteId: noteId })
       },
       clearPendingNote: () => set({ pendingNoteId: null }),
+      dailyNoteRequestToken: 0,
+      requestDailyNote: () => {
+        set((s) => ({ activeSpace: 'notes', dailyNoteRequestToken: s.dailyNoteRequestToken + 1 }))
+        window.dispatchEvent(new CustomEvent('berean:openDailyNote'))
+      },
       filterNotesByVerse: (verseRef) => set({ pendingVerseFilter: verseRef }),
       clearVerseFilter: () => set({ pendingVerseFilter: null }),
       bumpNoteToken: () => set((s) => ({ noteChangeToken: s.noteChangeToken + 1 })),
@@ -2595,6 +2984,8 @@ export const useAppStore = create<AppState>()(
       clearRightPanelVerseFilter: () => set({ pendingRightPanelVerseFilter: null }),
       clearRightPanelCrossRef: () => set({ pendingRightPanelCrossRefVerse: null }),
       bumpHighlightToken: () => set((s) => ({ highlightChangeToken: s.highlightChangeToken + 1 })),
+      dataEpochs: { playlists: 0, pdfs: 0, youtube: 0, aiChats: 0 },
+      bumpDataEpoch: (kind) => set((s) => ({ dataEpochs: { ...s.dataEpochs, [kind]: s.dataEpochs[kind] + 1 } })),
       setVerseTags: (tags) => set((s) => ({ verseTags: tags, verseTagChangeToken: s.verseTagChangeToken + 1 })),
       bumpVerseTagToken: () => set((s) => ({ verseTagChangeToken: s.verseTagChangeToken + 1 })),
       refreshVerseTags: async () => {
@@ -2620,15 +3011,17 @@ export const useAppStore = create<AppState>()(
         // (which arrives through navigateToVerse with origin 'search-result'). The two together
         // are what make "I went looking for X, and that took me to Y" legible on the map.
         recordSideStop({ kind: 'search', label: `searched for "${query}"` })
-        if (get().tabs['search'].length === 0) get().createTab('search')
+        // Only real Search tabs take a query (the search space also holds History / Settings tabs).
+        const searchTabs = () => get().tabs['search'].filter((t) => t.type === 'search')
+        if (searchTabs().length === 0) get().createTab('search')
         const fresh = get()
         // Prefer the currently active search tab (if it still exists) over always reusing the
         // first one in the array — otherwise a query pushed in while a *different* search tab is
         // active would silently redirect into the wrong tab.
         const activeSearchId = fresh.activeTabId['search']
-        const targetId = fresh.tabs['search'].some((t) => t.id === activeSearchId)
+        const targetId = searchTabs().some((t) => t.id === activeSearchId)
           ? activeSearchId
-          : fresh.tabs['search'][0]?.id ?? null
+          : searchTabs()[0]?.id ?? null
         set({ pendingSearchQuery: query, activeSpace: 'search', activeTabId: { ...fresh.activeTabId, search: targetId } })
       },
       clearSearchQuery: () => set({ pendingSearchQuery: null }),
@@ -2739,7 +3132,7 @@ export const useAppStore = create<AppState>()(
         }
         const state = get()
         // Always create a fresh tab — never reuse an existing search tab
-        const id = `scripture-search-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const id = `scripture-search-${Date.now()}-${randomIdPart()}`
         const tab: Tab = {
           id,
           spaceId: 'scripture',
@@ -2803,7 +3196,7 @@ export const useAppStore = create<AppState>()(
         const tab = state.tabs[spaceId].find(t => t.id === tabId)
         if (!tab) return
         const group: ArchivedGroup = {
-          id: `arch-${Date.now()}`,
+          id: `arch-${Date.now()}-${randomIdPart()}`,
           label: tab.title,
           archivedAt: Date.now(),
           tabs: [tab],
@@ -2822,7 +3215,7 @@ export const useAppStore = create<AppState>()(
         if (allTabs.length === 0) return
         const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
         const group: ArchivedGroup = {
-          id: `arch-${Date.now()}`,
+          id: `arch-${Date.now()}-${randomIdPart()}`,
           label: label ?? `Archive — ${ts}`,
           archivedAt: Date.now(),
           tabs: allTabs,
@@ -3087,6 +3480,7 @@ export const useAppStore = create<AppState>()(
         noteStrongsBlockSuggest: state.noteStrongsBlockSuggest,
         autoEmDash: state.autoEmDash,
         themePreset: state.themePreset,
+        customThemes: state.customThemes,
         backgroundAnimationEnabled: state.backgroundAnimationEnabled,
         backgroundAnimationStyle: state.backgroundAnimationStyle,
         backgroundAnimationIntensity: state.backgroundAnimationIntensity,
@@ -3115,6 +3509,7 @@ export const useAppStore = create<AppState>()(
         ),
         // currentSessionId: per-window (see note in partialize head)
         sessionDisplayOrders: state.sessionDisplayOrders,
+        mobileTabSort: state.mobileTabSort,
         tasksVisible: state.tasksVisible,
         tasksMinimized: state.tasksMinimized,
         completedTaskIds: state.completedTaskIds,
@@ -3159,6 +3554,21 @@ export const useAppStore = create<AppState>()(
         queuePopoverOpen: state.queuePopoverOpen,
         queuePopoverPos: state.queuePopoverPos,
         reasonPromptPopoverPos: state.reasonPromptPopoverPos,
+        // Settings that had a setter + default but were missing from this allow-list, so they
+        // silently reset to their defaults on every restart (found by the iPhone-migration audit,
+        // docs/mobile/implementation-progress.md K1). All device-local preferences.
+        printIncludeLinkedNotes: state.printIncludeLinkedNotes,
+        defaultNoteEditorMode: state.defaultNoteEditorMode,
+        confirmNoteDelete: state.confirmNoteDelete,
+        noteSpellCheck: state.noteSpellCheck,
+        autoCopyOnHighlight: state.autoCopyOnHighlight,
+        noteHeadingDivider: state.noteHeadingDivider,
+        noteBulletStyle: state.noteBulletStyle,
+        showVerseNumbers: state.showVerseNumbers,
+        showRedLetters: state.showRedLetters,
+        continuousChapterScroll: state.continuousChapterScroll,
+        continuousDailyScroll: state.continuousDailyScroll,
+        crossRefSource: state.crossRefSource,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })
@@ -3206,7 +3616,7 @@ const ASK_WHY_SYNC_KEY = 'berean-ask-why-sync'
 // one real writer's latest snapshot. Without this, changing the theme while one of those
 // windows was already open only took effect on that window's NEXT open/reload.
 const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = [
-  'theme', 'themePreset', 'systemAccentColor',
+  'theme', 'themePreset', 'customThemes', 'systemAccentColor',
   'backgroundAnimationEnabled', 'backgroundAnimationStyle', 'backgroundAnimationIntensity',
   'glassAppearance',
 ]

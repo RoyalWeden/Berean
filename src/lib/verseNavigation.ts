@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store'
-import { getTranslationForBook, isDedicatedTranslation, bookChapterVerseLabel } from '@/lib/parseRef'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { resolveTextForBook, chapterForBookSwitch } from '@/lib/textCoverage'
 import type { BibleTabState } from '@/types'
 
 /**
@@ -71,10 +72,25 @@ function consumeSelectionInto(origin: NavOrigin): NavOrigin {
 }
 
 export function navigateToVerse(args: NavigateToVerseArgs): void {
-  const { bookId, chapter, verse, endVerse, noteBack, translationOverride } = args
+  const { bookId, verse, endVerse, noteBack, translationOverride } = args
+  // A chapter the book does not have (Genesis 50 → Ruth) opens chapter 1 instead (TEST-025).
+  const chapter = chapterForBookSwitch(bookId, args.chapter)
   const origin = consumeSelectionInto(args.origin)
   const s = useAppStore.getState()
   s.ensureTab('bible')
+  // The active Scripture tab may be a PDF / tags-graph tab: a verse must land in a Bible tab
+  // (the most recently used one, else a new one), never be written into that tab's state.
+  {
+    const st = useAppStore.getState()
+    const active = st.tabs['scripture'].find((t) => t.id === st.activeTabId['scripture'])
+    if (active && active.type !== 'bible') {
+      const isBible = (id: string) => st.tabs['scripture'].some((t) => t.id === id && t.type === 'bible')
+      const mru = st.tabMRUList.find((m) => m.spaceId === 'scripture' && isBible(m.tabId))
+      const target = mru ? st.tabs['scripture'].find((t) => t.id === mru.tabId) : st.tabs['scripture'].find((t) => t.type === 'bible')
+      if (target) st.setActiveTab('scripture', target.id)
+      else st.createTab('bible')
+    }
+  }
   const fresh = useAppStore.getState()
   const tabId = fresh.activeTabId['scripture']
   if (!tabId) return
@@ -86,16 +102,11 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
     ? { bookId: cur.bookId, chapter: cur.chapter, verse: cur.targetVerse, label: bookChapterVerseLabel(cur.bookId, cur.chapter), translation: currentTranslation }
     : null
 
-  // Auto-switch translation:
+  // Auto-switch translation (shared rule, src/lib/textCoverage.ts):
   //   • target book has a dedicated translation (e.g. enoch, jubilees) → use it
   //   • current translation is dedicated but target book is canonical → switch to kjva
-  const dedicatedTarget = getTranslationForBook(bookId)
-  let newTranslation: string | undefined
-  if (dedicatedTarget) {
-    newTranslation = dedicatedTarget
-  } else if (isDedicatedTranslation(currentTranslation)) {
-    newTranslation = 'kjva'
-  }
+  //   • current translation has no such book (LXX → a New Testament cross ref) → kjva (TEST-009)
+  let newTranslation: string | undefined = resolveTextForBook(currentTranslation, bookId)
   if (translationOverride) newTranslation = translationOverride
 
   // Navigating from a note: record the note as the previous history entry of THIS Scripture

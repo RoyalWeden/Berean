@@ -74,3 +74,62 @@ describe('bookFilterSummary', () => {
     expect(bookFilterSummary(['GEN', 'MAT'], nameOf)).toBe('2 books')
   })
 })
+
+import {
+  BOOK_SECTIONS, APOCRYPHA_BOOK_IDS, bookSections, booksSummary, selectGroup, clearGroup,
+  groupSelectionState, sortBookIds,
+} from '../scriptureSearchFilters'
+
+describe('BOOK_SECTIONS', () => {
+  it('orders OT, Apocrypha, NT with 39 / 17 / 27 individual books', () => {
+    expect(BOOK_SECTIONS.map((s) => s.label)).toEqual(['Old Testament', 'Apocrypha', 'New Testament'])
+    expect(BOOK_SECTIONS.map((s) => s.books.length)).toEqual([39, APOCRYPHA_BOOK_IDS.length, 27])
+    expect(BOOK_SECTIONS[0].books[0]).toBe('GEN')
+    expect(BOOK_SECTIONS[2].books.at(-1)).toBe('REV')
+  })
+})
+
+describe('sortBookIds', () => {
+  it('sorts canonically and de-duplicates', () => {
+    expect(sortBookIds(['REV', 'TOB', 'GEN', 'GEN', 'MAL'])).toEqual(['GEN', 'MAL', 'TOB', 'REV'])
+  })
+  it('puts non-canon books after the sections', () => {
+    expect(sortBookIds(['HER_VIS', 'GEN'])).toEqual(['GEN', 'HER_VIS'])
+  })
+})
+
+describe('bookSections', () => {
+  it('lists individual books with shared names, filtered by availability and query', () => {
+    const all = bookSections()
+    expect(all[0].books[0]).toEqual({ id: 'GEN', name: 'Genesis' })
+    const onlyGenMat = bookSections({ available: ['GEN', 'MAT'] })
+    expect(onlyGenMat.map((s) => s.id)).toEqual(['ot', 'nt'])
+    const q = bookSections({ query: 'macc' })
+    expect(q.map((s) => s.id)).toEqual(['apocrypha'])
+    expect(q[0].books.map((b) => b.id)).toEqual(['1MA', '2MA', '3MA', '4MA'])
+  })
+})
+
+describe('selectGroup / clearGroup / groupSelectionState', () => {
+  it('select adds (never removes) and keeps canonical order; clear removes', () => {
+    expect(selectGroup(['MAT', 'GEN'], torah.books)).toEqual(['GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'MAT'])
+    expect(selectGroup(torah.books, torah.books)).toEqual(torah.books)
+    expect(clearGroup(['MAT', 'GEN', 'EXO'], torah.books)).toEqual(['MAT'])
+  })
+  it('reports none / some / all', () => {
+    expect(groupSelectionState([], torah.books)).toBe('none')
+    expect(groupSelectionState(['GEN'], torah.books)).toBe('some')
+    expect(groupSelectionState(torah.books, torah.books)).toBe('all')
+  })
+})
+
+describe('booksSummary', () => {
+  it('summarizes empty, a whole section/group, and individual books', () => {
+    expect(booksSummary([])).toBe('Every book')
+    expect(booksSummary(BOOK_SECTIONS[0].books)).toBe('Old Testament')
+    expect(booksSummary(['NUM', 'GEN', 'DEU', 'EXO', 'LEV'])).toBe('Torah')
+    expect(booksSummary(['GEN'])).toBe('Genesis')
+    expect(booksSummary(['EXO', 'GEN'])).toBe('Genesis, Exodus')
+    expect(booksSummary(['GEN', 'EXO', 'MAT', 'REV', 'TOB'])).toBe('Genesis, Exodus +3')
+  })
+})

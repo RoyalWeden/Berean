@@ -122,6 +122,41 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.6.20] - 2026-09-28
+
+### Berean on iPhone
+
+- Berean now has an iPhone app: the same library of texts, Strong's, cross
+  references, notes, highlights, verse tags, tabs and workspaces, designed for
+  the phone — tab cards, a contextual plus button and a caret menu at the
+  bottom; a full-screen reader with verse sheets; a folder-based Notes home in
+  the style of Apple Notes; floating search; calendar and daily notes; read
+  aloud; a Share Extension ("Open in Berean"); Spotlight and Shortcuts.
+- The iPhone app is distributed through TestFlight while it is in beta.
+
+### iCloud sync (Mac and iPhone)
+
+- Notes, highlights, verse tags, tabs, sessions and workspaces sync between
+  your Mac and iPhone through iCloud, and keep working offline.
+- Changes made on two devices at the same time now merge instead of one
+  overwriting the other: pinning a note on one device and editing it on another
+  keeps both. When the same text is changed on both, the other version is kept
+  in the note's Versions.
+- Sync never deletes your data because a device is empty, reinstalled,
+  restored from a backup or signed into a different iCloud account — it pauses
+  and asks instead. Turning iCloud Sync off never deletes anything.
+- Settings › iCloud shows clear status, the first sync's real progress, your
+  devices and, under Advanced, diagnostics. Open notes, tabs and panels update
+  by themselves when another device changes something.
+- Berean backs up its database before every update that changes it.
+
+### Look & feel
+
+- A shared glass style for floating controls, sheets and menus that respects
+  Reduce Transparency, Increase Contrast and Reduce Motion; secondary and
+  accent colours in the default theme were adjusted to meet readability
+  contrast guidelines.
+
 ## [0.6.19] - 2026-09-20
 
 ### Look & feel — controls and buttons

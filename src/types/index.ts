@@ -18,7 +18,9 @@ export type ScriptureLayout =
   | 'commentary'       // Wide notes left | Scripture right — 50/50 with no tab strip on notes
   | 'split-bottom'     // Scripture top | Notes left + Lexicon right in bottom row
 
-export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags'
+/** 'history' / 'settings' are dedicated tabs created from the iPhone New Tab sheet (T23-009); they
+ *  live in the search space ("tools") and desktop shows a small fallback panel for them. */
+export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf' | 'tags' | 'history' | 'settings' | 'calendar'
 
 export interface BibleTabState {
   bookId: string
@@ -72,6 +74,9 @@ export interface BibleTabState {
   // than one value per sub-tab.
   rightPanelScrollTop?: number
   rightPanelScrollTopB?: number
+  /** Per-sub-tab side-panel scroll offsets (device-local, TEST-008). */
+  rightPanelScrollTops?: Partial<Record<'notes' | 'lexicon' | 'crossrefs', number>>
+  rightPanelScrollTopsB?: Partial<Record<'notes' | 'lexicon' | 'crossrefs', number>>
   // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
   // moveTab/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
   // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,
@@ -121,6 +126,9 @@ export interface NoteTabState {
   listScrollTop?: number
   /** Epoch ms of the day currently in view in continuous-daily-scroll mode. */
   continuousDailyDate?: number
+  /** iPhone Notes list: type filter chip and folder shown (part of the tab's history — SEP25). */
+  listFilter?: 'all' | 'scripture' | 'topic' | 'daily' | 'video' | 'pinned'
+  listFolderId?: string | null
   /** Per-tab snapshot of the home (list/folder/board) view's UI state. NotesPanel is ONE shared
    *  instance across every Notes tab; without this, filters/search/preview selection leaked
    *  between tabs. Saved when leaving a tab, restored when entering it; absent = defaults. */
@@ -203,6 +211,34 @@ export interface SearchTabState {
   query: string
   results: SearchResult[]
   scrollTop?: number
+  /** iPhone Search page: what this tab searches and its Scripture filters (per tab, so several
+   *  Search tabs keep their own state — T23-009). Opaque to desktop. */
+  scope?: 'all' | 'scripture' | 'notes' | 'lexicon'
+  filters?: Record<string, unknown>
+}
+
+/** A dedicated History tab (T23-009): its own category / study-only filter. */
+export interface HistoryTabState {
+  category?: string
+  studyOnly?: boolean
+}
+
+/** A dedicated Settings tab (T23-009). */
+/** The persistent Calendar experience (SEP27-CAL-005): the month shown and the day picked last.
+ *  Date navigation only — choosing a day opens that day's daily note (in this same tab). */
+export interface CalendarTabState {
+  /** "YYYY-MM" */
+  month?: string
+  /** "YYYY-MM-DD" — the day last chosen (highlighted when the tab is shown again). */
+  selected?: string | null
+}
+
+export interface SettingsTabState {
+  /** Reserved for a deep-linked settings section. */
+  section?: string
+  /** iPhone Settings tab: the open subsection page (null/absent = the Settings root). A history
+   *  step (SEP25 per-tab history) — back / forward restore it. */
+  settingsRoute?: string | null
 }
 
 export interface PdfTabState {
@@ -225,6 +261,19 @@ export interface PdfDoc {
   pageCount: number
   fileSize: number
   importedAt: number
+  /** SHA-256 of the file (v46) — lets another device attach the same file to synced metadata. */
+  fileHash?: string | null
+  /** True when the metadata arrived via iCloud sync and the file has not been imported on this
+   *  device yet (set by the platform's list/get, which is what knows where files live). */
+  fileMissing?: boolean
+}
+
+export interface PdfBookmark {
+  id: string
+  pdfId: string
+  page: number
+  label: string
+  createdAt: number
 }
 
 export interface PdfHighlight {
@@ -247,6 +296,9 @@ export type TabState =
   | SearchTabState
   | PdfTabState
   | TagsTabState
+  | HistoryTabState
+  | SettingsTabState
+  | CalendarTabState
 
 export interface Tab {
   id: string
@@ -483,6 +535,18 @@ export interface TabNavEntry {
   /** Scroll offset (px) the panel was at when navigation last left this entry — restored on
    *  Cmd+[ / Cmd+] so back/forward returns to where the user was reading, not the chapter top. */
   scrollPosition?: number
+  /** Generic snapshot of the tab's meaningful state at this destination (SEP25 per-tab
+   *  history): re-applied with updateTabState on back / forward. Used by tab types whose
+   *  destinations are not a chapter / note / entry / video / page — Search (query, scope,
+   *  filters), Settings (section path), the Notes list (folder / view) — and to carry extra
+   *  context (scroll) for the others. */
+  state?: Record<string, unknown>
+  /** A tab's "home" destination (the Notes list, the Lexicon search, the YouTube browse view)
+   *  recorded as a real history step, so ‹ from a note returns to the list and › returns. */
+  home?: boolean
+  /** Recorded by `transformTab` (iPhone tab-type switcher, TEST25-NAV-001): restoring this entry
+   *  from a tab of ANOTHER type turns the tab back into `type` (same position, same history). */
+  switchType?: boolean
 }
 
 /** A single entry in the global back/forward navigation stack (all tab types). */

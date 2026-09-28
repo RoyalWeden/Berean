@@ -20,7 +20,24 @@ export type TrailRef =
   | { kind: 'chapter'; bookId: string; chapter: number; verse?: number }
   | { kind: 'lexicon'; strongsNum: string }
 
+// ── Touch hosts (iPhone) ─────────────────────────────────────────────────────────────────────
+// The phone renders these same views inside its single renderer: there is no second window to
+// round-trip through, no ⌘ key, and WKWebView fires no `contextmenu` on a press. A host installs a
+// navigator (which talks to the shared store directly) and may ask for a PLAIN tap to navigate —
+// the desktop's "plain click never navigates" rule stays untouched while nothing is installed.
+type TrailNavigator = (ref: TrailRef, newTab: boolean) => void
+let installedNavigator: TrailNavigator | null = null
+let plainClickNavigates = false
+
+/** Install (or, with null, remove) the host's navigator. Returns an uninstaller for effects. */
+export function installTrailNavigator(nav: TrailNavigator | null, opts: { plainClickNavigates?: boolean } = {}): () => void {
+  installedNavigator = nav
+  plainClickNavigates = !!nav && !!opts.plainClickNavigates
+  return () => { if (installedNavigator === nav) { installedNavigator = null; plainClickNavigates = false } }
+}
+
 export function navigateTrailRef(ref: TrailRef, newTab: boolean): void {
+  if (installedNavigator) { installedNavigator(ref, newTab); return }
   if (ref.kind === 'chapter') {
     window.app.navigateMainToRef({ kind: 'chapter', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, newTab })
   } else {
@@ -31,7 +48,7 @@ export function navigateTrailRef(ref: TrailRef, newTab: boolean): void {
 /** Handles a click on a trail reference label. Returns true if it navigated, so the caller can
  *  skip whatever a plain click means for it (expanding/collapsing the row). */
 export function trailRefClick(ref: TrailRef, e: React.MouseEvent): boolean {
-  if (!(e.metaKey || e.ctrlKey)) return false
+  if (!(e.metaKey || e.ctrlKey) && !plainClickNavigates) return false
   e.stopPropagation()
   e.preventDefault()
   navigateTrailRef(ref, e.shiftKey)

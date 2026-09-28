@@ -1,11 +1,13 @@
+import { floatingTabState } from '@/lib/floatingTab'
 import { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { SPRING_SNAPPY } from '@/lib/motion'
-import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, History, Settings as SettingsIcon, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, Waypoints, CalendarDays, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
 import { IconButton, ListRow, MenuItem, MenuSeparator, MenuLabel, RefChip, useContextMenu, cx } from '@/components/ui'
+import { setTabInteraction } from '@/store/tabPersistenceRuntime'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -15,6 +17,9 @@ const TAB_ICONS: Record<TabType, LucideIcon> = {
   search:  Search,
   pdf:     FileType2,
   tags:    Waypoints,
+  history: History,
+  settings: SettingsIcon,
+  calendar: CalendarDays,
 }
 
 // Per-type color for the tab icon in the unified (unfiltered, unsectioned)
@@ -29,6 +34,9 @@ const TAB_ICON_CLASS: Record<TabType, string> = {
   search:  'text-tab-search',
   pdf:     'text-tab-pdf',
   tags:    'text-tab-tags',
+  history: 'text-tab-search',
+  settings: 'text-tab-search',
+  calendar: 'text-tab-note',
 }
 
 interface TabBarProps {
@@ -105,6 +113,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   // ── Drag handlers ──────────────────────────────────────────────────────
 
   function handleDragStart(e: React.DragEvent, idx: number) {
+    setTabInteraction(true)
     draggingIdxRef.current = idx
     draggingTabRef.current = tabs[idx] ?? null
     leftWindowRef.current  = false
@@ -502,6 +511,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   }
 
   function handleDragEnd(e: React.DragEvent) {
+    setTabInteraction(false)
     // Use coordinate check: if cursor is within window bounds at dragend, user dragged back — cancel float
     const insideWindow = e.clientX > 0 && e.clientX < window.innerWidth &&
                          e.clientY > 0 && e.clientY < window.innerHeight
@@ -516,11 +526,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
 
     if (wentOutside && tab && tab.type !== 'tags') {
       const floatType = tab.type === 'note' ? 'notes' : tab.type
-      const rawState = (tab.state ?? {}) as unknown as Record<string, unknown>
-      const floatState: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(rawState)) {
-        if (v !== null && v !== undefined) floatState[k] = v
-      }
+      const floatState = floatingTabState((tab.state ?? {}) as unknown as Record<string, unknown>)
       if (floatType === 'bible' && floatState.rightPanelOpen === true) {
         floatState.rightPanelOpen  = false
         floatState._rightPanelWasOpen = 'true'
@@ -706,22 +712,8 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             <MenuItem
               icon={Copy}
               label="Duplicate tab"
-              onClick={() => {
-                const store = useAppStore.getState()
-                const newTab = {
-                  ...menuTab,
-                  // Random suffix, not just Date.now() — a bare timestamp can collide with
-                  // another tab created/duplicated in the same millisecond (e.g. clicking
-                  // "Duplicate tab" twice in quick succession), and addTab() treats a
-                  // matching id as "this tab already exists," silently switching to the
-                  // existing tab instead of creating a real duplicate — the reported
-                  // "duplicating tabs isn't working." Matches createTab's own id scheme.
-                  id: `${menuTab.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  // Deep-clone the state so the duplicate is independent
-                  state: JSON.parse(JSON.stringify(menuTab.state)),
-                }
-                store.addTab(newTab)
-              }}
+              // The shared duplicate (SEP26-TABS): state + independent copy of the tab's history.
+              onClick={() => { useAppStore.getState().duplicateTab(menuTab.spaceId, menuTab.id) }}
             />
             )}
             <MenuSeparator />

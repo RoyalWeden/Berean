@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useContext, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, NotepadText, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2, Tag as TagIcon } from 'lucide-react'
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
@@ -11,6 +11,7 @@ import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { navigateToVerse, recordNavigation } from '@/lib/verseNavigation'
 import { applyFindHighlight } from '@/lib/highlight'
+import { verseMatchesFind } from '@/lib/scriptureFind'
 import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
@@ -24,6 +25,8 @@ import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import { VerseInteractionContext, verseRowKey, type VerseActionContext } from './verseInteraction'
+import { startVerseDrag, consumeDragClick } from './verseDragSelect'
 import type { Swatch } from '@/components/ui'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
@@ -182,7 +185,9 @@ function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement)
   const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
   let curr: Text | null
   while ((curr = walker.nextNode() as Text) !== null) {
-    const isAnnotation = !!(curr.parentElement)?.closest('[data-strongs-chip], [aria-hidden]')
+    // `[aria-hidden="true"]` only: an ancestor rendered with aria-hidden="false" (the phone reader's
+    // current pane) is NOT hidden — matching the bare attribute zeroed every offset there.
+    const isAnnotation = !!(curr.parentElement)?.closest('[data-strongs-chip], [aria-hidden="true"]')
     if (curr === node) return pos + (isAnnotation ? 0 : offset)
     if (!isAnnotation) pos += curr.length
   }
@@ -553,6 +558,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   // selection) — it tints the row and number badge but is NOT in the store, so the selection bar
   // count and copy/highlight/tag actions still act only on what the user actually clicked.
   const isSelected = storeSelected || !!forceSelected
+  // A range drag is in progress in this row's tab — selected rows get an outline so the range
+  // being built is unmistakable while the pointer is still down (TEST-001).
+  const dragInThisTab = useAppStore((s) => !!s.verseDrag && s.verseDrag.tabId === rowTabId)
   const toggleVerseSelection = useAppStore((s) => s.toggleVerseSelection)
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -621,7 +629,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     setPopoverOpen(false)
   }
 
-  async function addVerseNote() {
+  async function addVerseNote(): Promise<string | null> {
     const verseRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
     // Title carries the LXX marker so it reads as Septuagint; the note is keyed to its translation.
     const title = `${bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)}${lxxSuffix}`
@@ -631,7 +639,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       bumpNoteToken()
       bumpVerseNoteToken()
       openNoteInBiblePanel(result.note.id)
+      return result.note.id
     }
+    return null
   }
 
   function openVerseNotes() {
@@ -782,25 +792,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
 
   const MENU_W = 200
 
-  const handleVerseMouseUp = useCallback((e: React.MouseEvent) => {
-    // Right-click (button 2) is handled by onContextMenu; skip selection toolbar for it
-    // to prevent a second menu appearing when right-clicking over selected text.
-    if (e.button === 2) return
+  /** The current DOM selection mapped to verse.text character offsets, or null when there is
+   *  no selection inside this verse. Shared by the desktop selection toolbar and the touch
+   *  action sheet. */
+  const computeSelectionRange = useCallback((): { startChar: number; endChar: number; rawStart: number; rawEnd: number; dispText: string } | null => {
     const sel = window.getSelection()
-    if (!sel || sel.isCollapsed || !verseTextRef.current) {
-      setSelToolbar(null)
-      return
-    }
-    if (!verseTextRef.current.contains(sel.anchorNode)) {
-      setSelToolbar(null)
-      return
-    }
-    if (!verseTextRef.current.contains(sel.focusNode)) {
-      setSelToolbar(null)
-      return
-    }
+    if (!sel || sel.isCollapsed || !verseTextRef.current) return null
+    if (!verseTextRef.current.contains(sel.anchorNode)) return null
+    if (!verseTextRef.current.contains(sel.focusNode)) return null
     const range = sel.getRangeAt(0)
-
     // Offsets are measured against the rendered (display) text, which may differ from
     // verse.text when the word replacer / annotation hiding is active. Map them back to
     // verse.text positions so the stored char-offset highlight aligns with the selection.
@@ -809,6 +809,19 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     const dispText = renderedDisplayTextRef.current
     const startChar = rawStart < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawStart)
     const endChar = rawEnd < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawEnd)
+    return { startChar, endChar, rawStart, rawEnd, dispText }
+  }, [verse.text])
+
+  const handleVerseMouseUp = useCallback((e: React.MouseEvent) => {
+    // Right-click (button 2) is handled by onContextMenu; skip selection toolbar for it
+    // to prevent a second menu appearing when right-clicking over selected text.
+    if (e.button === 2) return
+    const computed = computeSelectionRange()
+    if (!computed) {
+      setSelToolbar(null)
+      return
+    }
+    const { startChar, endChar, rawStart, rawEnd, dispText } = computed
 
     // ── TEMP DIAGNOSTIC — Revelation/Recognitions-of-Clement highlight investigation ──
     // Flip HIGHLIGHT_OFFSET_DEBUG to false (or delete this block) once the repro is confirmed;
@@ -960,16 +973,24 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     const sc = selToolbar?.startChar ?? 0
     const ec = selToolbar?.endChar ?? 0
     setSelToolbar(null)
+    await clearRangeHighlights(sc, ec)
+  }
+
+  async function clearRangeHighlights(sc: number, ec: number) {
     window.getSelection()?.removeAllRanges()
     await removeOverlappingHighlights(sc, ec)
     bumpHighlightToken()
   }
 
   async function applySelectionHighlight(color: HighlightColor) {
-    window.getSelection()?.removeAllRanges()
     const sc = selToolbar?.startChar ?? 0
     const ec = selToolbar?.endChar ?? 0
     setSelToolbar(null)
+    await applyRangeHighlight(sc, ec, color)
+  }
+
+  async function applyRangeHighlight(sc: number, ec: number, color: HighlightColor) {
+    window.getSelection()?.removeAllRanges()
     // Check if selection exactly matches an existing highlight with the same color (toggle off)
     const exactMatch = highlights.find(h =>
       h.startChar === sc && h.endChar === ec && h.color === color
@@ -997,6 +1018,79 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     bumpHighlightToken()
   }
 
+  // ── Touch presentation (iPhone): long-press → the shell's action sheet, built from the same
+  //    functions the desktop popover and selection toolbar call (see verseInteraction.ts).
+  const interaction = useContext(VerseInteractionContext)
+  const isTouch = interaction.interaction === 'touch'
+  // Touch verse-number marks (SEP25): which annotations the number shows, and their colours.
+  const touchMarkKinds = isTouch ? [noteCount > 0 ? 'note' : '', hasNoteCrossRef ? 'xref' : '', verseTags.length ? 'tag' : ''].filter(Boolean).join(' ') : ''
+  const touchMarkVars: React.CSSProperties = isTouch ? {
+    ...(noteCount > 0 ? { ['--vn-note' as string]: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue } : {}),
+    ...(verseTags.length ? { ['--vn-tag' as string]: (verseTags[0].color || verseTags[0].colorSlot != null) ? resolveTagColor(verseTags[0]) : 'rgb(var(--color-accent))' } : {}),
+  } : {}
+  const buildTouchCtx = useCallback((): VerseActionContext => {
+    const computed = computeSelectionRange()
+    const selection = computed && computed.startChar >= 0 && computed.endChar > computed.startChar
+      ? { startChar: computed.startChar, endChar: computed.endChar, text: window.getSelection()?.toString() ?? '' }
+      : null
+    const ctx: VerseActionContext = {
+      verse, textId: textId ?? 'kjva',
+      verseRef: `${verse.book_id}.${verse.chapter}.${verse.verse_num}`,
+      label: verseRef,
+      activeHighlight,
+      selection,
+      copyVerse, copyReference, addVerseNote, playAudioFromHere,
+      highlightVerse: applyHighlight,
+      removeVerseHighlight: removeHighlight,
+      highlightRange: applyRangeHighlight,
+      clearRangeHighlights,
+      tagRanges: (scope) => {
+        const ranges = scope === 'chapter' ? chapterRanges(verse.book_id, verse.chapter) : selectionToRanges([{ bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num }])
+        return { ranges, label: rangesLabel(ranges), kind: scope === 'chapter' ? 'chapter' : 'verses' }
+      },
+    }
+    if (import.meta.env.VITE_E2E_PROBE === '1') (ctx as unknown as { __computed: unknown }).__computed = computed
+    return ctx
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computeSelectionRange, verse, textId, activeHighlight, verseRef])
+  const requestTouchActions = useCallback(() => { interaction.onRequestActions?.(buildTouchCtx()) }, [interaction, buildTouchCtx])
+  // Register this row's context builder so the reader's single selectionchange listener can open
+  // the verse sheet for a native long-press text selection inside this verse (TEST-039).
+  const buildTouchCtxRef = useRef(buildTouchCtx)
+  buildTouchCtxRef.current = buildTouchCtx
+  const registerRow = interaction.registerRow
+  useEffect(() => {
+    if (!isTouch || !registerRow) return
+    return registerRow(verseRowKey(textId ?? 'kjva', verse.book_id, verse.chapter, verse.verse_num), () => buildTouchCtxRef.current())
+  }, [isTouch, registerRow, textId, verse.book_id, verse.chapter, verse.verse_num])
+  // Touch tap model (TEST-035 / TEST-039): a quick tap ANYWHERE in the row (text, whitespace, the
+  // number) selects the verse; a long-press is left to iOS's native text selection (handles); a tap
+  // that merely dismisses an active text selection selects nothing. Taps on interactive children
+  // (Strong's chips, links, indicator pills, buttons) keep their own behaviour.
+  const touchPress = useRef<{ x: number; y: number; t: number; moved: boolean; hadSelection: boolean; ignore: boolean }>({ x: 0, y: 0, t: 0, moved: false, hadSelection: false, ignore: false })
+  const touchHandlers = isTouch ? {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      const sel = window.getSelection()
+      const t = touchPress.current
+      t.x = e.clientX; t.y = e.clientY; t.t = Date.now(); t.moved = false
+      t.hadSelection = !!sel && !sel.isCollapsed && sel.toString().trim().length > 0
+      t.ignore = !!(e.target as HTMLElement).closest?.('button, a, input, [data-strongs-chip], [data-no-verse-tap]')
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const t = touchPress.current
+      if (Math.abs(e.clientX - t.x) > 10 || Math.abs(e.clientY - t.y) > 10) t.moved = true
+    },
+    onPointerUp: () => {
+      const t = touchPress.current
+      if (t.ignore || t.moved || t.hadSelection || Date.now() - t.t > 450) return
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return // a selection is being made
+      interaction.onVerseTap?.(buildTouchCtx())
+    },
+    onPointerCancel: () => { touchPress.current.moved = true },
+  } : {}
+
   // Find-bar: does this verse contain the query? Memoized on the actual inputs so ChapterView
   // passing the same findQuery/findWordMode to every VerseRow doesn't force this string work
   // to redo on every keystroke-triggered render of every OTHER verse in the chapter.
@@ -1007,12 +1101,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
     // touch verse.text — are only present in renderedDisplayText, so testing verse.text
     // alone meant typing "yehovah" (or any replaced word) found nothing to highlight even
     // though the panel's match counter, which reads the rendered DOM, still counted it.
-    const t = `${verse.text}\n${renderedDisplayText}`.toLowerCase()
-    const q = findQuery.trim().toLowerCase()
-    if (findWordMode === 'phrase') return t.includes(q)
-    const words = q.split(/\s+/).filter(Boolean)
-    if (findWordMode === 'all') return words.every(w => t.includes(w))
-    return words.some(w => t.includes(w))
+    return verseMatchesFind(verse.text, renderedDisplayText, findQuery, findWordMode)
   }, [findQuery, findWordMode, verse.text, renderedDisplayText])
 
   const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
@@ -1171,7 +1260,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         const wordPx = (w: string) => Math.max(5, (w.match(/\p{L}/gu)?.length ?? 0) * CH)
         const groupPx = (g: Grp) => g.members.reduce((s, mi) => s + wordPx(displayTokens[mi].word), 0) + 4 * (g.members.length - 1)
         const groupGaps: Record<number, number> = {}
-        for (let gi = 0; gi < groups.length - 1; gi++) {
+        // Touch renders numbers inline after the word (no centred pill under it), so there is no
+        // overlap to make room for — the extra gaps only broke up the line (TEST-038).
+        for (let gi = 0; !isTouch && gi < groups.length - 1; gi++) {
           const a = groups[gi], b = groups[gi + 1]
           if (a.k == null) continue
           const aHalf = Math.max(...numsOf(displayTokens[a.members[0]]).map(chipW)) / 2
@@ -1497,8 +1588,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'}`}
+      data-verse-row=""
+      data-book={verse.book_id}
+      data-chapter={verse.chapter}
+      data-text={selfTextId}
+      className={`flex items-baseline gap-3 group relative mb-3 rounded-card transition-colors duration-100 ${superscription ? 'text-[0.9em] text-text-muted border-l-2 border-border pl-3' : ''} ${isSelected ? 'bg-accent-muted' : rowStyle ? '' : 'hover:bg-lift-1'} ${isSelected && dragInThisTab ? 'ring-1 ring-inset ring-accent/70' : ''}`}
       style={rowStyle}
+      {...touchHandlers}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
            superscription row); right-clicking the text still opens the popover in that case */}
@@ -1506,9 +1602,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
         <button
           onClick={(e) => {
             e.stopPropagation()
+            if (consumeDragClick()) return // the click that ends a range drag (TEST-001)
+            if (isTouch) return // touch: the row's tap handler selects the verse (TEST-035)
             toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
           }}
-          onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
+          // Press on a verse number and drag across verses → range selection (TEST-001).
+          onPointerDown={(e) => startVerseDrag(e, rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })}
+          onContextMenu={(e) => { e.preventDefault(); if (isTouch) requestTouchActions(); else openPopover(e) }}
           // Keyboard verse model (§8.4): only while a badge is focused. Enter toggles selection,
           // ⇧↑/↓ extends (handled by the chapter root via data attributes), Shift+F10 opens the
           // verse menu. Space / Page keys / Home / End are NOT bound — they stay native scroll keys.
@@ -1518,7 +1618,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
           }}
           tabIndex={-1}
           data-verse-badge={verse.verse_num}
-          aria-label={`Verse ${verse.verse_num}${isSelected ? ', selected' : ''}`}
+          aria-label={`Verse ${verse.verse_num}${isSelected ? ', selected' : ''}${isTouch && noteCount > 0 ? `, ${noteCount} note${noteCount === 1 ? '' : 's'}` : ''}${isTouch && hasNoteCrossRef ? ', cross references in your notes' : ''}${isTouch && verseTags.length ? `, tagged ${verseTags.map((t) => t.name).join(', ')}` : ''}`}
           aria-pressed={isSelected}
           className={`
             focus-ring inline-flex items-center justify-center text-[0.72em] font-medium leading-none
@@ -1530,11 +1630,16 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                 : 'text-text-quaternary tabular-nums hover:text-accent hover:bg-accent-muted'
             }
           `}
-          style={{ width: '1.9em', minWidth: '1.9em' }}
+          // No native pan/scroll starting on the badge, so a touch drag reaches the range gesture.
+          style={isTouch ? { width: '1.45em', minWidth: '1.45em', touchAction: 'none', ...touchMarkVars } : { width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
+          data-marks={isTouch ? touchMarkKinds || undefined : undefined}
         >
           {verse.verse_num}
+          {/* Touch (SEP25): notes / cross references / tags live IN the number — colour +
+              underline, a corner dot, a tint behind it — so they never take horizontal space. */}
+          {isTouch && hasNoteCrossRef && <span className="verse-num-xref" aria-hidden />}
         </button>
-        {verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
+        {!isTouch && verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
 
         {popoverOpen && (
           <MenuSurface
@@ -1571,21 +1676,23 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
       <div
         ref={verseTextRef}
         data-verse-text="true"
-        onMouseUp={handleVerseMouseUp}
-        onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
+        onMouseUp={isTouch ? undefined : handleVerseMouseUp}
+        onContextMenu={(e) => { e.preventDefault(); if (isTouch) requestTouchActions(); else openPopover(e) }}
         className="flex-1 min-w-0 text-text-primary transition-[line-height] duration-200"
         // Verse-text line spacing follows the user's own compact/comfortable/spacious setting
         // (--line-height-comfortable). The Strong's numbers are absolute overlays in the leading
         // gap and normally need no extra room — the ONE exception is "compact" (1.3), where the
         // gap is too small, so when Strong's is on we floor the line-height at 1.65. For the
         // other two settings max() is a no-op, so toggling Strong's changes nothing at all.
-        style={{ lineHeight: renderStrongs ? 'max(var(--line-height-comfortable), 1.65)' : 'var(--line-height-comfortable)' }}
+        // Touch renders Strong's inline (superscript) — no leading-gap floor needed there, so the
+        // Line height setting applies unchanged (TEST-024 / TEST-038).
+        style={{ lineHeight: renderStrongs && !isTouch ? 'max(var(--line-height-comfortable), 1.65)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>
 
       {/* ── Verse annotation pill (notes + cross-refs) ─────────────────────── */}
-      {(noteCount > 0 || hasNoteCrossRef) && (
+      {!isTouch && (noteCount > 0 || hasNoteCrossRef) && (
         <div className="flex-shrink-0 self-start mt-[3px] ml-0.5">
           {/* Pill wraps both icons when both present; bare icon when solo. When ONLY ONE
               indicator is present, a hover/click anywhere in the pill opens it (icon glyphs
@@ -1847,6 +1954,8 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
               value={activeHighlight}
               onChange={(id) => { if (id) applySelectionHighlight(id as HighlightColor); else clearSelectionHighlights() }}
               allowNone
+              noneLabel="Remove highlight"
+              rows={2}
               size={16}
             />
           </div>
@@ -1935,7 +2044,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   const title = bookChapterVerseLabel(r.bookId, r.chapter)
                   const originTabId = s.activeTabId[s.activeSpace] ?? undefined
                   s.addTab({
-                    id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+                    id: `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, spaceId: 'scripture', type: 'bible', title,
                     state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation, showStrongs: false, scrollPosition: 0 },
                     ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
                   })

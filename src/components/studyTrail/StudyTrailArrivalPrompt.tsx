@@ -66,7 +66,7 @@ const PILL_WIDTH = 250
 // Per direct feedback: "i think when i dont have the ask why thing toggle, i might want to still
 // put the reason why i went to where i went so there should maybe be a little thing that pops up
 // in the topbar."
-export default function StudyTrailArrivalPrompt() {
+export default function StudyTrailArrivalPrompt({ bottomInset = 0 }: { /** Touch hosts: height of the shell's bottom bars the pill must clear (plus the safe area). */ bottomInset?: number } = {}) {
   const conn = useStudyTrailStore((s) => s.pendingArrivalPrompt)
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
@@ -86,7 +86,7 @@ export default function StudyTrailArrivalPrompt() {
   }
   // Always rendered (even when conn is null) — ArrivalPill manages its own brief fade-out
   // after conn clears, rather than being yanked off screen instantly. See its own comment.
-  return <ArrivalPill conn={conn} origin={origin} onClose={clear} />
+  return <ArrivalPill conn={conn} origin={origin} onClose={clear} bottomInset={bottomInset} />
 }
 
 /** The lightweight, non-blocking alternative to the full popup — a small toast pinned to the
@@ -116,7 +116,7 @@ export default function StudyTrailArrivalPrompt() {
 // changes), which is exactly why "more refreshed and less intrusive" didn't show up here.
 const TRANSITION_MS = 180
 
-function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; origin: { bookId: string; chapter: number } | null; onClose: () => void }) {
+function ArrivalPill({ conn, origin, onClose, bottomInset = 0 }: { conn: TrailConnection | null; origin: { bookId: string; chapter: number } | null; onClose: () => void; bottomInset?: number }) {
   const [hovering, setHovering] = useState(false)
   const [touched, setTouched] = useState(false)
   const expanded = touched || hovering
@@ -229,7 +229,7 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection | null; 
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       style={{
-        position: 'fixed', right: rightPx, bottom: bottomPx,
+        position: 'fixed', right: rightPx, bottom: bottomInset ? `calc(${bottomPx + bottomInset}px + env(safe-area-inset-bottom, 0px))` : bottomPx,
         zIndex: (modalOpen ? 'var(--z-raised)' : 'var(--z-popover)') as unknown as number,
         width: PILL_WIDTH, overflow: 'hidden',
         opacity: swipeOpacity, transform: `translateY(${swipeTranslateY}px)`,

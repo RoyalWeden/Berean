@@ -1,5 +1,6 @@
 import { bookName } from '@/lib/parseRef'
 import type { VerseTagRange } from '@/types'
+import { displayChapter } from './chapterNumbering'
 
 /** A selected verse (as used by the verse-selection store slice). */
 export interface SelRef { bookId: string; chapter: number; verse: number }
@@ -70,7 +71,7 @@ function spansLabel(spans: Array<{ s: number; e: number }>): string {
 export function rangesLabel(ranges: VerseTagRange[]): string {
   return ranges
     .map((r) => {
-      const name = `${bookName(r.bookId)} ${r.chapter}`
+      const name = `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}`
       if (r.whole || !r.spans?.length) return `${name} (chapter)`
       return `${name}:${spansLabel(r.spans)}`
     })

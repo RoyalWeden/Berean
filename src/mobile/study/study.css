@@ -1,0 +1,58 @@
+/* Verse sheet (SEP25): compact, Bible-first. The reference reads as a title ("Deuteronomy 29:3"),
+   not an all-caps label; four study actions; the verse with Strong's in Strong's mode. */
+.mobile-verse-sheet .mobile-verse-actions-head { padding: 0 44px 6px 4px; }
+.mobile-verse-sheet .mobile-verse-actions-ref {
+  font-size: calc(17px * var(--m-type-scale, 1)); font-weight: 600; letter-spacing: -0.01em;
+  text-transform: none; color: rgb(var(--color-text-primary));
+}
+
+.mobile-verse-primary { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 0 2px 8px; }
+.mobile-verse-action {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 52px; padding: 4px 2px; border: 0; border-radius: 12px;
+  background: var(--m-card-bg, rgb(var(--color-surface-3))); color: rgb(var(--color-text-primary));
+  font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 500;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.mobile-verse-action:active { background: var(--m-card-pressed, rgb(var(--color-surface-4))); }
+.mobile-verse-action svg { color: rgb(var(--color-accent)); }
+.mobile-verse-action.is-on { background: rgb(var(--color-accent) / 0.16); color: rgb(var(--color-accent)); }
+.mobile-verse-action-icon { position: relative; display: inline-flex; }
+.mobile-verse-action-badge {
+  position: absolute; top: -5px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px; background: rgb(var(--color-accent)); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+}
+
+/* Strong's mode: the verse sits between the actions and the colours, scrolling on its own. */
+.mobile-verse-strongs { margin: 0 2px 8px; padding: 8px 10px; border-radius: 12px; background: rgb(var(--color-surface-1)); }
+.mobile-verse-strongs .mobile-study-verse { margin: 0; font-size: calc(15px * var(--m-type-scale, 1)); line-height: 1.5; }
+
+/* Cross references: one block per selected verse. */
+.mobile-xref-verse + .mobile-xref-verse { margin-top: 4px; }
+.mobile-xref-verse-head { font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); margin: 2px 0 2px; }
+.mobile-xref-note { color: rgb(var(--color-text-secondary)); font-style: italic; }
+.mobile-crossrefs .mobile-xref-list { padding: 0 16px 16px; }
+
+/* A note edited inside the verse sheet. */
+.mobile-sheet-note { display: flex; flex-direction: column; min-height: 60vh; padding: 0 16px 24px; }
+.mobile-sheet-note-head { display: flex; align-items: center; gap: 8px; }
+.mobile-sheet-note-title { flex: 1; min-width: 0; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(20px * var(--m-type-scale, 1)); font-weight: 700; padding: 4px 0; outline: none; }
+.mobile-sheet-note-open { flex: none; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 18px; background: var(--m-card-bg, rgb(var(--color-surface-3))); color: rgb(var(--color-accent)); }
+.mobile-sheet-note .mobile-pm { flex: 1; }
+
+/* The cross-reference block without a heading: the source switch leads, full width. */
+.mobile-study-refs-head.is-bare { justify-content: stretch; }
+.mobile-study-refs-head.is-bare > * { flex: 1; }
+
+/* Strong's mode with several verses: one line per verse, its number leading. */
+.mobile-verse-strongs-item { display: flex; gap: 6px; align-items: baseline; }
+.mobile-verse-strongs-item + .mobile-verse-strongs-item { margin-top: 6px; }
+.mobile-verse-strongs-num { flex: none; min-width: 1.4em; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-muted)); }
+/* Several verses at the COMPACT position: the sheet keeps one verse's height and the block scrolls
+   (its max-height is measured to the visible space); expanded, it flows in the sheet — no cap. */
+.mobile-verse-strongs.is-multi.is-capped { overflow-y: auto; overscroll-behavior: contain; }
+/* The heading row's uppercase / bold type must not reach the segment labels ("TSK/e", "My Notes"). */
+.mobile-study-refs-head.is-bare { text-transform: none; letter-spacing: normal; font-weight: 400; }
+/* The full cross-references view: the reference on its own line, the source control full width. */
+.mobile-crossrefs .mobile-crossrefs-head { flex-direction: column; align-items: stretch; padding-right: 0; }

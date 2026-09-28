@@ -1,0 +1,146 @@
+/* ══ Berean glass — the shared semantic layer (docs/design-system.md §Glass; DATA-UX-070) ══════
+   One vocabulary for both apps, inspired by Apple's Liquid Glass principles (research memo:
+   docs/mobile/research/liquid-glass-progress-research-2026-09-28.md) but Berean's own values:
+
+     Level 0  CONTENT        no glass. Bible text, notes, lists, search results — solid surfaces.
+     Level 1  FUNCTIONAL     floating controls over content: bottom controls, floating search,
+                             compact reader controls, the tab / plus / caret buttons.
+                             → .glass-surface-regular / .glass-control
+     Level 2  CONTEXTUAL     sheets, popovers, menus, the iCloud progress panel — more opaque.
+                             → .glass-surface-elevated
+     Level 3  CRITICAL       alerts, confirmations, sync errors — near opaque, strongest edge.
+                             → .glass-surface-critical
+     (clear)                 only over media (video / images): → .glass-surface-clear
+
+   Everything derives from the theme's base colours (--color-*), so all presets and both schemes
+   pick it up; nothing here hard-codes Apple's private values. Accessibility variants at the end:
+   Reduce Transparency → solid; Increase Contrast → near-opaque + visible edges; Reduce Motion →
+   no scale / spring. Never put glass on Level 0, never nest glass in glass. */
+
+:root {
+  /* materials (dark is the default scheme; .light overrides below) */
+  --glass-regular-bg: rgb(var(--color-surface-3) / min(0.96, calc(0.72 * var(--glass-alpha-mult, 1))));
+  --glass-clear-bg: rgb(var(--color-surface-3) / min(0.6, calc(0.3 * var(--glass-alpha-mult, 1))));
+  --glass-elevated-bg: rgb(var(--color-surface-2) / min(0.98, calc(0.9 * var(--glass-alpha-mult, 1))));
+  --glass-critical-bg: rgb(var(--color-surface-2) / 0.97);
+  --glass-filter-regular: saturate(calc(var(--glass-saturate, 1.4) * 1.25)) blur(calc(26px * var(--glass-blur, 1)));
+  --glass-filter-clear: saturate(calc(var(--glass-saturate, 1.4) * 1.1)) blur(calc(14px * var(--glass-blur, 1)));
+  --glass-filter-elevated: saturate(calc(var(--glass-saturate, 1.4) * 1.15)) blur(calc(30px * var(--glass-blur, 1)));
+  /* edges and depth */
+  --glass-border: rgb(var(--color-text-primary) / 0.12);
+  --glass-border-strong: rgb(var(--color-text-primary) / 0.24);
+  --glass-highlight: rgb(255 255 255 / 0.07);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 24px rgb(0 0 0 / 0.28);
+  --glass-shadow-elevated: 0 2px 6px rgb(0 0 0 / 0.2), 0 18px 48px rgb(0 0 0 / 0.36);
+  --glass-separator: rgb(var(--color-text-primary) / 0.1);
+  /* foreground on glass */
+  --glass-text-primary: rgb(var(--color-text-primary));
+  /* Secondary text on glass leans 30 % toward primary: a translucent material can sit over bright
+     media, and plain secondary would drop below 4.5:1 there (tests: glassContrast.test.ts). */
+  --glass-text-secondary: color-mix(in srgb, rgb(var(--color-text-secondary)) 70%, rgb(var(--color-text-primary)));
+  --glass-text-tertiary: rgb(var(--color-text-secondary));
+  --glass-accent: rgb(var(--color-accent));
+  /* controls */
+  --glass-control-fill: rgb(var(--color-text-primary) / 0.08);
+  --glass-control-pressed: rgb(var(--color-text-primary) / 0.16);
+  --glass-control-active: rgb(var(--color-accent) / 0.22);
+  --glass-focus-ring: rgb(var(--color-accent) / 0.75);
+  /* scrim behind a focused Level 2/3 surface (context-menu preview, alerts) */
+  --glass-scrim-bg: rgb(0 0 0 / 0.28);
+  --glass-scrim-filter: blur(18px) saturate(1.2);
+  /* shape scale */
+  --radius-capsule: 999px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 30px;
+  /* motion */
+  --glass-press-scale: 0.96;
+  --glass-spring: cubic-bezier(0.25, 1.3, 0.4, 1);
+}
+.light {
+  --glass-regular-bg: rgb(var(--color-surface-3) / min(0.96, calc(0.72 * var(--glass-alpha-mult, 1))));
+  --glass-clear-bg: rgb(var(--color-surface-3) / min(0.6, calc(0.32 * var(--glass-alpha-mult, 1))));
+  --glass-elevated-bg: rgb(var(--color-surface-1) / min(0.98, calc(0.88 * var(--glass-alpha-mult, 1))));
+  --glass-critical-bg: rgb(var(--color-surface-3) / 0.98);
+  --glass-border: rgb(var(--color-text-primary) / 0.1);
+  --glass-border-strong: rgb(var(--color-text-primary) / 0.22);
+  --glass-highlight: rgb(255 255 255 / 0.55);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 20px rgb(0 0 0 / 0.12);
+  --glass-shadow-elevated: 0 2px 6px rgb(0 0 0 / 0.08), 0 16px 44px rgb(0 0 0 / 0.18);
+  --glass-separator: rgb(var(--color-text-primary) / 0.08);
+  --glass-control-fill: rgb(var(--color-text-primary) / 0.06);
+  --glass-control-pressed: rgb(var(--color-text-primary) / 0.12);
+  --glass-control-active: rgb(var(--color-accent) / 0.16);
+}
+
+/* ── surfaces ── */
+.glass-surface-regular, .glass-surface-clear, .glass-surface-elevated, .glass-surface-critical, .glass-control {
+  border: 0.5px solid var(--glass-border);
+  box-shadow: inset 0 0.5px 0 var(--glass-highlight), var(--glass-shadow);
+  color: var(--glass-text-primary);
+}
+.glass-surface-regular { background: var(--glass-regular-bg); -webkit-backdrop-filter: var(--glass-filter-regular); backdrop-filter: var(--glass-filter-regular); }
+.glass-surface-clear { background: var(--glass-clear-bg); -webkit-backdrop-filter: var(--glass-filter-clear); backdrop-filter: var(--glass-filter-clear); }
+.glass-surface-elevated { background: var(--glass-elevated-bg); -webkit-backdrop-filter: var(--glass-filter-elevated); backdrop-filter: var(--glass-filter-elevated); box-shadow: inset 0 0.5px 0 var(--glass-highlight), var(--glass-shadow-elevated); }
+.glass-surface-critical { background: var(--glass-critical-bg); border-color: var(--glass-border-strong); box-shadow: inset 0 0.5px 0 var(--glass-highlight), var(--glass-shadow-elevated); }
+/* Glass never contains glass: a surface inside another loses its own material. */
+:is(.glass-surface-regular, .glass-surface-elevated, .glass-surface-critical, .glass-surface-clear) :is(.glass-surface-regular, .glass-surface-elevated, .glass-surface-clear) {
+  background: var(--glass-control-fill); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+
+/* ── controls: normal · hover · pressed · selected · disabled · focus ── */
+.glass-control {
+  background: var(--glass-regular-bg); -webkit-backdrop-filter: var(--glass-filter-regular); backdrop-filter: var(--glass-filter-regular);
+  border-radius: var(--radius-capsule);
+  transition: transform 0.22s var(--glass-spring), background-color 0.15s ease, box-shadow 0.15s ease;
+}
+@media (hover: hover) { .glass-control:hover:not(:disabled) { background: color-mix(in srgb, var(--glass-regular-bg) 88%, rgb(var(--color-text-primary))); } }
+.glass-control:active:not(:disabled) { transform: scale(var(--glass-press-scale)); background: color-mix(in srgb, var(--glass-regular-bg) 82%, rgb(var(--color-text-primary))); }
+.glass-control[aria-pressed="true"], .glass-control.is-selected { background: var(--glass-control-active); color: var(--glass-accent); border-color: rgb(var(--color-accent) / 0.35); }
+.glass-control:disabled { opacity: 0.45; box-shadow: none; }
+.glass-control:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px var(--glass-focus-ring); }
+
+/* ── progress (sync / downloads): determinate fill, or an honest indeterminate sweep ── */
+.sync-progress { position: relative; height: 6px; border-radius: var(--radius-capsule); background: var(--glass-control-fill); overflow: hidden; }
+.sync-progress > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--glass-accent); transition: width 0.3s ease; }
+.sync-progress.is-indeterminate > span { width: 35%; animation: glass-indeterminate 1.4s ease-in-out infinite; }
+@keyframes glass-indeterminate { from { left: -35%; } to { left: 100%; } }
+
+/* ── accessibility ── */
+/* Reduce Transparency: every material becomes solid; no blur anywhere. */
+@media (prefers-reduced-transparency: reduce) {
+  :root, .light {
+    --glass-regular-bg: rgb(var(--color-surface-3)); --glass-clear-bg: rgb(var(--color-surface-3));
+    --glass-elevated-bg: rgb(var(--color-surface-2)); --glass-critical-bg: rgb(var(--color-surface-2));
+    --glass-filter-regular: none; --glass-filter-clear: none; --glass-filter-elevated: none;
+    --glass-scrim-filter: none; --glass-scrim-bg: rgb(0 0 0 / 0.55);
+  }
+}
+html[data-reduce-transparency], html[data-reduce-transparency] .light, html.light[data-reduce-transparency] {
+  --glass-regular-bg: rgb(var(--color-surface-3)); --glass-clear-bg: rgb(var(--color-surface-3));
+  --glass-elevated-bg: rgb(var(--color-surface-2)); --glass-critical-bg: rgb(var(--color-surface-2));
+  --glass-filter-regular: none; --glass-filter-clear: none; --glass-filter-elevated: none;
+  --glass-scrim-filter: none; --glass-scrim-bg: rgb(0 0 0 / 0.55);
+}
+/* Increase Contrast (media query, macOS nativeTheme → data-increase-contrast, iOS UIAccessibility →
+   data-contrast="more"): near-opaque materials, visible edges, stronger secondary text. */
+@media (prefers-contrast: more) {
+  :root, .light {
+    --glass-regular-bg: rgb(var(--color-surface-3) / 0.97); --glass-elevated-bg: rgb(var(--color-surface-2) / 0.98); --glass-clear-bg: rgb(var(--color-surface-3) / 0.9);
+    --glass-border: rgb(var(--color-text-muted) / 0.75); --glass-border-strong: rgb(var(--color-text-secondary)); --glass-separator: rgb(var(--color-text-muted) / 0.6);
+    --glass-text-secondary: color-mix(in srgb, rgb(var(--color-text-secondary)) 55%, rgb(var(--color-text-primary)));
+    --glass-text-tertiary: rgb(var(--color-text-secondary)); --glass-highlight: transparent;
+  }
+}
+html[data-increase-contrast], html[data-contrast="more"] {
+  --glass-regular-bg: rgb(var(--color-surface-3) / 0.97); --glass-elevated-bg: rgb(var(--color-surface-2) / 0.98); --glass-clear-bg: rgb(var(--color-surface-3) / 0.9);
+  --glass-border: rgb(var(--color-text-muted) / 0.75); --glass-border-strong: rgb(var(--color-text-secondary)); --glass-separator: rgb(var(--color-text-muted) / 0.6);
+  --glass-text-secondary: color-mix(in srgb, rgb(var(--color-text-secondary)) 55%, rgb(var(--color-text-primary)));
+  --glass-text-tertiary: rgb(var(--color-text-secondary)); --glass-highlight: transparent;
+}
+/* Reduce Motion: no scale, no spring, no sweeping bar (a steady partial fill instead). */
+@media (prefers-reduced-motion: reduce) {
+  .glass-control { transition: background-color 0.15s ease; }
+  .glass-control:active:not(:disabled) { transform: none; }
+  .sync-progress.is-indeterminate > span { animation: none; left: 0; width: 100%; opacity: 0.35; }
+}

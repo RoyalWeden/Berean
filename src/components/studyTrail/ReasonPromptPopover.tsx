@@ -7,6 +7,7 @@ import { formatVerseTieReference, parseVerseTieReferenceToNumbers } from '@/lib/
 import TrailPopoverShell from './TrailPopoverShell'
 import { Button, IconButton, TextArea } from '@/components/ui'
 import type { TrailConnection } from '@/types/studyTrail'
+import { displayChapter } from '@/lib/chapterNumbering'
 
 // The unified reason/note popover — ONE place a note lives for ANY connection, any clarity
 // tier, not a separate system per trigger. Its hosts:
@@ -96,10 +97,10 @@ export function TrailReasonFormBody({
   // 'from' it should show as the full book chapter verse instead of 'v.3'") — falling back to
   // the bare "v.3" form only when that context genuinely isn't available.
   const legacyFrom = connection.originVersePinFrom != null
-    ? [`${originBookId ? `${bookName(originBookId)} ${originChapter}:` : 'v.'}${connection.originVersePinFrom}${connection.originVersePinTo && connection.originVersePinTo !== connection.originVersePinFrom ? `-${connection.originVersePinTo}` : ''}`]
+    ? [`${originBookId ? `${bookName(originBookId)} ${displayChapter(originBookId, originChapter)}:` : 'v.'}${connection.originVersePinFrom}${connection.originVersePinTo && connection.originVersePinTo !== connection.originVersePinFrom ? `-${connection.originVersePinTo}` : ''}`]
     : []
   const legacyTo = connection.versePinFrom != null
-    ? [`${connection.toBookId ? `${bookName(connection.toBookId)} ${connection.toChapter}:` : 'v.'}${connection.versePinFrom}${connection.versePinTo && connection.versePinTo !== connection.versePinFrom ? `-${connection.versePinTo}` : ''}`]
+    ? [`${connection.toBookId ? `${bookName(connection.toBookId)} ${displayChapter(connection.toBookId, connection.toChapter)}:` : 'v.'}${connection.versePinFrom}${connection.versePinTo && connection.versePinTo !== connection.versePinFrom ? `-${connection.versePinTo}` : ''}`]
     : []
   // A single compact reference string per side now (e.g. "Mark 13:1-2,5,8-10"), set only via the
   // verse picker — not a free-typed list anymore. `tiesFrom`/`tiesTo` on the connection record are

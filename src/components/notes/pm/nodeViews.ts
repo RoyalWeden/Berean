@@ -1,5 +1,6 @@
 import type { Node as PMNode } from 'prosemirror-model'
 import type { EditorView, NodeView } from 'prosemirror-view'
+import { NodeSelection } from 'prosemirror-state'
 import { CALLOUT_META, BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { useAppStore } from '@/store'
 
@@ -119,6 +120,38 @@ export function codeBlockNodeView(getPos: () => number | undefined) {
 // image all the time. Only WIDTH is tracked (schema.ts's own comment explains why no separate
 // height attr exists) — CSS `height: auto` (pmEditor.css) keeps the aspect ratio as the width
 // changes, so the drag math here only ever needs the horizontal delta.
+type ImageAction = 'copy' | 'saveAs' | 'delete'
+
+/** The image as a `data:` URL for the main process. Notes store images inline as data URLs
+ *  (imageInsert.ts), so that's the common case; anything else (remote/vault file URL) is
+ *  fetched. `forClipboard` re-encodes non-PNG/JPEG formats as PNG, since the system clipboard
+ *  (nativeImage) only decodes those two. */
+async function imageToDataUrl(img: HTMLImageElement, src: string, forClipboard: boolean): Promise<string | null> {
+  let dataUrl: string | null = src.startsWith('data:') ? src : null
+  if (!dataUrl) {
+    try {
+      const blob = await (await fetch(src)).blob()
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader()
+        r.onload = () => resolve(r.result as string)
+        r.onerror = () => reject(r.error)
+        r.readAsDataURL(blob)
+      })
+    } catch { dataUrl = null }
+  }
+  if (dataUrl && (!forClipboard || /^data:image\/(png|jpe?g)[;,]/i.test(dataUrl))) return dataUrl
+  // Re-encode via canvas (clipboard needs PNG/JPEG; also the fallback when fetch failed).
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx || !canvas.width || !canvas.height) return dataUrl
+    ctx.drawImage(img, 0, 0)
+    return canvas.toDataURL('image/png')
+  } catch { return dataUrl }
+}
+
 export function imageNodeView(getPos: () => number | undefined) {
   return (node: PMNode, view: EditorView): NodeView => {
     const wrap = document.createElement('span')
@@ -164,32 +197,76 @@ export function imageNodeView(getPos: () => number | undefined) {
       window.addEventListener('mouseup', onUp)
     })
 
-    // Delete button — top-right corner, same reveal-on-hover/selection convention as the
-    // resize handle. Removes just this image node from the doc; doesn't touch surrounding text.
-    const deleteBtn = document.createElement('span')
-    deleteBtn.className = 'pm-image-delete-btn'
-    deleteBtn.contentEditable = 'false'
-    deleteBtn.title = 'Delete image'
-    // Exact lucide-react Trash2 glyph (same paths the rest of the app renders via <Trash2 />)
-    // rather than a hand-drawn approximation — reads more clearly as "delete this image" at a
-    // glance than a generic close/dismiss cross would, and now matches pixel-for-pixel.
-    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
-    deleteBtn.addEventListener('mousedown', (e) => {
-      // Prevent this turning into a node selection/drag before the click fires.
-      e.preventDefault()
-      e.stopPropagation()
-    })
-    deleteBtn.addEventListener('click', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
+    // ── Image actions: Copy / Save As / Delete (MAC-IMG) ──
+    // Delete is a ProseMirror transaction (the notes model); Copy and Save As need the main
+    // process (real bitmap on the system clipboard, native Save panel) — desktop only, so their
+    // buttons/menu exist only when the bridge does (iOS/web keep just Delete).
+    let currentNode = node
+    const bridge = typeof window !== 'undefined' ? window.app : undefined
+    const canNative = typeof bridge?.copyNoteImage === 'function' && typeof bridge?.saveNoteImageAs === 'function'
+    function deleteImage() {
       const pos = getPos()
       if (pos === undefined) return
-      view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize))
-    })
+      view.dispatch(view.state.tr.delete(pos, pos + currentNode.nodeSize))
+      view.focus()
+    }
+    async function copyImage() {
+      const dataUrl = await imageToDataUrl(img, currentNode.attrs.src, true)
+      if (dataUrl) await bridge?.copyNoteImage?.(dataUrl)
+    }
+    async function saveImageAs() {
+      const dataUrl = await imageToDataUrl(img, currentNode.attrs.src, false)
+      if (dataUrl) await bridge?.saveNoteImageAs?.(dataUrl, currentNode.attrs.alt || undefined)
+    }
+    function runAction(action: ImageAction | null) {
+      if (action === 'copy') void copyImage().catch(() => {})
+      else if (action === 'saveAs') void saveImageAs().catch(() => {})
+      else if (action === 'delete') deleteImage()
+    }
+
+    // Small SF-style glass capsule, top-right — revealed on hover/selection like the resize
+    // handle. Exact lucide glyphs (Copy / Download / Trash2), matching the rest of the app.
+    const actions = document.createElement('span')
+    actions.className = 'pm-image-actions'
+    actions.contentEditable = 'false'
+    function addAction(action: ImageAction, label: string, svg: string, extraClass = '') {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = `pm-image-action${extraClass}`
+      btn.title = label
+      btn.setAttribute('aria-label', label)
+      btn.tabIndex = -1
+      btn.innerHTML = svg
+      // Prevent this turning into a node selection/drag before the click fires.
+      btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation() })
+      btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); runAction(action) })
+      actions.appendChild(btn)
+    }
+    const SVG = (body: string) => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
+    if (canNative) {
+      addAction('copy', 'Copy Image', SVG('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'))
+      addAction('saveAs', 'Save Image As…', SVG('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>'))
+    }
+    addAction('delete', 'Delete Image', SVG('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>'), ' is-destructive')
+
+    // Right-click → native macOS contextual menu (Copy Image / Save Image As… / Delete Image).
+    // The image is selected first so it's clear what the menu acts on. Without the desktop
+    // bridge the event falls through to whatever the platform does by default.
+    if (typeof bridge?.noteImageMenu === 'function') {
+      wrap.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const pos = getPos()
+        if (pos !== undefined) {
+          try { view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos))) } catch { /* stale pos */ }
+        }
+        bridge.noteImageMenu!().then(runAction).catch(() => {})
+      })
+    }
 
     wrap.appendChild(img)
     wrap.appendChild(handle)
-    wrap.appendChild(deleteBtn)
+    wrap.appendChild(actions)
 
     return {
       dom: wrap,
@@ -197,6 +274,7 @@ export function imageNodeView(getPos: () => number | undefined) {
       deselectNode() { wrap.classList.remove('pm-image-selected') },
       update(updatedNode) {
         if (updatedNode.type.name !== 'image') return false
+        currentNode = updatedNode
         syncImgAttrs(updatedNode)
         return true
       },

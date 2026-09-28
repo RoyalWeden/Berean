@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorState, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
 import { history, undo, redo } from 'prosemirror-history'
+import { toggleMark } from 'prosemirror-commands'
 import { gapCursor } from 'prosemirror-gapcursor'
 import { dropCursor } from 'prosemirror-dropcursor'
 import { bereanSchema as schema } from './schema'
@@ -45,6 +46,7 @@ import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { computeCaretScrollDelta } from '@/lib/caretScroll'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { useAppStore } from '@/store'
+import { openDeepLink } from '@/lib/deepLinkTarget'
 import type { Note } from '@/types'
 import { VerseCopyMenu, type VerseCopyTarget } from '@/components/bible/VerseCopyMenu'
 import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexicon/StrongsContextMenu'
@@ -58,6 +60,14 @@ import './pmEditor.css'
 // We record the last short insert and swallow an identical paste that arrives
 // right after it at the same spot. A deliberate "type X then paste X" is
 // vanishingly rare and still works after the 500ms window.
+/** `beforeinput` types for native editing commands, mapped to the editor's own commands. */
+const NATIVE_EDIT_COMMANDS: Record<string, 'strong' | 'em' | 'underline' | 'strike' | 'undo' | 'redo' | undefined> = {
+  formatBold: 'strong', formatItalic: 'em', formatUnderline: 'underline', formatStrikeThrough: 'strike',
+  historyUndo: 'undo', historyRedo: 'redo',
+}
+/** iOS / iPadOS WebKit (iPadOS reports itself as a Mac with touch). */
+const IS_IOS_WEBKIT = typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 let __lastShortInsert: { text: string; pos: number; at: number } | null = null
 
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
@@ -116,6 +126,18 @@ export interface NoteEditorPMProps {
   // the note reading as cluttered. Selecting text still gets the on-selection bubble
   // toolbar (SelectionToolbar) either way — this only hides the always-visible docked bar.
   hideFormattingToolbar?: boolean
+  // iPhone shell (src/mobile/notes): 'phone' drops the always-visible formatting toolbar and the
+  // word-count footer (the phone shows stats in the note's caret and formats via the selection
+  // bubble / its own + insert menu). Default 'desktop' changes nothing.
+  chrome?: 'desktop' | 'phone'
+  // Replaces the default selection bubble (SelectionToolbar) — the phone passes a touch-sized one.
+  renderSelectionToolbar?: (view: EditorView, state: SelectionToolbarState) => ReactNode
+  // The live EditorView once mounted (null on unmount) — lets a host run the editor's own
+  // commands (slashCommands.ts) from its own chrome without duplicating command logic.
+  onEditorReady?: (view: EditorView | null) => void
+  /** A same-note content prop arrived while an IME / autocorrect / dictation composition was in
+   *  progress and was NOT applied (the composition wins). The host keeps it (DATA-LIVE-001). */
+  onExternalDeferred?: (content: string) => void
 }
 
 /** Verse text for the ref hover-preview / verse-block insertion, run through the same word
@@ -151,6 +173,10 @@ export default function NoteEditorPM({
   onWikilinkHoverEnd,
   isSidePanel,
   hideFormattingToolbar,
+  chrome = 'desktop',
+  renderSelectionToolbar,
+  onEditorReady,
+  onExternalDeferred,
   findQuery = '',
   findMode = 'phrase',
   importSource,
@@ -166,6 +192,11 @@ export default function NoteEditorPM({
   const [viewReady, setViewReady] = useState(false)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const onEditorReadyRef = useRef(onEditorReady)
+  const onExternalDeferredRef = useRef(onExternalDeferred)
+  onExternalDeferredRef.current = onExternalDeferred
+  onEditorReadyRef.current = onEditorReady
+  const phoneChrome = chrome === 'phone'
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onScrollPositionRef = useRef(onScrollPosition)
@@ -173,6 +204,14 @@ export default function NoteEditorPM({
   const onCursorPositionRef = useRef(onCursorPosition)
   onCursorPositionRef.current = onCursorPosition
   const lastContentPropRef = useRef(content)
+  // The editor's own recent outputs for the current note (see the stale-echo guard below).
+  const emittedRef = useRef(new Set<string>())
+  const rememberEmitted = (md: string) => {
+    const set = emittedRef.current
+    set.delete(md)
+    set.add(md)
+    if (set.size > 64) set.delete(set.values().next().value as string)
+  }
   // Read by createSuppressRangesPlugin's getNoteId — the plugin instance is
   // built once at mount and reused across every note switch (plugins are
   // baked into EditorState, see the mount effect below), so it can't take
@@ -204,6 +243,9 @@ export default function NoteEditorPM({
   // Tell the store a note editor is on screen so the bottom-right Study Trail arrival toast
   // lifts clear of this editor's word-count / reading-time footer (same corner).
   const bumpNoteEditorOpen = useAppStore((s) => s.bumpNoteEditorOpen)
+  const noteSpellCheck = useAppStore((s) => s.noteSpellCheck)
+  const noteSpellCheckRef = useRef(noteSpellCheck)
+  noteSpellCheckRef.current = noteSpellCheck
   useEffect(() => {
     bumpNoteEditorOpen(1)
     return () => bumpNoteEditorOpen(-1)
@@ -447,6 +489,9 @@ export default function NoteEditorPM({
           // "click an inline reference and it acts" model as wikilinks/verse
           // refs above, in both edit and view mode. Only external schemes.
           onLinkClick: (href) => {
+            // Berean links (berean://…, and the berean-pdf:// links PDF "Copy link" writes)
+            // navigate inside the app; everything else external.
+            if (openDeepLink(href)) return
             if (/^(https?:|mailto:)/i.test(href)) window.app.openExternal(href)
           },
           onWikilinkHoverStart: (title, rect) => hoverHandlersRef.current.onWikilinkHoverStart(title, rect),
@@ -501,7 +546,15 @@ export default function NoteEditorPM({
     const view = new EditorView(hostRef.current, {
       state,
       editable: () => mode === 'edit',
-      attributes: placeholder ? { 'data-placeholder': placeholder } : {},
+      // Native text services stay ON (NOTES-IOS-005): autocorrect, predictions, dictation and the
+      // spelling "Replace…" menu all work through the browser; spell-check underlines follow the
+      // Notes setting. Capitalization is never set — it follows the user's own keyboard setting.
+      // A function: ProseMirror re-reads it on every update, so a changed setting sticks.
+      attributes: () => ({
+        ...(placeholder ? { 'data-placeholder': placeholder } : {}),
+        spellcheck: noteSpellCheckRef.current ? 'true' : 'false',
+        autocorrect: 'on',
+      }),
       transformPasted: reclosePastedWrapperBlock,
       nodeViews: {
         callout: (node) => calloutNodeView(node),
@@ -518,6 +571,7 @@ export default function NoteEditorPM({
         view.updateState(newState)
         if (tr.docChanged) {
           lastContentPropRef.current = serializeToMarkdown(newState.doc)
+          rememberEmitted(lastContentPropRef.current)
           onChangeRef.current(lastContentPropRef.current)
         }
         if (tr.selectionSet || tr.docChanged) {
@@ -597,7 +651,24 @@ export default function NoteEditorPM({
             __lastShortInsert = null
           }
 
+          // Native editing commands (NOTES-IOS-006) — the iOS callout's Format ▸ B / I / U, shake
+          // to undo, the three-finger undo / redo gestures, a hardware keyboard's menu items. Left
+          // to the browser they would edit the DOM behind ProseMirror's back (a <b> tag, a DOM-level
+          // undo that PM's history never sees); routed here they are the editor's own commands.
+          const native = NATIVE_EDIT_COMMANDS[ie.inputType]
+          if (native) {
+            event.preventDefault()
+            if (view.composing) return true
+            if (native === 'undo') undo(view.state, view.dispatch)
+            else if (native === 'redo') redo(view.state, view.dispatch)
+            else toggleMark(schema.marks[native])(view.state, view.dispatch)
+            return true
+          }
+
           if (!isReplacement && !isDelete) return false
+          // An IME / dictation / marked-text composition owns its own range until it ends —
+          // ProseMirror reads the result from the DOM afterwards (NOTES-IOS-001).
+          if (view.composing) return false
 
           // ── Collapsed-caret Backspace/Delete: authoritative single-character delete ──
           // A single keystroke with no active selection must remove EXACTLY one character and
@@ -612,7 +683,11 @@ export default function NoteEditorPM({
           // selection. Only the simple intra-textblock case is handled here — a caret at a block
           // edge is a structural merge/outdent that belongs to baseKeymap's Backspace/Delete
           // (which already ran on keydown and declined, or this event wouldn't be firing).
-          if (isDelete && view.state.selection.empty && !view.composing) {
+          // Not on iOS: its keyboard keeps its own model of the text around the caret (autocorrect,
+          // predictions, word-at-a-time delete); a cancelled delete + our own DOM edit leaves that
+          // model stale, and the next autocorrect then replaces the wrong range. iOS has no smart
+          // delete to un-widen, so its native delete is exactly the delete we want.
+          if (isDelete && view.state.selection.empty && !IS_IOS_WEBKIT) {
             const $c = view.state.selection.$head
             const docSize = view.state.doc.content.size
             const isSurrogatePair = (s: string) => s.length === 2 && /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(s)
@@ -633,6 +708,16 @@ export default function NoteEditorPM({
           }
 
           // ── Non-collapsed delete / insertReplacementText: trust getTargetRanges() ──
+          // The replacement text is in `data` (Chromium) OR only in `dataTransfer` (WebKit — iOS
+          // autocorrect, spelling "Replace…", text replacements; the Input Events spec's form for
+          // contenteditable). Never fall back to '' — that turned every iOS autocorrection into a
+          // deletion of the word (NOTES-IOS-001). No text at all → leave it to the browser.
+          const replacement = isReplacement ? (ie.data ?? ie.dataTransfer?.getData('text/plain') ?? null) : null
+          if (isReplacement && replacement == null) return false
+          // iOS applies its own replacements natively (ProseMirror's DOM observer reads the result),
+          // which keeps the keyboard's text model and the document in step. The explicit path
+          // below exists for macOS text-expansion tools.
+          if (isReplacement && IS_IOS_WEBKIT) return false
           const ranges = ie.getTargetRanges?.()
           if (!ranges || ranges.length !== 1) return false
           const [range] = ranges
@@ -641,7 +726,7 @@ export default function NoteEditorPM({
           const to = view.posAtDOM(range.endContainer, range.endOffset)
           if (from < 0 || to < 0 || from > to) return false
           if (isDelete && from === to) return false
-          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to))
+          view.dispatch(isReplacement ? view.state.tr.insertText(replacement!, from, to) : view.state.tr.delete(from, to))
           event.preventDefault()
           return true
         },
@@ -678,6 +763,7 @@ export default function NoteEditorPM({
     })
     viewRef.current = view
     setViewReady(true)
+    onEditorReadyRef.current?.(view)
     loadCollapsedHeadings(view, noteIdRef.current)
     loadCollapsedThreads(view, noteIdRef.current)
 
@@ -736,6 +822,7 @@ export default function NoteEditorPM({
       view.destroy()
       viewRef.current = null
       setViewReady(false)
+      onEditorReadyRef.current?.(null)
     }
     // Mount-only: note switching is handled by the effect below via
     // view.updateState with a freshly-parsed doc (mirrors the CM6 editor's
@@ -768,6 +855,23 @@ export default function NoteEditorPM({
     if (!view) return
     const isDifferentNote = noteId !== prevSwapNoteIdRef.current
     prevSwapNoteIdRef.current = noteId
+    if (isDifferentNote) emittedRef.current.clear()
+    // TEST25-NOTES-001: a `content` prop that is one of THIS editor's own recent outputs is an
+    // echo (the host saved and re-rendered), never an external edit — even when it is older than
+    // the live document because more typing (or an iOS autocorrect / composition flush) landed
+    // before the re-render. Replacing the doc with it used to wipe the newest keystrokes. The
+    // same goes for any same-note update while the IME is composing.
+    if (!isDifferentNote && emittedRef.current.has(content)) {
+      lastContentPropRef.current = content
+      return
+    }
+    // A composition in progress is never interrupted: the outside content is handed back to the
+    // host (which keeps it as a version) instead of being silently dropped.
+    if (!isDifferentNote && view.composing) {
+      lastContentPropRef.current = content
+      if (content !== serializeToMarkdown(view.state.doc)) onExternalDeferredRef.current?.(content)
+      return
+    }
     const current = serializeToMarkdown(view.state.doc)
     // A space at the end of a line is not representable in markdown — the
     // serializer emits it, but markdown-it strips it again on the way back in.
@@ -785,6 +889,9 @@ export default function NoteEditorPM({
       return
     }
     lastContentPropRef.current = content
+    // An outside document replaces ours: our earlier outputs are no longer echoes (else a later
+    // outside change that happens to equal one of them — e.g. a revert — would be skipped).
+    if (!isDifferentNote) emittedRef.current.clear()
     // Defensive: preserve the cursor's rough position across this reset instead of leaving it
     // at EditorState.create's document-start default — but only for a same-note external
     // content update (e.g. the noteChangeToken refetch effect in NotesPanel). A genuinely
@@ -817,6 +924,8 @@ export default function NoteEditorPM({
       }
     }
   }, [content, noteId])
+
+  useEffect(() => { viewRef.current?.dom.setAttribute('spellcheck', noteSpellCheck ? 'true' : 'false') }, [noteSpellCheck])
 
   useEffect(() => {
     viewRef.current?.setProps({ editable: () => mode === 'edit' })
@@ -857,6 +966,30 @@ export default function NoteEditorPM({
     window.addEventListener('berean:scrollToHeading', handler)
     return () => window.removeEventListener('berean:scrollToHeading', handler)
   }, [mode])
+
+  // Insert a YouTube timestamp / video link at the cursor (⌘⇧L, the YouTube tab's "Insert
+  // timestamp link into active note", the phone's player action). The text arrives as markdown
+  // `[label](url)`; it becomes a linked text run so it renders as a link immediately (the
+  // serializer writes it back as the same markdown). Plain text is inserted verbatim. This
+  // listener was lost when the CodeMirror editor was removed, so the desktop command was a no-op.
+  useEffect(() => {
+    function handler(e: Event) {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text
+      const view = viewRef.current
+      if (!view || !text) return
+      const { from, to } = view.state.selection
+      const m = /^\[([^\]]+)\]\((\S+)\)$/.exec(text)
+      const node = m
+        ? schema.text(m[1], [schema.marks.link.create({ href: m[2] })])
+        : schema.text(text)
+      const tr = view.state.tr.replaceWith(from, to, node)
+      tr.setSelection(TextSelection.create(tr.doc, from + node.nodeSize))
+      view.dispatch(tr.scrollIntoView())
+      view.focus()
+    }
+    window.addEventListener('berean:insertTimestamp', handler)
+    return () => window.removeEventListener('berean:insertTimestamp', handler)
+  }, [])
 
   const filteredNotes = wikilinkTrigger
     ? (notesRef.current ?? [])
@@ -1175,19 +1308,19 @@ export default function NoteEditorPM({
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
-      {!isSidePanel && !hideFormattingToolbar && mode === 'edit' && viewReady && (
+      {!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' && viewReady && (
         <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />
       )}
       {/* Word-count / reading-time footer — rendered independently of the formatting toolbar so
           it still shows on idiom notes (which hide that toolbar). Bottom-right of this same
           `relative` wrapper. */}
-      {!isSidePanel && mode === 'edit' && viewReady && (
+      {!isSidePanel && !phoneChrome && mode === 'edit' && viewReady && (
         <WordCountFooter view={viewRef.current} lastSavedAt={lastSavedAt} />
       )}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
-        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
+        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${phoneChrome ? 'pm-chrome-phone' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
       />
       {importSource && (
         <div className="flex-shrink-0 border-t border-separator select-none">
@@ -1279,7 +1412,9 @@ export default function NoteEditorPM({
         document.body,
       )}
       {selectionToolbar && mode === 'edit' && viewRef.current && (
-        <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
+        renderSelectionToolbar
+          ? renderSelectionToolbar(viewRef.current, selectionToolbar)
+          : <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
       )}
       <BlockMenu target={blockMenuTarget} view={viewRef.current} noteId={noteId} onClose={() => setBlockMenuTarget(null)} />
       <VerseCopyMenu target={verseCtxTarget} onClose={() => setVerseCtxTarget(null)} />

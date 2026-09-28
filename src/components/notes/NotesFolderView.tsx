@@ -1,3 +1,4 @@
+import { userFolderIndent, virtualFolderIndent, noteIndent } from './folderTreeGeometry'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -18,27 +19,13 @@ import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { MenuSurface, MenuItem, MenuSeparator, TextField, Button, Divider, Switch, IconButton, Checkbox, DisclosureRow, ListRow, cx } from '@/components/ui'
 import { useRovingNav } from '@/lib/useRovingNav'
+import { systemFolderOf, noteIsMovable, type SystemKey } from '@/lib/noteMovability'
 
-// ── System (virtual) folders ─────────────────────────────────────────────────
-// Notes belong to a system folder by their type/tags. A note that has been moved
-// into a user folder (folderId set) leaves its system folder. System-folder notes
-// cannot be moved.
-type SystemKey = 'daily' | 'esword' | 'biblegateway' | 'verse'
+// System (virtual) folders + movability live in src/lib/noteMovability.ts (shared with the
+// iPhone notes list); re-exported here for existing importers (NotesPanel.tsx).
 
-export function systemFolderOf(note: Note): SystemKey | null {
-  if (note.tags?.includes('biblegateway')) return 'biblegateway'
-  if (note.tags?.includes('esword')) return 'esword'
-  if (note.type === 'daily' || note.type === 'journal' ||
-      note.title?.startsWith('Daily — ') || note.title?.startsWith('Journal — ')) return 'daily'
-  if (note.verseRef || note.type === 'verse') return 'verse'
-  return null
-}
 
-// A note can be filed into / out of user folders only if it isn't owned by a
-// system folder (daily, e-Sword, BibleGateway, verse notes).
-export function noteIsMovable(note: Note): boolean {
-  return systemFolderOf(note) === null
-}
+export { systemFolderOf, noteIsMovable }
 
 // "Deleted 3 days ago" / "Deleted today" style label for the Trash list — also implicitly
 // communicates how much of the 30-day auto-purge window is left without a separate countdown.
@@ -571,7 +558,7 @@ export default function NotesFolderView({
         data-note-row=""
         flush
         dense
-        indent={12 + depth * 16}
+        indent={noteIndent(depth)}
         draggable={!isRenaming && !selectMode}
         onDragStart={(e) => onNoteDragStart(e, note)}
         onDragEnd={(e) => onNoteDragEnd(e)}
@@ -667,7 +654,7 @@ export default function NotesFolderView({
       />
       {/* In-folder search snippets — more compact than list view */}
       {snippets.length > 0 && (
-        <div className="flex flex-col gap-0.5 pb-1" style={{ paddingLeft: 28 + depth * 16, paddingRight: 8 }}>
+        <div className="flex flex-col gap-0.5 pb-1" style={{ paddingLeft: noteIndent(depth) + 22, paddingRight: 8 }}>
           {snippets.map((s, i) => (
             <div
               key={i}
@@ -695,7 +682,7 @@ export default function NotesFolderView({
           data-folder-row=""
           flush
           dense
-          indent={8 + depth * 16}
+          indent={userFolderIndent(depth)}
           ref={(el) => { if (el) folderRowRefs.current.set(folder.id, el); else folderRowRefs.current.delete(folder.id) }}
           draggable={!isRenaming && !selectMode}
           onDragStart={(e) => onFolderDragStart(e, folder.id)}
@@ -803,11 +790,11 @@ export default function NotesFolderView({
           const totalNotes = sortedChapters.reduce((sum, [, ns]) => sum + ns.length, 0)
           return (
             <div key={bookFolderId}>
-              {/* Book virtual folder — depth=1, indent=8+1*16=24 */}
+              {/* Book virtual folder — depth 1 */}
               <DisclosureRow
                 open={bookIsOpen}
                 onClick={() => toggle(bookFolderId)}
-                indent={24}
+                indent={virtualFolderIndent(1)}
                 icon={bookIsOpen ? FolderOpen : Folder}
                 title={bookName(bid)}
                 count={totalNotes || undefined}
@@ -818,17 +805,17 @@ export default function NotesFolderView({
                 const chIsOpen = expanded.has(chFolderId)
                 return (
                   <div key={chFolderId}>
-                    {/* Chapter virtual folder — depth=2, indent=8+2*16=40 */}
+                    {/* Chapter virtual folder — depth 2 */}
                     <DisclosureRow
                       open={chIsOpen}
                       onClick={() => toggle(chFolderId)}
-                      indent={40}
+                      indent={virtualFolderIndent(2)}
                       icon={chIsOpen ? FolderOpen : Folder}
                       title={`Chapter ${ch}`}
                       count={chNotes.length || undefined}
                       className="mx-1.5"
                     />
-                    {/* Notes inside chapter — depth=3 → paddingLeft=12+3*16=60 */}
+                    {/* Notes inside chapter — depth 3 */}
                     {chIsOpen && chNotes.map((n) => renderNote(n, 3))}
                   </div>
                 )
@@ -853,11 +840,11 @@ export default function NotesFolderView({
           const totalNotes = sortedMonths.reduce((sum, [, ns]) => sum + ns.length, 0)
           return (
             <div key={yearFolderId}>
-              {/* Year virtual folder — depth=1 */}
+              {/* Year virtual folder — depth 1 */}
               <DisclosureRow
                 open={yearIsOpen}
                 onClick={() => toggle(yearFolderId)}
-                indent={24}
+                indent={virtualFolderIndent(1)}
                 icon={yearIsOpen ? FolderOpen : Folder}
                 title={year}
                 count={totalNotes || undefined}
@@ -870,11 +857,11 @@ export default function NotesFolderView({
                   .toLocaleString('default', { month: 'long' })
                 return (
                   <div key={monthFolderId}>
-                    {/* Month virtual folder — depth=2 */}
+                    {/* Month virtual folder — depth 2 */}
                     <DisclosureRow
                       open={monthIsOpen}
                       onClick={() => toggle(monthFolderId)}
-                      indent={40}
+                      indent={virtualFolderIndent(2)}
                       icon={monthIsOpen ? FolderOpen : Folder}
                       title={monthLabel}
                       count={mNotes.length || undefined}
@@ -921,6 +908,7 @@ export default function NotesFolderView({
         return (
           <div key={key} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
             <DisclosureRow
+              indent={virtualFolderIndent(0)}
               ref={(el) => { if (el) folderRowRefs.current.set(key, el); else folderRowRefs.current.delete(key) }}
               open={isOpen}
               onClick={() => toggle(key)}
@@ -945,6 +933,7 @@ export default function NotesFolderView({
       {pdfFeatureEnabled && (
       <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
         <DisclosureRow
+          indent={virtualFolderIndent(0)}
           open={expanded.has('pdfs')}
           onClick={() => toggle('pdfs')}
           icon={FileType2}
@@ -960,7 +949,7 @@ export default function NotesFolderView({
                 <ListRow
                   key={p.id}
                   dense
-                  indent={28}
+                  indent={noteIndent(1)}
                   onClick={() => openPdf(p.id, p.title)}
                   leading={<FileText size={12} />}
                   title={p.title}
@@ -982,6 +971,7 @@ export default function NotesFolderView({
         if (trashedNotes.length > 0) setTrashMenu({ x: e.clientX, y: e.clientY })
       }}>
         <DisclosureRow
+          indent={virtualFolderIndent(0)}
           data-folder-row
           open={expanded.has('trash')}
           onClick={() => toggle('trash')}
@@ -997,7 +987,7 @@ export default function NotesFolderView({
             : trashedNotes.map((n) => (
                 <ListRow
                   key={n.id}
-                  indent={28}
+                  indent={noteIndent(1)}
                   className="mx-1.5"
                   leading={<NotepadText size={12} />}
                   title={n.title || 'Untitled'}

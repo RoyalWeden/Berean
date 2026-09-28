@@ -508,3 +508,42 @@ export function findMatchWordIndices(
 
   return []
 }
+
+export interface StudyToken { word: string; strongs: string[]; isRedLetter: boolean; isItalic: boolean }
+
+/**
+ * Words of a verse paired with their Strong's numbers, word replacer applied exactly as the reader
+ * displays them — for the iPhone verse sheet's study view ("KJV+" style: each word followed by its
+ * numbers, e-Sword-inspired; TEST-043). Texts without tagging return one token with no numbers.
+ */
+export function buildVerseStudyTokens(
+  text: string,
+  textTagged: string | null | undefined,
+  textId: string,
+  wordReplacerEnabled: boolean,
+  wordReplacerRules: WordReplacerRule[],
+): StudyToken[] {
+  const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
+  const tokens = textTagged ? parseTaggedForText(textTagged) : []
+  if (tokens.length === 0) {
+    return [{ word: shouldReplace ? applyWordReplacer(text, wordReplacerRules) : text, strongs: [], isRedLetter: false, isItalic: false }]
+  }
+  const out: StudyToken[] = []
+  for (const t of tokens) {
+    if (t.isStrongsBracket) continue
+    const nums = t.strongsNum ? (Array.isArray(t.strongsNum) ? t.strongsNum : [t.strongsNum]) : []
+    if (t.isParenthetical) {
+      // A particle with no English word (e.g. H853) — attach its number to the previous word.
+      if (out.length && nums.length) out[out.length - 1].strongs.push(...nums.map((n) => `(${n})`))
+      continue
+    }
+    let word = t.word
+    if (shouldReplace) {
+      word = applyWordReplacer(word, wordReplacerRules)
+      word = applyStrongsWordReplacer(word, t.strongsNum, wordReplacerRules)
+    }
+    if (word === '') continue
+    out.push({ word, strongs: nums, isRedLetter: t.isRedLetter, isItalic: t.isItalic })
+  }
+  return out
+}

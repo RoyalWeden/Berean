@@ -21,8 +21,14 @@ export function isDailyNote(note: Note): boolean {
  *  for non-daily notes or a title that doesn't parse to a valid date. */
 export function dailyNoteDateKey(note: Note): string | null {
   if (!isDailyNote(note)) return null
-  const raw = note.title ?? ''
-  const dateStr = raw.replace(/^(Daily|Journal) — /, '')
+  return dailyTitleDateKey(note.title ?? '')
+}
+
+/** The "YYYY-MM-DD" a daily / journal note TITLE names ("Daily — 2026-01-09", old
+ *  "Daily — January 9, 2026"), or null. The one parser behind every calendar's note dots
+ *  (the shared notes service's getDailyDates, dailyNoteDateKey). */
+export function dailyTitleDateKey(title: string): string | null {
+  const dateStr = title.replace(/^(Daily|Journal) — /, '')
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return null

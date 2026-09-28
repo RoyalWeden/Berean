@@ -1,4 +1,4 @@
-import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight,
+import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight, PdfBookmark,
   VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult,
   TagGraphData, TagEdge, TagEdgeArrows } from './index'
 
@@ -43,6 +43,8 @@ interface NotesAPI {
   getNote: (id: string) => Promise<Note | null>
   getChapterNotes: (bookId: string, chapter: number, textId?: string) => Promise<Note[]>
   getChapterCounts: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, number>>
+  /** Dates with a daily note (calendar dots) — ids / titles / lengths only. */
+  getDailyDates: () => Promise<Array<{ dateKey: string; noteId: string; length: number }>>
   searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') => Promise<Note[]>
   setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
   setNotePinned: (noteId: string, pinned: boolean) => Promise<{ success: boolean }>
@@ -121,6 +123,11 @@ interface PdfAPI {
   }) => Promise<{ success: boolean; id: string }>
   highlightsRemove: (id: string) => Promise<{ success: boolean }>
   highlightsSetNote: (id: string, note: string) => Promise<{ success: boolean }>
+  bookmarksList: (pdfId: string) => Promise<PdfBookmark[]>
+  bookmarksAdd: (pdfId: string, page: number, label: string) => Promise<PdfBookmark>
+  bookmarksRemove: (id: string) => Promise<{ success: boolean }>
+  /** One-time import of the pre-v46 localStorage bookmark list (no-op if the PDF already has bookmarks). */
+  bookmarksImport: (pdfId: string, entries: Array<{ page: number; label: string; createdAt?: number }>) => Promise<{ imported: number }>
 }
 
 interface YouTubeVideoEntry {
@@ -172,6 +179,8 @@ interface YouTubeAPI {
   fetchTranscripts: (batchSize?: number, workerCount?: number) => Promise<{ fetched: number; skipped: number; errors: number } | { error: string }>
   clearTranscripts: () => Promise<{ success: boolean } | { error: string }>
   getTranscriptStatus: () => Promise<string[]>
+  /** Per channel: transcripts available (index) vs downloaded (segments present) — the phone's pack UI. */
+  getTranscriptAvailability?: () => Promise<Array<{ channelHandle: string; channelName: string; available: number; downloaded: number }>>
   getTranscript: (videoId: string) => Promise<Array<{ startMs: number; durMs: number; text: string }>>
   searchTranscripts: (query: string, videoLimit?: number, perVideoLimit?: number) => Promise<Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>>
   buildSeed: () => Promise<{ success: boolean; videos?: number; transcripts?: number; segments?: number } | { error: string }>
@@ -312,6 +321,50 @@ export interface PlaylistItemInput {
   textId: string
 }
 
+/** Sessions/tabs persistence rows (docs/mobile/decisions.md D-006). Row shapes live in
+ *  src/platform/services/sessionsService.ts; this API is consumed only by src/store/tabPersistence.ts. */
+interface SessionsAPI {
+  hasAny: () => Promise<boolean>
+  listSessions: () => Promise<import('../platform/services/sessionsService').SessionRow[]>
+  listTabs: (sessionId?: string) => Promise<import('../platform/services/sessionsService').TabRow[]>
+  listArchivedGroups: () => Promise<import('../platform/services/sessionsService').ArchivedGroupRow[]>
+  getLocalState: (sessionId: string) => Promise<Record<string, string | null>>
+  setLocalState: (sessionId: string, activeTab: Record<string, string | null>) => Promise<void>
+  applySnapshot: (snap: import('../platform/services/sessionsService').SessionsSnapshot) => Promise<import('../platform/services/sessionsService').SnapshotDiff>
+  upsertSession: (s: import('../platform/services/sessionsService').SessionUpsert) => Promise<void>
+  upsertTab: (t: import('../platform/services/sessionsService').TabUpsert) => Promise<void>
+  deleteSession: (id: string) => Promise<void>
+  deleteTab: (id: string) => Promise<void>
+}
+
+/** iCloud sync (docs/mobile/icloud.md). Absent on platforms without a sync host. */
+export interface SyncConfig {
+  enabled: boolean
+  folder: string
+  folderOverride: string | null
+  containerId: string
+  containerExists: boolean
+  running: boolean
+}
+interface SyncAPI {
+  getStatus: () => Promise<import('../platform/sync/types').SyncStatusSnapshot | null>
+  getConfig: () => Promise<SyncConfig>
+  syncNow: () => Promise<import('../platform/sync/types').SyncStatusSnapshot | null>
+  enable: () => Promise<{ ok: boolean; reason?: string }>
+  disable: () => Promise<{ ok: boolean }>
+  chooseFolder: () => Promise<{ canceled?: boolean; folder?: string }>
+  useDefaultFolder: () => Promise<{ ok: boolean }>
+  onStatus: (cb: (status: import('../platform/sync/types').SyncStatusSnapshot | null) => void) => () => void
+  /** Entities touched by the last pull (e.g. 'note', 'tab', 'session', 'highlight'). */
+  onApplied: (cb: (entities: string[]) => void) => () => void
+  /** Diagnostic log (metadata only) — DATA-SYNC-006. */
+  getTrace?: () => Promise<{ enabled: boolean; entries: import('../platform/sync/types').SyncTraceEntry[] }>
+  setDiagnostics?: (on: boolean) => Promise<void>
+  /** Answer a hold (DATA-SAFE-020/041): restore missing items from iCloud, confirm they were
+   *  deleted here, or publish this device's data to the iCloud now signed in. */
+  resolveHold?: (choice: 'restore' | 'delete' | 'republish') => Promise<{ ok: boolean; reason?: string }>
+}
+
 interface PlaylistsAPI {
   list: () => Promise<SavedPlaylist[]>
   save: (name: string, items: PlaylistItemInput[], existingId?: string) => Promise<SavedPlaylist>
@@ -337,6 +390,9 @@ interface AppAPI {
   onTrackpadSwipeBegin?: (cb: () => void) => void
   onTrackpadSwipeEnd?: (cb: () => void) => void
   onMenuAction: (cb: (action: string, payload?: unknown) => void) => void
+  /** berean:// links opened from outside the app (src/lib/deepLinks.ts routes them). */
+  onDeepLink?: (cb: (url: string) => void) => void
+  takePendingDeepLinks?: () => Promise<string[]>
   // Native File/View/Go/Help menu items — see src/lib/commands.ts's command ids.
   onAppCommand?: (cb: (id: string) => void) => void
   onWindowActive?: (cb: (active: boolean) => void) => void
@@ -344,6 +400,10 @@ interface AppAPI {
   onReduceTransparency?: (cb: (reduce: boolean) => void) => void
   getIncreaseContrast?: () => Promise<boolean>
   onIncreaseContrast?: (cb: (on: boolean) => void) => void
+  /** Notes-editor image actions (desktop only — absent on iOS/web; callers fall back). */
+  noteImageMenu?: () => Promise<'copy' | 'saveAs' | 'delete' | null>
+  copyNoteImage?: (dataUrl: string) => Promise<{ success: boolean }>
+  saveNoteImageAs?: (dataUrl: string, alt?: string) => Promise<{ success: boolean; canceled?: boolean }>
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   isDev?: () => Promise<boolean>
@@ -811,6 +871,8 @@ declare global {
     studyTrail: StudyTrailAPI
     workspaces: WorkspacesAPI
     playlists: PlaylistsAPI
+    sessions: SessionsAPI
+    sync?: SyncAPI
     ttsModel: TTSModelAPI
     ttsAudioCache: TTSAudioCacheAPI
     viewer: {
@@ -833,7 +895,8 @@ declare global {
       newIndependentWindow: () => Promise<void>
     }
     // Platform string injected by preload for renderer-side platform detection
-    __berean_platform: NodeJS.Platform
+    /** Desktop: process.platform from the preload; iPhone: 'ios' (src/platform/ios/bridge.ts). */
+    __berean_platform: NodeJS.Platform | 'ios'
 
     // Custom frameless window controls (Windows), also reused by the note
     // editor's Focus-mode floating toolbar on any platform.
