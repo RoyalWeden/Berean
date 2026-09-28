@@ -121,13 +121,9 @@ iCloud account with the same container id):
 
 ## 5. TestFlight
 
-1. Bump `version` in `package.json`; `npm run ios:sync` regenerates `Version.xcconfig`
-   (`MARKETING_VERSION`), and `npm run ios:bump-build` increments the build number
-   (`CURRENT_PROJECT_VERSION`) — TestFlight needs a higher build number per upload.
-2. Xcode → Product → Archive (scheme `App`, destination *Any iOS Device*).
-3. Organizer → Distribute → App Store Connect → Upload (Xcode-managed signing).
-4. App Store Connect → TestFlight → add internal testers. First upload requires the export
-   compliance answer (§7).
+The full, verified procedure is **[testflight.md](testflight.md)**. In short:
+`npm run ios:bump-build` (every upload after the first) → `npm run ios:archive` → Organizer →
+Distribute → TestFlight. Export compliance is pre-answered (`ITSAppUsesNonExemptEncryption = false`).
 
 **This project never uploads for you.** Archiving/uploading is a manual Xcode step by design (R139).
 

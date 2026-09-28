@@ -7,6 +7,12 @@ Branch: `feature/ios-app` · Worktree: `/Users/roywe/Berean-ios` · Base: `main`
 
 ---
 
+## Release preparation — 2026-09-28
+
+Final release pass: P0 = 0, P1 = 0. Release archive 0.6.19 (1) built and exported for App Store
+Connect locally (distribution-signed, both targets, iCloud Production). Process: [testflight.md](testflight.md).
+From here, changes are driven by real use.
+
 ## iCloud lifecycle, settings, production hygiene, glass — 2026-09-28 (DATA-UX-*)
 
 [icloud-lifecycle.md](icloud-lifecycle.md) + design-system.md §Glass. One shared sync UI state

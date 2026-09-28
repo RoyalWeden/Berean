@@ -34,3 +34,7 @@ ios/App/DerivedData/
 ios/App/build/
 ios/App/BereanNative/.build/
 data/youtube_transcripts/
+
+# Per-user Xcode state (never shared)
+xcuserdata/
+*.xcuserstate

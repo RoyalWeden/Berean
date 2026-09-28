@@ -160,3 +160,34 @@ describe('UI reconciliation signal', () => {
     for (const k of kinds) expect(INVALIDATES[k], `${k} has no UI invalidation`).toBeDefined()
   })
 })
+
+describe('TestFlight update (build N → N+1)', () => {
+  it('changes still waiting to upload survive the database migration and sync afterwards, once', async () => {
+    const { BEREAN_MIGRATIONS, runMigrations } = await import('../../db/bereanMigrations')
+    const { memoryDb } = await import('../../db/__tests__/testDb')
+    // Build N: a database one schema version behind, with a synced note and an unsent edit.
+    const db = memoryDb('buildN')
+    const origLog = console.log; console.log = () => {}
+    await runMigrations(db, BEREAN_MIGRATIONS.slice(0, -1))
+    console.log = origLog
+    const a = await sim.device('a', { db })
+    const b = await sim.device('b')
+    const n = (await a.services.notes.create({ type: 'general', title: 'Study', content: 'v1' })).note!
+    await sim.syncAll([a, b])
+    a.store.setOnline(false)
+    await a.services.notes.update(n.id, { content: 'edited offline before the update' })
+    await a.engine.sync()                                  // queued locally, not uploaded
+    a.engine.stop()
+    // Build N+1: the same database migrates on launch.
+    console.log = () => {}
+    const applied = await runMigrations(db)
+    console.log = origLog
+    expect(applied).toEqual([BEREAN_MIGRATIONS[BEREAN_MIGRATIONS.length - 1].version])
+    const a2 = await sim.restart(a)
+    a2.store.setOnline(true)
+    await sim.syncAll([a2, b])
+    expect((await b.services.notes.getOne(n.id))?.content).toBe('edited offline before the update')
+    expect((await b.services.notes.getAll()).length).toBe(1)
+    expect(allCloudOps(sim.cloud).filter((o) => o.op === 'delete')).toEqual([])
+  })
+})
