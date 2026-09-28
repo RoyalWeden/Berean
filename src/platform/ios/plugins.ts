@@ -24,7 +24,7 @@ export const BereanSQLite = registerPlugin<BereanSQLitePlugin>('BereanSQLite')
 
 export interface CloudEntry { name: string; isDir: boolean; downloaded: boolean }
 export interface CloudStatus { available: boolean; signedIn: boolean; reason?: string; containerId: string; path?: string; deviceName: string }
-export interface CloudChange { paths: string[]; initial: boolean }
+export interface CloudChange { paths: string[]; initial: boolean; downloadsRequested?: number }
 
 /** iCloud Drive container access for the sync journal (ios/App/BereanNative/.../BereanCloudPlugin.swift).
  *  Paths are relative to `<container>/Documents/sync/v1`. */
@@ -38,6 +38,8 @@ export interface BereanCloudPlugin {
   remove(opts: { path: string }): Promise<void>
   startWatching(): Promise<void>
   stopWatching(): Promise<void>
+  /** Files under `path` that iCloud has not uploaded yet. */
+  pendingUploads(opts: { path: string }): Promise<{ count: number }>
   addListener(event: 'change', cb: (change: CloudChange) => void): Promise<{ remove: () => Promise<void> }>
 }
 

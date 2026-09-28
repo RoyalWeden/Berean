@@ -119,6 +119,30 @@ describe('useNoteAutosave external-update policy', () => {
     expect(createNoteVersion).not.toHaveBeenCalledWith('n1', 'T', 'changed on the Mac', 'external')
   })
 
+  it('TEST 5 (DATA-SYNC-010): a CLEAN open note takes an outside change at once — even with focus in the editor / keyboard up', async () => {
+    await mount()
+    await act(async () => { vi.advanceTimersByTime(3000) })
+    const field = document.createElement('div'); field.contentEditable = 'true'; field.tabIndex = 0; document.body.appendChild(field); field.focus()
+    stored = 'DEVICE B TEST 002'
+    act(() => bump()); await settle()
+    expect(renders.at(-1)).toBe('DEVICE B TEST 002')
+    field.remove()
+  })
+
+  it('TEST 6: a DIRTY note is never overwritten; the outside change is kept, and applied by itself once typing pauses', async () => {
+    await mount()
+    act(() => { api!.persist({ content: 'start typed' }) })
+    await act(async () => { vi.advanceTimersByTime(600) })    // our save landed: stored = 'start typed'
+    await settle()
+    stored = 'remote after our save'                           // then the other device's newer edit arrived
+    act(() => bump()); await settle()
+    expect(renders.at(-1)).toBe('start')                       // still typing (last keystroke < 2 s): untouched
+    expect(createNoteVersion).toHaveBeenCalledWith('n1', 'T', 'remote after our save', 'external')
+    await act(async () => { vi.advanceTimersByTime(2300) })    // the user pauses — no refresh, no reopening
+    await settle()
+    expect(renders.at(-1)).toBe('remote after our save')
+  })
+
   it('the unmount flush keeps every pending field', async () => {
     await mount()
     act(() => { api!.persist({ content: 'x', tags: ['a'] } as never) })

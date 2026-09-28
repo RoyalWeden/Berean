@@ -63,3 +63,14 @@ iOS device. Both need iCloud Drive on and Berean → Settings → iCloud enabled
 
 Only one physical iPhone is known to be available. The second device is the Mac (same engine,
 fs transport) or the simulator signed into the same account.
+
+## Follow-up — live sync lifecycle (first physical-device test, 2026-09-27)
+
+| ID | Finding → requirement | Implementation | Tests | Status |
+|---|---|---|---|---|
+| DATA-SYNC-005 | "Up to date" meant only "outbox empty" | states: uploading (our files not uploaded), downloading (another device ahead / files arriving), reconciling, offline, pending, synced | liveSync (TEST 10) | COMPLETE (Auto) |
+| DATA-SYNC-006 | Nowhere to see where the pipeline stops on a device | metadata-only diagnostic log (Settings → iCloud, console) | liveSync (no content) | COMPLETE |
+| DATA-SYNC-007 | Outbound waited for the 60 s timer; mid-sync requests were merged, not re-run | shared `hostCore`: local change → sync after 1.5 s; watch → sync; a request mid-run → one more pass; 60 s = safety net | hostCore (3), liveSync (TEST 1–3, old-behaviour repro) | COMPLETE (Auto) |
+| DATA-SYNC-008 | iOS never downloads iCloud Drive files by itself; the plugin requested them only on a read, throttled to 1/min | the metadata query requests every non-current file at once; the completion update wakes the pull; `pendingUploads` | liveSync over the iCloud Drive model; Swift build | COMPLETE (Dev: real timing) |
+| DATA-SYNC-009 | Invalidation maps differed per app; the Mac's sync handler did not refresh notes; verse-note dots never refreshed | one `applySyncInvalidation`, complete for every synced entity | syncInvalidation (3) | COMPLETE |
+| DATA-SYNC-010 | An open note on the iPhone stayed stale while it had focus; the Mac replaced mid-typing text | clean vs dirty on both: clean applies now; dirty keeps an "external" version and applies after a pause | noteAutosave (TEST 5, 6) | COMPLETE (Dev) |

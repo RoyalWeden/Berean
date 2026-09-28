@@ -2,15 +2,19 @@ import { useEffect, useState } from 'react'
 import { RefreshCcw, FolderOpen } from 'lucide-react'
 import { Switch, Button } from '@/components/ui'
 import type { SyncConfig } from '@/types/electron'
-import type { SyncStatusSnapshot } from '@/platform/sync/types'
+import type { SyncStatusSnapshot, SyncTraceEntry } from '@/platform/sync/types'
 
 /**
  * Settings → iCloud (docs/mobile/icloud.md; R064). Shared by desktop and, later, the iPhone
  * settings page: it only talks to `window.sync`, which each platform's host implements.
  */
 const STATE_LABEL: Record<NonNullable<SyncStatusSnapshot['state']>, string> = {
-  synced: 'Up to date',
-  pending: 'Changes waiting to sync',
+  synced: 'Up to date — nothing waiting in either direction',
+  pending: 'Changes waiting to be written to iCloud',
+  offline: 'Offline — changes are kept on this device and sync when the network returns',
+  uploading: 'Uploading — iCloud has not accepted the latest changes yet',
+  downloading: 'Downloading — another device has changes that are still arriving',
+  reconciling: 'Applying changes from another device…',
   unavailable: 'iCloud unavailable — changes are kept on this device and sync when it returns',
   attention: 'Needs attention (see below)',
 }
@@ -21,16 +25,22 @@ export default function ICloudSection() {
   const [status, setStatus] = useState<SyncStatusSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [trace, setTrace] = useState<{ enabled: boolean; entries: SyncTraceEntry[] } | null>(null)
 
   const refresh = async () => {
     if (!api) return
     setConfig(await api.getConfig().catch(() => null))
     setStatus(await api.getStatus().catch(() => null))
+    if (api.getTrace) setTrace(await api.getTrace().catch(() => null))
   }
 
   useEffect(() => {
     void refresh()
-    return api?.onStatus((s) => setStatus(s))
+    const off = api?.onStatus((s) => { setStatus(s); if (api?.getTrace) void api.getTrace().then(setTrace).catch(() => {}) })
+    // While this page is open, re-read the status now and then: iCloud can finish an upload /
+    // download between sync passes. This refreshes the DISPLAY only — it never triggers a sync.
+    const t = setInterval(() => { void api?.getStatus().then(setStatus).catch(() => {}); if (api?.getTrace) void api.getTrace().then(setTrace).catch(() => {}) }, 5000)
+    return () => { off?.(); clearInterval(t) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -99,6 +109,9 @@ export default function ICloudSection() {
             <dt className="text-text-muted">Transport</dt><dd className="text-text-secondary">{status.transport.available ? 'available' : `unavailable — ${status.transport.reason ?? ''}`}</dd>
             {status.state && (<><dt className="text-text-muted">State</dt><dd className={status.state === 'attention' ? 'text-danger' : 'text-text-secondary'}>{STATE_LABEL[status.state]}</dd></>)}
             <dt className="text-text-muted">Pending changes</dt><dd className="text-text-secondary">{status.pendingOutbox}</dd>
+            {status.pendingUploads != null && (<><dt className="text-text-muted">Waiting for iCloud upload</dt><dd className="text-text-secondary">{status.pendingUploads} file{status.pendingUploads === 1 ? '' : 's'}</dd></>)}
+            {!!status.remoteBehind && (<><dt className="text-text-muted">Still to receive</dt><dd className="text-text-secondary">{status.remoteBehind} change{status.remoteBehind === 1 ? '' : 's'} from other devices</dd></>)}
+            {status.lastNotifiedAt != null && (<><dt className="text-text-muted">Last iCloud notification</dt><dd className="text-text-secondary">{fmt(status.lastNotifiedAt)}</dd></>)}
             {status.lastApplied && (<><dt className="text-text-muted">Last received</dt><dd className="text-text-secondary">{status.lastApplied.count} change{status.lastApplied.count === 1 ? '' : 's'} · {fmt(status.lastApplied.at)}</dd></>)}
             {!!status.conflicts && (<><dt className="text-text-muted">Conflict copies</dt><dd className="text-text-secondary">{status.conflicts} — kept in each note's Versions</dd></>)}
             {!!status.failedOps && (<><dt className="text-text-muted">Changes not applied</dt><dd className="text-danger">{status.failedOps} (retrying)</dd></>)}
@@ -109,6 +122,23 @@ export default function ICloudSection() {
             {status.lastError && (<><dt className="text-text-muted">Last error</dt><dd className="text-danger">{status.lastError}</dd></>)}
             {status.schema != null && (<><dt className="text-text-muted">Database schema</dt><dd className="text-text-secondary">v{status.schema}</dd></>)}
           </dl>
+          {api.getTrace && api.setDiagnostics && (
+            <div className="mt-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-caption font-medium text-text-primary">Diagnostic log</p>
+                  <p className="text-caption text-text-muted">Records each sync step (what changed, when it was sent, noticed, received and shown) — kinds and ids only, never note text. For troubleshooting.</p>
+                </div>
+                <Switch checked={!!trace?.enabled} onCheckedChange={() => void api.setDiagnostics!(!trace?.enabled).then(refresh)} />
+              </div>
+              {trace?.enabled && (
+                <div className="mt-2">
+                  <Button size="sm" variant="ghost" onClick={() => void navigator.clipboard.writeText(traceText(trace.entries)).catch(() => {})}>Copy log</Button>
+                  <pre className="mt-1 max-h-64 overflow-auto text-[11px] leading-snug font-mono text-text-secondary whitespace-pre-wrap">{traceText(trace.entries.slice(-80)) || 'Nothing yet.'}</pre>
+                </div>
+              )}
+            </div>
+          )}
           {status.devices.length > 0 && (
             <div className="mt-3">
               <p className="text-caption text-text-muted mb-1">Devices</p>
@@ -123,4 +153,8 @@ export default function ICloudSection() {
       )}
     </div>
   )
+}
+
+function traceText(entries: SyncTraceEntry[]): string {
+  return entries.map((e) => `${new Date(e.t).toLocaleTimeString()}.${String(e.t % 1000).padStart(3, '0')} ${e.event}${e.meta ? ' ' + Object.entries(e.meta).map(([k, v]) => `${k}=${v}`).join(' ') : ''}`).join('\n')
 }

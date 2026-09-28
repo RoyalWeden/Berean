@@ -1,5 +1,7 @@
 import { SyncEngine } from '../sync/engine'
 import type { SyncStatusSnapshot } from '../sync/types'
+import { createSyncHostCore, type SyncHostCore } from '../sync/hostCore'
+import { createSyncTrace } from '../sync/trace'
 import { BEREAN_SCHEMA_VERSION } from '../db/bereanMigrations'
 import { CloudSyncStore } from './cloudSyncStore'
 import { BereanCloud } from './plugins'
@@ -9,24 +11,33 @@ import type { SyncConfig } from '../../types/electron'
 /**
  * iOS host for the sync engine — the in-process counterpart of electron/sync/host.ts. Same
  * settings keys (`icloudSyncEnabled`), same device-id rule (random 16-hex, kept in
- * `sync_state`), same triggers: start, container change notifications, a 60 s interval, the app
- * coming back to the foreground, and a push when it goes to the background. `installIosSyncBridge`
- * exposes it as `window.sync`, the surface Settings → iCloud and App.tsx already use.
+ * `sync_state`), same lifecycle through the shared `createSyncHostCore` (DATA-SYNC-007):
+ *   - a captured local change wakes a sync after a short debounce (outbound is event-driven);
+ *   - the container watch (NSMetadataQuery in BereanCloud, which also requests the downloads)
+ *     wakes a sync (inbound is event-driven);
+ *   - foreground and `online` wake a sync; backgrounding pushes;
+ *   - a 60 s interval remains as a safety net only.
+ * `installIosSyncBridge` exposes it as `window.sync`, the surface Settings → iCloud and the
+ * shell's invalidation hook (sync.onApplied → lib/syncInvalidation) use.
  *
- * Differences from desktop, by design: there is no folder picker (the ubiquity container is the
- * only place iOS can sync through — `chooseFolder` reports `canceled`), and the container is
- * addressed by id, never by path.
+ * No folder picker on iOS (the ubiquity container is the only place iOS can sync through —
+ * `chooseFolder` reports `canceled`), and the container is addressed by id, never by path.
  */
 const DEFAULT_CONTAINER = 'iCloud.com.berean.app'
-const INTERVAL_MS = 60_000
+const TRACE_KEY = 'berean:syncTrace'
 
 let engine: SyncEngine | null = null
 let store: CloudSyncStore | null = null
-let timer: ReturnType<typeof setInterval> | null = null
-let unwatch: (() => void) | null = null
+let core: SyncHostCore | null = null
 let lastStatus: SyncStatusSnapshot | null = null
 const statusListeners = new Set<(s: SyncStatusSnapshot | null) => void>()
 const appliedListeners = new Set<(entities: string[]) => void>()
+
+const trace = createSyncTrace({
+  enabled: (() => { try { return localStorage.getItem(TRACE_KEY) === '1' } catch { return false } })(),
+  log: (line) => console.log(line),
+})
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 async function setting<T>(key: string): Promise<T | null> {
   return (await iosServices().settings.get(key)) as T | null
@@ -43,32 +54,20 @@ async function deviceIdFor(): Promise<string> {
   return row?.value ?? randomHex(8)
 }
 
-async function publishStatus(): Promise<void> {
-  if (!engine) { lastStatus = null }
-  else {
-    try { lastStatus = await engine.status() } catch (err) { console.warn('[sync] status failed', err) }
-  }
-  for (const cb of statusListeners) cb(lastStatus)
+function publish(s: SyncStatusSnapshot | null): void {
+  lastStatus = s
+  for (const cb of statusListeners) cb(s)
 }
-
-async function syncNow(reason: string): Promise<void> {
-  if (!engine) return
-  try {
-    await engine.sync()
-  } catch (err) {
-    console.error(`[sync] sync (${reason}) failed`, err)
-  } finally {
-    await publishStatus()
-  }
+async function publishStatus(): Promise<void> {
+  if (!engine) { publish(null); return }
+  try { publish(await engine.status()) } catch (err) { console.warn('[sync] status failed', errText(err)) }
 }
 
 /**
  * Start the engine. Capture is independent of the transport (DATA-SYNC-001): once sync is
  * enabled, every local change is journaled to the SQLite outbox whether or not iCloud is
- * reachable right now (signed out, container not ready, offline start); push / pull simply
- * report "unavailable" and retry on the interval, foreground and container triggers. Only turning
- * sync ON requires iCloud to be available (`requireAvailable`), so the user gets a clear answer.
- * `reconcile`: 'full' after sync was off (changes made meanwhile were never captured), otherwise
+ * reachable right now; push / pull report "unavailable" and retry. Only turning sync ON requires
+ * iCloud to be available (`requireAvailable`). `reconcile`: 'full' after sync was off, otherwise
  * the cheap watermark pass that also covers a kill between a write and its capture.
  */
 async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' | 'since-last' }): Promise<{ ok: boolean; reason?: string }> {
@@ -85,8 +84,14 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     db: iosServiceContext().userDb, store, events: iosServiceContext().events, deviceId,
     deviceName: cloud.deviceName || 'iPhone', platform: 'ios',
     appVersion: import.meta.env.VITE_APP_VERSION ?? '0', schema: BEREAN_SCHEMA_VERSION,
-    log: { info: (m, ...r) => console.log(m, ...r), warn: (m, ...r) => console.warn(m, ...r), error: (m, ...r) => console.error(m, ...r) },
-    onApplied: (entities) => { for (const cb of appliedListeners) cb([...entities]) },
+    // Ids and entity names only — never note content (the engine logs nothing else).
+    log: { info: (m) => console.log(m), warn: (m, ...r) => console.warn(m, ...r.map(errText)), error: (m, ...r) => console.error(m, ...r.map(errText)) },
+    onApplied: (entities) => {
+      trace.record('ui:invalidate', { entities: [...entities].sort().join(',') })
+      for (const cb of appliedListeners) cb([...entities])
+    },
+    trace,
+    online: () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
   })
   engine.start()
   const adopted = await engine.adoptExisting()
@@ -94,16 +99,14 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
   try {
     const n = await engine.reconcileLocal(opts.reconcile === 'full')
     if (n) console.log(`[sync] reconciled ${n} local change(s) not captured before`)
-  } catch (err) { console.warn('[sync] local reconciliation failed', err) }
-  unwatch = store.watch((() => { void syncNow('watch') }))
-  timer = setInterval(() => { void syncNow('interval') }, INTERVAL_MS)
-  void syncNow('start')
+  } catch (err) { console.warn('[sync] local reconciliation failed', errText(err)) }
+  core = createSyncHostCore({ engine, store, trace, onStatus: publish, log: { error: (m, ...r) => console.error(m, ...r.map(errText)) } })
+  core.requestSync('start')
   return { ok: true }
 }
 
 function stopEngine(): void {
-  if (timer) { clearInterval(timer); timer = null }
-  unwatch?.(); unwatch = null
+  core?.stop(); core = null
   engine?.stop()
   engine = null
   store = null
@@ -115,10 +118,12 @@ function installLifecycle(): void {
   if (lifecycleInstalled) return
   lifecycleInstalled = true
   document.addEventListener('visibilitychange', () => {
-    if (!engine) return
-    if (document.visibilityState === 'visible') void syncNow('foreground')
-    else void engine.push().catch(() => {})
+    if (!core) return
+    if (document.visibilityState === 'visible') core.requestSync('foreground')
+    else void core.pushNow('background')
   })
+  window.addEventListener('online', () => core?.requestSync('online'))
+  window.addEventListener('offline', () => { void publishStatus() })
 }
 
 /** Starts the engine if the user enabled sync earlier; safe to call once at boot. */
@@ -144,7 +149,12 @@ export function installIosSyncBridge(): void {
         running: !!engine,
       }
     },
-    syncNow: async () => { await syncNow('manual'); return lastStatus },
+    syncNow: async () => {
+      if (!core) return lastStatus
+      core.requestSync('manual')
+      await core.idle()
+      return lastStatus
+    },
     enable: async () => {
       const r = await startEngine({ requireAvailable: true, reconcile: 'full' })
       if (r.ok) await iosServices().settings.set('icloudSyncEnabled', true)
@@ -160,6 +170,12 @@ export function installIosSyncBridge(): void {
     useDefaultFolder: async () => ({ ok: true }),
     onStatus: (cb) => { statusListeners.add(cb); return () => { statusListeners.delete(cb) } },
     onApplied: (cb) => { appliedListeners.add(cb); return () => { appliedListeners.delete(cb) } },
+    getTrace: async () => ({ enabled: trace.enabled(), entries: trace.entries() }),
+    setDiagnostics: async (on) => {
+      trace.setEnabled(on)
+      try { localStorage.setItem(TRACE_KEY, on ? '1' : '0') } catch { /* private mode */ }
+      if (!on) trace.clear()
+    },
   }
   window.sync = sync
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, powerMonitor } from 'electron'
 import { homedir, hostname } from 'os'
 import { existsSync } from 'fs'
 import { randomBytes } from 'crypto'
@@ -8,6 +8,8 @@ import { SyncEngine } from '../../src/platform/sync/engine'
 import { BEREAN_SCHEMA_VERSION } from '../../src/platform/db/bereanMigrations'
 import { FsSyncStore, ubiquityContainerPath } from './fsSyncStore'
 import type { SyncStatusSnapshot } from '../../src/platform/sync/types'
+import { createSyncHostCore, type SyncHostCore } from '../../src/platform/sync/hostCore'
+import { createSyncTrace } from '../../src/platform/sync/trace'
 
 /**
  * Desktop host for the sync engine (docs/mobile/icloud.md; docs/mobile/architecture.md §6).
@@ -19,13 +21,13 @@ import type { SyncStatusSnapshot } from '../../src/platform/sync/types'
  * overrides the container path), `icloudContainerId` (default 'iCloud.com.berean.app').
  */
 const DEFAULT_CONTAINER = 'iCloud.com.berean.app'
-const INTERVAL_MS = 60_000
 
 let engine: SyncEngine | null = null
 let store: FsSyncStore | null = null
-let timer: ReturnType<typeof setInterval> | null = null
-let unwatch: (() => void) | null = null
+let core: SyncHostCore | null = null
 let lastStatus: SyncStatusSnapshot | null = null
+// Diagnostic log (metadata only, DATA-SYNC-006); toggled from Settings → iCloud (setting key).
+const trace = createSyncTrace({ log: (line) => log.info(line) })
 
 async function setting<T>(key: string): Promise<T | null> {
   return (await services().settings.get(key)) as T | null
@@ -45,25 +47,19 @@ function broadcast(channel: string, payload?: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel, payload)
 }
 
+function publish(s: SyncStatusSnapshot | null): void {
+  lastStatus = s
+  broadcast('sync:status', s)
+}
 async function publishStatus(): Promise<void> {
-  if (!engine) { lastStatus = null; broadcast('sync:status', null); return }
-  try {
-    lastStatus = await engine.status()
-    broadcast('sync:status', lastStatus)
-  } catch (err) {
-    log.warn('[sync] status failed', err)
-  }
+  if (!engine) { publish(null); return }
+  try { publish(await engine.status()) } catch (err) { log.warn('[sync] status failed', err) }
 }
 
 async function syncNow(reason: string): Promise<void> {
-  if (!engine) return
-  try {
-    await engine.sync()
-  } catch (err) {
-    log.error(`[sync] sync (${reason}) failed`, err)
-  } finally {
-    await publishStatus()
-  }
+  if (!core) return
+  core.requestSync(reason)
+  await core.idle()
 }
 
 /**
@@ -89,7 +85,9 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     deviceName: hostname().replace(/\.local$/, ''), platform: process.platform === 'win32' ? 'win32' : process.platform === 'linux' ? 'linux' : 'darwin',
     appVersion: app.getVersion(), schema: BEREAN_SCHEMA_VERSION,
     log: { info: (m, ...r) => log.info(m, ...r), warn: (m, ...r) => log.warn(m, ...r), error: (m, ...r) => log.error(m, ...r) },
-    onApplied: (entities) => broadcast('sync:applied', [...entities]),
+    onApplied: (entities) => { trace.record('ui:invalidate', { entities: [...entities].sort().join(',') }); broadcast('sync:applied', [...entities]) },
+    trace,
+    online: () => net.isOnline(),
   })
   engine.start()
   const adopted = await engine.adoptExisting()
@@ -98,15 +96,15 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     const n = await engine.reconcileLocal(opts.reconcile === 'full')
     if (n) log.info(`[sync] reconciled ${n} local change(s) not captured before`)
   } catch (err) { log.warn('[sync] local reconciliation failed', err) }
-  unwatch = store.watch?.(() => { void syncNow('watch') }) ?? null
-  timer = setInterval(() => { void syncNow('interval') }, INTERVAL_MS)
-  void syncNow('start')
+  // Event-driven lifecycle shared with the iPhone (DATA-SYNC-007): local change → debounced sync,
+  // folder change → sync, 60 s safety net.
+  core = createSyncHostCore({ engine, store, trace, onStatus: publish, log })
+  core.requestSync('start')
   return { ok: true }
 }
 
 function stopEngine(): void {
-  if (timer) { clearInterval(timer); timer = null }
-  unwatch?.(); unwatch = null
+  core?.stop(); core = null
   engine?.stop()
   engine = null
   store = null
@@ -143,17 +141,24 @@ export async function initSyncHost(): Promise<void> {
     await services().settings.set('icloudSyncFolder', chosen)
     return { folder: chosen }
   })
+  ipcMain.handle('sync:getTrace', async () => ({ enabled: trace.enabled(), entries: trace.entries() }))
+  ipcMain.handle('sync:setDiagnostics', async (_e, on: boolean) => {
+    trace.setEnabled(!!on)
+    if (!on) trace.clear()
+    await services().settings.set('icloudSyncDiagnostics', !!on)
+  })
   ipcMain.handle('sync:useDefaultFolder', async () => {
     stopEngine()
     await services().settings.set('icloudSyncFolder', null)
     return { ok: true }
   })
 
+  trace.setEnabled((await setting<boolean>('icloudSyncDiagnostics')) === true)
   if ((await setting<boolean>('icloudSyncEnabled')) === true) {
     const r = await startEngine({ requireAvailable: false, reconcile: 'since-last' })
     if (!r.ok) log.warn(`[sync] not started: ${r.reason}`)
   }
 
-  powerMonitor.on('resume', () => { void syncNow('resume') })
-  app.on('before-quit', () => { if (engine) void engine.push() })
+  powerMonitor.on('resume', () => { core?.requestSync('resume') })
+  app.on('before-quit', () => { if (core) void core.pushNow('quit') })
 }

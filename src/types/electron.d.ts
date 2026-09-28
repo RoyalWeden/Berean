@@ -357,6 +357,9 @@ interface SyncAPI {
   onStatus: (cb: (status: import('../platform/sync/types').SyncStatusSnapshot | null) => void) => () => void
   /** Entities touched by the last pull (e.g. 'note', 'tab', 'session', 'highlight'). */
   onApplied: (cb: (entities: string[]) => void) => () => void
+  /** Diagnostic log (metadata only) — DATA-SYNC-006. */
+  getTrace?: () => Promise<{ enabled: boolean; entries: import('../platform/sync/types').SyncTraceEntry[] }>
+  setDiagnostics?: (on: boolean) => Promise<void>
 }
 
 interface PlaylistsAPI {

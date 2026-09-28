@@ -51,6 +51,7 @@ class FakeContainer {
       async remove({ path }) { self.files.delete(path) },
       async startWatching() {},
       async stopWatching() {},
+      async pendingUploads() { return { count: 0 } },
       async addListener(_e, cb) {
         const arr = self.listeners.get(device) ?? []
         arr.push(cb); self.listeners.set(device, arr)

@@ -15,17 +15,40 @@ code does today, including the 2026-09-27 hardening (DATA-SYNC-*). Inventory: [d
   store, no Background Modes. The entitlements (`App.entitlements`) match exactly: the container,
   CloudDocuments, ubiquity container and App Group.
 
-## Lifecycle
+## Lifecycle (event-driven since DATA-SYNC-007 — `src/platform/sync/hostCore.ts`, shared by both hosts)
 
-| Moment | What runs |
+| Trigger | What runs |
 |---|---|
-| Launch (sync on) | open engine → start capture → adopt pre-sync data once → **reconcile since the last capture** → watch the container → sync every 60 s |
-| iCloud unavailable at launch (signed out, container not ready) | **capture still runs** (DATA-SYNC-001); push / pull report "unavailable" and retry; nothing is lost |
-| Turning sync on | needs iCloud now (a clear error otherwise) → **full reconciliation** (changes made while it was off) |
-| Turning sync off | engine stops; pending ops stay in the outbox |
-| Foreground / wake | sync |
-| Background / quit | push (best effort; the outbox persists regardless) |
-| Container change | debounced (1.5 s) sync |
+| A local change is captured into the outbox | sync after 1.5 s (typing coalesces into one pass) |
+| Container notification (iPhone `NSMetadataQuery`; Mac `fs.watch`) | sync. On the iPhone the plugin has already requested the download of every changed file, and the "download finished" update is the next notification |
+| A request while a sync runs | one more pass right after (never lost, never overlapping) |
+| App foreground / Mac wake / network back (`online`) | sync |
+| Background / quit | push (best effort; the outbox persists) |
+| Every 60 s | sync — a **safety net only** |
+| Launch (sync on) | open the engine → capture → adopt → reconcile since the last capture → sync |
+| iCloud unavailable at launch | capture still runs; push / pull retry |
+
+### End to end
+
+- **Outbound:** UI → service → `berean.db` → `data:changed` → capture (`sync_outbox`) → host core wakes →
+  `engine.push` → our journal plus manifest written with NSFileCoordinator → the iCloud daemon uploads
+  (the status shows **Uploading** until `ubiquitousItemIsUploaded`).
+- **Inbound:** the other device's upload lands → `NSMetadataQuery` update → the plugin requests the downloads
+  and notifies JS → `engine.noteNotified` + sync → files present → HLC-ordered apply into
+  `berean.db` → `data:changed(remote)` + `onApplied(entities)` → `applySyncInvalidation` → tokens,
+  tab mirror, tags, workspaces → views re-read the database → re-render.
+- **Open note:** the host's external-update policy (clean: apply now, even focused; dirty: keep as a
+  version, apply when typing pauses) → the editor's content prop → ProseMirror (a composition is never
+  interrupted).
+- **On-screen tab:** held until the user leaves it (DATA-TAB-001), then applied.
+
+### Timing you should expect on real devices
+
+The code adds about 1.5 s (outbound debounce) plus about 1.5 s (notification batching) plus a pass. The rest is
+Apple's: the iCloud daemon's upload and the other device's download. These are typically a few
+seconds on Wi-Fi and can take longer on cellular, in Low Power Mode, or after the app was just
+foregrounded (the metadata query only runs in the foreground). There are no background pushes. The
+diagnostic log shows each step with a timestamp, so the Apple part can be measured.
 
 ## Merge rules (summary)
 
@@ -57,9 +80,32 @@ Hash-guarded, so an unchanged record produces nothing, and idempotent. Without i
 - edits made while iCloud was unavailable at launch were never journaled;
 - a remote edit with the stale base then overwrote them silently.
 
+## Sync status (DATA-SYNC-005)
+
+| State | Means |
+|---|---|
+| Up to date | nothing waiting either way that this device can see: outbox empty, our files uploaded, no other device ahead |
+| Changes waiting | local changes are not yet in our journal |
+| Offline | changes are waiting and there is no network |
+| Uploading | in our journal, but iCloud has not accepted the files yet |
+| Downloading | another device's manifest is ahead of what we applied, or its files are still arriving |
+| Applying changes | a pull is applying other devices' changes |
+| iCloud unavailable | not signed in, or the container is missing (capture continues) |
+| Needs attention | an error, unreadable entries, or changes that failed to apply |
+
+A device only knows another device is ahead once that device's manifest has arrived here. Until
+then, "Up to date" means up to date with everything iCloud has delivered to this device.
+
 ## Diagnostics (Settings → iCloud, both apps)
 
-- state (Up to date · Changes waiting · iCloud unavailable · Needs attention)
+**Diagnostic log** switch: a ring buffer of `local:captured`, `sync:run`, `push:start` / `push:written`,
+`remote:notified`, `pull:start` / `pull:waiting` / `pull:done`, `remote:applied`, `ui:invalidate` and
+`state`. Each entry carries entity kinds, 8-character id prefixes and counts. There are **no titles or
+content** (tested). It is also printed to Xcode's console (iPhone) or the main-process log (Mac), with
+Copy log.
+
+The status panel also shows:
+- the state (above), what is waiting for iCloud upload, what is still to receive, and the last iCloud notification
 - pending ops, last push / pull, last received (count and time), conflict copies
 - changes not applied (`sync_failed`, retried up to 5 times), unreadable entries, last error
 - journal size and compaction point, database schema version, known devices

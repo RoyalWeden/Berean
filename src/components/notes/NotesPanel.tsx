@@ -237,6 +237,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // edit, without racing against the user having typed further in the
   // meantime. See that effect's comment for the full race it closes.
   const lastSelfSaveRef = useRef<{ content: string; title: string } | null>(null)
+  // Active-editing guard for remote changes (DATA-SYNC-010): a save is scheduled, or the user typed
+  // in the last 2 s. While true, an external change is preserved as a version, not applied.
+  const savePendingRef = useRef(false)
+  const lastLocalEditAtRef = useRef(0)
+  const preservedExternalRef = useRef<string | null>(null)
+  const externalRecheckRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Fluid-feel polish #2.3 (quiet autosave "Saved" indicator, Toolbar.tsx) — a timestamp
   // bumped only when the debounced autosave's OWN save IPC call actually resolves (chained
   // onto the same window.notes.updateNote(...) promise handleContentChange/handleTitleChange
@@ -809,7 +815,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // save, this bump is that save echoing back — a no-op — regardless of how
   // far the user has typed since. Only a fetch that differs from BOTH our
   // last save AND the live ref is a genuine external edit.
-  useEffect(() => {
+  const reconcileOpenNote = useRef<() => void>(() => {})
+  reconcileOpenNote.current = () => {
     const current = activeNoteRef.current
     if (!current) return
     window.notes.getNote(current.id).then((note) => {
@@ -829,10 +836,29 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       const isOwnSaveEcho = lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
       if (isOwnSaveEcho) return
       const changedExternally = note.updatedAt !== cur.updatedAt && (note.content !== cur.content || note.title !== cur.title)
-      if (changedExternally) setActiveNote(note)
+      if (!changedExternally) return
+      // The user is typing (a save is pending, or a keystroke in the last 2 s): never replace the
+      // document under them. Keep the outside text as a version (so their next save cannot
+      // silently destroy it) and look again once they pause — a clean editor gets it at once.
+      const dirty = savePendingRef.current || Date.now() - lastLocalEditAtRef.current < 2000
+      if (dirty) {
+        if (preservedExternalRef.current !== note.content) {
+          preservedExternalRef.current = note.content
+          window.notes.createNoteVersion(note.id, note.title || '', note.content, 'external').catch(() => {})
+        }
+        if (externalRecheckRef.current) clearTimeout(externalRecheckRef.current)
+        externalRecheckRef.current = setTimeout(() => { externalRecheckRef.current = null; reconcileOpenNote.current() }, 2200)
+        return
+      }
+      preservedExternalRef.current = null
+      setActiveNote(note)
     }).catch(() => {})
+  }
+  useEffect(() => {
+    reconcileOpenNote.current()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteChangeToken])
+  useEffect(() => () => { if (externalRecheckRef.current) clearTimeout(externalRecheckRef.current) }, [])
 
   // Restore the note that was open when this tab was last active. Re-runs on every
   // notesTabId change (not just mount) — NotesPanel is a single shared instance across all
@@ -1246,10 +1272,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (!activeNote) return
     const updated = { ...activeNote, content, updatedAt: Date.now() }
     setActiveNote(updated)
+    lastLocalEditAtRef.current = Date.now()
+    savePendingRef.current = true
     // Signal meaningful edit (more than 20 chars means the user is actually writing)
     if (content.trim().length > 20) bumpNoteEditToken()
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      savePendingRef.current = false
       const id = activeNote.id
       lastSelfSaveRef.current = { content: updated.content, title: updated.title }
       window.notes.updateNote(id, { content })
@@ -1268,8 +1297,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (!activeNote) return
     const updated = { ...activeNote, title, updatedAt: Date.now() }
     setActiveNote(updated)
+    lastLocalEditAtRef.current = Date.now()
+    savePendingRef.current = true
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      savePendingRef.current = false
       lastSelfSaveRef.current = { content: updated.content, title: updated.title }
       window.notes.updateNote(activeNote.id, { title })
         .then(() => setLastAutosaveAt(Date.now()))

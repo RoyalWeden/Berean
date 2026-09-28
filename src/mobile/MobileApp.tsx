@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { applySyncInvalidation } from '@/lib/syncInvalidation'
 import { HistoryPage } from './history/HistoryPage'
 import { Tags, Route, Settings as SettingsIcon, History, Library, Layers, Archive, Download, ListMusic, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -6,7 +7,7 @@ import type { SpaceId, Tab } from '@/types'
 import { applyMobileAppearance } from './settings/scriptureTheme'
 import { applyFontFamilies } from '@/lib/fontFamilies'
 import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
-import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
+import { installTabPersistence } from '@/store/tabPersistenceRuntime'
 import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import { storeDeepLinkTarget } from '@/lib/deepLinkTarget'
 import { setIosDeepLinkTarget } from '@/platform/ios/deepLinks'
@@ -494,14 +495,8 @@ function useBoot() {
     // Power / thermal signal (R103) → store.resourceMode, same consumer as desktop App.tsx.
     window.app?.getResourceMode?.().then((mode) => useAppStore.getState().setResourceMode(mode)).catch(() => {})
     window.app?.onResourceModeChanged?.((mode) => useAppStore.getState().setResourceMode(mode))
-    const disposeSync = window.sync?.onApplied?.((entities) => {
-      const s = useAppStore.getState()
-      if (entities.includes('highlight')) s.bumpHighlightToken()
-      if (entities.some((e) => e === 'verse_tag' || e === 'verse_tag_member' || e === 'tag_edge')) void s.refreshVerseTags()
-      if (entities.some((e) => e === 'session' || e === 'tab' || e === 'archived_group')) void applyExternalSessions()
-      if (entities.includes('workspace')) window.workspaces.list().then((ws) => s.setSavedWorkspaces(ws)).catch(() => {})
-      if (entities.some((e) => e === 'note' || e === 'note_folder' || e === 'note_version')) s.bumpNoteToken()
-    })
+    // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
+    const disposeSync = window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
     return () => { disposeSettings(); disposeTabs?.(); disposeSync?.() }
   }, [])
 }

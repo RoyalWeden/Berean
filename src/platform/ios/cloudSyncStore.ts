@@ -72,17 +72,29 @@ export class CloudSyncStore implements SyncStore {
     await this.plugin.remove({ path: `${this.ownDir()}/${name}` })
   }
 
-  watch(onChange: () => void): () => void {
+  async pendingUploads(): Promise<number | undefined> {
+    try { return (await this.plugin.pendingUploads({ path: this.ownDir() })).count } catch { return undefined }
+  }
+
+  /**
+   * Remote changes (NSMetadataQuery in the plugin). The plugin also REQUESTS the download of every
+   * changed file that is not local yet, so the update that follows "download finished" is what
+   * wakes the engine — the pull then finds the files present (DATA-SYNC-008).
+   */
+  watch(onChange: (info?: { paths: number }) => void): () => void {
     let timer: ReturnType<typeof setTimeout> | null = null
     let stopped = false
     let handle: { remove: () => Promise<void> } | null = null
     void this.plugin.addListener('change', (change) => {
-      if (stopped || change.initial) return
-      // Only other devices' files matter; our own uploads also produce metadata updates.
+      if (stopped) return
+      // Only other devices' files matter; our own uploads also produce metadata updates. The
+      // initial gathering matters only when it had to request downloads (files that changed while
+      // the app was not running) — the engine already syncs at start.
       const own = `${this.ownDir()}/`
-      if (!change.paths.some((p) => !p.startsWith(own))) return
+      const remote = change.paths.filter((p) => !p.startsWith(own)).length
+      if (change.initial ? !change.downloadsRequested : remote === 0) return
       if (timer) clearTimeout(timer)
-      timer = setTimeout(() => { timer = null; onChange() }, 1500)
+      timer = setTimeout(() => { timer = null; onChange({ paths: remote }) }, 1500)
     }).then((h) => { if (stopped) void h.remove(); else handle = h })
     void this.plugin.startWatching().catch(() => { /* polling still runs */ })
     return () => {

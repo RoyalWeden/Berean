@@ -3,7 +3,8 @@ import { defaultUuid, type ServiceEvents, type ServiceLogger, type DataChange } 
 import { HybridLogicalClock, compareHlc, formatHlc, parseHlc } from './hlc'
 import { chunkForFiles, decodeJournal, parseJournalFileName, snapshotFileName, COMPACT_AFTER_BYTES, COMPACT_AFTER_OPS, COMPACT_SILENT_MS } from './journal'
 import { createEntityRegistry, SYNCED_ENTITY_KINDS, type EntityAdapter, type EntityRecord } from './entities'
-import type { DeviceManifest, JournalFileInfo, SnapshotFile, SnapshotRecord, SyncOp, SyncStatusSnapshot, SyncStore } from './types'
+import type { DeviceManifest, JournalFileInfo, SnapshotFile, SnapshotRecord, SyncOp, SyncState, SyncStatusSnapshot, SyncStore } from './types'
+import { shortId, type SyncTrace } from './trace'
 import { SYNC_FORMAT_VERSION } from './types'
 
 /**
@@ -42,6 +43,13 @@ export interface SyncEngineOptions {
   onApplied?: (entities: Set<string>) => void
   /** Max attempts for an op that throws while applying before it is left in sync_failed. */
   maxAttempts?: number
+  /** Called after a local change has been captured into the outbox — hosts wake the push
+   *  (DATA-SYNC-007: outbound sync is event-driven, not timer-driven). */
+  onLocalChange?: () => void
+  /** Diagnostic log (metadata only). */
+  trace?: SyncTrace
+  /** Network reachability, when the host knows it (only used to word the status). */
+  online?: () => boolean
 }
 
 interface OutboxRow { seq: number; entity: string; key: string; op_json: string }
@@ -81,6 +89,11 @@ export class SyncEngine {
   private lastPushAt: number | null = null
   private lastPullAt: number | null = null
   private unreadable = 0
+  private phase: 'idle' | 'uploading' | 'reconciling' = 'idle'
+  private remoteWaiting = 0
+  private lastNotifiedAt: number | null = null
+  private lastState: SyncState | null = null
+  private localChangeListener: (() => void) | null = null
   private lastApplied: { at: number; count: number } | null = null
   private unsubscribe: (() => void) | null = null
   private syncing: Promise<void> | null = null
@@ -113,6 +126,19 @@ export class SyncEngine {
     engine.lastPushAt = numOrNull(await get(STATE.lastPushAt))
     engine.lastPullAt = numOrNull(await get(STATE.lastPullAt))
     return engine
+  }
+
+  private trace(event: string, meta?: Parameters<SyncTrace['record']>[1]): void {
+    try { this.opts.trace?.record(event, meta) } catch { /* diagnostics never break sync */ }
+  }
+
+  /** The host's wake-up for outbound sync (in addition to `opts.onLocalChange`). */
+  setLocalChangeListener(cb: (() => void) | null): void { this.localChangeListener = cb }
+
+  /** The host was told the container changed (a watch event) — recorded for status / diagnostics. */
+  noteNotified(paths?: number): void {
+    this.lastNotifiedAt = this.now()
+    this.trace('remote:notified', paths != null ? { paths } : undefined)
   }
 
   private async setState(k: string, v: string): Promise<void> {
@@ -160,6 +186,8 @@ export class SyncEngine {
         await this.captureVanished(c.entity, hlc)
         for (const dep of adapter.dependents ?? []) await this.recaptureAll(dep, hlc)
       }
+      this.trace('local:captured', { entity: c.entity, op: c.op, id: shortId(c.id) })
+      try { this.opts.onLocalChange?.(); this.localChangeListener?.() } catch { /* host callback */ }
     }
     this.captureQueue = this.captureQueue.then(run, run).catch((err) => this.opts.log.error('[sync] capture failed', err))
     return this.captureQueue
@@ -320,7 +348,9 @@ export class SyncEngine {
       return 0
     }
     const status = await this.store.status()
-    if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; return 0 }
+    if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; this.trace('push:skipped', { reason: 'unavailable', pending: rows.length }); return 0 }
+    this.phase = 'uploading'
+    this.trace('push:start', { ops: rows.length })
     const ops: SyncOp[] = rows.map((r, i) => ({ ...(JSON.parse(r.op_json) as Omit<SyncOp, 'seq' | 'device'>), seq: this.ownSeq + i + 1, device: this.deviceId }))
     const files = chunkForFiles(ops)
     try {
@@ -336,12 +366,16 @@ export class SyncEngine {
       this.lastPushAt = this.now()
       await this.setState(STATE.lastPushAt, String(this.lastPushAt))
       this.lastError = null
+      this.trace('push:written', { ops: ops.length, files: files.length, seq: this.ownSeq })
       try { await this.compact() } catch (err) { this.opts.log.warn('[sync] compaction failed', err) }
       return ops.length
     } catch (err) {
       this.lastError = `push: ${err instanceof Error ? err.message : String(err)}`
       this.opts.log.error('[sync] push failed', err)
+      this.trace('push:error', { kind: err instanceof Error ? err.name : 'error' })
       return 0
+    } finally {
+      this.phase = 'idle'
     }
   }
 
@@ -456,18 +490,25 @@ export class SyncEngine {
 
   async pull(): Promise<number> {
     const status = await this.store.status()
-    if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; return 0 }
+    if (!status.available) { this.lastError = status.reason ?? 'transport unavailable'; this.trace('pull:skipped', { reason: 'unavailable' }); return 0 }
+    this.phase = 'reconciling'
+    try { return await this.pullInner() } finally { this.phase = 'idle' }
+  }
+
+  private async pullInner(): Promise<number> {
     const maxAttempts = this.opts.maxAttempts ?? 5
     let pending: SyncOp[] = []
     this.unreadable = 0
     const newer: string[] = []
     const touchedBySnapshot = new Set<string>()
     let snapshotApplied = 0
+    let waiting = 0
+    this.trace('pull:start')
     for (const device of await this.store.listDevices()) {
       if (device === this.deviceId) continue
       let manifest: DeviceManifest | null
       try { manifest = await this.store.readManifest(device) } catch { continue }
-      if (!manifest) continue
+      if (!manifest) { waiting++; this.trace('pull:waiting', { device: shortId(device), file: 'manifest' }); continue }
       if (manifest.schema > this.opts.schema) { newer.push(device); continue }
       let cursor = (await this.db.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM sync_applied WHERE device = ?', [device]))?.seq ?? 0
       const files = [...manifest.files].map((f) => parseJournalFileName(f.name) ?? f).sort((a, b) => a.seqFrom - b.seqFrom)
@@ -485,7 +526,7 @@ export class SyncEngine {
         if (f.seqFrom > expected && !failed.size) break   // gap: a file this device has not published/downloaded yet
         let text: string | null
         try { text = await this.store.readFile(device, f.name) } catch (err) { this.opts.log.warn(`[sync] cannot read ${device}/${f.name}`, err); break }
-        if (text === null) break   // not downloaded yet — stop at the gap, never skip
+        if (text === null) { waiting++; this.trace('pull:waiting', { device: shortId(device), file: f.name }); break }   // not downloaded yet — stop at the gap, never skip
         const decoded = decodeJournal(text)
         this.unreadable += decoded.unreadable
         for (const op of decoded.ops) {
@@ -510,6 +551,7 @@ export class SyncEngine {
       try {
         await this.applyOne(op, touched)
         applied++
+        this.trace('remote:applied', { entity: op.entity, op: op.op, id: shortId(op.key), device: shortId(op.device), seq: op.seq })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         this.opts.log.error(`[sync] apply failed ${op.entity}/${op.key} from ${op.device}#${op.seq}: ${msg}`)
@@ -519,6 +561,8 @@ export class SyncEngine {
     this.lastPullAt = this.now()
     await this.setState(STATE.lastPullAt, String(this.lastPullAt))
     await this.persistClock()
+    this.remoteWaiting = waiting
+    this.trace('pull:done', { applied, waiting })
     if (applied > 0) {
       this.lastApplied = { at: this.now(), count: applied }
       try { await this.writeManifest() } catch (err) { this.opts.log.warn('[sync] manifest update after pull failed', err) }
@@ -672,12 +716,21 @@ export class SyncEngine {
         devices.push({ device: d, name: m.name, platform: m.platform, seq: m.seq, applied: d === this.deviceId ? m.seq : applied, lastSeenAt: m.updatedAt })
       }
     } catch { /* transport unavailable */ }
-    const state: SyncStatusSnapshot['state'] = !transport.available ? 'unavailable'
+    const pendingUploads = transport.available ? await this.store.pendingUploads?.().catch(() => undefined) : undefined
+    // Changes other devices published (their manifests) that this device has not applied yet.
+    let behind = 0
+    for (const d of devices) if (d.device !== this.deviceId) behind += Math.max(0, d.seq - d.applied)
+    const state: SyncState = !transport.available ? 'unavailable'
       : (this.lastError || this.unreadable || failedOps) ? 'attention'
-      : pending ? 'pending' : 'synced'
+      : this.phase === 'reconciling' ? 'reconciling'
+      : this.phase === 'uploading' || (pendingUploads ?? 0) > 0 ? 'uploading'
+      : behind > 0 || this.remoteWaiting > 0 ? 'downloading'
+      : pending > 0 ? (this.opts.online && !this.opts.online() ? 'offline' : 'pending')
+      : 'synced'
+    if (state !== this.lastState) { this.lastState = state; this.trace('state', { state, pending, behind, uploads: pendingUploads ?? null }) }
     return {
       enabled: true, deviceId: this.deviceId, transport, pendingOutbox: pending, state, conflicts, failedOps,
-      lastApplied: this.lastApplied, schema: this.opts.schema,
+      lastApplied: this.lastApplied, schema: this.opts.schema, remoteBehind: behind, pendingUploads, lastNotifiedAt: this.lastNotifiedAt,
       lastPushAt: this.lastPushAt, lastPullAt: this.lastPullAt, lastError: this.lastError, devices, unreadable: this.unreadable,
       journal: { files: this.ownFiles.length, bytes: this.ownFiles.reduce((n, f) => n + (f.bytes ?? 0), 0) + (this.ownSnapshot?.bytes ?? 0), snapshotSeq: this.ownSnapshot?.seq ?? null },
     }

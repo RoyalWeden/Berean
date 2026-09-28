@@ -98,8 +98,28 @@ export interface SyncStore {
   writeOwnManifest(manifest: DeviceManifest): Promise<void>
   deleteOwnFile(name: string): Promise<void>
   /** Optional push notification of remote changes; the engine also polls. */
-  watch?(onChange: () => void): () => void
+  watch?(onChange: (info?: { paths: number }) => void): () => void
+  /** Own files the transport has written locally but the cloud has not accepted yet (iCloud
+   *  Drive: `ubiquitousItemIsUploaded == false`). Undefined = the transport cannot tell. */
+  pendingUploads?(): Promise<number | undefined>
 }
+
+/**
+ * What the Settings → iCloud state means (DATA-SYNC-005). Precedence, first match wins:
+ *  unavailable  iCloud / the sync folder is not reachable (changes are kept locally)
+ *  attention    an error, unreadable entries or changes that failed to apply
+ *  reconciling  applying other devices' changes right now
+ *  uploading    local changes are in our journal, but iCloud has not accepted them yet
+ *  downloading  another device's manifest is ahead of what we applied, or its files are still
+ *               arriving on this device
+ *  offline      local changes are waiting and the device has no network
+ *  pending      local changes are waiting to be written to the journal
+ *  synced       none of the above: nothing waiting in either direction that we can see
+ */
+export type SyncState = 'synced' | 'pending' | 'offline' | 'uploading' | 'downloading' | 'reconciling' | 'unavailable' | 'attention'
+
+/** One diagnostic event — metadata only, never content (DATA-SYNC-006). */
+export interface SyncTraceEntry { t: number; event: string; meta?: Record<string, string | number | boolean | null> }
 
 export interface SyncStatusSnapshot {
   enabled: boolean
@@ -116,7 +136,7 @@ export interface SyncStatusSnapshot {
   /** One-word state for the UI (DATA-SYNC-004): 'synced' nothing pending · 'pending' local changes
    *  not in iCloud yet · 'unavailable' iCloud not reachable (changes are kept locally) · 'attention'
    *  an error, an unreadable entry or a change that failed to apply. */
-  state?: 'synced' | 'pending' | 'unavailable' | 'attention'
+  state?: SyncState
   /** Notes' conflict copies kept by the merge (restorable from the note's Versions). */
   conflicts?: number
   /** Remote changes that failed to apply (retried; ids only in the log, never content). */
@@ -125,6 +145,12 @@ export interface SyncStatusSnapshot {
   lastApplied?: { at: number; count: number } | null
   /** This database's schema version (a device refuses ops from a newer schema). */
   schema?: number
+  /** Changes other devices published that this device has not applied yet (manifests we can read). */
+  remoteBehind?: number
+  /** Our journal files iCloud has not uploaded yet (undefined when the transport cannot tell). */
+  pendingUploads?: number
+  /** Last time this device was told about a remote change (container watch event). */
+  lastNotifiedAt?: number | null
 }
 
 export const SYNC_FORMAT_VERSION = 1

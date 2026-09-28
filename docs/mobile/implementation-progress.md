@@ -329,3 +329,47 @@ None.
 - 2026-09-26 — iOS Notes text-editing audit (testing-backlog-2026-09-26c.md, NOTES-IOS-001–008 COMPLETE): autocorrect replacement no longer deletes words, native iOS delete / replacement, guarded verse-sheet editor, docked formatting bar, external-update policy, spellcheck setting applied, native Format / undo routed (231 files / 4506 tests before the doc pass).
 - 2026-09-27 — Search Berean + navigation contract (testing-backlog-2026-09-27.md, SRCH-001–008 / NAV-001–006 COMPLETE): one shared parser + grouped search over every source, one iPhone search surface for plus and caret, the Search tab's All scope, `openDestination` with explicit intents replacing every accidental other-tab / new-tab pathway (235 files / 4547 tests).
 - 2026-09-27 — Data-layer / iCloud audit (testing-backlog-2026-09-27b.md, DATA-*/UI-MENU-001 COMPLETE in code + automated tests; real iCloud device matrix pending): capture independent of transport + startup reconciliation, concurrent delete-vs-edit → Trash with the edit, on-screen tab hold, deterministic daily-note / highlight / tab ids, sync diagnostics, crash-safe share inbox, keyboard-aware note + menu (237 files / 4567 tests).
+
+## Sync lifecycle diagnosis — 2026-09-27 (first physical-device iCloud test)
+
+Symptom (the developer, on real devices): changes did not appear on the other device on their own, or only much later; a manual refresh or reopening sometimes showed edits that had already arrived.
+
+**Transport, for the record:** Berean syncs through **iCloud Drive files** (per-device journals in `iCloud.com.berean.app/Documents/sync/v1`), not CloudKit. There are no CloudKit subscriptions, zones or change tokens. Remote changes are detected with `NSMetadataQuery` (iPhone) and a recursive `fs.watch` (Mac).
+
+**A. Local edit → iCloud (before the fix)**
+- UI → service → `berean.db` → `data:changed` → engine capture → `sync_outbox` (SQLite).
+- **Nothing woke the push.** It waited for the 60 s interval or backgrounding.
+- Then `CloudSyncStore.write` → BereanCloud (`NSFileCoordinator`) → the iCloud daemon uploads (seconds to minutes).
+
+**B. iCloud → other device's screen (before the fix)**
+- `NSMetadataQuery` update → plugin `change` event → `CloudSyncStore.watch` (1.5 s debounce) → `engine.sync()`.
+- The pull found the manifest or journal **not downloaded**. iOS never downloads iCloud Drive files by itself, and the plugin only requested a download when a read hit a placeholder, throttled to **once a minute per file**. A pass stopped at the first missing file.
+- Each change therefore needed about 3 passes (manifest, then journal, then apply), each waiting on the next event or the 60 s timer.
+- Applied ops → `berean.db` → `onApplied` → tokens → UI.
+
+**C. The notification mechanism:** `NSMetadataQuery` (iPhone; runs while the app is in the foreground) and `fs.watch` (Mac), plus the foreground and resume triggers. There are no silent pushes: iCloud Drive offers none, and the app does not sync in the background.
+
+**D. Does the mechanism work in each state? (before the fix)**
+- **Foreground:** notified, but files were not fetched, so changes were often stale for up to a minute or more.
+- **Backgrounded:** no events; a sync ran on the next foreground.
+- **Open note, iPhone:** a remote change was held while *any* field had focus, so a note left open with the keyboard up stayed stale until the user left the field — "close and reopen fixes it".
+- **Open note, Mac:** applied at once, even mid-typing (unsaved keystrokes could be replaced).
+- **Note not open:** refreshed through the note token. On the Mac, sync's own handler did not bump it; the notes channel did.
+- **On reopen:** the start sync caught up.
+
+**Root cause** — a combination:
+1. Outbound sync was not event-driven.
+2. Inbound notifications arrived, but the files they announced were not downloaded until a later read, with the 60 s throttle.
+3. Syncs requested while another was running were merged into it rather than re-run, so a notification landing mid-pass could wait for the timer.
+4. The iPhone note policy treated "the editor has focus" as "the user is typing".
+5. The desktop note panel had no active-typing protection.
+6. The status said "Up to date" whenever the outbox was empty.
+
+**Fix (DATA-SYNC-006…010):**
+- **Shared host core** (`sync/hostCore.ts`): a captured change triggers a sync 1.5 s later (coalescing typing); container notifications trigger a sync; syncs never overlap and a request mid-run causes one more pass; foreground, online and resume trigger a sync; backgrounding and quit push. The 60 s timer is kept only as a safety net.
+- **The plugin downloads what the metadata query reports as not current** (no throttle), so the completion update is what wakes the engine. There is also `pendingUploads` (`ubiquitousItemIsUploaded`).
+- **Clean-vs-dirty note policy on both platforms:** a clean open note takes the remote text immediately, even while focused. A dirty note keeps typing safe (remote kept as an "external" version) and applies automatically once the user pauses. IME composition is protected by the editor.
+- **One shared UI-invalidation map** (`lib/syncInvalidation.ts`), used by both apps and complete for every synced entity (tested). It adds the verse-note dots and the note refresh on the Mac.
+- **Honest status:** uploading, downloading, reconciling, offline, pending, up to date.
+- **Metadata-only diagnostic log**, switchable in Settings → iCloud (Xcode console / main-process log).
+

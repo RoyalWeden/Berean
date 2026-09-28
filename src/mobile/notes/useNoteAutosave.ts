@@ -7,11 +7,6 @@ const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
 /** A keystroke this recent still counts as "the user is typing" for the external-update policy. */
 const ACTIVE_EDIT_MS = 2000
 
-/** Focus is in an editable element — a note editor or a title field is being typed in. */
-function isTypingSomewhere(): boolean {
-  const a = document.activeElement as HTMLElement | null
-  return !!a && (a.isContentEditable || a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')
-}
 
 export type NotePatch = Partial<Omit<Note, 'status' | 'icon'>> & { status?: Note['status'] | null; icon?: string | null }
 
@@ -54,26 +49,39 @@ export function useNoteAutosave(noteId: string) {
     if (set.size > 32) set.delete(set.values().next().value as string)
   }
 
+  const recheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const recheckRef = useRef<() => void>(() => {})
+
   /**
    * An outside change to this note (another device via iCloud, the desktop app, a vault file, a
    * second editor of the same note). The live editor is authoritative while the user is editing:
    *  • our own saves coming back are ignored;
-   *  • while typing (focus in an editable, a keystroke in the last 2 s, or a save pending) the
-   *    outside content is NOT applied — it is kept as a note version ("external") so the local
-   *    save that follows can never silently destroy it, and re-checked once editing stops;
-   *  • when idle, the outside content replaces the editor's document (a load, not a keystroke).
+   *  • DIRTY — a save pending or a keystroke in the last 2 s — the outside content is NOT applied:
+   *    it is kept as a note version ("external") so the local save that follows can never silently
+   *    destroy it, and the note is re-checked automatically once typing pauses (DATA-SYNC-010);
+   *  • CLEAN — the editor holds exactly what is saved — the outside content replaces the editor's
+   *    document right away, even while the editor has focus and the keyboard is up (a clean editor
+   *    has nothing to lose; before, focus alone held the update until the user left the field).
+   *    An IME composition in progress is protected by the editor itself (NoteEditorPM).
    */
   const considerExternal = useCallback((n: Note) => {
     const cur = latest.current
-    if (!cur || n.id !== cur.id || n.content === cur.content || ownContents.current.has(n.content)) return
-    const editing = saveTimer.current != null || isTypingSomewhere() || Date.now() - lastEditAt.current < ACTIVE_EDIT_MS
-    if (editing) {
+    if (!cur || n.id !== cur.id) return
+    if (n.content === cur.content || ownContents.current.has(n.content)) {
+      if (n.content === cur.content) preservedExternal.current = null
+      return
+    }
+    const dirty = saveTimer.current != null || Date.now() - lastEditAt.current < ACTIVE_EDIT_MS
+    if (dirty) {
       if (preservedExternal.current !== n.content) {
         preservedExternal.current = n.content
         window.notes.createNoteVersion?.(n.id, n.title || '', n.content, 'external').catch(() => {})
       }
+      if (recheckTimer.current) clearTimeout(recheckTimer.current)
+      recheckTimer.current = setTimeout(() => { recheckTimer.current = null; recheckRef.current() }, ACTIVE_EDIT_MS + 200)
       return
     }
+    preservedExternal.current = null
     latest.current = { ...cur, ...n }
     lastSnapshot.current = n.content
     remember(n.content)
@@ -87,11 +95,8 @@ export function useNoteAutosave(noteId: string) {
     // Every note change in the app (saves, sync, other editors) bumps the shared note token —
     // `notes.onChanged` itself is single-listener (the app shell's), so it is not subscribed here.
     const off = useAppStore.subscribe((st, prev) => { if (st.noteChangeToken !== prev.noteChangeToken) recheck() })
-    // Deferred outside changes are re-checked once the user leaves the field.
-    let t: ReturnType<typeof setTimeout> | null = null
-    const onFocusOut = () => { if (t) clearTimeout(t); t = setTimeout(() => { if (preservedExternal.current != null) recheck() }, ACTIVE_EDIT_MS + 100) }
-    document.addEventListener('focusout', onFocusOut)
-    return () => { alive = false; off(); document.removeEventListener('focusout', onFocusOut); if (t) clearTimeout(t) }
+    recheckRef.current = recheck
+    return () => { alive = false; off(); recheckRef.current = () => {}; if (recheckTimer.current) { clearTimeout(recheckTimer.current); recheckTimer.current = null } }
   }, [noteId, considerExternal])
 
   const snapshot = useCallback((kind: string) => {

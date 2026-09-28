@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import { applySyncInvalidation } from '@/lib/syncInvalidation'
 import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -33,7 +34,7 @@ import { applyThemeToDocument } from '@/lib/applyTheme'
 import '@/lib/knownTagsBridge'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
-import { installTabPersistence, applyExternalSessions } from '@/store/tabPersistenceRuntime'
+import { installTabPersistence } from '@/store/tabPersistenceRuntime'
 import { openDeepLink } from '@/lib/deepLinkTarget'
 import { hydrateSettingsIntoStore, persistSettingsFromStore } from '@/lib/settingsBridge'
 import { applyFontFamilies } from '@/lib/fontFamilies'
@@ -417,13 +418,8 @@ export default function App() {
   useEffect(() => {
     // iCloud sync (docs/mobile/icloud.md): after the sync host applies changes from another
     // device, refresh whatever those entities feed. Notes already arrive via notes:changed above.
-    return window.sync?.onApplied?.((entities) => {
-      const s = useAppStore.getState()
-      if (entities.includes('highlight')) s.bumpHighlightToken()
-      if (entities.some((e) => e === 'verse_tag' || e === 'verse_tag_member' || e === 'tag_edge')) void s.refreshVerseTags()
-      if (entities.some((e) => e === 'session' || e === 'tab' || e === 'archived_group')) void applyExternalSessions()
-      if (entities.includes('workspace')) window.workspaces.list().then((ws) => s.setSavedWorkspaces(ws)).catch(() => {})
-    })
+    // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
+    return window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
   }, [])
 
   useEffect(() => {

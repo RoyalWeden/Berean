@@ -577,6 +577,8 @@ contextBridge.exposeInMainWorld('sync', {
   disable: () => ipcRenderer.invoke('sync:disable'),
   chooseFolder: () => ipcRenderer.invoke('sync:chooseFolder'),
   useDefaultFolder: () => ipcRenderer.invoke('sync:useDefaultFolder'),
+  getTrace: () => ipcRenderer.invoke('sync:getTrace'),
+  setDiagnostics: (on: boolean) => ipcRenderer.invoke('sync:setDiagnostics', on),
   onStatus: (cb: (status: unknown) => void) => {
     const handler = (_e: unknown, status: unknown) => cb(status)
     ipcRenderer.on('sync:status', handler)

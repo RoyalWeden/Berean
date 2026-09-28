@@ -28,6 +28,7 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "mkdir", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startWatching", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopWatching", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pendingUploads", returnType: CAPPluginReturnPromise),
     ]
 
     static let syncSubpath = "Documents/sync/v1"
@@ -210,12 +211,48 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// Ask iCloud to materialise a file (throttled to once a minute per file).
-    private func requestDownload(_ url: URL) {
+    /// Ask iCloud to materialise a file. Throttled per file only briefly (a read loop must not
+    /// re-request every pass); a NEWER version of the same file is requested again as soon as the
+    /// metadata query reports it (see `downloadNonCurrent`).
+    private func requestDownload(_ url: URL, force: Bool = false) {
         let key = url.path
-        if let last = downloadRequested[key], Date().timeIntervalSince(last) < 60 { return }
+        if !force, let last = downloadRequested[key], Date().timeIntervalSince(last) < 10 { return }
         downloadRequested[key] = Date()
         try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+    }
+
+    /// DATA-SYNC-008: iOS does not download iCloud Drive files on its own — it only tells us they
+    /// changed. Every sync file the metadata query reports as not current is requested at once, so
+    /// the next query update (download finished) is what wakes the engine — no read has to
+    /// stumble on a placeholder first and no timer has to come round.
+    private func downloadNonCurrent(_ items: [NSMetadataItem]) -> Int {
+        var requested = 0
+        for item in items {
+            guard let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
+            let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
+            if status != nil && status != NSMetadataUbiquitousItemDownloadingStatusCurrent {
+                requestDownload(url, force: true)
+                requested += 1
+            }
+        }
+        return requested
+    }
+
+    /// Our own files iCloud has not uploaded yet (the transport's honest "uploading" signal).
+    @objc func pendingUploads(_ call: CAPPluginCall) {
+        run(call) {
+            let dir = try self.resolve(call.getString("path") ?? "")
+            guard FileManager.default.fileExists(atPath: dir.path) else { return ["count": 0] }
+            let keys: [URLResourceKey] = [.ubiquitousItemIsUploadedKey, .isDirectoryKey]
+            let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])
+            var count = 0
+            for f in files {
+                let v = try? f.resourceValues(forKeys: Set(keys))
+                if v?.isDirectory == true { continue }
+                if v?.ubiquitousItemIsUploaded == false { count += 1 }
+            }
+            return ["count": count]
+        }
     }
 
     // MARK: change notifications
@@ -235,17 +272,23 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
                     guard let self = self, let q = self.query else { return }
                     q.disableUpdates()
                     var paths: [String] = []
+                    var touched: [NSMetadataItem] = []
+                    let isInitial = note.name == .NSMetadataQueryDidFinishGathering
+                    if isInitial {
+                        for i in 0..<q.resultCount { if let item = q.result(at: i) as? NSMetadataItem { touched.append(item) } }
+                    }
                     let keys = [NSMetadataQueryUpdateAddedItemsKey, NSMetadataQueryUpdateChangedItemsKey, NSMetadataQueryUpdateRemovedItemsKey]
                     for k in keys {
                         for item in (note.userInfo?[k] as? [NSMetadataItem]) ?? [] {
+                            if k != NSMetadataQueryUpdateRemovedItemsKey { touched.append(item) }
                             if let p = item.value(forAttribute: NSMetadataItemPathKey) as? String, p.hasPrefix(root.path) {
                                 paths.append(String(p.dropFirst(root.path.count + 1)))
                             }
                         }
                     }
+                    let requested = self.downloadNonCurrent(touched)
                     q.enableUpdates()
-                    let isInitial = note.name == .NSMetadataQueryDidFinishGathering
-                    self.notifyListeners("change", data: ["paths": paths, "initial": isInitial])
+                    self.notifyListeners("change", data: ["paths": paths, "initial": isInitial, "downloadsRequested": requested])
                 }
                 self.observers.append(center.addObserver(forName: .NSMetadataQueryDidFinishGathering, object: q, queue: .main, using: handler))
                 self.observers.append(center.addObserver(forName: .NSMetadataQueryDidUpdate, object: q, queue: .main, using: handler))
