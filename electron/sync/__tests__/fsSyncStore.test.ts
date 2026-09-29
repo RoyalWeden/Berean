@@ -34,6 +34,16 @@ describe('FsSyncStore', () => {
     expect(await b.readFile('devA', 'journal-000000001-000000002.jsonl')).toBeNull()
   })
 
+  it('asks the injected downloader (MAS build: NSFileManager, no brctl) for an evicted file, once a minute', async () => {
+    mkdirSync(join(root, 'devices', 'devA'), { recursive: true })
+    writeFileSync(join(root, 'devices', 'devA', '.journal-000000001-000000002.jsonl.icloud'), 'placeholder')
+    const requested: string[] = []
+    const b = new FsSyncStore(root, 'devB', null, (p) => { requested.push(p) })
+    expect(await b.readFile('devA', 'journal-000000001-000000002.jsonl')).toBeNull()
+    expect(await b.readFile('devA', 'journal-000000001-000000002.jsonl')).toBeNull()
+    expect(requested).toEqual(process.platform === 'darwin' ? [join(root, 'devices', 'devA', 'journal-000000001-000000002.jsonl')] : [])
+  })
+
   it('ignores a corrupt manifest and maps container ids to the macOS Mobile Documents path', async () => {
     mkdirSync(join(root, 'devices', 'devA'), { recursive: true })
     writeFileSync(join(root, 'devices', 'devA', 'manifest.json'), '{not json')

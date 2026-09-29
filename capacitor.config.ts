@@ -15,6 +15,21 @@ const config: CapacitorConfig = {
     scheme: 'Berean',
     // The Vite bundle is loaded from capacitor://localhost; keep the default so CSP 'self' works.
     limitsNavigationsToAppBoundDomains: false,
+    // Every installed Capacitor plugin EXCEPT @capacitor/geolocation: its native library links
+    // CLLocationManager.requestAlwaysAuthorization, which makes App Store Connect require an
+    // "Always" location purpose string (ITMS-90683) for a permission Berean never requests.
+    // Location on iOS is BereanLocationPlugin.swift (When In Use only). Add new plugins here.
+    includePlugins: [
+      '@capacitor/app',
+      '@capacitor/browser',
+      '@capacitor/clipboard',
+      '@capacitor/filesystem',
+      '@capacitor/haptics',
+      '@capacitor/keyboard',
+      '@capacitor/preferences',
+      '@capacitor/share',
+      '@capacitor/status-bar',
+    ],
   },
   server: {
     // The bundle is served from capacitor://localhost (Capacitor iOS rejects http/https as a

@@ -53,5 +53,15 @@ const release = existsSync(join(root, 'ios/App/BereanRelease.xcconfig')) ? readF
 if (/debug\.xcconfig/.test(release)) { console.log('✗ Release config includes debug.xcconfig (CAPACITOR_DEBUG)'); problems++ }
 else console.log('✓ Release config does not include debug.xcconfig')
 
+// Mac App Store entitlements: App Review rejected 0.2.1 (Guideline 2.4.5(i)) for the Downloads
+// entitlement; development-only keys never ship (docs/mac-app-store.md §2). The signed .app is
+// checked again by scripts/mac/verify-mas.mjs.
+const mas = readFileSync(join(root, 'build/entitlements.mas.plist'), 'utf8').replace(/<!--[\s\S]*?-->/g, '')
+const masBad = ['com.apple.security.files.downloads', 'get-task-allow', 'com.apple.security.network.server', 'allow-dyld-environment-variables'].filter((k) => mas.includes(k))
+if (masBad.length) { console.log(`✗ Mac App Store entitlements include ${masBad.join(', ')}`); problems++ }
+else console.log('✓ Mac App Store entitlements: no Downloads or development-only keys')
+if (!mas.includes('<string>iCloud.com.berean.app</string>')) { console.log('✗ Mac App Store entitlements do not name iCloud.com.berean.app'); problems++ }
+else console.log('✓ Mac App Store iCloud container: iCloud.com.berean.app')
+
 console.log(problems ? `\n${problems} problem(s) found` : '\nNo development-only code in the shipped artifacts.')
 process.exit(problems ? 1 : 0)

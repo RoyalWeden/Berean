@@ -1,11 +1,12 @@
-import { Geolocation } from '@capacitor/geolocation'
+import { BereanLocation } from './plugins'
 import { useAppStore } from '@/store'
 
 /**
  * Device location for the daily-note sunrise boundary (R048 / R101). Desktop asks
- * `navigator.geolocation` once per launch (src/App.tsx); on the phone the native plugin is used
- * so the system prompt carries `NSLocationWhenInUseUsageDescription` and the answer is
- * remembered by iOS.
+ * `navigator.geolocation` once per launch (src/App.tsx); on the phone the native BereanLocation
+ * plugin is used so the system prompt carries `NSLocationWhenInUseUsageDescription` and the
+ * answer is remembered by iOS. It can only ask for "When In Use" — Berean never needs background
+ * or "Always" location (docs/mobile/security.md).
  *
  * Policy: the app never prompts at launch. At boot it refreshes the cached fix only when the
  * user has already granted access; the first prompt happens the first time a daily note is
@@ -21,14 +22,14 @@ export async function ensureDailyNoteLocation(opts: { prompt: boolean }): Promis
   if (inflight) return inflight
   inflight = (async () => {
     try {
-      const status = await Geolocation.checkPermissions()
+      const status = await BereanLocation.checkPermissions()
       let state = status.location
-      if (state === 'prompt' || state === 'prompt-with-rationale') {
+      if (state === 'prompt') {
         if (!opts.prompt) return
-        state = (await Geolocation.requestPermissions({ permissions: ['location'] })).location
+        state = (await BereanLocation.requestPermissions()).location
       }
       if (state !== 'granted') return
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, maximumAge: 6 * 60 * 60 * 1000, timeout: 10_000 })
+      const pos = await BereanLocation.getCurrentPosition({ maximumAge: 6 * 60 * 60 * 1000, timeout: 10_000 })
       useAppStore.getState().setDailyNoteLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
       refreshedThisLaunch = true
     } catch {

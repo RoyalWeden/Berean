@@ -38,3 +38,6 @@ data/youtube_transcripts/
 # Per-user Xcode state (never shared)
 xcuserdata/
 *.xcuserstate
+
+# Mac App Store native helper (scripts/mac/build-native.mjs output)
+build/native/

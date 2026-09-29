@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, net, powerMonitor } from 'electron'
-import { homedir, hostname } from 'os'
-import { existsSync, statSync } from 'fs'
+import { app, BrowserWindow, ipcMain, net, powerMonitor } from 'electron'
+import { homedir, hostname, userInfo } from 'os'
+import { existsSync, mkdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
 import log from 'electron-log'
@@ -8,6 +8,8 @@ import { services, serviceContext } from '../services'
 import { SyncEngine } from '../../src/platform/sync/engine'
 import { BEREAN_SCHEMA_VERSION, checkDatabase } from '../../src/platform/db/bereanMigrations'
 import { FsSyncStore, ubiquityContainerPath } from './fsSyncStore'
+import { pickFolder } from '../mac/folderAccess'
+import { isMasSandbox, masContainerRoot, masStartDownloading } from './macContainer'
 import type { SyncStatusSnapshot } from '../../src/platform/sync/types'
 import { createSyncHostCore, type SyncHostCore } from '../../src/platform/sync/hostCore'
 import { createSyncTrace } from '../../src/platform/sync/trace'
@@ -34,9 +36,38 @@ async function setting<T>(key: string): Promise<T | null> {
   return (await services().settings.get(key)) as T | null
 }
 
+// Mac App Store build: the container root as returned by the system (docs/mac-app-store.md §3).
+let masRoot: { id: string; root: string } | null = null
+
 export function resolveSyncFolder(override: string | null, containerId: string | null): string {
   if (override) return override
-  return `${ubiquityContainerPath(containerId ?? DEFAULT_CONTAINER, homedir())}/sync/v1`
+  const id = containerId ?? DEFAULT_CONTAINER
+  if (masRoot && masRoot.id === id) return `${masRoot.root}/Documents/sync/v1`
+  // DMG build (not sandboxed): the container by path. In the MAS build before the container is
+  // resolved (iCloud signed out) this points at the real home, never the sandbox container, so the
+  // "iCloud folder not found" message names the right place.
+  const home = isMasSandbox() ? realHome() : homedir()
+  return `${ubiquityContainerPath(id, home)}/sync/v1`
+}
+
+function realHome(): string {
+  try { return userInfo().homedir } catch { return homedir() }
+}
+
+/**
+ * MAS build only: ask the system for the ubiquity container, which is what opens it to the
+ * sandbox. The container exists once iCloud returns it, so its Documents folder may be created
+ * here (the DMG build never creates the container — it can only see one iCloud made).
+ */
+async function ensureMasContainer(): Promise<void> {
+  if (!isMasSandbox()) return
+  const id = (await setting<string>('icloudContainerId')) ?? DEFAULT_CONTAINER
+  if (masRoot?.id === id) return
+  const root = await masContainerRoot(id)
+  if (!root) { log.warn('[sync] iCloud container unavailable (signed out of iCloud or iCloud Drive off)'); return }
+  try { mkdirSync(`${root}/Documents`, { recursive: true }) } catch (err) { log.warn('[sync] could not create the container Documents folder', err) }
+  masRoot = { id, root }
+  log.info('[sync] iCloud container resolved for the sandbox')
 }
 
 function broadcast(channel: string, payload?: unknown): void {
@@ -66,6 +97,7 @@ async function syncNow(reason: string): Promise<void> {
  */
 async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' | 'since-last' }): Promise<{ ok: boolean; reason?: string }> {
   if (engine) return { ok: true }
+  await ensureMasContainer()
   const folder = resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId'))
   const containerRoot = folder.replace(/\/sync\/v1$/, '')
   const missing = `iCloud folder not found: ${containerRoot} — open Berean on your iPhone once so iCloud creates the container, or choose a folder inside iCloud Drive.`
@@ -84,7 +116,7 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     log: { info: (m) => log.info(m), warn: (m) => log.warn(m), error: (m) => log.error(m) },
   })
   if (forked) log.warn(`[sync] this database was restored or copied (${forked}) — syncing as a new device`)
-  store = new FsSyncStore(folder, deviceId, containerRoot)
+  store = new FsSyncStore(folder, deviceId, containerRoot, isMasSandbox() ? (p) => { masStartDownloading(p) } : null)
   if (opts.requireAvailable) {
     const st = await store.status()
     if (!st.available) { store = null; return { ok: false, reason: st.reason } }
@@ -141,14 +173,14 @@ function stopEngine(): void {
 
 export async function initSyncHost(): Promise<void> {
   ipcMain.handle('sync:getStatus', async () => (engine ? engine.status() : null))
-  ipcMain.handle('sync:getConfig', async () => ({
+  ipcMain.handle('sync:getConfig', async () => { await ensureMasContainer(); return {
     enabled: (await setting<boolean>('icloudSyncEnabled')) === true,
     folder: resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId')),
     folderOverride: await setting<string>('icloudSyncFolder'),
     containerId: (await setting<string>('icloudContainerId')) ?? DEFAULT_CONTAINER,
     containerExists: existsSync(resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId')).replace(/\/sync\/v1$/, '')),
     running: !!engine,
-  }))
+  } })
   ipcMain.handle('sync:syncNow', async () => { await syncNow('manual'); return lastStatus })
   ipcMain.handle('sync:enable', async () => {
     const r = await startEngine({ requireAvailable: true, reconcile: 'full' })
@@ -162,9 +194,9 @@ export async function initSyncHost(): Promise<void> {
     return { ok: true }
   })
   ipcMain.handle('sync:chooseFolder', async () => {
-    const result = await dialog.showOpenDialog({ title: 'Choose a folder inside iCloud Drive for Berean sync', properties: ['openDirectory', 'createDirectory'] })
-    if (result.canceled || result.filePaths.length === 0) return { canceled: true }
-    const chosen = `${result.filePaths[0]}/sync/v1`
+    const picked = await pickFolder({ title: 'Choose a folder inside iCloud Drive for Berean sync', properties: ['openDirectory', 'createDirectory'] })
+    if (!picked) return { canceled: true }
+    const chosen = `${picked}/sync/v1`
     stopEngine()
     await services().settings.set('icloudSyncFolder', chosen)
     return { folder: chosen }

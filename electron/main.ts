@@ -67,6 +67,7 @@ if (is.dev) {
 import { initBereanDb, getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
 import { initDesktopServices } from './servicesHost'
 import { initSyncHost } from './sync/host'
+import { pickFolder, restoreFolderAccess } from './mac/folderAccess'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
@@ -1310,6 +1311,10 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(buildAppMenu())
   log.info('menu built')
 
+  // Mac App Store sandbox: re-open the folders the user picked in earlier sessions (vault, custom
+  // sync folder) before anything reads them. No-op in the DMG build.
+  restoreFolderAccess()
+
   // Open app DB and run migrations before registering IPC handlers
   try {
     await initBereanDb()
@@ -1439,10 +1444,7 @@ app.whenReady().then(async () => {
     await session.fromPartition('persist:youtube').clearStorageData()
     return { success: true }
   })
-  ipcMain.handle('app:openFolderDialog', async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
-    return result.canceled ? null : (result.filePaths[0] ?? null)
-  })
+  ipcMain.handle('app:openFolderDialog', async () => pickFolder({ properties: ['openDirectory', 'createDirectory'] }))
   ipcMain.handle('app:newWindow', (e) => { createWindow({ mirrorFromWebContentsId: e.sender.id }) })
   ipcMain.handle('app:newIndependentWindow', () => { createWindow({ independent: true }) })
 

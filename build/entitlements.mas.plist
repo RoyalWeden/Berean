@@ -2,7 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Mac App Store entitlements — MAIN PROCESS (Berean.app)
-  The MAS sandbox is strict. Every capability must be declared here.
+  The MAS sandbox is strict. Every capability must be declared here, and every key must map to a
+  shipped feature (docs/mac-app-store.md §2).
+
+  REMOVED: com.apple.security.files.downloads.read-only — App Review rejected 0.2.1 under
+  Guideline 2.4.5(i) (June 2026) because no feature needs it: e-Sword import and every other file
+  import go through the Open panel (user-selected access below). Do not add it back;
+  scripts/mac/verify-mas.mjs and electron/__tests__/entitlements.test.ts fail if it returns.
 -->
 <plist version="1.0">
 <dict>
@@ -16,30 +22,63 @@
   <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
   <true/>
 
-  <!-- Network: outbound for YouTube loading, cross-reference fetch, update checks -->
+  <!-- Network: outbound for YouTube, cross-reference fetch, TTS voice / transcript downloads -->
   <key>com.apple.security.network.client</key>
   <true/>
 
-  <!-- File access: user-selected vault folder (chokidar watcher + read/write) -->
+  <!-- File access: Open/Save panels — vault folder, custom sync folder, PDF / image / e-Sword
+       import, exports. -->
   <key>com.apple.security.files.user-selected.read-write</key>
   <true/>
 
-  <!-- File access: read-only downloads folder (e-Sword import file picker) -->
-  <key>com.apple.security.files.downloads.read-only</key>
+  <!-- Keeps a folder picked in the Open panel (vault, custom sync folder) reachable after
+       relaunch via an app-scoped security bookmark (electron/mac/folderAccess.ts). -->
+  <key>com.apple.security.files.bookmarks.app-scope</key>
   <true/>
 
+  <!-- iCloud sync with the iPhone (docs/mobile/icloud.md): iCloud Documents — not CloudKit — in
+       the container shared with the iOS app. Requires the iCloud capability (iCloud Documents,
+       container iCloud.com.berean.app) on the App ID and a regenerated
+       build/embedded.provisionprofile (docs/mac-app-store.md §5). -->
+  <key>com.apple.application-identifier</key>
+  <string>6C8RCZVUZR.com.berean.app</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>6C8RCZVUZR</string>
+  <key>com.apple.developer.icloud-container-identifiers</key>
+  <array>
+    <string>iCloud.com.berean.app</string>
+  </array>
+  <key>com.apple.developer.icloud-services</key>
+  <array>
+    <string>CloudDocuments</string>
+  </array>
+  <key>com.apple.developer.ubiquity-container-identifiers</key>
+  <array>
+    <string>iCloud.com.berean.app</string>
+  </array>
+  <key>com.apple.developer.icloud-container-environment</key>
+  <string>Production</string>
+
   <!-- Location: daily notes begin at sunrise, not midnight (dailyNoteUtils.ts's
-       getDailyNoteAnchorDate) — needs device location to compute it. Also requires
-       the "Location" capability enabled for this App ID in the Apple Developer
-       portal and build/embedded.provisionprofile regenerated; not automatable here. -->
+       getDailyNoteAnchorDate) — needs device location to compute it. -->
   <key>com.apple.security.personal-information.location</key>
   <true/>
 
-  <!-- Explicitly empty application-groups — prevents electron-builder from
-       auto-injecting "TEAMID.BUNDLEID" which requires a registered App Group
-       in the provisioning profile (we don't need inter-app data sharing). -->
+  <!-- Printing: File › Print for notes (main.ts 'app:printNote'). -->
+  <key>com.apple.security.print</key>
+  <true/>
+
+  <!-- Required by Electron/Chromium in the sandbox, not for data sharing: helper processes find
+       the browser process through a Mach service named "<ElectronTeamID>.<bundle id>.MachPort
+       RendezvousServer.<pid>", and the sandbox only lets the app check in services under an
+       application-group prefix it holds. With an empty array the MAS build crashes at launch
+       (FATAL mach_port_rendezvous.cc: bootstrap_check_in … Permission denied — reproduced
+       2026-09-28). A TEAMID-prefixed group needs no App Group registration on the App ID.
+       This is NOT the iPhone's group.com.berean.app (iOS Share Extension only). -->
   <key>com.apple.security.application-groups</key>
-  <array/>
+  <array>
+    <string>6C8RCZVUZR.com.berean.app</string>
+  </array>
 
 </dict>
 </plist>
