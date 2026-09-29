@@ -9,6 +9,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, w
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { profileAuthorises } from './profileAuthorises.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -125,7 +126,7 @@ else {
   for (const k of ['com.apple.developer.icloud-container-identifiers', 'com.apple.developer.ubiquity-container-identifiers', 'com.apple.developer.icloud-services']) {
     const allowed = get(`Entitlements.${key(k)}`)
     const want = main[k] ?? []
-    const ok = Array.isArray(allowed) && want.every((v) => allowed.includes(v) || allowed.includes('*'))
+    const ok = profileAuthorises(allowed, want)
     if (!ok) fail(`profile "${profile.Name}" does not authorise ${k} = ${JSON.stringify(want)} — regenerate build/embedded.provisionprofile after enabling iCloud (docs/mac-app-store.md §5)`)
   }
   rmSync(dir, { recursive: true, force: true })
