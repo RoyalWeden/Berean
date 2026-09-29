@@ -16,7 +16,8 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build:local": "npm run build && electron-builder --mac --publish never",
     "build:draft": "npm run build && electron-builder --mac --publish always",
-    "build:mas": "npm run build && electron-builder --mac --config.mac.target=mas --config.mac.hardenedRuntime=false --publish never",
+    "build:mas": "npm run build && node scripts/mac/build-native.mjs && electron-builder --mac --config.mac.target=mas --config.mac.hardenedRuntime=false --publish never && node scripts/mac/verify-mas.mjs",
+    "build:mas:pkg": "node scripts/mac/package-mas.mjs",
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:win:publish": "npm run build && electron-builder --win --publish always",
     "build:mac:x64": "npm run build && electron-builder --mac --config.mac.target.arch=x64 --publish never",
@@ -201,7 +202,16 @@
       },
       "entitlements": "build/entitlements.mas.plist",
       "entitlementsInherit": "build/entitlements.mas.inherit.plist",
-      "provisioningProfile": "build/embedded.provisionprofile"
+      "provisioningProfile": "build/embedded.provisionprofile",
+      "extraResources": [
+        {
+          "from": "build/native",
+          "to": "native",
+          "filter": [
+            "berean_icloud.node"
+          ]
+        }
+      ]
     },
     "dmg": {
       "title": "Berean ${version}",

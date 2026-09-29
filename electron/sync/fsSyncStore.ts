@@ -11,8 +11,9 @@ import type { DeviceManifest, SyncStore, SyncStoreStatus } from '../../src/platf
  *  - This device only ever writes under `devices/<deviceId>/`; writes are atomic (temp + rename)
  *    so the daemon never uploads a half-written file.
  *  - A file that iCloud has evicted appears as `.<name>.icloud`; `readFile` returns null for it
- *    (the engine stops that device's stream at the gap) and asks the daemon to download it with
- *    `brctl download` (macOS only, best effort).
+ *    (the engine stops that device's stream at the gap) and asks the daemon to download it —
+ *    `brctl download` in the DMG build, the injected `download` (NSFileManager) in the sandboxed
+ *    Mac App Store build, which cannot run brctl (macOS only, best effort).
  *  - `watch` uses a recursive fs watcher, debounced; the engine also polls.
  */
 export class FsSyncStore implements SyncStore {
@@ -23,11 +24,13 @@ export class FsSyncStore implements SyncStore {
   /** When set, the store is unavailable until this folder exists — it never creates the iCloud
    *  container itself (that would sync to a plain local folder and look like it worked). */
   private readonly requiredParent: string | null
+  private readonly download: ((path: string) => void) | null
 
-  constructor(root: string, deviceId: string, requiredParent: string | null = null) {
+  constructor(root: string, deviceId: string, requiredParent: string | null = null, download: ((path: string) => void) | null = null) {
     this.root = root
     this.deviceId = deviceId
     this.requiredParent = requiredParent
+    this.download = download
   }
 
   private devicesDir(): string { return join(this.root, 'devices') }
@@ -87,6 +90,7 @@ export class FsSyncStore implements SyncStore {
     const last = this.downloadRequested.get(path) ?? 0
     if (Date.now() - last < 60_000) return
     this.downloadRequested.set(path, Date.now())
+    if (this.download) { this.download(path); return }
     execFile('/usr/bin/brctl', ['download', path], () => { /* best effort */ })
   }
 
