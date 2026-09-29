@@ -40,6 +40,7 @@ and, where marked, exercised on the simulator.
 | API keys | the YouTube Data API key exists only in the developer's gitignored `electron/youtube-key.ts`; the phone loads it through `import.meta.glob` in dev builds only and it is verified absent from the production bundle (Phase 17). |
 | ATS | default App Transport Security; `NSAllowsLocalNetworking` only so a self-hosted pack server on the LAN works. |
 | Privacy manifest | `PrivacyInfo.xcprivacy`: no tracking, no collected data types. |
+| Location | When In Use only (`NSLocationWhenInUseUsageDescription`), one approximate fix for the daily-note sunrise, never leaves the device; no background or Always access. `BereanLocationPlugin.swift` replaces @capacitor/geolocation on iOS (excluded via `ios.includePlugins` in `capacitor.config.ts`) because that plugin's library links `requestAlwaysAuthorization`, which triggered ITMS-90683. |
 
 ## 5. Secrets in the repository
 

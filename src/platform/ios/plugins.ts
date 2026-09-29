@@ -140,3 +140,13 @@ export interface BereanA11yPlugin {
   addListener(event: 'change', cb: (e: BereanA11yState) => void): Promise<{ remove: () => Promise<void> }>
 }
 export const BereanA11y = registerPlugin<BereanA11yPlugin>('BereanA11y')
+
+/** Foreground-only location for the daily-note sunrise (BereanLocationPlugin.swift): asks for
+ *  "When In Use" only and reads one approximate fix — no background or "Always" access. */
+export type BereanLocationPermission = 'granted' | 'denied' | 'prompt'
+export interface BereanLocationPlugin {
+  checkPermissions(): Promise<{ location: BereanLocationPermission }>
+  requestPermissions(): Promise<{ location: BereanLocationPermission }>
+  getCurrentPosition(opts: { maximumAge?: number; timeout?: number }): Promise<{ timestamp: number; coords: { latitude: number; longitude: number; accuracy: number } }>
+}
+export const BereanLocation = registerPlugin<BereanLocationPlugin>('BereanLocation')

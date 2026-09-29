@@ -72,6 +72,24 @@ describe.skipIf(process.platform !== 'darwin')('release entitlements', () => {
     expect(xc).toMatch(/^BEREAN_APP_GROUP = group\.com\.berean\.app$/m)
   })
 
+  it('iPhone location: When In Use only, and the Always-capable geolocation plugin is not linked (ITMS-90683)', () => {
+    const info = plist('ios/App/App/Info.plist')
+    expect(info.NSLocationWhenInUseUsageDescription).toMatch(/sunrise/)
+    expect(info.NSLocationAlwaysAndWhenInUseUsageDescription).toBeUndefined()
+    expect(info.NSLocationAlwaysUsageDescription).toBeUndefined()
+    expect(info.UIBackgroundModes).not.toContain('location')
+    const cap = readFileSync(join(root, 'capacitor.config.ts'), 'utf8')
+    const block = /includePlugins:\s*\[([\s\S]*?)\]/.exec(cap)?.[1] ?? ''
+    const included = [...block.matchAll(/'(@capacitor\/[a-z-]+)'/g)].map((m) => m[1])
+    expect(included).not.toContain('@capacitor/geolocation')
+    // Every other installed native plugin must stay in the list, or it silently drops off iOS.
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+    const plugins = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
+      .filter((n) => n.startsWith('@capacitor/') && !['@capacitor/cli', '@capacitor/core', '@capacitor/ios', '@capacitor/geolocation'].includes(n))
+    expect(included.sort()).toEqual(plugins.sort())
+    expect(readFileSync(join(root, 'src/platform/ios/location.ts'), 'utf8')).not.toContain('@capacitor/geolocation')
+  })
+
   it('package.json: one bundle id for every platform, MAS build uses the MAS plists', () => {
     const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
     expect(pkg.build.appId).toBe('com.berean.app')
