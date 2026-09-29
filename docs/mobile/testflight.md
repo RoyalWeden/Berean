@@ -25,14 +25,16 @@ Verified on 2026-09-28 on this Mac:
 
 ## 2. App Store Connect app record (once)
 
-1. App Store Connect → Apps → **+** → New App.
-2. Enter:
-   - Platform: iOS;
-   - Name: **Berean** (or any available name; it can change later);
-   - Primary language;
-   - Bundle ID: **com.berean.app**;
-   - SKU: anything, e.g. `berean-ios`.
-3. Nothing else is needed for internal TestFlight.
+The **Berean** record already exists (bundle ID `com.berean.app`, created for the Mac). The
+iPhone app is a second platform on that record — never a second record.
+
+1. App Store Connect → Apps → **Berean** → App Information: confirm Bundle ID **com.berean.app**.
+2. In the sidebar, **+ Add Platform** (or **+ Version or Platform**) → **iOS**. App Store Connect
+   creates an iOS version (e.g. "1.0 Prepare for Submission"); leave it — TestFlight does not use
+   it, and its number can be changed to the real one before an App Store submission.
+3. The macOS version 0.2.1 (Rejected) does not block this or TestFlight
+   (`docs/mac-app-store.md` §7).
+4. Nothing else is needed for internal TestFlight.
 
 ## 3. Version and build number
 
@@ -122,3 +124,22 @@ migrate it (with a backup), and iCloud Sync continues where it was.
   - pick the tested build and submit for review;
   - release manually.
 - Neither is part of the current workflow.
+
+## 11. App Review information (external testing / App Store)
+
+What Berean does that App Review asks about — every item is shipped and working:
+
+- **iCloud:** iCloud Documents (not CloudKit) in the container `iCloud.com.berean.app`, shared with
+  the Mac app; it syncs the user's own notes, highlights, tags, tabs and workspaces. No account or
+  server of our own. The container is visible in Files › iCloud Drive › Berean
+  (`NSUbiquitousContainerIsDocumentScopePublic`).
+- **Share Extension** (`com.berean.app.share`): "Open in Berean" for text, links and up to five
+  files; hands them to the app through the App Group `group.com.berean.app`.
+- **Background audio** (`UIBackgroundModes: audio`): Read Aloud keeps reading Scripture with the
+  screen locked, with Now Playing and lock-screen controls (AVSpeechSynthesizer).
+- **Permissions:** location when in use — local sunrise for daily notes, never leaves the device;
+  photo library — insert a photo into a note.
+- **iOS 17.0+, iPhone only.** No tracking, no data collected (`PrivacyInfo.xcprivacy`); App
+  Privacy answer: *Data Not Collected*. `ITSAppUsesNonExemptEncryption = false`.
+- No login, no in-app purchase, no ads. Reviewers need no demo account.
+

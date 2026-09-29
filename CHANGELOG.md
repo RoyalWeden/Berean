@@ -149,6 +149,9 @@ SCENARIO 5 — Abandon a beta series and restart
   devices and, under Advanced, diagnostics. Open notes, tabs and panels update
   by themselves when another device changes something.
 - Berean backs up its database before every update that changes it.
+- The Mac App Store version syncs through iCloud as well, remembers the notes
+  folder you chose after it restarts, and no longer asks for access to your
+  Downloads folder.
 
 ### Look & feel
 
