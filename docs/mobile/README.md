@@ -7,6 +7,7 @@ place to look for "where are we".
 
 | Document | What it holds |
 |---|---|
+| [`../development-map.md`](../development-map.md) | One-screen quick reference: Berean vs Berean Dev (identities, iCloud, local data) and the few commands that matter. |
 | [`requirements.md`](requirements.md) | The requirement ledger: every requirement from the brief with a stable ID (R001…), current desktop implementation, target, files, tests, status. Never shrinks. |
 | [`architecture.md`](architecture.md) | Shared-vs-platform layering, the `window.*` boundary, shared services + `DatabaseAdapter`, the iOS runtime (Capacitor + local Swift plugins), the mobile shell, sync engine placement, security. |
 | [`feature-matrix.md`](feature-matrix.md) | Every user-facing desktop feature → iPhone requirement, shared/iOS implementation, offline & iCloud behaviour, status, limitation. |
