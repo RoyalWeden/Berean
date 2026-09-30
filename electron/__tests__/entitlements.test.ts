@@ -99,6 +99,12 @@ describe.skipIf(process.platform !== 'darwin')('release entitlements', () => {
     expect(pkg.build.mas.extraResources).toEqual([{ from: 'build/native', to: 'native', filter: ['berean_icloud.node'] }])
     expect(pkg.scripts['build:mas']).toContain('scripts/mac/build-native.mjs')
     expect(pkg.scripts['build:mas']).toContain('scripts/mac/verify-mas.mjs')
+    // mas-dev (local testing): same MAS entitlements, only the profile differs — development
+    // profile, never the distribution one; the distribution build keeps its own profile.
+    expect(pkg.build.masDev).toEqual({ provisioningProfile: 'build/embedded.dev.provisionprofile' })
+    expect(pkg.build.mas.provisioningProfile).toBe('build/embedded.provisionprofile')
+    expect(pkg.scripts['build:mas:dev']).toContain('--config.mac.target=mas-dev')
+    expect(pkg.scripts['build:mas:dev']).not.toContain('verify-mas')
     // The iOS Version.xcconfig is generated from package.json.
     const v = readFileSync(join(root, 'ios/App/Version.xcconfig'), 'utf8')
     expect(v).toContain(`MARKETING_VERSION = ${pkg.version}`)
