@@ -29,6 +29,9 @@ export function AudioBar() {
   const playing = useAppStore((s) => !!s.audioPlayback && s.audioPlayback.isPlaying && !s.audioPlayback.isPaused)
   const passage = useAppStore((s) => (s.audioPlayback ? bookChapterVerseLabel(s.audioPlayback.bookId, s.audioPlayback.chapter) : ''))
   const togglePlayPause = useAppStore((s) => s.togglePlayPause)
+  // TEST 2026-09-29: the big play/pause belongs to Scripture. Every other tab type shows only the
+  // compact top-right audio control (which opens the audio sheet with the same controls).
+  const onScripture = useAppStore((s) => s.activeSpace === 'scripture' && s.tabs.scripture.find((t) => t.id === s.activeTabId.scripture)?.type === 'bible')
   const sheets = useSheets()
   const hidden = useAudioControlsHidden()
   const followPaused = useAudioFollowPaused()
@@ -57,7 +60,7 @@ export function AudioBar() {
 
   const sheetUp = sheets.currentId != null
   const openSheet = () => { void haptic.selection(); sheets.open(audioSheetOptions()) }
-  const fabShown = !hidden && !sheetUp
+  const fabShown = onScripture && !hidden && !sheetUp
   return (
     <>
       <button type="button" className={`m-audio-float m-audio-topbtn${topShown ? '' : ' is-hidden'}`} tabIndex={topShown ? undefined : -1} aria-hidden={!topShown || undefined} aria-label={`Read Aloud, ${passage}. Audio controls`} onClick={openSheet}>
