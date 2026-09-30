@@ -378,6 +378,13 @@ function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chap
 /** Rows receive `findQuery` ONLY when they match (the shared rule in src/lib/scriptureFind.ts —
  *  raw AND displayed text, case-insensitive), so non-matching rows keep a stable `findQuery=''`
  *  across keystrokes and memo(VerseRow) bails them out instead of re-rendering every row. */
+/** 1 → 'a', 2 → 'b', … 26 → 'z', 27 → 'aa'. */
+export function lxxLetter(n: number): string {
+  let out = ''
+  for (let k = n; k > 0; k = Math.floor((k - 1) / 26)) out = String.fromCharCode(97 + ((k - 1) % 26)) + out
+  return out
+}
+
 function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId, forceSelectedVerses, chapterNotesBanner }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
@@ -408,6 +415,13 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // ChapterView mount (e.g. switching back to a tab) — avoids showing the loading skeleton for
   // a chapter we've already loaded once (see chapterCache.ts).
   const [verses, setVerses] = useState<Verse[]>(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) ?? [])
+  // Rows sharing one verse number (Rahlfs LXX lettered additions, e.g. 1 Kings 2:35 + 35a–35o):
+  // the n-th repeat gets index n (0 = the verse itself) → unique React keys and "35a"-style labels.
+  // Keying by verse_num alone collapsed them (only one of fifteen rows rendered).
+  const verseDupIndex = useMemo(() => {
+    const seen = new Map<number, number>()
+    return verses.map((v) => { const n = seen.get(v.verse_num) ?? 0; seen.set(v.verse_num, n + 1); return n })
+  }, [verses])
   // Which (bookId, chapter, textId) the current `verses` array actually belongs to — lets the
   // scroll-to-verse effect tell "real new-chapter data" apart from "old chapter's verses still
   // in state while a switch is in flight" without needing to clear `verses` to signal that (see
@@ -1221,6 +1235,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
       )}
 
       {verses.map((verse, verseIdx) => {
+        const dupIndex = verseDupIndex[verseIdx] ?? 0
         // Psalm superscription: a leading verse that IS the superscription (Brenton whole-verse
         // titles) doesn't render as its own numbered row — it's folded into the faint title
         // line above the first body verse. See psalmSuperscription.ts.
@@ -1289,7 +1304,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
           && audioPlayback.verse === verse.verse_num
         const rowPlaybackWordIndex = isPlaybackVerse ? audioPlayback!.wordIndex : null
         return (
-          <Fragment key={verse.verse_num}>
+          <Fragment key={dupIndex ? `${verse.verse_num}-${dupIndex}` : verse.verse_num}>
             {missingBefore.length > 0 && (() => {
               const contiguous = missingBefore.every((n, i) => i === 0 || n === missingBefore[i - 1] + 1)
               const label = missingBefore.length === 1
@@ -1332,6 +1347,7 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
             )}
             <VerseRow
               verse={renderVerse}
+              verseLabel={dupIndex ? `${verse.verse_num}${lxxLetter(dupIndex)}` : undefined}
               showStrongs={showStrongs}
               showVerseNumber={showVerseNumbers}
               noteCount={noteCounts[verse.verse_num] ?? 0}
