@@ -113,3 +113,22 @@ html[data-m-selbar] .m-note-insert > * { pointer-events: none; }
    the end so the last lines scroll clear of the floating + button. */
 .berean-pm-editor.pm-chrome-phone .ProseMirror { padding-bottom: 88px; }
 .berean-pm-editor.pm-chrome-phone { scroll-padding-bottom: 72px; }
+
+/* ── Note page (TEST 2026-09-29, "Apple Notes"): floating back / undo / share·more / Done over the
+   note, a large title that scrolls WITH the text (NoteEditorPM header slot), and a body that fills
+   the rest. The title never changes size on focus — it only grows with its own wrapped lines. ── */
+.m-note-page .berean-pm-editor.pm-chrome-phone { display: flex; flex-direction: column; }
+.m-note-page .berean-pm-editor.pm-chrome-phone > .ProseMirror { flex: 1 0 auto; min-height: 0; padding-top: 4px; }
+.m-note-page .pm-header-slot { flex: none; padding-top: var(--m-page-header-h, calc(var(--m-safe-top) + 48px)); }
+.m-note-page .berean-pm-editor.pm-chrome-phone { scroll-padding-top: var(--m-page-header-h, 0px); }
+.m-note-title-wrap { display: flex; flex-direction: column; padding: 6px 16px 0 28px; }
+.m-note-title-wrap .mobile-note-icon { font-size: calc(28px * var(--m-type-scale, 1)); line-height: 1.2; margin-bottom: 2px; }
+.m-note-title {
+  display: block; width: 100%; margin: 0; padding: 0; border: 0; outline: none; resize: none; overflow: hidden;
+  background: none; color: rgb(var(--color-text-primary));
+  font: inherit; font-weight: 700; letter-spacing: -0.01em;
+  font-size: calc(28px * var(--m-type-scale, 1)); line-height: 1.2;
+  -webkit-user-select: text; user-select: text;
+}
+.m-note-title::placeholder { color: rgb(var(--color-text-muted) / 0.7); }
+.m-note-title-wrap .mobile-note-meta { padding: 4px 0 0; }

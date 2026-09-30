@@ -138,6 +138,10 @@ export interface NoteEditorPMProps {
   /** A same-note content prop arrived while an IME / autocorrect / dictation composition was in
    *  progress and was NOT applied (the composition wins). The host keeps it (DATA-LIVE-001). */
   onExternalDeferred?: (content: string) => void
+  /** Content rendered ABOVE the document inside the editor's own scroll container (the phone's
+   *  large note title), so it scrolls with the text like Apple Notes. React owns only this slot;
+   *  ProseMirror appends its own DOM after it, and view.dom.parentElement stays the scroller. */
+  header?: ReactNode
 }
 
 /** Verse text for the ref hover-preview / verse-block insertion, run through the same word
@@ -177,6 +181,7 @@ export default function NoteEditorPM({
   renderSelectionToolbar,
   onEditorReady,
   onExternalDeferred,
+  header,
   findQuery = '',
   findMode = 'phrase',
   importSource,
@@ -1321,7 +1326,9 @@ export default function NoteEditorPM({
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
         className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${phoneChrome ? 'pm-chrome-phone' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
-      />
+      >
+        {header != null && <div className="pm-header-slot">{header}</div>}
+      </div>
       {importSource && (
         <div className="flex-shrink-0 border-t border-separator select-none">
           <button

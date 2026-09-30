@@ -57,6 +57,7 @@ import VerseDragIndicator from '@/components/bible/VerseDragIndicator'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { QueuePage } from './audio/QueuePage'
 import { Keyboard } from '@capacitor/keyboard'
+import { installKeyboardDismiss } from './primitives/keyboardDismiss'
 import { BereanA11y } from '@/platform/ios/plugins'
 import './mobile.css'
 
@@ -481,7 +482,9 @@ function useBoot() {
       handles.push(Keyboard.addListener('keyboardWillShow', (e) => { root.style.setProperty('--m-keyboard-h', `${e.keyboardHeight}px`); root.dataset.keyboard = ''; window.dispatchEvent(new Event('berean:keyboard')) }))
       handles.push(Keyboard.addListener('keyboardWillHide', () => { root.style.setProperty('--m-keyboard-h', '0px'); delete root.dataset.keyboard; window.dispatchEvent(new Event('berean:keyboard')) }))
     } catch { /* web preview */ }
-    return () => { for (const h of handles) h.then((x) => x.remove()).catch(() => {}) }
+    // Keyboard dismissal (on drag / swipe down / inert tap) — one shell-wide behaviour.
+    const disposeDismiss = installKeyboardDismiss(document.body)
+    return () => { disposeDismiss(); for (const h of handles) h.then((x) => x.remove()).catch(() => {}) }
   }, [])
   useEffect(() => {
     window.settings?.getAll().then((all) => hydrateSettingsIntoStore(all)).catch(() => {})

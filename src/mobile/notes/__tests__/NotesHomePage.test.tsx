@@ -101,7 +101,7 @@ describe('folder view', () => {
     await flush()
     expect(container.querySelector('.m-notes-large-title')!.textContent).toBe('All Notes')
     expect(container.querySelector('.m-notes-large-sub')!.textContent).toBe('4 Notes')
-    expect(container.querySelector('.mobile-back')!.textContent).toContain('Folders')
+    expect(container.querySelector('.mobile-back')!.getAttribute('aria-label')).toContain('Folders')
     const t = titles()
     expect(t[0]).toMatch(/^Pinned/)
     expect(t.some((x) => /^Today/.test(x ?? ''))).toBe(true)

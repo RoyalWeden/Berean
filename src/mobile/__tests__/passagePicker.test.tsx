@@ -184,11 +184,11 @@ describe('PassagePicker (NEW-11)', () => {
     await flush(); await flush()
     const sheet = document.querySelector('.mobile-sheet')!
     const view = () => [...sheet.querySelectorAll('.mobile-sheet-view')].at(-1)!
-    expect(sheet.querySelector('.mobile-sheet-back')?.textContent).toContain('KJV')
+    expect(sheet.querySelector('.mobile-sheet-back')?.getAttribute('aria-label')).toContain('KJV')
     expect(view().querySelector('[aria-current="true"] .m-pp-row-title')?.textContent).toBe('John')
     click(sheet.querySelector('.mobile-sheet-back')!)
     await flush(); await flush()
-    expect(sheet.querySelector('.mobile-sheet-back')?.textContent).toContain('Library')
+    expect(sheet.querySelector('.mobile-sheet-back')?.getAttribute('aria-label')).toContain('Library')
     click(sheet.querySelector('.mobile-sheet-back')!)
     await flush(); await flush()
     expect(document.querySelector('.mobile-sheet input[type="search"]')).not.toBeNull()

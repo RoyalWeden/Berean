@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { MoreHorizontal, Eye, Pencil, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Undo2, Redo2, Check, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
@@ -10,9 +10,12 @@ import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useLongPress } from '../primitives/useLongPress'
-import { Page, IconTap, ListSection, Row } from '../primitives/Page'
+import { Page, IconTap, IconGroup, ListSection, Row } from '../primitives/Page'
+import { dismissKeyboard } from '../primitives/keyboardDismiss'
+import { undo, redo } from 'prosemirror-history'
+import { TextSelection } from 'prosemirror-state'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
-import { useActionSheet, ChoiceList } from '../primitives/ActionSheet'
+import { useActionSheet, ChoiceList, type SheetAction } from '../primitives/ActionSheet'
 import { useNavigation } from '../navigation/NavigationStack'
 import { FolderPicker } from './FolderPicker'
 import { CaretGoTo } from '../commands/CaretGoTo'
@@ -50,6 +53,13 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   // The live editor (NoteEditorPM onEditorReady) — the + menu runs its commands, the caret reads
   // its statistics. Never used to push content back into the editor.
   const [editorView, setEditorView] = useState<EditorView | null>(null)
+  // Title (TEST 2026-09-29): a LOCAL draft the field shows, so typing is never re-normalised
+  // mid-word (the stored title used to be trimmed back into the field → spaces were impossible).
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleFocused = useRef(false)
+  const titleRef = useRef<HTMLTextAreaElement | null>(null)
+  // Editing = a text field of this note (title or body) has focus → Done ✓ + undo show.
+  const [editing, setEditing] = useState(false)
   const typingLook = useAppStore((s) => s.noteTypingLook)
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
@@ -59,6 +69,47 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     window.notes.getNotes(500, 0).then((all) => { if (alive) setNotes(all) }).catch(() => {})
     return () => { alive = false }
   }, [noteId])
+
+  useEffect(() => {
+    if (note && !titleFocused.current) setTitleDraft(displayNoteTitle(note.title, ''))
+  }, [note?.id, note?.title]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The title field grows only with its own wrapped lines (never on focus).
+  useEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    el.style.height = '0px'
+    el.style.height = `${el.scrollHeight}px`
+  }, [titleDraft, note?.id])
+
+  const focusBodyStart = useCallback(() => {
+    const v = editorView
+    if (!v || v.isDestroyed) return
+    if (mode !== 'edit') setMode('edit')
+    v.dispatch(v.state.tr.setSelection(TextSelection.atStart(v.state.doc)).scrollIntoView())
+    v.focus()
+  }, [editorView, mode])
+  const onTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Return finishes the title and continues in the body, like Apple Notes.
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); focusBodyStart() }
+  }
+  const onEditorFocusChange = (e: React.FocusEvent<HTMLDivElement>) => {
+    const root = e.currentTarget
+    if (e.type === 'focus') { setEditing(true); return }
+    const next = e.relatedTarget as Node | null
+    setEditing(!!next && root.contains(next))
+  }
+  const doneEditing = () => {
+    editorView?.dom.blur()
+    titleRef.current?.blur()
+    dismissKeyboard()
+    setEditing(false)
+    void haptic.light()
+  }
+  const runHistory = (fn: typeof undo) => {
+    const v = editorView
+    if (!v || v.isDestroyed) return
+    fn(v.state, v.dispatch)
+  }
 
   // A verse link changes THIS tab (NAV-002): the note tab becomes Scripture with a "← note" pill,
   // and ‹ returns to the note. (It used to jump to — or create — another Scripture tab.)
@@ -167,16 +218,56 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
 
   if (note === undefined) return <Page title="Note" onBack={onBack}><div className="mobile-empty">Loading…</div></Page>
   if (note === null) return <Page title="Note" onBack={onBack}><div className="mobile-empty">This note no longer exists.</div></Page>
+  const openMore = () => { void haptic.light(); actions('note-more', displayNoteTitle(note.title), [
+    ...(mode === 'edit' ? [{ id: 'view', label: 'Reading view', icon: Eye, onSelect: () => { doneEditing(); setMode('view') } }] : []),
+    ...(editing ? [{ id: 'redo', label: 'Redo', icon: Redo2, onSelect: () => runHistory(redo) }] : []),
+    ...actionList().map((a) => ('view' in a && a.view ? { ...a, view: () => ({ key: a.id, ...a.view!() }) } : a)) as SheetAction[],
+  ]) }
+  const title = (
+    <div className="m-note-title-wrap">
+      {note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}
+      <textarea
+        ref={titleRef}
+        className="m-note-title"
+        rows={1}
+        value={titleDraft}
+        placeholder="Title"
+        aria-label="Note title"
+        enterKeyHint="next"
+        spellCheck
+        onFocus={() => { titleFocused.current = true }}
+        onBlur={() => { titleFocused.current = false; setTitleDraft(displayNoteTitle(latest.current?.title ?? note.title, '')) }}
+        onKeyDown={onTitleKeyDown}
+        onChange={(e) => {
+          // Pasted line breaks become spaces — a title is one logical line.
+          const v = e.target.value.replace(/\r?\n/g, ' ')
+          setTitleDraft(v)
+          persist({ title: storedNoteTitle(v, latest.current?.title ?? note.title) })
+        }}
+      />
+      {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
+    </div>
+  )
   return (
     <Page
       noScroll
+      header="floating"
+      className="m-note-page"
       onBack={onBack}
-      title={<span className="mobile-title-wrap">{note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}<input className="mobile-title-input" value={displayNoteTitle(note.title, '')} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: storedNoteTitle(e.target.value, note.title) })} /></span>}
-      right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /></>}
+      backLabel="Notes"
+      right={<>
+        {mode === 'view'
+          ? <IconTap icon={Pencil} label="Edit" onClick={() => { setMode('edit'); focusBodyStart() }} />
+          : <IconTap icon={Undo2} label="Undo" onClick={() => runHistory(undo)} disabled={!editorView} />}
+        <IconGroup label="Note actions">
+          <IconTap icon={Share2} label="Share" onClick={() => { void shareNote(latest.current ?? note) }} />
+          <IconTap icon={MoreHorizontal} label="More" onClick={openMore} />
+        </IconGroup>
+        {editing && <button type="button" className="m-float-circle is-primary" aria-label="Done" data-keep-keyboard onPointerDown={(e) => e.preventDefault()} onClick={doneEditing}><Check size={22} strokeWidth={2.5} aria-hidden /></button>}
+      </>}
     >
       {printOpen && <PrintPreviewModal title={displayNoteTitle(note.title)} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
-      <div className="mobile-note-editor" {...refLongPress}>
-        {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
+      <div className="mobile-note-editor" {...refLongPress} onFocus={onEditorFocusChange} onBlur={onEditorFocusChange}>
         <NoteEditorPM
           content={editorContent}
           noteId={note.id}
@@ -194,6 +285,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
           chrome="phone"
           renderSelectionToolbar={renderPhoneSelectionToolbar}
           onEditorReady={setEditorView}
+          header={title}
         />
         <NoteInsertButton view={editorView} hidden={mode !== 'edit'} />
       </div>
