@@ -107,7 +107,10 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
   useEffect(() => {
     const el = gridRef.current
     if (!el) return
-    const onTouchMove = (e: TouchEvent) => { if (g.current?.lifted) e.preventDefault() }
+    // A lifted card owns the finger: nothing scrolls and the sheet's body gesture never sees the
+    // move (stopPropagation — the sheet listens on an ancestor). Before the lift the touch is an
+    // ordinary sheet/list drag (TEST 2026-09-29: a drag that began on a card never moved the sheet).
+    const onTouchMove = (e: TouchEvent) => { if (g.current?.lifted) { e.preventDefault(); e.stopPropagation() } }
     const block = (e: Event) => { if (g.current) e.preventDefault() }
     el.addEventListener('touchmove', onTouchMove, { passive: false })
     el.addEventListener('contextmenu', block)
@@ -228,7 +231,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
         ))}
       </div>
       {all.length === 0 && <div className="mobile-empty">No open tabs in this session.</div>}
-      <div ref={gridRef} className={`mobile-tab-cards${liftedId ? ' is-dragging' : ''}`} data-no-sheet-drag role="list" aria-label="Tabs">
+      <div ref={gridRef} className={`mobile-tab-cards${liftedId ? ' is-dragging' : ''}`} data-no-sheet-drag={liftedId ? '' : undefined} role="list" aria-label="Tabs">
         {order.map((id) => {
           const it = byId.get(id)
           if (!it) return null
