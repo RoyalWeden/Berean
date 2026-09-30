@@ -3,8 +3,24 @@
    (--m-type-scale). The page scrolls as one; the search + compose bar floats above the bottom
    navigation, drops to the safe area when the navigation hides, and rides above the keyboard. */
 
-.m-notes-body { padding: 0 16px calc(var(--m-nav-h, 64px) + 84px) !important; }
+.m-notes-body { padding-left: 16px !important; padding-right: 16px !important; padding-bottom: calc(var(--m-nav-h, 64px) + 84px) !important; }
 .m-notes-home .mobile-page-header { border-bottom-color: transparent; }
+/* Translucent bar (Page header="glass"): the list scrolls beneath it. While the large title is
+   on screen the bar has no fill (iOS large-title behaviour); once it scrolls away the bar shows
+   its material, the folder name and the note count centred beneath it. */
+.m-notes-home.is-large-title > .mobile-page-header { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom-color: transparent; }
+.m-notes-home > .mobile-page-header { transition: background-color 0.18s ease; }
+.m-notes-bar-title { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; max-width: 100%; }
+.m-notes-bar-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-notes-bar-count { font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 500; color: rgb(var(--color-text-muted)); }
+/* Text buttons in the bar float as glass capsules like the icon controls. */
+.m-notes-home .mobile-page-header .m-notes-textbtn {
+  height: 44px; min-height: 0; padding: 0 16px; border-radius: 22px;
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight); color: rgb(var(--color-accent)); font-weight: 500;
+}
+.m-notes-home .mobile-page-header .m-notes-textbtn:active { background: var(--m-glass-control-pressed); }
 
 /* ── large title ── */
 .m-notes-large { padding: 2px 4px 12px; }

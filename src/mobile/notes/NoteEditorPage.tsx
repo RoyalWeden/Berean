@@ -1,3 +1,4 @@
+import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import { MoreHorizontal, Eye, Pencil, Undo2, Redo2, Check, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
@@ -47,7 +48,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const sheets = useSheets()
   const actions = useActionSheet()
   const { note, latest, persist, replace, lastSavedAt, editorContent, deferredWhileComposing } = useNoteAutosave(noteId)
-  const [notes, setNotes] = useState<Note[]>([])
+  const [notes, setNotes] = useState<Note[]>(() => getWarmStartNotes() ?? [])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
   const [printOpen, setPrintOpen] = useState(false)
   // The live editor (NoteEditorPM onEditorReady) — the + menu runs its commands, the caret reads
@@ -64,11 +65,14 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
 
+  // Wikilink autocomplete / print need the note list: the shared cache (one fetch per change
+  // token for every consumer, warm-started) instead of a fresh 500-note query on every open.
+  const noteToken = useAppStore((s) => s.noteChangeToken)
   useEffect(() => {
     let alive = true
-    window.notes.getNotes(500, 0).then((all) => { if (alive) setNotes(all) }).catch(() => {})
+    getAllNotes(noteToken).then((all) => { if (alive) setNotes(all) }).catch(() => {})
     return () => { alive = false }
-  }, [noteId])
+  }, [noteId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (note && !titleFocused.current) setTitleDraft(displayNoteTitle(note.title, ''))
