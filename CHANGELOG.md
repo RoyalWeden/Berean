@@ -122,6 +122,19 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.7.0] - 2026-09-29
+
+### iCloud sync (Mac and iPhone)
+
+- Berean now keeps its own iCloud storage completely separate from test
+  builds: your notes, highlights and tabs only ever sync with other copies of
+  Berean, never with a development or beta test app, even when both are
+  installed on the same Mac or iPhone.
+- If a copy of Berean ever finds itself pointed at the wrong iCloud folder, it
+  pauses sync and says so instead of mixing data.
+- Berean links (Shortcuts, Siri, the Share Extension) always open Berean
+  itself, not another copy installed alongside it.
+
 ## [0.6.20] - 2026-09-28
 
 ### Berean on iPhone
