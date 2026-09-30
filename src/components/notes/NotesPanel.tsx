@@ -1534,18 +1534,27 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <div className="flex-1 self-stretch" aria-hidden="true" />
               </>
             ) : (
-              <TextField
-                ref={titleInputRef}
-                bare
-                autoFocus
-                value={activeNote.title ?? ''}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                onKeyDown={handleTitleKeyDown}
-                onBlur={() => setTitleFocused(false)}
-                placeholder="Untitled"
-                className="no-drag font-medium px-0"
-                wrapperClassName="flex-1"
-              />
+              // TEST 2026-09-29: clicking the title must not change it — same size, weight and
+              // width as the resting text (sized to its content, never a bar-wide box, no focus
+              // underline); it only grows as characters are typed. The filler keeps the rest of
+              // the bar draggable exactly as before.
+              <>
+                <TextField
+                  ref={titleInputRef}
+                  bare
+                  bareUnderline={false}
+                  padding="none"
+                  autoFocus
+                  value={activeNote.title ?? ''}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  onKeyDown={handleTitleKeyDown}
+                  onBlur={() => setTitleFocused(false)}
+                  placeholder="Untitled"
+                  className="no-drag note-title-inline !h-auto !text-subhead font-semibold"
+                  wrapperClassName="min-w-0 max-w-full"
+                />
+                <div className="flex-1 self-stretch" aria-hidden="true" />
+              </>
             )}
             {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
                 have none; also settable from the right-click context menu in the list. */}

@@ -1416,7 +1416,10 @@
 .berean-reading-column {
   padding-inline: var(--reading-margin);
   padding-block: 24px;
-  max-width: min(calc(var(--reading-max-ch) * 1ch), calc(100% - (2 * var(--reading-margin))));
+  /* border-box: the cap INCLUDES both margins. (It used to subtract them a second time, so on a
+     pane narrowed by the side panel the text ended ~3 margins from the right edge vs 1 on the left
+     — TEST 2026-09-29 "too much padding on the right of Scripture when the side panel is open".) */
+  max-width: min(calc(var(--reading-max-ch) * 1ch + 2 * var(--reading-margin)), 100%);
   margin-inline-start: 0;
 }
 
@@ -2314,3 +2317,7 @@ html[data-verse-dragging] * {
   user-select: none !important;
   cursor: ns-resize !important;
 }
+
+/* Inline note title field (NotesPanel): sized to its text like the resting title, so focusing it
+   changes nothing on screen; it widens only as characters are typed (TEST 2026-09-29). */
+.note-title-inline { field-sizing: content; min-width: 4ch; max-width: 100%; }
