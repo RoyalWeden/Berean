@@ -23,7 +23,9 @@ import type { SyncConfig } from '../../types/electron'
  * No folder picker on iOS (the ubiquity container is the only place iOS can sync through —
  * `chooseFolder` reports `canceled`), and the container is addressed by id, never by path.
  */
-const DEFAULT_CONTAINER = 'iCloud.com.berean.app'
+// The container is chosen natively (Info.plist `BereanICloudContainer`, from Identity.xcconfig);
+// this side only displays the id the plugin reports — never a guessed default.
+const UNKNOWN_CONTAINER = ''
 const TRACE_KEY = 'berean:syncTrace'
 
 let engine: SyncEngine | null = null
@@ -67,7 +69,7 @@ async function publishStatus(): Promise<void> {
  */
 async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' | 'since-last' }): Promise<{ ok: boolean; reason?: string }> {
   if (engine) return { ok: true }
-  const cloud = await BereanCloud.status().catch((err: unknown) => ({ available: false, signedIn: false, reason: String(err), containerId: DEFAULT_CONTAINER, deviceName: '' }))
+  const cloud = await BereanCloud.status().catch((err: unknown) => ({ available: false, signedIn: false, reason: String(err), containerId: UNKNOWN_CONTAINER, deviceName: '' }))
   if (opts.requireAvailable && !cloud.available) return { ok: false, reason: cloud.reason ?? 'iCloud unavailable' }
   const userDb = iosServiceContext().userDb
   // Data-safety gates (docs/mobile/sync.md "Data safety"):
@@ -184,12 +186,12 @@ export function installIosSyncBridge(): void {
   const sync: Window['sync'] = {
     getStatus: async () => (engine ? engine.status() : null),
     getConfig: async (): Promise<SyncConfig> => {
-      const cloud = await BereanCloud.status().catch((err: unknown) => ({ available: false, signedIn: false, reason: String(err), containerId: DEFAULT_CONTAINER, deviceName: '' }))
+      const cloud = await BereanCloud.status().catch((err: unknown) => ({ available: false, signedIn: false, reason: String(err), containerId: UNKNOWN_CONTAINER, deviceName: '' }))
       return {
         enabled: (await setting<boolean>('icloudSyncEnabled')) === true,
         folder: cloud.available ? `iCloud Drive › Berean › sync/v1` : '(iCloud Drive container)',
         folderOverride: null,
-        containerId: cloud.containerId || DEFAULT_CONTAINER,
+        containerId: cloud.containerId || UNKNOWN_CONTAINER,
         containerExists: cloud.available,
         running: !!engine,
       }

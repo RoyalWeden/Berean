@@ -112,12 +112,49 @@ is not announced. This never triggers a sync.
 |---|---|---|
 | Desktop | `electron-vite dev` (`is.dev`): DevTools menu, `[Dev]` titles, relaxed CSP, YouTube full-sync / transcript fetch, `window.__bereanStore` (`import.meta.env.DEV`), persistent debug switches (**DEV-only since 2026-09-28**) | `electron-vite build` + `electron-builder` (`files: out/**`): all of the above compiled out or gated by `app.isPackaged` |
 | iPhone | the `BEREAN_E2E_PROBE=1` simulator probe (`window.__bereanStore`, probe server, relaxed CSP) | `npm run ios:sync` (no probe). **`ios:device` / `ios:archive` refuse a bundle containing the probe** and `ios:archive` always re-syncs first |
-| iCloud container | `iCloud.com.berean.app` | the same (one production identifier set; Debug and Release share `Berean.xcconfig`) |
-| Bundle / App Group | `com.berean.app` / `group.com.berean.app` | same |
+| App identity | **Berean Dev**: `com.berean.app.dev` (+ `.share`) | **Berean**: `com.berean.app` (+ `.share`) |
+| iCloud container | `iCloud.com.berean.app.dev` | `iCloud.com.berean.app` |
+| App Group | `group.com.berean.app.dev` | `group.com.berean.app` |
+| URL schemes | `berean-dev`, `berean-dev-pdf` | `berean`, `berean-pdf` |
+| Mac database | `~/Library/Application Support/Berean-dev` (MAS-dev: inside its own sandbox) | `~/Library/Application Support/Berean` (MAS: inside its own sandbox) |
+| Builds | `npm run dev`, `npm run build:mas:dev`, `npm run ios:sync:dev` / `ios:archive:dev`, a future separate "Berean Dev" TestFlight | DMG (`build:local`, CI), `npm run build:mas`, `npm run ios:sync` / `ios:archive`, App Store and production TestFlight |
 
-**Policy for the shared container.** Development builds on Michael's devices sync real data. There
-is deliberately no separate development container: the data is his own, and the data-safety holds
-protect it.
+**Policy: production and development are separate apps (since 2026-09-30).** This reverses the
+earlier "no separate development container" policy. Each identity has its own bundle ID, iCloud
+container, App Group, URL schemes and local database; `config/app-identity.json` is the only place
+the values are written down, and everything else derives them. Why each boundary exists:
+
+- **iCloud container — the sync-data boundary.** Berean syncs through iCloud Documents (files in a
+  ubiquity container), not CloudKit. The `icloud-container-environment` entitlement
+  (Development/Production) is a CloudKit concept and does **not** give iCloud Documents separate
+  storage: Xcode development builds and TestFlight builds of one container write to the same
+  folder. Only a different container separates the data.
+- **Bundle ID — the local-data boundary.** The app's sandbox and database belong to the bundle ID.
+  With one bundle ID a development database would follow the app into a production install (a
+  TestFlight build and the App Store build replace each other; MAS-dev and the Mac App Store app
+  share one sandbox). A separate bundle ID also lets Berean Dev and Berean sit side by side.
+- **App Group — the Share Extension boundary.** Each app's extension hands items over only to its
+  own app.
+- **URL schemes — no cross-launch.** Deep links, App Intents and the Share Extension open only
+  their own app. Inside either app, links already written in notes (`berean://…`) still route.
+
+**How it is enforced.** Mac: the identity is compiled in (`BEREAN_IDENTITY`; an unpackaged run is
+always development), the sync host accepts only its own container, refuses a custom folder inside
+the other identity's container, stops when the app's real bundle ID does not match the compiled
+identity, and `FsSyncStore` claims its folder (`berean-identity.json`) so the two apps can never
+share one. iOS: `Identity.xcconfig` (included last, required) drives the bundle IDs, entitlements
+and Info.plists; the native code has no fallback identifiers. Verification: `npm run audit:prod`,
+`scripts/mac/verify-mas.mjs [--identity development]`, `scripts/ios/verify-identity.mjs` (after every
+archive) and the tests in `src/platform/__tests__/appIdentity.test.ts` and
+`electron/__tests__/entitlements.test.ts`.
+
+**Existing data is not moved by this change.** On 2026-09-29 `iCloud.com.berean.app` held only
+development and TestFlight data (the `npm run dev` database and three iPhone installs); the real
+DMG database had never synced. Moving that test data into `iCloud.com.berean.app.dev` and clearing
+it out of the production container is a separate, explicit step, done before the real Mac
+database ever turns sync on. Until the Berean Dev resources exist in the Apple Developer portal, a
+development build has no container it can sync through — it shows the iCloud folder as missing
+and holds; it never falls back to production.
 
 **`npm run audit:prod`** scans the shipped bundles (`out/`, `ios/App/App/public`) and the iOS
 configuration for development-only code. It passed on 2026-09-28.

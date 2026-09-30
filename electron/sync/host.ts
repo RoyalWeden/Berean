@@ -10,6 +10,8 @@ import { BEREAN_SCHEMA_VERSION, checkDatabase } from '../../src/platform/db/bere
 import { FsSyncStore, ubiquityContainerPath } from './fsSyncStore'
 import { pickFolder } from '../mac/folderAccess'
 import { isMasSandbox, masContainerRoot, masStartDownloading } from './macContainer'
+import { APP_IDENTITY, identityProblem } from '../appIdentity'
+import { isForeignContainerPath } from '../../src/platform/appIdentity'
 import type { SyncStatusSnapshot } from '../../src/platform/sync/types'
 import { createSyncHostCore, type SyncHostCore } from '../../src/platform/sync/hostCore'
 import { createSyncTrace } from '../../src/platform/sync/trace'
@@ -21,9 +23,14 @@ import { createSyncTrace } from '../../src/platform/sync/trace'
  * window what it applied so the UI refreshes.
  *
  * Settings (settings table): `icloudSyncEnabled` (boolean), `icloudSyncFolder` (string | null —
- * overrides the container path), `icloudContainerId` (default 'iCloud.com.berean.app').
+ * overrides the container path).
+ *
+ * The container is fixed by the app identity (config/app-identity.json): Berean syncs only through
+ * iCloud.com.berean.app, Berean Dev only through iCloud.com.berean.app.dev. The retired
+ * `icloudContainerId` setting is ignored, a custom folder inside the other identity's container is
+ * refused, and a sync folder claimed by the other identity is refused (FsSyncStore identity file).
  */
-const DEFAULT_CONTAINER = 'iCloud.com.berean.app'
+const CONTAINER = APP_IDENTITY.cloudContainer
 
 let engine: SyncEngine | null = null
 let store: FsSyncStore | null = null
@@ -39,9 +46,9 @@ async function setting<T>(key: string): Promise<T | null> {
 // Mac App Store build: the container root as returned by the system (docs/mac-app-store.md §3).
 let masRoot: { id: string; root: string } | null = null
 
-export function resolveSyncFolder(override: string | null, containerId: string | null): string {
+export function resolveSyncFolder(override: string | null): string {
   if (override) return override
-  const id = containerId ?? DEFAULT_CONTAINER
+  const id = CONTAINER
   if (masRoot && masRoot.id === id) return `${masRoot.root}/Documents/sync/v1`
   // DMG build (not sandboxed): the container by path. In the MAS build before the container is
   // resolved (iCloud signed out) this points at the real home, never the sandbox container, so the
@@ -61,13 +68,27 @@ function realHome(): string {
  */
 async function ensureMasContainer(): Promise<void> {
   if (!isMasSandbox()) return
-  const id = (await setting<string>('icloudContainerId')) ?? DEFAULT_CONTAINER
+  const id = CONTAINER
   if (masRoot?.id === id) return
   const root = await masContainerRoot(id)
   if (!root) { log.warn('[sync] iCloud container unavailable (signed out of iCloud or iCloud Drive off)'); return }
   try { mkdirSync(`${root}/Documents`, { recursive: true }) } catch (err) { log.warn('[sync] could not create the container Documents folder', err) }
   masRoot = { id, root }
   log.info('[sync] iCloud container resolved for the sandbox')
+}
+
+/**
+ * Why this app must not sync through `folder`, or null. Refuses a binary whose bundle ID does not
+ * match the identity it was compiled for, and a custom folder inside the other identity's iCloud
+ * container. A leftover `icloudContainerId` setting from before identities existed is ignored.
+ */
+async function syncLocationProblem(folder: string): Promise<string | null> {
+  const mismatch = identityProblem()
+  if (mismatch) return `iCloud Sync is disabled: ${mismatch}.`
+  const legacy = await setting<string>('icloudContainerId')
+  if (legacy && legacy !== CONTAINER) log.warn(`[sync] ignoring the icloudContainerId setting (${legacy}); ${APP_IDENTITY.appName} syncs only through ${CONTAINER}`)
+  if (isForeignContainerPath(APP_IDENTITY, folder)) return `${APP_IDENTITY.appName} cannot sync through another Berean app's iCloud folder (${folder}).`
+  return null
 }
 
 function broadcast(channel: string, payload?: unknown): void {
@@ -98,7 +119,9 @@ async function syncNow(reason: string): Promise<void> {
 async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' | 'since-last' }): Promise<{ ok: boolean; reason?: string }> {
   if (engine) return { ok: true }
   await ensureMasContainer()
-  const folder = resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId'))
+  const folder = resolveSyncFolder(await setting<string>('icloudSyncFolder'))
+  const problem = await syncLocationProblem(folder)
+  if (problem) { log.error(`[sync] ${problem}`); return { ok: false, reason: problem } }
   const containerRoot = folder.replace(/\/sync\/v1$/, '')
   const missing = `iCloud folder not found: ${containerRoot} — open Berean on your iPhone once so iCloud creates the container, or choose a folder inside iCloud Drive.`
   if (opts.requireAvailable && !existsSync(containerRoot)) return { ok: false, reason: missing }
@@ -116,7 +139,7 @@ async function startEngine(opts: { requireAvailable: boolean; reconcile: 'full' 
     log: { info: (m) => log.info(m), warn: (m) => log.warn(m), error: (m) => log.error(m) },
   })
   if (forked) log.warn(`[sync] this database was restored or copied (${forked}) — syncing as a new device`)
-  store = new FsSyncStore(folder, deviceId, containerRoot, isMasSandbox() ? (p) => { masStartDownloading(p) } : null)
+  store = new FsSyncStore(folder, deviceId, containerRoot, isMasSandbox() ? (p) => { masStartDownloading(p) } : null, APP_IDENTITY.name)
   if (opts.requireAvailable) {
     const st = await store.status()
     if (!st.available) { store = null; return { ok: false, reason: st.reason } }
@@ -175,10 +198,10 @@ export async function initSyncHost(): Promise<void> {
   ipcMain.handle('sync:getStatus', async () => (engine ? engine.status() : null))
   ipcMain.handle('sync:getConfig', async () => { await ensureMasContainer(); return {
     enabled: (await setting<boolean>('icloudSyncEnabled')) === true,
-    folder: resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId')),
+    folder: resolveSyncFolder(await setting<string>('icloudSyncFolder')),
     folderOverride: await setting<string>('icloudSyncFolder'),
-    containerId: (await setting<string>('icloudContainerId')) ?? DEFAULT_CONTAINER,
-    containerExists: existsSync(resolveSyncFolder(await setting<string>('icloudSyncFolder'), await setting<string>('icloudContainerId')).replace(/\/sync\/v1$/, '')),
+    containerId: CONTAINER,
+    containerExists: existsSync(resolveSyncFolder(await setting<string>('icloudSyncFolder')).replace(/\/sync\/v1$/, '')),
     running: !!engine,
   } })
   ipcMain.handle('sync:syncNow', async () => { await syncNow('manual'); return lastStatus })
@@ -196,6 +219,10 @@ export async function initSyncHost(): Promise<void> {
   ipcMain.handle('sync:chooseFolder', async () => {
     const picked = await pickFolder({ title: 'Choose a folder inside iCloud Drive for Berean sync', properties: ['openDirectory', 'createDirectory'] })
     if (!picked) return { canceled: true }
+    if (isForeignContainerPath(APP_IDENTITY, picked)) {
+      log.warn(`[sync] refused a folder inside another Berean app's iCloud container: ${picked}`)
+      return { canceled: true }
+    }
     const chosen = `${picked}/sync/v1`
     stopEngine()
     await services().settings.set('icloudSyncFolder', chosen)

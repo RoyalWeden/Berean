@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Berean</string>
+	<string>$(BEREAN_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -44,8 +44,8 @@
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>berean</string>
-				<string>berean-pdf</string>
+				<string>$(BEREAN_URL_SCHEME)</string>
+				<string>$(BEREAN_PDF_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
@@ -62,6 +62,10 @@
 	<string>$(BEREAN_APP_GROUP)</string>
 	<key>BereanICloudContainer</key>
 	<string>$(BEREAN_ICLOUD_CONTAINER)</string>
+	<!-- This app's own URL scheme (berean / berean-dev), for native code that opens a deep link
+	     through the OS (App Intents); never hard-code a scheme there. -->
+	<key>BereanURLScheme</key>
+	<string>$(BEREAN_URL_SCHEME)</string>
 	<key>NSUbiquitousContainers</key>
 	<dict>
 		<key>$(BEREAN_ICLOUD_CONTAINER)</key>
@@ -69,7 +73,7 @@
 			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
 			<true/>
 			<key>NSUbiquitousContainerName</key>
-			<string>Berean</string>
+			<string>$(BEREAN_DISPLAY_NAME)</string>
 			<key>NSUbiquitousContainerSupportedFolderLevels</key>
 			<string>Any</string>
 		</dict>

@@ -8,10 +8,11 @@ import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { setupPowerAwareness, getResourceMode } from './powerAwareness'
 import { buildCSP } from './csp'
+import { APP_IDENTITY } from './appIdentity'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
-const EARLY_LOG_DIR = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data')
+const EARLY_LOG_DIR = join(os.homedir(), 'Library', 'Containers', APP_IDENTITY.bundleId, 'Data')
 const EARLY_LOG = join(EARLY_LOG_DIR, 'berean-startup.log')
 // Still write synchronously (so a crash moments later can't lose the last line —
 // electron-log isn't usable this early, so these breadcrumbs are the only on-disk
@@ -107,10 +108,11 @@ registerTTSModelScheme()
 // call out this switch for. Must also run before app.whenReady().
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
-// Separate dev userData from prod — macOS HFS+/APFS is case-insensitive so
-// 'berean' and 'Berean' resolve to the same directory without this.
+// One local database folder per app identity (config/app-identity.json): Berean → …/Berean,
+// Berean Dev (`npm run dev`, MAS-dev) → …/Berean-dev. Set explicitly for both so neither can ever
+// open the other's berean.db (macOS HFS+/APFS is case-insensitive: 'berean' and 'Berean' collide).
+app.setPath('userData', join(app.getPath('appData'), APP_IDENTITY.userDataDir))
 if (!app.isPackaged) {
-  app.setPath('userData', join(app.getPath('appData'), 'Berean-dev'))
   // Dev-only: `BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol so
   // visual-QA tooling can drive the real window (screenshots, resize, theme cycling).
   if (process.env.BEREAN_CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.BEREAN_CDP_PORT)
@@ -134,7 +136,7 @@ if (app.isPackaged && process.mas) {
   app.commandLine.appendSwitch('no-proxy-server')
 
   // Chromium internal log for future debugging.
-  const chromiumLog = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'chromium-log.txt')
+  const chromiumLog = join(os.homedir(), 'Library', 'Containers', APP_IDENTITY.bundleId, 'Data', 'chromium-log.txt')
   earlyLog(`chromium log path: ${chromiumLog}`)
   app.commandLine.appendSwitch('enable-logging')
   app.commandLine.appendSwitch('log-level', '0')
@@ -215,7 +217,7 @@ log.info(`versions: electron=${process.versions.electron} chrome=${process.versi
 async function reportPreviousCrashReports(): Promise<void> {
   try {
     const { readdir, readFile, stat } = await import('fs/promises')
-    const crashDir = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'Library', 'Application Support', 'CrashReporter')
+    const crashDir = join(os.homedir(), 'Library', 'Containers', APP_IDENTITY.bundleId, 'Data', 'Library', 'Application Support', 'CrashReporter')
     const files = (await readdir(crashDir)).filter((f) => f.endsWith('.plist') || f.endsWith('.ips'))
     for (const f of files) {
       const full = join(crashDir, f)
@@ -1234,7 +1236,9 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
 // macOS delivers URLs through `open-url` (possibly before any window exists); Windows/Linux pass
 // them as argv of a second instance. Either way the URL is queued until a window can take it,
 // then sent to the focused window, which parses + routes it in the renderer.
-const DEEP_LINK_SCHEMES = ['berean', 'berean-pdf']
+// Only this identity's own schemes (berean / berean-pdf, or berean-dev / berean-dev-pdf for
+// Berean Dev), so a link never launches or is claimed by the other app.
+const DEEP_LINK_SCHEMES = [APP_IDENTITY.urlScheme, APP_IDENTITY.pdfUrlScheme]
 let pendingDeepLinks: string[] = []
 function deliverDeepLinks(): void {
   if (pendingDeepLinks.length === 0) return

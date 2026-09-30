@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac App Store entitlements — MAIN PROCESS of BEREAN DEV (com.berean.app.dev), the development
+  identity built by `npm run build:mas:dev` (config/app-identity.json; docs/mac-app-store.md §10).
+
+  Same capabilities as build/entitlements.mas.plist (production) — only the identity differs:
+  iCloud.com.berean.app.dev and 6C8RCZVUZR.com.berean.app.dev. It must never name the production
+  container, App ID or group; electron/__tests__/entitlements.test.ts and
+  `scripts/mac/verify-mas.mjs development` check both files and the signed app.
+  com.apple.security.files.downloads.read-only stays removed here too.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+  <key>com.apple.security.files.bookmarks.app-scope</key>
+  <true/>
+
+  <!-- iCloud Documents in the DEVELOPMENT container only. -->
+  <key>com.apple.application-identifier</key>
+  <string>6C8RCZVUZR.com.berean.app.dev</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>6C8RCZVUZR</string>
+  <key>com.apple.developer.icloud-container-identifiers</key>
+  <array>
+    <string>iCloud.com.berean.app.dev</string>
+  </array>
+  <key>com.apple.developer.icloud-services</key>
+  <array>
+    <string>CloudDocuments</string>
+  </array>
+  <key>com.apple.developer.ubiquity-container-identifiers</key>
+  <array>
+    <string>iCloud.com.berean.app.dev</string>
+  </array>
+  <key>com.apple.developer.icloud-container-environment</key>
+  <string>Production</string>
+
+  <key>com.apple.security.personal-information.location</key>
+  <true/>
+
+  <key>com.apple.security.print</key>
+  <true/>
+
+  <!-- Electron/Chromium helper-process rendezvous (TEAMID.bundle-id); see the production file. -->
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>6C8RCZVUZR.com.berean.app.dev</string>
+  </array>
+</dict>
+</plist>

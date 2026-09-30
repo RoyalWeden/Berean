@@ -18,9 +18,14 @@ public class BereanShareInboxPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "readFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ack", returnType: CAPPluginReturnPromise),
     ]
-    private var appGroup: String { (Bundle.main.object(forInfoDictionaryKey: "BereanAppGroup") as? String) ?? "group.com.berean.app" }
+    /// The app's own App Group from Info.plist (Identity.xcconfig) — no fallback to another app's.
+    private var appGroup: String? {
+        guard let g = Bundle.main.object(forInfoDictionaryKey: "BereanAppGroup") as? String, !g.isEmpty, !g.hasPrefix("$(") else { return nil }
+        return g
+    }
     private func inboxDir() -> URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)?.appendingPathComponent("inbox", isDirectory: true)
+        guard let group = appGroup else { return nil }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?.appendingPathComponent("inbox", isDirectory: true)
     }
     private func legacyItems(_ dir: URL) -> [[String: Any]] {
         let file = dir.appendingPathComponent("pending.json")

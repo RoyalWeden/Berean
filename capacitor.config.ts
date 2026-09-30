@@ -7,6 +7,8 @@ import type { CapacitorConfig } from '@capacitor/cli'
  * through the gitignored ios/App/Signing.xcconfig (docs/mobile/ios-build.md §2), never here.
  */
 const config: CapacitorConfig = {
+  // Capacitor's own default only. The iOS bundle ID (Berean or Berean Dev) comes from
+  // ios/App/Identity.xcconfig (config/app-identity.json), never from here.
   appId: 'com.berean.app',
   appName: 'Berean',
   webDir: 'out/ios',

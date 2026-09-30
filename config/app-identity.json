@@ -1,0 +1,24 @@
+{
+  "$comment": "The ONLY definition of Berean's two app identities (docs/mobile/icloud-lifecycle.md §6). Production and development never share a bundle ID, iCloud container, App Group, URL scheme or local database. Read by src/platform/appIdentity.ts, scripts/ios/identity.mjs and scripts/mac/*.mjs.",
+  "teamId": "6C8RCZVUZR",
+  "identities": {
+    "production": {
+      "bundleId": "com.berean.app",
+      "appName": "Berean",
+      "cloudContainer": "iCloud.com.berean.app",
+      "appGroup": "group.com.berean.app",
+      "urlScheme": "berean",
+      "pdfUrlScheme": "berean-pdf",
+      "userDataDir": "Berean"
+    },
+    "development": {
+      "bundleId": "com.berean.app.dev",
+      "appName": "Berean Dev",
+      "cloudContainer": "iCloud.com.berean.app.dev",
+      "appGroup": "group.com.berean.app.dev",
+      "urlScheme": "berean-dev",
+      "pdfUrlScheme": "berean-dev-pdf",
+      "userDataDir": "Berean-dev"
+    }
+  }
+}
