@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { FsSyncStore, ubiquityContainerPath } from '../fsSyncStore'
+import { FsSyncStore, IDENTITY_FILE, ubiquityContainerPath } from '../fsSyncStore'
 
 let root: string
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'berean-sync-')) })
@@ -42,6 +42,21 @@ describe('FsSyncStore', () => {
     expect(await b.readFile('devA', 'journal-000000001-000000002.jsonl')).toBeNull()
     expect(await b.readFile('devA', 'journal-000000001-000000002.jsonl')).toBeNull()
     expect(requested).toEqual(process.platform === 'darwin' ? [join(root, 'devices', 'devA', 'journal-000000001-000000002.jsonl')] : [])
+  })
+
+  it('claims its folder for one app identity and refuses a folder the other identity claimed', async () => {
+    const prod = new FsSyncStore(root, 'devA', null, null, 'production')
+    expect(await prod.status()).toEqual({ available: true })
+    expect(JSON.parse(readFileSync(join(root, IDENTITY_FILE), 'utf8'))).toEqual({ identity: 'production' })
+    const dev = new FsSyncStore(root, 'devB', null, null, 'development')
+    expect((await dev.status()).available).toBe(false)
+    await expect(dev.writeOwnFile('journal-000000001-000000001.jsonl', '{}\n')).rejects.toThrow(/belongs to the production Berean app/)
+    await expect(dev.writeOwnManifest({ device: 'devB', name: 'x', platform: 'darwin', appVersion: '1', schema: 47, seq: 0, files: [], applied: {}, updatedAt: 1 })).rejects.toThrow()
+    await expect(dev.deleteOwnFile('x')).rejects.toThrow()
+    expect(existsSync(join(root, 'devices', 'devB'))).toBe(false)   // nothing written
+    // The owning identity keeps working; a store without an identity (tests, tools) is unaffected.
+    await prod.writeOwnFile('journal-000000001-000000001.jsonl', '{}\n')
+    expect(await new FsSyncStore(root, 'devC').status()).toEqual({ available: true })
   })
 
   it('ignores a corrupt manifest and maps container ids to the macOS Mobile Documents path', async () => {

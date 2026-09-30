@@ -4,7 +4,9 @@ How the sandboxed Mac App Store (MAS) build differs from the direct-download (DM
 each entitlement is for, how iCloud sync works inside the sandbox, and the steps to build, verify
 and submit. The iPhone equivalent is `docs/mobile/testflight.md`.
 
-## 1. Three builds, one App ID
+## 1. Three builds, one App ID (production)
+
+> Development builds are a separate app, Berean Dev (`com.berean.app.dev`) — see §10.
 
 | | Mac — DMG (direct download) | Mac — Mac App Store | iPhone |
 |---|---|---|---|
@@ -153,3 +155,41 @@ the holds. The sandbox cannot reach the real container until the system opens it
 MAS build shows "iCloud folder not found" and holds instead of syncing against an empty local
 folder. Uninstalling either Mac build (or the iPhone app) never deletes the iCloud container
 (`docs/mobile/data-safety.md`).
+
+## 10. Berean Dev — the development identity on the Mac
+
+`npm run build:mas:dev` builds **Berean Dev**, a separate app from Berean
+(`config/app-identity.json`; policy in `docs/mobile/icloud-lifecycle.md` §6):
+
+| | Berean (DMG, Mac App Store) | Berean Dev (`npm run dev`, `build:mas:dev`) |
+|---|---|---|
+| Bundle ID / name | `com.berean.app` / Berean | `com.berean.app.dev` / Berean Dev |
+| iCloud container | `iCloud.com.berean.app` | `iCloud.com.berean.app.dev` |
+| Sandbox group (Electron) | `6C8RCZVUZR.com.berean.app` | `6C8RCZVUZR.com.berean.app.dev` |
+| URL schemes | `berean`, `berean-pdf` | `berean-dev`, `berean-dev-pdf` |
+| Database | `…/Application Support/Berean` | `…/Application Support/Berean-dev` |
+| Entitlements | `build/entitlements.mas.plist` | `build/entitlements.mas.dev.plist` (same keys; only the identity values differ) |
+| Profile | `build/embedded.provisionprofile` (distribution) | `build/embedded.berean-dev.provisionprofile` (macOS App Development, gitignored) |
+| Output | `release/mas-arm64/Berean.app` | `release/mas-dev-arm64/Berean Dev.app` |
+
+How the build stays separate:
+
+- `BEREAN_IDENTITY=development npm run build` compiles the identity into the main process
+  (`electron/appIdentity.ts`); an unpackaged run (`npm run dev`) is always development.
+- `scripts/mac/build-mas-dev.mjs` writes Berean Dev's **complete** electron-builder configuration
+  and passes it with `--config`. electron-builder merges arrays by union and `mas-dev` inherits the
+  production `mas` section, so layering onto `package.json` would keep the production URL schemes.
+  `package.json` therefore has no `masDev` section.
+- Before building, the script refuses to continue unless `out/` was compiled for development and
+  the profile is a development profile for `6C8RCZVUZR.com.berean.app.dev` that authorises
+  `iCloud.com.berean.app.dev`. After building it runs `verify-mas --identity development`, which
+  also rejects any production value in the signed app.
+- At runtime the sync host refuses the other identity's container or folder, and stops if the
+  app's real bundle ID does not match the compiled identity.
+
+**Apple Developer resources Berean Dev needs** (not yet created): App ID `com.berean.app.dev` with
+iCloud (iCloud Documents, container `iCloud.com.berean.app.dev`); for the iPhone also
+`com.berean.app.dev.share` and App Group `group.com.berean.app.dev`; and a **macOS App Development**
+profile for `com.berean.app.dev` with this Mac, saved as `build/embedded.berean-dev.provisionprofile`.
+The earlier "Berean MAS Development 2026" profile (`build/embedded.dev.provisionprofile`) is for
+`com.berean.app` and cannot sign Berean Dev; it is kept but no longer used.

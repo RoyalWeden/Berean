@@ -22,6 +22,12 @@ Berean does **not** use CloudKit. It uses iCloud Drive (a ubiquity container):
   compaction snapshots;
 - every device reads every folder.
 
+**Two apps, two containers.** Berean (`com.berean.app`) syncs only through `iCloud.com.berean.app`;
+Berean Dev (`com.berean.app.dev` — `npm run dev`, MAS-dev, iOS dev builds) only through
+`iCloud.com.berean.app.dev`. Separate bundle IDs, App Groups, URL schemes and Mac database folders
+keep development data out of production at every layer ([icloud-lifecycle.md](icloud-lifecycle.md)
+§6). A container, not the iCloud "environment", is what separates iCloud Documents data.
+
 Every CloudKit concept in the brief has a direct file-journal equivalent:
 
 | CloudKit concept | Berean equivalent |
@@ -220,6 +226,11 @@ and the default run is 120 seeds. `FUZZ_SEEDS=5000` reproduces the full run.
 Automated tests use the real engine, services and schema over an in-memory iCloud Drive model,
 plus the simulator for migration and backup (§9). **None of the following has been run on real
 iCloud yet.** Record the date, the build and the result for each.
+
+Run the plan first between **Berean Dev** devices (Mac `build:mas:dev` or `npm run dev`, iPhone
+`ios:archive:dev` / a Berean Dev TestFlight) on `iCloud.com.berean.app.dev`. Production
+(`iCloud.com.berean.app`) is exercised only afterwards, with a short real-data subset (1, 2, 18, 22,
+23), once the test data has been moved out of the production container.
 
 | # | Test | Expected |
 |---|---|---|

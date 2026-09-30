@@ -51,12 +51,17 @@ iPhone app is a second platform on that record — never a second record.
 Berean syncs through an **iCloud Drive (iCloud Documents) container**, not CloudKit records.
 - There is no CloudKit schema, record type or index to deploy, and no production schema to compare.
 - **Never** use CloudKit Console to reset the container.
-- The distribution export sets `icloud-container-environment = Production`. That is harmless for
-  iCloud Documents: development and TestFlight builds use the **same** container, so the same
-  data.
-- Installing the TestFlight build over the Xcode-installed development build (same bundle ID)
-  keeps the app's local data. The first launch migrates the database if needed, taking a
-  pre-migration backup ([data-safety.md](data-safety.md)).
+- The distribution export sets `icloud-container-environment = Production`. That does **not**
+  separate data for iCloud Documents: every build of one container sees the same files.
+- **Separation comes from the app identity** ([icloud-lifecycle.md](icloud-lifecycle.md) §6).
+  `npm run ios:archive` builds **Berean** (`com.berean.app`, `iCloud.com.berean.app`) — the build
+  for this record and for production TestFlight. `npm run ios:archive:dev` builds **Berean Dev**
+  (`com.berean.app.dev`, `iCloud.com.berean.app.dev`), which needs its own App IDs, container,
+  App Group and, for TestFlight, its own App Store Connect record ("Berean Dev") — none of which
+  exist yet. The two apps can be installed side by side and never share data.
+- Installing a newer Berean TestFlight build over an older Berean build keeps the app's local data;
+  the first launch migrates the database if needed, taking a pre-migration backup
+  ([data-safety.md](data-safety.md)).
 
 ## 5. Archive
 

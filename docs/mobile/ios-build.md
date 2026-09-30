@@ -20,33 +20,48 @@ Requirements: R015, R016, R120–R124. Kept current as the iOS project evolves.
 
 ## 2. Developer must configure (never committed)
 
-Create `ios/App/Signing.xcconfig` (gitignored) from `ios/App/Signing.xcconfig.example`:
+Create `ios/App/Signing.xcconfig` (gitignored) from `ios/App/Signing.xcconfig.example` — signing
+only:
 
 ```
 DEVELOPMENT_TEAM = <your team id>
 BEREAN_TEAM_ID = <your team id>
-BEREAN_BUNDLE_ID = com.berean.app        # or your own
-BEREAN_ICLOUD_CONTAINER = iCloud.com.berean.app   # the iCloud Drive container on your App ID (must match the Mac app's Settings → iCloud container id)
 CODE_SIGN_STYLE = Automatic
 ```
 
-`BEREAN_ICLOUD_CONTAINER` feeds `ios/App/App/App.entitlements` (committed, generic — it only
-references the build setting), the Info.plist key `BereanICloudContainer` and, via the
-"Finalize Info.plist" build phase (`scripts/ios/finalize-info-plist.sh`), the
-`NSUbiquitousContainers` entry that makes the container show up as a "Berean" folder in iCloud
-Drive on the Mac. The Electron app's default container id (`iCloud.com.berean.app`, Settings →
-iCloud) must be the same string, or the two apps will look at different folders.
+**App identity.** Berean builds as one of two separate apps (`config/app-identity.json`;
+`docs/mobile/icloud-lifecycle.md` §6):
 
-`ios/App/Berean.xcconfig` (committed) holds the defaults and includes `Signing.xcconfig` last, so
-anything you put there overrides the committed values; `Version.xcconfig` is generated from
-`package.json` by `scripts/ios/version.mjs`.
+| | Production — Berean | Development — Berean Dev |
+|---|---|---|
+| Bundle ID / Share Extension | `com.berean.app` / `com.berean.app.share` | `com.berean.app.dev` / `com.berean.app.dev.share` |
+| iCloud container | `iCloud.com.berean.app` | `iCloud.com.berean.app.dev` |
+| App Group | `group.com.berean.app` | `group.com.berean.app.dev` |
+| URL schemes | `berean`, `berean-pdf` | `berean-dev`, `berean-dev-pdf` |
+| Commands | `npm run ios:sync`, `npm run ios:archive` | `npm run ios:sync:dev`, `npm run ios:archive:dev` |
+
+`ios:sync` runs `scripts/ios/identity.mjs`, which writes `ios/App/Identity.xcconfig` (gitignored)
+from `BEREAN_IDENTITY` (production unless `development`). `ios/App/Berean.xcconfig` includes
+`Signing.xcconfig` and then `Identity.xcconfig` **last and required**: identity values can only come
+from there (an old `BEREAN_BUNDLE_ID` in `Signing.xcconfig` is overridden), and building without
+it fails instead of guessing. The identity feeds `App.entitlements`, both Info.plists
+(`BereanICloudContainer`, `BereanAppGroup`, `BereanURLScheme`, display name, URL schemes) and, via
+the "Finalize Info.plist" build phase, the `NSUbiquitousContainers` key that shows the container
+as a "Berean" / "Berean Dev" folder in iCloud Drive. `scripts/ios/build.sh archive` runs
+`scripts/ios/verify-identity.mjs` on the archive. The Mac uses the same identities
+(`docs/mac-app-store.md` §10), so each iPhone app syncs only with the matching Mac app.
+
+`Version.xcconfig` is generated from `package.json` by `scripts/ios/version.mjs`.
 
 Then, once, in the Apple Developer portal / Xcode:
 
-1. **App ID** for the bundle identifier with capabilities: iCloud (iCloud Documents), App Groups,
-   Background Modes (audio), Associated Domains (only if you want universal links — see §6).
-2. **iCloud container** `iCloud.com.berean.app` (Xcode → Signing & Capabilities → iCloud → +).
-3. **App Group** `group.com.berean.app` on both the app and the Share Extension targets.
+1. **App ID** for each bundle identifier (and its `.share` extension) with capabilities: iCloud
+   (iCloud Documents), App Groups, Background Modes (audio), Associated Domains (only if you want
+   universal links — see §6).
+2. **iCloud container** `iCloud.com.berean.app` (production) / `iCloud.com.berean.app.dev`
+   (Berean Dev), assigned to the matching App ID only.
+3. **App Group** `group.com.berean.app` / `group.com.berean.app.dev` on the matching app and Share
+   Extension only.
 4. Sign in to Xcode with the developer account; tick *Automatically manage signing* on the `App`
    and `ShareExtension` targets. Xcode will mint the `Apple Development` certificate and
    provisioning profiles.

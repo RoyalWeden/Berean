@@ -7,7 +7,10 @@ import UniformTypeIdentifiers
 /// App Group inbox, then opens the app with `berean://share`. The app's BereanShareInboxPlugin
 /// hands the items to the shared deep-link router.
 final class ShareViewController: UIViewController {
-    private static let appGroup = Bundle.main.object(forInfoDictionaryKey: "BereanAppGroup") as? String ?? "group.com.berean.app"
+    // Identity values come only from Info.plist (Identity.xcconfig): no fallback, so Berean Dev's
+    // extension can never write into Berean's App Group or open Berean, and vice versa.
+    private static let appGroup = Bundle.main.object(forInfoDictionaryKey: "BereanAppGroup") as? String
+    private static let urlScheme = Bundle.main.object(forInfoDictionaryKey: "BereanURLScheme") as? String
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -55,7 +58,8 @@ final class ShareViewController: UIViewController {
     }
 
     private func inboxDir() -> URL? {
-        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: ShareViewController.appGroup) else { return nil }
+        guard let group = ShareViewController.appGroup, !group.hasPrefix("$("),
+              let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) else { return nil }
         let dir = container.appendingPathComponent("inbox", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
@@ -80,7 +84,8 @@ final class ShareViewController: UIViewController {
     /// Extensions may not reference `UIApplication.shared`, but `UIScene.open(_:options:)` is
     /// public and the extension's own window scene is reachable through the responder chain.
     private func openApp() {
-        guard let url = URL(string: "berean://share") else { return }
+        guard let scheme = ShareViewController.urlScheme, !scheme.hasPrefix("$("),
+              let url = URL(string: "\(scheme)://share") else { return }
         var responder: UIResponder? = self
         while let r = responder {
             if let scene = r as? UIScene { scene.open(url, options: nil, completionHandler: nil); return }

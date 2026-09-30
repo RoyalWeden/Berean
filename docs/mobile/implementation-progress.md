@@ -7,6 +7,21 @@ Branch: `feature/ios-app` · Worktree: `/Users/roywe/Berean-ios` · Base: `main`
 
 ---
 
+## Berean Dev identity — 2026-09-30 (branch feature/berean-dev-identity)
+
+Production and development are now separate apps (policy: `icloud-lifecycle.md` §6).
+- `config/app-identity.json` defines both identities; `src/platform/appIdentity.ts` resolves them.
+- **Mac.** Identity compiled in via `BEREAN_IDENTITY` (`electron/appIdentity.ts`; unpackaged =
+  development); userData, early log paths and URL-scheme registration come from it. The sync host
+  accepts only its own container, refuses the other identity's folder and a bundle-ID mismatch;
+  `FsSyncStore` claims its folder (`berean-identity.json`). Berean Dev builds through
+  `scripts/mac/build-mas-dev.mjs` + `build/entitlements.mas.dev.plist`; `verify-mas.mjs` gained
+  `--identity development`.
+- **iOS.** `scripts/ios/identity.mjs` → `Identity.xcconfig` (included last, required); both
+  Info.plists and the Share Extension follow it; the Swift code lost its hard-coded App Group /
+  scheme / container fallbacks; `scripts/ios/verify-identity.mjs` runs after every archive.
+- No data moved, no build made. Apple Developer resources for Berean Dev are still to be created.
+
 ## Release preparation — 2026-09-28
 
 Final release pass: P0 = 0, P1 = 0. Release archive 0.6.19 (1) built and exported for App Store

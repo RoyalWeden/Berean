@@ -16,8 +16,10 @@ release/
 electron/youtube-key.ts
 scripts/cache/
 build/embedded.provisionprofile
-# macOS App Development profile for the local mas-dev build (docs/mac-app-store.md §5)
+# macOS App Development profiles (never committed). embedded.dev.* is the retired com.berean.app
+# one; Berean Dev (npm run build:mas:dev) uses embedded.berean-dev.* (docs/mac-app-store.md §10)
 build/embedded.dev.provisionprofile
+build/embedded.berean-dev.provisionprofile
 sample-pdfs/
 .claude/
 
@@ -29,6 +31,8 @@ sample-pdfs/
 
 # iOS developer-specific signing (docs/mobile/ios-build.md)
 ios/App/Signing.xcconfig
+# Generated per build by scripts/ios/identity.mjs (production or development app identity)
+ios/App/Identity.xcconfig
 ios/App/App/public/
 ios/App/App/capacitor.config.json
 ios/App/App/config.xml

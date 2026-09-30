@@ -18,7 +18,7 @@
     "build:draft": "npm run build && electron-builder --mac --publish always",
     "build:mas": "npm run build && node scripts/mac/build-native.mjs && electron-builder --mac --config.mac.target=mas --config.mac.hardenedRuntime=false --publish never && node scripts/mac/verify-mas.mjs",
     "build:mas:pkg": "node scripts/mac/package-mas.mjs",
-    "build:mas:dev": "npm run build && node scripts/mac/build-native.mjs && electron-builder --mac --config.mac.target=mas-dev --config.mac.hardenedRuntime=false --publish never",
+    "build:mas:dev": "BEREAN_IDENTITY=development npm run build && node scripts/mac/build-native.mjs && node scripts/mac/build-mas-dev.mjs",
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:win:publish": "npm run build && electron-builder --win --publish always",
     "build:mac:x64": "npm run build && electron-builder --mac --config.mac.target.arch=x64 --publish never",
@@ -29,11 +29,13 @@
     "data:publish": "node scripts/publish-data.js",
     "embeddings:build": "node scripts/build-embedding-index.js",
     "ios:build:web": "vite build -c vite.ios.config.ts",
-    "ios:sync": "( [ -f data/youtube_index.db ] || node scripts/data/split-youtube-seed.mjs ) && npm run ios:build:web && node scripts/ios/version.mjs && cap sync ios && node scripts/ios/patch-xcodeproj.mjs",
+    "ios:sync": "( [ -f data/youtube_index.db ] || node scripts/data/split-youtube-seed.mjs ) && npm run ios:build:web && node scripts/ios/version.mjs && node scripts/ios/identity.mjs && cap sync ios && node scripts/ios/patch-xcodeproj.mjs",
+    "ios:sync:dev": "BEREAN_IDENTITY=development npm run ios:sync",
     "ios:open": "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cap open ios",
     "ios:build": "bash scripts/ios/build.sh simulator",
     "ios:device": "bash scripts/ios/build.sh device",
     "ios:archive": "npm run ios:sync && bash scripts/ios/build.sh archive",
+    "ios:archive:dev": "BEREAN_IDENTITY=development npm run ios:archive",
     "ios:run": "bash scripts/ios/run.sh",
     "ios:dev": "vite -c vite.ios.config.ts",
     "ios:test": "bash scripts/ios/test.sh",
@@ -213,9 +215,6 @@
           ]
         }
       ]
-    },
-    "masDev": {
-      "provisioningProfile": "build/embedded.dev.provisionprofile"
     },
     "dmg": {
       "title": "Berean ${version}",

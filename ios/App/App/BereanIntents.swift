@@ -6,9 +6,13 @@ import UIKit
 /// all take the same route as a tapped link — one router, no duplicated navigation logic.
 /// `openAppWhenRun` makes `perform()` run inside the app, where opening the URL hands it to the
 /// scene → Capacitor → `appUrlOpen` (iOS 17; `OpenURLIntent` would need iOS 18).
+/// Opens `<this app's scheme>://<route>` — berean:// for Berean, berean-dev:// for Berean Dev
+/// (Info.plist `BereanURLScheme`), so an intent never launches the other app.
 @MainActor
-private func openBereanURL(_ string: String) {
-    guard let url = URL(string: string) else { return }
+private func openBereanURL(_ route: String) {
+    guard let scheme = Bundle.main.object(forInfoDictionaryKey: "BereanURLScheme") as? String,
+          !scheme.isEmpty, !scheme.hasPrefix("$("),
+          let url = URL(string: "\(scheme)://\(route)") else { return }
     UIApplication.shared.open(url)
 }
 @available(iOS 17.0, *)
@@ -22,7 +26,7 @@ struct OpenScriptureIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let encoded = reference.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? reference
-        await openBereanURL("berean://open?ref=\(encoded)")
+        await openBereanURL("open?ref=\(encoded)")
         return .result()
     }
 }
@@ -38,7 +42,7 @@ struct SearchBereanIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        await openBereanURL("berean://search?q=\(encoded)")
+        await openBereanURL("search?q=\(encoded)")
         return .result()
     }
 }
@@ -50,7 +54,7 @@ struct OpenDailyNoteIntent: AppIntent {
     static var openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
-        await openBereanURL("berean://daily")
+        await openBereanURL("daily")
         return .result()
     }
 }
@@ -66,7 +70,7 @@ struct StartReadAloudIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let encoded = reference.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? reference
-        await openBereanURL("berean://open?ref=\(encoded)&play=1")
+        await openBereanURL("open?ref=\(encoded)&play=1")
         return .result()
     }
 }
@@ -82,7 +86,7 @@ struct OpenWorkspaceIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
-        await openBereanURL("berean://workspace?name=\(encoded)")
+        await openBereanURL("workspace?name=\(encoded)")
         return .result()
     }
 }

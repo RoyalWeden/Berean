@@ -1,4 +1,5 @@
 import { parseRef, bookName, resolveBookToken, type ParsedRef } from '@/lib/parseRef'
+import { allDeepLinkSchemes, appIdentity, type AppIdentityName } from '@/platform/appIdentity'
 import { displayChapter } from './chapterNumbering'
 
 /**
@@ -39,11 +40,16 @@ export type DeepLinkRoute =
   | { kind: 'share' }
 
 export const DEEP_LINK_SCHEME = 'berean'
-const LEGACY_PDF_SCHEME = 'berean-pdf'
+// Both app identities' schemes route here (config/app-identity.json): berean:// / berean-pdf://
+// (Berean) and berean-dev:// / berean-dev-pdf:// (Berean Dev). The OS only hands each app its own
+// schemes; inside the app a link in a note routes the same whichever identity wrote it.
+const ROUTE_SCHEMES = new Set(['production', 'development'].map((n) => appIdentity(n as AppIdentityName).urlScheme))
+const LEGACY_PDF_SCHEMES = new Set(['production', 'development'].map((n) => appIdentity(n as AppIdentityName).pdfUrlScheme))
+const SCHEME_RE = new RegExp(`^(${allDeepLinkSchemes().join('|')}):`, 'i')
 
 /** True when the string is something this router understands (used by link click handlers). */
 export function isDeepLink(href: string): boolean {
-  return /^(berean|berean-pdf):/i.test(href.trim()) || /^https?:\/\/[^/]+\/berean\//i.test(href.trim())
+  return SCHEME_RE.test(href.trim()) || /^https?:\/\/[^/]+\/berean\//i.test(href.trim())
 }
 
 function segmentsOf(url: URL): string[] {
@@ -60,11 +66,11 @@ export function parseDeepLink(href: string): DeepLinkRoute | null {
   let url: URL
   try { url = new URL(raw) } catch { return null }
   const scheme = url.protocol.replace(/:$/, '').toLowerCase()
-  if (scheme === LEGACY_PDF_SCHEME) {
+  if (LEGACY_PDF_SCHEMES.has(scheme)) {
     const [pdfId, page] = segmentsOf(url)
     return pdfId ? { kind: 'pdf', pdfId, ...(num(page) ? { page: num(page) } : {}) } : null
   }
-  if (scheme !== DEEP_LINK_SCHEME && !isDeepLink(raw)) return null
+  if (!ROUTE_SCHEMES.has(scheme) && !isDeepLink(raw)) return null
   const [head, ...rest] = segmentsOf(url)
   const q = url.searchParams
   switch ((head ?? '').toLowerCase()) {

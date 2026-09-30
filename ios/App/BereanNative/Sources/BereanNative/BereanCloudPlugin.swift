@@ -59,7 +59,8 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: container
 
     /// The configured container id (Info.plist `BereanICloudContainer`, filled from the
-    /// BEREAN_ICLOUD_CONTAINER build setting) — `nil` means "first container in the entitlements".
+    /// BEREAN_ICLOUD_CONTAINER build setting, Identity.xcconfig) — `nil` means a broken build and
+    /// sync stays unavailable (never "first container in the entitlements").
     static var configuredContainerId: String? {
         guard let s = Bundle.main.object(forInfoDictionaryKey: "BereanICloudContainer") as? String,
               !s.isEmpty, !s.hasPrefix("$(") else { return nil }
@@ -79,7 +80,12 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
             throw CloudError.unavailable("not signed in to iCloud (or iCloud Drive is off for Berean)")
         }
         cachedToken = token
-        guard let container = FileManager.default.url(forUbiquityContainerIdentifier: BereanCloudPlugin.configuredContainerId) else {
+        // Only this app's own container (Info.plist, from Identity.xcconfig). Never `nil` = "first
+        // container in the entitlements": a missing id is a broken build, not a default.
+        guard let containerId = BereanCloudPlugin.configuredContainerId else {
+            throw CloudError.unavailable("BereanICloudContainer missing from Info.plist — run npm run ios:sync")
+        }
+        guard let container = FileManager.default.url(forUbiquityContainerIdentifier: containerId) else {
             throw CloudError.unavailable("container not available — check the iCloud capability / container id (docs/mobile/ios-build.md §2)")
         }
         let root = container.appendingPathComponent(BereanCloudPlugin.syncSubpath, isDirectory: true)

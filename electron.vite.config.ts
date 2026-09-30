@@ -7,9 +7,18 @@ import { buildCSP } from './electron/csp'
 // Vite's own `command` ('serve' for `electron-vite dev`, 'build' for every packaged/production
 // build) — the exact same dev/prod signal `is.dev` gives main.ts's own CSP handler. See
 // electron/csp.ts's header for why this file needs to know that at all.
+// Which app identity the main process is compiled for (config/app-identity.json). Packaged builds
+// are production unless BEREAN_IDENTITY=development (build:mas:dev); an unpackaged run is always
+// development regardless (electron/appIdentity.ts). Anything else is a mistake, not a default.
+const BUILD_IDENTITY = process.env.BEREAN_IDENTITY ?? 'production'
+if (BUILD_IDENTITY !== 'production' && BUILD_IDENTITY !== 'development') {
+  throw new Error(`BEREAN_IDENTITY must be "production" or "development", got "${BUILD_IDENTITY}"`)
+}
+
 export default defineConfig(({ command }) => ({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: { __BEREAN_IDENTITY__: JSON.stringify(BUILD_IDENTITY) },
     build: {
       rollupOptions: {
         input: {

@@ -11,6 +11,13 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT/ios/App"
 MODE="${1:-simulator}"
+# App identity (Berean or Berean Dev) comes from Identity.xcconfig, written by `npm run ios:sync`
+# (BEREAN_IDENTITY=production|development). No file → no build: never a guessed identity.
+if [ ! -f Identity.xcconfig ]; then
+  echo "error: ios/App/Identity.xcconfig missing — run 'npm run ios:sync' (or 'npm run ios:sync:dev')." >&2
+  exit 4
+fi
+echo "[ios] building $(grep -E '^BEREAN_DISPLAY_NAME|^BEREAN_BUNDLE_ID' Identity.xcconfig | tr '\n' ' ')"
 # A build that can reach a real iPhone (device) or the App Store (archive) must never carry the
 # simulator automation probe or its relaxed CSP (DATA-UX-060): the web bundle in App/public is
 # whatever `ios:sync` last produced, so refuse one built with BEREAN_E2E_PROBE=1.
@@ -33,6 +40,9 @@ case "$MODE" in
   archive)
     xcodebuild -project App.xcodeproj -scheme App -configuration Release \
       -destination 'generic/platform=iOS' -archivePath "build/Berean.xcarchive" \
-      -allowProvisioningUpdates archive | "$ROOT/scripts/ios/xcpretty-lite.sh" ;;
+      -allowProvisioningUpdates archive | "$ROOT/scripts/ios/xcpretty-lite.sh"
+    # The archive must carry exactly the identity it was built for (bundle IDs, container, group,
+    # schemes, Share Extension) and nothing of the other one.
+    node "$ROOT/scripts/ios/verify-identity.mjs" "build/Berean.xcarchive" ;;
   *) echo "usage: $0 simulator|device|archive" >&2; exit 2 ;;
 esac

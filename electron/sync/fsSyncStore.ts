@@ -15,7 +15,12 @@ import type { DeviceManifest, SyncStore, SyncStoreStatus } from '../../src/platf
  *    `brctl download` in the DMG build, the injected `download` (NSFileManager) in the sandboxed
  *    Mac App Store build, which cannot run brctl (macOS only, best effort).
  *  - `watch` uses a recursive fs watcher, debounced; the engine also polls.
+ *  - Identity (config/app-identity.json): when constructed with one, the store claims the folder
+ *    with `berean-identity.json` and refuses to write into a folder another identity claimed — so
+ *    Berean and Berean Dev can never share a sync folder, even a custom one inside iCloud Drive.
  */
+export const IDENTITY_FILE = 'berean-identity.json'
+
 export class FsSyncStore implements SyncStore {
   readonly deviceId: string
   readonly root: string
@@ -25,12 +30,29 @@ export class FsSyncStore implements SyncStore {
    *  container itself (that would sync to a plain local folder and look like it worked). */
   private readonly requiredParent: string | null
   private readonly download: ((path: string) => void) | null
+  private readonly identity: string | null
+  private identityChecked = false
 
-  constructor(root: string, deviceId: string, requiredParent: string | null = null, download: ((path: string) => void) | null = null) {
+  constructor(root: string, deviceId: string, requiredParent: string | null = null, download: ((path: string) => void) | null = null, identity: string | null = null) {
     this.root = root
     this.deviceId = deviceId
     this.requiredParent = requiredParent
     this.download = download
+    this.identity = identity
+  }
+
+  /** Throws when another app identity claimed this folder; claims it otherwise (once per store). */
+  private async guardIdentity(): Promise<void> {
+    if (!this.identity || this.identityChecked) return
+    const file = join(this.root, IDENTITY_FILE)
+    let claimed: string | null = null
+    try { claimed = (JSON.parse(await fs.readFile(file, 'utf8')) as { identity?: string }).identity ?? null } catch { claimed = null }
+    if (claimed && claimed !== this.identity) throw new Error(`sync folder belongs to the ${claimed} Berean app, not ${this.identity}: ${this.root}`)
+    if (!claimed) {
+      await fs.mkdir(this.root, { recursive: true })
+      await fs.writeFile(file, JSON.stringify({ identity: this.identity }) + '\n', 'utf8')
+    }
+    this.identityChecked = true
   }
 
   private devicesDir(): string { return join(this.root, 'devices') }
@@ -39,6 +61,7 @@ export class FsSyncStore implements SyncStore {
   async status(): Promise<SyncStoreStatus> {
     if (this.requiredParent && !existsSync(this.requiredParent)) return { available: false, reason: `iCloud folder not found: ${this.requiredParent}` }
     try {
+      await this.guardIdentity()
       await fs.mkdir(this.ownDir(), { recursive: true })
       const readme = join(this.root, 'README.txt')
       if (!existsSync(readme)) await fs.writeFile(readme, 'Managed by Berean — synchronisation journals. Do not edit or delete.\n', 'utf8').catch(() => {})
@@ -102,14 +125,17 @@ export class FsSyncStore implements SyncStore {
   }
 
   async writeOwnFile(name: string, content: string): Promise<void> {
+    await this.guardIdentity()
     await this.atomicWrite(join(this.ownDir(), name), content)
   }
 
   async writeOwnManifest(manifest: DeviceManifest): Promise<void> {
+    await this.guardIdentity()
     await this.atomicWrite(join(this.ownDir(), 'manifest.json'), JSON.stringify(manifest, null, 1))
   }
 
   async deleteOwnFile(name: string): Promise<void> {
+    await this.guardIdentity()
     await fs.rm(join(this.ownDir(), name), { force: true })
   }
 
