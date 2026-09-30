@@ -206,6 +206,7 @@ contextBridge.exposeInMainWorld('app', {
   openFolderDialog: () => ipcRenderer.invoke('app:openFolderDialog'),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   isDev: () => ipcRenderer.invoke('app:isDev'),
+  devTools: () => ipcRenderer.invoke('app:devTools') as Promise<boolean>,
   youTubeSignOut: () => ipcRenderer.invoke('app:youTubeSignOut'),
   newWindow: () => ipcRenderer.invoke('app:newWindow'),
   moveWindowBy: (dx: number, dy: number) => ipcRenderer.send('app:moveWindowBy', dx, dy),

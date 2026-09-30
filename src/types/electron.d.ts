@@ -191,10 +191,10 @@ interface VaultAPI {
   readVaultNote: (title: string) => Promise<string | null>
   watchVault: () => Promise<{ success: boolean; reason?: string }>
   unwatchVault: () => Promise<{ success: boolean }>
-  reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; reason?: string }>
+  reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; created?: number; reason?: string }>
   exportAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; history?: number; pdfs?: number; reason?: string }>
   setAutoExport: (intervalMinutes: number) => Promise<{ success: boolean }>
-  importAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; noteVersions?: number; noteFolders?: number; pdfHighlights?: number; workspaces?: number; pdfs?: number; tabState?: string; reason?: string }>
+  importAll: () => Promise<{ success: boolean; notes?: number; notesCreated?: number; notesUpdated?: number; notesUnchanged?: number; highlights?: number; noteVersions?: number; noteFolders?: number; pdfHighlights?: number; workspaces?: number; pdfs?: number; tabState?: string; reason?: string }>
   hasData: () => Promise<boolean>
   onVaultChange: (callback: (event: unknown) => void) => () => void
 }
@@ -407,6 +407,9 @@ interface AppAPI {
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   isDev?: () => Promise<boolean>
+  /** Developer tooling enabled: development build OR the Berean Dev identity (electron/devTools.ts).
+   *  Absent on iOS/web — callers fall back to `isDev`. */
+  devTools?: () => Promise<boolean>
   youTubeSignOut?: () => Promise<{ success: boolean }>
   newWindow: () => Promise<void>
   moveWindowBy: (dx: number, dy: number) => void

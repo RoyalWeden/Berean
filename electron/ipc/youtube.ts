@@ -6,10 +6,20 @@ import { join } from 'path'
 import Database from 'better-sqlite3'
 import { getBereanDb } from '../db/berean'
 import { services } from '../services'
+import { devToolsEnabled } from '../devTools'
+import { APP_IDENTITY } from '../appIdentity'
+import {
+  decodeHtmlEntities, parseTsMs, fillDurations, captionTracksFromPlayer, selectCaptionTrack,
+  timedTextUrl, parseTimedText, createStabilityTracker, transcriptFetchPriority,
+  type Seg, type TrackChoice,
+} from './youtubeTranscriptCore'
 
 // API key is in electron/youtube-key.ts (gitignored — never commit that file).
 // Vite bundles it into the compiled output so end-users never see the source.
 import { YOUTUBE_API_KEY } from '../youtube-key'
+
+/** Dev-only tooling gate for this process (see electron/devTools.ts). */
+const devTools = () => devToolsEnabled({ isDev: is.dev, identity: APP_IDENTITY.name })
 
 // ─── Channel list ─────────────────────────────────────────────────────────────
 export const CHANNELS = [
@@ -828,27 +838,42 @@ async function refresh(sender: WebContents): Promise<{ added: number; liveUpdate
 }
 
 // ─── Transcript helpers ───────────────────────────────────────────────────────
+// Pure parsing/selection helpers (entity decode, timestamp parse, caption-track
+// selection, stabilisation, retry eligibility) live in ./youtubeTranscriptCore —
+// imported above — so they can be unit-tested without Electron/network/DB.
 
-function parseTsMs(ts: string): number {
-  const [h, m, s] = ts.split(':')
-  return Math.round((parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s)) * 1000)
+/** Free first-party fallback: InnerTube player response → captionTracks → timedtext.
+ *  Tried before the tactiq.io scrape (no hidden BrowserWindow, no page-load/poll loop,
+ *  not subject to tactiq's own rate-limiting) — falls through to tactiq only when a
+ *  video has no InnerTube caption tracks at all, or the timedtext fetch comes back empty. */
+async function fetchTimedTextBody(url: string): Promise<Seg[]> {
+  try {
+    const resp = await fetchWithTimeout(url, { headers: INNERTUBE_HEADERS }, 12_000)
+    if (!resp.ok) return []
+    const body = await resp.text()
+    return parseTimedText(body)
+  } catch { return [] }
 }
 
-const ENTITY_MAP: Record<string, string> = { quot: '"', amp: '&', apos: "'", lt: '<', gt: '>', nbsp: ' ' }
+async function fetchInnerTubeTranscript(video_id: string): Promise<{ segs: Seg[]; lang: string; kind: TrackChoice['kind'] } | null> {
+  try {
+    const resp = await fetchWithTimeout(
+      'https://www.youtube.com/youtubei/v1/player?prettyPrint=false',
+      { method: 'POST', headers: INNERTUBE_HEADERS, body: JSON.stringify({ videoId: video_id, context: INNERTUBE_CONTEXT }) },
+      12_000,
+    )
+    if (!resp.ok) return null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await resp.json() as any
+    const tracks = captionTracksFromPlayer(data)
+    const choice = selectCaptionTrack(tracks)
+    if (!choice) return null
 
-/** Decode HTML entities (incl. double-encoded) in caption text before storing. */
-function decodeHtmlEntities(text: string): string {
-  if (!text || text.indexOf('&') === -1) return text
-  const once = (s: string) => s.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, body: string) => {
-    if (body[0] === '#') {
-      const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10)
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole
-    }
-    return ENTITY_MAP[body.toLowerCase()] ?? whole
-  })
-  let out = once(text)
-  if (out.indexOf('&') !== -1) out = once(out)
-  return out
+    let segs = await fetchTimedTextBody(timedTextUrl(choice, 'json3'))
+    if (segs.length === 0) segs = await fetchTimedTextBody(timedTextUrl(choice, null)) // srv3/xml fallback
+    if (segs.length === 0) return null
+    return { segs, lang: choice.lang, kind: choice.kind }
+  } catch { return null }
 }
 
 // ─── Transcript extraction JS — runs inside the BrowserWindow renderer ────────
@@ -881,15 +906,17 @@ type ExtractResult = {
   rows: Array<{ ts: string; text: string }>
 }
 
-type Seg = { start_ms: number; dur_ms: number; text: string }
-
 /** Outcome of one extraction: rows found, permanently absent, or a transient timeout. */
 type ExtractOutcome =
-  | { kind: 'ok'; segs: Seg[] }
+  | { kind: 'ok'; segs: Seg[]; source: 'tactiq' | 'innertube'; lang: string }
   | { kind: 'none'; reason: string }    // no transcript available — record so it isn't retried
   | { kind: 'timeout'; reason: string } // transient — leave unrecorded so the next run retries it
 
-/** Run one video through a BrowserWindow worker: load page, poll for rows. */
+/** Run one video through a BrowserWindow worker: load page, poll for rows.
+ *  tactiq renders its result list progressively, so the row count climbing from e.g. 4 → 40 → 212
+ *  across polls is normal mid-render state, not a finished transcript — accepting the first
+ *  poll with count > 0 stored truncated transcripts. A stability tracker only accepts the list
+ *  once its count has held steady for several consecutive polls (see createStabilityTracker). */
 async function extractOneVideo(
   win: BrowserWindow,
   video_id: string,
@@ -911,6 +938,7 @@ async function extractOneVideo(
 
   const deadline = Date.now() + 30_000
   let attempt = 0
+  const stability = createStabilityTracker(3)
 
   while (Date.now() < deadline) {
     attempt++
@@ -923,10 +951,16 @@ async function extractOneVideo(
       if (attempt === 1) console.log(`[transcript] ${video_id} attempt 1: rows=${result.count} body="${result.bodyPreview}"`)
 
       if (result.count > 0) {
-        console.log(`[transcript] ${video_id} ✓ ${result.count} rows — first: [${result.rows[0]?.ts}] "${result.rows[0]?.text?.slice(0, 60)}"`)
-        const segs = result.rows.map((r) => ({ start_ms: parseTsMs(r.ts), dur_ms: 0, text: decodeHtmlEntities(r.text) }))
-        for (let j = 0; j < segs.length - 1; j++) segs[j].dur_ms = segs[j + 1].start_ms - segs[j].start_ms
-        return { kind: 'ok', segs }
+        const stable = stability.observe(result.count)
+        if (!stable) {
+          console.log(`[transcript] ${video_id} … ${result.count} rows, not yet stable`)
+        } else {
+          console.log(`[transcript] ${video_id} ✓ ${result.count} rows stable — first: [${result.rows[0]?.ts}] "${result.rows[0]?.text?.slice(0, 60)}"`)
+          const segs = fillDurations(result.rows.map((r) => ({ start_ms: parseTsMs(r.ts), dur_ms: 0, text: decodeHtmlEntities(r.text) })))
+          return { kind: 'ok', segs, source: 'tactiq', lang: 'en' }
+        }
+      } else {
+        stability.observe(0)
       }
 
       // tactiq explicitly reported no transcript → permanent, stop polling.
@@ -978,15 +1012,34 @@ async function fetchTranscripts(
   // video once it ends and is fair game here. The >=60s floor stays for type='video' (skips
   // near-empty micro-clips not worth transcribing) but never applied to Shorts, which are
   // legitimately under 60s by definition — that floor would otherwise exclude all of them too.
-  const candidates = db.prepare(`
-    SELECT v.video_id, v.title FROM youtube_videos v
+  //
+  // Eligibility used to be `t.video_id IS NULL` — any stored youtube_transcripts row, including
+  // an old "no transcript (API 429)" row from before the 418-vs-other-4xx/5xx fix above, or a
+  // false-negative "no transcript available" match, blocked that video forever. transcriptFetchPriority
+  // (electron/ipc/youtubeTranscriptCore.ts) makes transient-looking stored errors (429/5xx/timeout/
+  // network) always retryable, and any other stored failure retryable again after
+  // TRANSCRIPT_RETRY_DAYS — captions (especially ASR) can appear well after upload.
+  const now0 = Date.now()
+  const eligibleRows = db.prepare(`
+    SELECT v.video_id, v.title, t.error, t.fetched_at, t.segment_count
+    FROM youtube_videos v
     LEFT JOIN youtube_transcripts t USING(video_id)
-    WHERE t.video_id IS NULL
-      AND v.is_live_now = 0
+    WHERE v.is_live_now = 0
       AND (v.type != 'video' OR v.duration_seconds IS NULL OR v.duration_seconds >= 60)
     ORDER BY v.published DESC
-    LIMIT ?
-  `).all(batchSize) as Array<{ video_id: string; title: string }>
+  `).all() as Array<{ video_id: string; title: string; error: string | null; fetched_at: number | null; segment_count: number | null }>
+
+  const candidates = eligibleRows
+    .map((r) => {
+      const priority = transcriptFetchPriority(
+        { error: r.error, fetched_at: r.fetched_at, segment_count: r.segment_count, hasRow: r.fetched_at != null },
+        now0,
+      )
+      return priority == null ? null : { video_id: r.video_id, title: r.title, priority }
+    })
+    .filter((c): c is { video_id: string; title: string; priority: number } => c != null)
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, batchSize)
 
   console.log(`[transcript] Starting batch: ${candidates.length} candidates, ${workerCount} workers`)
   if (candidates.length === 0) {
@@ -1066,19 +1119,30 @@ async function fetchTranscripts(
           phase: `W${workerId}: ${title?.slice(0, 40) || video_id}`,
         })
 
-        const result = await extractOneVideo(win, video_id, warmedUp, apiStatus)
-        warmedUp = true
+        // Try the free first-party InnerTube path first — a couple of direct HTTP fetches,
+        // no hidden-window page load/poll cycle and not subject to tactiq's own rate limiting.
+        // Only fall back to scraping tactiq.io when InnerTube has no caption tracks at all
+        // (private/age-restricted auto-captions, regional captions InnerTube doesn't expose, …)
+        // or its timedtext fetch comes back empty.
+        const innerTube = await fetchInnerTubeTranscript(video_id)
+        let result: ExtractOutcome
+        if (innerTube) {
+          result = { kind: 'ok', segs: innerTube.segs, source: 'innertube', lang: innerTube.lang }
+        } else {
+          result = await extractOneVideo(win, video_id, warmedUp, apiStatus)
+          warmedUp = true // the tactiq.io page has now actually been visited in this window
+        }
 
         if (result.kind === 'ok') {
-          const { segs } = result
+          const { segs, source, lang } = result
           const duration_ms = segs[segs.length - 1]?.start_ms ?? 0
           db.transaction(() => {
-            insertMeta.run(video_id, 'en', 'tactiq', now, segs.length, duration_ms, null)
+            insertMeta.run(video_id, lang, source, now, segs.length, duration_ms, null)
             deleteSeg.run(video_id)
             for (const seg of segs) insertSeg.run(video_id, seg.start_ms, seg.dur_ms, seg.text)
           })()
           fetched++
-          console.log(`[transcript] W${workerId} stored ${segs.length} segs for ${video_id} (${fetched}/${total} done)`)
+          console.log(`[transcript] W${workerId} stored ${segs.length} segs for ${video_id} via ${source} (${fetched}/${total} done)`)
         } else if (result.kind === 'none') {
           // Permanently no transcript — record an error row so it isn't retried every run.
           insertMeta.run(video_id, 'en', 'tactiq', now, 0, 0, result.reason)
@@ -1250,7 +1314,7 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
 
   // Full Sync: YouTube Data API, dev mode + API key required
   ipc.handle('youtube:fullSync', async (event) => {
-    if (!is.dev) return { error: 'unavailable in production' }
+    if (!devTools()) return { error: 'unavailable in production' }
     if (!YOUTUBE_API_KEY) return { error: 'no API key' }
     return fullSync(event.sender)
   })
@@ -1274,11 +1338,11 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
   // Transcript fetch: scrapes tactiq.io via hidden BrowserWindows — dev only.
   // Michael runs this during development; production builds read the already-stored data.
   ipc.handle('youtube:fetchTranscripts', async (event, batchSize = 10, workerCount = 3) => {
-    if (!is.dev) return { error: 'unavailable in production' }
+    if (!devTools()) return { error: 'unavailable in production' }
     return fetchTranscripts(event.sender, Math.max(1, Math.min(10000, batchSize)), Math.max(1, Math.min(16, workerCount)))
   })
   ipc.handle('youtube:clearTranscripts', () => {
-    if (!is.dev) return { error: 'unavailable in production' }
+    if (!devTools()) return { error: 'unavailable in production' }
     clearTranscripts()
     return { success: true }
   })
@@ -1294,7 +1358,7 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
   // Run after fetchTranscripts to package updated data for the next app release.
   // After running, bump SEED_VERSION in electron/db/berean.ts before building.
   ipc.handle('youtube:buildSeed', () => {
-    if (!is.dev) return { error: 'unavailable in production' }
+    if (!devTools()) return { error: 'unavailable in production' }
     try {
       const seedPath = join(app.getAppPath(), 'data', 'youtube_seed.db')
       if (existsSync(seedPath)) unlinkSync(seedPath)

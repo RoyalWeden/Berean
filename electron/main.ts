@@ -9,6 +9,7 @@ import log from 'electron-log'
 import { setupPowerAwareness, getResourceMode } from './powerAwareness'
 import { buildCSP } from './csp'
 import { APP_IDENTITY } from './appIdentity'
+import { devToolsEnabled } from './devTools'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
@@ -1443,6 +1444,8 @@ app.whenReady().then(async () => {
     return known
   })
   ipcMain.handle('app:isDev', () => is.dev)
+  // Developer tooling (YouTube transcript fetch, Full Sync, …): dev build OR Berean Dev identity.
+  ipcMain.handle('app:devTools', () => devToolsEnabled({ isDev: is.dev, identity: APP_IDENTITY.name }))
   ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url))
   ipcMain.handle('app:youTubeSignOut', async () => {
     await session.fromPartition('persist:youtube').clearStorageData()
