@@ -1336,6 +1336,22 @@ function recordScriptureCloseFallback(
   )
 }
 
+/**
+ * Whether the tab has an earlier step in its OWN history (the caret's ‹ and the iPhone edge swipe).
+ * Note/Lexicon/YouTube tabs can go one step further back than usual, to idx -1 — the list/search/
+ * browse view, with nothing open. Other tab types (Bible, Search, PDF) have no equivalent "nothing
+ * open" state, so they stop at 0. Keyed on the TAB's type (a Bible tab's stack may start with a
+ * cross-tab 'note' entry — "came here from note X" — which must not turn it into a notes tab).
+ * A recorded home entry at 0 IS the list — nothing to step back to below it.
+ */
+export function tabCanGoBack(s: Pick<AppState, 'tabNavStacks' | 'tabs'>, space: SpaceId, tabId: string): boolean {
+  const tabStack = s.tabNavStacks[tabId]
+  if (!tabStack || tabStack.idx < 0) return false
+  const stackType = s.tabs[space]?.find((t) => t.id === tabId)?.type ?? tabStack.stack[0]?.type
+  const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
+  return tabStack.idx > (supportsHome && !tabStack.stack[0]?.home ? -1 : 0)
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -1750,16 +1766,8 @@ export const useAppStore = create<AppState>()(
         const activeTabId = s.activeTabId[s.activeSpace]
         if (!activeTabId) return
         const tabStack = s.tabNavStacks[activeTabId]
-        if (!tabStack || tabStack.idx < 0) return
-        // Note/Lexicon/YouTube tabs can go one step further back than usual, to idx -1 —
-        // the list/search/browse view, with nothing open. Other tab types (Bible,
-        // Search, PDF) have no equivalent "nothing open" state, so they stop at 0.
-        // Keyed on the TAB's type (a Bible tab's stack may start with a cross-tab 'note'
-        // entry — "came here from note X" — which must not turn it into a notes tab).
+        if (!tabStack || !tabCanGoBack(s, s.activeSpace, activeTabId)) return
         const stackType = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)?.type ?? tabStack.stack[0]?.type
-        const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
-        // A recorded home entry at 0 IS the list — nothing to step back to below it.
-        if (tabStack.idx <= (supportsHome && !tabStack.stack[0]?.home ? -1 : 0)) return
         // Remember where the reader is in the entry we're leaving, so Cmd+] forward restores it.
         captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx - 1

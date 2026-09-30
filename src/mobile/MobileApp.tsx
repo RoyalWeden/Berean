@@ -26,6 +26,7 @@ const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
 const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
 import { SheetHost, useSheets } from './primitives/Sheet'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
+import { canEdgeBack, performEdgeBack } from './navigation/edgeBack'
 import { Page, ListSection, Row } from './primitives/Page'
 import { TabCardsSheet } from './tabs/TabCardsSheet'
 import { BottomNav } from './navigation/BottomNav'
@@ -140,10 +141,10 @@ function Shell() {
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes
             tabs — keeps its own page and state (T23-009). */}
-        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={`${activeSpace}:${activeTabIdOf}`} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
+        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={`${activeSpace}:${activeTabIdOf}`} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} canEdgeBack={canEdgeBack} onEdgeBack={performEdgeBack} />}
         {(youtubeShowing || youtubeParked) && (
           <div key="youtube-space" className={youtubeParked ? 'mobile-space-parked' : 'mobile-space-live'} aria-hidden={youtubeParked || undefined}>
-            <NavigationStack rootKey="youtube" root={<SpaceRoot space="youtube" />} />
+            <NavigationStack rootKey="youtube" root={<SpaceRoot space="youtube" />} canEdgeBack={canEdgeBack} onEdgeBack={performEdgeBack} />
           </div>
         )}
       </main>

@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { AnimatePresence, motion, useDragControls, type PanInfo } from 'framer-motion'
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, animate, motion, useDragControls, useMotionValue, type PanInfo } from 'framer-motion'
 import { haptic } from '../primitives/haptics'
 
 /**
@@ -26,8 +26,17 @@ export function useNavigation(): NavApi {
 
 const EDGE_PX = 28
 const POP_DISTANCE = 90
+/** Root-page edge swipe (tab history back / close): a narrower strip than pushed pages so the
+ *  reader's own chapter-edge tap strip and text selection keep working. */
+const ROOT_EDGE_PX = 20
 
-export function NavigationStack({ root, rootKey = 'root' }: { root: React.ReactNode; rootKey?: string }) {
+export function NavigationStack({ root, rootKey = 'root', canEdgeBack, onEdgeBack }: {
+  root: React.ReactNode
+  rootKey?: string
+  /** The root page's edge swipe (iOS back gesture) — see navigation/edgeBack.ts. */
+  canEdgeBack?: () => boolean
+  onEdgeBack?: () => void
+}) {
   const [stack, setStack] = useState<StackEntry[]>([])
   const push = useCallback((key: string, element: React.ReactNode) => {
     setStack((s) => [...s.filter((e) => e.key !== key), { key, element }])
@@ -42,9 +51,7 @@ export function NavigationStack({ root, rootKey = 'root' }: { root: React.ReactN
   return (
     <NavContext.Provider value={api}>
       <div className="mobile-nav-stack">
-        <div className={`mobile-nav-page${stack.length ? ' is-under' : ''}`} key={rootKey} aria-hidden={stack.length > 0}>
-          {root}
-        </div>
+        <RootPage key={rootKey} under={stack.length > 0} canEdgeBack={canEdgeBack} onEdgeBack={onEdgeBack}>{root}</RootPage>
         <AnimatePresence initial={false}>
           {stack.map((e, i) => (
             <PushedPage key={e.key} isTop={i === stack.length - 1} onPop={pop}>{e.element}</PushedPage>
@@ -76,6 +83,56 @@ function PushedPage({ children, isTop, onPop }: { children: React.ReactNode; isT
       // Only a drag that begins at the screen's left edge becomes the pop gesture; anywhere else
       // the content scrolls / selects normally.
       onPointerDown={(e) => { if (isTop && e.clientX <= EDGE_PX) dragControls.start(e) }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+/**
+ * The tab's root page. An edge swipe (first 20 px) drags it right like an iOS back gesture; on
+ * release past the threshold it slides off and `onEdgeBack` steps the tab's history back (or closes
+ * the tab at its first step), and the next page is shown in place. The swipe is claimed in the
+ * CAPTURE phase so the reader's chapter pager never also sees it.
+ */
+function RootPage({ children, under, canEdgeBack, onEdgeBack }: { children: React.ReactNode; under: boolean; canEdgeBack?: () => boolean; onEdgeBack?: () => void }) {
+  const dragControls = useDragControls()
+  const x = useMotionValue(0)
+  const [dragging, setDragging] = useState(false)
+  const busy = useRef(false)
+  const enabled = !!onEdgeBack && !under
+  return (
+    <motion.div
+      className={`mobile-nav-page${under ? ' is-under' : ''}${dragging ? ' is-edge-dragging' : ''}`}
+      aria-hidden={under}
+      style={{ x }}
+      drag={enabled ? 'x' : false}
+      dragControls={dragControls}
+      dragListener={false}
+      dragDirectionLock
+      dragMomentum={false}
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={{ left: 0, right: 1 }}
+      onDragStart={() => setDragging(true)}
+      onDragEnd={(_: unknown, info: PanInfo) => {
+        setDragging(false)
+        const width = typeof window !== 'undefined' ? window.innerWidth : 390
+        if (!busy.current && (info.offset.x > POP_DISTANCE || info.velocity.x > 600)) {
+          busy.current = true
+          void haptic.light()
+          void animate(x, width, { duration: 0.18, ease: [0.32, 0.72, 0, 1] }).then(() => {
+            onEdgeBack?.()
+            x.set(0)
+            busy.current = false
+          })
+        } else animate(x, 0, { type: 'spring', stiffness: 420, damping: 40 })
+      }}
+      onPointerDownCapture={(e) => {
+        if (!enabled || busy.current || e.clientX > ROOT_EDGE_PX || (e.pointerType === 'mouse' && e.button !== 0)) return
+        if (canEdgeBack && !canEdgeBack()) return
+        e.stopPropagation()
+        dragControls.start(e)
+      }}
     >
       {children}
     </motion.div>
