@@ -19,7 +19,7 @@ const SIZE: Record<IconButtonSize, { box: string; icon: number; radius: string }
 const DOWN: Record<IconButtonSize, IconButtonSize> = { 20: 20, 24: 20, 28: 24, 32: 28 }
 /** The one bar box (CONTROL_H_BAR = 36): every IconButton in a bar renders at this size, so a
  *  toolbar shows one control height whatever size each call site asked for (see metrics.tsx). */
-const BAR = { box: 'w-9 h-9', icon: 18, radius: 'rounded-control-md' }
+const BAR = { box: 'w-9 h-9', icon: 18, radius: 'rounded-control' }
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: LucideIcon
@@ -71,6 +71,9 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   // A standalone icon control in a bar is a CIRCLE. Apple's grouping model makes a lone toolbar
   // item its own "group of one", and a group of one with a single square icon reads as a circle;
   // only items that actually share a ControlGroup's container render flat inside it.
+  // Bar controls are always circles (TEST 2026-09-29: single controls read as clean circles,
+  // joined controls as one capsule) — BAR.radius is the capsule, so even an explicit 'square'
+  // renders round in a bar.
   const resolvedShape: ControlShape = shape ?? ctxShape
     ?? (bar && !inGroup ? 'round' : surface === 'glass' ? 'square' : 'round')
   const isOff = disabled || loading

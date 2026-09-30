@@ -74,8 +74,8 @@ only over media), with Berean's own values derived from the theme colours. Apple
   - No glass inside glass: a nested surface drops its own material (CSS rule).
   - `backdrop-filter` is only on floating controls, bars and sheets, never on a scrolling content
     surface (audited).
-- **Shape.** `--radius-capsule` (controls), `--radius-control` 12, `--radius-card` 16,
-  `--radius-sheet` 30.
+- **Shape.** `--glass-radius-capsule` (controls), `--glass-radius-control` 12, `--glass-radius-card` 16,
+  `--glass-radius-sheet` 30 (glass-prefixed so they never override the desktop `--radius-*` scale, where `--radius-control` is the capsule).
 - **States.** `.glass-control` has normal, hover, pressed (scale .96, spring), selected
   (`aria-pressed` / `.is-selected`: accent tint plus accent text, not colour alone), disabled and
   focus-visible (ring).
