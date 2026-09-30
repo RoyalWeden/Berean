@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, w
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { profileAuthorises } from './profileAuthorises.mjs'
+import { profileAuthorises, readProfileValue } from './profileAuthorises.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -117,7 +117,7 @@ else {
   const pf = join(dir, 'profile.plist')
   writeFileSync(pf, run('security', ['cms', '-D', '-i', profilePath]))
   const key = (k) => k.replace(/\./g, '\\.')
-  const get = (path, fmt = 'json') => { try { const v = run('plutil', ['-extract', path, fmt, '-o', '-', pf]); return fmt === 'json' ? JSON.parse(v) : v.trim() } catch { return undefined } }
+  const get = (path, fmt = 'json') => { if (fmt === 'json') return readProfileValue(pf, path); try { return run('plutil', ['-extract', path, fmt, '-o', '-', pf]).trim() } catch { return undefined } }
   const profile = { Name: get('Name', 'raw'), ExpirationDate: get('ExpirationDate', 'raw'), ProvisionedDevices: get('ProvisionedDevices') }
   const appId = get(`Entitlements.${key('com.apple.application-identifier')}`, 'raw') ?? get('Entitlements.application-identifier', 'raw')
   if (appId !== `${TEAM}.${BUNDLE_ID}`) fail(`profile App ID ${appId} ≠ ${TEAM}.${BUNDLE_ID}`)
