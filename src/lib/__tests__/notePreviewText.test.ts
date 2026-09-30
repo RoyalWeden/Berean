@@ -36,4 +36,13 @@ describe('stripMarkdownFormatting', () => {
     expect(stripMarkdownFormatting('[[Gen 1:1]] and [[Gen 1:1|the beginning]]'))
       .toBe('Gen 1:1 and the beginning')
   })
+
+  it('decodes common HTML entities left over from pasted/rendered HTML', () => {
+    expect(stripMarkdownFormatting('Jacob &amp; Esau &lt;struggled&gt; &quot;in the womb&quot; &#39;together&#39;'))
+      .toBe('Jacob & Esau <struggled> "in the womb" \'together\'')
+  })
+
+  it('decodes &nbsp; as a plain space', () => {
+    expect(stripMarkdownFormatting('a&nbsp;b')).toBe('a b')
+  })
 })

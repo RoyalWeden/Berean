@@ -4,6 +4,7 @@ import type { LexiconEntry } from '@/types'
 import { DerivationText, stripBracketNotation, buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { openDestination } from '@/lib/navigation/destination'
+import { useScriptureText } from '@/lib/scriptureText'
 import type { SheetApi } from '../primitives/Sheet'
 
 /**
@@ -18,6 +19,7 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
   const [num, setNum] = useState(strongsNum)
   const [copied, setCopied] = useState(false)
   const lang: 'H' | 'G' = num.startsWith('G') ? 'G' : 'H'
+  const { displayVerseText } = useScriptureText()
 
   useEffect(() => {
     let alive = true
@@ -83,7 +85,7 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
             <li key={`${o.book_id}-${o.chapter}-${o.verse_num}`}>
               <button type="button" onClick={() => go(o.book_id, o.chapter, o.verse_num)}>
                 <span className="mobile-occurrence-ref">{bookChapterVerseLabel(o.book_id, o.chapter, o.verse_num)}</span>
-                <span className="mobile-occurrence-text">{o.text}</span>
+                <span className="mobile-occurrence-text">{displayVerseText(o.text, null, 'kjv')}</span>
               </button>
             </li>
           ))}

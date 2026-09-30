@@ -2159,9 +2159,7 @@ export default function BibleRightPanel({
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   closeSideCtxMenu()
                   const v = await window.bible.queryVerse(bId, ch, vs).catch(() => null)
-                  let text = v?.text ?? ''
-                  if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
-                  copyVerse(bId, ch, vs, text)
+                  copyVerse(bId, ch, vs, v?.text ?? '', false, undefined, v?.text_tagged ?? null, 'kjva')
                 }}
               />
               <MenuItem

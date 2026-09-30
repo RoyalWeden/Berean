@@ -6,6 +6,7 @@ import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
+import { displayVerseText } from '@/lib/scriptureText'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
 import { SearchField, Select, SegmentedControl, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader, OverflowGroup, OverflowSection } from '@/components/ui'
@@ -497,7 +498,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                         {r.chapter}:{r.verse_num}
                       </RefChip>
                     }
-                    title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(r.text, query)}</span>}
+                    title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(displayVerseText(r.text, null, r._textId ?? textId), query)}</span>}
                     titleClamp={3}
                     trailing={<ChevronRight size={12} className="text-text-muted" />}
                   />

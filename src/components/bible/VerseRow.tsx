@@ -2090,7 +2090,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse).catch(() => null)
-                  copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '')
+                  copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '', false, undefined, v?.text_tagged ?? null, textId ?? 'kjva')
                 }}
               />
               <MenuItem

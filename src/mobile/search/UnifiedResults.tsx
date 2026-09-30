@@ -6,6 +6,7 @@ import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyFindHighlight } from '@/lib/highlight'
 import { buildAllWordsSnippet } from '@/components/bible/ScriptureSearchView'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
+import { useScriptureText } from '@/lib/scriptureText'
 import type { ScriptureHit } from '@/lib/scriptureSearch'
 import type { WordMode } from '@/lib/scriptureHighlight'
 import { hitSourceLabel, type GoToItem, type UnifiedResults as Results, type UnifiedScope } from '@/lib/search/unifiedSearch'
@@ -40,6 +41,7 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
   /** Inside the Search tab: groups show more rows. */
   full?: boolean
 }) {
+  const { displayVerseText } = useScriptureText()
   if (!results) return loading ? <SearchStatus loading /> : null
   const { goTo, verses, entries, notes, intent } = results
   const text = intent.text
@@ -61,11 +63,14 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
       )}
       {verses && verses.length > 0 && (
         <Group title="Verses" count={verses.length}>
-          {verses.slice(0, rows(GROUP_ROWS.verses)).map((h) => wrap({ kind: 'verse', hit: h }, (
-            <Row icon={BookOpen} onClick={() => onPick({ kind: 'verse', hit: h })}
-              title={<>{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{sourceBadge(h.textId)}</>}
-              sub={applyFindHighlight(buildAllWordsSnippet(h.text, text, 110).text, h.strongsWords ? '' : text, wordMode)} />
-          ), `${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`))}
+          {verses.slice(0, rows(GROUP_ROWS.verses)).map((h) => {
+            const hText = displayVerseText(h.text, h.text_tagged ?? null, h.textId)
+            return wrap({ kind: 'verse', hit: h }, (
+              <Row icon={BookOpen} onClick={() => onPick({ kind: 'verse', hit: h })}
+                title={<>{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{sourceBadge(h.textId)}</>}
+                sub={applyFindHighlight(buildAllWordsSnippet(hText, text, 110).text, h.strongsWords ? '' : text, wordMode)} />
+            ), `${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`)
+          })}
           {verses.length > rows(GROUP_ROWS.verses) && <SeeAll label={`All ${verses.length} verses`} onClick={() => onSeeAll('scripture')} />}
         </Group>
       )}

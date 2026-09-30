@@ -1,6 +1,7 @@
 import { bookName, getTranslationForBook } from './parseRef'
 import { editionForTextId } from './bibleTexts'
 import { displayChapter } from './chapterNumbering'
+import { displayVerseText } from './scriptureText'
 
 /** Recognitions of Clement (RCL1-10) has a genuine 3-level Book.Chapter.Verse addressing
  *  scheme, so its copy format spells out the edition's full name and book number
@@ -39,9 +40,24 @@ export function formatVerseRef(bookId: string, chapter: number, verse: number, l
 }
 
 /** Copy "Reference text" to the clipboard (the same format the Bible reader uses).
- *  `text` should already be the full range's text (joined) when copying a range. */
-export function copyVerse(bookId: string, chapter: number, verse: number, text: string, lxx = false, endVerse?: number): void {
-  const clean = text.replace(/\{[HG]\d+\}/g, '').replace(/\s+/g, ' ').trim()
+ *  `text` should already be the full range's text (joined) when copying a range — pass
+ *  the RAW (un-word-replaced) verse text; Word Replacer rules are applied centrally here
+ *  via {@link displayVerseText}, so callers no longer need to pre-apply them. Pass
+ *  `textTagged`/`textId` when available so Strong's-number rules and "the"-suppression
+ *  apply exactly as the reader renders them (KJVA only); otherwise plain text-pattern
+ *  rules still apply. */
+export function copyVerse(
+  bookId: string,
+  chapter: number,
+  verse: number,
+  text: string,
+  lxx = false,
+  endVerse?: number,
+  textTagged?: string | null,
+  textId?: string,
+): void {
+  const replaced = displayVerseText(text, textTagged ?? null, textId ?? 'kjva')
+  const clean = replaced.replace(/\{[HG]\d+\}/g, '').replace(/\s+/g, ' ').trim()
   navigator.clipboard.writeText(`${formatVerseRef(bookId, chapter, verse, lxx, endVerse)} ${clean}`).catch(() => {})
 }
 

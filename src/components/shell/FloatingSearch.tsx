@@ -14,6 +14,7 @@ import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrong
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
+import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
@@ -1067,9 +1068,7 @@ export default function FloatingSearch() {
   const noteRows = useMemo(() => {
     if (versesOnly) return []
     return noteResults.slice(0, 4).map((note) => {
-      const rawSnippet = note.content
-        .replace(/^---[\s\S]*?---\n?/, '')
-        .replace(/[#*`_>~[\]]/g, '')
+      const rawSnippet = stripMarkdownFormatting(note.content.replace(/^---[\s\S]*?---\n?/, ''))
         .replace(/\n/g, ' ')
         .trim()
       const snippet = wr(rawSnippet)

@@ -2034,9 +2034,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               const { bookId: bId, chapter: ch, verse: vs, textId: tid, text: tx } = ctxMenu
               closeCtxMenu()
               let text = tx
-              if (!text) { const v = await window.bible.queryVerse(bId, ch, vs, tid).catch(() => null); text = v?.text ?? '' }
-              if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
-              copyVerse(bId, ch, vs, text, tid === 'lxx')
+              let textTagged: string | null = null
+              if (!text) {
+                const v = await window.bible.queryVerse(bId, ch, vs, tid).catch(() => null)
+                text = v?.text ?? ''
+                textTagged = v?.text_tagged ?? null
+              }
+              copyVerse(bId, ch, vs, text, tid === 'lxx', undefined, textTagged, tid)
             }}
           />
           <MenuItem
