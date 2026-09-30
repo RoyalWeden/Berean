@@ -356,7 +356,7 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
           {current ? (
             <div className="mobile-sheet-nav">
               <button type="button" className="mobile-sheet-back" onClick={pop} onPointerDown={(e) => e.stopPropagation()} aria-label={`Back to ${backLabel}`}>
-                <ChevronLeft size={22} aria-hidden /><span>{backLabel}</span>
+                <ChevronLeft size={22} strokeWidth={2.25} aria-hidden />
               </button>
               <div className="mobile-sheet-title is-nav" aria-live="polite">{headerTitle}</div>
             </div>

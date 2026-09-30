@@ -476,7 +476,7 @@ export function PassagePicker({ textId, bookId, chapter, onPick, onChapter }: Pa
           {top ? (
             <>
               <button type="button" className="m-pp-back" onClick={() => local?.pop()} aria-label={`Back to ${stack.length > 1 ? stack[stack.length - 2].title : 'Library'}`}>
-                <ChevronLeft size={20} aria-hidden /><span>{stack.length > 1 ? stack[stack.length - 2].title : 'Library'}</span>
+                <ChevronLeft size={22} strokeWidth={2.25} aria-hidden />
               </button>
               <div className="m-pp-local-title" aria-live="polite">{top.title}</div>
               <React.Fragment key={top.key}>{top.node}</React.Fragment>

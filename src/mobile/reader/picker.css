@@ -32,5 +32,6 @@
 .m-pp-whole { width: 100%; min-height: 44px; margin: 4px 0 8px; border: 0; border-radius: 10px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-accent)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); font-weight: 500; }
 
 /* Local (non-sheet) navigation fallback. */
-.m-pp-back { display: inline-flex; align-items: center; min-height: 44px; margin: 0 8px; padding: 0 4px 0 0; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); }
+.m-pp-back { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; margin: 2px 12px; padding: 0; border-radius: 20px; border: 0.5px solid var(--m-hairline); background: var(--m-fill); color: rgb(var(--color-text-primary)); }
+.m-pp-back:active { background: var(--m-fill-pressed); }
 .m-pp-local-title { padding: 0 16px 4px; font-weight: 600; font-size: calc(17px * var(--m-type-scale, 1)); }

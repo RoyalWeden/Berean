@@ -48,7 +48,7 @@ html[data-keyboard] .mobile-bottom-nav { display: none; }
 .mobile-page-title { margin: 0; font-size: calc(17px * var(--m-type-scale, 1)); font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mobile-page-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 16px; }
 .mobile-page-body.is-static { overflow: hidden; padding-bottom: 0; }
-.mobile-back { display: inline-flex; align-items: center; height: 44px; padding: 0 6px 0 2px; color: rgb(var(--color-accent)); background: none; border: 0; font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); }
+.mobile-back { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0; border-radius: 22px; color: rgb(var(--color-text-primary)); border: 0; font: inherit; }
 .mobile-icon-tap { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: none; border: 0; color: rgb(var(--color-text-secondary)); }
 .mobile-icon-tap.is-active { color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.14); }
 .mobile-title-button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 18px; background: rgb(var(--color-surface-3)); border: 0; color: inherit; font: inherit; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1)); max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -110,7 +110,8 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
 .mobile-sheet-title { margin-top: 8px; text-align: center; font-weight: 600; font-size: calc(16px * var(--m-type-scale, 1)); }
 /* In-sheet navigation (Sheet.push/pop): contextual back at the top of the same sheet. */
 .mobile-sheet-nav { position: relative; margin-top: 6px; min-height: 32px; display: flex; align-items: center; justify-content: center; }
-.mobile-sheet-back { position: absolute; left: -6px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 0; max-width: 42%; min-height: 44px; padding: 0 6px 0 0; border: 0; background: none; color: rgb(var(--color-accent)); font-size: calc(16px * var(--m-type-scale, 1)); }
+.mobile-sheet-back { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 20px; border: 0.5px solid var(--m-hairline); background: var(--m-fill); color: rgb(var(--color-text-primary)); }
+.mobile-sheet-back:active { background: var(--m-fill-pressed); }
 .mobile-sheet-back span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mobile-sheet-title.is-nav { margin-top: 0; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mobile-sheet-view { min-height: 100%; }
@@ -690,3 +691,60 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
    tappable (≥ 36 pt tall), labels centred — e.g. TSK/e · Classic · My Notes everywhere. */
 .mobile-segmented.is-full { display: flex; width: 100%; align-self: stretch; }
 .mobile-segmented.is-full button { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
+/* ══ Floating header controls (TEST 2026-09-29 — "Apple Notes, but for Bible study") ══════════
+   One recipe for every page header, sheet and picker: a lone control is a glass CIRCLE, joined
+   controls are ONE glass CAPSULE (IconGroup), back is always a chevron circle (BackButton).
+   Materials come from the shared tokens (--m-glass-control / filter / hairline / edge highlight);
+   no outer shadow on backdrop-filtered elements (WKWebView draws it square). */
+.mobile-back,
+.mobile-page-header .mobile-icon-tap,
+.mobile-icon-group,
+.m-float-circle {
+  background: var(--m-glass-control);
+  border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+.mobile-page-header .mobile-icon-tap { border-radius: 22px; color: rgb(var(--color-text-primary)); }
+.mobile-page-header .mobile-icon-tap.is-active { color: rgb(var(--color-accent)); background: color-mix(in srgb, var(--m-glass-control) 78%, rgb(var(--color-accent))); }
+.mobile-back:active, .mobile-page-header .mobile-icon-tap:active, .m-float-circle:active { background: var(--m-glass-control-pressed); transform: scale(0.94); }
+.mobile-page-header .mobile-icon-tap:disabled { opacity: 0.4; }
+.mobile-page-header-side { gap: 8px; }
+/* Joined controls: one capsule, items flat inside (glass never nests). */
+.mobile-icon-group { display: inline-flex; align-items: center; height: 44px; padding: 0 2px; border-radius: 22px; }
+.mobile-icon-group .mobile-icon-tap,
+.mobile-page-header .mobile-icon-group .mobile-icon-tap { width: 44px; height: 40px; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-radius: 20px; }
+.mobile-icon-group .mobile-icon-tap:active { background: var(--m-fill-pressed); transform: none; }
+.m-float-circle { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border-radius: 22px; color: rgb(var(--color-text-primary)); }
+/* Primary "Done" circle (accent fill — the check that ends editing / a selection). */
+.m-float-circle.is-primary { background: rgb(var(--color-accent)); color: #fff; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.m-float-circle.is-primary:active { background: rgb(var(--color-accent) / 0.85); }
+
+/* Overlaid headers: the body scrolls UNDER the header; its measured height pads the body. */
+.mobile-page.has-overlay-header { position: relative; }
+.mobile-page.has-overlay-header > .mobile-page-header { position: absolute; top: 0; left: 0; right: 0; z-index: 20; }
+.mobile-page.has-overlay-header > .mobile-page-body { padding-top: var(--m-page-header-h, calc(var(--m-safe-top) + var(--m-header-h))); scroll-padding-top: var(--m-page-header-h, 0px); }
+.mobile-page.has-overlay-header > .mobile-page-body.is-static { padding-top: 0; }
+/* glass: translucent material bar (content visibly scrolls beneath it). */
+.mobile-page.is-header-glass > .mobile-page-header {
+  background: var(--m-glass-regular); border-bottom: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+}
+/* floating: no bar — the page surface fades in only behind the status bar so the time/battery
+   stay legible; the controls float on their own glass. */
+.mobile-page.is-header-floating > .mobile-page-header {
+  background: linear-gradient(to bottom, rgb(var(--color-surface-1)) 0, rgb(var(--color-surface-1)) var(--m-safe-top), rgb(var(--color-surface-1) / 0) 100%);
+  border-bottom: 0; pointer-events: none;
+}
+.mobile-page.is-header-floating > .mobile-page-header .mobile-page-header-side > * { pointer-events: auto; }
+.mobile-page.is-header-floating > .mobile-page-header .mobile-page-header-row { padding: 0 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-back:active, .mobile-page-header .mobile-icon-tap:active, .m-float-circle:active { transform: none; }
+}
+
+.mobile-ref-picker-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; }
+.mobile-ref-picker-title { font-weight: 600; font-size: calc(17px * var(--m-type-scale, 1)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
