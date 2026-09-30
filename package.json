@@ -18,6 +18,7 @@
     "build:draft": "npm run build && electron-builder --mac --publish always",
     "build:mas": "npm run build && node scripts/mac/build-native.mjs && electron-builder --mac --config.mac.target=mas --config.mac.hardenedRuntime=false --publish never && node scripts/mac/verify-mas.mjs",
     "build:mas:pkg": "node scripts/mac/package-mas.mjs",
+    "build:mas:dev": "npm run build && node scripts/mac/build-native.mjs && electron-builder --mac --config.mac.target=mas-dev --config.mac.hardenedRuntime=false --publish never",
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:win:publish": "npm run build && electron-builder --win --publish always",
     "build:mac:x64": "npm run build && electron-builder --mac --config.mac.target.arch=x64 --publish never",
@@ -212,6 +213,9 @@
           ]
         }
       ]
+    },
+    "masDev": {
+      "provisioningProfile": "build/embedded.dev.provisionprofile"
     },
     "dmg": {
       "title": "Berean ${version}",
