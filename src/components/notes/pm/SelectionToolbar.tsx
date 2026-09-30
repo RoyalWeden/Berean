@@ -167,7 +167,7 @@ export default function SelectionToolbar({
       // `pm-toolbar-solid` is the marker NoteEditorPM's outside-mousedown dismiss checks for —
       // without it a click on any button here counted as "outside" and closed the bubble
       // before its dropdown could even open.
-      className="pm-toolbar-solid material-popover rounded-menu relative flex items-center gap-2 px-1.5 py-1"
+      className="pm-toolbar-solid material-popover rounded-control relative flex items-center gap-2 px-1.5 py-1"
     >
       {/* Group 1 — Text: current block type + the Thread insert action. */}
       <ControlGroup>

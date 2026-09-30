@@ -234,7 +234,7 @@ export default function Toolbar({
         'flex-shrink-0 transition-opacity duration-200', opacityCls,
       )}
     >
-      <Bar size="sm" edge="none" material="none" itemVariant="ghost" className="material-popover rounded-menu">
+      <Bar size="sm" edge="none" material="none" itemVariant="ghost" className="material-popover rounded-control px-1">
         <OverflowGroup label="More formatting" fit="offsetParent" inset={48}>
           {/* Focus mode hides the native traffic lights (see the `setButtonsVisible` effect
               above — they're window-frame chrome, not DOM, and can't just be relocated) and
