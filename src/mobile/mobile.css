@@ -6,7 +6,13 @@
   --m-safe-top: env(safe-area-inset-top, 0px);
   --m-safe-bottom: env(safe-area-inset-bottom, 0px);
   --m-bar-h: 50px;          /* bottom navigation row */
-  --m-header-h: 48px;
+  /* One header band + one floating-control size for every page, sheet and floating control
+     (tab switcher, audio, back, header circles, the Scripture capsule): controls sit centred in
+     the band BELOW the measured safe-area inset (env(), whatever the device — Dynamic Island,
+     notch, home button). Never a per-device or per-control offset (TEST 2026-09-29 safe area). */
+  --m-header-h: 52px;
+  --m-control: 44px;
+  --m-edge: 12px;           /* screen-edge inset of floating controls */
   --m-radius: 14px;
 }
 
@@ -45,7 +51,7 @@ html[data-keyboard] .mobile-bottom-nav { display: none; }
 /* ── page ─────────────────────────────────────────────────────────────── */
 .mobile-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mobile-page-header { flex: none; padding-top: var(--m-safe-top); background: rgb(var(--color-surface-2)); border-bottom: 1px solid rgb(var(--color-surface-4) / 0.6); }
-.mobile-page-header-row { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; height: var(--m-header-h); padding: 0 6px; }
+.mobile-page-header-row { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; height: var(--m-header-h); padding: 0 var(--m-edge); }
 .mobile-page-header-side { display: flex; align-items: center; gap: 2px; min-width: 44px; }
 .mobile-page-header-side.is-right { justify-content: flex-end; }
 .mobile-page-title { margin: 0; font-size: calc(17px * var(--m-type-scale, 1)); font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -753,7 +759,6 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
   border-bottom: 0; pointer-events: none;
 }
 .mobile-page.is-header-floating > .mobile-page-header .mobile-page-header-side > * { pointer-events: auto; }
-.mobile-page.is-header-floating > .mobile-page-header .mobile-page-header-row { padding: 0 12px; }
 @media (prefers-reduced-motion: reduce) {
   .mobile-back:active, .mobile-page-header .mobile-icon-tap:active, .m-float-circle:active { transform: none; }
 }

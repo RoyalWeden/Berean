@@ -80,7 +80,7 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
    The capsule is real material: WKWebView's backdrop-filter is composited by Core Animation (the
    backdrop the system materials use), tinted like .systemThinMaterial, saturated for vibrancy,
    with a hairline edge and a top specular line. */
-.mobile-page.is-scripture-chrome { position: relative; --m-header-h: 50px; --m-reader-top: calc(var(--m-safe-top) + var(--m-header-h)); }
+.mobile-page.is-scripture-chrome { position: relative; --m-reader-top: calc(var(--m-safe-top) + var(--m-header-h)); }
 .mobile-page.is-scripture-chrome > .mobile-page-header {
   position: absolute; top: 0; left: 0; right: 0; z-index: 5; border-bottom: 0; pointer-events: none;
   background: linear-gradient(to bottom,
@@ -95,7 +95,7 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
 .mobile-page.is-scripture-chrome .mobile-title-button,
 .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
   /* Level 1 functional glass over the Bible text (src/styles/glass.css). */
-  height: 40px; border: 0.5px solid var(--glass-border);
+  height: var(--m-control); border: 0.5px solid var(--glass-border);
   background: var(--glass-regular-bg);
   -webkit-backdrop-filter: var(--glass-filter-regular); backdrop-filter: var(--glass-filter-regular);
   /* No outer drop shadow: WKWebView paints an outer shadow under a backdrop-filtered element as a
@@ -103,9 +103,9 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
   box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.6), inset 0 -0.5px 0 rgb(0 0 0 / 0.04);
   color: rgb(var(--color-text-primary));
 }
-.mobile-page.is-scripture-chrome .mobile-title-button { padding: 0 16px; border-radius: 20px; font-size: calc(16px * var(--m-type-scale, 1)); gap: 7px; }
+.mobile-page.is-scripture-chrome .mobile-title-button { padding: 0 18px; border-radius: calc(var(--m-control) / 2); font-size: calc(16px * var(--m-type-scale, 1)); gap: 7px; }
 .mobile-page.is-scripture-chrome .mobile-title-button svg { color: rgb(var(--color-accent)); }
-.mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap { width: 40px; border-radius: 20px; }
+.mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap { width: var(--m-control); border-radius: calc(var(--m-control) / 2); }
 .mobile-page.is-scripture-chrome .mobile-title-button:active,
 .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap:active { transform: scale(0.97); }
 html.scheme-dark .mobile-page.is-scripture-chrome .mobile-title-button,
@@ -145,11 +145,11 @@ html[data-keyboard] .mobile-root.has-overlay-nav .mobile-hosted-panel { padding-
 /* Floating top-left tab switcher / top-right audio button (TEST25-NAV / AUDIO): page headers keep
    their buttons clear of them — one central rule instead of per-page offsets. Scripture views
    have no header row content at the sides (centered capsule), so nothing moves there. */
-html[data-floating-left] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-left: 56px; }
-html[data-floating-right] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-right: 56px; }
+html[data-floating-left] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-left: calc(var(--m-edge) * 2 + var(--m-control)); }
+html[data-floating-right] .mobile-page:not(.is-scripture-chrome) > .mobile-page-header .mobile-page-header-row { padding-right: calc(var(--m-edge) * 2 + var(--m-control)); }
 /* Hosted desktop panels (Lexicon, YouTube, PDF, tags graph) keep their first header row clear too. */
-html[data-floating-left] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-left: 56px; }
-html[data-floating-right] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-right: 56px; }
+html[data-floating-left] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-left: calc(var(--m-edge) + var(--m-control)); }
+html[data-floating-right] .mobile-hosted-panel .mobile-hosted-header > :first-child { padding-right: calc(var(--m-edge) + var(--m-control)); }
 
 /* Text width (TEST25-SCRIPTURE-008): the reading column's side margins. */
 html[data-reader-width="wide"] .mobile-reader .berean-reading-column { padding-left: 2px; padding-right: 6px; }
