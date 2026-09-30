@@ -1,7 +1,8 @@
 import { useLongPress } from '../primitives/useLongPress'
 import React, { useReducer, useState } from 'react'
-import { ChevronRight, ChevronLeft, ChevronDown, Search } from 'lucide-react'
-import { useAppStore } from '@/store'
+import { ChevronRight, ChevronLeft, ChevronDown, Search, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react'
+import { useAppStore, tabCanGoBack } from '@/store'
+import { runExperience } from '../navigation/experiences'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { Segmented, Stepper, Toggle } from '../settings/SettingsControls'
@@ -47,6 +48,7 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
           {s.subtitle && <div className="mobile-caret-subtitle">{s.subtitle}</div>}
         </div>
       ))}
+      {!nested && <CaretGoToRow api={api} />}
       {s.sections.map((sec) => sec.collapsible ? (
         <section key={sec.id} className="mobile-caret-group" aria-label={sec.collapsible.label}>
           <div className="mobile-caret-group-body">
@@ -164,10 +166,8 @@ function CaretLocationBar({ location, api, onChanged }: { location: NonNullable<
   const nav = useAppStore((s) => {
     const id = s.activeTabId[s.activeSpace]
     const st = id ? s.tabNavStacks[id] : undefined
-    const type = s.tabs[s.activeSpace]?.find((t) => t.id === id)?.type
-    // List-style tabs can step back to their list (-1) unless the list is itself recorded (home entry).
-    const floor = (type === 'note' || type === 'lexicon' || type === 'youtube') && !st?.stack[0]?.home ? -1 : 0
-    return { back: !!st && st.idx > floor, forward: !!st && st.idx < st.stack.length - 1 }
+    // One rule with the edge swipe and the store's navTabBack (tabCanGoBack).
+    return { back: !!id && tabCanGoBack(s, s.activeSpace, id), forward: !!st && st.idx < st.stack.length - 1 }
   }, (a, b) => a.back === b.back && a.forward === b.forward)
   const openLocation = () => {
     if (location.run) { api.close(); location.run(); return }
@@ -188,8 +188,10 @@ function CaretLocationBar({ location, api, onChanged }: { location: NonNullable<
         <Search size={15} aria-hidden />
         <span className="mobile-caret-nav-label">{location.label}</span>
       </button>
-      <button type="button" className="mobile-caret-nav-btn" aria-label="Back" disabled={!nav.back} onClick={() => step('back')}><ChevronLeft size={20} aria-hidden /></button>
-      <button type="button" className="mobile-caret-nav-btn" aria-label="Forward" disabled={!nav.forward} onClick={() => step('forward')}><ChevronRight size={20} aria-hidden /></button>
+      <span className="mobile-caret-nav-pair" role="group" aria-label="Tab history">
+        <button type="button" className="mobile-caret-nav-btn" aria-label="Back" disabled={!nav.back} onClick={() => step('back')}><ChevronLeft size={20} aria-hidden /></button>
+        <button type="button" className="mobile-caret-nav-btn" aria-label="Forward" disabled={!nav.forward} onClick={() => step('forward')}><ChevronRight size={20} aria-hidden /></button>
+      </span>
     </div>
   )
 }
@@ -203,5 +205,29 @@ function ActionTile({ c, onClick, onLongPress }: { c: Extract<CaretCommand, { ki
       {...(onLongPress ? lp : {})}>
       {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.detail && <small>{c.detail}</small>}
     </button>
+  )
+}
+
+/**
+ * Every caret can turn the CURRENT tab into History or Settings (TEST 2026-09-29) — the same
+ * transform the tab-type switcher uses (runExperience 'current-tab': the tab keeps its place and
+ * its history, so ‹ returns). The entry for the tab's own type is omitted.
+ */
+function CaretGoToRow({ api }: { api: SheetApi }) {
+  const type = useAppStore((s) => s.tabs[s.activeSpace]?.find((t) => t.id === s.activeTabId[s.activeSpace])?.type)
+  const items = ([
+    { id: 'history', label: 'History', icon: HistoryIcon },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
+  ] as const).filter((it) => it.id !== type)
+  if (!items.length) return null
+  return (
+    <div className="mobile-caret-goto" role="group" aria-label="Switch this tab">
+      {items.map(({ id, label, icon: Icon }) => (
+        <button key={id} type="button" className="mobile-caret-goto-btn" aria-label={`Show ${label} in this tab`}
+          onClick={() => { void haptic.light(); api.close(); runExperience(id, 'current-tab') }}>
+          <Icon size={17} aria-hidden /><span>{label}</span>
+        </button>
+      ))}
+    </div>
   )
 }

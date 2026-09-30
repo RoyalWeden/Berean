@@ -666,6 +666,15 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
 .mobile-caret-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-primary)); font-weight: 600; font-size: calc(15px * var(--m-type-scale, 1)); }
 .mobile-caret-nav-btn { flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 20px; background: var(--m-fill, rgb(var(--color-surface-3))); color: rgb(var(--color-accent)); }
 .mobile-caret-nav-btn:disabled { color: rgb(var(--color-text-muted) / 0.45); }
+/* ‹ › are one joined control (a capsule), like every other grouped pair. */
+.mobile-caret-nav-pair { flex: none; display: inline-flex; height: 40px; border-radius: 20px; background: var(--m-fill, rgb(var(--color-surface-3))); overflow: hidden; }
+.mobile-caret-nav-pair .mobile-caret-nav-btn { width: 44px; border-radius: 0; background: none; }
+.mobile-caret-nav-pair .mobile-caret-nav-btn:active:not(:disabled) { background: var(--m-fill-pressed); }
+/* History · Settings for the current tab (every caret). */
+.mobile-caret-goto { display: flex; gap: 8px; margin: -4px 0 12px; }
+.mobile-caret-goto-btn { flex: 1; min-width: 0; height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 20px; background: var(--m-fill); color: rgb(var(--color-text-primary)); font: inherit; font-weight: 500; font-size: calc(15px * var(--m-type-scale, 1)); }
+.mobile-caret-goto-btn svg { color: rgb(var(--color-accent)); }
+.mobile-caret-goto-btn:active { background: var(--m-fill-pressed); }
 .mobile-caret-disclosure-chevron { transition: transform 0.2s ease; }
 .mobile-caret-disclosure-chevron.is-open { transform: rotate(180deg); }
 .mobile-caret-disclosure-body { border-top: 1px solid var(--m-separator, rgb(var(--color-surface-4) / 0.5)); animation: m-disclose 0.2s ease both; }
