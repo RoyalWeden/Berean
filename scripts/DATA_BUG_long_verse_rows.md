@@ -5,6 +5,90 @@ Found while root-causing the AI Lookup retrieval scoring bug (Team B, Round 12).
 use; this repo's agents are not to write to them. Documenting here per team-lead's request so it
 isn't lost, for Michael/a future data re-ingest pass.
 
+## STATUS UPDATE (DATA lane, feature/post-070-pass): enoch.db fixed, others audited
+
+`scripts/fix_enoch_merged_verses.py` (+ `scripts/data_merge_detector.py`, a reusable, read-only
+anomaly scanner) now fixes **every** known-merged row in `data/enoch.db`, not just chapter 90's
+verse 15 (already handled by `scripts/fix_enoch_ch90.py`). Verified on a scratch copy — do not run
+against the symlinked `data/enoch.db` in a worktree directly; always copy the file out first (see
+"Exact commands for Michael" below).
+
+### What was wrong (12 chapters, 28 rows)
+
+All are R.H. Charles's own verse-break markers (`6a.`, `7c.`, `14d.`, lone continuation letters
+`b.`/`c.`/…) or flattened-wikitable/footnote leftovers (`||`, `{|`, `|}`, a Roman-numeral section
+heading like `LIV. 7.-LV. 2. Noachic Fragment...`) still embedded in the row's `text`, instead of
+each verse living in its own row:
+
+| Chapter(s) | Pattern | Fix |
+|---|---|---|
+| 5 (`5:5`), 39 (`39:5`), 91 (`91:13`), 106 (`106:14`, `106:16`), 60 (`60:6`) | later verse(s)' text + markers appended to an earlier verse's row | split at the literal marker, insert missing verse rows (5:6-9, 39:6-14, 91:14-19, 106:17-19, 60:25) |
+| 51 (`51:1`, `51:4`), 97 (`97:9`) | Charles sub-verse letters (`5a`/`5b/c/d`, `9c/9d`) | combine lettered fragments onto their integer verse, in the order they appear in the source |
+| 54:6, 55:2, 79:1 | section/heading text leaked into verse (`LIV. 7.-LV. 2. Noachic Fragment…`, `Recapitulation of several of the Laws. CHAPTER LXXIX.`) | stripped; heading text discarded entirely, not moved anywhere |
+| 22, 27, 32, 89 (`89:41`), 90 (`90:12`, `90:13`) | flattened Ethiopic/Greek parallel-column wikitable — a second "variant reading" column got appended after `\|\|` or `{\|` | truncate at the first `{\|`/`\|\|`, keep only the primary (Ethiopic) column text |
+| 89:49 | `48b.` (a Charles sub-verse of 48) appended to 49, followed by a Greek-fragment footnote after `\|\|` | `48b` text appended to verse 48; the Greek footnote dropped (editorial apparatus, not narrative text) |
+| 106:16 | Latin-fragment footnote after `\|\|` | dropped (same reasoning) |
+
+Before/after samples (full chapter/verse text, run against the scratch copy):
+
+```
+5:5  (was 1341 chars, contained 6a-9) -> 5:5 "Therefore shall ye execrate your days, ... And ye shall find no mercy."
+5:6  (new row)                        -> "In those days ye shall make your names an eternal execration ... But on you all shall abide a curse."
+5:7  (new row)                        -> "But for the elect there shall be light and joy and peace, And they shall inherit the earth."
+5:8  (new row)                        -> "And then there shall be bestowed upon the elect wisdom, ... But they who are wise shall be humble."
+5:9  (new row)                        -> "And they shall not again transgress, ... All the days of their life."
+
+39:5 (was 1969 chars, contained 6a-14) -> split into 39:5..39:14 (10 rows), lengths 297/203/337/186/202/162/140/177/160/54
+91:13 (was 1260 chars, contained 14-19) -> split into 91:13..91:19 (7 rows)
+106:14 (contained 17) -> 106:14 + 106:17
+106:16 (contained 18-19 + Latin footnote) -> 106:16 + 106:18 + 106:19 (footnote dropped)
+```
+
+Full re-scan after the fix: **0 anomalous rows** in `ENO` (was 28). Second run of the script: **0
+changes** (true no-op — confirmed idempotent). FTS5 (`verses_fts`) stays in sync: row counts match
+(1063 = 1063), `INSERT INTO verses_fts(verses_fts) VALUES('integrity-check')` passes, and a
+full-text search on newly-split verse 5:6 for "execration" correctly returns both 5:5 and 5:6. No
+`books.chapters_count` change needed (ENO stays 108 chapters — no per-chapter verse-count metadata
+table exists to update).
+
+### Tests
+
+`scripts/__tests__/test_data_merge_detector.py` (`python3 -m unittest
+scripts/__tests__/test_data_merge_detector.py`) — 8 passing cases covering: clean row (no
+false positive), inline digit marker detection, sub-verse letters not confusing detection,
+`||`/wikitable cleanup detection, heading-leak detection, clean-after-split, and idempotence
+(scan-scan-scan on an in-memory DB mirroring the real schema, both corrupted and already-fixed
+states).
+
+### Broader read-only audit of the other pseudepigrapha/apocrypha DBs
+
+Ran the same detector (`data_merge_detector.scan_all_books`), read-only (`sqlite3 -readonly` /
+Python `file:...?mode=ro` URI — no writes made), over every other listed DB:
+
+| DB | Result | Classification |
+|---|---|---|
+| `lxx.db` | `1KI 2:35` (×15 rows), `1KI 2:46`, `DAN 4:37` (×4), and other lettered-addition verse numbers repeat the **same** `verse_num` across multiple rows, ordered by `id` | **Legitimate LXX source numbering**, not a bug — these are the well-known Rahlfs/Brenton "additional material" verses (e.g. 3 Reigns 2:35a-o, Daniel 4 OG+Theodotion doublets) that print editions letter (35a, 35b, …) but this DB's `verses` table has **no UNIQUE constraint** on `(book_id, chapter, verse_num)`, so they're stored as repeated rows instead. **However: found a real, separate bug downstream** — `src/components/bible/ChapterView.tsx` uses `key={verse.verse_num}` (not `verse.id`) when mapping verses, so React silently drops all but the last of these same-`verse_num` rows on render (14 of 15 rows for `1KI 2:35` never appear on screen). That's a `src/` fix outside this DATA lane's scope — flagged for whichever agent/pass owns `src/components/bible/ChapterView.tsx` (fix: key by `verse.id`, plus decide a display convention — lettered suffixes vs. concatenation — for repeated `verse_num`s). |
+| `lxx_brenton.db` | 12 length-outlier rows (`1KI 2:35`, `2:46`, `10:22`, `12:24`, `16:28`; `ESG 1:1`, `3:13`, `4:17`, `8:12`; `JOS 9:2`; `PRO 24:22`; `SIR 1:1`) | **Legitimate** — none contain embedded verse markers, `\|\|`, or heading leaks; these are genuinely long single verses (Esther's Greek Additions A-F, 3 Reigns 12:24a-z, Sirach's Prologue, Proverbs 24's LXX addition) that this DB *does* keep as one unbroken verse (has a `UNIQUE(book_id,chapter,verse_num)` constraint, unlike `lxx.db`, and no duplicate verse_nums were found). No fix needed. |
+| `apoc_abraham.db` | Irregular verse numbering with internal gaps in many chapters (5, 6, 10, 12, 13, 14, 17, 18, 19, 22, 28, 29, 32 — e.g. ch. 22 only has verses 3 and 5, missing 4) | **Legitimate source numbering** — `scripts/seed_apoc_abraham.py` ingests verses directly from the numbered `<A Name="T1_C{ch}_V{v}">` anchors in the pseudepigrapha.com HTML transcription of G.H. Box's translation; gaps mean that anchor simply doesn't exist in the source page for that chapter, not an ingestion bug. Not derivable from existing rows — no fix possible/appropriate without re-fetching and diffing against another edition, which is out of scope here. |
+| `hermas_taylor.db` | 1 flagged row: `HER_SIM 29:10` ends with what reads as a leaked footnote/cross-reference fragment (`"...2, 2; Eph. i. 22f. The Church is seen or mentioned in Vis. i.-iv.; Sim. viii. 6, ix. 1, 13,"`) | **Suspected real bug, not fixed** — pattern matches the editorial-footnote-leak class fixed in Enoch (54:6/55:2/79:1), but I don't have a reference edition of Taylor's Hermas on hand in this pass to confirm the exact verse-10/footnote boundary with confidence, so per the "don't guess" instruction this is left unresolved. Also worth a second look (not re-confirmed this pass, carried over from the original finding above): `HER_MAN 24:32`/`18:6`. |
+| `jubilees.db`, `ep_barnabas.db`, `1clement.db`, `asc_isaiah.db`, `recog_clement.db`, `t12p.db`, `kjva.db` | 0 anomalies | Clean. |
+
+### Exact commands for Michael at merge time (run from the MAIN checkout, `/Users/roywe/Berean`, never from a worktree whose `data/*.db` are symlinks)
+
+```bash
+cd /Users/roywe/Berean
+cp data/enoch.db data/enoch.db.bak   # backup first
+python3 scripts/fix_enoch_merged_verses.py data/enoch.db
+# Re-run once more to confirm idempotence (should print "no changes needed"):
+python3 scripts/fix_enoch_merged_verses.py data/enoch.db
+npm run data:publish
+```
+
+The verified fixed copy used to validate all of the above (safe to diff against, never a symlink)
+lives at: `/private/tmp/claude-501/-Users-roywe-Berean/d4e7648c-f454-46c9-92e4-4ae1d7e42852/scratchpad/data-fix/enoch.db`
+(scratchpad — will not survive past this session; Michael should run the script fresh on
+`data/enoch.db` rather than copying that scratch file in).
+
 ## Confirmed case: `data/enoch.db`, book `ENO`, chapter 90, verse 15
 
 ```sql
