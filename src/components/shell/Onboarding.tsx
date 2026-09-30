@@ -956,6 +956,17 @@ function StepTranslation() {
   )
 }
 
+// Auto-import any notes already in a just-chosen vault folder — a previous Berean export, or a
+// plain Obsidian/Octarine vault with no Berean sidecars at all (vaultHasData() detects both, see
+// electron/ipc/vault.ts). Mirrors Settings → Vault Sync's saveVaultPath so onboarding doesn't
+// require a second manual "Import" step or an app restart: runImportAll() broadcasts
+// 'notes:changed' itself, which src/App.tsx turns into bumpNoteToken() for every window. Exported
+// (module-level, no component state) so it's directly unit-testable without rendering the wizard.
+export async function maybeImportVault(vaultApi: Pick<typeof window.vault, 'hasData' | 'importAll'> | undefined): Promise<void> {
+  const hasData = await vaultApi?.hasData().catch(() => false)
+  if (hasData) await vaultApi?.importAll().catch(() => {})
+}
+
 function StepVault() {
   const [vaultPath, setVaultPath] = useState('')
   const [vaultSync, setVaultSync] = useState(false)
@@ -977,6 +988,8 @@ function StepVault() {
       if (p) {
         setVaultPath(p)
         await window.settings?.set('vaultPath', p)
+        if (vaultSync) window.vault?.watchVault().catch(() => {})
+        await maybeImportVault(window.vault)
       }
     } finally {
       setPicking(false)
@@ -989,7 +1002,10 @@ function StepVault() {
     // Fixed safety-net export interval, not user-configurable — see
     // AUTO_EXPORT_INTERVAL_MINUTES in electron/ipc/vault.ts.
     await window.vault?.setAutoExport(enabled ? 5 : 0)
-    if (enabled && vaultPath) window.vault?.watchVault().catch(() => {})
+    if (enabled && vaultPath) {
+      window.vault?.watchVault().catch(() => {})
+      await maybeImportVault(window.vault)
+    }
   }
 
   return (

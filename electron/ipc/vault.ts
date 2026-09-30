@@ -2,11 +2,12 @@ import type { IpcMain } from 'electron'
 import { BrowserWindow, app } from 'electron'
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, copyFileSync, unlinkSync } from 'fs'
 import { join, extname, basename, relative, sep, dirname } from 'path'
-import { createHash } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import chokidar from 'chokidar'
 import { getBereanDb } from '../db/berean'
 import { getTextDb } from '../db/bible'
 import { getResourceMode } from '../powerAwareness'
+import { parseRef } from '../../src/lib/parseRef'
 
 function getVaultPath(): string {
   const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get('vaultPath') as { value: string } | undefined
@@ -55,7 +56,7 @@ function scanMdFiles(dir: string, depth = 0): string[] {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
         results.push(...scanMdFiles(join(dir, entry.name), depth + 1))
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      } else if (entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('.')) {
         results.push(join(dir, entry.name))
       }
     }
@@ -478,6 +479,216 @@ function isRecentSelfWrite(filePath: string): boolean {
   return t !== undefined && Date.now() - t < SELF_WRITE_SUPPRESS_MS
 }
 
+// ─── Vault file → note import engine ───────────────────────────────────────────
+//
+// Two kinds of .md file live in a vault:
+//   • Berean-owned files — written by noteToMarkdown, carry `berean_id:` in frontmatter; the
+//     id is the dedupe key.
+//   • Foreign files — plain Obsidian/Octarine/any-editor notes with no berean_id. These are
+//     imported WITHOUT modifying the file (the user's vault is never rewritten on import); the
+//     note id is instead derived deterministically from the file's vault-relative path
+//     (vaultPathNoteId), so the path IS the dedupe key and re-importing the same vault is a
+//     no-op without needing any mapping table / schema change. If the user later edits that
+//     note in Berean, the normal export writes frontmatter (incl. berean_id = the same derived
+//     id) into it, so both paths keep resolving to one row.
+// Folder structure of foreign files maps onto note_folders (one folder per directory level,
+// matched by name + parent so re-imports and Berean's own exported folders are reused).
+
+/** Top-level dirs Berean's own export writes by note TYPE (resolveNotePath) — never mapped to
+ *  user note folders. */
+const BEREAN_TYPE_DIRS = new Set(['Verse Notes', 'Daily', 'YouTube', 'Idioms'])
+const HIDDEN_OR_SYSTEM_SEGMENT = /^\./
+
+/** Vault-relative path, '/'-separated and NFC-normalized (macOS may hand back NFD names). */
+export function vaultRelPath(vaultPath: string, filePath: string): string {
+  return relative(vaultPath, filePath).split(sep).join('/').normalize('NFC')
+}
+
+/** True when any segment of the vault-relative path is hidden (.obsidian, .trash, .berean,
+ *  .git, .attachments, dotfiles) — such files are never imported. */
+export function isHiddenVaultPath(rel: string): boolean {
+  return rel.split('/').some((seg) => HIDDEN_OR_SYSTEM_SEGMENT.test(seg))
+}
+
+/** Deterministic, UUID-shaped note id for a foreign vault file, derived from its
+ *  vault-relative path (case-insensitive — APFS default is case-insensitive). */
+export function vaultPathNoteId(rel: string): string {
+  const h = createHash('sha1').update('berean-vault-path:' + rel.normalize('NFC').toLowerCase()).digest('hex')
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16)
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+/** Frontmatter key/value lookup restricted to the leading YAML block (never matches body
+ *  lines like "type: foo" in a foreign note's prose). */
+function frontmatterOf(content: string): (key: string) => string | null {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
+  const block = m ? m[1] : ''
+  return (key: string) => {
+    const v = block.match(new RegExp(`^${key}:[ \\t]*(.*)$`, 'm'))?.[1]?.trim()
+    return v ? v : null
+  }
+}
+
+function unquote(s: string): string {
+  return s.replace(/^["']|["']$/g, '')
+}
+
+const DOTTED_VERSE_REF = /^[0-9A-Z_]+\.\d+\.\d+$/
+
+/** Berean's display-only highlight files (runExportAll: "Verse Notes/<Book>/<ch>/…md" with a
+ *  dotted `ref:` and no berean_id) are generated output, not notes — never import them. */
+function isGeneratedHighlightFile(rel: string, fm: (k: string) => string | null): boolean {
+  if (!rel.startsWith('Verse Notes/')) return false
+  const ref = fm('ref')
+  return fm('type') === 'verse-note' && !!ref && DOTTED_VERSE_REF.test(ref)
+}
+
+function resolveVerseRef(fm: (k: string) => string | null): string | null {
+  const candidates = [fm('ref'), fm('verse'), fm('title')].filter((v): v is string => !!v).map((v) => unquote(v).replace(/^\[\[|\]\]$/g, ''))
+  for (const c of candidates) {
+    if (DOTTED_VERSE_REF.test(c)) return c
+    const p = parseRef(c)
+    if (p && p.verse) return `${p.bookId}.${p.chapter}.${p.verse}`
+  }
+  return null
+}
+
+type Db = ReturnType<typeof getBereanDb>
+
+/** Ensure the note_folders chain for `segments` exists; returns the leaf folder id.
+ *  Existing folders (Berean-created or from a previous import) are matched by name + parent. */
+function ensureFolderChain(db: Db, segments: string[], cache: Map<string, string>): string | null {
+  let parentId: string | null = null
+  let key = ''
+  for (const name of segments) {
+    key += '/' + name
+    let id = cache.get(key)
+    if (!id) {
+      const row = db.prepare('SELECT id FROM note_folders WHERE name = ? AND parent_id IS ? ORDER BY created_at LIMIT 1').get(name, parentId) as { id: string } | undefined
+      if (row) id = row.id
+      else {
+        id = randomUUID()
+        db.prepare('INSERT INTO note_folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)').run(id, name, parentId, Date.now())
+      }
+      cache.set(key, id)
+    }
+    parentId = id
+  }
+  return parentId
+}
+
+export type VaultFileImportOutcome = 'created' | 'updated' | 'unchanged' | 'skipped'
+
+function mapNoteType(rawType: string | null): string {
+  const t = rawType ?? ''
+  return t === 'verse-note' ? 'verse'
+    : t === 'daily-note' ? 'daily'
+    : t === 'general-note' || t === '' ? 'general'
+    : t.replace(/-note$/, '') || 'general'
+}
+
+/**
+ * Import one vault .md file into the notes table. Handles both Berean-owned (berean_id) and
+ * foreign files; never writes to the vault. `folderCache` should be shared across one scan.
+ * `bereanIdPolicy`:
+ *   'vault-wins' (explicit Import/Restore — the vault is the source of truth, but an identical
+ *                 file is still a no-op so re-imports don't restamp every note), or
+ *   'newer-wins' (reconcile / watcher — last-write-wins by mtime/updated, §18).
+ */
+export function importVaultFile(
+  db: Db,
+  vaultPath: string,
+  filePath: string,
+  folderCache: Map<string, string>,
+  bereanIdPolicy: 'vault-wins' | 'newer-wins' = 'newer-wins',
+): { outcome: VaultFileImportOutcome; noteId?: string } {
+  const rel = vaultRelPath(vaultPath, filePath)
+  if (!rel.endsWith('.md') || isHiddenVaultPath(rel) || rel.startsWith('..')) return { outcome: 'skipped' }
+  const content = readFileSync(filePath, 'utf-8')
+  const fm = frontmatterOf(content)
+  const bereanId = fm('berean_id') ?? content.match(/^berean_id:\s*(.+)$/m)?.[1]?.trim() ?? null
+  if (!bereanId && isGeneratedHighlightFile(rel, fm)) return { outcome: 'skipped' }
+
+  const st = statSync(filePath)
+  const mtime = Math.floor(st.mtimeMs)
+  // Re-inline relative attachment image paths back to base64 before storing — see
+  // inlineVaultImages() doc (same as reconcile/watcher).
+  const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
+  const noteId = bereanId ?? vaultPathNoteId(rel)
+  const existing = db.prepare('SELECT title, content, updated_at, deleted_at FROM notes WHERE id = ?').get(noteId) as
+    { title: string | null; content: string; updated_at: number; deleted_at: number | null } | undefined
+
+  const rawType = fm('type')
+  let noteType = mapNoteType(rawType)
+  const verseRef = noteType === 'verse' ? resolveVerseRef(fm) : (fm('ref') && DOTTED_VERSE_REF.test(fm('ref')!) ? fm('ref') : null)
+  if (noteType === 'verse' && !verseRef) noteType = 'general' // unresolvable reference → keep as a general note
+  const fileTitle = basename(filePath, '.md')
+  const title = unquote(fm('title') ?? '') || fileTitle
+  const updatedFm = Date.parse(fm('updated') ?? '')
+  const createdFm = Date.parse(fm('created') ?? '')
+  const updatedAt = Number.isFinite(updatedFm) ? Math.max(updatedFm, bereanId ? 0 : mtime) : mtime
+  const createdAt = Number.isFinite(createdFm) ? createdFm : Math.floor(st.birthtimeMs || st.mtimeMs)
+
+  if (existing) {
+    // Never resurrect a note the user trashed in Berean.
+    if (existing.deleted_at != null) return { outcome: 'skipped', noteId }
+    const same = body === (existing.content ?? '').trimEnd() && (bereanId ? true : title === (existing.title ?? ''))
+    if (same) return { outcome: 'unchanged', noteId }
+    const fileIsNewer = Math.max(mtime, Number.isFinite(updatedFm) ? updatedFm : 0) > existing.updated_at + 1000
+    if (!(bereanId && bereanIdPolicy === 'vault-wins') && !fileIsNewer) return { outcome: 'unchanged', noteId }
+  }
+
+  if (bereanId) {
+    // Berean-owned file: same field mapping as the pre-existing importer. Upsert (not INSERT
+    // OR REPLACE) so columns the file doesn't carry (status, idiom_*, text_id, …) survive.
+    const color = parseVaultColor(fm('color'))
+    const icon = fm('icon')
+    const folderId = fm('folder_id')
+    const tagsRaw = fm('tags')?.match(/^\[([^\]]*)]$/)?.[1] ?? ''
+    const tags = JSON.stringify(tagsRaw.split(',').map((t) => t.trim()).filter(Boolean))
+    const stampedUpdated = Number.isFinite(updatedFm) ? updatedFm : Date.now()
+    db.prepare(`INSERT INTO notes
+      (id, type, title, content, verse_ref, color, icon, created_at, updated_at, tags, folder_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        type = excluded.type, title = excluded.title, content = excluded.content,
+        verse_ref = excluded.verse_ref, color = excluded.color, icon = excluded.icon,
+        created_at = excluded.created_at, updated_at = excluded.updated_at,
+        tags = excluded.tags, folder_id = excluded.folder_id`)
+      .run(noteId, noteType, title, body, verseRef, color, icon,
+        Number.isFinite(createdFm) ? createdFm : Date.now(),
+        // Reconcile/watcher path keeps its historical "edited now" stamp; an explicit restore
+        // keeps the file's own `updated:` so a restore doesn't mark every note edited today.
+        existing && bereanIdPolicy === 'newer-wins' ? Date.now() : stampedUpdated, tags, folderId)
+    return { outcome: existing ? 'updated' : 'created', noteId }
+  }
+
+  // Foreign file.
+  if (existing) {
+    db.prepare('UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?')
+      .run(title, body, Math.max(updatedAt, existing.updated_at + 1), noteId)
+    return { outcome: 'updated', noteId }
+  }
+  const dirSegs = rel.split('/').slice(0, -1)
+  const folderId = dirSegs.length && !BEREAN_TYPE_DIRS.has(dirSegs[0]) ? ensureFolderChain(db, dirSegs, folderCache) : null
+  const tagsRaw = fm('tags')?.match(/^\[([^\]]*)]$/)?.[1] ?? ''
+  const tags = JSON.stringify(tagsRaw.split(',').map((t) => unquote(t.trim())).filter(Boolean))
+  db.prepare(`INSERT INTO notes
+    (id, type, title, content, verse_ref, color, icon, created_at, updated_at, tags, folder_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(noteId, noteType, title, body, verseRef, parseVaultColor(fm('color')), fm('icon'), createdAt, updatedAt, tags, folderId)
+  return { outcome: 'created', noteId }
+}
+
+/** Tell every window its note lists are stale (same channel the notes service uses). */
+function broadcastNotesChanged(): void {
+  try {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('notes:changed')
+    }
+  } catch { /* no windows (tests / early startup) */ }
+}
+
 export function registerVaultHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('vault:syncNote', (_event, noteId: string) => {
     try {
@@ -565,28 +776,46 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
         depth: 10,
         usePolling: true,
         interval: getResourceMode() === 'throttled' ? 3000 : 1500,
-        ignored: /\.json$|[/\\]\.(berean|git)[/\\]/,
+        ignored: /\.json$|[/\\]\.(berean|git|trash|obsidian)[/\\]/,
       })
 
       const win = BrowserWindow.fromWebContents(event.sender)
 
-      watcher.on('change', (filePath) => {
+      // 'change' = an existing file was edited; 'add' = a new file appeared (a note created in
+      // Octarine/Obsidian, or a file copied/moved into the vault). Both go through the same
+      // importer: a known berean_id updates in place (body-only, as before), a new berean_id or
+      // a foreign file is imported (deduped by id / vault-relative path). Hidden folders
+      // (.trash, .obsidian, …) and Berean's own writes are ignored.
+      const folderCache = new Map<string, string>()
+      const onFile = (kind: 'add' | 'change') => (filePath: string) => {
         if (!filePath.endsWith('.md')) return
         if (isRecentSelfWrite(filePath)) return
         try {
+          const rel = vaultRelPath(vaultPath, filePath)
+          if (isHiddenVaultPath(rel)) return
           const content = readFileSync(filePath, 'utf-8')
           const match = content.match(/^berean_id:\s*(.+)$/m)
-          if (!match) return
-          const noteId = match[1].trim()
-          // inlineVaultImages — same reasoning as vault:reconcile's own comment: if this fires on
-          // Berean's own extractInlineImages export rewrite slipping past isRecentSelfWrite's 3s
-          // TTL (e.g. under system load, where the poll interval above is itself doubled), a
-          // relative image path would otherwise get written into the DB unconverted.
-          const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
-          getBereanDb().prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(body, Date.now(), noteId)
-          win?.webContents.send('vault:changed', noteId)
+          const db = getBereanDb()
+          if (match && kind === 'change') {
+            const noteId = match[1].trim()
+            const known = db.prepare('SELECT 1 FROM notes WHERE id = ?').get(noteId)
+            if (known) {
+              // inlineVaultImages — same reasoning as vault:reconcile's own comment: if this fires on
+              // Berean's own extractInlineImages export rewrite slipping past isRecentSelfWrite's 3s
+              // TTL (e.g. under system load, where the poll interval above is itself doubled), a
+              // relative image path would otherwise get written into the DB unconverted.
+              const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
+              db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(body, Date.now(), noteId)
+              win?.webContents.send('vault:changed', noteId)
+              return
+            }
+          }
+          const { outcome, noteId } = importVaultFile(db, vaultPath, filePath, folderCache, 'newer-wins')
+          if (outcome === 'created' || outcome === 'updated') win?.webContents.send('vault:changed', noteId)
         } catch { /* ignore parse errors */ }
-      })
+      }
+      watcher.on('change', onFile('change'))
+      watcher.on('add', onFile('add'))
 
       return { success: true }
     } catch (err) {
@@ -615,16 +844,32 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
       const db = getBereanDb()
       let updated = 0
       let skipped = 0
+      let created = 0
+      const folderCache = new Map<string, string>()
 
       for (const filePath of scanMdFiles(vaultPath)) {
         try {
           const content = readFileSync(filePath, 'utf-8')
           const idMatch = content.match(/^berean_id:\s*(.+)$/m)
-          if (!idMatch) { skipped++; continue }
+          if (!idMatch) {
+            // Foreign (non-Berean) note added/edited while the app was closed — deduped by its
+            // vault-relative path, so an already-imported, unchanged file is a no-op.
+            const r = importVaultFile(db, vaultPath, filePath, folderCache, 'newer-wins')
+            if (r.outcome === 'created') created++
+            else if (r.outcome === 'updated') updated++
+            else skipped++
+            continue
+          }
           const noteId = idMatch[1].trim()
 
           const dbRow = db.prepare('SELECT content, updated_at FROM notes WHERE id = ?').get(noteId) as { content: string; updated_at: number } | undefined
-          if (!dbRow) { skipped++; continue }
+          if (!dbRow) {
+            // A Berean-exported note this DB has never seen (e.g. created on another machine
+            // sharing the vault) — import it rather than ignoring it.
+            const r = importVaultFile(db, vaultPath, filePath, folderCache, 'newer-wins')
+            if (r.outcome === 'created') created++; else skipped++
+            continue
+          }
 
           const fileMtime = statSync(filePath).mtimeMs
           if (fileMtime > dbRow.updated_at + 1000) {
@@ -660,9 +905,10 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
         }
       }
 
-      return { success: true, updated, skipped }
+      if (created > 0 || updated > 0) broadcastNotesChanged()
+      return { success: true, updated, skipped, created }
     } catch (err) {
-      return { success: false, reason: String(err), updated: 0, skipped: 0 }
+      return { success: false, reason: String(err), updated: 0, skipped: 0, created: 0 }
     }
   })
 
@@ -685,9 +931,9 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 // or deleted outright. Filenames are prefixed with the note's own id so two notes that happened
 // to resolve to the same filename (e.g. same title, different folders) can't collide once both
 // land in the same flat trash folder. The chokidar watcher (registered in vault:watch above)
-// only listens for 'change' events, never 'add'/'unlink', so moving a file in or out of .trash/
-// doesn't risk triggering any watcher-driven reconcile/import logic — confirmed by reading the
-// watcher setup above before relying on that.
+// listens for 'change' and 'add' but ignores .trash/ (and every hidden path), and a file moved
+// back out of .trash/ on restore resolves to its existing berean_id with an identical body, so
+// the importer treats it as a no-op — trashing/restoring never triggers a spurious import.
 function trashFilePath(vaultPath: string, noteId: string): string {
   return join(vaultPath, '.trash', `${noteId}.md`)
 }
@@ -957,6 +1203,10 @@ export interface ImportAllResult {
   pdfHighlights?: number
   workspaces?: number
   pdfs?: number
+  /** notes = created + updated this run; unchanged files are not counted in `notes`. */
+  notesCreated?: number
+  notesUpdated?: number
+  notesUnchanged?: number
   tabState?: string
   reason?: string
 }
@@ -975,6 +1225,7 @@ export function runImportAll(): ImportAllResult {
 
     const db = getBereanDb()
     let notes = 0, highlights = 0, noteVersions = 0, noteFolders = 0, pdfHighlights = 0, workspaces = 0, pdfs = 0
+    let notesCreated = 0, notesUpdated = 0, notesUnchanged = 0
 
     function readJson<T>(filename: string): T[] {
       const p = join(vaultPath, filename)
@@ -991,49 +1242,19 @@ export function runImportAll(): ImportAllResult {
     }
 
     // ── 2. Notes (all .md files in vault, recursively) ────────────────────────
-    for (const filePath of scanMdFiles(vaultPath)) {
-      try {
-        const content = readFileSync(filePath, 'utf-8')
-        const get = (re: RegExp) => content.match(re)?.[1]?.trim() ?? null
-        const noteId = get(/^berean_id:\s*(.+)$/m)
-        if (!noteId) continue
-
-        // Re-inline any relative attachment image paths back to base64 before storing in the
-        // DB — same regression fix as vault:reconcile/vault:watch, see inlineVaultImages() doc.
-        const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
-
-        const rawType   = get(/^type:\s*(.+)$/m) ?? ''
-        const noteType  = rawType === 'verse-note' ? 'verse'
-                        : rawType === 'daily-note'   ? 'daily'
-                        : rawType === 'general-note' ? 'general'
-                        : rawType.replace('-note', '') || 'general'
-        const verseRef  = get(/^ref:\s*(.+)$/m)
-        const titleRaw  = get(/^title:\s*(.+)$/m) ?? 'Untitled'
-        const title     = titleRaw.replace(/^["']|["']$/g, '')
-        const color     = parseVaultColor(get(/^color:\s*(.+)$/m))
-        const icon      = get(/^icon:\s*(.+)$/m)
-        const folderId  = get(/^folder_id:\s*(.+)$/m)
-        const tagsRaw   = get(/^tags:\s*\[([^\]]*)]$/m) ?? ''
-        const tags      = JSON.stringify(tagsRaw.split(',').map((t) => t.trim()).filter(Boolean))
-        const createdAt = Date.parse(get(/^created:\s*(.+)$/m) ?? '') || Date.now()
-        const updatedAt = Date.parse(get(/^updated:\s*(.+)$/m) ?? '') || Date.now()
-        // Upsert rather than INSERT OR REPLACE: the latter deletes+reinserts the row,
-        // which silently nulls out every column the vault file doesn't carry (status,
-        // idiom_term/meaning/aliases/auto_variants/data, text_id, ...) on every re-import
-        // of an already-known note. status in particular is intentionally one-way
-        // export-only (see noteToMarkdown) and must never be clobbered from a file re-read.
-        db.prepare(`INSERT INTO notes
-          (id, type, title, content, verse_ref, color, icon, created_at, updated_at, tags, folder_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            type = excluded.type, title = excluded.title, content = excluded.content,
-            verse_ref = excluded.verse_ref, color = excluded.color, icon = excluded.icon,
-            created_at = excluded.created_at, updated_at = excluded.updated_at,
-            tags = excluded.tags, folder_id = excluded.folder_id`)
-          .run(noteId, noteType, title, body, verseRef, color, icon, createdAt, updatedAt, tags, folderId)
-        notes++
-      } catch { /* skip malformed file */ }
-    }
+    // Berean-owned files dedupe by berean_id; foreign (plain Obsidian/Octarine) files dedupe by
+    // vault-relative path and map their directories onto note folders — see importVaultFile.
+    const folderCache = new Map<string, string>()
+    db.transaction(() => {
+      for (const filePath of scanMdFiles(vaultPath)) {
+        try {
+          const { outcome } = importVaultFile(db, vaultPath, filePath, folderCache, 'vault-wins')
+          if (outcome === 'created') { notesCreated++; notes++ }
+          else if (outcome === 'updated') { notesUpdated++; notes++ }
+          else if (outcome === 'unchanged') notesUnchanged++
+        } catch { /* skip malformed / unreadable file */ }
+      }
+    })()
 
     // Apply folder_id from berean-notes-meta.json (written separately so .md stays Octarine-compatible)
     type NoteMetaRow = { id: string; folder_id: string | null }
@@ -1115,19 +1336,34 @@ export function runImportAll(): ImportAllResult {
       try { tabState = readFileSync(tsPath, 'utf-8') } catch { /* skip */ }
     }
 
-    return { success: true, notes, highlights, noteVersions, noteFolders, pdfHighlights, workspaces, pdfs, tabState }
+    // Refresh every window's note lists right away (no restart needed). Renderer callers also
+    // bump their own store token (src/lib/vaultImport.ts).
+    broadcastNotesChanged()
+
+    return { success: true, notes, notesCreated, notesUpdated, notesUnchanged, highlights, noteVersions, noteFolders, pdfHighlights, workspaces, pdfs, tabState }
   } catch (err) {
     return { success: false, reason: String(err) }
   }
 }
 
-/** Returns true if the vault path contains at least one exported data file. */
+function hasAnyMdFile(dir: string, depth = 0): boolean {
+  if (depth > 10) return false
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    if (entries.some((e) => e.isFile() && e.name.endsWith('.md') && !e.name.startsWith('.'))) return true
+    return entries.some((e) => e.isDirectory() && !e.name.startsWith('.') && hasAnyMdFile(join(dir, e.name), depth + 1))
+  } catch { return false }
+}
+
+/** Returns true if the vault path contains Berean export data or any importable .md note. */
 export function vaultHasData(): boolean {
   try {
     const vaultPath = getVaultPath()
     if (!vaultPath || !existsSync(vaultPath)) return false
     const markers = ['berean-highlights.json', 'berean-note-versions.json', 'berean-notes-meta.json']
-    return markers.some((f) => existsSync(join(vaultPath, f)))
+    if (markers.some((f) => existsSync(join(vaultPath, f)))) return true
+    // A plain Obsidian/Octarine vault (no Berean sidecars) still has importable notes.
+    return hasAnyMdFile(vaultPath)
   } catch { return false }
 }
 
