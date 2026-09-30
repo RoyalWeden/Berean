@@ -25,6 +25,12 @@ export interface TTSVoiceOption {
   /** Quality tier, when a backend can express one (Web Speech: parsed from name/voiceURI —
    *  see voiceQuality.ts. Backends with no tier concept of their own return null.) */
   tier?: 'Premium' | 'Enhanced' | null
+  /** Discriminates a real, selectable voice ('voice', the default when omitted) from a
+   *  non-selectable explanatory row a provider injects into its own list — e.g. iOS's curated
+   *  voice provider (nativeSpeechBackend.ts) falls back to a single best-available system voice
+   *  plus a 'hint' row pointing at Settings → Accessibility → Spoken Content → Voices when no
+   *  Premium/Enhanced English voice is installed. Every other backend only ever emits 'voice'. */
+  kind?: 'voice' | 'hint'
 }
 
 export interface SpeakChapterOptions {

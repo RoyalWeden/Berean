@@ -1,16 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { NativeSpeechBackend, createNativeVoiceProvider } from '../nativeSpeechBackend'
+import { NativeSpeechBackend, createNativeVoiceProvider, curateIosVoices, NO_PREMIUM_VOICE_HINT } from '../nativeSpeechBackend'
+import type { TTSVoiceOption } from '../ttsBackend'
 import type { SpokenVerse } from '../extractSpokenText'
 
 /** A fake of BereanSpeechPlugin: records speak calls and lets the test fire the delegate events. */
-function fakePlugin() {
+function fakePlugin(voiceList?: Array<{ id: string; name: string; lang: string; quality: string }>) {
   const listeners = new Map<string, Array<(e: { id: string; charIndex?: number; charLength?: number }) => void>>()
   const spoken: Array<{ id: string; text: string; voice?: string | null; rate?: number }> = []
   const calls: string[] = []
   return {
     spoken, calls,
     fire(event: string, e: { id: string; charIndex?: number; charLength?: number }) { for (const cb of listeners.get(event) ?? []) cb(e) },
-    async voices() { return { voices: [{ id: 'com.apple.voice.compact.en-US.Samantha', name: 'Samantha', lang: 'en-US', quality: 'Default' }, { id: 'fr', name: 'Thomas', lang: 'fr-FR', quality: 'Enhanced' }] } },
+    async voices() {
+      return {
+        voices: voiceList ?? [
+          { id: 'com.apple.voice.enhanced.en-US.Ava', name: 'Ava', lang: 'en-US', quality: 'Enhanced' },
+          { id: 'fr', name: 'Thomas', lang: 'fr-FR', quality: 'Enhanced' },
+        ],
+      }
+    },
     async speak(o: { id: string; text: string; voice?: string | null; rate?: number }) { spoken.push(o); calls.push(`speak:${o.id}`) },
     async pause() { calls.push('pause') },
     async resume() { calls.push('resume') },
@@ -78,14 +86,74 @@ describe('NativeSpeechBackend', () => {
     expect(p.calls.filter((c) => c === 'stop').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('voice provider lists system voices (English first, tiers mapped) and notifies subscribers', async () => {
+  it('voice provider curates to English Premium/Enhanced voices only and notifies subscribers', async () => {
     const p = fakePlugin()
     const vp = createNativeVoiceProvider(p)
     const seen: string[][] = []
     vp.subscribeVoices((v) => seen.push(v.map((x) => x.name)))
     await tick(); await tick()
-    expect(seen).toEqual([['Samantha', 'Thomas']])
-    expect(vp.getVoices()[1].tier).toBe('Enhanced')
+    // 'Thomas' (fr-FR) is filtered out: curation is English-only regardless of tier.
+    expect(seen).toEqual([['Ava']])
+    expect(vp.getVoices()[0].tier).toBe('Enhanced')
     expect(vp.isSupported()).toBe(true)
+  })
+})
+
+describe('curateIosVoices', () => {
+  const v = (over: Partial<TTSVoiceOption>): TTSVoiceOption => ({ voiceURI: over.name ?? 'id', name: 'Voice', lang: 'en-US', tier: null, ...over })
+
+  it('filters out non-English voices', () => {
+    const out = curateIosVoices([v({ name: 'Ava', tier: 'Enhanced' }), v({ name: 'Thomas', lang: 'fr-FR', tier: 'Premium' })])
+    expect(out.map((x) => x.name)).toEqual(['Ava'])
+  })
+
+  it('filters out Default/compact-quality voices when a better one exists', () => {
+    const out = curateIosVoices([v({ name: 'Ava', tier: 'Enhanced' }), v({ name: 'Samantha', tier: null })])
+    expect(out.map((x) => x.name)).toEqual(['Ava'])
+  })
+
+  it('filters out novelty/Eloquence voices even if reported as high quality', () => {
+    const out = curateIosVoices([v({ name: 'Ava', tier: 'Enhanced' }), v({ name: 'Zarvox', tier: 'Enhanced' }), v({ name: 'Bad News', tier: 'Premium' })])
+    expect(out.map((x) => x.name)).toEqual(['Ava'])
+  })
+
+  it('ranks Premium before Enhanced, then by the preferred-name list, then alphabetically', () => {
+    const out = curateIosVoices([
+      v({ name: 'Nathan', tier: 'Enhanced' }),
+      v({ name: 'Zoe', tier: 'Enhanced' }),
+      v({ name: 'Karen', tier: 'Premium' }),
+      v({ name: 'Ava', tier: 'Enhanced' }),
+    ])
+    // Karen is Premium so ranks first despite not being in the preferred list; among the
+    // Enhanced voices, Ava and Zoe outrank Nathan per PREFERRED_VOICE_NAMES order.
+    expect(out.map((x) => x.name)).toEqual(['Karen', 'Ava', 'Zoe', 'Nathan'])
+  })
+
+  it('caps the curated list at 6 voices', () => {
+    const many = ['Ava', 'Zoe', 'Evan', 'Nathan', 'Karen', 'Daniel', 'Serena', 'Moira'].map((name) => v({ name, tier: 'Enhanced' }))
+    expect(curateIosVoices(many)).toHaveLength(6)
+  })
+
+  it('matches "Name (Enhanced)"-suffixed names against the novelty/preferred lists the same as the bare name', () => {
+    const out = curateIosVoices([v({ name: 'Samantha (Enhanced)', tier: 'Enhanced' }), v({ name: 'Zarvox (Enhanced)', tier: 'Enhanced' })])
+    expect(out.map((x) => x.name)).toEqual(['Samantha (Enhanced)'])
+  })
+
+  it('falls back to the single best available voice plus the download hint when no Premium/Enhanced English voice is installed', () => {
+    const out = curateIosVoices([v({ name: 'Samantha', tier: null }), v({ name: 'Daniel', tier: null })])
+    expect(out).toHaveLength(2)
+    expect(out[0].name).toBe('Samantha') // earlier in PREFERRED_VOICE_NAMES than 'Daniel'
+    expect(out[0].kind).toBeUndefined()
+    expect(out[1]).toEqual(NO_PREMIUM_VOICE_HINT)
+  })
+
+  it('returns only the hint when there is no usable English voice at all', () => {
+    const out = curateIosVoices([v({ name: 'Thomas', lang: 'fr-FR', tier: 'Enhanced' })])
+    expect(out).toEqual([NO_PREMIUM_VOICE_HINT])
+  })
+
+  it('never exposes a generic system voice alongside a hint or a curated pick', () => {
+    const out = curateIosVoices([v({ name: 'Ava', tier: 'Enhanced' }), v({ name: 'Samantha', tier: null })])
+    expect(out.some((x) => x.name === 'Samantha')).toBe(false)
   })
 })
