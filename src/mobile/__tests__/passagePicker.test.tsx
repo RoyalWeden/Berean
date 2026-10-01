@@ -44,16 +44,23 @@ const byText = (host: Element, sel: string, text: string) => [...host.querySelec
 const titles = (host: Element) => [...host.querySelectorAll('.m-pp-row-title')].map((e) => e.textContent)
 
 describe('PassagePicker (NEW-11)', () => {
-  it('opens at the current book’s group inside its library (arabic names, current marked), and climbs Library → KJV → testaments', async () => {
+  it('opens at the current book’s chapters (current chapter marked), and climbs Chapters → book list → testament groups', async () => {
     const picked: PassagePick[] = []
     const chapters: PassagePick[] = []
     const { host, unmount } = mount(<PassagePicker textId="kjva" bookId="1JN" chapter={2} onPick={(d) => picked.push(d)} onChapter={(d) => chapters.push(d)} />)
     await flush()
+    // CURRENT BOOK FIRST (PICKER-SEARCH): the sheet starts on the current book's chapters, not
+    // its testament's book list — "don't always start at the whole library when context exists".
+    expect(host.querySelector('.m-pp-local-title')?.textContent).toBe('1 John')
+    expect(host.querySelectorAll('.m-pp-cell').length).toBe(5)
+    expect(host.querySelector('.m-pp-cell.is-current')?.textContent).toBe('2')
+    // Up one level: this book's siblings in its testament (arabic names, current marked).
+    click(host.querySelector('.m-pp-back')!)
     expect(host.querySelector('.m-pp-local-title')?.textContent).toBe('New Testament')
     expect(titles(host)).toEqual(['John', '1 John', '3 John'])
     expect(host.querySelector('[aria-current="true"] .m-pp-row-title')?.textContent).toBe('1 John')
     expect(host.textContent).not.toMatch(/\bI+ (John|Maccabees)/)
-    // Up one level: the KJV's testament groups, in book order, the current one marked.
+    // Up again: the KJV's testament groups, in book order, the current one marked.
     click(host.querySelector('.m-pp-back')!)
     expect(titles(host)).toEqual(['Old Testament', 'Apocrypha', 'New Testament'])
     expect(host.querySelector('[aria-current="true"] .m-pp-row-title')?.textContent).toBe('New Testament')
@@ -72,8 +79,6 @@ describe('PassagePicker (NEW-11)', () => {
     const picked: PassagePick[] = []
     const chapters: PassagePick[] = []
     const { host, unmount } = mount(<PassagePicker textId="kjva" bookId="1JN" chapter={2} onPick={(d) => picked.push(d)} onChapter={(d) => chapters.push(d)} />)
-    await flush()
-    click(byText(host, '.m-pp-row', '1 John'))
     await flush()
     click(byText(host, '.m-pp-cell', '4'))
     expect(chapters).toEqual([{ textId: 'kjva', bookId: '1JN', chapter: 4 }])
@@ -109,8 +114,6 @@ describe('PassagePicker (NEW-11)', () => {
     const picked: PassagePick[] = []
     const { host, unmount } = mount(<PassagePicker textId="kjva" bookId="1JN" chapter={2} onPick={(d) => picked.push(d)} />)
     await flush()
-    click(byText(host, '.m-pp-row', '1 John'))
-    await flush()
     click(byText(host, '.m-pp-cell', '4'))
     await flush()
     expect(picked).toEqual([])
@@ -124,6 +127,9 @@ describe('PassagePicker (NEW-11)', () => {
     const chapters: PassagePick[] = []
     const { host, unmount } = mount(<PassagePicker textId="kjva" bookId="GEN" chapter={1} onPick={(d) => picked.push(d)} onChapter={(d) => chapters.push(d)} />)
     await flush()
+    // Chapters(GEN) → Books(OT) → Groups(KJV) → root: three levels up now that the picker
+    // opens on the current book's chapters (PICKER-SEARCH).
+    click(host.querySelector('.m-pp-back')!)
     click(host.querySelector('.m-pp-back')!)
     click(host.querySelector('.m-pp-back')!)
     const input = host.querySelector('input') as HTMLInputElement
@@ -170,7 +176,7 @@ describe('PassagePicker (NEW-11)', () => {
     unmount()
   })
 
-  it('in a sheet: pre-navigates with an in-sheet push, and the back control returns to collections', async () => {
+  it('in a sheet: pre-navigates with an in-sheet push to the current book’s chapters, and back climbs to collections', async () => {
     const picked: PassagePick[] = []
     function Opener() {
       const sheets = useSheets()
@@ -184,8 +190,14 @@ describe('PassagePicker (NEW-11)', () => {
     await flush(); await flush()
     const sheet = document.querySelector('.mobile-sheet')!
     const view = () => [...sheet.querySelectorAll('.mobile-sheet-view')].at(-1)!
+    // CURRENT BOOK FIRST: the sheet opens on John's chapters (current chapter marked), not the
+    // New Testament book list.
+    expect(sheet.querySelector('.mobile-sheet-title')?.textContent).toBe('John')
+    expect(view().querySelector('.m-pp-cell.is-current')?.textContent).toBe('3')
+    expect(sheet.querySelector('.mobile-sheet-back')?.getAttribute('aria-label')).toContain('New Testament')
+    click(sheet.querySelector('.mobile-sheet-back')!)
+    await flush(); await flush()
     expect(sheet.querySelector('.mobile-sheet-back')?.getAttribute('aria-label')).toContain('KJV')
-    expect(view().querySelector('[aria-current="true"] .m-pp-row-title')?.textContent).toBe('John')
     click(sheet.querySelector('.mobile-sheet-back')!)
     await flush(); await flush()
     expect(sheet.querySelector('.mobile-sheet-back')?.getAttribute('aria-label')).toContain('Library')

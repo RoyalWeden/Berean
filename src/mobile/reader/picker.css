@@ -6,6 +6,23 @@
 .m-pp-search { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; margin: 4px 0 12px; border-radius: 10px; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-muted)); }
 .m-pp-search input { flex: 1; min-width: 0; height: 40px; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); outline: none; -webkit-user-select: text; user-select: text; }
 
+/* History toggle (PICKER-SEARCH) — a glass circle at the end of the search field; it reads as
+   "top-right of the sheet" since the search field is the first thing every view renders. */
+.m-pp-history-toggle { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 0; padding: 0; border-radius: 16px; border: 0.5px solid var(--m-hairline); background: var(--m-glass-control); color: rgb(var(--color-text-muted)); }
+.m-pp-history-toggle:active { background: var(--m-glass-control-pressed); }
+.m-pp-history-toggle.is-on { background: rgb(var(--color-accent)); color: white; border-color: transparent; }
+
+.m-pp-history-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 4px 6px 14px; }
+.m-pp-history-head .m-pp-section-title { margin: 0; }
+.m-pp-history-clear { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: rgb(var(--color-text-muted)); font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); }
+.m-pp-history-clear:active { background: var(--m-fill-pressed); }
+.m-pp-history-row { gap: 12px; }
+.m-pp-history-icon { flex: none; color: rgb(var(--color-text-muted)); }
+
+.m-pp-verse-row { align-items: flex-start; padding-top: 10px; padding-bottom: 10px; }
+.m-pp-verse-snippet { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.3; color: rgb(var(--color-text-primary) / 0.85); }
+.m-pp-row-lxx { color: rgb(var(--color-text-muted)); font-weight: 500; font-size: calc(12px * var(--m-type-scale, 1)); }
+
 .m-pp-section { margin-bottom: 14px; }
 .m-pp-section-title { margin: 10px 0 6px 14px; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: rgb(var(--color-text-muted)); }
 .m-pp-list { border-radius: 12px; overflow: hidden; background: rgb(var(--color-surface-2)); }
