@@ -1,7 +1,7 @@
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { MoreHorizontal, Eye, Pencil, Undo2, Redo2, Check, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Eye, Pencil, Undo2, Redo2, Check, Share, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
@@ -264,7 +264,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
           ? <IconTap icon={Pencil} label="Edit" onClick={() => { setMode('edit'); focusBodyStart() }} />
           : <IconTap icon={Undo2} label="Undo" onClick={() => runHistory(undo)} disabled={!editorView} />}
         <IconGroup label="Note actions">
-          <IconTap icon={Share2} label="Share" onClick={() => { void shareNote(latest.current ?? note) }} />
+          <IconTap icon={Share} label="Share" onClick={() => { void shareNote(latest.current ?? note) }} />
           <IconTap icon={MoreHorizontal} label="More" onClick={openMore} />
         </IconGroup>
         {editing && <button type="button" className="m-float-circle is-primary" aria-label="Done" data-keep-keyboard onPointerDown={(e) => e.preventDefault()} onClick={doneEditing}><Check size={22} strokeWidth={2.5} aria-hidden /></button>}
