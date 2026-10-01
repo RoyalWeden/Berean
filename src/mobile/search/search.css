@@ -51,3 +51,19 @@
 .m-usearch-filter-view .m-usearch-filters { margin: 0; }
 .m-usearch-reset { align-self: flex-start; min-height: 44px; }
 .mobile-search-scope .mobile-segmented { width: 100%; }
+
+/* Contextual filter chips (TEST 2026-09-29 IA): one scrolling row under the scope switch; each
+   chip names its current value and opens its own picker. Accent when not the default. */
+.mobile-search-chips { display: flex; gap: 8px; padding: 2px 16px 10px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+.mobile-search-chips::-webkit-scrollbar { display: none; }
+.mobile-search-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px 0 14px;
+  border: 0.5px solid var(--m-hairline); border-radius: 17px; background: var(--m-fill);
+  color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(14px * var(--m-type-scale, 1)); white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-search-chip svg { color: rgb(var(--color-text-muted)); }
+.mobile-search-chip:active { background: var(--m-fill-pressed); }
+.mobile-search-chip.is-on { background: rgb(var(--color-accent) / 0.14); border-color: rgb(var(--color-accent) / 0.3); color: rgb(var(--color-accent)); font-weight: 600; }
+.mobile-search-chip.is-on svg { color: rgb(var(--color-accent)); }
+.mobile-search-chip.is-reset { padding: 0 12px; color: rgb(var(--color-accent)); background: none; }

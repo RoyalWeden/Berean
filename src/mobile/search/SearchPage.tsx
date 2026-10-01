@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands } from '../commands/caretRegistry'
-import { Search, X, Clock, Tag, Languages, Library, Tags as TagsIcon, ListFilter, RotateCcw, History as HistoryIcon, ArrowDownUp, Type, SlidersHorizontal } from 'lucide-react'
+import { Search, X, Clock, Tag, Languages, Library, Tags as TagsIcon, RotateCcw, History as HistoryIcon, SlidersHorizontal, MoreHorizontal, ChevronDown } from 'lucide-react'
 import type { Note, LexiconEntry, VerseTagMember, Tab, SearchTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookName, parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
@@ -21,15 +21,15 @@ import {
 } from '@/lib/scriptureSearch'
 import { booksSummary } from '@/lib/scriptureSearchFilters'
 import {
-  DEFAULT_SEARCH_FILTERS, activeFilterCount, filtersSummary, scopeHasFilters, textFilterLabel,
+  DEFAULT_SEARCH_FILTERS, activeFilterCount, scopeHasFilters, textFilterLabel, WORD_MODE_LABEL,
   type SearchFilterState,
 } from './searchFilters'
 import { BooksFilterView } from './BooksFilterView'
 import { HistoryView } from '../history/HistoryPage'
 import type { WordMode } from '@/lib/scriptureHighlight'
-import { Page, ListSection, Row } from '../primitives/Page'
+import { Page, ListSection, Row, IconTap } from '../primitives/Page'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
-import { ChoiceList } from '../primitives/ActionSheet'
+import { ChoiceList, useActionSheet } from '../primitives/ActionSheet'
 import { Segmented } from '../settings/SettingsPage'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -332,32 +332,17 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const sc: Scope = live?.scope ?? 'all'
     const q = (live?.query ?? query).trim()
     const count = activeFilterCount(f)
-    const textLabel = textFilterLabel(f.textId)
-    const booksLabel = booksSummary(f.books)
-    const tagsLabel = f.tagIds.length === 0 ? 'None' : `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}`
     return {
       title: q ? `Search · “${q}”` : 'Search', backTitle: 'Search',
       // Same header as every caret (SEP24-008): tap to edit the query in the page's own field.
       location: { label: q ? `“${q}”` : 'Search', placeholder: 'Edit the search', run: () => setTimeout(() => (document.querySelector('.mobile-search-input') as HTMLInputElement | null)?.focus(), 250) },
+      // Search IA (TEST 2026-09-29): filters live in ONE place — the chips under the field.
+      // The caret only points there and carries the tab-level actions (no duplicate controls).
       sections: [
-        // No Scope row (NEW-014): the page's own Scripture / Notes / Lexicon switch is the scope.
-        { id: 'match', title: 'Match', commands: [
-          { kind: 'segmented', id: 'word-mode', label: 'Words', icon: Type, value: f.wordMode, options: [['all', 'All'], ['any', 'Any'], ['phrase', 'Phrase']], set: (v) => patchSearchFilters(tabId, { wordMode: v as WordMode }) },
-        ] },
-        ...(sc === 'scripture' || sc === 'all' ? [
-          { id: 'filters', title: count ? `Scripture filters · ${count}` : 'Scripture filters', commands: [
-            { kind: 'view' as const, id: 'text', label: 'Text', icon: Languages, value: textLabel, view: () => ({ title: 'Text', render: (a: SheetApi) => <SearchTextChoices tabId={tabId} api={a} /> }) },
-            { kind: 'view' as const, id: 'books', label: 'Books', icon: Library, value: booksLabel, view: () => ({ title: 'Books', render: () => <SearchBooksFilter tabId={tabId} /> }) },
-            { kind: 'view' as const, id: 'tags', label: 'Verse tags', icon: TagsIcon, value: tagsLabel, view: () => ({ title: 'Verse tags', render: (a: SheetApi) => <SearchTagsFilter tabId={tabId} api={a} /> }) },
-            { kind: 'action' as const, id: 'reset', label: 'Reset filters', icon: RotateCcw, keepOpen: true, disabled: count === 0, run: () => resetSearchFilters(tabId) },
-          ] },
-          { id: 'sort', title: 'Sort', commands: [
-            { kind: 'segmented' as const, id: 'sort', label: 'Order', icon: ListFilter, value: f.sort, options: [['relevance', 'Relevance'], ['bookOrder', 'Bible order']] as Array<[string, string]>, set: (v: string) => patchSearchFilters(tabId, { sort: v as SearchSortMode, direction: naturalDirection(v as SearchSortMode) }) },
-            { kind: 'segmented' as const, id: 'direction', label: 'Direction', icon: ArrowDownUp, value: f.direction,
-              options: (f.sort === 'relevance' ? [['desc', 'Best first'], ['asc', 'Weakest first']] : [['asc', 'Genesis → end'], ['desc', 'End → Genesis']]) as Array<[string, string]>,
-              set: (v: string) => patchSearchFilters(tabId, { direction: v as SearchSortDirection }) },
-          ] },
-        ] : []),
+        ...(scopeHasFilters(sc) ? [{ id: 'filters', commands: [
+          { kind: 'action' as const, id: 'filters', label: count ? `Filters & sort · ${count}` : 'Filters & sort', icon: SlidersHorizontal, run: () => openFiltersSheet(tabId, sc) },
+          ...(count ? [{ kind: 'action' as const, id: 'reset', label: 'Reset filters', icon: RotateCcw, keepOpen: true, run: () => resetSearchFilters(tabId) }] : []),
+        ] }] : []),
         { id: 'more', commands: [
           { kind: 'action', id: 'clear', label: 'Clear search', icon: X, disabled: !q, run: () => setQuery('') },
           // History opens INSIDE this sheet ("‹ Search"), keeping its position (NEW-014).
@@ -367,15 +352,27 @@ export function SearchPage({ tab }: { tab: Tab }) {
     }
   })
   const snippetQuery = browsing ? '' : query
-  // Advanced Search (SEP25): every option lives behind the ONE Filters entry, in its own sheet.
-  const openFilters = () => {
+  // Tertiary actions (TEST 2026-09-29 IA): the header's "…".
+  const actions = useActionSheet()
+  const openOverflow = () => {
     void haptic.light()
-    sheets.open({ id: `search-filters-${tabId}`, title: 'Filters', detents: [0.62, 0.92], render: (api) => <SearchFiltersSheet tabId={tabId} scope={scope} api={api} /> })
+    actions('search-more', 'Search', [
+      { id: 'history', label: 'History', icon: HistoryIcon, onSelect: () => {}, view: () => ({ key: 'history', title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
+      ...(scopeHasFilters(scope) ? [{ id: 'filters', label: 'All filters & sort…', icon: SlidersHorizontal, onSelect: () => openFiltersSheet(tabId, scope) }] : []),
+      ...(activeFilterCount(filters, scope) ? [{ id: 'reset', label: 'Reset filters', icon: RotateCcw, onSelect: () => resetSearchFilters(tabId) }] : []),
+      ...(query ? [{ id: 'clear', label: 'Clear search', icon: X, onSelect: () => setQuery('') }] : []),
+    ])
+  }
+  // Declared after the caret closure that calls it — only ever invoked on a tap, after render.
+  const openFiltersSheet = (tid: string, sc: Scope) => {
+    void haptic.light()
+    sheets.open({ id: `search-filters-${tid}`, title: 'Filters & sort', detents: [0.62, 0.92], render: (api) => <SearchFiltersSheet tabId={tid} scope={sc} api={api} /> })
   }
 
   return (
     <Page
       title="Search"
+      right={<IconTap icon={MoreHorizontal} label="More search options" onClick={openOverflow} />}
       headerBelow={
         <>
           <form className="mobile-search-row" onSubmit={submit}>
@@ -386,7 +383,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
             {query && <button type="button" className="mobile-search-clear" aria-label="Clear" onClick={() => setQuery('')}><X size={16} aria-hidden /></button>}
           </form>
           <div className="mobile-search-scope"><Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as Scope)} /></div>
-          {scopeHasFilters(scope) && <FiltersEntry filters={filters} scope={scope} onOpen={openFilters} />}
+          {scopeHasFilters(scope) && <FilterChips tabId={tabId} filters={filters} scope={scope} />}
         </>
       }
     >
@@ -508,20 +505,43 @@ function SearchTagsFilter({ tabId, api }: { tabId: string; api: SheetApi }) {
   )
 }
 
-/** The ONE compact Filters entry under the scope switch: a summary of what the search covers and
- *  a count badge of non-default filters. Tapping opens the Advanced options sheet. */
-function FiltersEntry({ filters, scope, onOpen }: { filters: SearchFilterState; scope: Scope; onOpen: () => void }) {
-  const count = activeFilterCount(filters, scope)
-  const summary = filtersSummary(filters, scope)
+/**
+ * Contextual filters (TEST 2026-09-29 IA): one horizontally scrolling row of chips directly under
+ * the scope switch — each shows its current value (accent when not the default) and opens its own
+ * small picker. Words for every scope with filters; Text · Books · Tags · Sort for Scripture.
+ */
+function FilterChips({ tabId, filters: f, scope }: { tabId: string; filters: SearchFilterState; scope: Scope }) {
+  const sheets = useSheets()
+  const scripture = scope === 'scripture' || scope === 'all'
+  const open = (id: string, title: string, render: (api: SheetApi) => React.ReactNode, tall = false) => {
+    void haptic.selection()
+    sheets.open({ id: `search-chip-${id}-${tabId}`, title, detents: [tall ? 0.72 : 0.42, 0.92], render })
+  }
+  const sortValue = f.sort === 'relevance' ? 'relevance' : f.direction === 'asc' ? 'bible' : 'bible-rev'
+  const chips: Array<{ id: string; label: string; on: boolean; onClick: () => void }> = [
+    { id: 'words', label: WORD_MODE_LABEL[f.wordMode], on: f.wordMode !== 'all', onClick: () => open('words', 'Match', (api) => (
+      <ChoiceList api={api} closeOnSelect value={f.wordMode} options={(['all', 'any', 'phrase'] as WordMode[]).map((m) => ({ id: m, label: WORD_MODE_LABEL[m] }))} onSelect={(v) => patchSearchFilters(tabId, { wordMode: v as WordMode })} />
+    )) },
+    ...(scripture ? [
+      { id: 'text', label: textFilterLabel(f.textId), on: f.textId !== 'all', onClick: () => open('text', 'Text', (api: SheetApi) => <SearchTextChoices tabId={tabId} api={api} />, true) },
+      { id: 'books', label: booksSummary(f.books), on: f.books.length > 0, onClick: () => open('books', 'Books', () => <SearchBooksFilter tabId={tabId} />, true) },
+      { id: 'tags', label: f.tagIds.length ? `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}` : 'Tags', on: f.tagIds.length > 0, onClick: () => open('tags', 'Verse tags', (api: SheetApi) => <SearchTagsFilter tabId={tabId} api={api} />, true) },
+      { id: 'sort', label: sortValue === 'relevance' ? 'Best match' : sortValue === 'bible' ? 'Bible order' : 'Reverse order', on: f.sort !== 'relevance', onClick: () => open('sort', 'Sort', (api: SheetApi) => (
+        <ChoiceList api={api} closeOnSelect value={sortValue}
+          options={[{ id: 'relevance', label: 'Best match first' }, { id: 'bible', label: 'Bible order', detail: 'Genesis → end' }, { id: 'bible-rev', label: 'Reverse Bible order', detail: 'End → Genesis' }]}
+          onSelect={(v) => patchSearchFilters(tabId, v === 'relevance' ? { sort: 'relevance', direction: 'desc' } : { sort: 'bookOrder', direction: v === 'bible' ? 'asc' : 'desc' })} />
+      )) },
+    ] : []),
+  ]
+  const count = activeFilterCount(f, scope)
   return (
-    <div className="mobile-search-filters-entry">
-      <button type="button" className={`mobile-search-filters-button${count ? ' is-active' : ''}`} onClick={onOpen}
-        aria-label={`Filters: ${summary}${count ? `, ${count} active` : ''}`}>
-        <SlidersHorizontal size={15} aria-hidden />
-        <span className="mobile-search-filters-label">Filters</span>
-        <span className="mobile-search-filters-summary">{summary}</span>
-        {count > 0 && <span className="mobile-search-filters-badge" aria-hidden>{count}</span>}
-      </button>
+    <div className="mobile-search-chips" role="group" aria-label="Filters">
+      {chips.map((c) => (
+        <button key={c.id} type="button" className={`mobile-search-chip${c.on ? ' is-on' : ''}`} onClick={c.onClick} aria-label={`${c.id === 'words' ? 'Match' : c.id[0].toUpperCase() + c.id.slice(1)}: ${c.label}`}>
+          <span>{c.label}</span><ChevronDown size={13} aria-hidden />
+        </button>
+      ))}
+      {count > 0 && <button type="button" className="mobile-search-chip is-reset" onClick={() => { void haptic.light(); resetSearchFilters(tabId) }} aria-label="Reset filters"><RotateCcw size={13} aria-hidden /><span>Reset</span></button>}
     </div>
   )
 }
