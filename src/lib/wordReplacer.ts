@@ -74,6 +74,11 @@ export function getWordReplacerSearchVariants(query: string, rules: WordReplacer
   )
 
   const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // Always word-bounded: this substitutes directly into the user's TYPED query (unlike
+  // applyWordReplacer's own display-time matchers, which honor each rule's `wholeWord`
+  // flag), so a short query word must never match as a bare substring of a longer one —
+  // "Yeshua" must not match inside "Yeshuah", nor "Yah" inside "Yahoo".
+  const bounded = (s: string) => `\\b${escapeRe(s)}\\b`
 
   for (const rule of sorted) {
     const lReplacement = rule.replacement.toLowerCase()
@@ -81,14 +86,14 @@ export function getWordReplacerSearchVariants(query: string, rules: WordReplacer
       const lOrig = orig.toLowerCase()
       // Replacement wording is in the query (e.g. typed "Yeshua") → also search the
       // DB's original wording (e.g. "Jesus"), substituted in place.
-      if (lq.includes(lReplacement)) {
-        const re = new RegExp(escapeRe(rule.replacement), 'ig')
+      if (new RegExp(bounded(rule.replacement), 'i').test(lq)) {
+        const re = new RegExp(bounded(rule.replacement), 'ig')
         variants.add(trimmed.replace(re, orig))
       }
       // Original wording is in the query (e.g. typed "Jesus") → also search the
       // replacement's own wording, so results display-transform consistently either way.
-      if (lq.includes(lOrig)) {
-        const re = new RegExp(escapeRe(orig), 'ig')
+      if (new RegExp(bounded(orig), 'i').test(lq)) {
+        const re = new RegExp(bounded(orig), 'ig')
         variants.add(trimmed.replace(re, rule.replacement))
       }
     }

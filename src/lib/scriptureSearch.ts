@@ -1,5 +1,5 @@
 import type { WordReplacerRule } from '@/store'
-import { getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
+import { getWordReplacerSearchVariants, getWordReplacerStrongsSearch, type WordReplacerStrongsSearch } from '@/lib/wordReplacer'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { bookOrder } from '@/lib/parseRef'
@@ -31,6 +31,10 @@ export interface ScriptureSearchOptions {
   bookIds?: string[]
   wordReplacerEnabled: boolean
   wordReplacerRules: WordReplacerRule[]
+  /** Override which texts 'all' searches (defaults to SEARCHABLE_TEXT_IDS). SearchTab's own
+   *  "all texts" list is a curated subset; pass it here rather than duplicating this
+   *  function's target-list/bridge logic for a different text set. */
+  targets?: string[]
 }
 
 /** Texts an "all texts" search covers: every bundled edition except `hermas_taylor`, which is a
@@ -38,10 +42,81 @@ export interface ScriptureSearchOptions {
  *  both would double every Hermas hit). Shared by the desktop search view and the phone. */
 export const SEARCHABLE_TEXT_IDS = TRANSLATIONS.map((t) => t.id).filter((id) => id !== 'hermas_taylor')
 
-const key = (r: { book_id: string; chapter: number; verse_num: number }) => `${r.book_id}:${r.chapter}:${r.verse_num}`
+/** Texts whose verses.text_tagged carries Strong's numbers — the only texts the
+ *  word-replacer → Strong's bridge (below) can search by occurrence. See
+ *  lexiconService.ts's getOccurrences: H-numbers only ever scan 'kjva'; G-numbers scan
+ *  both 'kjva' and 'lxx'. */
+export const STRONGS_TAGGED_TEXT_IDS = new Set(['kjva', 'lxx'])
 
-export async function runRawScriptureSearch(trimmed: string, tid: string | 'all', wordMode: WordMode, variants: string[], bookIds: string[] | undefined): Promise<ScriptureHit[]> {
-  const targets = tid === 'all' ? SEARCHABLE_TEXT_IDS : [tid]
+/** Best-effort literal KJV renderings for word-replacer rules that are Strong's-number-only
+ *  (empty `queries`, e.g. the divine-name rules in store/index.ts) — used ONLY to build an
+ *  extra PHRASE-mode search variant ("Yehovah said" → also try "LORD said" as one coherent
+ *  phrase). Not exhaustive (H3068 also appears inside combinations like "GOD" within "Lord
+ *  GOD") — the exact, non-phrase bridge below (occurrence-based) is what actually guarantees
+ *  correctness; this is just so a common phrase search isn't silently empty in phrase mode,
+ *  where the occurrence bridge's own results still get phrase-filtered out anyway. */
+const STRONGS_RULE_LITERALS: Record<string, string[]> = {
+  H3068: ['LORD'],
+  H3069: ['GOD'],
+  H3050: ['JAH', 'YAH'],
+}
+
+const key = (r: { book_id: string; chapter: number; verse_num: number }, textId?: string) =>
+  textId != null ? `${textId}:${r.book_id}:${r.chapter}:${r.verse_num}` : `${r.book_id}:${r.chapter}:${r.verse_num}`
+
+/**
+ * ONE expansion function for the bidirectional word-replacer search + its Strong's bridge —
+ * shared by runScriptureSearch below (desktop Advanced Search, the floating quick search, and
+ * SearchTab all route through it) instead of each call site re-deriving its own variant list
+ * and bridge. `variants` are complete, independent query strings to run and merge (never a
+ * single "term1 OR term2" string — see getWordReplacerSearchVariants's own comment for why).
+ * `strongsBridge`, when non-null, names the Strong's number(s)/residual words to search by
+ * occurrence instead (a query like "yehovah" restores from H3068/H3069, which plain FTS can
+ * never find since the index still says "LORD").
+ */
+export function expandScriptureQuery(
+  query: string,
+  rules: WordReplacerRule[],
+  wordMode: WordMode,
+): { variants: string[]; strongsBridge: WordReplacerStrongsSearch | null } {
+  const trimmed = query.trim()
+  if (!trimmed) return { variants: [query], strongsBridge: null }
+
+  const variants = new Set(getWordReplacerSearchVariants(trimmed, rules))
+  const strongsBridge = getWordReplacerStrongsSearch(trimmed, rules)
+
+  // Phrase mode: try substituting the literal KJV rendering too, so "Yehovah said" also
+  // runs as the plain phrase "LORD said" — the exact bridge below still runs separately
+  // and is unioned in, this is just an extra, cheaper variant for the common case.
+  if (wordMode === 'phrase' && strongsBridge) {
+    for (const rule of rules) {
+      if (!rule.enabled || !rule.strongsNum) continue
+      if (!strongsBridge.strongsNums.includes(rule.strongsNum)) continue
+      const literals = STRONGS_RULE_LITERALS[rule.strongsNum]
+      if (!literals) continue
+      const pattern = rule.replacement.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      if (!new RegExp(pattern, 'i').test(trimmed)) continue
+      for (const lit of literals) {
+        variants.add(trimmed.replace(new RegExp(pattern, 'ig'), lit))
+      }
+    }
+  }
+
+  return { variants: [...variants], strongsBridge }
+}
+
+export async function runRawScriptureSearch(
+  trimmed: string,
+  tid: string | 'all',
+  wordMode: WordMode,
+  variants: string[],
+  bookIds: string[] | undefined,
+  /** Override which texts 'all' searches — SearchTab's own "all texts" list is a curated
+   *  subset of SEARCHABLE_TEXT_IDS (no `hermas_taylor` alongside `hermas`, same idea). Ignored
+   *  when `tid` isn't 'all'. */
+  targetsOverride?: string[],
+): Promise<ScriptureHit[]> {
+  const targets = tid === 'all' ? (targetsOverride ?? SEARCHABLE_TEXT_IDS) : [tid]
   const seen = new Set<string>()
   let raw: ScriptureHit[] = []
   for (const textId of targets) {
@@ -65,25 +140,45 @@ export async function runRawScriptureSearch(trimmed: string, tid: string | 'all'
   return raw
 }
 
-/** Full-text search with the desktop's expansions. */
+/** Full-text search with the desktop's expansions — variant generation, the Strong's bridge,
+ *  phrase-mode post-filtering — ALL live here so the Advanced Scripture Search tab, the
+ *  floating quick search, and the plain Search tab share one algorithm instead of each
+ *  re-implementing it (see expandScriptureQuery above). */
 export async function runScriptureSearch(query: string, o: ScriptureSearchOptions): Promise<ScriptureHit[]> {
   const trimmed = query.trim()
   if (trimmed.length < 2) return []
-  const variants = o.wordReplacerEnabled ? getWordReplacerSearchVariants(trimmed, o.wordReplacerRules) : [trimmed]
-  const raw = await runRawScriptureSearch(trimmed, o.textId, o.wordMode, variants, o.bookIds)
-  const bridge = (o.wordReplacerEnabled && o.textId === 'kjva' && o.wordMode !== 'phrase') ? getWordReplacerStrongsSearch(trimmed, o.wordReplacerRules) : null
-  if (bridge) {
+  const { variants, strongsBridge } = o.wordReplacerEnabled
+    ? expandScriptureQuery(trimmed, o.wordReplacerRules, o.wordMode)
+    : { variants: [trimmed], strongsBridge: null }
+  const targets = o.textId === 'all' ? (o.targets ?? SEARCHABLE_TEXT_IDS) : [o.textId]
+  const raw = await runRawScriptureSearch(trimmed, o.textId, o.wordMode, variants, o.bookIds, targets)
+  // Strong's-tagged texts actually in scope for this search — the bridge can only ever find
+  // hits in 'kjva'/'lxx' occurrence data (STRONGS_TAGGED_TEXT_IDS), so skip it entirely when
+  // neither is among the texts being searched (e.g. a single-text search on 'enoch').
+  const bridgeTargets = targets.filter((t) => STRONGS_TAGGED_TEXT_IDS.has(t))
+  if (o.wordReplacerEnabled && strongsBridge && bridgeTargets.length > 0) {
     try {
-      const hits = await searchAnyStrongs(bridge.strongsNums, bridge.residualWords, window.lexicon.getOccurrences)
-      const seen = new Set(raw.map(key))
+      let hits = await searchAnyStrongs(strongsBridge.strongsNums, strongsBridge.residualWords, window.lexicon.getOccurrences)
+      if (o.wordMode === 'phrase') {
+        // The bridge finds by OCCURRENCE, not FTS, so it never went through
+        // runRawScriptureSearch's own exact-phrase post-filter above — apply the same check
+        // here, against every variant (including expandScriptureQuery's literal-rendering
+        // phrase substitution), punctuation-insensitive.
+        const strip = (s: string) => s.toLowerCase().replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim()
+        const phrases = variants.map(strip)
+        hits = hits.filter((h) => { const t = strip(h.text); return phrases.some((p) => t.includes(p)) })
+      }
+      const bridgeTargetSet = new Set(bridgeTargets)
+      const seen = new Set(raw.map((r) => key(r, r.textId)))
       const scope = o.bookIds ? new Set(o.bookIds) : null
       for (const h of hits) {
-        const k = key(h)
-        const existing = raw.find((r) => key(r) === k)
+        if (!bridgeTargetSet.has(h.text_id)) continue
+        const k = key(h, h.text_id)
+        const existing = raw.find((r) => r.textId === h.text_id && key(r) === key(h))
         if (existing) { existing.strongsWords = h.matchWordIndices; continue }
         if (seen.has(k)) continue
         if (scope && !scope.has(h.book_id)) continue
-        raw.push({ book_id: h.book_id, chapter: h.chapter, verse_num: h.verse_num, text: h.text, textId: 'kjva', strongsWords: h.matchWordIndices })
+        raw.push({ book_id: h.book_id, chapter: h.chapter, verse_num: h.verse_num, text: h.text, textId: h.text_id, strongsWords: h.matchWordIndices })
       }
     } catch { /* best-effort — FTS results still stand */ }
   }

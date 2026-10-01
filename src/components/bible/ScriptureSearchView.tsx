@@ -6,9 +6,9 @@ import type { Book, Verse } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
-import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
-import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
-import { runRawScriptureSearch } from '@/lib/scriptureSearch'
+import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
+import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { runRawScriptureSearch, runScriptureSearch } from '@/lib/scriptureSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, isGroupActive, bookSections, booksSummary, selectGroup, clearGroup, groupSelectionState, type BookSection } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
@@ -637,21 +637,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     if (trimmed.length < 2) { setResults([]); setMatchedBookIds(null); return }
     setLoading(true)
     const effectiveWordMode = wMode ?? wordMode
-    // Bidirectional word-replacer search: the DB still stores the ORIGINAL word
-    // (e.g. "Jesus"), only display-side applyWordReplacer below shows "Yeshua" —
-    // so without expanding the search itself, searching "Yeshua" here found nothing.
-    // Each variant is a REAL, independent, plain query string run through
-    // window.bible.searchText separately and merged below — NOT a single "term1 OR
-    // term2" string. electron/ipc/bible.ts's own FTS query builder deliberately
-    // treats every word (including a literal "OR") as a required token, so a
-    // one-string "OR"-joined query silently became an impossible AND-query
-    // requiring the literal word "or" too — confirmed broken in both this view and
-    // the floating quick search. Skipped for phrase mode — a substituted variant is
-    // still one coherent phrase, so this stays correct there too, just run as
-    // several exact-phrase searches instead of one.
-    const variants = wordReplacerEnabled
-      ? getWordReplacerSearchVariants(trimmed, wordReplacerRules)
-      : [trimmed]
     // testamentScopedBookIds (no `selectedBooks`) is the scope the Scripture-filter checklist
     // itself should reflect: "what books does this query actually match", independent of which
     // ones happen to be checked right now. `scopedBookIds` is what actually restricts the VISIBLE
@@ -667,39 +652,30 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     // rank outside the unscoped cap's top N by BM25 relevance. 'Pseudepigrapha' is a
     // text-level distinction (not a book_id), so it's left unscoped here.
     const scopedBookIds: string[] | undefined = selectedBooks.length > 0 ? selectedBooks : testamentScopedBookIds
-    // Word-replacer → Strong's bridge: "yehovah" restores from H3068/H3069, which plain FTS
-    // (index still says "LORD") can't find. Search those by occurrence and merge. KJVA-only —
-    // the H-number rules and occurrence data are Hebrew-OT tagging. See getWordReplacerStrongsSearch.
-    const wrStrongs = (wordReplacerEnabled && tid === 'kjva' && effectiveWordMode !== 'phrase')
-      ? getWordReplacerStrongsSearch(trimmed, wordReplacerRules)
-      : null
     try {
-      const raw = await runRawSearch(trimmed, tid, effectiveWordMode, variants, scopedBookIds)
+      // The shared algorithm (scriptureSearch.ts) — bidirectional word-replacer variants run
+      // as separate queries and merged, phrase-mode exact post-filter, and the word-replacer
+      // → Strong's bridge (e.g. "yehovah" restores from H3068/H3069, which plain FTS can
+      // never find since the index still says "LORD") — see runScriptureSearch's own comment.
+      const hits = await runScriptureSearch(trimmed, {
+        textId: tid, wordMode: effectiveWordMode, bookIds: scopedBookIds,
+        wordReplacerEnabled, wordReplacerRules,
+      })
       const wrStrongsMatches: Record<string, number[]> = {}
-      if (wrStrongs) {
-        try {
-          const strongsHits = await searchAnyStrongs(wrStrongs.strongsNums, wrStrongs.residualWords, window.lexicon.getOccurrences)
-          const seen = new Set(raw.map((r) => `${r.book_id}:${r.chapter}:${r.verse_num}`))
-          const scopeSet = scopedBookIds ? new Set(scopedBookIds) : null
-          for (const o of strongsHits) {
-            const key = `${o.book_id}:${o.chapter}:${o.verse_num}`
-            wrStrongsMatches[key] = o.matchWordIndices
-            if (seen.has(key)) continue
-            if (scopeSet && !scopeSet.has(o.book_id)) continue
-            raw.push({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, _textId: 'kjva' })
-          }
-        } catch { /* best-effort — FTS results still stand */ }
+      for (const h of hits) {
+        if (h.strongsWords) wrStrongsMatches[`${h.book_id}:${h.chapter}:${h.verse_num}`] = h.strongsWords
       }
       setStrongsMatches(wrStrongsMatches)
-      setResults(raw)
+      setResults(hits.map(({ textId: t, strongsWords: _sw, ...r }) => ({ ...r, _textId: t })))
       // The Scripture-filter checklist needs to know which books this query would match with
-      // NO book filter applied. When nothing's checked, `raw` above already IS that (it was
-      // only ever testament-scoped) — free. Only when a book filter is active does `raw` get
+      // NO book filter applied. When nothing's checked, `hits` above already IS that (it was
+      // only ever testament-scoped) — free. Only when a book filter is active does `hits` get
       // artificially narrowed beyond that, so only then is a second, book-filter-agnostic query
       // actually needed to reconstruct the full matched-book set.
       if (selectedBooks.length === 0) {
-        setMatchedBookIds(new Set(raw.map((r) => r.book_id)))
+        setMatchedBookIds(new Set(hits.map((r) => r.book_id)))
       } else {
+        const variants = wordReplacerEnabled ? getWordReplacerSearchVariants(trimmed, wordReplacerRules) : [trimmed]
         const unscoped = await runRawSearch(trimmed, tid, effectiveWordMode, variants, testamentScopedBookIds)
         setMatchedBookIds(new Set(unscoped.map((r) => r.book_id)))
       }

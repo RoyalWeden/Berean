@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { runScriptureSearch, runStrongsSearch, groupHitsByBook, runRawScriptureSearch, buildVerseTagFilter, filterHitsByVerseTags, takeGroupRows, type ScriptureHit } from '../scriptureSearch'
+import { runScriptureSearch, runStrongsSearch, groupHitsByBook, runRawScriptureSearch, buildVerseTagFilter, filterHitsByVerseTags, takeGroupRows, expandScriptureQuery, type ScriptureHit } from '../scriptureSearch'
 import type { VerseTagMember } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
@@ -18,12 +18,21 @@ const corpus: Record<string, Row[]> = {
     { book_id: '1CO', chapter: 13, verse_num: 13, text: 'And now abideth faith, hope, charity, these three' },
     { book_id: 'XXX', chapter: 1, verse_num: 1, text: 'hope and faith and charity' },
   ],
+  'lord said': [{ book_id: 'GEN', chapter: 4, verse_num: 6, text: 'And the LORD said unto Cain' }],
 }
+// H3068 occurrences span BOTH kjva and lxx (mirrors lexiconService.ts's getOccurrences for
+// Greek numbers; H-numbers are really kjva-only, but the bridge's own merge logic must not
+// assume that — exercised by the 'all'-target test below).
+const H3068_OCC = [
+  { book_id: 'GEN', chapter: 2, verse_num: 4, text: 'the LORD God made the earth', text_id: 'kjva', matchWordIndices: [1] },
+  { book_id: 'GEN', chapter: 4, verse_num: 6, text: 'And the LORD said unto Cain', text_id: 'kjva', matchWordIndices: [2] },
+  { book_id: 'GEN', chapter: 2, verse_num: 4, text: 'the Lord God made the earth', text_id: 'lxx', matchWordIndices: [1] },
+]
 beforeEach(() => {
   calls.length = 0
   ;(globalThis as unknown as { window: unknown }).window = {
     bible: { searchText: async (q: string, textId: string, mode: string, books?: string[]) => { calls.push({ q, textId, mode, books }); return (corpus[q.toLowerCase()] ?? []).filter((r) => !books || books.includes(r.book_id)) } },
-    lexicon: { getOccurrences: async (num: string) => num === 'H3068' ? [{ book_id: 'GEN', chapter: 2, verse_num: 4, text: 'the LORD God made the earth', text_id: 'kjva', matchWordIndices: [1] }] : [] },
+    lexicon: { getOccurrences: async (num: string) => num === 'H3068' ? H3068_OCC : [] },
   }
 })
 
@@ -53,10 +62,57 @@ describe('scriptureSearch (shared algorithm)', () => {
     expect(hits.every((h) => typeof h.textId === 'string')).toBe(true)
   })
 
+  // ── expandScriptureQuery + the Strong's bridge (word-replacer → Strong's number) ──
+  const strongsRules: WordReplacerRule[] = [
+    { id: 's-h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true },
+  ]
+
+  it('expandScriptureQuery: plain text rule produces both directions as variants', () => {
+    const rules: WordReplacerRule[] = [{ id: 'r1', queries: ['jesus'], replacement: 'Yeshua', wholeWord: true, enabled: true }]
+    const { variants, strongsBridge } = expandScriptureQuery('Yeshua', rules, 'all')
+    expect(variants.map((v) => v.toLowerCase())).toEqual(expect.arrayContaining(['yeshua', 'jesus']))
+    expect(strongsBridge).toBeNull()
+  })
+
+  it('a Strong\'s-only rule ("Yehovah") bridges to occurrence search, merged with FTS results', async () => {
+    const hits = await runScriptureSearch('Yehovah', { textId: 'kjva', wordMode: 'all', wordReplacerEnabled: true, wordReplacerRules: strongsRules })
+    expect(hits.map((h) => `${h.book_id}.${h.chapter}.${h.verse_num}`).sort()).toEqual(['GEN.2.4', 'GEN.4.6'])
+    expect(hits.every((h) => h.textId === 'kjva')).toBe(true)
+    expect(hits.find((h) => h.verse_num === 4)?.strongsWords).toEqual([1])
+  })
+
+  it('the Strong\'s-only bridge also works when searching "all" texts, scoped to Strong\'s-tagged texts only', async () => {
+    const hits = await runScriptureSearch('Yehovah', {
+      textId: 'all', wordMode: 'all', wordReplacerEnabled: true, wordReplacerRules: strongsRules,
+      targets: ['kjva', 'lxx', 'enoch'], // enoch has no Strong's tagging — bridge must not touch it
+    })
+    const byText = hits.map((h) => `${h.textId}:${h.book_id}.${h.chapter}.${h.verse_num}`).sort()
+    expect(byText).toEqual(['kjva:GEN.2.4', 'kjva:GEN.4.6', 'lxx:GEN.2.4'])
+  })
+
+  it('dedupes when the bridge and an FTS variant both find the same verse', async () => {
+    // "lord said" is a real FTS hit for GEN.4.6 (corpus above); the H3068 occurrence bridge
+    // also carries GEN.4.6 — the merged result must list it once, with strongsWords attached.
+    const rules: WordReplacerRule[] = [...strongsRules, { id: 'said', queries: ['said'], replacement: 'said', wholeWord: true, enabled: false }]
+    const hits = await runScriptureSearch('lord said', { textId: 'kjva', wordMode: 'all', wordReplacerEnabled: true, wordReplacerRules: rules })
+    const gen46 = hits.filter((h) => h.book_id === 'GEN' && h.chapter === 4 && h.verse_num === 6)
+    expect(gen46).toHaveLength(1)
+  })
+
+  it('phrase mode: a Strong\'s-only rule bridges via a literal-rendering substitution ("Yehovah said" → "LORD said")', async () => {
+    const hits = await runScriptureSearch('Yehovah said', { textId: 'kjva', wordMode: 'phrase', wordReplacerEnabled: true, wordReplacerRules: strongsRules })
+    expect(hits.map((h) => `${h.book_id}.${h.chapter}.${h.verse_num}`)).toEqual(['GEN.4.6'])
+    // GEN.2.4 ("the LORD God made the earth") carries H3068 but doesn't contain the phrase
+    // "LORD said" — the phrase post-filter must exclude it even though it's a Strong's hit.
+    expect(hits.some((h) => h.verse_num === 4)).toBe(false)
+  })
+
   it('Strong\'s queries resolve through lexicon occurrences with word indices; non-Strong\'s → null', async () => {
     expect(await runStrongsSearch('in the beginning')).toBeNull()
     const hits = await runStrongsSearch('H3068')
-    expect(hits?.map((h) => [h.book_id, h.chapter, h.verse_num, h.strongsWords])).toEqual([['GEN', 2, 4, [1]]])
+    // H3068_OCC (shared mock above) now carries 3 distinct occurrence rows (two kjva, one lxx)
+    expect(hits?.map((h) => [h.book_id, h.chapter, h.verse_num, h.strongsWords]).sort((a, b) => (a[2] as number) - (b[2] as number)))
+      .toEqual([['GEN', 2, 4, [1]], ['GEN', 2, 4, [1]], ['GEN', 4, 6, [2]]])
   })
 
   it('groups hits by book in order of appearance with verses sorted', () => {

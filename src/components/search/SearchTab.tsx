@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
+import { runScriptureSearch } from '@/lib/scriptureSearch'
 import { displayVerseText } from '@/lib/scriptureText'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
@@ -185,28 +185,22 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const runSearch = useCallback(async (q: string, tid: string) => {
     const trimmed = q.trim()
     if (trimmed.length < 2) { setResults([]); return }
-    // Expand query with original terms for any replacement words (e.g. "yeshua" → also "jesus")
     const state = useAppStore.getState()
-    const searchQ = state.wordReplacerEnabled
-      ? expandQueryForWordReplacer(trimmed, state.wordReplacerRules)
-      : trimmed
     setLoading(true)
     try {
-      if (tid === 'all') {
-        // Search all texts in parallel
-        const allResults = await Promise.all(
-          SEARCH_TRANSLATIONS.map(async (t) => {
-            try {
-              const res = await window.bible.searchText(searchQ, t.id)
-              return (res as unknown as RawResult[]).map((r) => ({ ...r, _textId: t.id }))
-            } catch { return [] }
-          })
-        )
-        setResults(allResults.flat())
-      } else {
-        const res = await window.bible.searchText(searchQ, tid)
-        setResults((res as unknown as RawResult[]).map((r) => ({ ...r, _textId: tid })))
-      }
+      // Shared algorithm (scriptureSearch.ts) — bidirectional word-replacer variants run as
+      // separate queries and merged, plus the word-replacer → Strong's bridge (e.g. "yehovah"
+      // restores from H3068/H3069, which plain FTS can never find). `targets` keeps this tab's
+      // own curated "all texts" list (SEARCH_TRANSLATIONS) rather than scriptureSearch's
+      // slightly different default set.
+      const hits = await runScriptureSearch(trimmed, {
+        textId: tid,
+        wordMode: 'all',
+        wordReplacerEnabled: state.wordReplacerEnabled,
+        wordReplacerRules: state.wordReplacerRules,
+        targets: SEARCH_TRANSLATIONS.map((t) => t.id),
+      })
+      setResults(hits.map((h) => ({ book_id: h.book_id, chapter: h.chapter, verse_num: h.verse_num, text: h.text, _textId: h.textId })))
     } catch {
       setResults([])
     } finally {

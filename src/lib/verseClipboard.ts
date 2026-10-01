@@ -1,40 +1,17 @@
-import { bookName, getTranslationForBook } from './parseRef'
-import { editionForTextId } from './bibleTexts'
-import { displayChapter } from './chapterNumbering'
+import { bookChapterVerseLabel } from './parseRef'
 import { displayVerseText } from './scriptureText'
 
-/** Recognitions of Clement (RCL1-10) has a genuine 3-level Book.Chapter.Verse addressing
- *  scheme, so its copy format spells out the edition's full name and book number
- *  explicitly (e.g. "Recognitions of Clement, Book 5, 3:5") rather than relying on
- *  bookName()'s per-book label, which for RCL is just "Recognitions, Book N" (missing
- *  "of Clement"). T12P's bookName() labels are single, unadorned names ("Testament of
- *  Reuben") that read fine with a bare space before chapter:verse. Hermas's bookName()
- *  labels ("Hermas, Visions" / "Hermas, Mandates" / "Hermas, Similitudes") already carry
- *  their OWN internal comma — a bare space straight after "Similitudes" before the
- *  chapter:verse number read as visually run-together, so those get the same "comma
- *  before chapter:verse" treatment RCL already has, producing e.g. "Hermas, Similitudes,
- *  35:1" — parseRef's own book-token group now tolerates an embedded comma either way
- *  (see that file's comment), so this stays round-trippable for the notes auto-detection
- *  system, not just display. */
-function bookRefLabel(bookId: string, chapter: number, verse: number): string {
-  chapter = displayChapter(bookId, chapter) // RCL3 shows ANF numbering (chapterNumbering.ts)
-  const rcl = bookId.match(/^RCL(\d{1,3})$/)
-  if (rcl) {
-    const textId = getTranslationForBook(bookId)
-    const editionName = (textId && editionForTextId(textId)?.label) || 'Recognitions of Clement'
-    return `${editionName}, Book ${rcl[1]}, ${chapter}:${verse}`
-  }
-  if (bookId === 'HER_VIS' || bookId === 'HER_MAN' || bookId === 'HER_SIM') {
-    return `${bookName(bookId)}, ${chapter}:${verse}`
-  }
-  return `${bookName(bookId)} ${chapter}:${verse}`
-}
-
 /** Human-readable verse reference, e.g. "Genesis 1:1", "Genesis 1:1-3", or
- *  "Recognitions of Clement, Book 5, 3:5". Optional LXX suffix. `endVerse`, when greater
- *  than `verse`, renders a "verse-endVerse" range instead of a single verse number. */
+ *  "Recognitions of Clement, Book 5, Chapter 3:5" / "Shepherd of Hermas, Vision 2.1:2" for
+ *  the multi-book/sectioned editions. This is a thin wrapper around parseRef.ts's
+ *  `bookChapterVerseLabel` — the ONE canonical reference-display formatter (full book
+ *  names, Recognitions of Clement's Book N addressing, Hermas's Vision/Mandate/Similitude
+ *  numbering via hermasMap.ts) — so copy-verse output and the reference bar/search/tab
+ *  labels never drift into two different display conventions for the same reference.
+ *  `endVerse`, when greater than `verse`, renders a "verse-endVerse" range instead of a
+ *  single verse number. */
 export function formatVerseRef(bookId: string, chapter: number, verse: number, lxx = false, endVerse?: number): string {
-  const label = bookRefLabel(bookId, chapter, verse)
+  const label = bookChapterVerseLabel(bookId, chapter, verse)
   const withRange = endVerse && endVerse > verse ? `${label}-${endVerse}` : label
   return `${withRange}${lxx ? ' LXX' : ''}`
 }

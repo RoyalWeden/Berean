@@ -792,12 +792,15 @@ describe('extractRefsFromNote — Recognitions of Clement "Book N" subdivision',
     expect(r!.verse).toBe(8)
   })
 
-  it('bare "Recognitions of Clement 5:3" (no Book N) defaults to Book 1', () => {
+  it('bare "Recognitions of Clement 5:3" (no "Book N" phrase) treats the first number as the BOOK', () => {
+    // Recognitions of Clement has no "book 1 by default" — it's genuinely addressed
+    // Book.Chapter[.Verse], so this means Book 5, chapter 3 (no verse), not Book 1
+    // chapter 5 verse 3 (see parseRef.ts's tryGenericRecognitionsRef).
     const refs = extractRefsFromNote('quoting Recognitions of Clement 5:3 here', 'Note')
-    const r = refs.find(r => r.bookId === 'RCL1')
+    const r = refs.find(r => r.bookId === 'RCL5')
     expect(r).toBeTruthy()
-    expect(r!.chapter).toBe(5)
-    expect(r!.verse).toBe(3)
+    expect(r!.chapter).toBe(3)
+    expect(r!.verse).toBeFalsy()
   })
 })
 
