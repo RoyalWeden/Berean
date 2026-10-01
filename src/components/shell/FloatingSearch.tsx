@@ -118,17 +118,17 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   enoch:         '1 Enoch',
   jubilees:      'Jubilees',
   lxx:           'LXX',
-  hermas:        'Hermas',
-  ep_barnabas:   'Barnabas',
-  asc_isaiah:    'Asc. Isaiah',
-  recog_clement: 'Recog. Clement',
-  apoc_elijah:   'Apoc. Elijah',
-  t12p:          '12 Patriarchs',
+  hermas:        'Shepherd of Hermas',
+  ep_barnabas:   'Epistle of Barnabas',
+  asc_isaiah:    'Ascension of Isaiah',
+  recog_clement: 'Recognitions of Clement',
+  apoc_elijah:   'Apocalypse of Elijah',
+  t12p:          'Testaments of the Twelve Patriarchs',
   gad:           'Gad the Seer',
-  t_job:         'T. Job',
+  t_job:         'Testament of Job',
   '1clement':    '1 Clement',
-  apoc_abraham:  'Apoc. Abraham',
-  t_jacob:       'T. Jacob',
+  apoc_abraham:  'Apocalypse of Abraham',
+  t_jacob:       'Testament of Jacob',
   '2baruch':     '2 Baruch',
 }
 
@@ -1028,7 +1028,9 @@ export default function FloatingSearch() {
   const verseRows = useMemo(() => {
     return scopedVerseResults.slice(0, 12).map((v) => {
       const book = books.find((b) => b.id === v.book_id)
-      const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
+      // The full book name already names the work (1 Enoch, Recognitions of Clement …); only a
+      // second edition of the SAME book (the LXX) needs its source spelled out.
+      const sourceLabel = v.sourceTextName && v.sourceTextId === 'lxx' ? ` · ${v.sourceTextName}` : ''
       let displayText: string
       if (v.wrIndices?.length && v.wrReplacement) {
         const idxSet = new Set(v.wrIndices)
@@ -1048,7 +1050,9 @@ export default function FloatingSearch() {
       const subText = makeSnippet(displayText, snippetTerm, subLen, searchWordMode)
       const highlightTerms = [cleanQuery, replacedQuery, v.wrReplacement].filter((t): t is string => !!t && t.trim().length > 0)
       return {
-        label: `${book?.short_name ?? v.book_id} ${displayChapter(v.book_id, v.chapter)}:${v.verse_num}${sourceLabel}`,
+        // Full names, never internal abbreviations ("Matthew 10:32", "Recognitions of Clement,
+        // Book 4, 35:1" — TEST 2026-09-29): the one canonical formatter.
+        label: `${bookChapterVerseLabel(v.book_id, v.chapter, v.verse_num)}${sourceLabel}`,
         sub: subText,
         highlightTerms,
         nav: { book_id: v.book_id, chapter: v.chapter, verse_num: v.verse_num, sourceTextId: v.sourceTextId as string | undefined },

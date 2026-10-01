@@ -321,12 +321,12 @@ describe('bookName', () => {
 })
 
 describe('bookChapterVerseLabel', () => {
-  it('spells out the full work name and the literal word "Chapter" for "Book N" editions', () => {
+  it('spells out the full work name as "Work, Book N, ch:v" (TEST 2026-09-29)', () => {
     // Was "Recognitions, Book 9, 2" — ambiguous about what "2" even is. Per feedback, the
     // full work name plus an explicit "Chapter" reads unambiguously everywhere this citation
     // format shows up (Study Trail map labels included).
     expect(bookChapterVerseLabel('RCL9', 2)).toBe('Recognitions of Clement, Book 9, Chapter 2')
-    expect(bookChapterVerseLabel('RCL9', 2, 5)).toBe('Recognitions of Clement, Book 9, Chapter 2:5')
+    expect(bookChapterVerseLabel('RCL9', 2, 5)).toBe('Recognitions of Clement, Book 9, 2:5')
   })
 
   it('is unaffected for ordinary books', () => {
@@ -458,7 +458,7 @@ describe('parseRef — Recognitions Book 3 ANF chapter numbering', () => {
   })
   it('labels show ANF numbers and round-trip through parseRef', () => {
     const label = bookChapterVerseLabel('RCL3', 45, 2)
-    expect(label).toBe('Recognitions of Clement, Book 3, Chapter 55:2')
+    expect(label).toBe('Recognitions of Clement, Book 3, 55:2')
     expect(parseRef(label)).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
     expect(bookChapterHoverLabel('RCL3', 2)).toBe('Recognitions of Clement 12, Book 3')
     expect(bookChapterLabel('RCL3', 1)).toBe('Recognitions, Book 3 1')

@@ -375,7 +375,9 @@ export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: n
   if (bookQualifierMatch) {
     const [, prefix, qualifier] = bookQualifierMatch
     const full = FULL_WORK_NAME[prefix] ?? prefix
-    const chapterLabel = verse != null ? `Chapter ${chapter}:${verse}` : `Chapter ${chapter}`
+    // TEST 2026-09-29: "Recognitions of Clement, Book 4, 35:1". Without a verse the word "Chapter"
+    // stays, so "Book 4, 35" never reads as one number.
+    const chapterLabel = verse != null ? `${chapter}:${verse}` : `Chapter ${chapter}`
     return `${full}, ${qualifier}, ${chapterLabel}`
   }
   return verse != null ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
