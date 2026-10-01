@@ -3,7 +3,7 @@ import { Hash, Search as SearchIcon, BookOpen, Trash2 } from 'lucide-react'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { applyFindHighlight } from '@/lib/highlight'
 import { buildAllWordsSnippet } from '@/components/bible/ScriptureSearchView'
-import { displayVerseText } from '@/lib/scriptureText'
+import { displayHitText } from '@/lib/scriptureText'
 import type { ScriptureHit } from '@/lib/scriptureSearch'
 import { useIncrementalLimit } from '../search/useIncrementalLimit'
 import { haptic } from '../primitives/haptics'
@@ -31,7 +31,7 @@ export function TextSearchResults({ title, hits, query, kind, onPick }: {
       <div className="m-pp-list" role="list" aria-label={title}>
         {shown.map((h, i) => {
           const ref = bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)
-          const display = displayVerseText(h.text, h.text_tagged ?? null, h.textId)
+          const display = displayHitText(h)
           const snippet = buildAllWordsSnippet(display, kind === 'strongs' ? '' : query, 160).text
           const body = kind === 'strongs' && h.strongsWords?.length
             ? highlightWords(snippet, h.strongsWords)

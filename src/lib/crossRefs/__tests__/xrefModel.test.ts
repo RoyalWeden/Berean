@@ -66,3 +66,17 @@ describe('passage text', () => {
     expect(targetVerses({ bookId: 'PSA', chapter: 119, verse: 1, endVerse: 176 })).toHaveLength(40)
   })
 })
+
+describe('cross-reference text keeps Strong\'s tags (TEST 2026-09-29 word replacer in cross refs)', () => {
+  it('resolved items carry textTagged + textId so LORD → Yehovah applies', async () => {
+    const { resolveXRefTexts, __clearXRefTextCache } = await import('../xrefModel')
+    __clearXRefTextCache()
+    ;(window as unknown as { bible: unknown }).bible = {
+      queryVerses: async () => ({ 'ISA.29.6': { text: 'visited of the Lord of hosts', text_tagged: 'visited{H6485} of the Lord{H3068} of hosts{H6635}' } }),
+    }
+    const [item] = await resolveXRefTexts([{ key: 'ISA.29.6', bookId: 'ISA', chapter: 29, verse: 6, source: 'tske', fromVerses: [1] } as never])
+    expect(item.text).toBe('visited of the Lord of hosts')
+    expect(item.textTagged).toContain('{H3068}')
+    expect(item.textId).toBe('kjva')
+  })
+})

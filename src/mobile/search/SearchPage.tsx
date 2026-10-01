@@ -8,7 +8,7 @@ import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyFindHighlight } from '@/lib/highlight'
 import { buildAllWordsSnippet } from '@/components/bible/ScriptureSearchView'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
-import { displayVerseText } from '@/lib/scriptureText'
+import { displayHitText } from '@/lib/scriptureText'
 import { openDestination, type NavIntent } from '@/lib/navigation/destination'
 import { runUnifiedSearch, resolvePlace, type UnifiedResults } from '@/lib/search/unifiedSearch'
 import { UnifiedResultsList, type UnifiedPick } from './UnifiedResults'
@@ -305,10 +305,10 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const q = browsing ? '' : query.trim()
     if (scope === 'scripture' && filteredHits && (q.length >= 2 || browsing)) {
       const rows = groups.flatMap((g) => g.hits.slice(0, 3)).slice(0, 3)
-      return buildSearchPreview(q, filteredHits.length, rows.map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(displayVerseText(h.text, h.text_tagged ?? null, h.textId), snippetQueryFor(q), 120).text })))
+      return buildSearchPreview(q, filteredHits.length, rows.map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(displayHitText(h), snippetQueryFor(q), 120).text })))
     }
     if (scope === 'all' && unified?.verses && unified.verses.length && q.length >= 2) {
-      return buildSearchPreview(q, unified.verses.length, unified.verses.slice(0, 3).map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(displayVerseText(h.text, h.text_tagged ?? null, h.textId), snippetQueryFor(q), 120).text })))
+      return buildSearchPreview(q, unified.verses.length, unified.verses.slice(0, 3).map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(displayHitText(h), snippetQueryFor(q), 120).text })))
     }
     if (scope === 'notes' && notes && q.length >= 2) return buildSearchPreview(q, notes.length, notes.map((n) => ({ ref: displayNoteTitle(n.title), text: stripMarkdownFormatting(n.content ?? '') })))
     if (scope === 'lexicon' && entries && q.length >= 2) return buildSearchPreview(q, entries.length, entries.map((e) => ({ ref: `${e.strongsNum} ${e.lemma ?? ''}`.trim(), text: e.gloss ?? '' })))
@@ -416,7 +416,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
                   {g.hits.map((h) => (
                     <LongPressResult key={`${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`} onLongPress={() => resultActions.scripture(h)}><Row chevron onClick={() => openHit(h)}
                       title={<span className="mobile-occurrence-ref">{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{h.textId === 'lxx' ? <span className="mobile-muted"> LXX</span> : null}</span>}
-                      subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(displayVerseText(h.text, h.text_tagged ?? null, h.textId), snippetQuery, 140).text, h.strongsWords ? '' : snippetQuery, wordMode)}</span>} /></LongPressResult>
+                      subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(displayHitText(h), snippetQuery, 140).text, h.strongsWords && !h.wrReplacement && !h.text_tagged ? '' : snippetQuery, wordMode)}</span>} /></LongPressResult>
                   ))}
                 </ListSection>
               )

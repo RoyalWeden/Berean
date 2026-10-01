@@ -52,3 +52,28 @@ export function useScriptureText() {
       buildVerseDisplayText(text, textTagged, textId, wordReplacerEnabled, wordReplacerRules),
   }
 }
+
+/** Swap a word for the replacement, keeping a possessive and surrounding punctuation ("LORD's," →
+ *  "Yehovah's,"). */
+export function replaceWordKeepingAffixes(word: string, replacement: string): string {
+  const m = word.match(/^(\W*)([A-Za-z]+)('[Ss])?(\W*)$/)
+  if (!m) return replacement
+  const [, lead, , poss, trail] = m
+  return lead + replacement + (poss ? "'s" : '') + (trail ?? '')
+}
+
+/**
+ * Display text for a SEARCH HIT. A Word Replacer bridge hit (typed "Yehovah" → verses carrying
+ * H3068/H3069) comes from occurrence rows with no tagged text, so the Strong's-number rule cannot
+ * run on it; the restored word is put back at the matched word positions instead, then the plain
+ * rules run. Every other hit is shown exactly as the reader shows it ({@link displayVerseText}).
+ */
+export function displayHitText(
+  hit: { text: string; text_tagged?: string | null; textId: string; strongsWords?: number[]; wrReplacement?: string },
+  opts: ScriptureTextOptions = {},
+): string {
+  if (hit.text_tagged || !hit.wrReplacement || !hit.strongsWords?.length) return displayVerseText(hit.text, hit.text_tagged ?? null, hit.textId, opts)
+  const idx = new Set(hit.strongsWords)
+  const swapped = hit.text.split(' ').map((w, i) => (idx.has(i) ? replaceWordKeepingAffixes(w, hit.wrReplacement!) : w)).join(' ')
+  return displayVerseText(swapped, null, hit.textId === 'kjva' ? 'plain' : hit.textId, opts)
+}

@@ -5,7 +5,7 @@ import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchRe
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
   queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<Verse | null>
-  queryVerses: (refs: Array<{ bookId: string; chapter: number; verse: number }>, textId?: string) => Promise<Record<string, { text: string; title?: string }>>
+  queryVerses: (refs: Array<{ bookId: string; chapter: number; verse: number }>, textId?: string) => Promise<Record<string, { text: string; title?: string; text_tagged?: string | null }>>
   searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase', bookIds?: string[]) => Promise<SearchResult[]>
   getBooks: (textId?: string) => Promise<Book[]>
 }
@@ -97,7 +97,7 @@ interface VerseTagsAPI {
 
 interface LexiconAPI {
   getEntry: (strongsNum: string) => Promise<LexiconEntry | null>
-  getOccurrences: (strongsNum: string, quickLimit?: number) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices: number[] }[]>
+  getOccurrences: (strongsNum: string, quickLimit?: number) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; text_tagged?: string | null; matchWordIndices: number[] }[]>
   getRelated: (strongsNum: string) => Promise<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>
   search: (query: string, lang: 'H' | 'G' | 'all') => Promise<LexiconEntry[]>
 }

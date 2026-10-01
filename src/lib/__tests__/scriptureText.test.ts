@@ -31,3 +31,21 @@ describe('displayVerseText', () => {
       .toBe('Yeshua wept.')
   })
 })
+
+import { displayHitText } from '../scriptureText'
+
+describe('displayHitText (search hits)', () => {
+  const rules = [{ id: 'y', find: '', replacement: 'Yehovah', enabled: true, strongsNum: 'H3068', queries: [] }] as never
+  it('a bridge hit without tagged text gets the restored word at its matched positions', () => {
+    const hit = { text: 'when the Lord carried away Judah', textId: 'kjva', strongsWords: [2], wrReplacement: 'Yehovah' }
+    expect(displayHitText(hit, { enabled: true, rules })).toBe('when the Yehovah carried away Judah')
+  })
+  it("keeps punctuation and possessives", () => {
+    const hit = { text: "the Lord's house,", textId: 'kjva', strongsWords: [1], wrReplacement: 'Yehovah' }
+    expect(displayHitText(hit, { enabled: true, rules })).toBe("the Yehovah's house,")
+  })
+  it('an ordinary hit is shown exactly as the reader shows it', () => {
+    const hit = { text: 'In the beginning', textId: 'kjva' }
+    expect(displayHitText(hit, { enabled: true, rules })).toBe('In the beginning')
+  })
+})

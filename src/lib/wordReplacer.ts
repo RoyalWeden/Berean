@@ -108,6 +108,9 @@ export interface WordReplacerStrongsSearch {
   strongsNums: string[]
   /** The remaining typed words, to AND against each Strong's hit's verse text. */
   residualWords: string[]
+  /** The restored word the user typed (rule's replacement) — shown at the hit's matched word
+   *  positions, since occurrence rows carry no tagged text. */
+  replacement?: string
 }
 
 /**
@@ -137,9 +140,11 @@ export function getWordReplacerStrongsSearch(
     })
   }
   if (strongsNums.size === 0) return null
+  const first = rules.find((r) => r.enabled && r.strongsNum && strongsNums.has(r.strongsNum))
   return {
     strongsNums: [...strongsNums],
     residualWords: tokens.filter((_, i) => !matchedIdx.has(i)),
+    replacement: first?.replacement,
   }
 }
 

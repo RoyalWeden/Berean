@@ -15,7 +15,7 @@ import type { SheetApi } from '../primitives/Sheet'
 export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: string; api: SheetApi; onNavigate?: () => void }) {
   const [entry, setEntry] = useState<LexiconEntry | null | undefined>(undefined)
   const [related, setRelated] = useState<Array<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }>>([])
-  const [occ, setOcc] = useState<Array<{ book_id: string; chapter: number; verse_num: number; text: string }>>([])
+  const [occ, setOcc] = useState<Array<{ book_id: string; chapter: number; verse_num: number; text: string; text_tagged?: string | null; text_id?: string }>>([])
   const [num, setNum] = useState(strongsNum)
   const [copied, setCopied] = useState(false)
   const lang: 'H' | 'G' = num.startsWith('G') ? 'G' : 'H'
@@ -85,7 +85,7 @@ export function StrongsSheet({ strongsNum, api, onNavigate }: { strongsNum: stri
             <li key={`${o.book_id}-${o.chapter}-${o.verse_num}`}>
               <button type="button" onClick={() => go(o.book_id, o.chapter, o.verse_num)}>
                 <span className="mobile-occurrence-ref">{bookChapterVerseLabel(o.book_id, o.chapter, o.verse_num)}</span>
-                <span className="mobile-occurrence-text">{displayVerseText(o.text, null, 'kjv')}</span>
+                <span className="mobile-occurrence-text">{displayVerseText(o.text, o.text_tagged ?? null, o.text_id ?? 'kjva')}</span>
               </button>
             </li>
           ))}

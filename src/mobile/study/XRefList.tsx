@@ -43,7 +43,7 @@ export function XRefCard({ item, variant = 'regular', onOpen, showSource }: { it
   const actions = useActionSheet()
   const { displayVerseText } = useScriptureText()
   const label = xrefLabel(item)
-  const displayText = item.text ? displayVerseText(item.text, null, 'kjv') : item.text
+  const displayText = item.text ? displayVerseText(item.text, item.textTagged ?? null, item.textId ?? 'kjv') : item.text
   const long = (displayText?.length ?? 0) > LONG || (!!item.endVerse && item.endVerse > item.verse)
   const lp = useLongPress(() => {
     void haptic.medium()

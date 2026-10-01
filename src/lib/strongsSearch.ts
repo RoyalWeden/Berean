@@ -60,6 +60,7 @@ interface StrongsOccurrenceRow {
    *  Greek numbers — see lexiconService.ts). Optional/defaults to 'kjva' for callers
    *  (older tests, single-text call sites) that don't supply it. */
   text_id?: string
+  text_tagged?: string | null
   matchWordIndices?: number[]
 }
 
@@ -69,6 +70,7 @@ export interface MultiStrongsResult {
   verse_num: number
   text: string
   text_id: string
+  text_tagged?: string | null
   matchWordIndices: number[]
 }
 
@@ -113,6 +115,7 @@ export async function searchMultiStrongs(
     verse_num: e.row.verse_num,
     text: e.row.text,
     text_id: e.row.text_id ?? 'kjva',
+    text_tagged: e.row.text_tagged ?? null,
     matchWordIndices: [...e.indices],
   }))
 }
@@ -151,6 +154,7 @@ export async function searchAnyStrongs(
     verse_num: e.row.verse_num,
     text: e.row.text,
     text_id: e.row.text_id ?? 'kjva',
+    text_tagged: e.row.text_tagged ?? null,
     matchWordIndices: [...e.indices],
   }))
 }

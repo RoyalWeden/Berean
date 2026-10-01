@@ -6,7 +6,7 @@ import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyFindHighlight } from '@/lib/highlight'
 import { buildAllWordsSnippet } from '@/components/bible/ScriptureSearchView'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
-import { useScriptureText } from '@/lib/scriptureText'
+import { useScriptureText, displayHitText } from '@/lib/scriptureText'
 import type { ScriptureHit } from '@/lib/scriptureSearch'
 import type { WordMode } from '@/lib/scriptureHighlight'
 import { hitSourceLabel, type GoToItem, type UnifiedResults as Results, type UnifiedScope } from '@/lib/search/unifiedSearch'
@@ -64,7 +64,7 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
       {verses && verses.length > 0 && (
         <Group title="Verses" count={verses.length}>
           {verses.slice(0, rows(GROUP_ROWS.verses)).map((h) => {
-            const hText = displayVerseText(h.text, h.text_tagged ?? null, h.textId)
+            const hText = displayHitText(h)
             return wrap({ kind: 'verse', hit: h }, (
               <Row icon={BookOpen} onClick={() => onPick({ kind: 'verse', hit: h })}
                 title={<>{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{sourceBadge(h.textId)}</>}

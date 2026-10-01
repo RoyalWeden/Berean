@@ -22,6 +22,8 @@ export interface ScriptureHit {
   textId: string
   /** Word indices (verse.text.split(' ')) that matched a Strong's query / replacer bridge. */
   strongsWords?: number[]
+  /** Replacer bridge hit: the restored word to show at `strongsWords` (displayHitText). */
+  wrReplacement?: string
 }
 
 export interface ScriptureSearchOptions {
@@ -175,10 +177,13 @@ export async function runScriptureSearch(query: string, o: ScriptureSearchOption
         if (!bridgeTargetSet.has(h.text_id)) continue
         const k = key(h, h.text_id)
         const existing = raw.find((r) => r.textId === h.text_id && key(r) === key(h))
-        if (existing) { existing.strongsWords = h.matchWordIndices; continue }
+        if (existing) { existing.strongsWords = h.matchWordIndices; if (!existing.text_tagged) { if (h.text_tagged) existing.text_tagged = h.text_tagged; else existing.wrReplacement = strongsBridge.replacement } continue }
         if (seen.has(k)) continue
         if (scope && !scope.has(h.book_id)) continue
-        raw.push({ book_id: h.book_id, chapter: h.chapter, verse_num: h.verse_num, text: h.text, textId: h.text_id, strongsWords: h.matchWordIndices })
+        // Tagged text when the occurrence row has it (the reader's own Strong's-number display);
+        // otherwise the restored word goes back at the matched positions (displayHitText).
+        raw.push({ book_id: h.book_id, chapter: h.chapter, verse_num: h.verse_num, text: h.text, textId: h.text_id, strongsWords: h.matchWordIndices,
+          ...(h.text_tagged ? { text_tagged: h.text_tagged } : { wrReplacement: strongsBridge.replacement }) })
       }
     } catch { /* best-effort — FTS results still stand */ }
   }
@@ -190,7 +195,7 @@ export async function runStrongsSearch(query: string): Promise<ScriptureHit[] | 
   const parsed = parseMultiStrongsQuery(query)
   if (!parsed) return null
   const found = await searchMultiStrongs(parsed, window.lexicon.getOccurrences)
-  return found.map((o) => ({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, textId: 'kjva', strongsWords: o.matchWordIndices }))
+  return found.map((o) => ({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, textId: o.text_id ?? 'kjva', strongsWords: o.matchWordIndices, ...(o.text_tagged ? { text_tagged: o.text_tagged } : {}) }))
 }
 
 // ── Verse-tag filter ──────────────────────────────────────────────────────────
