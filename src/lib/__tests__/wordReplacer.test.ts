@@ -105,6 +105,13 @@ describe('getWordReplacerSearchVariants — real bidirectional search variants',
   it('a query with no matching rule returns just itself', () => {
     expect(getWordReplacerSearchVariants('grace and truth', rules)).toEqual(['grace and truth'])
   })
+
+  it('respects word boundaries — "Yeshua" does not match inside a longer word', () => {
+    const variants = getWordReplacerSearchVariants('yeshuah movement', rules)
+    // No variant should have mangled "yeshuah" into "jesush" or similar
+    expect(variants.every((v) => !/jesush/i.test(v))).toBe(true)
+    expect(variants).toEqual(['yeshuah movement'])
+  })
 })
 
 // The Strong's-number rules (H3068 → "Yehovah" etc.) carry no `queries`, so

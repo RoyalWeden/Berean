@@ -1,4 +1,6 @@
 import React from 'react'
+import { applyLiquidGlassTokens, loadLiquidGlassCapabilities } from '@/platform/liquidGlass'
+import { installWindowActiveStamp } from '@/lib/windowActive'
 import ReactDOM from 'react-dom/client'
 import { MotionConfig } from 'framer-motion'
 import App from './App'
@@ -66,20 +68,17 @@ const isVersePickerMode = searchParams.get('versePicker') === '1'
   else delete html.dataset.vibrant
 }
 
+// Liquid Glass: platform geometry tokens (--lg-*) and the one-time native capability probe
+// (src/platform/liquidGlass). Without a native bridge every surface keeps its CSS material.
+applyLiquidGlassTokens(document.documentElement, window.__berean_platform === 'darwin' ? 'macos' : 'web')
+void loadLiquidGlassCapabilities()
+
 // Inactive-window stamp (§85) — electron/main.ts forwards this window's own focus/blur as
 // app:windowActive; global.css's html[data-inactive] dims chrome to match every other native
 // Mac app once it isn't key. Initialised from document.hasFocus() so a window that opens
 // already out of focus (e.g. a secondary window spawned behind the main one) starts dim too,
 // rather than waiting for its first blur event.
-{
-  const html = document.documentElement
-  if (!document.hasFocus()) html.dataset.inactive = ''
-  else delete html.dataset.inactive
-  window.app?.onWindowActive?.((active) => {
-    if (active) delete html.dataset.inactive
-    else html.dataset.inactive = ''
-  })
-}
+installWindowActiveStamp({ html: document.documentElement, win: window, doc: document, onWindowActive: window.app?.onWindowActive })
 
 // Reduce Transparency (System Settings → Accessibility → Display) — global.css's
 // html[data-reduce-transparency] already swaps every material to its opaque twin.

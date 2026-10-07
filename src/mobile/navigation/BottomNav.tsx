@@ -3,6 +3,8 @@ import { Plus, ChevronUp } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { haptic } from '../primitives/haptics'
 import { workspaceTabs } from '../tabs/TabCardsSheet'
+import { useChromeState } from './chromeState'
+import { useLiquidGlassControls } from '@/platform/liquidGlass'
 
 /**
  * The iPhone's three persistent navigation controls (TEST-030/031/032/033, brief §25–31), shown on
@@ -23,6 +25,10 @@ export function BottomNav({ onTabs, onPlus, onCaret, caretLabel }: { onTabs: () 
   const all = useMemo(() => workspaceTabs(tabs, stored), [tabs, stored])
   const count = all.length
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null)
+  const tabsRef = useRef<HTMLButtonElement>(null)
+  const plusRef = useRef<HTMLButtonElement>(null)
+  const caretRef = useRef<HTMLButtonElement>(null)
+  const chrome = useChromeState()
 
   const step = (dir: 1 | -1) => {
     const i = all.findIndex((e) => e.space === activeSpace && e.tab.id === activeTabId[activeSpace])
@@ -31,6 +37,24 @@ export function BottomNav({ onTabs, onPlus, onCaret, caretLabel }: { onTabs: () 
     void haptic.selection()
     useAppStore.getState().setActiveTab(next.space, next.tab.id)
   }
+
+  const pressTabs = () => { void haptic.light(); onTabs() }
+  const pressPlus = () => { void haptic.light(); onPlus() }
+  const pressCaret = () => { void haptic.light(); onCaret() }
+
+  // Liquid Glass (docs/liquid-glass.md §iOS): with the native bridge these three controls are drawn
+  // by UIKit — interactive UIGlassEffect buttons in one UIGlassContainerEffect, ABOVE the web view,
+  // so the glass refracts the text scrolling beneath. The web buttons below stay as invisible
+  // placeholders (layout, occlusion by sheets, and the fallback everywhere else).
+  const { isNative } = useLiquidGlassControls('bottom-nav', [
+    { id: 'tabs', ref: tabsRef, symbol: 'square.on.square', label: `Tabs, ${count} open`, badge: String(count), iconSize: 21, onPress: pressTabs },
+    { id: 'plus', ref: plusRef, symbol: 'plus', label: 'New tab or search', prominent: true, iconSize: 21, onPress: pressPlus },
+    { id: 'caret', ref: caretRef, symbol: 'chevron.up', label: caretLabel, iconSize: 19, onPress: pressCaret },
+  ], {
+    role: 'navigation',
+    collapsed: chrome.overlay ? chrome.collapsed : chrome.pageCollapsed,
+    onSwipe: (dir) => step(dir === 'next' ? 1 : -1),
+  })
 
   return (
     <nav
@@ -44,16 +68,16 @@ export function BottomNav({ onTabs, onPlus, onCaret, caretLabel }: { onTabs: () 
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2 && Date.now() - s.t < 600) step(dx < 0 ? 1 : -1)
       }}
     >
-      <button type="button" className="mobile-nav-tabs" onClick={() => { void haptic.light(); onTabs() }} aria-label={`Tabs, ${count} open`}>
+      <button ref={tabsRef} type="button" className={`mobile-nav-tabs${isNative('tabs') ? ' is-native-glass' : ''}`} onClick={pressTabs} aria-label={`Tabs, ${count} open`} aria-hidden={isNative('tabs') || undefined} tabIndex={isNative('tabs') ? -1 : undefined}>
         <span className="mobile-nav-tabs-stack" aria-hidden>
           <span className="mobile-nav-tabs-card is-back" />
           <span className="mobile-nav-tabs-card">{count}</span>
         </span>
       </button>
-      <button type="button" className="mobile-nav-plus" onClick={() => { void haptic.light(); onPlus() }} aria-label="New tab or search">
+      <button ref={plusRef} type="button" className={`mobile-nav-plus${isNative('plus') ? ' is-native-glass' : ''}`} onClick={pressPlus} aria-label="New tab or search" aria-hidden={isNative('plus') || undefined} tabIndex={isNative('plus') ? -1 : undefined}>
         <Plus size={24} aria-hidden />
       </button>
-      <button type="button" className="mobile-nav-caret" onClick={() => { void haptic.light(); onCaret() }} aria-label={caretLabel}>
+      <button ref={caretRef} type="button" className={`mobile-nav-caret${isNative('caret') ? ' is-native-glass' : ''}`} onClick={pressCaret} aria-label={caretLabel} aria-hidden={isNative('caret') || undefined} tabIndex={isNative('caret') ? -1 : undefined}>
         <ChevronUp size={24} aria-hidden />
       </button>
     </nav>

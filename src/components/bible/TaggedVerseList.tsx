@@ -2,6 +2,7 @@ import { ChevronRight, Tag as TagIcon } from 'lucide-react'
 import { resolveTagColor } from '@/lib/tagPalette'
 import { Badge, ListRow, RefChip } from '@/components/ui'
 import { VerseCopyMenu, useVerseCopyMenu } from './VerseCopyMenu'
+import { useScriptureText } from '@/lib/scriptureText'
 
 export interface TaggedVerseRow {
   bookId: string
@@ -39,6 +40,7 @@ export default function TaggedVerseList({
   outerMargin?: boolean
 }) {
   const ctx = useVerseCopyMenu()
+  const { displayVerseText } = useScriptureText()
   const mx = outerMargin ? 'mx-2' : ''
 
   return (
@@ -75,7 +77,9 @@ export default function TaggedVerseList({
             />
 
             <div className="px-3 pb-2 pt-0.5 flex flex-col gap-0.5">
-              {g.rows.map((v) => (
+              {g.rows.map((v) => {
+                const displayText = displayVerseText(v.text, null, 'kjv')
+                return (
                 <ListRow
                   key={`${v.bookId}.${v.chapter}.${v.verse}`}
                   // Not `dense`: that pins the row to a fixed 28px, and a wrapped verse then
@@ -84,11 +88,12 @@ export default function TaggedVerseList({
                   titleSize="subhead"
                   buttonClassName="py-1 items-start"
                   onClick={() => onNavigate(v.bookId, v.chapter, v.verse)}
-                  onContextMenu={(e) => ctx.open(e, { bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: v.text })}
+                  onContextMenu={(e) => ctx.open(e, { bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: displayText })}
                   leading={<span className="font-mono text-caption2 text-text-quaternary w-6 text-right pt-1">{v.verse}</span>}
-                  title={<span className="leading-relaxed text-text-primary">{v.text || '…'}</span>}
+                  title={<span className="leading-relaxed text-text-primary">{displayText || '…'}</span>}
                 />
-              ))}
+                )
+              })}
               {g.truncatedNote && (
                 <p className="text-caption2 text-text-muted pl-7 pt-0.5">…open the chapter to read the rest</p>
               )}

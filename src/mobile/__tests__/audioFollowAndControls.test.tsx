@@ -113,6 +113,15 @@ describe('floating audio controls (TEST25-AUDIO-001/002/004)', () => {
     expect(getAudioControlsHidden()).toBe(false)
   })
 
+  it('other tab types show only the top-right audio control, never the play/pause (TEST 2026-09-29)', () => {
+    act(() => { useAppStore.getState().startPlaybackFrom('DEU', 6, 1, 'kjva') })
+    const prev = useAppStore.getState().activeSpace
+    act(() => { useAppStore.setState({ activeSpace: 'notes' }) })
+    expect(host.querySelector('.m-audio-fab-wrap')?.classList.contains('is-hidden')).toBe(true)
+    expect(host.querySelector('.m-audio-topbtn')).not.toBeNull()
+    act(() => { useAppStore.setState({ activeSpace: prev }) })
+  })
+
   it('the top-right button opens the audio sheet with the passage title, and the play/pause hides under it', () => {
     act(() => { useAppStore.getState().startPlaybackFrom('DEU', 6, 1, 'kjva') })
     act(() => { (host.querySelector('.m-audio-topbtn') as HTMLButtonElement).click() })

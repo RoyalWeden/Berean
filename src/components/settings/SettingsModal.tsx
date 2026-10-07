@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { UNTITLED_NOTE_NAME_FORMATS, untitledNoteName, type UntitledNoteNameFormat } from '@/lib/notes/finalizeNote'
 import {
   Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
   Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag, Cloud } from 'lucide-react'
@@ -200,6 +201,10 @@ export default function SettingsModal() {
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
   const setHermasTranslation = useAppStore((s) => s.setHermasTranslation)
   const bibleLineHeight = useAppStore((s) => s.bibleLineHeight)
+  const scriptureMargins = useAppStore((s) => s.scriptureMargins)
+  const untitledNoteNameFormat = useAppStore((s) => s.untitledNoteNameFormat)
+  const setUntitledNoteNameFormat = useAppStore((s) => s.setUntitledNoteNameFormat)
+  const setScriptureMargins = useAppStore((s) => s.setScriptureMargins)
   const setBibleLineHeight = useAppStore((s) => s.setBibleLineHeight)
   const defaultScriptureLayout = useAppStore((s) => s.defaultScriptureLayout)
   const noteTransformLayout = useAppStore((s) => s.noteTransformLayout)
@@ -807,6 +812,22 @@ export default function SettingsModal() {
                     />
                   </div>
 
+                  <div data-anchor="Scripture margins">
+                    <p className="text-subhead font-medium text-text-primary mb-1">Scripture margins</p>
+                    <p className="s-desc text-caption text-text-muted mb-3">Space on the left and right of the Bible text. Compact shows more words per line; Spacious leaves more room on both sides. Margins shrink automatically in narrow windows and when the side panel is open.</p>
+                    <SegmentedControl
+                      size="md"
+                      value={scriptureMargins}
+                      onChange={setScriptureMargins}
+                      aria-label="Scripture margins"
+                      options={[
+                        { value: 'compact', label: 'Compact' },
+                        { value: 'standard', label: 'Standard' },
+                        { value: 'spacious', label: 'Spacious' },
+                      ]}
+                    />
+                  </div>
+
                   <div>
                     <p className="text-subhead font-medium text-text-primary mb-1">Floating search density</p>
                     <p className="s-desc text-caption text-text-muted mb-3">Controls how many results are visible before scrolling — compact shows fewer lines, spacious shows more context</p>
@@ -899,6 +920,26 @@ export default function SettingsModal() {
                   <p className="s-desc text-caption text-text-muted -mt-2">
                     Control how Berean auto-detects references while you write notes.
                   </p>
+
+                  {/* Untitled notes — the name a note gets when it is left without a title (an empty
+                      note is removed instead). src/lib/notes/finalizeNote.ts */}
+                  <div data-anchor="Untitled notes" className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-subhead font-medium text-text-primary">Untitled notes are named</p>
+                      <p className="s-desc text-caption text-text-muted mt-0.5">
+                        When you leave a note that has text but no title, it's named after the day it was created. A note left completely empty is moved to Trash.
+                      </p>
+                    </div>
+                    <Select
+                      variant="field"
+                      size="sm"
+                      aria-label="Untitled note name format"
+                      value={untitledNoteNameFormat}
+                      onChange={(v) => setUntitledNoteNameFormat(v as UntitledNoteNameFormat)}
+                      className="flex-shrink-0 min-w-[180px]"
+                      options={UNTITLED_NOTE_NAME_FORMATS.map((f) => ({ value: f, label: untitledNoteName(new Date(), f) }))}
+                    />
+                  </div>
 
                   {/* Verse tags */}
                   <div data-anchor="Verse tags" className="flex items-start justify-between gap-4">

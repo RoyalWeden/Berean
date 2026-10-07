@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Search, ChevronRight, ChevronLeft, Check, CornerDownLeft } from 'lucide-react'
+import { Search, ChevronRight, ChevronLeft, Check, CornerDownLeft, Clock } from 'lucide-react'
 import type { Book } from '@/types'
 import { useSheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
+import { useAppStore } from '@/store'
 import { displayBookName } from '@/lib/parseRef'
 import { displayChapter, chapterNumberingNote } from '@/lib/chapterNumbering'
 import { isHermasBook, getHermasValidChaptersFor, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
@@ -11,6 +12,10 @@ import {
   PASSAGE_COLLECTIONS, collectionForText, singleBookOf, bookLabelInCollection, resolvePassageQuery,
   type PassageCollection, type PassageDestination, type CollectionGroup,
 } from '@/lib/passageDestinations'
+import { runScriptureSearch, runStrongsSearch, type ScriptureHit } from '@/lib/scriptureSearch'
+import { TextSearchResults, PickerHistoryView } from './PickerSearchResults'
+import { recordPickerSearch, useScriptureHistoryRows, TYPING_SETTLE_MS, type ScriptureHistoryRow } from './scriptureHistory'
+import { historyDestination } from '@/lib/navigation/historyDestination'
 import './picker.css'
 
 /** Where a Scripture destination picker sends the user. */
@@ -310,8 +315,51 @@ function PickerSearch({ textId, bookId, placeholder, children }: { textId: strin
   const push = usePush()
   const choose = useChooseChapter()
   const [query, setQuery] = useState('')
+  const [historyMode, setHistoryMode] = useState(false)
   const books = useBooks(textId)
   const results = useMemo(() => resolvePassageQuery(query, { textId, bookId, books: books ?? [] }), [query, textId, bookId, books])
+
+  // Free-text / Strong's-number search (PICKER-SEARCH): runs alongside the passage/book/collection
+  // resolution above, debounced, so the field does everything — reference, chapter, verse, plain
+  // words and Strong's numbers — without a mode switch. A query that parses as one or more
+  // Strong's numbers searches Strong's occurrences instead of full text (never both).
+  const [strongsHits, setStrongsHits] = useState<ScriptureHit[] | null>(null)
+  const [textHits, setTextHits] = useState<ScriptureHit[] | null>(null)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  useEffect(() => {
+    const q = query.trim()
+    setStrongsHits(null); setTextHits(null)
+    if (q.length < 2) return
+    let alive = true
+    const t = setTimeout(() => {
+      void (async () => {
+        const strongsFound = await runStrongsSearch(q).catch(() => null)
+        if (!alive) return
+        if (strongsFound) {
+          setStrongsHits(strongsFound)
+          if (strongsFound.length) settle = setTimeout(() => recordPickerSearch('strongs', q), TYPING_SETTLE_MS)
+          return
+        }
+        const hits = await runScriptureSearch(q, { textId, wordMode: 'all', wordReplacerEnabled, wordReplacerRules }).catch(() => [] as ScriptureHit[])
+        if (!alive) return
+        setTextHits(hits)
+        // History records the search once typing has really paused — provisional, replaced while
+        // the same words keep being typed (src/lib/search/typingHistory.ts), sealed on open.
+        if (hits.length) settle = setTimeout(() => recordPickerSearch('text', q), TYPING_SETTLE_MS)
+      })()
+    }, 300)
+    let settle: ReturnType<typeof setTimeout> | undefined
+    return () => { alive = false; clearTimeout(t); if (settle) clearTimeout(settle) }
+  }, [query, textId, wordReplacerEnabled, wordReplacerRules])
+
+  const historyRows = useScriptureHistoryRows()
+  const rerun = (q: string) => { setHistoryMode(false); setQuery(q) }
+  const visitHistory = (row: Extract<ScriptureHistoryRow, { kind: 'visit' }>) => {
+    const d = historyDestination(row.entry)
+    if (d && d.kind === 'passage') pick({ textId: (d.textId ?? textId).toLowerCase(), bookId: d.bookId, chapter: d.chapter, verse: d.verse })
+  }
+
   const open = (d: PassageDestination) => {
     void haptic.selection()
     if (d.kind === 'passage') {
@@ -323,29 +371,56 @@ function PickerSearch({ textId, bookId, placeholder, children }: { textId: strin
     const c = PASSAGE_COLLECTIONS.find((x) => x.textId === d.textId && x.group === d.group)
     push(collectionView(c ?? { textId: d.textId, group: d.group, short: d.label }))
   }
+  const pickHit = (h: ScriptureHit) => {
+    void haptic.selection()
+    // Opening a result makes the search a real (final) history event.
+    const q = query.trim()
+    if (q) recordPickerSearch(/^[HG]\d+/i.test(q) ? 'strongs' : 'text', q, { final: true })
+    pick({ textId: h.textId, bookId: h.book_id, chapter: h.chapter, verse: h.verse_num })
+  }
+  const q = query.trim()
+  const anyDestinations = results.length > 0
+  const anyStrongs = !!strongsHits?.length
+  const anyText = !!textHits?.length
+  const multiGroup = [anyDestinations, anyStrongs, anyText].filter(Boolean).length > 1
   return (
     <>
       <form className="m-pp-search" role="search" onSubmit={(e) => { e.preventDefault(); if (results[0]) open(results[0]) }}>
         <Search size={17} aria-hidden />
         <input type="search" inputMode="text" autoCorrect="off" enterKeyHint="go" spellCheck={false}
-          placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)}
-          aria-label="Go to a collection, book or passage" data-no-sheet-drag />
+          placeholder={placeholder} value={query} onChange={(e) => { setQuery(e.target.value); if (historyMode) setHistoryMode(false) }}
+          aria-label="Go to a collection, book, passage, Strong's number, or search verse text" data-no-sheet-drag />
+        <button type="button" className={`m-pp-history-toggle${historyMode ? ' is-on' : ''}`} aria-pressed={historyMode}
+          aria-label={historyMode ? 'Back to Scripture picker' : 'Scripture history'}
+          onClick={() => { void haptic.selection(); setHistoryMode((v) => !v) }}>
+          <Clock size={16} aria-hidden />
+        </button>
       </form>
-      {query.trim() ? (
-        results.length ? (
-          <div className="m-pp-list" role="list" aria-label="Destinations">
-            {results.map((d, i) => (
-              <button key={d.key} type="button" role="listitem" className={`m-pp-row${i === 0 ? ' is-first' : ''}`} onClick={() => open(d)}
-                aria-label={`${d.kind === 'passage' ? 'Go to' : 'Open'} ${d.label}${d.subtitle ? `, ${d.subtitle}` : ''}`}>
-                <span className="m-pp-row-text">
-                  <span className="m-pp-row-title">{d.label}</span>
-                  <span className="m-pp-row-sub">{d.kind === 'collection' ? 'Collection' : d.kind === 'book' ? `Book · ${d.subtitle ?? ''}` : `Passage · ${d.subtitle ?? ''}`}</span>
-                </span>
-                {d.kind === 'passage' ? <CornerDownLeft className="m-pp-row-chevron" size={18} aria-hidden /> : <ChevronRight className="m-pp-row-chevron" size={18} aria-hidden />}
-              </button>
-            ))}
-          </div>
-        ) : <div className="mobile-empty">Nothing matches “{query.trim()}”.</div>
+      {historyMode ? (
+        <PickerHistoryView rows={historyRows} onVisit={visitHistory} onRerun={rerun} />
+      ) : q ? (
+        <>
+          {anyDestinations && (
+            <section className="m-pp-section" aria-label="Passages">
+              {multiGroup && <h3 className="m-pp-section-title">Passages</h3>}
+              <div className="m-pp-list" role="list" aria-label="Destinations">
+                {results.map((d, i) => (
+                  <button key={d.key} type="button" role="listitem" className={`m-pp-row${i === 0 ? ' is-first' : ''}`} onClick={() => open(d)}
+                    aria-label={`${d.kind === 'passage' ? 'Go to' : 'Open'} ${d.label}${d.subtitle ? `, ${d.subtitle}` : ''}`}>
+                    <span className="m-pp-row-text">
+                      <span className="m-pp-row-title">{d.label}</span>
+                      <span className="m-pp-row-sub">{d.kind === 'collection' ? 'Collection' : d.kind === 'book' ? `Book · ${d.subtitle ?? ''}` : `Passage · ${d.subtitle ?? ''}`}</span>
+                    </span>
+                    {d.kind === 'passage' ? <CornerDownLeft className="m-pp-row-chevron" size={18} aria-hidden /> : <ChevronRight className="m-pp-row-chevron" size={18} aria-hidden />}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {anyStrongs && <TextSearchResults title="Strong's" hits={strongsHits!} query={q} kind="strongs" onPick={pickHit} />}
+          {anyText && <TextSearchResults title="Verses" hits={textHits!} query={q} kind="text" onPick={pickHit} />}
+          {!anyDestinations && !anyStrongs && !anyText && <div className="mobile-empty">Nothing matches “{q}”.</div>}
+        </>
       ) : children}
     </>
   )
@@ -390,10 +465,22 @@ async function startChain(textId: string, bookId: string): Promise<PickerView[]>
   const c = collectionForText(textId)
   if (!c) return []
   const first = collectionView(c)
+  // Already the current book's chapters (a single-book library opens there directly).
   if (!first.key.startsWith('lib:')) return [first]
   const books = await loadBooks(c.textId).catch(() => [] as Book[])
-  const group = libraryShape(books) === 'groups' ? books.find((b) => b.id === bookId)?.testament : undefined
-  return group ? [first, groupView(c.textId, group)] : [first]
+  const shape = libraryShape(books)
+  const chain: PickerView[] = [first]
+  if (shape === 'groups') {
+    const group = books.find((b) => b.id === bookId)?.testament
+    if (group) chain.push(groupView(c.textId, group))
+  }
+  // CURRENT BOOK FIRST (PICKER-SEARCH): the sheet opens on the current book's chapters (current
+  // chapter marked), not just its book list — back (‹) still climbs through the testament
+  // group (where one exists) to the Library root.
+  const book = books.find((b) => b.id === bookId)
+  const label = book ? bookLabelInCollection(book.name, book.id) : displayBookName('', bookId)
+  chain.push({ key: `ch:${c.textId}:${bookId}`, title: label, node: <ChaptersView textId={c.textId} bookId={bookId} /> })
+  return chain
 }
 
 /**
@@ -476,7 +563,7 @@ export function PassagePicker({ textId, bookId, chapter, onPick, onChapter }: Pa
           {top ? (
             <>
               <button type="button" className="m-pp-back" onClick={() => local?.pop()} aria-label={`Back to ${stack.length > 1 ? stack[stack.length - 2].title : 'Library'}`}>
-                <ChevronLeft size={20} aria-hidden /><span>{stack.length > 1 ? stack[stack.length - 2].title : 'Library'}</span>
+                <ChevronLeft size={22} strokeWidth={2.25} aria-hidden />
               </button>
               <div className="m-pp-local-title" aria-live="polite">{top.title}</div>
               <React.Fragment key={top.key}>{top.node}</React.Fragment>

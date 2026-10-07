@@ -39,6 +39,8 @@ export interface LexiconOccurrence {
   chapter: number
   verse_num: number
   text: string
+  /** Strong's-tagged tokens (Word Replacer display of Strong's-number rules). */
+  text_tagged?: string | null
   text_id: string
   matchWordIndices: number[]
 }
@@ -270,6 +272,9 @@ export function createLexiconService(ctx: ServiceContext) {
           chapter: r.chapter,
           verse_num: r.verse,
           text: verseRow?.text ?? '',
+          // Tagged tokens too: lets every surface show the Word Replacer's Strong's-number rules
+          // (LORD → Yehovah) on occurrence rows exactly as the reader does.
+          text_tagged: verseRow?.text_tagged ?? null,
           text_id: r.text_id,
           matchWordIndices: findMatchWordIndices(verseRow?.text_tagged ?? null, verseRow?.text ?? ''),
         }

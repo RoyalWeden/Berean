@@ -31,14 +31,43 @@ describe('parseRef', () => {
     expect(parseRef('Recognitions Book 10 41:8')).toMatchObject({ bookId: 'RCL10', chapter: 41, verse: 8 })
     expect(parseRef('RCL10 41:8')).toMatchObject({ bookId: 'RCL10', chapter: 41, verse: 8 })
     expect(parseRef('Recognitions of Clement, Book 5 3:5')).toMatchObject({ bookId: 'RCL5', chapter: 3, verse: 5 })
-    // No "Book N" → defaults to Book 1
-    expect(parseRef('Recognitions of Clement 5:3')).toMatchObject({ bookId: 'RCL1', chapter: 5, verse: 3 })
     // "Book N" subdivision doesn't apply to editions without a numbered-book convention
     expect(parseRef('Hermas, Book 3 5:2')).toBeNull()
     // The literal "Chapter" word bookChapterVerseLabel now generates for "Book N" editions
     // (see below) must parse back too — same round-trip requirement as the comma fix above.
     expect(parseRef('Recognitions of Clement, Book 9, Chapter 2')).toMatchObject({ bookId: 'RCL9', chapter: 2 })
     expect(parseRef('Recognitions of Clement, Book 9, Chapter 2:5')).toMatchObject({ bookId: 'RCL9', chapter: 2, verse: 5 })
+  })
+
+  // Recognitions of Clement has no "book 1 by default" — it is genuinely addressed
+  // Book.Chapter[.Verse], so a BARE work-name token (no "Book N" phrase, and no book
+  // number baked into the token itself, e.g. "RCL4") followed by a number must name the
+  // BOOK, not silently default to Book 1 and treat that number as ITS chapter. This was a
+  // real reported bug: "Recognitions 4:35" resolved to Book 1, chapter 4, verse 35 instead
+  // of Book 4, chapter 35.
+  it('treats the first number after a bare Recognitions-of-Clement token as the BOOK, not the chapter', () => {
+    expect(parseRef('Recognitions 4:35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('Recognitions 4 35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('Recognitions of Clement 4:35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('Recognitions of Clement, Book 4, 35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('Recognitions of Clement, Book 4, 35:1')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: 1 })
+    expect(parseRef('Recognitions Book 4 Chapter 35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('RCL 4:35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('RCL4 35:1')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: 1 })
+    expect(parseRef('Rec. Clem. IV 35')).toMatchObject({ bookId: 'RCL4', chapter: 35, verse: undefined })
+    expect(parseRef('RCL 4 25:1')).toMatchObject({ bookId: 'RCL4', chapter: 25, verse: 1 })
+    // Explicit book id / "Book N" phrase forms are unaffected (still their own book, own chapter)
+    expect(parseRef('RCL2 5:1')).toMatchObject({ bookId: 'RCL2', chapter: 5, verse: 1 })
+  })
+
+  it('parses Hermas Vision/Mandate/Similitude section references (hermasMap.ts)', () => {
+    // Vision 2's 3rd sub-chapter (db-chapters [5,6,7,8]) is db-chapter 7
+    expect(parseRef('Hermas Vision 2 3:1')).toMatchObject({ bookId: 'HER_VIS', chapter: 7, verse: 1 })
+    // Whole-section reference (no sub-chapter) → the section's first db-chapter
+    expect(parseRef('Shepherd of Hermas, Mandate 4')).toMatchObject({ bookId: 'HER_MAN', chapter: 4 })
+    expect(parseRef('Hermas Similitude 9')).toMatchObject({ bookId: 'HER_SIM', chapter: 29 })
+    // The canonical display's own dot form round-trips
+    expect(parseRef('Shepherd of Hermas, Vision 2.1:2')).toMatchObject({ bookId: 'HER_VIS', chapter: 5, verse: 2 })
   })
 
   it('parses pseudepigrapha book IDs', () => {
@@ -292,17 +321,25 @@ describe('bookName', () => {
 })
 
 describe('bookChapterVerseLabel', () => {
-  it('spells out the full work name and the literal word "Chapter" for "Book N" editions', () => {
+  it('spells out the full work name as "Work, Book N, ch:v" (TEST 2026-09-29)', () => {
     // Was "Recognitions, Book 9, 2" — ambiguous about what "2" even is. Per feedback, the
     // full work name plus an explicit "Chapter" reads unambiguously everywhere this citation
     // format shows up (Study Trail map labels included).
     expect(bookChapterVerseLabel('RCL9', 2)).toBe('Recognitions of Clement, Book 9, Chapter 2')
-    expect(bookChapterVerseLabel('RCL9', 2, 5)).toBe('Recognitions of Clement, Book 9, Chapter 2:5')
+    expect(bookChapterVerseLabel('RCL9', 2, 5)).toBe('Recognitions of Clement, Book 9, 2:5')
   })
 
-  it('is unaffected for ordinary books and for named-section editions without "Book N"', () => {
+  it('is unaffected for ordinary books', () => {
     expect(bookChapterVerseLabel('GEN', 1, 1)).toBe('Genesis 1:1')
-    expect(bookChapterVerseLabel('HER_VIS', 5, 2)).toBe('Hermas, Visions 5:2')
+  })
+
+  // Hermas's flat db-chapter (5) is meaningless to a reader — the canonical display uses
+  // hermasMap.ts's own Vision/Mandate/Similitude.sub-chapter numbering instead (db-chapter 5
+  // is Vision 2's 1st sub-chapter).
+  it('uses hermasMap.ts section numbering for Hermas books, not the raw db-chapter', () => {
+    expect(bookChapterVerseLabel('HER_VIS', 5, 2)).toBe('Shepherd of Hermas, Vision 2.1:2')
+    // Mandate 1 is a single-db-chapter section, so the sub-chapter index is omitted
+    expect(bookChapterVerseLabel('HER_MAN', 1)).toBe('Shepherd of Hermas, Mandate 1')
   })
 })
 
@@ -421,10 +458,55 @@ describe('parseRef — Recognitions Book 3 ANF chapter numbering', () => {
   })
   it('labels show ANF numbers and round-trip through parseRef', () => {
     const label = bookChapterVerseLabel('RCL3', 45, 2)
-    expect(label).toBe('Recognitions of Clement, Book 3, Chapter 55:2')
+    expect(label).toBe('Recognitions of Clement, Book 3, 55:2')
     expect(parseRef(label)).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
     expect(bookChapterHoverLabel('RCL3', 2)).toBe('Recognitions of Clement 12, Book 3')
     expect(bookChapterLabel('RCL3', 1)).toBe('Recognitions, Book 3 1')
     expect(parseRef(formatVerseRef('RCL3', 45, 2))).toMatchObject({ bookId: 'RCL3', chapter: 45, verse: 2 })
+  })
+})
+
+// ─── Round-trip: parse(display(ref)) deep-equals ref ─────────────────────────
+// Every reference bookChapterVerseLabel (and formatVerseRef, which delegates to it — see
+// verseClipboard.ts) can produce must parse back to the SAME {bookId, chapter, verse} —
+// otherwise search-result titles, copy-verse output, and tab/history labels the app itself
+// generates silently fail to round-trip through note auto-linking and the reference bar.
+describe('parseRef — round-trip through bookChapterVerseLabel for representative books', () => {
+  const cases: Array<[string, number, number?]> = [
+    ['ENO', 6, 3],       // 1 Enoch
+    ['JUB', 2, 1],       // Jubilees
+    ['SIR', 3, 18],      // Sirach / Ecclesiasticus
+    ['WIS', 5, 1],       // Wisdom of Solomon
+    ['1MA', 2, 1],       // 1 Maccabees
+    ['2MA', 7, 1],       // 2 Maccabees
+    ['TOB', 1, 1],       // Tobit
+    ['TJUD', 1, 1],      // Testament of Judah (T12P)
+    ['EPB', 4, 1],       // Epistle of Barnabas
+    ['1CL', 5, 1],       // 1 Clement
+    ['DID', 7, 1],       // Didache
+    ['2BA', 10, 1],      // 2 Baruch
+    ['AIS', 3, 1],       // Ascension of Isaiah
+  ]
+  it.each(cases)('%s %i:%i', (bookId, chapter, verse) => {
+    const label = bookChapterVerseLabel(bookId, chapter, verse)
+    expect(parseRef(label)).toMatchObject({ bookId, chapter, verse })
+  })
+
+  it('round-trips several Recognitions of Clement books, including RCL3\'s custom numbering', () => {
+    for (const [bookId, chapter, verse] of [['RCL1', 5, 1], ['RCL4', 35, 1], ['RCL3', 45, 2]] as const) {
+      const label = bookChapterVerseLabel(bookId, chapter, verse)
+      expect(parseRef(label)).toMatchObject({ bookId, chapter, verse })
+    }
+  })
+
+  it('round-trips all three Hermas parts', () => {
+    for (const [bookId, chapter, verse] of [
+      ['HER_VIS', 5, 2],   // Vision 2.1
+      ['HER_MAN', 1, 1],   // Mandate 1 (single-chapter section)
+      ['HER_SIM', 45, 3],  // Similitude 9.17
+    ] as const) {
+      const label = bookChapterVerseLabel(bookId, chapter, verse)
+      expect(parseRef(label)).toMatchObject({ bookId, chapter, verse })
+    }
   })
 })

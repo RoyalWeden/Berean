@@ -3,7 +3,8 @@ import { applySyncInvalidation } from '@/lib/syncInvalidation'
 import { wireSyncUi } from '@/lib/syncUi'
 import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useAppStore } from '@/store'
+import { useAppStore, noteFocusModeActive } from '@/store'
+import { SidebarGlassPane } from './components/shell/SidebarGlassPane'
 import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
@@ -82,6 +83,10 @@ export default function App() {
   // recorder hook).
   useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
   useEffect(() => { void useAppStore.getState().refreshVerseTags() }, [])
+  // Scripture margins (Settings → Display): one attribute on <html>; global.css maps it onto the
+  // reading column's margin / measure tokens. Desktop only — the iPhone shell never sets it.
+  const scriptureMargins = useAppStore((s) => s.scriptureMargins)
+  useEffect(() => { document.documentElement.dataset.scriptureMargins = scriptureMargins }, [scriptureMargins])
   // Restore this window's own view (session / space / tab / layout) from its
   // per-window slot, then keep the shared slice (tab set, sessions, preferences)
   // convergent across every synced peer window. Order matters: restore first so
@@ -200,9 +205,10 @@ export default function App() {
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activeTabId = useAppStore((s) => s.activeTabId)
   // Focus mode only hides chrome while the tab it was turned on for is the one actually
-  // showing — switching to a different tab (even a different space) drops it immediately
-  // rather than leaving the sidebar/top-bar hidden for tabs that never asked for that.
-  const noteFocusMode = noteFocusModeTabId !== null && noteFocusModeTabId === activeTabId[activeSpace]
+  // showing AND is a note (noteFocusModeActive) — never on a Scripture / Search / YouTube tab.
+  void noteFocusModeTabId
+  const noteFocusMode = useAppStore(noteFocusModeActive)
+  const sidebarCollapsedForRail = useAppStore((s) => s.sidebarCollapsed)
   const autoCloseTabsAfter = useAppStore((s) => s.autoCloseTabsAfter)
   const createSession = useAppStore((s) => s.createSession)
   const setBgImportProgress = useAppStore((s) => s.setBgImportProgress)
@@ -603,6 +609,13 @@ export default function App() {
     }
   }, [])
 
+  // Native appearance follows Berean's theme (electron/liquidGlass.ts app:setThemeSource): glass,
+  // vibrancy, menus and dialogs match a dark Berean on a light Mac. Main window only (one writer).
+  useEffect(() => {
+    if (document.documentElement.dataset.window !== 'main') return
+    window.app?.setThemeSource?.(theme === 'light' || theme === 'dark' ? theme : 'system')
+  }, [theme])
+
   // Live macOS accent color — backs the "System" theme preset. Fetched once on mount,
   // then kept live via IPC (System Preferences accent color can change while running).
   const setSystemAccentColor = useAppStore((s) => s.setSystemAccentColor)
@@ -888,6 +901,11 @@ export default function App() {
           const tabId = s.activeTabId[s.activeSpace]
           if (tabId) s.toggleNoteFocusMode(tabId)
         }
+      } else if (e.key === 'Escape' && !e.defaultPrevented && noteFocusModeActive(useAppStore.getState())
+        && !document.querySelector('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]')) {
+        // Escape leaves Focus mode (nothing else claimed the key — menus / popovers / find bar
+        // handle their own Escape first and preventDefault).
+        useAppStore.getState().exitNoteFocusMode()
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'd') {
         // ── Cmd+Shift+D → open today's daily note from anywhere ──────────
         e.preventDefault()
@@ -1003,7 +1021,10 @@ export default function App() {
   // toolbar" decision), so this root background only ever shows through where <main>/Sidebar
   // haven't yet painted — surface-3 is the correct base tone for that either way.
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-surface-3">
+    <div className="shell-root flex flex-col h-screen overflow-hidden bg-surface-3">
+      {/* macOS main window: the opaque ground with the native glass sidebar pane cut into it
+          (renders nothing on any other window). */}
+      <SidebarGlassPane />
       <PopoverBoundaryContext.Provider value={shellBoundary}>
       <TopBarSlotContext.Provider value={topBarSlot}>
         {/* ShellHeader spans the FULL window width — it folds what used to be two separate
@@ -1020,6 +1041,19 @@ export default function App() {
         >
           <ShellHeader slotRef={setTopBarSlot} />
         </div>
+        {/* Focus mode hides every bar — always leave ONE visible way back (TEST 2026-10-01: the
+            toolbar "disappeared" with no visible exit). Escape and ⌘⇧U also exit. */}
+        {noteFocusMode && (
+          <button
+            type="button"
+            onClick={() => useAppStore.getState().exitNoteFocusMode()}
+            className="no-drag fixed top-3 right-4 z-40 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-control control-glass text-footnote text-text-secondary hover:text-text-primary transition-colors"
+            aria-label="Exit Focus mode"
+            title="Exit Focus mode (Esc or ⌘⇧U)"
+          >
+            Exit Focus
+          </button>
+        )}
         <div className="flex flex-1 overflow-hidden" ref={setShellBoundary}>
           {/* Sidebar collapse (width → 0) and fade instead of an instant mount/unmount,
               and the content column's own width change (full ↔ max-w-3xl) is handled via
@@ -1059,7 +1093,9 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
-          {!noteFocusMode && <FloatingRail />}
+          {/* The floating rail only stands in for the sidebar's command bar while the sidebar is
+              collapsed (expanded, the same commands sit at the sidebar's foot — Ribbon layout="bar"). */}
+          {!noteFocusMode && sidebarCollapsedForRail && <FloatingRail />}
           {/* Plain CSS transition (not framer's `layout`/FLIP) for the content column's own
               width change — ActivePanel hosts CodeMirror/ProseMirror/react-mosaic, which
               don't expect to be momentarily transform-scaled the way a FLIP animation would

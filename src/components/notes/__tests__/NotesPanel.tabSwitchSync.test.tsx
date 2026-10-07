@@ -246,20 +246,54 @@ describe('NotesPanel tab-switch state sync', () => {
     expect(container.textContent).not.toContain('Click a note to open it')
   })
 
-  it('resyncs the status dropdown to the newly active note instead of showing the previous note\'s status', async () => {
+  it('resyncs the status (in the note\'s "…" menu) to the newly active note instead of showing the previous note\'s status', async () => {
     const el = mount()
+    // Status lives in the "…" menu as a submenu row showing the current value (TEST 2026-10-04).
+    const statusRow = async () => {
+      const more = document.querySelector('button[aria-label="More"]') as HTMLButtonElement
+      await act(async () => { more.click(); await Promise.resolve() })
+      const row = document.querySelector('[role="menu"] [aria-haspopup="menu"]')?.textContent ?? ''
+      await act(async () => { more.click(); await Promise.resolve() })
+      return row
+    }
+    void el
     // Note A has status 'in-progress'.
-    let statusBtn = Array.from(el.querySelectorAll('button')).find((b) => (b.title || '').startsWith('Status:')) as HTMLButtonElement
-    expect(statusBtn?.title).toBe('Status: In Progress')
+    expect(await statusRow()).toBe('In Progress')
 
     await act(async () => {
       useAppStore.getState().setActiveTab('notes', 'tab-b')
       await Promise.resolve()
     })
 
-    // Note B has no status — must show the "Set status" trigger, NOT a stale "In Progress".
-    statusBtn = Array.from(el.querySelectorAll('button')).find((b) => b.title === 'Set status' || (b.title || '').startsWith('Status:')) as HTMLButtonElement
-    expect(statusBtn?.title).toBe('Set status')
+    // Note B has no status — must read "No Status", NOT a stale "In Progress".
+    expect(await statusRow()).toBe('No Status')
+  })
+
+  // TEST 2026-10-04: renaming a note and then typing in its body within the 500ms autosave
+  // window used to cancel the title save (shared timer, each save wrote only its own field).
+  it('a title edit followed at once by a body edit saves BOTH (no lost rename)', async () => {
+    const el = mount()
+    const title = el.querySelector('.note-doc-title') as HTMLTextAreaElement
+    expect(title?.value).toBe('Note A')
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+    await act(async () => { setter.call(title, 'Note A renamed'); title.dispatchEvent(new Event('input', { bubbles: true })) })
+    const pm = el.querySelector('.ProseMirror') as HTMLElement
+    await act(async () => {
+      pm.querySelector('p')!.textContent = 'Content A edited'
+      await new Promise((r) => setTimeout(r, 50))
+    })
+    await act(async () => { await new Promise((r) => setTimeout(r, 650)) })
+    const calls = (window.notes.updateNote as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[0] === 'note-a')
+    const merged = Object.assign({}, ...calls.map((c) => c[1]))
+    expect(merged.title).toBe('Note A renamed')
+    expect(merged.content).toContain('edited')
+  })
+
+  it('the page title is the editor\'s first element, before the document', () => {
+    const el = mount()
+    const host = el.querySelector('.berean-pm-editor') as HTMLElement
+    expect(host.firstElementChild?.classList.contains('pm-header-slot')).toBe(true)
+    expect(host.firstElementChild?.querySelector('.note-doc-title')).toBeTruthy()
   })
 
   // Regression test for the "wrong content in a Notes tab" bug: the noteChangeToken

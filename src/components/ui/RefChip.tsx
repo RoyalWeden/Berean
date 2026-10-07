@@ -21,6 +21,14 @@ const SIZE = {
   lg: 'text-subhead px-2 py-0.5',
 }
 
+const TEXT_SIZE = { xs: 'text-micro', sm: 'text-caption2', md: 'text-footnote', lg: 'text-subhead' } as const
+const TEXT_VARIANT: Record<RefChipVariant, string> = {
+  default: 'text-accent',
+  lxx: 'text-[rgb(var(--link-lxx-ref))]',
+  lexicon: 'text-[rgb(var(--link-lexicon-ref))]',
+  neutral: 'text-text-secondary',
+}
+
 type Base = {
   variant?: RefChipVariant
   size?: 'xs' | 'sm' | 'md' | 'lg'
@@ -29,20 +37,28 @@ type Base = {
    *  paragraph (occurrence lists, cross-ref cards) — the system font, not monospace. Small
    *  standalone tag chips (sidebar badges, note verse tags) keep the default monospace look. */
   mono?: boolean
+  /** 'chip' (default) — a tinted capsule, for inline tokens set inside running text (Strong's
+   *  codes, verse tags). 'text' — semibold accent text with no background, for a reference that
+   *  heads a list row (inspector notes / cross references): interactive without a web badge. */
+  appearance?: 'chip' | 'text'
 }
 
 /** Reference chip ("Gen 1:1", "H7225") — monospace by default (a scannable tag look); pass
  *  `mono={false}` when it needs to read as ordinary text alongside adjacent prose. Renders a
  *  <button> when `onClick` is given. */
 export const RefChip = forwardRef<HTMLElement, Base & (ButtonHTMLAttributes<HTMLButtonElement> | HTMLAttributes<HTMLSpanElement>)>(
-  function RefChip({ variant = 'default', size = 'sm', mono = true, className, ...rest }, ref) {
+  function RefChip({ variant = 'default', size = 'sm', mono = true, appearance = 'chip', className, ...rest }, ref) {
+    const text = appearance === 'text'
     const cls = cx(
-      'inline-flex items-center font-semibold rounded-chip leading-none whitespace-nowrap tabular-nums',
+      'inline-flex items-center font-semibold leading-none whitespace-nowrap tabular-nums',
+      text ? 'rounded-sm' : 'rounded-chip',
       mono ? 'font-mono' : 'font-sans',
-      SIZE[size], VARIANT[variant], className,
+      text ? TEXT_SIZE[size] : SIZE[size],
+      text ? TEXT_VARIANT[variant] : VARIANT[variant],
+      className,
     )
     if ('onClick' in rest && rest.onClick) {
-      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" className={cx(cls, 'focus-ring cursor-pointer transition-[filter] duration-fast hover:brightness-115 active:brightness-90 disabled:opacity-40 disabled:pointer-events-none')} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)} />
+      return <button ref={ref as React.Ref<HTMLButtonElement>} type="button" className={cx(cls, 'focus-ring cursor-pointer transition-[filter] duration-fast disabled:opacity-40 disabled:pointer-events-none', text ? 'hover:underline underline-offset-2' : 'hover:brightness-115 active:brightness-90')} {...(rest as ButtonHTMLAttributes<HTMLButtonElement>)} />
     }
     return <span ref={ref as React.Ref<HTMLSpanElement>} className={cls} {...(rest as HTMLAttributes<HTMLSpanElement>)} />
   },

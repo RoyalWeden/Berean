@@ -107,6 +107,96 @@ export class NativeSpeechBackend implements TTSBackend {
   get activeIndex(): number { return this.index }
 }
 
+/**
+ * iOS ships dozens of `AVSpeechSynthesisVoice`s per language, most of them the old compact
+ * "Default"-quality synthesiser (what the user calls "generic/system-sounding") plus a long tail
+ * of novelty/Eloquence voices (Zarvox, Bubbles, Organ, …) that were never meant for reading
+ * prose. Berean has no paid/offline-neural option on iOS yet (see docs/mobile/voices.md for why
+ * Kokoro-in-WKWebView isn't feasible today), so the only "high quality, natural, free, offline"
+ * voices available are Apple's own Enhanced/Premium tiers — this curates the picker down to
+ * those, the same way a hand-picked list would, without hand-maintaining per-device voice ids
+ * (identifiers vary by iOS version/locale; names and quality tiers do not).
+ */
+
+// Apple ships these as "novelty"/Eloquence or special-purpose voices (sound effects, whispering,
+// accessibility-only registers) — never appropriate for reading Scripture aloud, regardless of
+// their reported quality tier. Matched case-insensitively against the voice's base name (below).
+const NOVELTY_VOICE_NAMES = new Set([
+  'albert', 'bad news', 'bahh', 'bells', 'boing', 'bubbles', 'cellos', 'good news', 'jester',
+  'organ', 'superstar', 'trinoids', 'whisper', 'wobble', 'zarvox', 'grandma', 'grandpa', 'eddy',
+  'flo', 'reed', 'rocko', 'sandy', 'shelley',
+].map((n) => n.toLowerCase()))
+
+// Preferred, in this order, when more than MAX_CURATED_VOICES otherwise qualify. Matched against
+// the base name (see normalizeName) so "Samantha (Enhanced)"/"Samantha" both match "samantha".
+const PREFERRED_VOICE_NAMES = ['ava', 'zoe', 'evan', 'nathan', 'samantha', 'daniel', 'serena']
+
+const MAX_CURATED_VOICES = 6
+
+/** Apple voice names sometimes carry a "(Enhanced)"/"(Premium)" suffix baked into the name
+ *  itself (in addition to the separate `quality` field) — strip it so name-based matching
+ *  (novelty deny-list, preferred-names ranking) works regardless of which form a given iOS
+ *  version reports. */
+function normalizeName(name: string): string {
+  return name.replace(/\s*\((enhanced|premium)\)\s*$/i, '').trim().toLowerCase()
+}
+
+function isEnglish(lang: string): boolean {
+  return lang.toLowerCase().startsWith('en')
+}
+
+function isNovelty(name: string): boolean {
+  return NOVELTY_VOICE_NAMES.has(normalizeName(name))
+}
+
+function preferredRank(name: string): number {
+  const i = PREFERRED_VOICE_NAMES.indexOf(normalizeName(name))
+  return i === -1 ? PREFERRED_VOICE_NAMES.length : i
+}
+
+function byQualityThenPreference(a: TTSVoiceOption, b: TTSVoiceOption): number {
+  const tierRank = (t: TTSVoiceOption['tier']) => (t === 'Premium' ? 0 : t === 'Enhanced' ? 1 : 2)
+  const tr = tierRank(a.tier) - tierRank(b.tier)
+  if (tr !== 0) return tr
+  const pr = preferredRank(a.name) - preferredRank(b.name)
+  if (pr !== 0) return pr
+  return a.name.localeCompare(b.name)
+}
+
+/** The explanatory, non-selectable row shown when no Premium/Enhanced English voice is
+ *  installed — apps cannot download Apple's higher-quality voices programmatically, so the best
+ *  Berean can do is say where to get one. Exported so the settings UI can recognise it (kind
+ *  === 'hint') and so the test suite can assert on it directly. */
+export const NO_PREMIUM_VOICE_HINT: TTSVoiceOption = {
+  voiceURI: '__ios-voice-hint__',
+  name: 'Download higher-quality voices: Settings → Accessibility → Spoken Content → Voices → English',
+  lang: '',
+  tier: null,
+  kind: 'hint',
+}
+
+/**
+ * Curates iOS's raw system voice list (everything `BereanSpeechPlugin.voices()` reports) down to
+ * a small set of high-quality, natural-sounding, free, offline English voices:
+ *  - English only, Premium/Enhanced quality only, novelty voices excluded outright;
+ *  - ranked Premium before Enhanced, then by PREFERRED_VOICE_NAMES, then alphabetically;
+ *  - capped at MAX_CURATED_VOICES.
+ * If literally none qualify (a clean iOS install ships zero Enhanced/Premium voices until the
+ * user downloads one), falls back to the single best non-novelty English voice available (any
+ * tier) plus NO_PREMIUM_VOICE_HINT explaining how to get a better one. If there is no English
+ * voice at all, only the hint row is returned.
+ */
+export function curateIosVoices(raw: TTSVoiceOption[]): TTSVoiceOption[] {
+  const english = raw.filter((v) => isEnglish(v.lang) && !isNovelty(v.name))
+  const highQuality = english.filter((v) => v.tier === 'Premium' || v.tier === 'Enhanced')
+  if (highQuality.length > 0) {
+    return [...highQuality].sort(byQualityThenPreference).slice(0, MAX_CURATED_VOICES)
+  }
+  if (english.length === 0) return [NO_PREMIUM_VOICE_HINT]
+  const best = [...english].sort(byQualityThenPreference)[0]
+  return [best, NO_PREMIUM_VOICE_HINT]
+}
+
 export function createNativeVoiceProvider(plugin: SpeechPluginLike): TTSVoiceProvider {
   let voices: TTSVoiceOption[] = []
   const subs = new Set<(v: TTSVoiceOption[]) => void>()
@@ -115,8 +205,8 @@ export function createNativeVoiceProvider(plugin: SpeechPluginLike): TTSVoicePro
     if (loaded) return
     loaded = true
     plugin.voices().then((r) => {
-      voices = r.voices.map((v): TTSVoiceOption => ({ voiceURI: v.id, name: v.name, lang: v.lang, tier: v.quality === 'Premium' ? 'Premium' : v.quality === 'Enhanced' ? 'Enhanced' : null }))
-        .sort((a, b) => (a.lang.startsWith('en') === b.lang.startsWith('en') ? a.name.localeCompare(b.name) : a.lang.startsWith('en') ? -1 : 1))
+      const all = r.voices.map((v): TTSVoiceOption => ({ voiceURI: v.id, name: v.name, lang: v.lang, tier: v.quality === 'Premium' ? 'Premium' : v.quality === 'Enhanced' ? 'Enhanced' : null }))
+      voices = curateIosVoices(all)
       for (const cb of subs) cb(voices)
     }).catch(() => { loaded = false })
   }

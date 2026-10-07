@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
 import { useShallow } from 'zustand/react/shallow'
 import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { useIsActivePanel } from '@/components/shell/ActivePanelContext'
-import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
+import { runScriptureSearch } from '@/lib/scriptureSearch'
+import { displayVerseText } from '@/lib/scriptureText'
 import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
 import { SearchField, Select, SegmentedControl, EmptyState, RefChip, Toolbar, Chip, ListRow, SectionHeader, OverflowGroup, OverflowSection } from '@/components/ui'
@@ -181,39 +183,34 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const wordReplacerEnabled = useAppStore.getState().wordReplacerEnabled
   const wordReplacerRules   = useAppStore.getState().wordReplacerRules
 
-  const runSearch = useCallback(async (q: string, tid: string) => {
+  const runSearch = useCallback(async (q: string, tid: string, opts?: { submitted?: boolean }) => {
     const trimmed = q.trim()
     if (trimmed.length < 2) { setResults([]); return }
-    // Expand query with original terms for any replacement words (e.g. "yeshua" → also "jesus")
     const state = useAppStore.getState()
-    const searchQ = state.wordReplacerEnabled
-      ? expandQueryForWordReplacer(trimmed, state.wordReplacerRules)
-      : trimmed
     setLoading(true)
     try {
-      if (tid === 'all') {
-        // Search all texts in parallel
-        const allResults = await Promise.all(
-          SEARCH_TRANSLATIONS.map(async (t) => {
-            try {
-              const res = await window.bible.searchText(searchQ, t.id)
-              return (res as unknown as RawResult[]).map((r) => ({ ...r, _textId: t.id }))
-            } catch { return [] }
-          })
-        )
-        setResults(allResults.flat())
-      } else {
-        const res = await window.bible.searchText(searchQ, tid)
-        setResults((res as unknown as RawResult[]).map((r) => ({ ...r, _textId: tid })))
-      }
+      // Shared algorithm (scriptureSearch.ts) — bidirectional word-replacer variants run as
+      // separate queries and merged, plus the word-replacer → Strong's bridge (e.g. "yehovah"
+      // restores from H3068/H3069, which plain FTS can never find). `targets` keeps this tab's
+      // own curated "all texts" list (SEARCH_TRANSLATIONS) rather than scriptureSearch's
+      // slightly different default set.
+      const hits = await runScriptureSearch(trimmed, {
+        textId: tid,
+        wordMode: 'all',
+        wordReplacerEnabled: state.wordReplacerEnabled,
+        wordReplacerRules: state.wordReplacerRules,
+        targets: SEARCH_TRANSLATIONS.map((t) => t.id),
+      })
+      setResults(hits.map((h) => ({ book_id: h.book_id, chapter: h.chapter, verse_num: h.verse_num, text: h.text, _textId: h.textId })))
     } catch {
       setResults([])
     } finally {
       setLoading(false)
     }
     if (searchTab) updateTabState('search', searchTab.id, { query: trimmed, results: [] })
-    // Record a history entry with the actual query so the task panel can detect it
-    useAppStore.getState().addHistoryEntry({ type: 'search', title: `"${trimmed}"`, query: trimmed })
+    // History records only a SUBMITTED search (Return / opening a result) — never this live run
+    // after a typing pause, which used to log "go", "good", "good tiding"… (TEST 2026-10-05).
+    if (opts?.submitted) recordSubmittedSearch(trimmed)
   }, [searchTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-run the persisted query on mount. `results` are intentionally never saved into
@@ -261,7 +258,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') runSearch(query, textId)
+    if (e.key === 'Enter') { if (debounceRef.current) clearTimeout(debounceRef.current); void runSearch(query, textId, { submitted: true }) }
   }
 
   function selectTranslation(tid: string) {
@@ -274,6 +271,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   }
 
   function navigateToVerse(bookId: string, chapter: number, verseNum: number, tid: string) {
+    recordSubmittedSearch(query)
     // For "all" mode, look up books for the specific text
     const bookData = books.find((b) => b.id === bookId)
     const bookLabel = bookData?.name ?? bookId
@@ -497,7 +495,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
                         {r.chapter}:{r.verse_num}
                       </RefChip>
                     }
-                    title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(r.text, query)}</span>}
+                    title={<span className="text-footnote text-text-primary leading-relaxed">{highlight(displayVerseText(r.text, null, r._textId ?? textId), query)}</span>}
                     titleClamp={3}
                     trailing={<ChevronRight size={12} className="text-text-muted" />}
                   />

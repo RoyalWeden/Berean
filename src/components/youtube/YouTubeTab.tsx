@@ -5,7 +5,7 @@ import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
   ExternalLink, Download, Star, RotateCcw, Maximize2, Minimize2, Paperclip, Link2,
   NotepadText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus, LayoutGrid,
-  BookOpen, BookMarked, Trash2, Captions,
+  BookOpen, BookMarked, Trash2, Captions, SlidersHorizontal,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { IconButton, Button, ControlGroup, OverflowGroup, OverflowSection, SearchField, TextField, SectionLabel, EmptyState, MenuSurface, MenuItem, Toolbar, OptionCard, RefChip, SegmentedControl, Select, ListRow, DisclosureRow, cx } from '@/components/ui'
@@ -341,7 +341,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [showWatchMenu, setShowWatchMenu] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
   const [watchFallback, setWatchFallback] = useState(false)
-  const [isDev, setIsDev] = useState(false)
+  // Developer-only tooling (transcript fetch/clear, Full Sync, the transcript-coverage filter, …):
+  // a dev build OR the Berean Dev identity (electron/devTools.ts) — never a packaged production
+  // build. `devTools` is absent on iOS/web, so fall back to the older `isDev` (dev-build-only;
+  // strictly narrower, so the fallback never over-shows anything).
+  const [showDevTools, setShowDevTools] = useState(false)
   const [transcriptBatchSize, setTranscriptBatchSize] = useState(10)
   const [transcriptWorkers, setTranscriptWorkers] = useState(3)
   const [fetchingTranscripts, setFetchingTranscripts] = useState(false)
@@ -360,6 +364,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const channelBtnRef = useRef<HTMLButtonElement>(null)
   const sortBtnRef = useRef<HTMLButtonElement>(null)
   const transcriptBtnRef = useRef<HTMLButtonElement>(null)
+  const moreFiltersBtnRef = useRef<HTMLButtonElement>(null)
   // Active video's transcript + live playback time for the synced transcript panel
   const [activeTranscript, setActiveTranscript] = useState<TranscriptSegment[]>([])
   const [currentTimeMs, setCurrentTimeMs] = useState(0)
@@ -429,7 +434,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   // ─── Init ───────────────────────────────────────────────────────────────────
 
-  useEffect(() => { window.app.isDev?.().then(setIsDev).catch(() => {}) }, [])
+  useEffect(() => { (window.app.devTools ?? window.app.isDev)?.().then(setShowDevTools).catch(() => {}) }, [])
   useEffect(() => { window.youtube.onProgress?.((p) => setProgress(p)) }, [])
 
   // Persist embed-blocked set across sessions so we skip the 3s timeout on revisit
@@ -1628,7 +1633,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const closeMenus = useCallback(() => {
     setShowSortMenu(false); setShowChannelMenu(false)
     setShowDurationMenu(false); setShowWatchMenu(false)
-    setShowTranscriptMenu(false)
+    setShowTranscriptMenu(false); setShowMoreFilters(false)
     setChannelSearch('')
   }, [])
 
@@ -1673,7 +1678,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </span>
         </TabHeaderPortal>
         <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0" zone="actions">
-          <OverflowGroup
+          <div data-overflow-fill className="flex flex-1 min-w-0 justify-end">
+          <OverflowGroup className="justify-end"
             label="More"
             extraItems={[
               ...(playerReady && !videoEnded ? [
@@ -1772,6 +1778,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               </OverflowSection>
             )}
           </OverflowGroup>
+          </div>
         </TabHeaderPortal>
 
         {/* ── Layout container: wraps video column + optional secondary panels ─ */}
@@ -2169,7 +2176,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         />
       </TabHeaderPortal>
       <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} zone="actions">
-      <OverflowGroup label="More filters">
+      {/* data-overflow-fill: this row takes the toolbar's remaining width so it folds (global.css). */}
+      <div data-overflow-fill className="flex flex-1 min-w-0 justify-end">
+      <OverflowGroup label="More filters" className="justify-end">
         {/* Search scope — only shown while searching: Title / Transcript / Both */}
         {search && (
           <SegmentedControl
@@ -2197,26 +2206,80 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {/* View controls — filters/channel/sort are all "narrow the video list" siblings, so
              they share one grouped container instead of three independently-chromed buttons. */}
         <ControlGroup>
-        {/* More Filters toggle button — shows badge count when filters are active */}
-        <Button
-          variant="ghost" size="sm" icon={LayoutGrid} selected={moreFiltersActive}
-          onClick={(e) => { e.stopPropagation(); setShowMoreFilters((v) => !v) }}
-        >
-          Filters
-          {moreFiltersCount > 0 && (
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-white text-micro font-semibold">
-              {moreFiltersCount}
-            </span>
+        {/* More filters — a floating popover (never an inline panel that pushes the grid down;
+             same portal-to-body pattern as Channel/Sort/Transcript tools below). "Search in" is
+             deliberately left out — it's already the SegmentedControl just above, shown whenever
+             `search` is active, so repeating it here would just be a second control for the
+             same state. */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <Button
+            ref={moreFiltersBtnRef}
+            variant="ghost" size="sm" icon={SlidersHorizontal} selected={showMoreFilters || moreFiltersActive}
+            onClick={() => { setShowMoreFilters((v) => !v); setShowChannelMenu(false); setShowSortMenu(false) }}
+          >
+            Filters
+            {moreFiltersCount > 0 && (
+              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-white text-micro font-semibold">
+                {moreFiltersCount}
+              </span>
+            )}
+            <ChevronDown size={9} className={`transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
+          </Button>
+          {showMoreFilters && moreFiltersBtnRef.current && createPortal(
+            <MenuPositioner
+              x={moreFiltersBtnRef.current.getBoundingClientRect().right}
+              y={moreFiltersBtnRef.current.getBoundingClientRect().bottom + 4}
+              align="right"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="material-popover rounded-menu w-64 p-3 space-y-3">
+                {/* Starred */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Starred</span>
+                  <SegmentedControl
+                    aria-label="Starred"
+                    value={starredOnly ? 'starred' : 'all'}
+                    onChange={(v) => { setStarredOnly(v === 'starred'); setPage(1) }}
+                    options={[
+                      { value: 'all', label: 'All' },
+                      { value: 'starred', label: 'Starred', icon: Star },
+                    ]}
+                  />
+                </div>
+
+                {/* Progress / watch filter */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Progress</span>
+                  <SegmentedControl
+                    aria-label="Watch progress"
+                    value={watchFilter}
+                    onChange={(opt) => { setWatchFilter(opt); setPage(1) }}
+                    options={(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => ({ value: opt, label: WATCH_LABEL[opt] }))}
+                  />
+                </div>
+
+                {/* Length / duration filter */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Length</span>
+                  <SegmentedControl
+                    aria-label="Video length"
+                    value={durationFilter}
+                    onChange={(opt) => { setDurationFilter(opt); setPage(1) }}
+                    options={(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => ({ value: opt, label: DURATION_LABEL[opt] }))}
+                  />
+                </div>
+              </div>
+            </MenuPositioner>,
+            document.body
           )}
-          <ChevronDown size={9} className={`transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
-        </Button>
+        </div>
 
         {/* Channel filter */}
         <div onClick={(e) => e.stopPropagation()}>
           <Button
             ref={channelBtnRef}
             variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showChannelMenu}
-            onClick={() => { setShowChannelMenu((v) => !v); setShowSortMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
+            onClick={() => { setShowChannelMenu((v) => !v); setShowSortMenu(false); setShowDurationMenu(false); setShowWatchMenu(false); setShowMoreFilters(false) }}
             className="max-w-[120px]"
           >
             <span className="truncate">{channelFilter === 'all' ? 'All channels' : channelFilter.replace('@', '')}</span>
@@ -2269,7 +2332,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           <Button
             ref={sortBtnRef}
             variant="ghost" size="sm" icon={ChevronDown} iconTrailing selected={showSortMenu}
-            onClick={() => { setShowSortMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
+            onClick={() => { setShowSortMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowWatchMenu(false); setShowMoreFilters(false) }}
           >
             {SORT_LABEL[sort]}
           </Button>
@@ -2317,14 +2380,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           onClick={doRefresh}
         />
 
-        {isDev && (
+        {showDevTools && (
           <Button variant="ghost" size="sm" icon={Download} selected disabled={loading || syncing} onClick={doFullSync} className="flex-shrink-0">
             {syncing ? 'Syncing…' : 'Full Sync'}
           </Button>
         )}
 
         {/* Transcript filter toggle — dev only (a debugging aid for transcript coverage) */}
-        {isDev && (
+        {showDevTools && (
           <Button
             variant="ghost" size="sm" icon={Captions} selected={transcriptOnly}
             onClick={(e) => { e.stopPropagation(); setTranscriptOnly((v) => !v); setPage(1) }}
@@ -2335,7 +2398,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </Button>
         )}
 
-        {/* Transcript tools — collapsed into a single popover */}
+        {/* Transcript tools — dev only (fetch/clear stored transcripts). Collapsed into a
+             single popover; production builds never see it — electron/ipc/youtube.ts refuses
+             fetchTranscripts/clearTranscripts outside devToolsEnabled() regardless. */}
+        {showDevTools && (
         <div className="flex-shrink-0" ref={transcriptMenuRef}>
             <Button
               ref={transcriptBtnRef}
@@ -2421,67 +2487,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               document.body
             )}
           </div>
+        )}
       </OverflowGroup>
+      </div>
       </TabHeaderPortal>
-
-      {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
-      {showMoreFilters && (
-        <Toolbar size="sm" className="h-auto py-2.5 flex-wrap gap-x-5 gap-y-2">
-
-          {/* Search scope — where the search box looks (title, transcript text, or both) */}
-          <div className="flex items-center gap-2">
-            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Search in</span>
-            <SegmentedControl
-              aria-label="Search in"
-              value={searchScope}
-              onChange={(s) => { setSearchScope(s); setPage(1) }}
-              options={[
-                { value: 'title', label: 'Title' },
-                { value: 'transcript', label: 'Transcript' },
-                { value: 'both', label: 'Both' },
-              ]}
-            />
-          </div>
-
-          {/* Starred — a segment of the same SegmentedControl primitive as its "Search in" /
-              "Progress" / "Length" siblings in this row (pill taxonomy: filter → Chip OR a
-              segment matching its row's own idiom; this row's idiom is SegmentedControl). */}
-          <div className="flex items-center gap-2">
-            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Starred</span>
-            <SegmentedControl
-              aria-label="Starred"
-              value={starredOnly ? 'starred' : 'all'}
-              onChange={(v) => { setStarredOnly(v === 'starred'); setPage(1) }}
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'starred', label: 'Starred', icon: Star },
-              ]}
-            />
-          </div>
-
-          {/* Progress / watch filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Progress</span>
-            <SegmentedControl
-              aria-label="Watch progress"
-              value={watchFilter}
-              onChange={(opt) => { setWatchFilter(opt); setPage(1) }}
-              options={(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => ({ value: opt, label: WATCH_LABEL[opt] }))}
-            />
-          </div>
-
-          {/* Length / duration filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-caption2 text-text-muted font-medium whitespace-nowrap">Length</span>
-            <SegmentedControl
-              aria-label="Video length"
-              value={durationFilter}
-              onChange={(opt) => { setDurationFilter(opt); setPage(1) }}
-              options={(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => ({ value: opt, label: DURATION_LABEL[opt] }))}
-            />
-          </div>
-        </Toolbar>
-      )}
 
       {/* Progress bar — only shown while a sync is actively running (total > 0) */}
       {progress && progress.total > 0 && (
@@ -2522,7 +2531,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             action={
               <div className="flex items-center gap-2">
                 <Button variant="primary" size="sm" onClick={doRefresh}>Load recent videos</Button>
-                {isDev && <Button variant="secondary" size="sm" onClick={doFullSync}>Full Sync (fetch all history)</Button>}
+                {showDevTools && <Button variant="secondary" size="sm" onClick={doFullSync}>Full Sync (fetch all history)</Button>}
               </div>
             }
           />

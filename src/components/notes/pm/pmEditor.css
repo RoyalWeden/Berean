@@ -1112,3 +1112,47 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
 .pm-look-compact.berean-pm-editor .ProseMirror h4,
 .pm-look-compact.berean-pm-editor .ProseMirror h5,
 .pm-look-compact.berean-pm-editor .ProseMirror h6 { margin: 0.4em 0 0.15em; }
+
+/* Document title (macOS note editor — NoteDocTitle): the note's title as the large first line of
+   the page, aligned with the body's left gutter, scrolling with the text (TEST 2026-10-04). */
+/* Desktop only — the iPhone note page (.pm-chrome-phone) lays out its own header slot. */
+.berean-pm-editor:not(.pm-chrome-phone) > .pm-header-slot { padding: 18px 16px 0 28px; }
+.berean-pm-editor.pm-has-floating-toolbar:not(.pm-chrome-phone) > .pm-header-slot { padding-top: 64px; }
+.berean-pm-editor:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) .ProseMirror,
+.berean-pm-editor.pm-has-floating-toolbar:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) .ProseMirror { padding-top: 6px; }
+.note-doc-title {
+  display: block;
+  width: 100%;
+  field-sizing: content;
+  min-height: 1lh;
+  resize: none;
+  overflow: hidden;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: rgb(var(--color-text-primary));
+  caret-color: rgb(var(--color-accent, 0 122 255));
+}
+.note-doc-title::placeholder { color: rgb(var(--color-text-muted)); }
+.pm-look-manuscript.berean-pm-editor .note-doc-title { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; font-weight: 600; }
+.pm-look-typewriter.berean-pm-editor .note-doc-title { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 24px; font-weight: 600; }
+.pm-look-compact.berean-pm-editor .note-doc-title { font-size: 24px; }
+.pm-side-panel-note.berean-pm-editor .note-doc-title { font-size: 20px; }
+.pm-header-slot[hidden] { display: none !important; }
+/* With a page title above it, the body fills the space BELOW the title (not a whole extra screen):
+   min-height:100% on the body plus the title made every note — even three words — scrollable by
+   the title's height, and a restored scroll offset then hid the title (TEST 2026-10-04). */
+.berean-pm-editor:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) { display: flex; flex-direction: column; }
+.berean-pm-editor:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) > .pm-header-slot { flex: none; }
+.berean-pm-editor:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) .ProseMirror { flex: 1 0 auto; min-height: 0; }
+
+/* Contextual formatting bar (NoteEditorPM): faded while the note isn't being edited. */
+.pm-toolbar-idle > .pm-floating-toolbar-host { opacity: 0 !important; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .pm-floating-toolbar-host { transition: none !important; } }

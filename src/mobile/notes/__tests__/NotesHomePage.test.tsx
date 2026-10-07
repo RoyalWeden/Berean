@@ -101,7 +101,7 @@ describe('folder view', () => {
     await flush()
     expect(container.querySelector('.m-notes-large-title')!.textContent).toBe('All Notes')
     expect(container.querySelector('.m-notes-large-sub')!.textContent).toBe('4 Notes')
-    expect(container.querySelector('.mobile-back')!.textContent).toContain('Folders')
+    expect(container.querySelector('.mobile-back')!.getAttribute('aria-label')).toContain('Folders')
     const t = titles()
     expect(t[0]).toMatch(/^Pinned/)
     expect(t.some((x) => /^Today/.test(x ?? ''))).toBe(true)
@@ -174,5 +174,20 @@ describe('search', () => {
     expect(byText('.m-folder-main', 'Sermons / Torah')).toBeTruthy()
     expect(api.searchNotes).toHaveBeenCalledWith('tor', 200)
     expect(byText('button', 'Cancel')).toBeTruthy()
+  })
+})
+
+describe('one way to create (TEST 2026-10-03)', () => {
+  it('no in-list New Folder / centred New Note; the bar New Folder and floating compose remain', async () => {
+    folders = []
+    await mount()
+    expect([...container.querySelectorAll('.m-notes-hint.is-button')].some((b) => /New Folder/.test(b.textContent ?? ''))).toBe(false)
+    expect(container.querySelector('[aria-label="New Folder"]')).toBeTruthy()
+    expect(container.querySelector('.m-notes-compose')).toBeTruthy()
+    notes = []
+    useAppStore.getState().updateTabState('notes', 'nt', { listFolderId: 'all' })
+    await mount()
+    expect([...container.querySelectorAll('.m-notes-empty button')].some((b) => /New Note/.test(b.textContent ?? ''))).toBe(false)
+    expect(container.querySelector('.m-notes-compose')).toBeTruthy()
   })
 })

@@ -48,6 +48,9 @@ type HighlightEntry = { id: string; color: HighlightColor; startWord: number | n
 
 interface VerseRowProps {
   verse: Verse
+  /** Shown instead of the bare number when several rows share one verse number (Rahlfs LXX
+   *  lettered additions: 1 Kings 2:35, 35a, 35b …). Selection/notes still address the verse. */
+  verseLabel?: string
   showStrongs: boolean
   showVerseNumber?: boolean
   /** Render this row as a Psalm superscription rather than a numbered verse: no verse
@@ -389,7 +392,7 @@ function crossRefBucket(n: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, noteWeight = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, forceSelected = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
+function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, noteWeight = 0, notePrimaryColor, hasNoteCrossRef = false, noteCrossRefCount = 0, isHighlighted = false, forceSelected = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
   // A superscription row never shows a number, whatever the reader's verse-number setting.
   const effShowVerseNumber = showVerseNumber && !superscription
   const hasHidden = hiddenAnnotations.length > 0
@@ -1631,10 +1634,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
             }
           `}
           // No native pan/scroll starting on the badge, so a touch drag reaches the range gesture.
-          style={isTouch ? { width: '1.45em', minWidth: '1.45em', touchAction: 'none', ...touchMarkVars } : { width: '1.9em', minWidth: '1.9em', touchAction: 'none' }}
+          style={isTouch ? { width: verseLabel ? 'auto' : '1.45em', minWidth: '1.45em', touchAction: 'none', ...touchMarkVars } : { width: verseLabel ? 'auto' : '1.9em', minWidth: '1.9em', paddingInline: verseLabel ? '0.2em' : undefined, touchAction: 'none' }}
           data-marks={isTouch ? touchMarkKinds || undefined : undefined}
         >
-          {verse.verse_num}
+          {verseLabel ?? verse.verse_num}
           {/* Touch (SEP25): notes / cross references / tags live IN the number — colour +
               underline, a corner dot, a tint behind it — so they never take horizontal space. */}
           {isTouch && hasNoteCrossRef && <span className="verse-num-xref" aria-hidden />}
@@ -2090,7 +2093,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription =
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse).catch(() => null)
-                  copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '')
+                  copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '', false, undefined, v?.text_tagged ?? null, textId ?? 'kjva')
                 }}
               />
               <MenuItem

@@ -58,6 +58,8 @@ export interface LexiconOccurrence {
   chapter: number
   verse_num: number
   text: string
+  /** Strong's-tagged tokens (Word Replacer display of Strong's-number rules). */
+  text_tagged?: string | null
   text_id: string
   matchWordIndices: number[]
 }

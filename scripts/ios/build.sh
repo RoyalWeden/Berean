@@ -11,13 +11,23 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT/ios/App"
 MODE="${1:-simulator}"
+# Checkout setup first: missing / shared Capacitor plugin packages show up in Xcode as
+# "Missing package product 'app_CapacitorApp'" — a setup problem, never a project edit.
+node "$ROOT/scripts/ios/check-setup.mjs"
 # App identity (Berean or Berean Dev) comes from Identity.xcconfig, written by `npm run ios:sync`
 # (BEREAN_IDENTITY=production|development). No file → no build: never a guessed identity.
 if [ ! -f Identity.xcconfig ]; then
   echo "error: ios/App/Identity.xcconfig missing — run 'npm run ios:sync' (or 'npm run ios:sync:dev')." >&2
   exit 4
 fi
-echo "[ios] building $(grep -E '^BEREAN_DISPLAY_NAME|^BEREAN_BUNDLE_ID' Identity.xcconfig | tr '\n' ' ')"
+# Debug builds (simulator / device) are ALWAYS Berean Dev (BereanDebug.xcconfig includes
+# IdentityDevelopment.xcconfig); only the archive (Release) uses Identity.xcconfig.
+if [ "$MODE" = "archive" ]; then IDFILE=Identity.xcconfig; else IDFILE=IdentityDevelopment.xcconfig; fi
+if [ ! -f "$IDFILE" ]; then
+  echo "error: ios/App/$IDFILE missing — run 'npm run ios:sync:dev' (or 'npm run ios:sync')." >&2
+  exit 4
+fi
+echo "[ios] building ($MODE) $(grep -E '^BEREAN_DISPLAY_NAME|^BEREAN_BUNDLE_ID' "$IDFILE" | tr '\n' ' ')"
 # A build that can reach a real iPhone (device) or the App Store (archive) must never carry the
 # simulator automation probe or its relaxed CSP (DATA-UX-060): the web bundle in App/public is
 # whatever `ios:sync` last produced, so refuse one built with BEREAN_E2E_PROBE=1.

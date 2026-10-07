@@ -1,3 +1,4 @@
+import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { pushNotesListHistory } from './notesHistory'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
@@ -16,6 +17,7 @@ import { ensureDailyNoteLocation } from '@/platform/ios/location'
 import { Page, IconTap } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { haptic } from '../primitives/haptics'
+import { usePopoverMenu } from '../primitives/PopoverMenu'
 import { useActionSheet, ChoiceList, type SheetAction } from '../primitives/ActionSheet'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { noteIsMovable } from '@/lib/noteMovability'
@@ -58,7 +60,7 @@ import { NotePeek, type PeekAction } from './NotePeek'
 export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const nav = useNavigation()
   const noteToken = useAppStore((s) => s.noteChangeToken)
-  const [notes, setNotes] = useState<Note[]>([])
+  const [notes, setNotes] = useState<Note[]>(() => getWarmStartNotes() ?? [])
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [trashCount, setTrashCount] = useState(0)
   const [loaded, setLoaded] = useState(false)
@@ -69,7 +71,10 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const filter: NoteFilter = listState.listFilter ?? 'all'
   const loc: FolderLocation = listState.listFolderId ?? null
   const setListState = (patch: { listFilter?: NoteFilter; listFolderId?: string | null }) => {
-    const s = useAppStore.getState()
+    let s = useAppStore.getState()
+    // The Notes space shown with no Notes tab (a fresh workspace) used to ignore every tap here —
+    // give it its tab first so navigation always works.
+    if (!s.activeTabId.notes) { s.createTab('note'); s = useAppStore.getState() }
     const tid = s.activeTabId.notes
     if (!tid) return
     const next = { listFilter: patch.listFilter ?? filter, listFolderId: patch.listFolderId !== undefined ? patch.listFolderId : loc }
@@ -80,15 +85,23 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   }
   const go = (to: FolderLocation) => { setEditing(false); setSelected(new Set()); setQuery(''); setListState({ listFolderId: to }) }
 
+  // Performance (TEST 2026-09-29 "lags opening notes / moving between pages"): every autosave
+  // bumps noteChangeToken; this list used to refetch + rebuild the whole tree on each one even
+  // while a note covered it. Now it loads through the shared notes cache (one fetch per token for
+  // every consumer, warm-started) and, while covered by a pushed page, only marks itself stale —
+  // it refreshes once when it is visible again.
+  const covered = nav.depth > 0
+  const loadedToken = useRef<number | null>(null)
   useEffect(() => {
+    if (covered || loadedToken.current === noteToken) return
     let alive = true
     void Promise.all([
-      window.notes.getNotes(5000, 0).catch(() => [] as Note[]),
+      getAllNotes(noteToken),
       window.notes.getFolders().catch(() => [] as NoteFolder[]),
       window.notes.listTrash().catch(() => [] as Note[]),
-    ]).then(([n, f, t]) => { if (!alive) return; setNotes(n); setFolders(f); setTrashCount(t.length); setLoaded(true) })
+    ]).then(([n, f, t]) => { if (!alive) return; loadedToken.current = noteToken; setNotes(n); setFolders(f); setTrashCount(t.length); setLoaded(true) })
     return () => { alive = false }
-  }, [noteToken])
+  }, [noteToken, covered])
   // A folder that disappeared (deleted here or on another device) → back to the Folders home.
   useEffect(() => {
     if (loaded && loc && loc !== 'all' && !isSystemLocation(loc) && !folders.some((f) => f.id === loc)) go(null)
@@ -132,6 +145,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
 
   // ── actions ──────────────────────────────────────────────────────────────────────────────
   const actions = useActionSheet()
+  const popover = usePopoverMenu()
   const sheets = useSheets()
   const open = (note: Note) => nav.push(`note-${note.id}`, <NoteEditorPage noteId={note.id} onBack={nav.pop} />)
   const create = async (data: Partial<Note> = {}) => {
@@ -296,11 +310,15 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   useEffect(() => {
     const el = largeRef.current
     if (!el || typeof IntersectionObserver === 'undefined') { setLargeVisible(true); return }
-    const io = new IntersectionObserver(([e]) => setLargeVisible(e.isIntersecting), { threshold: 0 })
+    // The glass bar overlays the list, so "scrolled away" means "gone under the bar".
+    const bar = el.closest('.mobile-page')?.querySelector(':scope > .mobile-page-header')
+    const barH = Math.round(bar?.getBoundingClientRect().height ?? 0)
+    const io = new IntersectionObserver(([e]) => setLargeVisible(e.isIntersecting), { threshold: 0, rootMargin: `-${barH}px 0px 0px 0px` })
     io.observe(el)
     return () => io.disconnect()
   }, [loc, searchFocused, query])
-  const moreMenu = () => actions('notes-folder-more', title, [
+  // Folder "…" is a popover menu anchored to the button (TEST 2026-10-03); Sort / Group / Show open their own sheet.
+  const moreMenu = (e: React.MouseEvent<HTMLButtonElement>) => popover(e.currentTarget, undefined, [
     { id: 'select', label: 'Select Notes', icon: CheckSquare, onSelect: () => setEditing(true) },
     { id: 'layout', label: prefs.layout === 'list' ? 'View as Gallery' : 'View as List', icon: prefs.layout === 'list' ? LayoutGrid : List, onSelect: () => notesHomePrefs.set({ layout: prefs.layout === 'list' ? 'gallery' : 'list' }) },
     { id: 'sort', label: `Sort: ${NOTE_SORT_OPTIONS.find((o) => o.id === view.sort)?.label}`, icon: ArrowDownUp, onSelect: () => {}, view: () => ({ key: 'sort', title: 'Sort', render: (api: SheetApi) => <ChoiceList api={api} closeOnSelect value={view.sort} options={NOTE_SORT_OPTIONS} onSelect={(id) => noteHomeView.set({ sort: id as NoteSortMode })} /> }) },
@@ -375,7 +393,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
           </div>
         </section>
       )}
-      {loaded && tree.length === 0 && <button type="button" className="m-notes-hint is-button" onClick={() => { void newFolder(null) }}><FolderPlus size={16} aria-hidden /> New Folder</button>}
+      {/* No in-list "New Folder" (TEST 2026-10-03): the bar's New Folder button is the one way. */}
       <div className="m-notes-group m-notes-trash" role="list">
         <FolderRow kind="trash" name="Trash" count={trashCount} onOpen={() => nav.push('trash', <TrashPage onBack={nav.pop} />)} />
       </div>
@@ -406,19 +424,27 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
       {loaded && here.length === 0 && subfolders.length === 0 && (
         <div className="m-notes-empty">
           <div>{filter !== 'all' ? `No ${NOTE_FILTER_OPTIONS.find((o) => o.id === filter)?.label.toLowerCase()} notes here.` : 'No Notes'}</div>
-          {!isSystemLocation(loc) && <button type="button" className="m-notes-textbtn is-strong" onClick={() => { void create() }}>New Note</button>}
+          {/* No centred "New Note" (TEST 2026-10-03): the floating compose button is the one way. */}
         </div>
       )}
     </>
   )
 
   const subtitle = loc ? [`${here.length} Note${here.length === 1 ? '' : 's'}`, subfolders.length ? `${subfolders.length} Folder${subfolders.length === 1 ? '' : 's'}` : null, filter !== 'all' ? NOTE_FILTER_OPTIONS.find((o) => o.id === filter)?.label : null].filter(Boolean).join(' · ') : null
+  // The bar's second line (TEST 2026-09-29): the note count centred under the folder name.
+  const barCount = loc ? `${here.length} Note${here.length === 1 ? '' : 's'}` : `${notes.length} Note${notes.length === 1 ? '' : 's'}`
   const allSelected = selectedNotes.length > 0 && selectedNotes.every((n) => n.pinned)
 
   return (
     <Page
-      className={`m-notes-home${editing ? ' is-editing' : ''}`}
-      title={largeVisible || searching ? '' : title}
+      header="glass"
+      className={`m-notes-home${editing ? ' is-editing' : ''}${largeVisible && !searching ? ' is-large-title' : ''}`}
+      title={largeVisible || searching ? '' : (
+        <span className="m-notes-bar-title">
+          <span className="m-notes-bar-name">{title}</span>
+          {barCount && <span className="m-notes-bar-count">{barCount}</span>}
+        </span>
+      )}
       {...back}
       left={loc ? undefined : <IconTap icon={CalendarDays} label="Today's daily note. Press and hold for the calendar" onClick={() => void openDaily()} onLongPress={openCalendar} />}
       right={searching ? undefined : right}

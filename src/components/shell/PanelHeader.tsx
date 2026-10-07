@@ -61,9 +61,9 @@ export default function PanelHeader({
     return (
       <div className={`mobile-hosted-header flex-shrink-0 select-none material-bar border-b border-separator ${className}`}>
         <Toolbar size="md" edge="none" material="none">
-          <div className="flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
-          <ToolbarSpacer />
-          <div ref={actionsRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+          <div className="shell-context-zone flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
+          <ToolbarSpacer className="shell-flex-space" />
+          <div ref={actionsRef} className="shell-actions-zone flex items-center gap-2 flex-shrink-0 justify-end" />
         </Toolbar>
       </div>
     )
@@ -76,9 +76,9 @@ export default function PanelHeader({
       } ${className}`}
     >
       <Toolbar size="md" edge="none" material="none">
-        <div className="flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
-        <ToolbarSpacer />
-        <div ref={actionsRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+        <div className="shell-context-zone flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
+        <ToolbarSpacer className="shell-flex-space" />
+        <div ref={actionsRef} className="shell-actions-zone flex items-center gap-2 flex-shrink-0 justify-end" />
       </Toolbar>
     </div>
   )

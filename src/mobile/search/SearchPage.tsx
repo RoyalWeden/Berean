@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands } from '../commands/caretRegistry'
-import { Search, X, Clock, Tag, Languages, Library, Tags as TagsIcon, ListFilter, RotateCcw, History as HistoryIcon, ArrowDownUp, Type, SlidersHorizontal } from 'lucide-react'
+import { Search, X, Clock, Tag, Languages, Library, Tags as TagsIcon, RotateCcw, History as HistoryIcon, SlidersHorizontal, MoreHorizontal, ChevronDown } from 'lucide-react'
 import type { Note, LexiconEntry, VerseTagMember, Tab, SearchTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookName, parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
@@ -8,6 +8,7 @@ import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyFindHighlight } from '@/lib/highlight'
 import { buildAllWordsSnippet } from '@/components/bible/ScriptureSearchView'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
+import { displayHitText } from '@/lib/scriptureText'
 import { openDestination, type NavIntent } from '@/lib/navigation/destination'
 import { runUnifiedSearch, resolvePlace, type UnifiedResults } from '@/lib/search/unifiedSearch'
 import { UnifiedResultsList, type UnifiedPick } from './UnifiedResults'
@@ -20,15 +21,16 @@ import {
 } from '@/lib/scriptureSearch'
 import { booksSummary } from '@/lib/scriptureSearchFilters'
 import {
-  DEFAULT_SEARCH_FILTERS, activeFilterCount, filtersSummary, scopeHasFilters, textFilterLabel,
+  DEFAULT_SEARCH_FILTERS, activeFilterCount, scopeHasFilters, textFilterLabel, WORD_MODE_LABEL,
   type SearchFilterState,
 } from './searchFilters'
 import { BooksFilterView } from './BooksFilterView'
 import { HistoryView } from '../history/HistoryPage'
 import type { WordMode } from '@/lib/scriptureHighlight'
-import { Page, ListSection, Row } from '../primitives/Page'
+import { Page, ListSection, Row, IconTap } from '../primitives/Page'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
 import { ChoiceList } from '../primitives/ActionSheet'
+import { usePopoverMenu } from '../primitives/PopoverMenu'
 import { Segmented } from '../settings/SettingsPage'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -36,7 +38,9 @@ import { useIncrementalLimit } from './useIncrementalLimit'
 import { loadTaggedVerses } from './taggedBrowse'
 import { useSearchResultActions, LongPressResult } from './ResultActionSheet'
 import { buildSearchPreview, samePreview, type SearchPreviewSummary } from './resultActions'
+import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
 import { commitSearchStep, isSearchCommitted, markSearchCommitted, searchSnapshot } from './searchHistory'
+import { TYPING_SETTLE_MS } from '@/lib/search/typingHistory'
 import './search.css'
 
 type Scope = 'all' | 'scripture' | 'notes' | 'lexicon'
@@ -67,9 +71,9 @@ function liveSearchState(tabId: string): SearchTabState | undefined {
  * ‹ / › can return to. Recorded BEFORE the tab-state write so the restore-detection effect in
  * SearchPage sees it as already committed. `patch` is the next tab state.
  */
-function commitSearch(tabId: string, patch: Partial<SearchTabState>) {
+function commitSearch(tabId: string, patch: Partial<SearchTabState>, opts: { submitted?: boolean } = {}) {
   const live = liveSearchState(tabId)
-  commitSearchStep(tabId, searchSnapshot(live), searchSnapshot({ ...live, ...patch }))
+  commitSearchStep(tabId, searchSnapshot(live), searchSnapshot({ ...live, ...patch }), opts)
 }
 function patchSearchFilters(tabId: string, patch: Partial<SearchFilterState>) {
   const filters = { ...tabFilters(liveSearchState(tabId)), ...patch } as unknown as Record<string, unknown>
@@ -83,7 +87,9 @@ function resetSearchFilters(tabId: string) {
 /** Throttle for saving the result list's scroll offset into the tab. */
 const SCROLL_SAVE_MS = 250
 /** Typing counts as a committed search once it has settled this long. */
-const QUERY_COMMIT_MS = 800
+// A typing pause long enough to read as a search (TYPING_SETTLE_MS) — and even then the step is
+// provisional: continuing to type replaces it (src/lib/search/typingHistory.ts).
+const QUERY_COMMIT_MS = TYPING_SETTLE_MS
 
 /**
  * Each Search TAB keeps its own scope, query and filters in its tab state (T23-009: several
@@ -101,7 +107,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const setScope = useCallback((v: Scope) => { commitSearch(tabId, { scope: v }); updateTabState('search', tabId, { scope: v }) }, [updateTabState, tabId])
   const [query, setQuery] = useState(st.query ?? '')
   // The query as a committed history step: now (submit / a recent) or once typing settles.
-  const commitQuery = useCallback((q: string) => { commitSearch(tabId, { query: q }); if ((liveSearchState(tabId)?.query ?? '') !== q) updateTabState('search', tabId, { query: q }) }, [tabId, updateTabState])
+  const commitQuery = useCallback((q: string, submitted = false) => { commitSearch(tabId, { query: q }, { submitted }); if ((liveSearchState(tabId)?.query ?? '') !== q) updateTabState('search', tabId, { query: q }) }, [tabId, updateTabState])
   useEffect(() => { markSearchCommitted(tabId, searchSnapshot(liveSearchState(tabId)), true) }, [tabId])
   useEffect(() => {
     const t = setTimeout(() => commitQuery(query), QUERY_COMMIT_MS)
@@ -239,7 +245,11 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const trimmed = query.trim()
     if (!trimmed) return
     addRecent(trimmed)
-    commitQuery(query)
+    recordSubmittedSearch(trimmed)
+    commitQuery(query, true)
+    // The Search key puts the keyboard away so the results can be read (iOS; TEST 2026-10-06 —
+    // after Return the keyboard still covered half the results).
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
     const ref = scope === 'scripture' || scope === 'all' ? parseRef(trimmed) : null
     // A reference opens in THIS tab (it becomes Scripture; ‹ returns to the search — NAV-002).
     if (ref) { void haptic.light(); openDestination({ kind: 'passage', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null }, 'current-tab', { origin: { kind: 'search-result', query: trimmed } }) }
@@ -272,7 +282,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
     pendingScroll.current = null
     requestAnimationFrame(() => { body.scrollTop = y })
   }, [loading, hits, browseHits, notes, entries, unified])
-  const runRecent = (r: string) => { setQuery(r); commitQuery(r) }
+  const runRecent = (r: string) => { setQuery(r); commitQuery(r, true) }
   const openEntry = (e: LexiconEntry) => sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={e.strongsNum} api={api} /> })
   // Long-press menus (SEP24): the same Open as a tap, plus new tab / copy / share / note / highlight.
   const resultActions = useSearchResultActions({ openHit, openNote, openEntry, runRecent, scope })
@@ -304,10 +314,10 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const q = browsing ? '' : query.trim()
     if (scope === 'scripture' && filteredHits && (q.length >= 2 || browsing)) {
       const rows = groups.flatMap((g) => g.hits.slice(0, 3)).slice(0, 3)
-      return buildSearchPreview(q, filteredHits.length, rows.map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(h.text, snippetQueryFor(q), 120).text })))
+      return buildSearchPreview(q, filteredHits.length, rows.map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(displayHitText(h), snippetQueryFor(q), 120).text })))
     }
     if (scope === 'all' && unified?.verses && unified.verses.length && q.length >= 2) {
-      return buildSearchPreview(q, unified.verses.length, unified.verses.slice(0, 3).map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(h.text, snippetQueryFor(q), 120).text })))
+      return buildSearchPreview(q, unified.verses.length, unified.verses.slice(0, 3).map((h) => ({ ref: bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num), text: buildAllWordsSnippet(displayHitText(h), snippetQueryFor(q), 120).text })))
     }
     if (scope === 'notes' && notes && q.length >= 2) return buildSearchPreview(q, notes.length, notes.map((n) => ({ ref: displayNoteTitle(n.title), text: stripMarkdownFormatting(n.content ?? '') })))
     if (scope === 'lexicon' && entries && q.length >= 2) return buildSearchPreview(q, entries.length, entries.map((e) => ({ ref: `${e.strongsNum} ${e.lemma ?? ''}`.trim(), text: e.gloss ?? '' })))
@@ -331,50 +341,46 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const sc: Scope = live?.scope ?? 'all'
     const q = (live?.query ?? query).trim()
     const count = activeFilterCount(f)
-    const textLabel = textFilterLabel(f.textId)
-    const booksLabel = booksSummary(f.books)
-    const tagsLabel = f.tagIds.length === 0 ? 'None' : `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}`
     return {
       title: q ? `Search · “${q}”` : 'Search', backTitle: 'Search',
       // Same header as every caret (SEP24-008): tap to edit the query in the page's own field.
       location: { label: q ? `“${q}”` : 'Search', placeholder: 'Edit the search', run: () => setTimeout(() => (document.querySelector('.mobile-search-input') as HTMLInputElement | null)?.focus(), 250) },
+      // Search IA (TEST 2026-09-29): filters live in ONE place — the chips under the field.
+      // The caret only points there and carries the tab-level actions (no duplicate controls).
       sections: [
-        // No Scope row (NEW-014): the page's own Scripture / Notes / Lexicon switch is the scope.
-        { id: 'match', title: 'Match', commands: [
-          { kind: 'segmented', id: 'word-mode', label: 'Words', icon: Type, value: f.wordMode, options: [['all', 'All'], ['any', 'Any'], ['phrase', 'Phrase']], set: (v) => patchSearchFilters(tabId, { wordMode: v as WordMode }) },
-        ] },
-        ...(sc === 'scripture' || sc === 'all' ? [
-          { id: 'filters', title: count ? `Scripture filters · ${count}` : 'Scripture filters', commands: [
-            { kind: 'view' as const, id: 'text', label: 'Text', icon: Languages, value: textLabel, view: () => ({ title: 'Text', render: (a: SheetApi) => <SearchTextChoices tabId={tabId} api={a} /> }) },
-            { kind: 'view' as const, id: 'books', label: 'Books', icon: Library, value: booksLabel, view: () => ({ title: 'Books', render: () => <SearchBooksFilter tabId={tabId} /> }) },
-            { kind: 'view' as const, id: 'tags', label: 'Verse tags', icon: TagsIcon, value: tagsLabel, view: () => ({ title: 'Verse tags', render: (a: SheetApi) => <SearchTagsFilter tabId={tabId} api={a} /> }) },
-            { kind: 'action' as const, id: 'reset', label: 'Reset filters', icon: RotateCcw, keepOpen: true, disabled: count === 0, run: () => resetSearchFilters(tabId) },
-          ] },
-          { id: 'sort', title: 'Sort', commands: [
-            { kind: 'segmented' as const, id: 'sort', label: 'Order', icon: ListFilter, value: f.sort, options: [['relevance', 'Relevance'], ['bookOrder', 'Bible order']] as Array<[string, string]>, set: (v: string) => patchSearchFilters(tabId, { sort: v as SearchSortMode, direction: naturalDirection(v as SearchSortMode) }) },
-            { kind: 'segmented' as const, id: 'direction', label: 'Direction', icon: ArrowDownUp, value: f.direction,
-              options: (f.sort === 'relevance' ? [['desc', 'Best first'], ['asc', 'Weakest first']] : [['asc', 'Genesis → end'], ['desc', 'End → Genesis']]) as Array<[string, string]>,
-              set: (v: string) => patchSearchFilters(tabId, { direction: v as SearchSortDirection }) },
-          ] },
-        ] : []),
+        ...(scopeHasFilters(sc) ? [{ id: 'filters', commands: [
+          { kind: 'action' as const, id: 'filters', label: count ? `Filters & sort · ${count}` : 'Filters & sort', icon: SlidersHorizontal, run: () => openFiltersSheet(tabId, sc) },
+          ...(count ? [{ kind: 'action' as const, id: 'reset', label: 'Reset filters', icon: RotateCcw, keepOpen: true, run: () => resetSearchFilters(tabId) }] : []),
+        ] }] : []),
         { id: 'more', commands: [
           { kind: 'action', id: 'clear', label: 'Clear search', icon: X, disabled: !q, run: () => setQuery('') },
-          // History opens INSIDE this sheet ("‹ Search"), keeping its position (NEW-014).
-          { kind: 'view', id: 'history', label: 'History', icon: HistoryIcon, view: () => ({ title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
+          // (History is the caret's own bottom row — every caret has it, TEST 2026-10-03.)
         ] },
       ],
     }
   })
   const snippetQuery = browsing ? '' : query
-  // Advanced Search (SEP25): every option lives behind the ONE Filters entry, in its own sheet.
-  const openFilters = () => {
+  // Tertiary actions (TEST 2026-09-29 IA): the header's "…".
+  const popover = usePopoverMenu()
+  const openOverflow = (e: React.MouseEvent<HTMLButtonElement>) => {
+    popover(e.currentTarget, undefined, [
+      ...(scopeHasFilters(scope) ? [{ id: 'filters', label: 'All filters & sort…', icon: SlidersHorizontal, onSelect: () => openFiltersSheet(tabId, scope) }] : []),
+      ...(activeFilterCount(filters, scope) ? [{ id: 'reset', label: 'Reset filters', icon: RotateCcw, onSelect: () => resetSearchFilters(tabId) }] : []),
+      ...(query ? [{ id: 'clear', label: 'Clear search', icon: X, onSelect: () => setQuery('') }] : []),
+      // History last, in its own section (TEST 2026-10-05: History / Settings at the bottom).
+      { id: 'history', label: 'History', icon: HistoryIcon, section: true, onSelect: () => {}, view: () => ({ key: 'history', title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
+    ])
+  }
+  // Declared after the caret closure that calls it — only ever invoked on a tap, after render.
+  const openFiltersSheet = (tid: string, sc: Scope) => {
     void haptic.light()
-    sheets.open({ id: `search-filters-${tabId}`, title: 'Filters', detents: [0.62, 0.92], render: (api) => <SearchFiltersSheet tabId={tabId} scope={scope} api={api} /> })
+    sheets.open({ id: `search-filters-${tid}`, title: 'Filters & sort', detents: [0.62, 0.92], render: (api) => <SearchFiltersSheet tabId={tid} scope={sc} api={api} /> })
   }
 
   return (
     <Page
       title="Search"
+      right={<IconTap icon={MoreHorizontal} label="More search options" onClick={openOverflow} />}
       headerBelow={
         <>
           <form className="mobile-search-row" onSubmit={submit}>
@@ -385,7 +391,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
             {query && <button type="button" className="mobile-search-clear" aria-label="Clear" onClick={() => setQuery('')}><X size={16} aria-hidden /></button>}
           </form>
           <div className="mobile-search-scope"><Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as Scope)} /></div>
-          {scopeHasFilters(scope) && <FiltersEntry filters={filters} scope={scope} onOpen={openFilters} />}
+          {scopeHasFilters(scope) && <FilterChips tabId={tabId} filters={filters} scope={scope} />}
         </>
       }
     >
@@ -418,7 +424,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
                   {g.hits.map((h) => (
                     <LongPressResult key={`${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`} onLongPress={() => resultActions.scripture(h)}><Row chevron onClick={() => openHit(h)}
                       title={<span className="mobile-occurrence-ref">{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{h.textId === 'lxx' ? <span className="mobile-muted"> LXX</span> : null}</span>}
-                      subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(h.text, snippetQuery, 140).text, h.strongsWords ? '' : snippetQuery, wordMode)}</span>} /></LongPressResult>
+                      subtitle={<span className="mobile-search-snippet">{applyFindHighlight(buildAllWordsSnippet(displayHitText(h), snippetQuery, 140).text, h.strongsWords && !h.wrReplacement && !h.text_tagged ? '' : snippetQuery, wordMode)}</span>} /></LongPressResult>
                   ))}
                 </ListSection>
               )
@@ -507,20 +513,46 @@ function SearchTagsFilter({ tabId, api }: { tabId: string; api: SheetApi }) {
   )
 }
 
-/** The ONE compact Filters entry under the scope switch: a summary of what the search covers and
- *  a count badge of non-default filters. Tapping opens the Advanced options sheet. */
-function FiltersEntry({ filters, scope, onOpen }: { filters: SearchFilterState; scope: Scope; onOpen: () => void }) {
-  const count = activeFilterCount(filters, scope)
-  const summary = filtersSummary(filters, scope)
+/**
+ * Contextual filters (TEST 2026-09-29 IA): one horizontally scrolling row of chips directly under
+ * the scope switch — each shows its current value (accent when not the default) and opens its own
+ * small picker. Words for every scope with filters; Text · Books · Tags · Sort for Scripture.
+ */
+function FilterChips({ tabId, filters: f, scope }: { tabId: string; filters: SearchFilterState; scope: Scope }) {
+  const sheets = useSheets()
+  const popover = usePopoverMenu()
+  const scripture = scope === 'scripture' || scope === 'all'
+  // Quick single choices are popover menus anchored to the chip; Books and Tags (long, multi-select
+  // lists) stay sheets (TEST 2026-10-03 sheets-vs-menus audit).
+  const choose = (el: Element, choices: Array<{ id: string; label: string; detail?: string }>, current: string, set: (id: string) => void) =>
+    popover(el, undefined, choices.map((c) => ({ id: c.id, label: c.label, detail: c.detail, checked: c.id === current, onSelect: () => set(c.id) })))
+  const open = (id: string, title: string, render: (api: SheetApi) => React.ReactNode, tall = false) => {
+    void haptic.selection()
+    sheets.open({ id: `search-chip-${id}-${tabId}`, title, detents: [tall ? 0.72 : 0.42, 0.92], render })
+  }
+  const sortValue = f.sort === 'relevance' ? 'relevance' : f.direction === 'asc' ? 'bible' : 'bible-rev'
+  const chips: Array<{ id: string; label: string; on: boolean; onClick: (el: Element) => void }> = [
+    { id: 'words', label: WORD_MODE_LABEL[f.wordMode], on: f.wordMode !== 'all', onClick: (el) => choose(el,
+      (['all', 'any', 'phrase'] as WordMode[]).map((m) => ({ id: m, label: WORD_MODE_LABEL[m] })), f.wordMode, (v) => patchSearchFilters(tabId, { wordMode: v as WordMode })) },
+    ...(scripture ? [
+      { id: 'text', label: textFilterLabel(f.textId), on: f.textId !== 'all', onClick: (el: Element) => choose(el,
+        [{ id: 'all', label: 'All texts' }, ...TRANSLATIONS.map((t) => ({ id: t.id, label: t.label, detail: t.description }))], f.textId, (v) => patchSearchFilters(tabId, { textId: v })) },
+      { id: 'books', label: booksSummary(f.books), on: f.books.length > 0, onClick: () => open('books', 'Books', () => <SearchBooksFilter tabId={tabId} />, true) },
+      { id: 'tags', label: f.tagIds.length ? `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}` : 'Tags', on: f.tagIds.length > 0, onClick: () => open('tags', 'Verse tags', (api: SheetApi) => <SearchTagsFilter tabId={tabId} api={api} />, true) },
+      { id: 'sort', label: sortValue === 'relevance' ? 'Best match' : sortValue === 'bible' ? 'Bible order' : 'Reverse order', on: f.sort !== 'relevance', onClick: (el: Element) => choose(el,
+        [{ id: 'relevance', label: 'Best match first' }, { id: 'bible', label: 'Bible order', detail: 'Genesis → end' }, { id: 'bible-rev', label: 'Reverse Bible order', detail: 'End → Genesis' }], sortValue,
+        (v) => patchSearchFilters(tabId, v === 'relevance' ? { sort: 'relevance', direction: 'desc' } : { sort: 'bookOrder', direction: v === 'bible' ? 'asc' : 'desc' })) },
+    ] : []),
+  ]
+  const count = activeFilterCount(f, scope)
   return (
-    <div className="mobile-search-filters-entry">
-      <button type="button" className={`mobile-search-filters-button${count ? ' is-active' : ''}`} onClick={onOpen}
-        aria-label={`Filters: ${summary}${count ? `, ${count} active` : ''}`}>
-        <SlidersHorizontal size={15} aria-hidden />
-        <span className="mobile-search-filters-label">Filters</span>
-        <span className="mobile-search-filters-summary">{summary}</span>
-        {count > 0 && <span className="mobile-search-filters-badge" aria-hidden>{count}</span>}
-      </button>
+    <div className="mobile-search-chips" role="group" aria-label="Filters">
+      {chips.map((c) => (
+        <button key={c.id} type="button" className={`mobile-search-chip${c.on ? ' is-on' : ''}`} onClick={(e) => c.onClick(e.currentTarget)} aria-label={`${c.id === 'words' ? 'Match' : c.id[0].toUpperCase() + c.id.slice(1)}: ${c.label}`}>
+          <span>{c.label}</span><ChevronDown size={13} aria-hidden />
+        </button>
+      ))}
+      {count > 0 && <button type="button" className="mobile-search-chip is-reset" onClick={() => { void haptic.light(); resetSearchFilters(tabId) }} aria-label="Reset filters"><RotateCcw size={13} aria-hidden /><span>Reset</span></button>}
     </div>
   )
 }

@@ -122,6 +122,60 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.7.1] - 2026-10-06
+
+### Look and feel (Mac and iPhone)
+
+- A new Liquid Glass design: on the Mac the sidebar is a real glass pane; on iPhone the bottom
+  buttons, the passage title and the tab switcher are system glass that responds to your finger.
+- Buttons stay glass when you press them — they light up and swell slightly instead of turning
+  into a flat grey circle, and their icon stays visible.
+
+### Notes
+
+- The note title lives in the note itself. A note you leave without a title is named from the
+  date (choose the format in Settings → Notes); an empty note you leave is moved to Trash.
+- Mac: the formatting bar sits in the window toolbar with the everyday controls; tables, images,
+  verses and other elements have their own Insert button.
+- Mac: a new Info panel shows a note's status, appearance, dates, word count and outline, and can
+  be resized.
+- Mac: note rows show a single "•••" for their actions on hover.
+- iPhone: an Apple Notes-style note page — large title, Return moves into the note, floating Done,
+  undo, share and more buttons.
+
+### Search
+
+- Search history now records the searches you run, not every letter you type.
+- Mac: a calmer search bar — the scope in the toolbar, and Match, Sort and Refine menus beside
+  the field.
+- Results always show the matched words, even in long verses.
+- Words changed by the word replacer (for example LORD → Yehovah) are found everywhere —
+  search, cross references and Strong's occurrences.
+- iPhone: one row of filters; pressing Search puts the keyboard away.
+
+### Scripture
+
+- Mac: opening the study panel no longer moves the text you are reading.
+- Septuagint verses that share a number (1 Kings 2:35a, 35b …) all appear.
+- Fixed merged verses in 1 Enoch.
+- Full book names in references, including Recognitions of Clement and Hermas.
+
+### iPhone
+
+- Sheets float above the page when partly open and fill the screen when pulled up.
+- Menus open next to the button that opened them and close with a tap outside — without
+  tapping what's underneath.
+- Berean reopens the workspace and tab you were using, even right after creating a new workspace.
+- Swipe from the edge to go back through a tab's history; smoother tab cards, scrolling and
+  startup.
+- Curated voices for Read Aloud.
+
+### Mac
+
+- The workspace button is labelled "Session"; one "New Tab" menu in the sidebar.
+- The YouTube toolbar fits any window width, moving extra controls into "…".
+- Connecting a notes vault imports it automatically.
+
 ## [0.7.0] - 2026-09-29
 
 ### iCloud sync (Mac and iPhone)

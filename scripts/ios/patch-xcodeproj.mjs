@@ -16,7 +16,10 @@
  *     NSUbiquitousContainers by the BEREAN_ICLOUD_CONTAINER build setting;
  *  7. App/BereanIntents.swift (App Intents) in the App target;
  *  8. the ShareExtension target (ios/App/ShareExtension) embedded in the App target;
- *  9. App/PrivacyInfo.xcprivacy in the App target's resources.
+ *  9. App/PrivacyInfo.xcprivacy in the App target's resources;
+ * 10. a "Berean Dev safety check" run-script phase FIRST in the App target
+ *     (scripts/ios/dev-safety-check.sh): a Debug build that is not Berean Dev fails before anything
+ *     is compiled or installed, so Xcode ▶ Run can never put com.berean.app on an iPhone.
  *
  * Run: node scripts/ios/patch-xcodeproj.mjs   (also invoked by `npm run ios:sync`)
  */
@@ -61,6 +64,8 @@ const ID = {
   // Privacy manifest (step 9)
   privacyFileRef: 'BE4EA0000000000000000F18',
   privacyBuildFile: 'BE4EA0000000000000000F19',
+  // Berean Dev safety check (step 10)
+  devSafetyPhase: 'BE4EA0000000000000000F20',
 }
 const TARGET_ID = '504EC3031FED79650016851F'
 const APP_GROUP_ID = '504EC3061FED79650016851F'
@@ -256,6 +261,13 @@ if (!s.includes(ID.privacyFileRef)) {
   const res = s.indexOf('504EC3021FED79650016851F /* Resources */ = {')
   const f = s.indexOf('files = (\n', res)
   s = s.slice(0, f + 'files = (\n'.length) + `\t\t\t\t${ID.privacyBuildFile} /* PrivacyInfo.xcprivacy in Resources */,\n` + s.slice(f + 'files = (\n'.length)
+}
+
+// 10. Berean Dev safety check — the FIRST App build phase (Debug must be com.berean.app.dev) -------
+if (!s.includes(ID.devSafetyPhase)) {
+  const phase = `\t\t${ID.devSafetyPhase} /* Berean Dev safety check */ = {\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = "Berean Dev safety check";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = "\\"$SRCROOT/../../scripts/ios/dev-safety-check.sh\\"\\n";\n\t\t};\n`
+  insertAfter('/* Begin PBXShellScriptBuildPhase section */\n', phase)
+  replaceOnce(`\t\t\tbuildPhases = (\n\t\t\t\t${SOURCES_PHASE_ID} /* Sources */,\n`, `\t\t\tbuildPhases = (\n\t\t\t\t${ID.devSafetyPhase} /* Berean Dev safety check */,\n\t\t\t\t${SOURCES_PHASE_ID} /* Sources */,\n`)
 }
 
 if (s !== before) {

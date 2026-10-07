@@ -79,7 +79,9 @@ export function SegmentedControl<T extends string>({
       onKeyDown={onKeyDown}
       className={cx(
         'no-drag inline-flex items-stretch flex-shrink-0',
-        inspector ? 'gap-0.5' : cx('p-0.5 bg-control shadow-[inset_0_0_0_1px_var(--control-border)]', bar ? 'rounded-control' : 'rounded-card'),
+        // Joined controls are full capsules everywhere (TEST 2026-09-29 / 10-03; macOS 26 segmented
+        // controls are capsules) — the track and the sliding thumb share the capsule radius.
+        inspector ? 'gap-0.5' : 'p-0.5 bg-control shadow-[inset_0_0_0_1px_var(--control-border)] rounded-control',
         fill && 'flex w-full', disabled && 'opacity-40 pointer-events-none', className,
       )}
     >
@@ -98,7 +100,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => !on && onChange(v)}
             className={cx(
               'focus-ring relative inline-flex items-center justify-center font-medium select-none whitespace-nowrap cursor-pointer',
-              bar ? 'rounded-control' : 'rounded-control-md',
+              inspector && !bar ? 'rounded-control-md' : 'rounded-control',
               'transition-colors duration-base ease-mac disabled:opacity-40 disabled:pointer-events-none',
               s.seg, fill && 'flex-1',
               on ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-lift-1 active:bg-lift-3',
@@ -108,7 +110,7 @@ export function SegmentedControl<T extends string>({
               <motion.span
                 layoutId={layoutId}
                 transition={SPRING_SNAPPY}
-                className={cx('absolute inset-0 bg-control-selected', bar ? 'rounded-control' : 'rounded-control-md', !inspector && 'border border-hairline shadow-1')}
+                className={cx('absolute inset-0 bg-control-selected', inspector && !bar ? 'rounded-control-md' : 'rounded-control', !inspector && 'border border-hairline shadow-1')}
                 aria-hidden
               />
             )}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -7,7 +7,82 @@ import { useSwipeDismissGesture } from '@/hooks/useSwipeDismissGesture'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { IconButton } from '@/components/ui'
 import type { TrailConnection } from '@/types/studyTrail'
+import {
+  arrivalPromptEligibility,
+  computeArrivalPlacement,
+  ARRIVAL_PROMPT_MAX_AGE_MS,
+  type ArrivalNavigationKind,
+  type ArrivalSurface,
+} from '@/lib/studyTrail/arrivalEligibility'
 import ReasonPromptPopover, { TrailReasonFormBody } from './ReasonPromptPopover'
+
+/** The pending-arrival contextual facts stored alongside pendingArrivalPrompt — see
+ *  studyTrailSlice.ts's StudyTrailState.pendingArrivalContext for where these are captured. */
+type PendingArrivalContext = {
+  navigationKind: ArrivalNavigationKind
+  userInitiated: boolean
+  fromRef: { bookId: string; chapter: number } | null
+  toRef: { bookId: string; chapter: number } | null
+  recordedAt: number
+}
+
+/** The single gate every render of this component consults: is `conn` (the pending arrival)
+ *  currently eligible to be shown at all, given the live active space/tab and its own age?
+ *  Re-evaluated on every relevant store change (active space, active tab, the tab list itself,
+ *  a new/cleared pending connection) AND on a timer so staleness alone — with no other store
+ *  change — also flips it ineligible and dismisses the prompt, instead of it lingering until
+ *  some unrelated re-render happens to notice.
+ *
+ *  Architecturally this replaces "driven purely by pendingArrivalPrompt" with "driven by
+ *  pendingArrivalPrompt AND whether the surface/age/kind actually make the question meaningful
+ *  right now" — the fix for the prompt showing over Notes tabs, Settings, Search, etc. */
+function useArrivalPromptGate(
+  conn: TrailConnection | null,
+  navContext: PendingArrivalContext | null,
+  clear: () => void,
+): boolean {
+  const activeSpace = useAppStore((s) => s.activeSpace)
+  const activeTabId = useAppStore((s) => s.activeTabId)
+  const tabs = useAppStore((s) => s.tabs)
+  // Forces one extra re-render right when a pending arrival would age out, even if nothing
+  // else in the store changes in the meantime (see the effect below).
+  const [, forceRecompute] = useState(0)
+
+  const surface: ArrivalSurface = useMemo(() => {
+    const tid = activeTabId[activeSpace]
+    const tab = tid ? tabs[activeSpace]?.find((t) => t.id === tid) : undefined
+    return { space: activeSpace, tabType: tab?.type ?? null }
+  }, [activeSpace, activeTabId, tabs])
+
+  const eligible = Boolean(conn && navContext && arrivalPromptEligibility({
+    navigationKind: navContext.navigationKind,
+    userInitiated: navContext.userInitiated,
+    surface,
+    fromRef: navContext.fromRef,
+    toRef: navContext.toRef,
+    recordedAt: navContext.recordedAt,
+    now: Date.now(),
+  }).eligible)
+
+  // Arm a timer for exactly when this pending arrival (if any) will cross the staleness
+  // threshold, so an otherwise-untouched prompt still dismisses itself on schedule.
+  useEffect(() => {
+    if (!navContext) return
+    const remaining = navContext.recordedAt + ARRIVAL_PROMPT_MAX_AGE_MS - Date.now()
+    if (remaining <= 0) { forceRecompute((t) => t + 1); return }
+    const timer = setTimeout(() => forceRecompute((t) => t + 1), remaining + 50)
+    return () => clearTimeout(timer)
+  }, [navContext?.recordedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The moment eligibility flips false for a connection that's still pending — left the
+  // Scripture tab/space, went stale, or any other rule failed — clear it for real (a genuine
+  // dismiss, same as "Not now"), not just "don't render this time."
+  useEffect(() => {
+    if (conn && navContext && !eligible) clear()
+  }, [conn, navContext, eligible, clear])
+
+  return eligible
+}
 
 /** Resolves the ORIGIN chapter (the node the connection left) — the connection row only stores
  *  fromNodeId, not its book/chapter, so this round-trips the session once. Lets the prompt read
@@ -68,11 +143,27 @@ const PILL_WIDTH = 250
 // in the topbar."
 export default function StudyTrailArrivalPrompt({ bottomInset = 0 }: { /** Touch hosts: height of the shell's bottom bars the pill must clear (plus the safe area). */ bottomInset?: number } = {}) {
   const conn = useStudyTrailStore((s) => s.pendingArrivalPrompt)
+  const navContext = useStudyTrailStore((s) => s.pendingArrivalContext)
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
   const origin = useOriginRef(conn)
+  // The contextual-eligibility gate — see useArrivalPromptGate's own comment. Consulted BEFORE
+  // either UI below ever renders a single pixel; an ineligible pending arrival (wrong surface,
+  // stale, a kind with no meaningful "why") renders nothing in either mode and is actively
+  // cleared, not just hidden.
+  const eligible = useArrivalPromptGate(conn, navContext, clear)
+  // Escape dismisses — same as the full popup's own "Not now"/× — whichever UI is showing.
+  useEffect(() => {
+    if (!conn || !eligible) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') clear()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [conn, eligible, clear])
+
   if (askChapterJumpReason) {
-    if (!conn) return null
+    if (!conn || !eligible) return null
     return (
       <ReasonPromptPopover
         connection={conn}
@@ -86,7 +177,10 @@ export default function StudyTrailArrivalPrompt({ bottomInset = 0 }: { /** Touch
   }
   // Always rendered (even when conn is null) — ArrivalPill manages its own brief fade-out
   // after conn clears, rather than being yanked off screen instantly. See its own comment.
-  return <ArrivalPill conn={conn} origin={origin} onClose={clear} bottomInset={bottomInset} />
+  // Pass null (not conn) once ineligible so the pill's own fade-out plays exactly as it does
+  // for any other dismiss, rather than this component trying to also suppress it after the
+  // fact.
+  return <ArrivalPill conn={eligible ? conn : null} origin={origin} onClose={clear} bottomInset={bottomInset} />
 }
 
 /** The lightweight, non-blocking alternative to the full popup — a small toast pinned to the
@@ -174,6 +268,24 @@ function ArrivalPill({ conn, origin, onClose, bottomInset = 0 }: { conn: TrailCo
   const pillRef = useRef<HTMLDivElement | null>(null)
   const [pillHeight, setPillHeight] = useState(160)
 
+  // Collision-aware suppression — on top of (not replacing) the tuned per-case right/bottom
+  // offsets above, a last safety net: if the viewport is too small for the pill to sit at that
+  // corner WITHOUT eating into the central reading column or the top toolbar, don't show the
+  // overlay at all rather than render it on top of Scripture text. Tracks window size since
+  // this can flip on a live resize (e.g. shrinking the app window), not just at mount.
+  const [viewport, setViewport] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  useEffect(() => {
+    function onResize() { setViewport({ w: window.innerWidth, h: window.innerHeight }) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const hasSafeSlot = computeArrivalPlacement({
+    viewportWidth: viewport.w, viewportHeight: viewport.h,
+    pillWidth: PILL_WIDTH, pillHeight,
+    rightPanelWidth: rightPanelW, bottomReservedHeight: bottomPx, toolbarHeight: 44,
+    minReadingColumnWidth: 320,
+  }) != null
+
   // Swipe DOWN over the toast to dismiss it — same trackpad physics as the Bible reader's
   // right-side-panel gesture (rubber-band, fast-flick commit, per-frame ease). Disabled once the
   // user has started typing in the form (`touched`) so an in-progress note can't be swiped away.
@@ -212,6 +324,10 @@ function ArrivalPill({ conn, origin, onClose, bottomInset = 0 }: { conn: TrailCo
   // next one once `local` became non-null: "Rendered more hooks than during the previous
   // render." Bailing here, after all hooks, is the fix.
   if (!local) return null
+  // No safe slot for the pill at this viewport size (it would have to eat into the central
+  // reading column or the top toolbar) — suppress the overlay entirely rather than place it
+  // somewhere it covers Scripture text. See computeArrivalPlacement in arrivalEligibility.ts.
+  if (!hasSafeSlot) return null
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
   const question = arrivalQuestion(local, origin)

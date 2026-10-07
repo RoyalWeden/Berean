@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, ChevronLeft, CornerDownLeft } from 'lucide-react'
+import { Search, CornerDownLeft } from 'lucide-react'
+import { BackButton } from '../primitives/Page'
 import type { Book } from '@/types'
 import { parseRef, ALL_BOOKS, bookName, displayBookName } from '@/lib/parseRef'
 export { PassagePicker, type PassagePick, type PassagePickerProps } from './PassagePicker'
@@ -64,7 +65,7 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
   if (pickBook && pickChapter != null) {
     return (
       <div className="mobile-ref-picker">
-        <button type="button" className="mobile-link-button" onClick={() => { setPickChapter(null); setRangeStart(null) }}><ChevronLeft size={18} aria-hidden /> {pickBook.name} {displayChapter(pickBook.id, pickChapter)}</button>
+        <div className="mobile-ref-picker-head"><BackButton onClick={() => { setPickChapter(null); setRangeStart(null) }} label={pickBook.name} /><span className="mobile-ref-picker-title">{pickBook.name} {displayChapter(pickBook.id, pickChapter)}</span></div>
         <p className="mobile-muted mobile-ref-hint">{rangeStart ? `From verse ${rangeStart} — tap the last verse, or ${rangeStart} again for one verse` : 'Tap a verse, or two verses for a range'}</p>
         <div className="mobile-grid-numbers">
           <button type="button" className="mobile-grid-cell is-wide" onClick={() => go(pickBook.id, pickChapter)}>Whole chapter</button>
@@ -84,7 +85,7 @@ export function ReferencePicker({ books, bookId, chapter, onPick }: { books: Boo
     const count = pickBook.chapters || 150
     return (
       <div className="mobile-ref-picker">
-        <button type="button" className="mobile-link-button" onClick={() => setPickBook(null)}><ChevronLeft size={18} aria-hidden /> {pickBook.name}</button>
+        <div className="mobile-ref-picker-head"><BackButton onClick={() => setPickBook(null)} label="Books" /><span className="mobile-ref-picker-title">{pickBook.name}</span></div>
         {chapterNumberingNote(pickBook.id) && <p className="mobile-muted mobile-ref-hint">{chapterNumberingNote(pickBook.id)}</p>}
         <div className="mobile-grid-numbers">
           {Array.from({ length: count }, (_, i) => i + 1).map((c) => (

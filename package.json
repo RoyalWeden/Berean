@@ -7,8 +7,8 @@
   "private": true,
   "scripts": {
     "setup:worktree": "bash scripts/setup-worktree.sh",
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "dev": "node scripts/mac/build-native.mjs glass && electron-vite dev",
+    "build": "electron-vite build && node scripts/mac/build-native.mjs glass",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint . --ext .ts,.tsx",
@@ -29,9 +29,12 @@
     "data:publish": "node scripts/publish-data.js",
     "embeddings:build": "node scripts/build-embedding-index.js",
     "ios:build:web": "vite build -c vite.ios.config.ts",
-    "ios:sync": "( [ -f data/youtube_index.db ] || node scripts/data/split-youtube-seed.mjs ) && npm run ios:build:web && node scripts/ios/version.mjs && node scripts/ios/identity.mjs && cap sync ios && node scripts/ios/patch-xcodeproj.mjs",
+    "ios:sync": "node scripts/ios/check-setup.mjs --pre-sync && ( [ -f data/youtube_index.db ] || node scripts/data/split-youtube-seed.mjs ) && npm run ios:build:web && node scripts/ios/version.mjs && node scripts/ios/identity.mjs && cap sync ios && node scripts/ios/patch-xcodeproj.mjs && node scripts/ios/check-setup.mjs",
+    "ios:check": "node scripts/ios/check-setup.mjs",
+    "ios:check:dev": "bash scripts/ios/dev-safety-check.sh --xcodebuild",
+    "ios:open:dev": "npm run ios:sync:dev && bash scripts/ios/dev-safety-check.sh --xcodebuild && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cap open ios",
     "ios:sync:dev": "BEREAN_IDENTITY=development npm run ios:sync",
-    "ios:open": "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cap open ios",
+    "ios:open": "node scripts/ios/check-setup.mjs && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cap open ios",
     "ios:build": "bash scripts/ios/build.sh simulator",
     "ios:device": "bash scripts/ios/build.sh device",
     "ios:archive": "npm run ios:sync && bash scripts/ios/build.sh archive",
@@ -40,7 +43,8 @@
     "ios:dev": "vite -c vite.ios.config.ts",
     "ios:test": "bash scripts/ios/test.sh",
     "ios:bump-build": "node scripts/ios/version.mjs --bump-build",
-    "audit:prod": "node scripts/audit-production.mjs"
+    "audit:prod": "node scripts/audit-production.mjs",
+    "native:build": "node scripts/mac/build-native.mjs"
   },
   "dependencies": {
     "@lezer/highlight": "^1.2.3",
@@ -184,7 +188,16 @@
       "notarize": false,
       "extendInfo": {
         "NSLocationWhenInUseUsageDescription": "Berean uses your location only to compute local sunrise time, which determines when a new daily note begins."
-      }
+      },
+      "extraResources": [
+        {
+          "from": "build/native",
+          "to": "native",
+          "filter": [
+            "berean_glass.node"
+          ]
+        }
+      ]
     },
     "mas": {
       "target": [
@@ -211,7 +224,8 @@
           "from": "build/native",
           "to": "native",
           "filter": [
-            "berean_icloud.node"
+            "berean_icloud.node",
+            "berean_glass.node"
           ]
         }
       ]

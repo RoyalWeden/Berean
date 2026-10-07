@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { buildMatchExcerpt, excerptBudgetForWidth } from '@/lib/search/matchExcerpt'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown, Tag, Settings2, SlidersHorizontal } from 'lucide-react'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown, Tag, Settings2, SlidersHorizontal, TextSearch } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import type { Book, Verse } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
-import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
-import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
-import { runRawScriptureSearch } from '@/lib/scriptureSearch'
+import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
+import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { runRawScriptureSearch, runScriptureSearch } from '@/lib/scriptureSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, isGroupActive, bookSections, booksSummary, selectGroup, clearGroup, groupSelectionState, type BookSection } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
@@ -23,7 +24,7 @@ import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
   Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
-  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics,
+  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics, MenuLabel, MenuSeparator,
 } from '@/components/ui'
 import { displayChapter } from '@/lib/chapterNumbering'
 
@@ -309,6 +310,9 @@ interface Props {
   initialQuery?: string
   persistedState?: PersistedState
   onStateChange?: (state: PersistedState) => void
+  /** A search the user actually SUBMITTED (Return) — one history step per submission, never per
+   *  keystroke or typing pause (TEST 2026-10-05: several searches in one tab kept only the last). */
+  onSearchSubmitted?: (state: PersistedState) => void
   /** Floating (detached) windows draw their own PanelHeader; docked panels portal mode
    *  controls into the shared TopBar instead — see TabHeaderPortal below. */
   floating?: boolean
@@ -316,7 +320,7 @@ interface Props {
 
 type CtxItem = { bookId: string; chapter: number; verse: number; textId: string; text: string; x: number; y: number }
 
-export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpenInFloating, onClose, initialQuery, persistedState, onStateChange, floating = false }: Props) {
+export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpenInFloating, onClose, initialQuery, persistedState, onStateChange, onSearchSubmitted, floating = false }: Props) {
   // Rendered inside BiblePanel; when that panel is mounted-but-hidden (another space
   // on screen) this must not portal its header into the shared TopBar slot either.
   const isActivePanel = useIsActivePanel('bible')
@@ -465,7 +469,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   }
   const [railSearch, setRailSearch] = useState('')
   const railSearchRef = useRef<HTMLInputElement>(null)
-  const railPanelRef = useRef<FloatingHoverPanelHandle>(null)
+  const [railOpen, setRailOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -637,21 +641,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     if (trimmed.length < 2) { setResults([]); setMatchedBookIds(null); return }
     setLoading(true)
     const effectiveWordMode = wMode ?? wordMode
-    // Bidirectional word-replacer search: the DB still stores the ORIGINAL word
-    // (e.g. "Jesus"), only display-side applyWordReplacer below shows "Yeshua" —
-    // so without expanding the search itself, searching "Yeshua" here found nothing.
-    // Each variant is a REAL, independent, plain query string run through
-    // window.bible.searchText separately and merged below — NOT a single "term1 OR
-    // term2" string. electron/ipc/bible.ts's own FTS query builder deliberately
-    // treats every word (including a literal "OR") as a required token, so a
-    // one-string "OR"-joined query silently became an impossible AND-query
-    // requiring the literal word "or" too — confirmed broken in both this view and
-    // the floating quick search. Skipped for phrase mode — a substituted variant is
-    // still one coherent phrase, so this stays correct there too, just run as
-    // several exact-phrase searches instead of one.
-    const variants = wordReplacerEnabled
-      ? getWordReplacerSearchVariants(trimmed, wordReplacerRules)
-      : [trimmed]
     // testamentScopedBookIds (no `selectedBooks`) is the scope the Scripture-filter checklist
     // itself should reflect: "what books does this query actually match", independent of which
     // ones happen to be checked right now. `scopedBookIds` is what actually restricts the VISIBLE
@@ -667,39 +656,30 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     // rank outside the unscoped cap's top N by BM25 relevance. 'Pseudepigrapha' is a
     // text-level distinction (not a book_id), so it's left unscoped here.
     const scopedBookIds: string[] | undefined = selectedBooks.length > 0 ? selectedBooks : testamentScopedBookIds
-    // Word-replacer → Strong's bridge: "yehovah" restores from H3068/H3069, which plain FTS
-    // (index still says "LORD") can't find. Search those by occurrence and merge. KJVA-only —
-    // the H-number rules and occurrence data are Hebrew-OT tagging. See getWordReplacerStrongsSearch.
-    const wrStrongs = (wordReplacerEnabled && tid === 'kjva' && effectiveWordMode !== 'phrase')
-      ? getWordReplacerStrongsSearch(trimmed, wordReplacerRules)
-      : null
     try {
-      const raw = await runRawSearch(trimmed, tid, effectiveWordMode, variants, scopedBookIds)
+      // The shared algorithm (scriptureSearch.ts) — bidirectional word-replacer variants run
+      // as separate queries and merged, phrase-mode exact post-filter, and the word-replacer
+      // → Strong's bridge (e.g. "yehovah" restores from H3068/H3069, which plain FTS can
+      // never find since the index still says "LORD") — see runScriptureSearch's own comment.
+      const hits = await runScriptureSearch(trimmed, {
+        textId: tid, wordMode: effectiveWordMode, bookIds: scopedBookIds,
+        wordReplacerEnabled, wordReplacerRules,
+      })
       const wrStrongsMatches: Record<string, number[]> = {}
-      if (wrStrongs) {
-        try {
-          const strongsHits = await searchAnyStrongs(wrStrongs.strongsNums, wrStrongs.residualWords, window.lexicon.getOccurrences)
-          const seen = new Set(raw.map((r) => `${r.book_id}:${r.chapter}:${r.verse_num}`))
-          const scopeSet = scopedBookIds ? new Set(scopedBookIds) : null
-          for (const o of strongsHits) {
-            const key = `${o.book_id}:${o.chapter}:${o.verse_num}`
-            wrStrongsMatches[key] = o.matchWordIndices
-            if (seen.has(key)) continue
-            if (scopeSet && !scopeSet.has(o.book_id)) continue
-            raw.push({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, _textId: 'kjva' })
-          }
-        } catch { /* best-effort — FTS results still stand */ }
+      for (const h of hits) {
+        if (h.strongsWords) wrStrongsMatches[`${h.book_id}:${h.chapter}:${h.verse_num}`] = h.strongsWords
       }
       setStrongsMatches(wrStrongsMatches)
-      setResults(raw)
+      setResults(hits.map(({ textId: t, strongsWords: _sw, ...r }) => ({ ...r, _textId: t })))
       // The Scripture-filter checklist needs to know which books this query would match with
-      // NO book filter applied. When nothing's checked, `raw` above already IS that (it was
-      // only ever testament-scoped) — free. Only when a book filter is active does `raw` get
+      // NO book filter applied. When nothing's checked, `hits` above already IS that (it was
+      // only ever testament-scoped) — free. Only when a book filter is active does `hits` get
       // artificially narrowed beyond that, so only then is a second, book-filter-agnostic query
       // actually needed to reconstruct the full matched-book set.
       if (selectedBooks.length === 0) {
-        setMatchedBookIds(new Set(raw.map((r) => r.book_id)))
+        setMatchedBookIds(new Set(hits.map((r) => r.book_id)))
       } else {
+        const variants = wordReplacerEnabled ? getWordReplacerSearchVariants(trimmed, wordReplacerRules) : [trimmed]
         const unscoped = await runRawSearch(trimmed, tid, effectiveWordMode, variants, testamentScopedBookIds)
         setMatchedBookIds(new Set(unscoped.map((r) => r.book_id)))
       }
@@ -908,6 +888,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     return groups
   })(), [results, selectedBooks, allBooks, testamentFilter, sortMode, sortDirection, passesTagFilter])
 
+  // Two-line excerpt budget from the results list's real width (reference column ≈ 110px).
+  const [excerptBudget, setExcerptBudget] = useState(180)
+  useEffect(() => {
+    const el = resultsRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setExcerptBudget(excerptBudgetForWidth(Math.max(240, el.clientWidth - 110), 15, 2)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [filteredGroups.length > 0])
+
   const totalCount = filteredGroups.reduce((n, g) => n + g.results.length, 0)
 
   const bookNameOf = (id: string) => availableBooks.find((b) => b.id === id)?.name ?? id
@@ -1079,6 +1069,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         return
       }
       runForMode(query)
+      if (query.trim()) {
+        onSearchSubmitted?.({
+          query: query.trim(), textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
+          tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll,
+        })
+      }
       return
     }
     // ArrowDown/ArrowUp only — NOT vim-style j/k. This handler is on the live query
@@ -1115,7 +1111,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           if (currentTextEntry) scopeParts.push(currentTextEntry.label)
           if (testamentFilter !== 'all') scopeParts.push(testamentFilter)
           if (selectedBooks.length > 0) scopeParts.push(booksSummary(selectedBooks, bookNameOf))
-          const scopeSummary = scopeParts.length > 0 ? scopeParts.join(' · ') : 'All scripture'
+          const scopeSummary = scopeParts.length > 0 ? scopeParts.join(' · ') : 'All Scripture'
           return (
             <Button
               variant="secondary" size="sm" selected={isFiltered}
@@ -1131,31 +1127,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           )
         })()}
 
-        <SegmentedControl
-          size="md"
-          value={searchMode}
-          onChange={(m) => { setSearchMode(m); if (query.trim().length >= 2) runForMode(query) }}
-          options={[
-            { value: 'auto', label: 'All' },
-            { value: 'text', label: 'Text' },
-            { value: 'strongs', label: "Strong's" },
-            { value: 'crossref', label: 'Cross-ref' },
-          ]}
-        />
-
-        {/* Word mode — permanent inline pills, text mode only (never in a modal/dropdown) */}
-        {effectiveMode(query) === 'text' && (
-          <SegmentedControl
-            size="md"
-            value={wordMode}
-            onChange={handleWordModeChange}
-            options={[
-              { value: 'all', label: 'All words' },
-              { value: 'any', label: 'Any word' },
-              { value: 'phrase', label: 'Phrase' },
-            ]}
-          />
-        )}
+        {/* Search type and word matching moved to the "Match" menu beside the field (TEST
+            2026-10-05: eleven always-visible pills). The toolbar keeps only the SCOPE. */}
 
       </TabHeaderPortal>
 
@@ -1166,10 +1139,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           BarMetrics gives its scope trigger, mode segments and filter controls the one bar
           control height instead of their own 28px call-site sizes. */}
       <BarMetrics>
-      <div className="flex items-center gap-2 px-4 py-1.5 material-bar flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
+      {/* One control family with the toolbar above: a filled search field, then the result
+          controls as capsule groups (sort · direction | books · filters) on the content ground —
+          no grey band (TEST 2026-10-05: the two control regions looked like two different apps). */}
+      <div className="flex items-center gap-2 px-4 pt-2 pb-2 bg-surface-3 border-b border-separator-subtle flex-shrink-0 flex-wrap" data-scroll-edge="bottom">
         <SearchField
           ref={inputRef}
-          bare
           value={query}
           onValueChange={handleInput}
           onKeyDown={handleKeyDown}
@@ -1177,28 +1152,131 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           wrapperClassName="flex-1 min-w-0 basis-40"
         />
         {effectiveMode(query) !== 'crossref' && (
-          <>
-            {/* Sort pill: conjoined "mode dropdown" + "direction flip" — replaces the old
-                single-button relevance/book-order cycle. Direction is its own control
-                (applies to whichever mode is active) rather than folded into the cycle. */}
-            <ControlGroup>
-              <Select
-                variant="ghost" size="sm"
-                aria-label="Sort order"
-                value={sortMode}
-                onChange={setSortMode}
-                options={[
-                  { value: 'relevance', label: 'Relevance', icon: ArrowUpDown },
-                  { value: 'bookOrder', label: 'Book order', icon: ListTree },
-                ]}
-              />
-              <IconButton
-                icon={sortDirection === 'desc' ? ArrowDown : ArrowUp}
-                label={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
-                size={28}
-                onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
-              />
-            </ControlGroup>
+          // Match · Sort · Refine · Jump — ONE grouped control (one capsule), not four pills.
+          <ControlGroup variant="glass">
+            {/* Match — ONE menu for both matching dimensions, in labelled sections: what the
+                query is (automatic / text / Strong's / cross references) and, for text, how its
+                words match. The trigger names the effective choice. */}
+            {(() => {
+              const mode = effectiveMode(query)
+              const wordLabel = wordMode === 'any' ? 'Any word' : wordMode === 'phrase' ? 'Phrase' : 'All words'
+              const triggerLabel = mode === 'strongs' ? "Strong's" : wordLabel
+              const TYPES: { value: typeof searchMode; label: string }[] = [
+                { value: 'auto', label: 'Automatic' },
+                { value: 'text', label: 'Text' },
+                { value: 'strongs', label: "Strong's Numbers" },
+                { value: 'crossref', label: 'Cross References' },
+              ]
+              return (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="menu" size="sm" icon={TextSearch} tooltip="How the search matches: search type and word matching">
+                      {triggerLabel}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverSurface align="end" innerClassName="p-1 min-w-[210px]" role="menu">
+                    <MenuLabel>Search For</MenuLabel>
+                    {TYPES.map((t) => (
+                      <MenuItem key={t.value} active={searchMode === t.value} label={t.label}
+                        onClick={() => { setSearchMode(t.value); if (query.trim().length >= 2) runForMode(query) }} />
+                    ))}
+                    {mode === 'text' && (
+                      <>
+                        <MenuSeparator />
+                        <MenuLabel>Match</MenuLabel>
+                        <MenuItem active={wordMode === 'all'} label="All Words" onClick={() => handleWordModeChange('all')} />
+                        <MenuItem active={wordMode === 'any'} label="Any Word" onClick={() => handleWordModeChange('any')} />
+                        <MenuItem active={wordMode === 'phrase'} label="Exact Phrase" onClick={() => handleWordModeChange('phrase')} />
+                      </>
+                    )}
+                  </PopoverSurface>
+                </Popover>
+              )
+            })()}
+
+            {/* Sort — order and direction in one menu (was a select + a separate flip button). */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="menu" size="sm" icon={ArrowUpDown} tooltip="Sort results">
+                  {sortMode === 'bookOrder' ? 'Book Order' : 'Relevance'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverSurface align="end" innerClassName="p-1 min-w-[190px]" role="menu">
+                <MenuLabel>Sort By</MenuLabel>
+                <MenuItem active={sortMode === 'relevance'} label="Relevance" onClick={() => setSortMode('relevance')} />
+                <MenuItem active={sortMode === 'bookOrder'} label="Book Order" onClick={() => setSortMode('bookOrder')} />
+                <MenuSeparator />
+                {/* Book order's natural direction is 'asc' (Genesis → Revelation); relevance's
+                    is 'desc' (best match first) — see the sort above. */}
+                {sortMode === 'bookOrder' ? (
+                  <>
+                    <MenuItem active={sortDirection === 'asc'} label="Genesis → Revelation" onClick={() => setSortDirection('asc')} />
+                    <MenuItem active={sortDirection === 'desc'} label="Revelation → Genesis" onClick={() => setSortDirection('desc')} />
+                  </>
+                ) : (
+                  <>
+                    <MenuItem active={sortDirection === 'desc'} label="Best Match First" onClick={() => setSortDirection('desc')} />
+                    <MenuItem active={sortDirection === 'asc'} label="Best Match Last" onClick={() => setSortDirection('asc')} />
+                  </>
+                )}
+              </PopoverSurface>
+            </Popover>
+
+            {/* Jump to a book in the results — a popover from a control in this row (was a
+                hover-revealed floating rail over the results' right edge, which covered text). */}
+            {filteredGroups.length > 1 && (effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && (() => {
+              const railQuery = normalizeBookQuery(railSearch.trim().toLowerCase())
+              const railGroups = railQuery ? filteredGroups.filter((g) => g.bookName.toLowerCase().includes(railQuery)) : filteredGroups
+              return (
+            <Popover open={railOpen} onOpenChange={(o) => { setRailOpen(o); handleRailExpandedChange(o) }}>
+              <PopoverTrigger asChild>
+                <IconButton icon={ListTree} label="Jump to a book in the results" size={28} />
+              </PopoverTrigger>
+              <PopoverSurface align="end" innerClassName="w-[280px] max-h-[420px] flex flex-col overflow-hidden">
+            <Toolbar size="sm" material="none">
+                  <SearchField
+                    ref={railSearchRef}
+                    bare
+                    wrapperClassName="flex-1 min-w-0"
+                    value={railSearch}
+                    onValueChange={setRailSearch}
+                    placeholder="Jump to book…"
+                  />
+                </Toolbar>
+                <div className="overflow-y-auto flex-1 py-1">
+                  {railGroups.length === 0 && (
+                    <EmptyState compact title="No match" />
+                  )}
+                  {railGroups.map((g) => {
+                    const key = `${g.textId}::${g.bookId}`
+                    const editionDotTone = g.textId === 'kjva' ? 'warning' : g.textId === 'lxx' ? 'info' : 'neutral'
+                    return (
+                      <ListRow
+                        key={key}
+                        onClick={() => {
+                          const idx = headerFlatIndex.get(key)
+                          // 'auto' (instant), not 'smooth' — native smooth-scroll's easing/duration
+                          // isn't tunable from app code, and the virtualizer re-issues it on every
+                          // reconciliation pass as still-unrendered rows' estimated heights settle
+                          // (see reconcileScroll below), which read as a slow, restarting scroll
+                          // rather than one quick jump.
+                          if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
+                          setRailOpen(false)
+                        }}
+                        leading={textId === 'all' ? <Badge variant="dot" tone={editionDotTone} label={g.textLabel} /> : undefined}
+                        // Wraps to 2 lines instead of truncating — a fixed-width panel plus
+                        // single-line truncation was cutting off names like "Recognitions,
+                        // Book 10" to the point of being unreadable.
+                        title={<span className="whitespace-normal">{g.bookName}</span>}
+                        meta={textId === 'all' ? g.textLabel : undefined}
+                      />
+                    )
+                  })}
+                </div>
+              </PopoverSurface>
+            </Popover>
+              )
+            })()}
 
             {/* Secondary filters (result length, verse tags) sit behind ONE "Filters" popover
                 (§45 density): the bar keeps scope / mode / word-match / sort visible. The tag
@@ -1215,10 +1293,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   variant="menu" size="sm" icon={SlidersHorizontal}
                   selected={activeCount > 0}
                   badge={contextMode !== 'default' ? { variant: 'dot', label: 'Result length changed' } : undefined}
-                  tooltip="Result length and verse-tag filters"
+                  tooltip="Refine: result length and verse-tag filters"
                   className="max-w-[240px]"
                 >
-                  <span className="truncate">{tagSummary || 'Filters'}</span>
+                  {/* "Refine" (TEST 2026-10-05): this holds how results are SHOWN (length) as well
+                      as what's filtered (tags) — "Filters" undersold it. Names chosen tags. */}
+                  <span className="truncate">{tagSummary || 'Refine'}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverSurface align="end" innerClassName="p-2 w-[260px] flex flex-col gap-2">
@@ -1278,7 +1358,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             </Popover>
               )
             })()}
-          </>
+          </ControlGroup>
         )}
       </div>
       </BarMetrics>
@@ -1763,13 +1843,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       >
                         <button
                           type="button"
-                          className="focus-ring w-full flex items-center gap-2 px-4 py-1.5 material-bar cursor-pointer select-none hover:bg-lift-2 transition-colors"
+                          // A section header, not a band: the book name in semibold with a quiet count on
+                          // the content ground (Mail / Finder search sections) — no grey slab per book.
+                          className="focus-ring w-full flex items-center gap-1.5 px-4 pt-4 pb-1 bg-surface-3 cursor-pointer select-none group/hdr"
                           onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
                         >
-                          <ChevronDown size={12} className={`text-text-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
-                          <BookOpen size={12} className="text-text-muted flex-shrink-0" />
-                          <span className="text-subhead font-semibold text-text-primary">{group.bookName}</span>
-                          <RefChip variant="neutral" size="xs">{group.results.length}</RefChip>
+                          <span className="text-footnote font-semibold text-text-primary">{group.bookName}</span>
+                          <span className="text-footnote text-text-muted tabular-nums">{group.results.length}</span>
+                          <ChevronDown size={11} strokeWidth={2.25} className={`text-text-muted transition-transform flex-shrink-0 opacity-0 group-hover/hdr:opacity-100 focus-visible:opacity-100 ${collapsed ? '-rotate-90 opacity-100' : ''}`} />
                           <div className="flex-1" />
                           {textId === 'all' && (
                             <span className="flex items-center gap-1 text-meta">
@@ -1804,9 +1885,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             two-column layout (fixed-width ref chip | flexible verse text), so it
                             needs its own flex context inside the card. */}
                         <span className="flex items-start gap-3 min-w-0">
-                          <RefChip size="lg" mono={false} className="w-16 flex-shrink-0 justify-center py-1">
+                          {/* The reference as semibold accent text (tabular), not a filled pill. */}
+                          <span className="w-12 flex-shrink-0 pt-0.5 text-subhead font-semibold tabular-nums text-accent">
                             {r.chapter}:{r.verse_num}
-                          </RefChip>
+                          </span>
                           {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {
                             const span = contextMode === 'plusMinus1' ? 1 : 2
                             const chapterVerses = getContextVerses(r)
@@ -1845,7 +1927,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             // for typical one-sentence verse snippets, which made the toggle feel like it
                             // "did nothing" — clamping to a single line makes the two modes clearly
                             // different at a glance.
-                            <span className={`flex-1 text-subhead text-text-primary leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
+                            <span className={`flex-1 text-subhead text-text-primary leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-2'}`}>
                               {(() => {
                                 const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
                                   ? applyWordReplacer(r.text, wordReplacerRules)
@@ -1878,11 +1960,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                   }
                                   return highlightStrongs(rawText, rawIndices, extraWords)
                                 }
-                                // Only "all words" mode needs the dynamic-start snippet — "any word" only
-                                // needs one match visible (line-clamp already lands on it often enough),
-                                // and "phrase" highlights a single contiguous span CSS clamping already handles.
-                                const snippet: Snippet = !showContext && wordMode === 'all'
-                                  ? buildAllWordsSnippet(rawText, query)
+                                // Match-aware excerpt in EVERY mode (src/lib/search/matchExcerpt.ts): the
+                                // window always keeps the matched words (and context around them) and only
+                                // adds an ellipsis where text was really removed; the budget is the row's
+                                // real two-line capacity, so the CSS clamp below never cuts the match off.
+                                const snippet: Snippet = !showContext
+                                  ? buildMatchExcerpt(rawText, query, { mode: wordMode, budget: excerptBudget })
                                   : { text: rawText, sliceStart: 0, sliceEnd: rawText.length, prefixLen: 0 }
                                 // The highlight query goes through the SAME word-replacer transform as the
                                 // text it's matched against — text shows "Yeshua" (replaced), so a query of
@@ -1940,74 +2023,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
            how many book sections are jumpable right now (clamped to a sensible 2–4
            range), which also drives the pill's own height instead of a fixed height
            that doesn't reflect what's actually in the results. */}
-      {filteredGroups.length > 1 && (effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && (() => {
-        const railQuery = normalizeBookQuery(railSearch.trim().toLowerCase())
-        const railGroups = railQuery ? filteredGroups.filter((g) => g.bookName.toLowerCase().includes(railQuery)) : filteredGroups
-        const railIconCount = Math.min(Math.max(filteredGroups.length, 2), 4)
-        const railIconSize = 10
-        const railIconGap = 8
-        const railCollapsedHeight = railIconCount * railIconSize + (railIconCount - 1) * railIconGap + 16
-        return (
-          <FloatingHoverPanel
-            ref={railPanelRef}
-            expandedWidth={300}
-            expandedHeight={400}
-            anchorRightClass="-right-2"
-            collapsedWidth={16}
-            collapsedHeight={railCollapsedHeight}
-            collapsedRadius={8}
-            onExpandedChange={handleRailExpandedChange}
-            collapsedContent={
-              <div className="flex flex-col items-center justify-center" style={{ gap: railIconGap }}>
-                {Array.from({ length: railIconCount }).map((_, i) => (
-                  <BookOpen key={i} size={railIconSize} className="text-text-muted" />
-                ))}
-              </div>
-            }
-          >
-            <Toolbar size="sm" material="none">
-              <SearchField
-                ref={railSearchRef}
-                bare
-                wrapperClassName="flex-1 min-w-0"
-                value={railSearch}
-                onValueChange={setRailSearch}
-                placeholder="Jump to book…"
-              />
-            </Toolbar>
-            <div className="overflow-y-auto flex-1 py-1">
-              {railGroups.length === 0 && (
-                <EmptyState compact title="No match" />
-              )}
-              {railGroups.map((g) => {
-                const key = `${g.textId}::${g.bookId}`
-                const editionDotTone = g.textId === 'kjva' ? 'warning' : g.textId === 'lxx' ? 'info' : 'neutral'
-                return (
-                  <ListRow
-                    key={key}
-                    onClick={() => {
-                      const idx = headerFlatIndex.get(key)
-                      // 'auto' (instant), not 'smooth' — native smooth-scroll's easing/duration
-                      // isn't tunable from app code, and the virtualizer re-issues it on every
-                      // reconciliation pass as still-unrendered rows' estimated heights settle
-                      // (see reconcileScroll below), which read as a slow, restarting scroll
-                      // rather than one quick jump.
-                      if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
-                      railPanelRef.current?.close()
-                    }}
-                    leading={textId === 'all' ? <Badge variant="dot" tone={editionDotTone} label={g.textLabel} /> : undefined}
-                    // Wraps to 2 lines instead of truncating — a fixed-width panel plus
-                    // single-line truncation was cutting off names like "Recognitions,
-                    // Book 10" to the point of being unreadable.
-                    title={<span className="whitespace-normal">{g.bookName}</span>}
-                    meta={textId === 'all' ? g.textLabel : undefined}
-                  />
-                )
-              })}
-            </div>
-          </FloatingHoverPanel>
-        )
-      })()}
       </div>
 
       {/* Right-click context menu for search results */}
@@ -2034,9 +2049,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               const { bookId: bId, chapter: ch, verse: vs, textId: tid, text: tx } = ctxMenu
               closeCtxMenu()
               let text = tx
-              if (!text) { const v = await window.bible.queryVerse(bId, ch, vs, tid).catch(() => null); text = v?.text ?? '' }
-              if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
-              copyVerse(bId, ch, vs, text, tid === 'lxx')
+              let textTagged: string | null = null
+              if (!text) {
+                const v = await window.bible.queryVerse(bId, ch, vs, tid).catch(() => null)
+                text = v?.text ?? ''
+                textTagged = v?.text_tagged ?? null
+              }
+              copyVerse(bId, ch, vs, text, tid === 'lxx', undefined, textTagged, tid)
             }}
           />
           <MenuItem

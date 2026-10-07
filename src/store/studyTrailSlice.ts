@@ -10,6 +10,7 @@ import type { NavOrigin, NavRecorder } from '@/lib/verseNavigation'
 import { setNavRecorder } from '@/lib/verseNavigation'
 import type { ClarityTier, TrailSessionStatus, TrailConnection } from '@/types/studyTrail'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
+import { navOriginKindToArrivalKind, type ArrivalNavigationKind } from '@/lib/studyTrail/arrivalEligibility'
 
 // The implicit "Loose stops" bucket — navigation is recorded here when the user has NOT created
 // a session of their own. Never shown in the session rail (listSessions filters it out); only
@@ -104,6 +105,20 @@ interface StudyTrailState {
   // the popup's "new topic" checkbox (a node-level flag, not a connection-level one) has
   // somewhere to write to.
   pendingArrivalNodeId: string | null
+  /** The contextual-eligibility facts for `pendingArrivalPrompt`, captured once at the moment
+   *  commitChapterArrival records the connection (see arrivalPromptEligibility in
+   *  src/lib/studyTrail/arrivalEligibility.ts for the consumer). Kept as a SEPARATE field,
+   *  rather than inferred later from TrailConnection's own reasonTags, because the real
+   *  NavOrigin kind and the exact ref pair are known precisely right here and would otherwise
+   *  have to be re-derived lossily from stringly-typed tags at render time. Always set/cleared
+   *  in lockstep with pendingArrivalPrompt. */
+  pendingArrivalContext: {
+    navigationKind: ArrivalNavigationKind
+    userInitiated: boolean
+    fromRef: { bookId: string; chapter: number } | null
+    toRef: { bookId: string; chapter: number } | null
+    recordedAt: number
+  } | null
   clearPendingArrivalPrompt: () => void
   // Published by the ArrivalPill toast (StudyTrailArrivalPrompt.tsx) itself — its own current
   // {right, bottom, height} in the main window, so StudyTrailSplitToast (a SEPARATE bottom-right
@@ -229,8 +244,8 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentBranchTipDepth: 0,
   currentBranchTipActivatedAt: null,
   currentlyInBranch: false,
-  pendingArrivalPrompt: null, pendingArrivalNodeId: null,
-  clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null }),
+  pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null,
+  clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null }),
   arrivalPillRect: null,
   setArrivalPillRect: (r) => set({ arrivalPillRect: r }),
   splitProposal: null,
@@ -325,7 +340,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   endTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (id && id !== LOOSE_SESSION_ID) await window.studyTrail.endSession(id)
-    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
+    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     // Recording falls back to the implicit loose bucket — continued study after ending a
     // session still shows up in Everything, it just isn't attached to a named session.
@@ -337,7 +352,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   deleteTrailSession: async (trailSessionId: string) => {
     await window.studyTrail.deleteSession(trailSessionId)
     if (get().currentTrailSessionId === trailSessionId) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
       void get().ensureLiveSession()
     }
@@ -345,7 +360,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   deleteTrailSessions: async (trailSessionIds: string[]) => {
     await window.studyTrail.deleteSessions(trailSessionIds)
     if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
       void get().ensureLiveSession()
     }
@@ -616,7 +631,7 @@ export function installStudyTrailStateSync(): void {
               sessionNodeIndex: { [`${incoming.seedAnchor.bookId}:${incoming.seedAnchor.chapter}`]: incoming.seedAnchor.nodeId },
               sessionTangentIndex: {},
             }
-          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} }
+          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null, sessionNodeIndex: {}, sessionTangentIndex: {} }
         : {}),
     })
   })
@@ -897,7 +912,20 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
   // setting means "show the full popup" or "show the lightweight passive pill instead", so a
   // reason can still be jotted down even with the full popup turned off.
   if (tier !== 1) {
-    useStudyTrailStore.setState({ pendingArrivalPrompt: conn, pendingArrivalNodeId: node!.id })
+    useStudyTrailStore.setState({
+      pendingArrivalPrompt: conn, pendingArrivalNodeId: node!.id,
+      // Contextual-eligibility facts for StudyTrailArrivalPrompt.tsx's gate — see
+      // arrivalPromptEligibility in src/lib/studyTrail/arrivalEligibility.ts. navAt (not
+      // Date.now()) matches createdAt above, so staleness is measured from when the user
+      // actually navigated, not from this (dwell-delayed) write.
+      pendingArrivalContext: {
+        navigationKind: navOriginKindToArrivalKind(origin.kind),
+        userInitiated: true,
+        fromRef: fromRef ?? null,
+        toRef: { bookId: to.bookId, chapter: to.chapter },
+        recordedAt: navAt,
+      },
+    })
   }
   // Arm the glance check: if the user bounces straight back to where they came from within the
   // window, this connection gets re-weighted down to a glance.
@@ -1055,7 +1083,7 @@ export function installStudyTrailRecorder(): void {
       // navigational moment. Auto-dismiss it without writing anything (same as a manual "Not
       // now"), so it doesn't accumulate as the user checks their answer by bouncing around.
       if (useStudyTrailStore.getState().pendingArrivalPrompt?.id === glanceConnId) {
-        useStudyTrailStore.setState({ pendingArrivalPrompt: null, pendingArrivalNodeId: null })
+        useStudyTrailStore.setState({ pendingArrivalPrompt: null, pendingArrivalNodeId: null, pendingArrivalContext: null })
       }
       pendingGlanceCheck = null
     }

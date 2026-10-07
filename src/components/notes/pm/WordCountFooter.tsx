@@ -24,7 +24,13 @@ export const SAVE_FLASH_FADE_MS = 500
  * of the formatting toolbar — idiom notes hide that toolbar (`hideFormattingToolbar`) but still
  * want the count. Carries the quiet "Saved" autosave confirmation on the same row.
  */
-export default function WordCountFooter({ view, lastSavedAt }: { view: EditorView | null; lastSavedAt?: number | null }) {
+export default function WordCountFooter({ view, lastSavedAt, statsInInspector }: {
+  view: EditorView | null; lastSavedAt?: number | null
+  /** The note's Info inspector shows words / characters / reading time (TEST 2026-10-05: document
+   *  metadata belongs in the inspector, the canvas is for the note). The footer then keeps only the
+   *  "Saved" confirmation and a selection's count while text is selected. */
+  statsInInspector?: boolean
+}) {
   // `view` is the live EditorView (already in memory — no markdown round-trip), so the doc's
   // own textBetween() is the source of truth. Debounced on `view.state.doc` identity, same
   // cadence as autosave — but computed IMMEDIATELY the first time this effect sees a given
@@ -76,13 +82,13 @@ export default function WordCountFooter({ view, lastSavedAt }: { view: EditorVie
           <Check size={12} strokeWidth={2.5} /> Saved
         </span>
       )}
-      <div className="text-meta">
+      {!(statsInInspector && !statsAreSelection) && <div className="text-meta">
         {wordStats.words === 0
           ? (statsAreSelection ? '0 words selected' : '0 words')
           : statsAreSelection
             ? `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} selected`
             : `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} · ${wordStats.minutes} min read`}
-      </div>
+      </div>}
     </div>
   )
 }

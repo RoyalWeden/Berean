@@ -134,7 +134,7 @@ describe.skipIf(process.platform !== 'darwin')('release entitlements', () => {
     expect(pkg.build.mac.entitlements).toBe('build/entitlements.mac.plist')
     expect(pkg.build.mas.entitlements).toBe('build/entitlements.mas.plist')
     expect(pkg.build.mas.entitlementsInherit).toBe('build/entitlements.mas.inherit.plist')
-    expect(pkg.build.mas.extraResources).toEqual([{ from: 'build/native', to: 'native', filter: ['berean_icloud.node'] }])
+    expect(pkg.build.mas.extraResources).toEqual([{ from: 'build/native', to: 'native', filter: ['berean_icloud.node', 'berean_glass.node'] }])
     expect(pkg.scripts['build:mas']).toContain('scripts/mac/build-native.mjs')
     expect(pkg.scripts['build:mas']).toContain('scripts/mac/verify-mas.mjs')
     // 12. The DMG / Developer ID and production MAS builds stay on the production identity.

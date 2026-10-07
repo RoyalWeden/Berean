@@ -102,13 +102,18 @@ export async function initIosServices(): Promise<Services> {
     // YouTube index (D-007): videos + channel rows + transcript metadata, merged once per seed
     // version like desktop's mergeYouTubeSeed. Missing on a build without the generated file —
     // the YouTube space then simply starts empty, never fails to boot.
-    try {
-      const info = await BereanSQLite.fileInfo({ path: bundlePath('youtube_index.db') })
-      if (info.exists) {
-        const r = await mergeYoutubeIndex(userDb, bundlePath('youtube_index.db'))
-        if (r.merged) console.log(`[ios-services] youtube index merged (seed v${r.seedVersion})`)
-      } else console.warn('[ios-services] youtube_index.db not bundled — run scripts/data/split-youtube-seed.mjs')
-    } catch (err) { console.warn('[ios-services] youtube index merge failed', err) }
+    // Runs in the BACKGROUND (perf pass 2026-10-05): it used to be awaited here, so a new seed
+    // version delayed the first Scripture paint by the whole merge. The adapter queues every
+    // outside statement behind the merge's transaction, so a YouTube read during it just waits.
+    void (async () => {
+      try {
+        const info = await BereanSQLite.fileInfo({ path: bundlePath('youtube_index.db') })
+        if (info.exists) {
+          const r = await mergeYoutubeIndex(userDb, bundlePath('youtube_index.db'))
+          if (r.merged) console.log(`[ios-services] youtube index merged (seed v${r.seedVersion})`)
+        } else console.warn('[ios-services] youtube_index.db not bundled — run scripts/data/split-youtube-seed.mjs')
+      } catch (err) { console.warn('[ios-services] youtube index merge failed', err) }
+    })()
     return _services
   })()
   return _initPromise

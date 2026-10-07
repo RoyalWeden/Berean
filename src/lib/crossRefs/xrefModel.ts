@@ -25,6 +25,10 @@ export interface XRefItem {
   source: XRefSource
   /** The full passage text (every verse of a range), once resolved. */
   text?: string
+  /** The same passage's Strong's-tagged tokens (KJVA) and its text id, so the display applies the
+   *  Word Replacer's Strong's-number rules (LORD → Yehovah) exactly as the reader does. */
+  textTagged?: string
+  textId?: string
   /** The selected verse(s) this reference belongs to (several when de-duplicated across a selection). */
   fromVerses: number[]
   /** My Notes: the note that makes (or, for a reciprocal, cites) the reference. */
@@ -149,7 +153,7 @@ export async function loadChapterXRefs(bookId: string, chapter: number, textId: 
 }
 
 // ── passage text ─────────────────────────────────────────────────────────────────────────────
-const textCache = new Map<string, string>()
+const textCache = new Map<string, { text: string; tagged?: string }>()
 const MAX_RANGE = 40
 
 /** Verses a target spans (a whole-chapter target: none — the card shows no text for it). */
@@ -178,17 +182,19 @@ export async function resolveXRefTexts(items: readonly XRefItem[], textFor: (i: 
     }
   }
   for (const [t, refs] of missing) {
-    const map = await window.bible.queryVerses(refs, t).catch(() => ({} as Record<string, { text: string }>))
+    const map = await window.bible.queryVerses(refs, t).catch(() => ({} as Record<string, { text: string; text_tagged?: string | null }>))
     for (const r of refs) {
       const hit = map[`${r.bookId}.${r.chapter}.${r.verse}`]
-      if (hit?.text) textCache.set(`${t}|${r.bookId}.${r.chapter}.${r.verse}`, hit.text)
+      if (hit?.text) textCache.set(`${t}|${r.bookId}.${r.chapter}.${r.verse}`, { text: hit.text, tagged: hit.text_tagged ?? undefined })
     }
   }
   return items.map((i) => {
     if (i.text || !i.verse) return i
     const t = textFor(i)
-    const text = targetVerses(i).map((v) => textCache.get(`${t}|${v.bookId}.${v.chapter}.${v.verse}`)).filter(Boolean).join(' ')
-    return text ? { ...i, text } : i
+    const rows = targetVerses(i).map((v) => textCache.get(`${t}|${v.bookId}.${v.chapter}.${v.verse}`)).filter((r): r is { text: string; tagged?: string } => !!r)
+    const text = rows.map((r) => r.text).join(' ')
+    const textTagged = rows.length && rows.every((r) => r.tagged) ? rows.map((r) => r.tagged).join(' ') : undefined
+    return text ? { ...i, text, textId: t, ...(textTagged ? { textTagged } : {}) } : i
   })
 }
 

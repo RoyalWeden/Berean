@@ -1,4 +1,5 @@
-import { useAppStore } from '@/store'
+import { useAppStore, SCRIPTURE_MARGINS, type ScriptureMargins } from '@/store'
+import { UNTITLED_NOTE_NAME_FORMATS, type UntitledNoteNameFormat } from '@/lib/notes/finalizeNote'
 import { sanitizeCustomThemes } from '@/lib/customTheme'
 
 /**
@@ -14,6 +15,8 @@ export function hydrateSettingsIntoStore(all: Record<string, unknown>): void {
   if (typeof all.themePreset === 'string') s.setThemePreset(all.themePreset)
   if (typeof all.fontSize === 'number') s.setBibleFontSize(all.fontSize)
   if (typeof all.lineHeight === 'string') s.setBibleLineHeight(all.lineHeight as 'compact' | 'comfortable' | 'spacious')
+  if (typeof all.scriptureMargins === 'string' && (SCRIPTURE_MARGINS as readonly string[]).includes(all.scriptureMargins)) s.setScriptureMargins(all.scriptureMargins as ScriptureMargins)
+  if (typeof all.untitledNoteNameFormat === 'string' && (UNTITLED_NOTE_NAME_FORMATS as readonly string[]).includes(all.untitledNoteNameFormat)) s.setUntitledNoteNameFormat(all.untitledNoteNameFormat as UntitledNoteNameFormat)
   if (typeof all.defaultTranslation === 'string') s.setDefaultBibleTranslation(all.defaultTranslation)
   if (typeof all.hermasTranslation === 'string') s.setHermasTranslation(all.hermasTranslation)
   if (typeof all.scriptureFontFamily === 'string') s.setScriptureFontFamily(all.scriptureFontFamily)
@@ -38,6 +41,8 @@ const PERSISTED: Array<[settingKey: string, pick: (s: S) => unknown]> = [
   ['theme', (s) => s.theme], ['themePreset', (s) => s.themePreset],
   ['customThemes', (s) => s.customThemes],
   ['fontSize', (s) => s.bibleFontSize], ['lineHeight', (s) => s.bibleLineHeight],
+  ['scriptureMargins', (s) => s.scriptureMargins],
+  ['untitledNoteNameFormat', (s) => s.untitledNoteNameFormat],
   ['defaultTranslation', (s) => s.defaultBibleTranslation],
   ['hermasTranslation', (s) => s.hermasTranslation],
   ['scriptureFontFamily', (s) => s.scriptureFontFamily],

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useAppStore } from '@/store'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { THEME_PRESETS } from '@/lib/themePresets'
@@ -16,6 +16,7 @@ import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { BIBLE_FONT_MAX, BIBLE_FONT_MIN } from '../reader/usePinchFontSize'
 import { Segmented, Stepper, Toggle } from './SettingsControls'
+import { hapticsEnabled, setHapticsEnabled, subscribeHapticsEnabled } from '../primitives/haptics'
 import { settingsRouteOf, settingsStep, SETTINGS_ROUTE_TITLES, type SettingsRoute } from './settingsRoutes'
 import { recordTabStep } from '../search/searchHistory'
 import type { SettingsTabState, Tab } from '@/types'
@@ -196,6 +197,10 @@ export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }
         <Row title="Word replacer" subtitle="Divine-name and archaic-name substitution" chevron onClick={() => routes.open('word-replacer')} />
       </ListSection>
 
+      <ListSection title="Feedback">
+        <HapticsRow />
+      </ListSection>
+
       <ListSection title="Notes">
         <Row title="Notes" subtitle="Reference detection, editor, print & export" chevron onClick={() => routes.open('notes')} />
       </ListSection>
@@ -230,6 +235,14 @@ export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }
         <div className="mobile-embedded-section"><AboutSection /></div>
       </ListSection>
     </Page>
+  )
+}
+
+function HapticsRow() {
+  const on = useSyncExternalStore(subscribeHapticsEnabled, hapticsEnabled, () => true)
+  return (
+    <Row title="Haptic Feedback" subtitle="Light taps for buttons, choices and page changes"
+      right={<Toggle checked={on} onChange={setHapticsEnabled} label="Haptic Feedback" />} />
   )
 }
 

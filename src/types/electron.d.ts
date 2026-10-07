@@ -5,7 +5,7 @@ import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchRe
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
   queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<Verse | null>
-  queryVerses: (refs: Array<{ bookId: string; chapter: number; verse: number }>, textId?: string) => Promise<Record<string, { text: string; title?: string }>>
+  queryVerses: (refs: Array<{ bookId: string; chapter: number; verse: number }>, textId?: string) => Promise<Record<string, { text: string; title?: string; text_tagged?: string | null }>>
   searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase', bookIds?: string[]) => Promise<SearchResult[]>
   getBooks: (textId?: string) => Promise<Book[]>
 }
@@ -97,7 +97,7 @@ interface VerseTagsAPI {
 
 interface LexiconAPI {
   getEntry: (strongsNum: string) => Promise<LexiconEntry | null>
-  getOccurrences: (strongsNum: string, quickLimit?: number) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices: number[] }[]>
+  getOccurrences: (strongsNum: string, quickLimit?: number) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; text_tagged?: string | null; matchWordIndices: number[] }[]>
   getRelated: (strongsNum: string) => Promise<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>
   search: (query: string, lang: 'H' | 'G' | 'all') => Promise<LexiconEntry[]>
 }
@@ -191,10 +191,10 @@ interface VaultAPI {
   readVaultNote: (title: string) => Promise<string | null>
   watchVault: () => Promise<{ success: boolean; reason?: string }>
   unwatchVault: () => Promise<{ success: boolean }>
-  reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; reason?: string }>
+  reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; created?: number; reason?: string }>
   exportAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; history?: number; pdfs?: number; reason?: string }>
   setAutoExport: (intervalMinutes: number) => Promise<{ success: boolean }>
-  importAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; noteVersions?: number; noteFolders?: number; pdfHighlights?: number; workspaces?: number; pdfs?: number; tabState?: string; reason?: string }>
+  importAll: () => Promise<{ success: boolean; notes?: number; notesCreated?: number; notesUpdated?: number; notesUnchanged?: number; highlights?: number; noteVersions?: number; noteFolders?: number; pdfHighlights?: number; workspaces?: number; pdfs?: number; tabState?: string; reason?: string }>
   hasData: () => Promise<boolean>
   onVaultChange: (callback: (event: unknown) => void) => () => void
 }
@@ -395,7 +395,7 @@ interface AppAPI {
   takePendingDeepLinks?: () => Promise<string[]>
   // Native File/View/Go/Help menu items — see src/lib/commands.ts's command ids.
   onAppCommand?: (cb: (id: string) => void) => void
-  onWindowActive?: (cb: (active: boolean) => void) => void
+  onWindowActive?: (cb: (active: boolean) => void) => (() => void) | void
   getReduceTransparency?: () => Promise<boolean>
   onReduceTransparency?: (cb: (reduce: boolean) => void) => void
   getIncreaseContrast?: () => Promise<boolean>
@@ -407,6 +407,9 @@ interface AppAPI {
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   isDev?: () => Promise<boolean>
+  /** Developer tooling enabled: development build OR the Berean Dev identity (electron/devTools.ts).
+   *  Absent on iOS/web — callers fall back to `isDev`. */
+  devTools?: () => Promise<boolean>
   youTubeSignOut?: () => Promise<{ success: boolean }>
   newWindow: () => Promise<void>
   moveWindowBy: (dx: number, dy: number) => void
@@ -426,6 +429,7 @@ interface AppAPI {
   downloadUpdate: () => Promise<void>
   installUpdate: () => void
   onNativeThemeChanged: (cb: (isDark: boolean) => void) => void
+  setThemeSource?: (source: 'light' | 'dark' | 'system') => void
   getAccentColor: () => Promise<string | null>
   onAccentColorChanged: (cb: (rgb: string | null) => void) => void
   getResourceMode: () => Promise<'normal' | 'throttled'>

@@ -1,3 +1,4 @@
+import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { loadChapterNoteCrossRefs } from '@/lib/notesCrossRefs'
 import { useLiveNote, ACTIVE_EDIT_MS } from '@/lib/notes/liveNote'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
@@ -350,9 +351,10 @@ function SidebarLexicon({ initialEntry, onEntryChange, selectedVerses = NO_SELEC
           </div>
         </Toolbar>
         <div data-panel-scroll-root className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+          {/* The headword, large — the entry's identity (Dictionary), not a body-size line. */}
           {activeEntry.lemma && (
-            <div className="text-title2 font-medium text-text-primary font-lemma">
-              <span dir="rtl">{activeEntry.lemma}</span>
+            <div className="text-[30px] leading-tight font-medium text-text-primary font-lemma">
+              <span dir={activeEntry.strongsNum?.toUpperCase().startsWith('H') ? 'rtl' : 'ltr'}>{activeEntry.lemma}</span>
             </div>
           )}
           <div className="flex items-baseline gap-1.5 flex-wrap">
@@ -664,7 +666,7 @@ function CrossRefCard({
       title={
         <span className="block">
           <span className="flex items-center gap-1.5 mb-1">
-            <RefChip size="md" mono={false} className="w-fit">{refLabel}</RefChip>
+            <RefChip size="md" mono={false} appearance="text" className="w-fit">{refLabel}</RefChip>
             {meta}
           </span>
           <span className="block text-text-secondary leading-relaxed line-clamp-3">
@@ -697,8 +699,9 @@ function VerseSection({
         open={!isCollapsed}
         onClick={onToggle}
         dense={false}
-        title={<span className={`font-mono ${isActive ? 'text-accent' : ''}`}>v{verseNum}</span>}
-        count={`${refCount} ref${refCount !== 1 ? 's' : ''}`}
+        // A native disclosure section: "Verse 1" with a quiet count (not a monospace "v1" tag).
+        title={<span className={`font-semibold ${isActive ? 'text-accent' : 'text-text-primary'}`}>Verse {verseNum}</span>}
+        count={`${refCount}`}
         className={isActive ? 'bg-accent-muted hover:bg-accent-hover px-3' : 'px-3'}
       />
       {!isCollapsed && <div>{children}</div>}
@@ -910,7 +913,8 @@ function ClassicChapterView({ bookId, chapter, activeVerseNums }: { bookId: stri
                     : r.endVerse
                       ? `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}–${r.endVerse}`
                       : `${bookName(r.bookId)} ${displayChapter(r.bookId, r.chapter)}:${r.verse}`}
-                  meta={<span className="text-micro text-text-tertiary tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
+                  // Relevance as five tiny, quiet dots — secondary to the reference, not competing with it.
+                  meta={<span className="text-[7px] leading-none text-text-muted tracking-[1px] opacity-70" aria-label={`Relevance ${strength} of 5`}>{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>}
                   bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse}
                   onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })}
                   onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
@@ -1641,10 +1645,7 @@ export default function BibleRightPanel({
   // section index), since selectedNoteIdx's keyboard-nav/Enter-to-open reads
   // directly from `filtered`.
   function renderNoteRow(note: Note, i: number) {
-    const rawSnippet = note.content
-      .replace(/^---[\s\S]*?---\n?/, '')
-      .replace(/[#*`_>~\[\]]/g, '')
-      .trim()
+    const rawSnippet = stripMarkdownFormatting(note.content.replace(/^---[\s\S]*?---\n?/, '')).replace(/[ \t]+/g, ' ').trim()
     const snippet = expandAll ? rawSnippet : rawSnippet.replace(/\n/g, ' ')
     return (
       <ListRow
@@ -1668,7 +1669,16 @@ export default function BibleRightPanel({
         titleSize="footnote"
         titleClassName="font-medium text-text-primary"
         // Tinted like the Cross Refs tab's reference chips when the title IS a reference.
-        title={note.verseRef ? <RefChip size="md" mono={false} className="w-fit">{note.title || formatRef(note.verseRef)}</RefChip> : (note.title || 'Untitled')}
+        // Reference first (accent text, not a badge); a custom title (not just the reference written
+        // another way, e.g. "Genesis 1.1") follows it, muted.
+        title={note.verseRef ? (
+          <span className="flex items-baseline gap-1.5 min-w-0">
+            <RefChip size="md" mono={false} appearance="text" className="w-fit flex-shrink-0">{formatRef(note.verseRef)}</RefChip>
+            {note.title && note.title.replace(/[.:\s]/g, '').toLowerCase() !== formatRef(note.verseRef).replace(/[.:\s]/g, '').toLowerCase() && (
+              <span className="truncate text-text-secondary font-normal">{note.title}</span>
+            )}
+          </span>
+        ) : (note.title || 'Untitled')}
         subtitle={
           <span className="block">
             <span
@@ -1901,7 +1911,7 @@ export default function BibleRightPanel({
               onChange={setScope}
               options={[
                 { value: 'all',     label: 'All', title: 'All notes' },
-                { value: 'chapter', label: 'Ch',  title: 'This chapter only' },
+                { value: 'chapter', label: 'Chapter', title: 'This chapter only' },
               ]}
             />
             <div className="flex-1" />
@@ -1967,10 +1977,7 @@ export default function BibleRightPanel({
                     {!mentionNotesCollapsed && (
                       <div className="divide-y divide-separator">
                         {chapterMentionNotes.map((note) => {
-                          const rawSnippet = note.content
-                            .replace(/^---[\s\S]*?---\n?/, '')
-                            .replace(/[#*`_>~\[\]]/g, '')
-                            .trim().replace(/\n/g, ' ')
+                          const rawSnippet = stripMarkdownFormatting(note.content.replace(/^---[\s\S]*?---\n?/, '')).replace(/[ \t]+/g, ' ').trim().replace(/\n/g, ' ')
                           return (
                             <ListRow
                               key={note.id}
@@ -2031,10 +2038,7 @@ export default function BibleRightPanel({
                     </div>
                     <div className="divide-y divide-separator">
                       {referencingNotes.map((note) => {
-                        const rawSnippet = note.content
-                          .replace(/^---[\s\S]*?---\n?/, '')
-                          .replace(/[#*`_>~\[\]]/g, '')
-                          .trim()
+                        const rawSnippet = stripMarkdownFormatting(note.content.replace(/^---[\s\S]*?---\n?/, '')).replace(/[ \t]+/g, ' ').trim()
                         const snippet = expandAll ? rawSnippet : rawSnippet.replace(/\n/g, ' ')
                         return (
                           <ListRow
@@ -2159,9 +2163,7 @@ export default function BibleRightPanel({
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   closeSideCtxMenu()
                   const v = await window.bible.queryVerse(bId, ch, vs).catch(() => null)
-                  let text = v?.text ?? ''
-                  if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
-                  copyVerse(bId, ch, vs, text)
+                  copyVerse(bId, ch, vs, v?.text ?? '', false, undefined, v?.text_tagged ?? null, 'kjva')
                 }}
               />
               <MenuItem

@@ -138,6 +138,16 @@ export interface NoteEditorPMProps {
   /** A same-note content prop arrived while an IME / autocorrect / dictation composition was in
    *  progress and was NOT applied (the composition wins). The host keeps it (DATA-LIVE-001). */
   onExternalDeferred?: (content: string) => void
+  /** Content rendered ABOVE the document inside the editor's own scroll container (the phone's
+   *  large note title), so it scrolls with the text like Apple Notes. React owns only this slot;
+   *  ProseMirror appends its own DOM after it, and view.dom.parentElement stays the scroller. */
+  header?: ReactNode
+  /** A toolbar slot to render the formatting bar into (desktop window toolbar). */
+  toolbarSlot?: HTMLElement | null
+  /** Where the separate Insert control renders when the formatting bar is in the toolbar. */
+  insertSlot?: HTMLElement | null
+  /** The Info inspector shows the word / character / reading-time stats (footer keeps "Saved"). */
+  statsInInspector?: boolean
 }
 
 /** Verse text for the ref hover-preview / verse-block insertion, run through the same word
@@ -177,6 +187,10 @@ export default function NoteEditorPM({
   renderSelectionToolbar,
   onEditorReady,
   onExternalDeferred,
+  header,
+  toolbarSlot,
+  insertSlot,
+  statsInInspector,
   findQuery = '',
   findMode = 'phrase',
   importSource,
@@ -1301,27 +1315,53 @@ export default function NoteEditorPM({
     view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(endPos), -1)))
   }
 
+  // Formatting lives in the WINDOW TOOLBAR (Apple Notes) when the host gives a slot for it — always
+  // visible there; Focus mode hides the toolbar, so the bar floats over the page again.
+  const focusModeTabId = useAppStore((st) => st.noteFocusModeTabId)
+  const toolbarInBar = !!toolbarSlot && !(tabId != null && focusModeTabId === tabId)
+  const editorWrapRef = useRef<HTMLDivElement>(null)
+  const [editingActive, setEditingActive] = useState(!!autoFocus)
+
   return (
-    <div className="relative flex flex-col h-full min-h-0">
+    <div
+      ref={editorWrapRef}
+      className={`relative flex flex-col h-full min-h-0${editingActive || toolbarInBar ? '' : ' pm-toolbar-idle'}`}
+      onFocusCapture={() => setEditingActive(true)}
+      onBlurCapture={(e) => {
+        // Focus moving inside the editor, its toolbar, or a menu / popover opened from it keeps the
+        // formatting bar; anywhere else in the app fades it (contextual, like the system's own).
+        const next = e.relatedTarget as Element | null
+        if (!next) return
+        if (editorWrapRef.current?.contains(next) || next.closest('[data-radix-popper-content-wrapper], [role="menu"], [role="dialog"]')) return
+        setEditingActive(false)
+      }}
+    >
       {/* Persistent toolbar — not shown in the compact side-panel editor (BibleRightPanel's
           quick note view) or in read-only 'view' mode, matching SelectionToolbar.tsx's own
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
       {!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' && viewReady && (
-        <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />
+        toolbarInBar
+          ? createPortal(<Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} placement="bar" insertSlot={insertSlot} />, toolbarSlot!)
+          : <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />
       )}
       {/* Word-count / reading-time footer — rendered independently of the formatting toolbar so
           it still shows on idiom notes (which hide that toolbar). Bottom-right of this same
           `relative` wrapper. */}
       {!isSidePanel && !phoneChrome && mode === 'edit' && viewReady && (
-        <WordCountFooter view={viewRef.current} lastSavedAt={lastSavedAt} />
+        <WordCountFooter view={viewRef.current} lastSavedAt={lastSavedAt} statsInInspector={statsInInspector} />
       )}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
-        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${phoneChrome ? 'pm-chrome-phone' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
-      />
+        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' && !toolbarInBar ? 'pm-has-floating-toolbar' : ''} ${phoneChrome ? 'pm-chrome-phone' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
+      >
+        {/* Always rendered (hidden when empty) so it stays the host's FIRST child: ProseMirror
+            appends its own DOM to this host, so a slot mounted later (switching from a note
+            without a header to one with) used to land BELOW the document (TEST 2026-10-04). */}
+        <div className="pm-header-slot" hidden={header == null}>{header}</div>
+      </div>
       {importSource && (
         <div className="flex-shrink-0 border-t border-separator select-none">
           <button

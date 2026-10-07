@@ -26,7 +26,17 @@ const RAIL_BTN = { size: 28 as const, variant: 'ghost' as const, shape: 'square'
  * for these same actions are deliberately left alone — those aren't
  * "buttons," just a separate fast-access surface.
  */
-export default function Ribbon() {
+/**
+ * `layout`:
+ *   'rail' — the vertical floating rail (FloatingRail.tsx; collapsed sidebar on Windows).
+ *   'bar'  — a quiet horizontal command bar at the bottom of the sidebar (macOS 26/27 sidebar
+ *            pattern): only the commands that have no other visible home — archived tabs,
+ *            presenter, Read Aloud, Study Trail, Berean Chat — plus Settings at its trailing end.
+ *            Search, History (toolbar), Find (⌘F) and Zoom (View menu) are already elsewhere.
+ */
+export default function Ribbon({ layout = 'rail' }: { layout?: 'rail' | 'bar' } = {}) {
+  const bar = layout === 'bar'
+  const tipSide = bar ? 'top' as const : 'right' as const
   const activeSpace  = useAppStore((s) => s.activeSpace)
   const openSettings = useAppStore((s) => s.openSettings)
   const openSettingsToAbout = useAppStore((s) => s.openSettingsToAbout)
@@ -131,7 +141,8 @@ export default function Ribbon() {
 
   return (
     <div
-      className="no-drag flex flex-col items-center flex-shrink-0 w-[46px] py-2 gap-1"
+      // Bar: one even rhythm — every command equally spaced across the sidebar's width.
+      className={bar ? 'no-drag flex items-center justify-between flex-shrink-0 h-8 w-full' : 'no-drag flex flex-col items-center flex-shrink-0 w-[46px] py-2 gap-1'}
       // Was `app-drag-region` when this was a permanently-docked column — now mounted inside
       // FloatingRail.tsx's floating/portaled wrapper, which is deliberately `no-drag` all over
       // (see that file's comment on why: Electron's drag-region hit-testing doesn't reliably
@@ -154,32 +165,34 @@ export default function Ribbon() {
            search or open a new tab without expanding it again. Sits above
            the grouped sections below (not itself part of any group — it's
            a conditional escape hatch, not a standing category). ── */}
-      {sidebarCollapsed && (
+      {sidebarCollapsed && !bar && (
         <>
           <IconButton
             {...RAIL_BTN}
             icon={Search}
             label="Search / new tab"
-            tooltip={{ shortcut: '⌘T', side: 'right' }}
+            tooltip={{ shortcut: '⌘T', side: tipSide }}
             onClick={() => openSearch('new')}
           />
-          <Divider className="my-0.5" />
+          {bar ? null : <Divider className="my-0.5" />}
         </>
       )}
 
+      {!bar && (<>
       {/* ── History ── */}
       <IconButton
         {...RAIL_BTN}
         icon={History}
         label="History"
-        tooltip={{ shortcut: '⌘H', side: 'right' }}
+        tooltip={{ shortcut: '⌘H', side: tipSide }}
         className="relative"
         onClick={openHistory}
       >
         {hasUnseenHistory && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />}
       </IconButton>
+      </>)}
 
-      <Divider className="my-0.5" />
+      {bar ? null : <Divider className="my-0.5" />}
 
       {/* ── Layout / panels: archived tabs, presenter view, find ── */}
       <Popover open={archiveOpen} onOpenChange={setArchiveOpen}>
@@ -188,14 +201,14 @@ export default function Ribbon() {
             {...RAIL_BTN}
             icon={Archive}
             label={`Archived tabs${archivedGroups.length > 0 ? ` (${archivedGroups.length})` : ''}`}
-            tooltip={{ side: 'right' }}
+            tooltip={{ side: tipSide }}
             active={archiveOpen}
             className="relative"
           >
             {archivedGroups.length > 0 && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent opacity-70" />}
           </IconButton>
         </PopoverTrigger>
-        <PopoverSurface side="right" align="start" sideOffset={6} innerClassName="w-72 max-h-96 overflow-y-auto py-1">
+        <PopoverSurface side={tipSide} align="start" sideOffset={6} innerClassName="w-72 max-h-96 overflow-y-auto py-1">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-separator">
             <SectionLabel>Archived tabs</SectionLabel>
             <Button variant="ghost" size="sm" onClick={() => { archiveAllTabs(); setArchiveOpen(false) }}>
@@ -254,24 +267,27 @@ export default function Ribbon() {
         label={viewerWindowOpen
           ? (viewerPaused ? 'Presenter paused' : presenterRange ? `On presenter · v.${presenterRange.first}${presenterRange.last !== presenterRange.first ? `–${presenterRange.last}` : ''}` : 'Send to presenter view')
           : 'Open presenter view'}
-        tooltip={{ shortcut: '⌘⇧B', side: 'right' }}
+        tooltip={{ shortcut: '⌘⇧B', side: tipSide }}
         active={viewerWindowOpen}
         // NSItemBadge-style live dot: accent while syncing, warning while paused (§63).
         badge={viewerWindowOpen ? { variant: 'live', tone: viewerPaused ? 'warning' : 'accent', label: viewerPaused ? 'Presenter paused' : 'Presenter live' } : undefined}
         onClick={openPresenterView}
       />
 
+      {!bar && (
       <IconButton
         {...RAIL_BTN}
         icon={ScanSearch}
         label="Find in panel"
-        tooltip={{ shortcut: '⌘F', side: 'right' }}
+        tooltip={{ shortcut: '⌘F', side: tipSide }}
         disabled={!findSupported}
         onClick={handleFind}
       />
+      )}
 
-      <Divider className="my-0.5" />
+      {bar ? null : <Divider className="my-0.5" />}
 
+      {!bar && (<>
       {/* ── Zoom — one shared value across all reading panes (Scripture,
            Lexicon, side panel); doesn't resize the sidebar/rail/shell. ── */}
       <Popover open={zoomPopoverOpen} onOpenChange={setZoomPopoverOpen}>
@@ -291,32 +307,34 @@ export default function Ribbon() {
             onMouseLeave={() => { cancelZoomHoverOpen(); scheduleZoomHoverClose() }}
           />
         </PopoverTrigger>
-        <PopoverSurface side="right" align="start" sideOffset={6} onMouseEnter={keepZoomHoverOpen} onMouseLeave={scheduleZoomHoverClose}>
+        <PopoverSurface side={tipSide} align="start" sideOffset={6} onMouseEnter={keepZoomHoverOpen} onMouseLeave={scheduleZoomHoverClose}>
           <ZoomMenuRow />
         </PopoverSurface>
       </Popover>
+      </>)}
 
-      <Divider className="my-0.5" />
+      {bar ? null : <Divider className="my-0.5" />}
 
       {/* ── Audio (Read Aloud / TTS) ── */}
       <IconButton
         {...RAIL_BTN}
         icon={Volume2}
         label={audioPlayback || canStartReadAloud ? 'Read Aloud' : 'Open a Scripture tab to Read Aloud'}
-        tooltip={(audioPlayback || canStartReadAloud) ? { shortcut: '⌘⇧R', side: 'right' } : { side: 'right' }}
+        tooltip={(audioPlayback || canStartReadAloud) ? { shortcut: '⌘⇧R', side: tipSide } : { side: tipSide }}
         active={!!audioPlayback}
         disabled={!audioPlayback && !canStartReadAloud}
         onClick={handleReadAloudClick}
       />
 
-      <Divider className="my-0.5" />
+      {bar ? null : <Divider className="my-0.5" />}
 
+      {!bar && (<>
       {/* ── Settings ── */}
       <IconButton
         {...RAIL_BTN}
         icon={Settings}
         label={`Settings${updateStatus.status === 'ready' ? ' — update ready to install' : updateStatus.status === 'available' ? ' — update available' : ''}`}
-        tooltip={{ shortcut: '⌘,', side: 'right' }}
+        tooltip={{ shortcut: '⌘,', side: tipSide }}
         className="relative"
         onClick={(updateStatus.status === 'available' || updateStatus.status === 'ready') ? openSettingsToAbout : openSettings}
       >
@@ -324,15 +342,16 @@ export default function Ribbon() {
           <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
         )}
       </IconButton>
+      </>)}
 
-      <Divider className="my-0.5" />
+      {bar ? null : <Divider className="my-0.5" />}
 
       {/* ── Study: Study Trail, Berean Chat ── */}
       <IconButton
         {...RAIL_BTN}
         icon={GitBranch}
         label="Study Trail"
-        tooltip={{ side: 'right' }}
+        tooltip={{ side: tipSide }}
         onClick={() => window.app.openStudyTrailWindow?.()}
       />
 
@@ -340,10 +359,25 @@ export default function Ribbon() {
         {...RAIL_BTN}
         icon={Sparkles}
         label="Berean Chat"
-        tooltip={{ side: 'right' }}
+        tooltip={{ side: tipSide }}
         active={aiLookupPanelOpen}
         onClick={() => setAiLookupPanelOpen(!aiLookupPanelOpen)}
       />
+      {bar && (<>
+        {/* ── Settings ── */}
+        <IconButton
+          {...RAIL_BTN}
+          icon={Settings}
+          label={`Settings${updateStatus.status === 'ready' ? ' — update ready to install' : updateStatus.status === 'available' ? ' — update available' : ''}`}
+          tooltip={{ shortcut: '⌘,', side: tipSide }}
+          className="relative"
+          onClick={(updateStatus.status === 'available' || updateStatus.status === 'ready') ? openSettingsToAbout : openSettings}
+        >
+          {(updateStatus.status === 'available' || updateStatus.status === 'ready') && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
+          )}
+        </IconButton>
+      </>)}
     </div>
   )
 }

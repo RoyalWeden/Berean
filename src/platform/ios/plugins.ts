@@ -150,3 +150,17 @@ export interface BereanLocationPlugin {
   getCurrentPosition(opts: { maximumAge?: number; timeout?: number }): Promise<{ timestamp: number; coords: { latitude: number; longitude: number; accuracy: number } }>
 }
 export const BereanLocation = registerPlugin<BereanLocationPlugin>('BereanLocation')
+
+/** Native Liquid Glass controls (BereanGlassPlugin.swift) — reached only through
+ *  src/platform/ios/liquidGlass.ts (the adapter behind window.__bereanGlass). */
+export interface BereanGlassPlugin {
+  capabilities(): Promise<{ native: boolean; liquidGlass: boolean; grouping: boolean; interactive: boolean; reduceTransparency: boolean; increaseContrast: boolean; reduceMotion: boolean }>
+  setControls(spec: unknown): Promise<void>
+  removeControls(opts: { id?: string }): Promise<void>
+  /** Debug builds: native cluster state; `press` fires an item's real button action. */
+  debugState(opts?: { press?: string }): Promise<{ clusters?: Record<string, unknown> }>
+  addListener(event: 'press', cb: (e: { cluster: string; item: string }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'swipe', cb: (e: { cluster: string; direction: 'next' | 'previous' }) => void): Promise<{ remove: () => Promise<void> }>
+}
+
+export const BereanGlass = registerPlugin<BereanGlassPlugin>('BereanGlass')

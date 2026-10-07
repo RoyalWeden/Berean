@@ -37,7 +37,8 @@ export function AudioSettingsPage({ onBack }: { onBack?: () => void }) {
   const [previewing, setPreviewing] = useState(false)
   useEffect(() => subscribeVoices(setVoices), [])
 
-  const activeVoice = voices.find((v) => v.voiceURI === ttsVoiceURI) ?? voices[0]
+  const selectableVoices = voices.filter((v) => v.kind !== 'hint')
+  const activeVoice = selectableVoices.find((v) => v.voiceURI === ttsVoiceURI) ?? selectableVoices[0]
 
   const preview = (voiceURI: string | null) => {
     setPreviewing(true)
@@ -58,7 +59,9 @@ export function AudioSettingsPage({ onBack }: { onBack?: () => void }) {
             <Page title="Voice" onBack={nav.pop}>
               <ListSection>
                 {voices.length === 0 && <Row title="No voices found" subtitle="Add voices in iOS Settings → Accessibility → Spoken Content → Voices" />}
-                {voices.map((v) => (
+                {voices.map((v) => v.kind === 'hint' ? (
+                  <Row key={v.voiceURI} title={v.name} />
+                ) : (
                   <Row
                     key={v.voiceURI}
                     title={<>{v.name}{v.tier && <span className="settings-voice-tier">{v.tier}</span>}</>}

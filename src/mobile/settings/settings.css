@@ -62,3 +62,8 @@
 .m-icloud-page .icloud-section { font-size: calc(15px * var(--m-type-scale, 1)); }
 .m-icloud-page .text-caption { font-size: calc(13px * var(--m-type-scale, 1)); }
 .m-icloud-page .text-subhead { font-size: calc(17px * var(--m-type-scale, 1)); }
+
+/* A menu value on a settings row (iOS "pop-up button"): accent text + ⌃⌄, opens a popover menu. */
+.settings-menu-value { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 2px; border: 0; background: none;
+  color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.settings-menu-value:active { opacity: 0.55; }

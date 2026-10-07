@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { MoreHorizontal, Eye, Pencil, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Undo2, Redo2, Check, Share, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
+import { finalizeLeftNote } from '@/lib/notes/finalizeNote'
 import NoteEditorPM from '@/components/notes/pm/NoteEditorPM'
 import { resolveBookToken, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
 import { openDestination, type NavIntent } from '@/lib/navigation/destination'
@@ -10,9 +12,13 @@ import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useLongPress } from '../primitives/useLongPress'
-import { Page, IconTap, ListSection, Row } from '../primitives/Page'
+import { Page, IconTap, IconGroup, ListSection, Row } from '../primitives/Page'
+import { dismissKeyboard } from '../primitives/keyboardDismiss'
+import { undo, redo } from 'prosemirror-history'
+import { TextSelection } from 'prosemirror-state'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
-import { useActionSheet, ChoiceList } from '../primitives/ActionSheet'
+import { useActionSheet, ChoiceList, type SheetAction } from '../primitives/ActionSheet'
+import { usePopoverMenu } from '../primitives/PopoverMenu'
 import { useNavigation } from '../navigation/NavigationStack'
 import { FolderPicker } from './FolderPicker'
 import { CaretGoTo } from '../commands/CaretGoTo'
@@ -39,26 +45,113 @@ import { displayNoteTitle, storedNoteTitle } from '@/lib/noteTitle'
  * as markdown, versions, share, move to trash). Verse refs navigate the reader, Strong's refs open
  * the Strong's sheet, wikilinks open the note by title.
  */
+/** How many editor pages show each note right now (a re-mount must not finalize it). */
+const mountedNotes = new Map<string, number>()
+
 export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const nav = useNavigation()
   const sheets = useSheets()
   const actions = useActionSheet()
+  const popover = usePopoverMenu()
   const { note, latest, persist, replace, lastSavedAt, editorContent, deferredWhileComposing } = useNoteAutosave(noteId)
-  const [notes, setNotes] = useState<Note[]>([])
+  // Leaving a note tidies it up, like the Mac (TEST 2026-10-05): an untitled note with no content
+  // is deleted; an untitled note WITH content is named from Settings → "Untitled notes are named".
+  // Only when the user really left it — Back / edge swipe / another note in the SAME tab — never on
+  // a tab switch (the tab still shows it), and never while another tab shows it. Closing the tab is
+  // handled by the store's closeTab. Runs after the autosave's unmount flush.
+  useEffect(() => {
+    mountedNotes.set(noteId, (mountedNotes.get(noteId) ?? 0) + 1)
+    const s0 = useAppStore.getState()
+    const space = s0.activeSpace, tabId = s0.activeTabId[space]
+    return () => {
+      mountedNotes.set(noteId, (mountedNotes.get(noteId) ?? 1) - 1)
+      const left = latest.current ? { title: latest.current.title, content: latest.current.content } : null
+      window.setTimeout(() => {
+        const s = useAppStore.getState()
+        if ((mountedNotes.get(noteId) ?? 0) > 0) return                       // re-mounted
+        if (!tabId || s.activeTabId[space] !== tabId) return                   // switched tabs
+        if (!(s.tabs[space] ?? []).some((t) => t.id === tabId)) return         // tab closed → closeTab
+        const shownElsewhere = Object.values(s.tabs).some((list) => (list ?? []).some((t) => t.id !== tabId && t.type === 'note' && (t.state as { noteId?: string } | undefined)?.noteId === noteId))
+        if (shownElsewhere) return
+        void finalizeLeftNote(noteId, s.untitledNoteNameFormat, left).then((a) => { if (a.kind !== 'none') s.bumpNoteToken() }).catch(() => {})
+      }, 600)
+    }
+  }, [noteId])
+  const [notes, setNotes] = useState<Note[]>(() => getWarmStartNotes() ?? [])
   const [mode, setMode] = useState<'edit' | 'view'>('edit')
   const [printOpen, setPrintOpen] = useState(false)
   // The live editor (NoteEditorPM onEditorReady) — the + menu runs its commands, the caret reads
   // its statistics. Never used to push content back into the editor.
   const [editorView, setEditorView] = useState<EditorView | null>(null)
+  // Title (TEST 2026-09-29): a LOCAL draft the field shows, so typing is never re-normalised
+  // mid-word (the stored title used to be trimmed back into the field → spaces were impossible).
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleFocused = useRef(false)
+  const titleRef = useRef<HTMLTextAreaElement | null>(null)
+  // Editing = a text field of this note (title or body) has focus → Done ✓ + undo show.
+  const [editing, setEditing] = useState(false)
   const typingLook = useAppStore((s) => s.noteTypingLook)
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
 
+  // Wikilink autocomplete / print need the note list: the shared cache (one fetch per change
+  // token for every consumer, warm-started) instead of a fresh 500-note query on every open.
+  const noteToken = useAppStore((s) => s.noteChangeToken)
   useEffect(() => {
     let alive = true
-    window.notes.getNotes(500, 0).then((all) => { if (alive) setNotes(all) }).catch(() => {})
+    getAllNotes(noteToken).then((all) => { if (alive) setNotes(all) }).catch(() => {})
     return () => { alive = false }
-  }, [noteId])
+  }, [noteId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (note && !titleFocused.current) setTitleDraft(displayNoteTitle(note.title, ''))
+  }, [note?.id, note?.title]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The title field grows only with its own wrapped lines (never on focus).
+  useEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    const fit = () => { el.style.height = '0px'; el.style.height = `${el.scrollHeight}px` }
+    fit()
+    // Also when the TYPE SIZE or the width changes (TEST 2026-10-05: at an accessibility text size
+    // the title kept its old pixel height, so it was clipped and ran into the first body line).
+    // --m-type-scale lives on <html>'s inline style; the width follows rotation / resize.
+    const mo = new MutationObserver(fit)
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-type-scale'] })
+    let lastW = el.clientWidth
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (el.clientWidth !== lastW) { lastW = el.clientWidth; fit() } }) : null
+    ro?.observe(el)
+    return () => { mo.disconnect(); ro?.disconnect() }
+  }, [titleDraft, note?.id])
+
+  const focusBodyStart = useCallback(() => {
+    const v = editorView
+    if (!v || v.isDestroyed) return
+    if (mode !== 'edit') setMode('edit')
+    v.dispatch(v.state.tr.setSelection(TextSelection.atStart(v.state.doc)).scrollIntoView())
+    v.focus()
+  }, [editorView, mode])
+  const onTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Return finishes the title and continues in the body, like Apple Notes.
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); focusBodyStart() }
+  }
+  const onEditorFocusChange = (e: React.FocusEvent<HTMLDivElement>) => {
+    const root = e.currentTarget
+    if (e.type === 'focus') { setEditing(true); return }
+    const next = e.relatedTarget as Node | null
+    setEditing(!!next && root.contains(next))
+  }
+  const doneEditing = () => {
+    editorView?.dom.blur()
+    titleRef.current?.blur()
+    dismissKeyboard()
+    setEditing(false)
+    void haptic.light()
+  }
+  const runHistory = (fn: typeof undo) => {
+    const v = editorView
+    if (!v || v.isDestroyed) return
+    fn(v.state, v.dispatch)
+  }
 
   // A verse link changes THIS tab (NAV-002): the note tab becomes Scripture with a "← note" pill,
   // and ‹ returns to the note. (It used to jump to — or create — another Scripture tab.)
@@ -167,16 +260,57 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
 
   if (note === undefined) return <Page title="Note" onBack={onBack}><div className="mobile-empty">Loading…</div></Page>
   if (note === null) return <Page title="Note" onBack={onBack}><div className="mobile-empty">This note no longer exists.</div></Page>
+  // The note's "…" is an iOS popover menu anchored to the button (TEST 2026-10-03), not a sheet;
+  // Status / Icon / Folder / Versions still open their own sheet.
+  const openMore = (e: React.MouseEvent<HTMLButtonElement>) => popover(e.currentTarget, undefined, [
+    ...(editing ? [{ id: 'redo', label: 'Redo', icon: Redo2, onSelect: () => runHistory(redo) }] : []),
+    ...(actionList().map((a) => ('view' in a && a.view ? { ...a, view: () => ({ key: a.id, ...a.view!() }) } : a)) as SheetAction[])
+      .map((a) => (a.id === 'trash' ? { ...a, section: true } : a)),
+  ])
+  const title = (
+    <div className="m-note-title-wrap">
+      {note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}
+      <textarea
+        ref={titleRef}
+        className="m-note-title"
+        rows={1}
+        value={titleDraft}
+        placeholder="Title"
+        aria-label="Note title"
+        enterKeyHint="next"
+        spellCheck
+        onFocus={() => { titleFocused.current = true }}
+        onBlur={() => { titleFocused.current = false; setTitleDraft(displayNoteTitle(latest.current?.title ?? note.title, '')) }}
+        onKeyDown={onTitleKeyDown}
+        onChange={(e) => {
+          // Pasted line breaks become spaces — a title is one logical line.
+          const v = e.target.value.replace(/\r?\n/g, ' ')
+          setTitleDraft(v)
+          persist({ title: storedNoteTitle(v, latest.current?.title ?? note.title) })
+        }}
+      />
+      {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
+    </div>
+  )
   return (
     <Page
       noScroll
+      header="floating"
+      className="m-note-page"
       onBack={onBack}
-      title={<span className="mobile-title-wrap">{note.icon && <span className="mobile-note-icon" aria-hidden>{note.icon}</span>}<input className="mobile-title-input" value={displayNoteTitle(note.title, '')} placeholder="Untitled" aria-label="Note title" onChange={(e) => persist({ title: storedNoteTitle(e.target.value, note.title) })} /></span>}
-      right={<><IconTap icon={mode === 'edit' ? Eye : Pencil} label={mode === 'edit' ? 'View' : 'Edit'} onClick={() => setMode((m) => (m === 'edit' ? 'view' : 'edit'))} /></>}
+      backLabel="Notes"
+      right={<>
+        {/* No separate Reading view (TEST 2026-10-03): ✓ ends editing, which IS the reading state. */}
+        <IconTap icon={Undo2} label="Undo" onClick={() => runHistory(undo)} disabled={!editorView} />
+        <IconGroup label="Note actions">
+          <IconTap icon={Share} label="Share" onClick={() => { void shareNote(latest.current ?? note) }} />
+          <IconTap icon={MoreHorizontal} label="More" onClick={openMore} />
+        </IconGroup>
+        {editing && <button type="button" className="m-float-circle is-primary" aria-label="Done" data-keep-keyboard onPointerDown={(e) => e.preventDefault()} onClick={doneEditing}><Check size={22} strokeWidth={2.5} aria-hidden /></button>}
+      </>}
     >
       {printOpen && <PrintPreviewModal title={displayNoteTitle(note.title)} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
-      <div className="mobile-note-editor" {...refLongPress}>
-        {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
+      <div className="mobile-note-editor" {...refLongPress} onFocus={onEditorFocusChange} onBlur={onEditorFocusChange}>
         <NoteEditorPM
           content={editorContent}
           noteId={note.id}
@@ -194,8 +328,10 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
           chrome="phone"
           renderSelectionToolbar={renderPhoneSelectionToolbar}
           onEditorReady={setEditorView}
+          header={title}
         />
-        <NoteInsertButton view={editorView} hidden={mode !== 'edit'} />
+        {/* The + insert menu only while the cursor is in the note (TEST 2026-10-03). */}
+        <NoteInsertButton view={editorView} hidden={mode !== 'edit' || !editing} />
       </div>
     </Page>
   )

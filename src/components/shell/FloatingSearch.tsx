@@ -10,10 +10,12 @@ import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVer
 import { parseMultiBookQuery } from '@/lib/multiBookSearch'
 import { detectTranslationPrefix } from '@/lib/search/searchIntent'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
-import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
+import { applyWordReplacer } from '@/lib/wordReplacer'
+import { expandScriptureQuery, STRONGS_TAGGED_TEXT_IDS } from '@/lib/scriptureSearch'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
+import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
@@ -116,17 +118,17 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   enoch:         '1 Enoch',
   jubilees:      'Jubilees',
   lxx:           'LXX',
-  hermas:        'Hermas',
-  ep_barnabas:   'Barnabas',
-  asc_isaiah:    'Asc. Isaiah',
-  recog_clement: 'Recog. Clement',
-  apoc_elijah:   'Apoc. Elijah',
-  t12p:          '12 Patriarchs',
+  hermas:        'Shepherd of Hermas',
+  ep_barnabas:   'Epistle of Barnabas',
+  asc_isaiah:    'Ascension of Isaiah',
+  recog_clement: 'Recognitions of Clement',
+  apoc_elijah:   'Apocalypse of Elijah',
+  t12p:          'Testaments of the Twelve Patriarchs',
   gad:           'Gad the Seer',
-  t_job:         'T. Job',
+  t_job:         'Testament of Job',
   '1clement':    '1 Clement',
-  apoc_abraham:  'Apoc. Abraham',
-  t_jacob:       'T. Jacob',
+  apoc_abraham:  'Apocalypse of Abraham',
+  t_jacob:       'Testament of Jacob',
   '2baruch':     '2 Baruch',
 }
 
@@ -380,20 +382,6 @@ export default function FloatingSearch() {
     [cleanQuery, parsedRef]
   )
 
-  // Bidirectional word-replacer search: return every variant query to run and merge —
-  // the original typed text plus, for any matching rule, the query with the matched
-  // word/phrase substituted for its counterpart (e.g. typed "yeshua" also searches
-  // "jesus", since the DB still stores the original word). Each variant is run as
-  // its OWN independent window.bible.searchText call below (see runSearch) — NOT
-  // encoded as a single "term1 OR term2" query string. electron/ipc/bible.ts's FTS
-  // query builder deliberately treats every word (including a literal "OR") as a
-  // required token, so that used to silently produce an impossible query requiring
-  // the literal word "or" too — confirmed broken (this was the actual bug report).
-  function expandForSearch(q: string): string[] {
-    const trimmed = q.trim()
-    return wordReplacerEnabled ? getWordReplacerSearchVariants(trimmed, wordReplacerRules) : [trimmed]
-  }
-
   // Debounced FTS search. Split into two phases so the search *feels* instant:
   // a small "fast" phase (primary-translation verses + notes, ~2 IPC calls) renders
   // first, then a "slow" phase (12+ extra apocryphal/pseudepigrapha texts + YouTube)
@@ -465,30 +453,34 @@ export default function FloatingSearch() {
 
       setLexiconResults([])
       const isDefaultSearch = !Object.keys(EXTRA_TEXT_IDS).includes(tid)
-      const variants = expandForSearch(trimmed)
+      // Shared algorithm (scriptureSearch.ts expandScriptureQuery) — bidirectional
+      // word-replacer variants run as separate queries and merged below, plus the
+      // word-replacer → Strong's bridge (a query like "yehovah" restores from H3068/H3069,
+      // which plain FTS can never find since the index still says "LORD"). The bridge only
+      // ever finds hits in Strong's-TAGGED texts (STRONGS_TAGGED_TEXT_IDS: 'kjva'/'lxx').
+      const { variants, strongsBridge: wrStrongs } = wordReplacerEnabled
+        ? expandScriptureQuery(trimmed, wordReplacerRules, mode)
+        : { variants: [trimmed], strongsBridge: null }
       const variantSearches = variants.map((variant) =>
         window.bible.searchText(variant, tid, mode)
           .then((rows) => rows as unknown as VerseResult[])
           .catch(() => [] as VerseResult[])
       )
 
-      // Word-replacer → Strong's bridge: a query like "yehovah" restores from H3068/H3069,
-      // which plain FTS (index still says "LORD") can never find. Search those by occurrence
-      // instead and merge alongside the variant results. See getWordReplacerStrongsSearch.
-      // KJVA-only: Strong's occurrence data (and the H-number rules) are Hebrew-OT tagging.
-      const wrStrongs = (wordReplacerEnabled && tid === 'kjva') ? getWordReplacerStrongsSearch(trimmed, wordReplacerRules) : null
       // The replacement wording for whichever rule owns a searched Strong's number — the
       // displayed word for every bridge row ("LORD"→"Yehovah"). Multiple matched rules are
       // rare (H3068/H3069 share one "Yehovah" rule in practice); any one is fine.
       const wrReplacement = wrStrongs
         ? (wordReplacerRules.find((r) => r.enabled && r.strongsNum && wrStrongs.strongsNums.includes(r.strongsNum))?.replacement ?? '')
         : ''
-      const wrStrongsSearch: Promise<VerseResult[]> = wrStrongs
+      const wrStrongsSearch: Promise<VerseResult[]> = (wrStrongs && STRONGS_TAGGED_TEXT_IDS.has(tid))
         ? searchAnyStrongs(wrStrongs.strongsNums, wrStrongs.residualWords, window.lexicon.getOccurrences)
-            .then((rows) => rows.map((o) => ({
-              book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text,
-              wrIndices: o.matchWordIndices, wrReplacement,
-            } as VerseResult)))
+            .then((rows) => rows
+              .filter((o) => o.text_id === tid)
+              .map((o) => ({
+                book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text,
+                wrIndices: o.matchWordIndices, wrReplacement,
+              } as VerseResult)))
             .catch(() => [] as VerseResult[])
         : Promise.resolve([] as VerseResult[])
 
@@ -1036,7 +1028,9 @@ export default function FloatingSearch() {
   const verseRows = useMemo(() => {
     return scopedVerseResults.slice(0, 12).map((v) => {
       const book = books.find((b) => b.id === v.book_id)
-      const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
+      // The full book name already names the work (1 Enoch, Recognitions of Clement …); only a
+      // second edition of the SAME book (the LXX) needs its source spelled out.
+      const sourceLabel = v.sourceTextName && v.sourceTextId === 'lxx' ? ` · ${v.sourceTextName}` : ''
       let displayText: string
       if (v.wrIndices?.length && v.wrReplacement) {
         const idxSet = new Set(v.wrIndices)
@@ -1056,7 +1050,9 @@ export default function FloatingSearch() {
       const subText = makeSnippet(displayText, snippetTerm, subLen, searchWordMode)
       const highlightTerms = [cleanQuery, replacedQuery, v.wrReplacement].filter((t): t is string => !!t && t.trim().length > 0)
       return {
-        label: `${book?.short_name ?? v.book_id} ${displayChapter(v.book_id, v.chapter)}:${v.verse_num}${sourceLabel}`,
+        // Full names, never internal abbreviations ("Matthew 10:32", "Recognitions of Clement,
+        // Book 4, 35:1" — TEST 2026-09-29): the one canonical formatter.
+        label: `${bookChapterVerseLabel(v.book_id, v.chapter, v.verse_num)}${sourceLabel}`,
         sub: subText,
         highlightTerms,
         nav: { book_id: v.book_id, chapter: v.chapter, verse_num: v.verse_num, sourceTextId: v.sourceTextId as string | undefined },
@@ -1067,9 +1063,7 @@ export default function FloatingSearch() {
   const noteRows = useMemo(() => {
     if (versesOnly) return []
     return noteResults.slice(0, 4).map((note) => {
-      const rawSnippet = note.content
-        .replace(/^---[\s\S]*?---\n?/, '')
-        .replace(/[#*`_>~[\]]/g, '')
+      const rawSnippet = stripMarkdownFormatting(note.content.replace(/^---[\s\S]*?---\n?/, ''))
         .replace(/\n/g, ' ')
         .trim()
       const snippet = wr(rawSnippet)

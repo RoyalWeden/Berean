@@ -25,7 +25,9 @@ import { lazy, Suspense } from 'react'
 const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
 const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
 import { SheetHost, useSheets } from './primitives/Sheet'
+import { PopoverMenuHost } from './primitives/PopoverMenu'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
+import { canEdgeBack, performEdgeBack } from './navigation/edgeBack'
 import { Page, ListSection, Row } from './primitives/Page'
 import { TabCardsSheet } from './tabs/TabCardsSheet'
 import { BottomNav } from './navigation/BottomNav'
@@ -57,6 +59,8 @@ import VerseDragIndicator from '@/components/bible/VerseDragIndicator'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { QueuePage } from './audio/QueuePage'
 import { Keyboard } from '@capacitor/keyboard'
+import { installKeyboardDismiss } from './primitives/keyboardDismiss'
+import { initPerWindowViewState } from '@/lib/perWindowViewState'
 import { BereanA11y } from '@/platform/ios/plugins'
 import './mobile.css'
 
@@ -77,6 +81,7 @@ export default function MobileApp() {
   return (
     <SheetHost>
       <Shell />
+      <PopoverMenuHost />
       {onboarding && <OnboardingFlow />}
     </SheetHost>
   )
@@ -139,10 +144,10 @@ function Shell() {
         {showMore && <NavigationStack key={`more-${moreRoute}`} rootKey="more" root={<MorePage initialRoute={moreRoute} onClose={closeMore} onOpenSpace={(sp) => { useAppStore.getState().setActiveSpace(sp); closeMore() }} />} />}
         {/* One navigation stack per TAB (not per space): every tab — two Search tabs, two Notes
             tabs — keeps its own page and state (T23-009). */}
-        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={`${activeSpace}:${activeTabIdOf}`} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} />}
+        {!showMore && activeSpace !== 'youtube' && <NavigationStack key={`${activeSpace}:${activeTabIdOf}`} rootKey={activeSpace} root={<SpaceRoot space={activeSpace} />} canEdgeBack={canEdgeBack} onEdgeBack={performEdgeBack} />}
         {(youtubeShowing || youtubeParked) && (
           <div key="youtube-space" className={youtubeParked ? 'mobile-space-parked' : 'mobile-space-live'} aria-hidden={youtubeParked || undefined}>
-            <NavigationStack rootKey="youtube" root={<SpaceRoot space="youtube" />} />
+            <NavigationStack rootKey="youtube" root={<SpaceRoot space="youtube" />} canEdgeBack={canEdgeBack} onEdgeBack={performEdgeBack} />
           </div>
         )}
       </main>
@@ -374,8 +379,9 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
     title: 'More',
     sections: [{ id: 'more', commands: [
       { kind: 'action', id: 'back', label: 'Back to the current tab', icon: ArrowLeft, run: onClose },
-      { kind: 'action', id: 'settings', label: 'Settings', icon: SettingsIcon, run: openSettings },
+      // History · Settings last, in that order — the same as every other caret (TEST 2026-10-05).
       { kind: 'action', id: 'history', label: 'History', icon: History, run: openHistory },
+      { kind: 'action', id: 'settings', label: 'Settings', icon: SettingsIcon, run: openSettings },
     ] }],
   }))
   return (
@@ -481,12 +487,19 @@ function useBoot() {
       handles.push(Keyboard.addListener('keyboardWillShow', (e) => { root.style.setProperty('--m-keyboard-h', `${e.keyboardHeight}px`); root.dataset.keyboard = ''; window.dispatchEvent(new Event('berean:keyboard')) }))
       handles.push(Keyboard.addListener('keyboardWillHide', () => { root.style.setProperty('--m-keyboard-h', '0px'); delete root.dataset.keyboard; window.dispatchEvent(new Event('berean:keyboard')) }))
     } catch { /* web preview */ }
-    return () => { for (const h of handles) h.then((x) => x.remove()).catch(() => {}) }
+    // Keyboard dismissal (on drag / swipe down / inert tap) — one shell-wide behaviour.
+    const disposeDismiss = installKeyboardDismiss(document.body)
+    return () => { disposeDismiss(); for (const h of handles) h.then((x) => x.remove()).catch(() => {}) }
   }, [])
   useEffect(() => {
     window.settings?.getAll().then((all) => hydrateSettingsIntoStore(all)).catch(() => {})
     window.appHistory?.getAll().then((entries) => useAppStore.getState().setHistory(entries)).catch(() => {})
     const disposeSettings = persistSettingsFromStore()
+    // Restore the workspace (session), space and tabs this phone was showing (TEST 2026-10-03:
+    // "doesn't remember what workspace I had open") — the same per-window view state the Mac
+    // uses. BEFORE the SQLite tab mirror loads: it keeps a restored session that still exists
+    // and falls back to the first workspace when it was deleted.
+    const disposeView = initPerWindowViewState()
     const disposeTabs = installTabPersistence()
     // Sunrise day boundary for daily notes: refresh the cached fix silently when access was
     // already granted; the first prompt happens when a daily note is opened (location.ts).
@@ -500,7 +513,7 @@ function useBoot() {
     // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
     wireSyncUi()   // the shared iCloud status store (Settings row, iCloud page, progress) — DATA-UX-001
     const disposeSync = window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
-    return () => { disposeSettings(); disposeTabs?.(); disposeSync?.() }
+    return () => { disposeSettings(); disposeView(); disposeTabs?.(); disposeSync?.() }
   }, [])
 }
 

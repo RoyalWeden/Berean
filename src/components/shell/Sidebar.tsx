@@ -8,6 +8,7 @@ import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect, useMemo } from 'react'
+import Ribbon from './Ribbon'
 import { createPortal } from 'react-dom'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { normalizeBookName } from '@/lib/parseRef'
@@ -17,6 +18,36 @@ import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/Calen
 import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
 import { IconButton, ListRow, ControlGroup, MenuSurface, MenuItem, MenuSeparator, MenuLabel, TextField, Tooltip, BarMetrics } from '@/components/ui'
 import { useRovingNav } from '@/lib/useRovingNav'
+
+/** The sidebar's single "New Tab" row + its menu. */
+function NewTabMenu({ onCreate, onSearch }: { onCreate: (id: SpaceId, type: TabType) => void; onSearch: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ListRow
+          dense
+          // Same rounded shape as the tab rows below it (rounded-control-md) — `flush` drew a
+          // square-cornered highlight (TEST 2026-10-05: "new tab button not properly rounded").
+          inset
+          selected={open}
+          leading={<Plus size={14} className="text-text-secondary flex-shrink-0" />}
+          title={<span className="text-footnote text-text-secondary">New Tab</span>}
+          titleSize="footnote"
+          aria-haspopup="menu"
+          aria-label="New tab — choose Scripture, Notes, Lexicon or YouTube"
+        />
+      </PopoverTrigger>
+      <PopoverSurface side="bottom" align="start" sideOffset={4} innerClassName="p-1 min-w-[220px]" role="menu">
+        {SPACES.map(({ id, type, label, icon }) => (
+          <MenuItem key={id} icon={icon} label={label} onClick={() => { onCreate(id, type); setOpen(false) }} />
+        ))}
+        <MenuSeparator />
+        <MenuItem icon={Search} label="Search in New Tab…" shortcut="⌘T" onClick={() => { onSearch(); setOpen(false) }} />
+      </PopoverSurface>
+    </Popover>
+  )
+}
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -136,52 +167,6 @@ export default function Sidebar() {
   const sessionDisplayOrders = useAppStore((s) => s.sessionDisplayOrders)
   const reorderTabDisplay    = useAppStore((s) => s.reorderTabDisplay)
   const noteChangeToken      = useAppStore((s) => s.noteChangeToken)
-
-  // ── Sessions — moved here from Ribbon.tsx's narrow icon rail, which only
-  // ever showed the current session's name on hover (a tooltip). The sidebar
-  // has real width to spend, so the current session's name is always visible
-  // as text in its own row above the search/location bar, not hidden behind
-  // a hover. Clicking it opens the same full session-list popover the old
-  // "+" trigger did; right-clicking (or the row's own icon button) still
-  // offers rename/change-icon/delete via the same portaled menu pattern as
-  // bookMenu/tabBarMenu below. ──
-  const sessions          = useAppStore((s) => s.sessions)
-  const switchSession     = useAppStore((s) => s.switchSession)
-  const createSession     = useAppStore((s) => s.createSession)
-  const deleteSession     = useAppStore((s) => s.deleteSession)
-  const renameSession     = useAppStore((s) => s.renameSession)
-  const setSessionIcon    = useAppStore((s) => s.setSessionIcon)
-  const openSettingsToSessions = useAppStore((s) => s.openSettingsToSessions)
-  const [sessionPopoverOpen, setSessionPopoverOpen] = useState(false)
-  const [sessionMenu, setSessionMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
-  const [sessionMenuMode, setSessionMenuMode] = useState<'default' | 'rename' | 'icon'>('default')
-  const [renameValue, setRenameValue] = useState('')
-  const sessionMenuRef = useRef<HTMLDivElement>(null)
-  const currentSession = sessions.find((s) => s.id === currentSessionId) ?? sessions[0]
-  const currentSessionIdx = sessions.findIndex((s) => s.id === currentSessionId)
-  const CurrentSessionIcon = (SESSION_ICONS.find((i) => i.name === currentSession?.icon) ?? SESSION_ICONS[0]).Icon
-
-  useEffect(() => {
-    if (!sessionMenu) return
-    function onDown(e: MouseEvent) {
-      if (sessionMenuRef.current && !sessionMenuRef.current.contains(e.target as Node)) { setSessionMenu(null); setSessionMenuMode('default') }
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') { setSessionMenu(null); setSessionMenuMode('default') } }
-    window.addEventListener('mousedown', onDown, true)
-    window.addEventListener('keydown', onEsc)
-    return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
-  }, [sessionMenu])
-
-  // `closePopover` defaults to true (right-clicking the trigger button, where the session
-  // list popover isn't open yet). Right-clicking a row INSIDE the already-open popover
-  // passes false, so the session list stays visible behind the rename/icon/delete submenu
-  // instead of vanishing the instant you right-click.
-  function openSessionMenu(x: number, y: number, sessionId: string, currentName: string, closePopover = true) {
-    if (closePopover) setSessionPopoverOpen(false)
-    setSessionMenuMode('default')
-    setRenameValue(currentName)
-    setSessionMenu({ x, y, sessionId })
-  }
 
   // ── Tab-bar right-click context menu ──
   const [tabBarMenu, setTabBarMenu] = useState<{ x: number; y: number } | null>(null)
@@ -444,6 +429,21 @@ export default function Sidebar() {
   const dailyNoteMatch = /^Daily — (\d{4}-\d{2}-\d{2})$/.exec(tabTitle)
   const breadcrumbTail = dailyNoteMatch ? ['Daily', dailyNoteMatch[1]] : [tabTitle]
 
+  // The sidebar's LIVE width (mid-animation, mid-drag) for the macOS glass pane cut-out
+  // (SidebarGlassPane.tsx / global.css .shell-pane-hole) — written straight to a CSS variable so
+  // the pane tracks every frame without a React render.
+  const liveWidthRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = liveWidthRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const root = document.documentElement
+    const write = () => root.style.setProperty('--sidebar-live-w', `${el.getBoundingClientRect().width}px`)
+    write()
+    const ro = new ResizeObserver(write)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Build the unified tab list, respecting the session's custom display order.
   // New tabs not yet in the order are appended; closed tabs are silently dropped.
   // Memoised: this ran on every render (incl. every activeTabId change / scroll tick
@@ -476,6 +476,7 @@ export default function Sidebar() {
   // and collapsing genuinely reads as a fade instead of a disappear.
   return (
     <motion.div
+      ref={liveWidthRef}
       animate={{ width: sidebarCollapsed ? 0 : sidebarWidth, opacity: sidebarCollapsed ? 0 : 1 }}
       initial={false}
       transition={{
@@ -504,7 +505,7 @@ export default function Sidebar() {
         // Ribbon.tsx — both still real app-drag-region) is unaffected; only "drag the window by
         // clicking blank sidebar chrome outside the tab list" is given up here, same tradeoff
         // already made for the tab-list area itself via the manual moveWindowBy() drag below.
-        className="no-drag select-none flex flex-col flex-shrink-0 h-full material-sidebar border-r border-separator"
+        className="shell-sidebar no-drag select-none flex flex-col flex-shrink-0 h-full material-sidebar border-r border-separator"
         // Clicking anywhere in the sidebar (switching tabs/spaces, etc.) should close any
         // open overlay elsewhere (Ribbon's archive-tabs list, zoom popover, session menu) —
         // those already listen for this broadcast (see HeaderOverflowMenu.tsx, Ribbon.tsx,
@@ -530,76 +531,7 @@ export default function Sidebar() {
           window.dispatchEvent(new Event('berean:closeMenus'))
         }}
       >
-        {/* ── Session switcher — own row, full sidebar width, always shows the
-             current session's name as text (never just an icon behind a
-             hover tooltip). Deliberately quieter than the search/location bar
-             below it (no background/border at rest, muted text) — it's a
-             secondary, occasional action, not something that should compete
-             with the search bar for visual attention. Click opens the full
-             session list to switch; right-click (or the icon button) opens
-             rename/change-icon/delete. ── */}
-        <div className="px-2 pt-1 flex-shrink-0">
-          <Popover open={sessionPopoverOpen} onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}>
-            <PopoverTrigger asChild>
-              <ListRow
-                dense
-                current={sessionPopoverOpen}
-                className="no-drag"
-                leading={<CurrentSessionIcon size={12} className="text-text-tertiary" />}
-                title={
-                  <span className="truncate" style={{ zoom: appZoom }}>
-                    {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
-                  </span>
-                }
-                trailing={<ChevronsUpDown size={12} className="text-text-tertiary" />}
-                trailingAlways
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  if (currentSession) openSessionMenu(e.clientX, e.clientY, currentSession.id, currentSession.name)
-                }}
-              />
-            </PopoverTrigger>
-            <PopoverSurface
-              side="bottom" align="start" sideOffset={4}
-              innerClassName="min-w-[200px] p-1"
-              // The rename/icon/delete submenu is portaled separately (to document.body,
-              // outside this Popover's content), so Radix's own outside-interaction dismissal
-              // would otherwise treat clicks inside it as "outside" and auto-close this
-              // popover — undoing the point of keeping it open. Ignore interactions that
-              // land inside the still-open submenu.
-              onInteractOutside={(e) => {
-                if (sessionMenuRef.current && sessionMenuRef.current.contains(e.target as Node)) e.preventDefault()
-              }}
-            >
-              {sessions.map((session) => {
-                const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
-                return (
-                  <MenuItem
-                    key={session.id}
-                    icon={SessionIcon}
-                    label={session.name}
-                    active={session.id === currentSessionId}
-                    selectionStyle="highlight"
-                    onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
-                    onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
-                  />
-                )
-              })}
-              <MenuSeparator />
-              <MenuItem
-                icon={Plus}
-                label="New session"
-                shortcut="⌘⇧0"
-                onClick={() => { createSession(); setSessionPopoverOpen(false) }}
-              />
-              <MenuItem
-                icon={Settings}
-                label="Manage sessions…"
-                onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
-              />
-            </PopoverSurface>
-          </Popover>
-        </div>
+        {/* The session switcher is a toolbar control now (SessionSwitcher.tsx, in ShellHeader). */}
 
         {/* ── Search / location bar — own row, full sidebar width. Back/forward nav,
              history, archive, settings, and collapse now live in the shared TopBar
@@ -642,46 +574,20 @@ export default function Sidebar() {
                 )
               }
             />
-            {/* New tab search button */}
-            <IconButton
-              icon={Plus}
-              label="Search in new tab"
-              size={24}
-              variant="glass"
-              onClick={() => openSearch('new')}
-            />
           </div>
           </BarMetrics>
         </div>
 
-        {/* ── New-tab tile row — one icon button per space, always visible
-             (not conditional on activeSpace). Ribbon.tsx no longer creates
-             tabs at all, and the old space-header "+"/right-click "open new
-             tab" menu are gone — this is the single "start a fresh tab of
-             type X" affordance now. Precise switching to an EXISTING tab
-             stays the flat list's job below. ── */}
-        <div className="px-2 pt-1 pb-1.5 flex-shrink-0">
-          <ControlGroup
-            align="stretch"
-            className="w-full"
-            onKeyDown={useRovingNav({ orientation: 'horizontal', selector: 'button' })}
-          >
-            {SPACES.map(({ id, type, icon: Icon, tip }, i) => (
-              <IconButton
-                key={id}
-                icon={Icon}
-                label={tip}
-                size={32}
-                active={activeSpace === id}
-                // §7.2: aria-current (not just the visual active state) on the current space,
-                // plus its ⌘1–⌘4 shortcut in the tooltip (SPACE_IDS order in App.tsx).
-                aria-current={activeSpace === id ? 'true' : undefined}
-                tooltip={{ shortcut: `⌘${i + 1}` }}
-                className="flex-1"
-                onClick={() => createTab(type)}
-              />
-            ))}
-          </ControlGroup>
+        {/* ── New Tab — ONE creation affordance (TEST 2026-10-05) replacing the "+" beside the
+             search field and the row of four tab-type tiles: the source list's first row, like
+             Safari / Arc's "New Tab". It opens a labelled menu — Scripture · Notes · Lexicon ·
+             YouTube · Search in New Tab — so the sidebar reads navigation · search · content.
+             ⌘T and the tab list's right-click menu are unchanged. ── */}
+        <div className="px-2 pb-1 flex-shrink-0">
+          <NewTabMenu
+            onCreate={(id, type) => { createTab(type); useAppStore.getState().setActiveSpace(id) }}
+            onSearch={() => openSearch('new')}
+          />
         </div>
 
             <div
@@ -791,7 +697,7 @@ export default function Sidebar() {
              (no bordered card) so it reads as a native sidebar section, the
              same way Finder/Mail sidebar sections are just separated by a
              rule rather than each getting their own card chrome. ── */}
-        <div className="mx-2 mb-2 mt-1.5 pt-2 border-t border-separator flex-shrink-0">
+        <div className="mx-2 mb-1 mt-1.5 pt-2 border-t border-separator flex-shrink-0">
           <CalendarGrid
             date={sbCalendarDate}
             notes={sbCalendarNotes}
@@ -810,6 +716,13 @@ export default function Sidebar() {
               />
             }
           />
+        </div>
+
+        {/* ── Sidebar command bar — the workspace commands with no other visible home (archived
+             tabs, presenter, Read Aloud, Study Trail, Berean Chat, Settings), as quiet icons at the
+             foot of the sidebar instead of a hover-revealed floating rail (Ribbon layout="bar"). ── */}
+        <div className="mx-2 mb-1.5 flex-shrink-0">
+          <Ribbon layout="bar" />
         </div>
 
       {/* ── Tab-bar right-click context menu ── */}
@@ -905,76 +818,6 @@ export default function Sidebar() {
         document.body
       )}
 
-      {sessionMenu && (() => {
-        const menuSession = sessions.find((s) => s.id === sessionMenu.sessionId)
-        const MenuSessionIcon = (SESSION_ICONS.find((i) => i.name === menuSession?.icon) ?? SESSION_ICONS[0]).Icon
-        return createPortal(
-        <MenuPositioner ref={sessionMenuRef} x={sessionMenu.x} y={sessionMenu.y}>
-          <MenuSurface className={sessionMenuMode === 'icon' ? 'w-48' : 'min-w-44'}>
-            {/* Live preview header — icon + name update in place as edits are made below,
-                so renaming/changing the icon is visible without closing the menu to check. */}
-            <div className="flex items-center gap-2 px-2.5 py-1.5 mb-1 border-b border-separator">
-              <MenuSessionIcon size={12} className="text-text-muted flex-shrink-0" />
-              <span className="flex-1 text-caption font-medium text-text-secondary truncate">
-                {menuSession?.name ?? 'Session'}
-              </span>
-            </div>
-            {sessionMenuMode === 'rename' ? (
-              <TextField
-                autoFocus
-                size="sm"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onFocus={(e) => e.currentTarget.select()}
-                onBlur={() => {
-                  if (renameValue.trim()) renameSession(sessionMenu.sessionId, renameValue.trim())
-                  setSessionMenuMode('default')
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                  if (e.key === 'Escape') { e.preventDefault(); setSessionMenu(null); setSessionMenuMode('default') }
-                }}
-                wrapperClassName="px-1"
-              />
-            ) : sessionMenuMode === 'icon' ? (
-              <>
-                <MenuLabel>Session icon</MenuLabel>
-                <div className="grid grid-cols-7 gap-0.5 p-1">
-                  <IconButton
-                    icon={Hash}
-                    label="No icon (show number)"
-                    size={24}
-                    active={!menuSession?.icon}
-                    onClick={() => setSessionIcon(sessionMenu.sessionId, '')}
-                  />
-                  {SESSION_ICONS.map(({ name, Icon }) => (
-                    <IconButton
-                      key={name}
-                      icon={Icon}
-                      label={name}
-                      size={24}
-                      active={menuSession?.icon === name}
-                      onClick={() => setSessionIcon(sessionMenu.sessionId, name)}
-                    />
-                  ))}
-                </div>
-                <MenuItem label="Done" className="justify-center" onClick={() => setSessionMenuMode('default')} />
-              </>
-            ) : (
-              <>
-                <MenuItem icon={Pencil} label="Rename" onClick={() => setSessionMenuMode('rename')} />
-                <MenuItem icon={Palette} label="Change icon" onClick={() => setSessionMenuMode('icon')} />
-                <MenuSeparator />
-                <MenuItem icon={Settings} label="Manage sessions…" onClick={() => { openSettingsToSessions(); setSessionMenu(null) }} />
-                {sessions.length > 1 && (
-                  <MenuItem icon={Trash2} label="Delete session" danger onClick={() => { deleteSession(sessionMenu.sessionId); setSessionMenu(null) }} />
-                )}
-              </>
-            )}
-          </MenuSurface>
-        </MenuPositioner>,
-        document.body
-      )})()}
 
       {/* ── Daily-note calendar right-click (grid cells + the "Today" shortcut) ── */}
       {dailyNoteMenu && createPortal(

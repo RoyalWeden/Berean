@@ -1,4 +1,5 @@
 import { Children, isValidElement, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import type React from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { cx } from './cx'
 import { IconButton } from './IconButton'
@@ -42,6 +43,10 @@ export interface OverflowGroupProps {
   renderOverflow?: (items: ReactElement[]) => ReactNode
   /** Extra always-present items appended below a separator (the curated low-frequency actions). */
   extraItems?: OverflowItemMeta[]
+  /** Always-present rows at the TOP of the menu (e.g. MenuSub submenus such as a note's Status /
+   *  Look), above the folded controls. Opening a submenu keeps the menu open; choosing a leaf row
+   *  anywhere in the menu closes it (macOS menu behaviour). */
+  menuHeader?: ReactNode
   /** Where the available width comes from. 'self' (default) — this element's own width (it is
    *  flex-1 in a bar). 'offsetParent' — for a floating shrink-to-fit bar (absolute + centred):
    *  the positioned ancestor's width minus `inset`, since the bar itself has no width until its
@@ -56,16 +61,20 @@ export interface OverflowGroupProps {
  * narrow (§18/§75) — nothing is hidden, nothing scrolls sideways. Measures every child once
  * (all rendered, invisible) and shows as many leading items as fit.
  */
-export function OverflowGroup({ children, className, gap = 8, label = 'More', renderOverflow, extraItems, fit = 'self', inset = 24 }: OverflowGroupProps) {
+export function OverflowGroup({ children, className, gap = 8, label = 'More', renderOverflow, extraItems, menuHeader, fit = 'self', inset = 24 }: OverflowGroupProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const all = Children.toArray(children).filter(isValidElement) as ReactElement[]
-  // Priority: 'never' items are pinned (always shown, measured first); 'first' fold first.
+  // Priority: 'never' items are pinned (always shown, measured first). Among the rest, 'first'
+  // items fold first, then default ones, then 'last' (kept longest) — each group from its tail.
+  // The VISUAL order never changes; only which items fold does.
   const prio = (el: ReactElement) => ((el.props as { priority?: string }).priority ?? (el.props as { 'data-overflow-priority'?: string })['data-overflow-priority'] ?? 'default')
   const pinned = all.filter((e) => prio(e) === 'never')
   const foldable = all.filter((e) => prio(e) !== 'never')
   const items = [...pinned, ...foldable]
   const rootRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(items.length)
+  // Indices (into `items`) currently folded into the menu.
+  const [foldedKey, setFoldedKey] = useState('')
   useLayoutEffect(() => {
     const root = rootRef.current, m = measureRef.current
     if (!root || !m) return
@@ -86,17 +95,18 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
       }
       const moreW = 28 + gap
       const hasExtra = !!(extraItems && extraItems.length)
-      let used = 0, n = 0
-      for (let i = 0; i < widths.length; i++) {
-        const w = widths[i] + (i ? gap : 0)
-        const needMore = (i < widths.length - 1 || hasExtra) ? moreW : 0
-        if (used + w + needMore > avail) break
-        used += w; n++
+      const total = (k: Set<number>) => {
+        let w = 0, first = true
+        for (let i = 0; i < widths.length; i++) { if (k.has(i)) continue; w += widths[i] + (first ? 0 : gap); first = false }
+        return w + ((k.size > 0 || hasExtra) ? moreW : 0)
       }
-      // Pinned items never fold: if even they don't fit, still show them (they overflow the bar
-      // rather than disappearing) — visual QA decides whether the bar's minimum width is wrong.
-      n = Math.max(n, pinned.length)
-      setVisible((prev) => (prev === n ? prev : n))
+      // Fold order: 'first' items from the tail, then default, then 'last' — pinned never fold.
+      const rank = (i: number) => { const p = prio(items[i]); return p === 'first' ? 0 : p === 'last' ? 2 : 1 }
+      const order = items.map((_, i) => i).filter((i) => prio(items[i]) !== 'never').sort((a, b) => rank(a) - rank(b) || b - a)
+      const folded = new Set<number>()
+      for (const i of order) { if (total(folded) <= avail) break; folded.add(i) }
+      const key = [...folded].sort((a, b) => a - b).join(',')
+      setFoldedKey((prev) => (prev === key ? prev : key))
     }
     compute()
     if (typeof ResizeObserver === 'undefined') return  // jsdom / tests: measure once
@@ -108,11 +118,17 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
       if (a?.offsetParent instanceof HTMLElement) ro.observe(a.offsetParent)
     }
     return () => ro.disconnect()
-  }, [items.length, gap, fit, inset, pinned.length, !!(extraItems && extraItems.length)])
-  const shown = items.slice(0, visible)
-  const folded = items.slice(visible)
+  }, [items.length, gap, fit, inset, pinned.length, !!(extraItems && extraItems.length)]) // eslint-disable-line react-hooks/exhaustive-deps
+  const foldedSet = new Set(foldedKey ? foldedKey.split(',').map(Number) : [])
+  const shown = items.filter((_, i) => !foldedSet.has(i))
+  const folded = items.filter((_, i) => foldedSet.has(i))
   const foldedMeta = folded.map((el) => ({ el, items: (el.props as { items?: OverflowItemMeta[] }).items, label: (el.props as { label?: string }).label }))
-  const hasMenu = folded.length > 0 || !!(extraItems && extraItems.length)
+  const hasMenu = folded.length > 0 || !!(extraItems && extraItems.length) || menuHeader != null
+  // A click on a leaf menu row (not a submenu trigger, not a folded live control) closes the menu.
+  const closeOnChoose = (e: React.MouseEvent) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]')
+    if (row && row.getAttribute('aria-haspopup') !== 'menu' && !row.hasAttribute('disabled')) setMenuOpen(false)
+  }
   return (
     <div ref={rootRef} className={cx('relative flex items-center min-w-0', fit === 'self' && 'flex-1', className)} style={{ gap }}>
       {/* Hidden measuring copy — every item at its natural width */}
@@ -121,11 +137,17 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
       </div>
       {shown}
       {hasMenu && (
-        <Popover>
+        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger asChild>
-            <IconButton icon={MoreHorizontal} label={label} size={28} />
+            <IconButton icon={MoreHorizontal} label={label} size={28} selected={menuOpen} />
           </PopoverTrigger>
-          <PopoverSurface align="end" innerClassName="p-1 min-w-[220px]" role="menu">
+          <PopoverSurface align="end" innerClassName="p-1 min-w-[220px]" role="menu" onClick={closeOnChoose}>
+            {menuHeader != null && (
+              <>
+                <MenuGroup>{menuHeader}</MenuGroup>
+                {(folded.length > 0 || !!(extraItems && extraItems.length)) && <MenuSeparator />}
+              </>
+            )}
             {renderOverflow ? renderOverflow(folded) : (
               <>
                 {/* Folded controls keep their checked state (aria-checked stays live either way — see

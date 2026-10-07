@@ -56,6 +56,11 @@ interface StrongsOccurrenceRow {
   chapter: number
   verse_num: number
   text: string
+  /** Which text this occurrence came from (getOccurrences scans kjva, and lxx too for
+   *  Greek numbers — see lexiconService.ts). Optional/defaults to 'kjva' for callers
+   *  (older tests, single-text call sites) that don't supply it. */
+  text_id?: string
+  text_tagged?: string | null
   matchWordIndices?: number[]
 }
 
@@ -64,6 +69,8 @@ export interface MultiStrongsResult {
   chapter: number
   verse_num: number
   text: string
+  text_id: string
+  text_tagged?: string | null
   matchWordIndices: number[]
 }
 
@@ -85,7 +92,7 @@ export async function searchMultiStrongs(
     // inflate `count` past `parsed.strongsNums.length` and get excluded below.
     const seenInThisList = new Set<string>()
     for (const o of list) {
-      const key = `${o.book_id}:${o.chapter}:${o.verse_num}`
+      const key = `${o.text_id ?? 'kjva'}:${o.book_id}:${o.chapter}:${o.verse_num}`
       if (seenInThisList.has(key)) continue
       seenInThisList.add(key)
       let entry = perVerse.get(key)
@@ -107,6 +114,8 @@ export async function searchMultiStrongs(
     chapter: e.row.chapter,
     verse_num: e.row.verse_num,
     text: e.row.text,
+    text_id: e.row.text_id ?? 'kjva',
+    text_tagged: e.row.text_tagged ?? null,
     matchWordIndices: [...e.indices],
   }))
 }
@@ -125,7 +134,7 @@ export async function searchAnyStrongs(
   const perVerse = new Map<string, { row: StrongsOccurrenceRow; indices: Set<number> }>()
   for (const list of lists) {
     for (const o of list) {
-      const key = `${o.book_id}:${o.chapter}:${o.verse_num}`
+      const key = `${o.text_id ?? 'kjva'}:${o.book_id}:${o.chapter}:${o.verse_num}`
       let entry = perVerse.get(key)
       if (!entry) { entry = { row: o, indices: new Set() }; perVerse.set(key, entry) }
       for (const idx of o.matchWordIndices ?? []) entry.indices.add(idx)
@@ -144,6 +153,8 @@ export async function searchAnyStrongs(
     chapter: e.row.chapter,
     verse_num: e.row.verse_num,
     text: e.row.text,
+    text_id: e.row.text_id ?? 'kjva',
+    text_tagged: e.row.text_tagged ?? null,
     matchWordIndices: [...e.indices],
   }))
 }

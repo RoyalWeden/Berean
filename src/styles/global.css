@@ -1411,12 +1411,42 @@
      Michael's "wider cap" decision. 86ch ≈ 688px ≈ 86 chars/line keeps a comfortable measure while
      using more of the pane; tune this ONE token, never the component. */
   --reading-max-ch: 86;
-  --reading-margin: clamp(24px, 6%, 72px);
+  --reading-margin: clamp(24px, 6cqi, 72px);
+}
+/* Scripture margins (Settings → Display → Scripture margins; desktop sets html[data-scripture-margins]).
+   Standard = the values above (unchanged default). Margins are a share (cqi) of the Scripture
+   pane, clamped, and the text always uses the remaining width up to the measure. */
+/* The margins are a share of the whole Scripture PANE (cqi against this container), not of the
+   scroller — so attaching the side panel never shifts the text sideways (TEST 2026-10-04). The
+   column's max-width stays relative to the scroller, so the text narrows only when the measure no
+   longer fits beside the panel. */
+.berean-scripture-pane { container-type: inline-size; }
+.berean-inspector-attached .berean-reading-column { --reading-end-pad: min(var(--reading-margin), 28px); }
+html[data-scripture-margins="compact"] {
+  --reading-max-ch: 100;
+  --reading-margin: clamp(12px, 2.5cqi, 32px);
+}
+html[data-scripture-margins="spacious"] {
+  --reading-max-ch: 74;
+  --reading-margin: clamp(36px, 10cqi, 160px);
 }
 .berean-reading-column {
-  padding-inline: var(--reading-margin);
+  /* Trailing margin. Beside an attached side panel the panel's edge already separates the text,
+     so the trailing margin collapses to a small gap — the text keeps its width (no re-wrap)
+     whenever it physically fits beside the panel. */
+  --reading-end-pad: var(--reading-margin);
+  padding-inline: var(--reading-margin) var(--reading-end-pad);
   padding-block: 24px;
-  max-width: min(calc(var(--reading-max-ch) * 1ch), calc(100% - (2 * var(--reading-margin))));
+  /* border-box: the cap INCLUDES both margins. (It used to subtract them a second time, so on a
+     pane narrowed by the side panel the text ended ~3 margins from the right edge vs 1 on the left
+     — TEST 2026-09-29 "too much padding on the right of Scripture when the side panel is open".) */
+  /* Third term: the width the closed side panel keeps clear (--inspector-reserve, set by the
+     Scripture pane when there is room), so opening it at its current width re-wraps nothing. */
+  max-width: min(
+    calc(var(--reading-max-ch) * 1ch + var(--reading-margin) + var(--reading-end-pad)),
+    100%,
+    calc(100cqi - var(--inspector-reserve, 0px) - var(--scrollbar-w) - min(var(--reading-margin), 28px) + var(--reading-end-pad))
+  );
   margin-inline-start: 0;
 }
 
@@ -1492,8 +1522,13 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Transparent at FIRST paint, in every window: Chromium keeps the page background it sees first
+   as its layer colour, so an opaque first paint made the main window's transparent backdrop
+   (vibrancy, native Liquid Glass) permanently invisible (docs/liquid-glass.md §Root cause).
+   Opaque windows (every one except the macOS main window) get their ground once main.tsx has
+   stamped html[data-window] — their BrowserWindow is opaque anyway, so nothing flashes. */
 body {
-  background-color: rgb(var(--color-surface-1));
+  background-color: transparent;
   color: rgb(var(--color-text-primary));
   /* Native OS font by default (matches the 'system' UI font option, App.tsx's
      NATIVE_FONT_STACK) — this is just the pre-JS/fallback value; App.tsx sets the
@@ -1502,6 +1537,65 @@ body {
   font-size: var(--font-size-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+html[data-window]:not([data-vibrant]) body { background-color: rgb(var(--color-surface-1)); }
+
+/* ── macOS main window: the sidebar as a floating Liquid Glass pane (SidebarGlassPane.tsx) ──
+   The page's ground is opaque except a rounded hole where the native glass pane sits behind the
+   page; the hole's 200vmax spread shadow IS the ground (one element, one rounded cut-out). */
+.shell-ground { display: none; }
+html[data-vibrant] .shell-ground {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+html[data-vibrant] .shell-ground.is-solid { background: rgb(var(--color-surface-3)); }
+html[data-vibrant] .shell-pane-hole {
+  position: absolute;
+  left: var(--lg-pane-inset, 8px);
+  top: var(--lg-pane-inset, 8px);
+  bottom: var(--lg-pane-inset, 8px);
+  width: calc(var(--sidebar-live-w, 260px) - 2 * var(--lg-pane-inset, 8px));
+  border-radius: var(--lg-pane-radius, 18px);
+  box-shadow: 0 0 0 200vmax rgb(var(--color-surface-3));
+}
+/* The root, header and sidebar stop painting their own grounds there. */
+html[data-vibrant] .shell-root { background: transparent; isolation: isolate; position: relative; }
+html[data-vibrant] .shell-header { background: transparent !important; box-shadow: none !important; }
+/* Hard scroll edge (macOS): once content beneath has scrolled, a hairline under the toolbar — over
+   the CONTENT only (from the pane's trailing edge), never across the glass sidebar pane. */
+html[data-vibrant] .shell-header { position: relative; }
+html[data-vibrant] .shell-header::after {
+  content: '';
+  position: absolute;
+  left: var(--sidebar-live-w, 0px);
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-separator);
+  opacity: 0;
+  transition: opacity var(--motion-base, 0.2s) var(--motion-ease, ease);
+  pointer-events: none;
+}
+html[data-vibrant] .shell-header[data-scrolled]::after { opacity: 1; }
+/* Header: the sidebar's own toolbar zone spans the pane (from the traffic-light clearance to the
+   pane's trailing edge) with the toggle at its end; the content toolbar starts past the pane. */
+html[data-vibrant] .shell-sidebar-zone {
+  justify-content: flex-end;
+  min-width: 60px;
+  width: max(60px, calc(var(--sidebar-live-w, 0px) - 84px - var(--lg-pane-inset, 6px) - 10px));
+  margin-right: calc(var(--lg-pane-inset, 6px) + 12px);
+}
+html[data-vibrant] .shell-sidebar {
+  background: transparent !important;
+  border-right-color: transparent !important;
+  box-shadow: none !important;
+  padding-left: var(--lg-pane-inset, 8px);
+  padding-right: var(--lg-pane-inset, 8px);
+  padding-bottom: var(--lg-pane-inset, 8px);
 }
 
 /* Text selection */
@@ -1517,6 +1611,8 @@ body {
    made panels that fill most of the window (Scripture reading pane especially)
    look like the scrollbar was always visible, since the cursor sits over the
    panel almost the entire time you're reading, not just when scrolling. */
+/* --scrollbar-w mirrors this width so layout maths (the reading column's reserve) can subtract it. */
+:root { --scrollbar-w: 6px; }
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -2314,3 +2410,22 @@ html[data-verse-dragging] * {
   user-select: none !important;
   cursor: ns-resize !important;
 }
+
+/* Inline note title field (NotesPanel): sized to its text like the resting title, so focusing it
+   changes nothing on screen; it widens only as characters are typed (TEST 2026-09-29). */
+.note-title-inline { field-sizing: content; min-width: 4ch; max-width: 100%; }
+
+/* The toolbar's context zone grows while it hosts the note formatting bar (NotesPanel). */
+.shell-context-zone:has([data-format-slot]) { flex: 6 1 auto; align-self: stretch; }
+.shell-context-zone:has([data-format-slot]) > * { flex: 1 1 auto; align-self: stretch; }
+/* An actions zone whose controls FOLD (an OverflowGroup marked data-overflow-fill — YouTube's
+   filter row) takes the toolbar's remaining width instead of its content's: the group then
+   measures the real room, folds its tail into "…" when narrow and unfolds when wide. Without
+   this the zone was content-sized (never constrained), so nothing folded and the row spilled
+   over the search field and off the window edge (TEST 2026-10-05, YouTube toolbar). The search
+   field keeps a usable minimum beside it. */
+.shell-actions-zone:has([data-overflow-fill]) { flex: 1 1 0; min-width: 0; }
+.shell-context-zone:has(~ .shell-actions-zone [data-overflow-fill]) { flex: 0 1 280px; min-width: 160px; }
+.shell-flex-space:has(~ .shell-actions-zone [data-overflow-fill]) { flex: 0 0 8px; }
+/* iPhone (PanelHeader's phone chrome): the search field and the folding row share the narrow bar. */
+.mobile-hosted-header .shell-context-zone:has(~ .shell-actions-zone [data-overflow-fill]) { flex: 1 1 150px; min-width: 120px; }

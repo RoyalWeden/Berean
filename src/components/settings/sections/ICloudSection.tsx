@@ -58,7 +58,7 @@ export function SyncProgressPanel({ compact = false }: { compact?: boolean }) {
   const order = ['checking', 'fetching', 'applying', 'uploading', 'finalizing']
   const idx = activity ? order.indexOf(activity) : 0
   return (
-    <div className="glass-surface-regular rounded-[var(--radius-card)] p-3 space-y-2" aria-live="polite">
+    <div className="glass-surface-regular rounded-[var(--glass-radius-card)] p-3 space-y-2" aria-live="polite">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-subhead font-medium text-text-primary">{first ? 'Setting up iCloud…' : 'Syncing…'}</p>
         <p className="text-caption text-text-secondary tabular-nums">{pres.short}</p>

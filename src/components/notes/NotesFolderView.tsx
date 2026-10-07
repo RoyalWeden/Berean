@@ -8,6 +8,7 @@ import {
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, FolderInput, FileType2, FolderTree,
   RotateCcw, AlertTriangle,
+  MoreHorizontal,
 } from 'lucide-react'
 import type { Note, NoteFolder, NoteStatus, PdfDoc } from '@/types'
 import NoteContextMenu, { orderedFolders, type SessionInfo } from './NoteContextMenu'
@@ -599,58 +600,24 @@ export default function NotesFolderView({
           const Icon = status.icon
           return <Icon size={12} className="flex-shrink-0" style={{ color: status.color }} />
         })()}
-        // Hover action buttons — rename, move and delete (not in select mode, not on
-        // system-folder notes). ListRow's own `trailing` slot already reveals these on row
-        // hover/focus-within, so they carry no opacity classes of their own.
-        trailing={!selectMode && !isRenaming ? <>
-          {renameable && onRenameNote && (
-            <IconButton
-              icon={Pencil}
-              label="Rename"
-              size={20}
-              onClick={(e) => { e.stopPropagation(); setNoteRenameVal(note.title || ''); setRenamingNoteId(note.id) }}
-            />
-          )}
-          {movable && (
-            <div className="relative" data-note-move-menu>
-              <IconButton
-                icon={FolderInput}
-                label="Move to folder"
-                size={20}
-                onClick={(e) => { e.stopPropagation(); setNoteMoveMenu(isMoveMenuOpen ? null : { noteId: note.id }) }}
-              />
-              {isMoveMenuOpen && (
-                <MenuSurface className="absolute right-0 top-full mt-0.5 z-menu max-h-48 overflow-y-auto min-w-[150px]">
-                  {note.folderId != null && (
-                    <MenuItem
-                      label="Move out (no folder)"
-                      onClick={(e) => { e.stopPropagation(); onSetNoteFolder(note.id, null); setNoteMoveMenu(null) }}
-                    />
-                  )}
-                  {orderedFolders(folders).map(({ folder: f, depth: d }) => (
-                    <MenuItem
-                      key={f.id}
-                      disabled={f.id === note.folderId}
-                      label={f.name}
-                      style={{ paddingLeft: 12 + d * 10 }}
-                      onClick={(e) => { e.stopPropagation(); if (f.id !== note.folderId) { onSetNoteFolder(note.id, f.id); setNoteMoveMenu(null) } }}
-                    />
-                  ))}
-                  {folders.length === 0 && (
-                    <div className="px-3 py-1.5 text-caption text-text-muted italic">No folders yet</div>
-                  )}
-                </MenuSurface>
-              )}
-            </div>
-          )}
+        // One hover "•••" (TEST 2026-10-05, Finder/Notes pattern) opening the row's full menu —
+        // rename, move, status, delete… — instead of three icon buttons. Its slot is ALWAYS
+        // reserved (trailingAlways) and only the glyph fades in, so hovering never re-truncates
+        // the title or moves the status icon.
+        trailing={!selectMode && !isRenaming ? (
           <IconButton
-            icon={Trash2}
-            label="Delete note"
+            icon={MoreHorizontal}
+            label="More actions"
             size={20}
-            danger
-            onClick={(e) => { e.stopPropagation(); onDelete(note) }}
+            className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 transition-opacity duration-fast"
+            onClick={(e) => {
+              e.stopPropagation()
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              setNoteMenu({ note, x: r.left, y: r.bottom + 4 })
+            }}
           />
-        </> : undefined}
+        ) : undefined}
+        trailingAlways
       />
       {/* In-folder search snippets — more compact than list view */}
       {snippets.length > 0 && (
@@ -1075,27 +1042,13 @@ export default function NotesFolderView({
           }
         }}
         onDrop={(e) => onDropTo(e, null)}
-        className={`flex-1 ${dragOverId === '__root__' ? 'bg-accent-muted' : ''}`}
+        className={`relative flex-1 ${dragOverId === '__root__' ? 'bg-accent-muted' : ''}`}
       >
-        {!searchQuery && (
-          <div className="flex items-center gap-1.5 pl-2 pr-2 py-1 min-h-[26px]">
-            {(draggingNoteId || draggingFolderId) && dragOverId === '__root__' && (
-              <span className="text-caption2 text-accent animate-pulse">→ top level (no folder)</span>
-            )}
-            <div className="flex items-center gap-1">
-              {onCreateNote && (
-                <Button variant="ghost" size="sm" icon={FilePlus} onClick={onCreateNote}>New Note</Button>
-              )}
-              {onCreateNote && <Divider orientation="vertical" />}
-              <Button variant="ghost" size="sm" icon={FolderPlus} onClick={() => onCreateFolder(null)}>New Folder</Button>
-              {onCreateIdiom && (
-                <>
-                  <Divider orientation="vertical" />
-                  <Button variant="ghost" size="sm" icon={BookOpen} onClick={onCreateIdiom}>New Idiom</Button>
-                </>
-              )}
-            </div>
-          </div>
+        {/* New note / folder / idiom live in the toolbar (+ and "…"); this row only appears as the
+            drop target hint while dragging something to the top level. */}
+        {!searchQuery && (draggingNoteId || draggingFolderId) && dragOverId === '__root__' && (
+          // An overlay, not a row: inserting a row when a drag starts would shift the whole list.
+          <span className="pointer-events-none absolute right-3 top-1 z-raised text-caption2 text-accent animate-pulse">→ top level (no folder)</span>
         )}
         {childFolders(null)
           .filter((f) => !searchQuery || foldersWithMatches.has(f.id))

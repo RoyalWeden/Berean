@@ -256,6 +256,22 @@ export function getHermasSectionFirstChapter(section: HermasSection): number {
 }
 
 /**
+ * Reverse of getHermasChapterLabel/getHermasSection: resolve a 1-based section number
+ * (Vision/Mandate/Similitude N) and an optional 1-based sub-chapter index WITHIN that
+ * section back to the underlying flat db-chapter — what parseRef needs to resolve a typed
+ * reference like "Hermas Vision 2 3:1" (Vision 2, its 3rd sub-chapter) to an actual db
+ * chapter number. Omitting `subChapter` addresses the section as a whole ("Mandate 4" with
+ * no sub-part given) and returns its first db-chapter. Returns null for an out-of-range
+ * section number or sub-chapter index.
+ */
+export function getHermasDbChapter(bookId: HermasBookId, sectionNum: number, subChapter?: number, variant?: HermasVariant): number | null {
+  const section = sectionsFor(bookId, variant).find((s) => s.sectionNum === sectionNum)
+  if (!section) return null
+  if (subChapter == null) return section.chapters[0] ?? null
+  return section.chapters[subChapter - 1] ?? null
+}
+
+/**
  * Returns the sorted list of all valid db-chapter numbers for a Hermas book.
  * (Skips any gaps in the db, e.g. HER_MAN ch 9 is absent.)
  */

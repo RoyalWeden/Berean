@@ -1,4 +1,5 @@
 import { displayChapter, storedChapter, hasCustomChapterNumbering } from './chapterNumbering'
+import { getHermasDbChapter, getHermasChapterLabel, hermasVariantForTextId, isHermasBook, type HermasBookId } from './hermasMap'
 const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'GEN', name: 'Genesis',        patterns: ['gen', 'ge', 'gn', 'genesis'] },
   { id: 'EXO', name: 'Exodus',         patterns: ['exo', 'ex', 'exod', 'exodus'] },
@@ -141,6 +142,11 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'TJAC', name: 'Testament of Jacob', patterns: ['tjac', 't jacob', 't. jacob', 'testament jacob', 'testament of jacob', 'test of jacob'] },
   // 2 Baruch (Syriac Apocalypse of Baruch — distinct from the deuterocanonical 1 Baruch)
   { id: '2BA', name: '2 Baruch', patterns: ['2ba', '2bar', '2baruch', '2 baruch', 'second baruch', 'apocalypse of baruch', 'syriac baruch', 'syriac apocalypse of baruch'] },
+  // Didache (Teaching of the Twelve Apostles) — single book, Hoole translation (didache_hoole.db).
+  // Had no BOOK_MAP entry at all before this: "didache"/"did" never resolved to a book id, so
+  // it couldn't be typed as a reference, canonically displayed, or round-tripped like every
+  // other pseudepigraphal work.
+  { id: 'DID', name: 'Didache', patterns: ['did', 'didache', 'teaching of the twelve apostles', 'teaching twelve apostles', 'teaching of twelve apostles'] },
 ]
 
 const PATTERN_LOOKUP = new Map<string, string>()
@@ -354,13 +360,24 @@ const FULL_WORK_NAME: Record<string, string> = {
  *  stores the short "Recognitions" prefix) via FULL_WORK_NAME, same map bookChapterHoverLabel
  *  uses. Every other book keeps the plain "<name> <chapter>[:<verse>]" form. */
 export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: number): string {
+  // Shepherd of Hermas: the flat db-chapter is meaningless to a reader — show the
+  // traditional Vision/Mandate/Similitude.sub-chapter form hermasMap.ts maintains instead
+  // (e.g. "Shepherd of Hermas, Vision 2.1:2"), not the raw chapter number ("Hermas, Visions
+  // 5:2"). Uses the currently-selected Hermas translation's own section boundaries (RD vs
+  // Taylor have different db-chapter groupings for the same section).
+  if (isHermasBook(bookId)) {
+    const sectionLabel = getHermasChapterLabel(bookId, chapter, hermasVariantForTextId(hermasTextId))
+    return verse != null ? `Shepherd of Hermas, ${sectionLabel}:${verse}` : `Shepherd of Hermas, ${sectionLabel}`
+  }
   chapter = displayChapter(bookId, chapter)
   const name = bookName(bookId)
   const bookQualifierMatch = /^(.+), (Book \d+)$/.exec(name)
   if (bookQualifierMatch) {
     const [, prefix, qualifier] = bookQualifierMatch
     const full = FULL_WORK_NAME[prefix] ?? prefix
-    const chapterLabel = verse != null ? `Chapter ${chapter}:${verse}` : `Chapter ${chapter}`
+    // TEST 2026-09-29: "Recognitions of Clement, Book 4, 35:1". Without a verse the word "Chapter"
+    // stays, so "Book 4, 35" never reads as one number.
+    const chapterLabel = verse != null ? `${chapter}:${verse}` : `Chapter ${chapter}`
     return `${full}, ${qualifier}, ${chapterLabel}`
   }
   return verse != null ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
@@ -452,6 +469,7 @@ const BOOK_TRANSLATION: Record<string, string> = {
   '1CL':   '1clement',
   TJAC:    't_jacob',
   '2BA':   '2baruch',
+  DID:     'didache_hoole',
 }
 
 // The Shepherd of Hermas ships in two translations sharing the same HER_* book ids:
@@ -533,7 +551,7 @@ const MAX_CHAPTERS: Partial<Record<string, number>> = {
   AIS: 11, EPB: 21,
   TREU: 7, TSIM: 9, TLEV: 19, TJUD: 26, TISS: 7, TZEB: 10,
   TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
-  GAD: 14, TJOB: 12, '1CL': 65, TJAC: 8, '2BA': 85,
+  GAD: 14, TJOB: 12, '1CL': 65, TJAC: 8, '2BA': 85, DID: 16,
   RCL1: 74, RCL2: 72, RCL3: 65, RCL4: 37, RCL5: 36,
   RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 38, RCL10: 72,
 }
@@ -653,12 +671,146 @@ export interface ParsedRef {
  *  stripLxxMarker() in noteTextBlocks.ts / notePreviewRender.ts. */
 const TRANSLATION_SUFFIXES: Record<string, string> = { LXX: 'LXX' }
 
+/** The tail-end of `finish()` below, factored out so callers that already KNOW the
+ *  resolved bookId (the Recognitions-of-Clement "bare work name + book number" and
+ *  Hermas "Vision/Mandate/Similitude N[.M]" special cases just below) can validate and
+ *  build a ParsedRef without re-deriving bookId through resolveBookToken/bookNum
+ *  combining — those two cases each resolve bookId their own way. */
+function finishResolved(bookId: string, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined, suffixRaw?: string, commaListRaw?: string): ParsedRef | null {
+  if (isNaN(chapter) || chapter < 1) return null
+  if (!ID_TO_NAME.has(bookId)) return null
+
+  // Books whose DISPLAYED chapter numbers differ from the stored ones (Recognitions
+  // Book III: ANF 1, 12..75 ↔ stored 1..65 — see chapterNumbering.ts). The typed chapter
+  // is the display number; map it to the stored chapter. A display chapter that doesn't
+  // exist (RCL3 2–11, omitted by Rufinus) rejects the ref.
+  if (hasCustomChapterNumbering(bookId)) {
+    const sc = storedChapter(bookId, chapter)
+    if (sc == null) return null
+    chapter = sc
+    if (endChapter !== undefined) {
+      const se = storedChapter(bookId, endChapter)
+      if (se == null) return null
+      endChapter = se
+    }
+  }
+
+  // Reject chapters beyond the book's known maximum (stored numbering).
+  const maxCh = MAX_CHAPTERS[bookId]
+  if (maxCh !== undefined && chapter > maxCh) return null
+  if (maxCh !== undefined && endChapter !== undefined && endChapter > maxCh) return null
+
+  // Sanity-check verse number (Psalm 119 is the longest chapter at 176 verses).
+  if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
+  if (endVerse !== undefined && (isNaN(endVerse) || endVerse < 1 || endVerse > 200)) return null
+
+  const forcedTranslation = suffixRaw ? TRANSLATION_SUFFIXES[suffixRaw.toUpperCase()] : undefined
+
+  // Comma-separated verse list ("32:3-4,6" / "32:3,6,9-13,23,25"). The first group is
+  // already represented by `verse`/`endVerse` above; the comma segments are appended
+  // after it. Every group's verse numbers are validated the same way a single verse is
+  // (1..200); any invalid group rejects the whole reference — kept strict on purpose.
+  let verseGroups: Array<{ verse: number; endVerse?: number }> | undefined
+  if (commaListRaw) {
+    verseGroups = []
+    if (verse !== undefined) {
+      verseGroups.push(endVerse !== undefined ? { verse, endVerse } : { verse })
+    }
+    for (const seg of commaListRaw.split(',')) {
+      const t = seg.trim()
+      if (!t) continue
+      const gm = t.match(/^(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?$/)
+      if (!gm) return null
+      const gv = parseInt(gm[1])
+      const gev = gm[2] ? parseInt(gm[2]) : undefined
+      if (isNaN(gv) || gv < 1 || gv > 200) return null
+      if (gev !== undefined && (isNaN(gev) || gev < 1 || gev > 200)) return null
+      verseGroups.push(gev !== undefined ? { verse: gv, endVerse: gev } : { verse: gv })
+    }
+  }
+
+  return { bookId, chapter, verse, endVerse, endChapter, forcedTranslation, verseGroups }
+}
+
+// Roman numerals I–X, used both by the "Book N" combining logic in `finish` (unchanged)
+// and by the two bare-work-name special cases below, which accept a roman-numeral book
+// number too ("Rec Clem IV 35").
+const BARE_BOOK_NUM = '\\d{1,2}|i|ii|iii|iv|v|vi|vii|viii|ix|x'
+
+function romanOrArabicToNumber(tok: string): number | null {
+  if (/^\d+$/.test(tok)) return parseInt(tok, 10)
+  const arabic = ROMAN_TO_ARABIC[tok.toUpperCase()]
+  return arabic ? parseInt(arabic, 10) : null
+}
+
+/** "Recognitions 4:35", "Recognitions of Clement 4:35", "RCL 4:35", "RCL 4 25:1",
+ *  "Rec. Clem. IV 35" — a BARE Recognitions-of-Clement token (no book number baked into
+ *  it, and no explicit "Book N" phrase — both of those already resolve correctly through
+ *  the main regex below) followed directly by a number names the BOOK, not the chapter.
+ *  Recognitions of Clement has no "book 1 by default" — its real addressing is always
+ *  Book.Chapter[.Verse], so typing just the work's name and a bare number must mean
+ *  "this book, then its chapter[:verse]" exactly the way "Recognitions, Book 4, 35:1"
+ *  already does, not silently default to Book 1 and treat the typed number as ITS
+ *  chapter (a real reported bug: "Recognitions 4:35" was resolving to Book 1, chapter 4,
+ *  verse 35 instead of Book 4, chapter 35). Tried BEFORE the main regex. */
+function tryGenericRecognitionsRef(norm: string): ParsedRef | null {
+  const re = new RegExp(
+    `^(?:rcl|recognitions(?: of clement)?|recog clement|rec clem|roc)\\s+(${BARE_BOOK_NUM})\\b` +
+    `(?:[\\s:]\\s*(?:Chapter\\s+)?(\\d+)(?:\\s*[:.]\\s*(\\d+))?)?` +
+    `(?:\\s+(LXX)\\b)?$`,
+    'i',
+  )
+  const m = norm.match(re)
+  if (!m) return null
+  const bookNum = romanOrArabicToNumber(m[1])
+  if (!bookNum || m[2] === undefined) return null // book number alone, no chapter: not a usable ref
+  const bookId = `RCL${bookNum}`
+  return finishResolved(bookId, parseInt(m[2], 10), m[3] ? parseInt(m[3], 10) : undefined, undefined, undefined, m[4])
+}
+
+const HERMAS_SECTION_BOOK: Record<string, HermasBookId> = {
+  vision: 'HER_VIS', visions: 'HER_VIS',
+  mandate: 'HER_MAN', mandates: 'HER_MAN',
+  similitude: 'HER_SIM', similitudes: 'HER_SIM',
+}
+
+/** "Hermas Vision 2 3:1" (Vision 2, its 3rd sub-chapter, verse 1), "Shepherd of Hermas,
+ *  Mandate 4" (the whole of Mandate 4 — no sub-chapter given, so its first db-chapter),
+ *  "Hermas Similitude 9", and the dot form this file's own canonical display produces
+ *  ("Shepherd of Hermas, Vision 2.1:2") — resolves the named Vision/Mandate/Similitude
+ *  section (and optional sub-chapter) to the underlying flat db-chapter via
+ *  hermasMap.ts's getHermasDbChapter, using the currently-selected Hermas translation's
+ *  own section boundaries (RD vs Taylor). Tried BEFORE the main regex, which has no
+ *  notion of Hermas's traditional section numbering at all. */
+function tryHermasSectionRef(norm: string): ParsedRef | null {
+  const m = norm.match(
+    /^(?:hermas|shepherd of hermas|her|shep hermas)\s*,?\s*(vision|visions|mandate|mandates|similitude|similitudes)\s+(\d{1,2})(?:[.\s](\d{1,2}))?(?:\s*:\s*(\d+))?(?:\s+(LXX)\b)?$/i,
+  )
+  if (!m) return null
+  const bookId = HERMAS_SECTION_BOOK[m[1].toLowerCase()]
+  if (!bookId) return null
+  const sectionNum = parseInt(m[2], 10)
+  const subChapter = m[3] ? parseInt(m[3], 10) : undefined
+  const chapter = getHermasDbChapter(bookId, sectionNum, subChapter, hermasVariantForTextId(hermasTextId))
+  if (chapter == null) return null
+  const verse = m[4] ? parseInt(m[4], 10) : undefined
+  return finishResolved(bookId, chapter, verse, undefined, undefined, m[5])
+}
+
 export function parseRef(input: string): ParsedRef | null {
   const s = input.trim()
   if (!s) return null
 
-  // Normalise: collapse interior whitespace
-  const norm = s.replace(/\s+/g, ' ')
+  // Normalise: collapse interior whitespace, and strip abbreviation periods that are
+  // followed by whitespace ("Rec. Clem. IV 35" → "Rec Clem IV 35", "Gen. 1:1" → "Gen 1:1")
+  // — never a chapter/verse '.' separator, since that always sits directly between two
+  // digits, not after a letter. Added so multi-word abbreviations with internal periods
+  // (not just a single trailing one, already handled below) reach resolveBookToken/the
+  // special-case matchers above cleanly instead of failing to match at all.
+  const norm = s.replace(/\s+/g, ' ').replace(/([A-Za-z])\.(?=\s)/g, '$1')
+
+  const generic = tryGenericRecognitionsRef(norm) ?? tryHermasSectionRef(norm)
+  if (generic) return generic
 
   // Regex handles:
   //   "Gen 1:1"  "Gen 1"  "Genesis 1:1-5"  "Gen1:1"  "Gen1"
@@ -690,8 +842,6 @@ export function parseRef(input: string): ParsedRef | null {
   // Similitudes, 35:1"), so the book-token group needs to tolerate an embedded comma or the
   // whole match fails past the book name instead of just treating it as part of the name.
   function finish(bookRawIn: string, bookNum: number | undefined, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined, suffixRaw?: string, commaListRaw?: string): ParsedRef | null {
-    if (isNaN(chapter) || chapter < 1) return null
-
     let bookId = resolveBookToken(bookRawIn)
     if (!bookId) return null
 
@@ -707,56 +857,7 @@ export function parseRef(input: string): ParsedRef | null {
       bookId = combined
     }
 
-    // Books whose DISPLAYED chapter numbers differ from the stored ones (Recognitions
-    // Book III: ANF 1, 12..75 ↔ stored 1..65 — see chapterNumbering.ts). The typed chapter
-    // is the display number; map it to the stored chapter. A display chapter that doesn't
-    // exist (RCL3 2–11, omitted by Rufinus) rejects the ref.
-    if (hasCustomChapterNumbering(bookId)) {
-      const sc = storedChapter(bookId, chapter)
-      if (sc == null) return null
-      chapter = sc
-      if (endChapter !== undefined) {
-        const se = storedChapter(bookId, endChapter)
-        if (se == null) return null
-        endChapter = se
-      }
-    }
-
-    // Reject chapters beyond the book's known maximum (stored numbering).
-    const maxCh = MAX_CHAPTERS[bookId]
-    if (maxCh !== undefined && chapter > maxCh) return null
-    if (maxCh !== undefined && endChapter !== undefined && endChapter > maxCh) return null
-
-    // Sanity-check verse number (Psalm 119 is the longest chapter at 176 verses).
-    if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
-    if (endVerse !== undefined && (isNaN(endVerse) || endVerse < 1 || endVerse > 200)) return null
-
-    const forcedTranslation = suffixRaw ? TRANSLATION_SUFFIXES[suffixRaw.toUpperCase()] : undefined
-
-    // Comma-separated verse list ("32:3-4,6" / "32:3,6,9-13,23,25"). The first group is
-    // already represented by `verse`/`endVerse` above; the comma segments are appended
-    // after it. Every group's verse numbers are validated the same way a single verse is
-    // (1..200); any invalid group rejects the whole reference — kept strict on purpose.
-    let verseGroups: Array<{ verse: number; endVerse?: number }> | undefined
-    if (commaListRaw) {
-      verseGroups = []
-      if (verse !== undefined) {
-        verseGroups.push(endVerse !== undefined ? { verse, endVerse } : { verse })
-      }
-      for (const seg of commaListRaw.split(',')) {
-        const t = seg.trim()
-        if (!t) continue
-        const gm = t.match(/^(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?$/)
-        if (!gm) return null
-        const gv = parseInt(gm[1])
-        const gev = gm[2] ? parseInt(gm[2]) : undefined
-        if (isNaN(gv) || gv < 1 || gv > 200) return null
-        if (gev !== undefined && (isNaN(gev) || gev < 1 || gev > 200)) return null
-        verseGroups.push(gev !== undefined ? { verse: gv, endVerse: gev } : { verse: gv })
-      }
-    }
-
-    return { bookId, chapter, verse, endVerse, endChapter, forcedTranslation, verseGroups }
+    return finishResolved(bookId, chapter, verse, endVerse, endChapter, suffixRaw, commaListRaw)
   }
 
   // Tail grammar after the chapter number (group 3), one of:

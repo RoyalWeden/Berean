@@ -9,6 +9,7 @@ import log from 'electron-log'
 import { setupPowerAwareness, getResourceMode } from './powerAwareness'
 import { buildCSP } from './csp'
 import { APP_IDENTITY } from './appIdentity'
+import { devToolsEnabled } from './devTools'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
@@ -94,6 +95,7 @@ import { registerSessionsHandlers } from './ipc/sessions'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
 import { registerTTSAudioCacheHandlers } from './ipc/ttsAudioCache'
 import { registerTTSModelScheme, registerTTSModelProtocolHandler } from './ttsModelProtocol'
+import { registerLiquidGlassIpc } from './liquidGlass'
 
 // Must run before app.whenReady() — Electron ignores privileged-scheme registration once the
 // app is ready (see ttsModelProtocol.ts's file header for why this scheme exists at all).
@@ -116,6 +118,12 @@ if (!app.isPackaged) {
   // Dev-only: `BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol so
   // visual-QA tooling can drive the real window (screenshots, resize, theme cycling).
   if (process.env.BEREAN_CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.BEREAN_CDP_PORT)
+  // Visual QA keeps rendering when the window is occluded / on a sleeping display (otherwise
+  // Chromium stops producing frames and screenshots hang). Same dev-only gate.
+  if (process.env.BEREAN_CDP_PORT) {
+    app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+    app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  }
 }
 
 if (app.isPackaged && process.mas) {
@@ -1060,7 +1068,9 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     // TEST-010: was 44/16 — only THIS (the main window) tracks HEADER_HEIGHT; the other
     // BrowserWindow calls above (viewer/study-trail/verse-picker/floating tab) keep their own
     // fixed { x: 12, y: 14 } — those are separate window chrome, not this bar.
-    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 20 } } : {}),
+    // x 20: the traffic lights sit INSIDE the floating Liquid Glass sidebar pane (inset 8 from the
+    // window edge, SidebarGlassPane.tsx), 12pt from its edge as in macOS 26/27 sidebars.
+    ...(isMacWin ? { trafficLightPosition: { x: 20, y: 20 } } : {}),
     // macOS: transparent + native vibrancy so the sidebar column can show a true
     // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
     // this in an opaque window — it only blurs the app's own content, not what's
@@ -1147,6 +1157,11 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
   // the system (html[data-inactive] — global.css already consumes it).
   win.on('focus', () => { win.webContents.send('app:windowActive', true) })
   win.on('blur',  () => { win.webContents.send('app:windowActive', false) })
+  // Restoring / showing a window doesn't always deliver a separate 'focus' to the renderer —
+  // report the real key state on every visibility transition so the inactive stamp can't stick.
+  for (const ev of ['show', 'restore', 'hide', 'minimize'] as const) {
+    win.on(ev as 'show', () => { if (!win.isDestroyed()) win.webContents.send('app:windowActive', win.isFocused() && win.isVisible() && !win.isMinimized()) })
+  }
 
   // Intercept Cmd+W so the renderer can close a tab instead of quitting. Captures
   // `win` (never the mutable `mainWindow`) so it always targets its own window.
@@ -1443,6 +1458,8 @@ app.whenReady().then(async () => {
     return known
   })
   ipcMain.handle('app:isDev', () => is.dev)
+  // Developer tooling (YouTube transcript fetch, Full Sync, …): dev build OR Berean Dev identity.
+  ipcMain.handle('app:devTools', () => devToolsEnabled({ isDev: is.dev, identity: APP_IDENTITY.name }))
   ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url))
   ipcMain.handle('app:youTubeSignOut', async () => {
     await session.fromPartition('persist:youtube').clearStorageData()
@@ -1833,6 +1850,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:isMasBuild', () => isMasBuild)
   // Live macOS accent color, for the "System" theme preset — converts Electron's hex
   // ("rrggbb[aa]") into the "r g b" decimal-triple string the rest of the palette uses.
+  // Native Liquid Glass (macOS) — semantic surfaces from src/platform/liquidGlass.
+  registerLiquidGlassIpc()
   ipcMain.handle('app:getAccentColor', () => hexToRgbTriple(safeGetAccentColor()))
   // System Settings → Accessibility → Display → Reduce transparency. Read once at renderer
   // boot (a fresh window's did-finish-load can race the app:reduceTransparency push below);

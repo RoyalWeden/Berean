@@ -6,6 +6,9 @@ import PrintExportSection from '@/components/settings/sections/PrintExportSectio
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { Segmented, Toggle, Disclosure, RateStepper } from './SettingsControls'
+import { ChevronsUpDown } from 'lucide-react'
+import { usePopoverMenu } from '../primitives/PopoverMenu'
+import { UNTITLED_NOTE_NAME_FORMATS, untitledNoteName } from '@/lib/notes/finalizeNote'
 import './settings.css'
 
 /**
@@ -49,6 +52,9 @@ export function NotesSettingsPage({ onBack }: { onBack?: () => void }) {
   const noteBulletStyle = useAppStore((s) => s.noteBulletStyle)
   const setNoteBulletStyle = useAppStore((s) => s.setNoteBulletStyle)
 
+  const untitledFormat = useAppStore((s) => s.untitledNoteNameFormat)
+  const setUntitledFormat = useAppStore((s) => s.setUntitledNoteNameFormat)
+  const popover = usePopoverMenu()
   const [defaultNoteStatus, setDefaultNoteStatus] = useState('none')
   useEffect(() => {
     window.settings.get('defaultNoteStatus').then((v) => { if (typeof v === 'string') setDefaultNoteStatus(v) }).catch(() => {})
@@ -109,6 +115,12 @@ export function NotesSettingsPage({ onBack }: { onBack?: () => void }) {
       <ListSection title="Editor behaviour">
         <Row title="Default editor mode" subtitle="Starting view when opening a note" right={
           <Segmented value={defaultNoteEditorMode} options={[['edit', 'Edit'], ['view', 'View']]} onChange={(v) => setDefaultNoteEditorMode(v as 'edit' | 'view')} />
+        } />
+        <Row title="Untitled notes are named" subtitle="When you leave a note that has text but no title" right={
+          <button type="button" className="settings-menu-value" aria-haspopup="menu"
+            onClick={(e) => popover(e.currentTarget, undefined, UNTITLED_NOTE_NAME_FORMATS.map((f) => ({ id: f, label: untitledNoteName(new Date(), f), checked: f === untitledFormat, onSelect: () => setUntitledFormat(f) })))}>
+            {untitledNoteName(new Date(), untitledFormat)}<ChevronsUpDown size={14} aria-hidden />
+          </button>
         } />
         <Row title="Confirm before deleting notes" subtitle="Show a prompt when deleting a note that has content" right={<Toggle checked={confirmNoteDelete} onChange={setConfirmNoteDelete} label="Confirm before deleting notes" />} />
         <Row title="Default status for new notes" subtitle={defaultNoteStatus === 'none' ? 'No status' : NOTE_STATUSES.find((s) => s.id === defaultNoteStatus)?.label ?? defaultNoteStatus} chevron onClick={() => nav.push('settings-note-status', (

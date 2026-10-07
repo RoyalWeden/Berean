@@ -97,6 +97,9 @@ export interface BibleTabState {
   searchBack?: { query: string } | null
   searchMode?: boolean
   scriptureSearchQuery?: string
+  /** Bumped when back/forward restores a search step in the SAME tab, so the search view remounts
+   *  from that step's query + options (it reads its state at mount). */
+  searchRestoreSeq?: number
   scriptureLayout?: ScriptureLayout
   // Scripture search view persisted state
   searchTextId?: string

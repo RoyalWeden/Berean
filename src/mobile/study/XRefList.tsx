@@ -4,6 +4,7 @@ import { useAppStore } from '@/store'
 import { bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 import { displayChapter } from '@/lib/chapterNumbering'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
+import { useScriptureText } from '@/lib/scriptureText'
 import { loadChapterXRefs, normalizeVerseXRefs, resolveXRefTexts, type XRefItem, type XRefResult, type XRefSource } from '@/lib/crossRefs/xrefModel'
 import type { NavIntent } from '@/lib/navigation/destination'
 import { useActionSheet } from '../primitives/ActionSheet'
@@ -40,15 +41,17 @@ const LONG = 150
 export function XRefCard({ item, variant = 'regular', onOpen, showSource }: { item: XRefItem; variant?: XRefVariant; onOpen: XRefOpen; showSource?: boolean }) {
   const [open, setOpen] = useState(false)
   const actions = useActionSheet()
+  const { displayVerseText } = useScriptureText()
   const label = xrefLabel(item)
-  const long = (item.text?.length ?? 0) > LONG || (!!item.endVerse && item.endVerse > item.verse)
+  const displayText = item.text ? displayVerseText(item.text, item.textTagged ?? null, item.textId ?? 'kjv') : item.text
+  const long = (displayText?.length ?? 0) > LONG || (!!item.endVerse && item.endVerse > item.verse)
   const lp = useLongPress(() => {
     void haptic.medium()
     actions(`xref-${item.key}`, label, [
       { id: 'open', label: 'Open', icon: ArrowUpRight, onSelect: () => onOpen(item, 'current-tab') },
       { id: 'new-tab', label: 'Open in New Tab', icon: SquarePlus, onSelect: () => onOpen(item, 'new-tab') },
       { id: 'copy-ref', label: 'Copy Reference', icon: Hash, onSelect: () => { copyVerseRef(item.bookId, item.chapter, item.verse || 1, !!item.lxx, item.endVerse ?? undefined); void haptic.success() } },
-      ...(item.text ? [{ id: 'copy-verse', label: item.endVerse && item.endVerse > item.verse ? 'Copy Verses' : 'Copy Verse', icon: Copy, onSelect: () => { copyVerse(item.bookId, item.chapter, item.verse || 1, item.text!, !!item.lxx, item.endVerse ?? undefined); void haptic.success() } }] : []),
+      ...(displayText ? [{ id: 'copy-verse', label: item.endVerse && item.endVerse > item.verse ? 'Copy Verses' : 'Copy Verse', icon: Copy, onSelect: () => { copyVerse(item.bookId, item.chapter, item.verse || 1, displayText!, !!item.lxx, item.endVerse ?? undefined); void haptic.success() } }] : []),
     ])
   })
   const meta = [
@@ -61,11 +64,11 @@ export function XRefCard({ item, variant = 'regular', onOpen, showSource }: { it
     <div className={`m-xref is-${variant}${item.isCurrent ? ' is-current' : ''}${open ? ' is-open' : ''}`} role="listitem" {...lp} onContextMenu={(e) => e.preventDefault()}>
       <p className={`m-xref-body${long && !open ? ' is-clamped' : ''}`}>
         <button type="button" className="m-xref-ref" onClick={() => { void haptic.light(); onOpen(item, 'current-tab') }} aria-label={`Open ${label}`}>{label}</button>
-        {item.text
+        {displayText
           ? <span className="m-xref-text" role={long ? 'button' : undefined} tabIndex={long ? 0 : undefined} aria-expanded={long ? open : undefined}
               aria-label={long ? `${open ? 'Collapse' : 'Expand'} the text of ${label}` : undefined}
               onClick={long ? () => setOpen((o) => !o) : undefined}
-              onKeyDown={long ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o) } } : undefined}>{' — '}{item.text}</span>
+              onKeyDown={long ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o) } } : undefined}>{' — '}{displayText}</span>
           : !item.verse ? <span className="m-xref-text is-muted"> — whole chapter</span> : null}
       </p>
       {(long || meta.length > 0) && (

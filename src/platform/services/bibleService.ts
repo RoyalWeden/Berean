@@ -16,7 +16,7 @@ export interface ChapterVerseRow { book_id: string; chapter: number; verse_num: 
 export interface VerseRow { verse_num: number; text: string; text_tagged?: string }
 export interface VerseSearchRow { book_id: string; chapter: number; verse_num: number; text: string; text_tagged?: string }
 export type VerseRef = { bookId: string; chapter: number; verse: number }
-export type VersesMap = Record<string, { text: string; title?: string }>
+export type VersesMap = Record<string, { text: string; title?: string; text_tagged?: string | null }>
 
 /** Split a raw query into cleaned, FTS5-safe word tokens (strips anything that isn't
  *  alphanumeric or an apostrophe, drops empties). */
@@ -124,6 +124,7 @@ export function createBibleService(ctx: ServiceContext) {
     const capped = refs.slice(0, 500)
     const withTitle = await hasTitleCol(db)
     const titleCol = withTitle ? ', title' : ''
+    const taggedCol = (await hasColumn(db, 'verses', 'text_tagged')) ? ', text_tagged' : ''
     // group verse numbers by book+chapter
     const byChapter = new Map<string, { bookId: string; chapter: number; verses: Set<number> }>()
     for (const r of capped) {
@@ -135,12 +136,13 @@ export function createBibleService(ctx: ServiceContext) {
     }
     for (const g of byChapter.values()) {
       const nums = [...g.verses]
-      const rows = await db.all<{ verse_num: number; text: string; title?: string }>(
-        `SELECT verse_num, text${titleCol} FROM verses WHERE book_id = ? AND chapter = ? AND verse_num IN (${placeholders(nums.length)})`,
+      const rows = await db.all<{ verse_num: number; text: string; title?: string; text_tagged?: string | null }>(
+        `SELECT verse_num, text${taggedCol}${titleCol} FROM verses WHERE book_id = ? AND chapter = ? AND verse_num IN (${placeholders(nums.length)})`,
         [g.bookId, g.chapter, ...nums],
       )
       for (const row of rows) {
-        out[`${g.bookId}.${g.chapter}.${row.verse_num}`] = row.title ? { text: row.text, title: row.title } : { text: row.text }
+        const base = { text: row.text, ...(row.text_tagged ? { text_tagged: row.text_tagged } : {}) }
+        out[`${g.bookId}.${g.chapter}.${row.verse_num}`] = row.title ? { ...base, title: row.title } : base
       }
     }
     return out

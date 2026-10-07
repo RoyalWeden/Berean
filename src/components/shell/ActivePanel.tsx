@@ -53,7 +53,16 @@ function ToolTabFallback({ type }: { type: 'history' | 'settings' }) {
 }
 
 function EmptyState() {
-  return <UiEmptyState icon={BookOpen} title="No tab open" hint="Click a space button to open a new tab" className="h-full" />
+  // One concise line and ONE obvious action (⌘T opens the same new-tab search).
+  return (
+    <UiEmptyState
+      icon={BookOpen}
+      title="No Tab Open"
+      hint="Open a passage, note or search to begin."
+      action={<Button variant="secondary" size="sm" onClick={() => useAppStore.getState().openSearch('new')}>New Tab <span className="ml-1 text-text-muted">⌘T</span></Button>}
+      className="h-full"
+    />
+  )
 }
 
 // One always-mounted layer. `visible` toggles `display` (not visibility/opacity):

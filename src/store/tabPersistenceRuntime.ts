@@ -1,3 +1,4 @@
+import { takePendingViewRestore } from '@/lib/perWindowViewState'
 import { useAppStore, type AppState } from './index'
 import { buildSnapshot, hydrateFromRows, emptyKeyMaps, type OrderKeyMaps, type HydratedState, SPACES } from './tabPersistence'
 import type { SpaceId, Tab, TabType } from '../types'
@@ -215,6 +216,22 @@ export function installTabPersistence(): () => void {
         // The tab the user was reading when the app closed stays where it was, even if another
         // device moved it meanwhile (held until they leave it — see `deferred`).
         applyHydrated(h, { keepLocalTabState: true, holdOnScreen: true })
+        // The workspace this window was showing, when it wasn't in the localStorage blob yet but
+        // the rows have it (a workspace created right before the app was killed).
+        const want = takePendingViewRestore()
+        if (want?.currentSessionId && want.currentSessionId !== useAppStore.getState().currentSessionId
+            && h.sessions.some((x) => x.id === want.currentSessionId)) {
+          useAppStore.getState().switchSession(want.currentSessionId)
+          const st = useAppStore.getState()
+          const patch: Partial<AppState> = {}
+          if (want.activeSpace) patch.activeSpace = want.activeSpace
+          if (want.activeTabId) {
+            const a = { ...st.activeTabId }
+            for (const sp of SPACES) { const id = want.activeTabId[sp]; if (id && st.tabs[sp].some((t) => t.id === id)) a[sp] = id }
+            patch.activeTabId = a
+          }
+          useAppStore.setState(patch)
+        }
         lastSnapshotSig = JSON.stringify(buildSnapshot(pickState(writableState(useAppStore.getState())), keys).snapshot)
       } else {
         // Legacy import: the localStorage-restored store is the only copy; make it durable.

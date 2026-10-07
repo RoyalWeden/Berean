@@ -7,7 +7,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2, Link2Off,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease,
   Table2, Minus, BookOpen, Image as ImageIcon, Rows3, Columns3, Trash2, Plus,
-  Square, X, Maximize2, Focus as FocusIcon, ListMinus } from 'lucide-react'
+  Square, X, Maximize2, Focus as FocusIcon, ListMinus, SquarePlus } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
 import { createEditorCommands } from './editorCommands'
@@ -23,6 +23,7 @@ import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
 import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
+import { BarMetrics } from '@/components/ui/metrics'
 import { Toolbar as Bar, ControlGroup, OverflowGroup, OverflowSection, IconButton, Button, MenuSurface, MenuItem, MenuGroup, MenuSeparator, ColorSwatchRow, TextField, cx } from '@/components/ui'
 
 // The code-block button takes its glyph from the shared block-type config rather than picking
@@ -75,9 +76,32 @@ type DropdownKind = 'type' | 'list' | 'highlight' | 'insert' | 'link' | 'verse'
 // scrolling the bar sideways. Every dropdown is a `MenuSurface`/`MenuItem`/`ColorSwatchRow`
 // panel anchored to its trigger's own rect via `MenuPositioner` (viewport-clamped, grows from
 // the trigger like every other menu in the app).
+/** One group of the formatting bar. In the window toolbar: FLAT items (no per-group hover fill)
+ *  with a hairline separator before it — subtle grouping inside one capsule. */
+function BarGroup({ inBar, sep, children }: { inBar: boolean; sep: boolean; children: React.ReactNode }) {
+  if (!inBar) return <ControlGroup>{children}</ControlGroup>
+  return (
+    <>
+      {sep && <span aria-hidden className="self-center w-px h-4 mx-1 bg-separator flex-shrink-0" />}
+      <ControlGroup className="!bg-transparent">{children}</ControlGroup>
+    </>
+  )
+}
+
 export default function Toolbar({
-  view, tabId, inTable,
-}: { view: EditorView | null; tabId?: string; inTable?: boolean }) {
+  view, tabId, inTable, placement = 'floating', insertSlot,
+}: {
+  view: EditorView | null; tabId?: string; inTable?: boolean
+  /** Bar placement only: where the separate Insert control lives (TEST 2026-10-05 — inserting a
+   *  table / image / verse is a DOCUMENT action, not text formatting, so it leaves the formatting
+   *  group for its own toolbar item, as in Pages). Null → Insert stays the formatting bar's last
+   *  group (Focus mode's floating bar). */
+  insertSlot?: HTMLElement | null
+  /** 'bar': rendered INSIDE the window toolbar (Apple Notes — formatting always in the top bar),
+   *  as one grouped editing control that folds its tail into "More formatting" when narrow.
+   *  'floating': the docked capsule over the page (Focus mode, where the top bar is hidden). */
+  placement?: 'floating' | 'bar'
+}) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKind | 'none'>('none')
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const [hovering, setHovering] = useState(false)
@@ -143,11 +167,12 @@ export default function Toolbar({
       const t = e.target as Node
       if (rootRef.current?.contains(t)) return
       if (dropdownRef.current?.contains(t)) return
+      if (insertSlot?.contains(t)) return // the separate Insert control toggles itself
       setOpenDropdown('none')
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [openDropdown])
+  }, [openDropdown, insertSlot])
 
   // Autofocus the URL field the moment the link popover opens — mirrors what
   // window.prompt() used to give for free (see editorCommands.ts's applyLink
@@ -224,18 +249,41 @@ export default function Toolbar({
     ? (revealed || inUse ? 'opacity-100' : 'opacity-0 pointer-events-none')
     : 'opacity-100'
 
+  const inBar = placement === 'bar'
+  const insertInSlot = inBar && !!insertSlot
+  // Bar placement: one 36px capsule (the toolbar's own control height) holding FLAT items with
+  // hairline separators between groups — not a big island of separately-hovering pills.
+  // Hit areas match the window toolbar's 28px icon buttons.
+  const ib = inBar ? 28 : 24
   return (
     <div
       ref={rootRef}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       className={cx(
-        'absolute top-2 left-1/2 -translate-x-1/2 z-raised max-w-[calc(100%-1.5rem)]',
-        'flex-shrink-0 transition-opacity duration-200', opacityCls,
+        placement === 'bar'
+          // Shrink-to-fit and centred in its (positioned) toolbar slot, exactly like the floating
+          // capsule — the overflow measuring below takes the SLOT's width as the room available.
+          ? 'pm-toolbar-in-bar no-drag absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-full'
+          : 'pm-floating-toolbar-host absolute top-2 left-1/2 -translate-x-1/2 z-raised max-w-[calc(100%-1.5rem)] flex-shrink-0',
+        'transition-opacity duration-200', opacityCls,
       )}
     >
-      <Bar size="sm" edge="none" material="none" itemVariant="ghost" className="material-popover rounded-menu">
-        <OverflowGroup label="More formatting" fit="offsetParent" inset={48}>
+      {/* One grouped editing control: in the window toolbar it shares the toolbar groups' capsule
+          material (not a floating popover card); floating (Focus mode) it keeps its own. */}
+      <Bar size="sm" edge="none" material="none" itemVariant="ghost" className={inBar ? 'control-glass-inset rounded-control !h-9 !px-0.5 !gap-0 max-w-full' : 'material-popover rounded-control px-1'}>
+        {/* In the window toolbar only the frequent controls stay visible (TEST 2026-10-05: "still
+            too complex"): Aa · B I U Highlight · List Quote · Link. The rest are one click away in
+            "…" with their shortcuts; Focus mode's floating bar keeps them all. */}
+        <OverflowGroup label="More formatting" fit="offsetParent" inset={placement === 'bar' ? 16 : 48}
+          extraItems={inBar ? [
+            { key: 'strike', label: 'Strikethrough', icon: Strikethrough, checked: isMarkActive('strike'), onSelect: () => run(toggleMark(schema.marks.strike)) },
+            { key: 'code', label: 'Inline Code', icon: Code, shortcut: '⌘`', checked: isMarkActive('code'), onSelect: () => run(toggleMark(schema.marks.code)) },
+            { key: 'suppress-refs', label: 'Don’t Link References', icon: Link2Off, shortcut: '⌘⇧R', onSelect: () => run(toggleSuppressCommand) },
+            { key: 'outdent', label: 'Decrease Indent', icon: IndentDecrease, shortcut: '⇧Tab', onSelect: cmds.outdent },
+            { key: 'indent', label: 'Increase Indent', icon: IndentIncrease, shortcut: 'Tab', onSelect: cmds.indent },
+            { key: 'focus', label: 'Focus Mode', icon: FocusIcon, checked: focusMode, onSelect: () => toggleFocusMode() },
+          ] : undefined}>
           {/* Focus mode hides the native traffic lights (see the `setButtonsVisible` effect
               above — they're window-frame chrome, not DOM, and can't just be relocated) and
               replaces them with real close/minimize/maximize buttons on the LEFT of this bar,
@@ -280,73 +328,84 @@ export default function Toolbar({
 
           {/* Group 1 — Text: current block type. (Thread lives in the Insert menu.) Never folds. */}
           <OverflowSection priority="never">
-            <ControlGroup>
+            <BarGroup inBar={inBar} sep={false}>
+              {/* "Aa" — the system's text-style control (Notes / Pages); the current style is named in
+                  the tooltip and accessible label rather than drawn as a changing glyph. */}
               <Button
                 variant="menu"
                 size="xs"
-                icon={currentBlockTypeMeta(editorView).icon}
                 selected={openDropdown === 'type'}
                 onMouseDown={(e) => openDropdownAt('type', e)}
-                tooltip="Text type"
-              />
-            </ControlGroup>
+                tooltip={`Text style — ${currentBlockTypeMeta(editorView).label}`}
+                aria-label={`Text style: ${currentBlockTypeMeta(editorView).label}`}
+              >
+                <span className="font-semibold tracking-tight">Aa</span>
+              </Button>
+            </BarGroup>
           </OverflowSection>
 
           {/* Group 2 — Emphasis: inline marks, Highlight included (a colour-swatch emphasis,
               not a reference action — moved out of the old "Annotate & reference" group).
               Never folds. */}
           <OverflowSection priority="never">
-            <ControlGroup>
-              <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={24} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
-              <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={24} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
-              <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U' }} size={24} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
+            <BarGroup inBar={inBar} sep={true}>
+              <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={ib} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
+              <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={ib} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
+              <IconButton icon={Underline} label="Underline" tooltip={{ shortcut: '⌘U' }} size={ib} active={isMarkActive('underline')} onMouseDown={() => run(toggleMark(schema.marks.underline))} />
               {/* No shortcut — strikethrough has no binding in keymap.ts, unlike the three marks
                   around it, so it gets a label-only hint rather than an invented combo. */}
-              <IconButton icon={Strikethrough} label="Strikethrough" size={24} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />
+              {!inBar && <IconButton icon={Strikethrough} label="Strikethrough" size={ib} active={isMarkActive('strike')} onMouseDown={() => run(toggleMark(schema.marks.strike))} />}
               <IconButton
                 icon={Highlighter}
                 label="Highlight"
                 tooltip={{ shortcut: '⌘⇧H' }}
-                size={24}
+                size={ib}
                 active={openDropdown === 'highlight' || isMarkActive('highlight')}
                 onMouseDown={(e) => openDropdownAt('highlight', e)}
               />
-            </ControlGroup>
+            </BarGroup>
           </OverflowSection>
 
           {/* Group 3 — Links & code: last of the foldable groups to actually fold (stays
               visible longest among the foldables — see the fold-order comment at Group 6). */}
           <OverflowSection
+            priority="first"
             label="Links & code"
             items={[
               { key: 'link', label: 'Link', icon: Link2, checked: isMarkActive('link'), onSelect: openLinkDropdownFromToolbar },
-              { key: 'code', label: 'Inline code', icon: Code, shortcut: '⌘`', checked: isMarkActive('code'), onSelect: () => run(toggleMark(schema.marks.code)) },
-              { key: 'suppress-refs', label: 'Suppress auto-detected refs', icon: Link2Off, shortcut: '⌘⇧R', onSelect: () => run(toggleSuppressCommand) },
+              // In the bar these two already live in "…" (extraItems) — never listed twice.
+              ...(inBar ? [] : [
+                { key: 'code', label: 'Inline code', icon: Code, shortcut: '⌘`', checked: isMarkActive('code'), onSelect: () => run(toggleMark(schema.marks.code)) },
+                { key: 'suppress-refs', label: 'Suppress auto-detected refs', icon: Link2Off, shortcut: '⌘⇧R', onSelect: () => run(toggleSuppressCommand) },
+              ]),
             ]}
           >
-            <ControlGroup>
+            <BarGroup inBar={inBar} sep={true}>
               <IconButton
                 icon={Link2}
                 label="Link"
-                size={24}
+                size={ib}
                 active={openDropdown === 'link' || isMarkActive('link')}
                 onMouseDown={openLinkDropdownAt}
               />
-              <IconButton icon={Code} label="Inline code" tooltip={{ shortcut: '⌘`' }} size={24} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />
-              <IconButton icon={Link2Off} label="Suppress auto-detected refs" tooltip={{ shortcut: '⌘⇧R' }} size={24} onMouseDown={() => run(toggleSuppressCommand)} />
-            </ControlGroup>
+              {!inBar && <IconButton icon={Code} label="Inline code" tooltip={{ shortcut: '⌘`' }} size={ib} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />}
+              {!inBar && <IconButton icon={Link2Off} label="Suppress auto-detected refs" tooltip={{ shortcut: '⌘⇧R' }} size={ib} onMouseDown={() => run(toggleSuppressCommand)} />}
+            </BarGroup>
           </OverflowSection>
 
           {/* Group 4 — Paragraph: lists, blockquote, indent/outdent. */}
           <OverflowSection
+            priority="last"
             label="Paragraph"
             items={[
               { key: 'blockquote', label: 'Blockquote', icon: Quote, onSelect: cmds.toggleBlockquote },
-              { key: 'outdent', label: 'Outdent', icon: IndentDecrease, shortcut: '⇧Tab', onSelect: cmds.outdent },
-              { key: 'indent', label: 'Indent', icon: IndentIncrease, shortcut: 'Tab', onSelect: cmds.indent },
+              ...(inBar ? [] : [
+                { key: 'outdent', label: 'Outdent', icon: IndentDecrease, shortcut: '⇧Tab', onSelect: cmds.outdent },
+                { key: 'indent', label: 'Indent', icon: IndentIncrease, shortcut: 'Tab', onSelect: cmds.indent },
+              ]),
             ]}
           >
-            <ControlGroup>
+            <BarGroup inBar={inBar} sep={true}>
               <Button
                 variant="menu"
                 size="xs"
@@ -355,37 +414,39 @@ export default function Toolbar({
                 onMouseDown={(e) => openDropdownAt('list', e)}
                 tooltip="List type"
               />
-              <IconButton icon={Quote} label="Blockquote" size={24} onMouseDown={cmds.toggleBlockquote} />
-              <IconButton icon={IndentDecrease} label="Outdent" tooltip={{ shortcut: '⇧Tab' }} size={24} onMouseDown={cmds.outdent} />
-              <IconButton icon={IndentIncrease} label="Indent" tooltip={{ shortcut: 'Tab' }} size={24} onMouseDown={cmds.indent} />
-            </ControlGroup>
+              <IconButton icon={Quote} label="Blockquote" size={ib} onMouseDown={cmds.toggleBlockquote} />
+              {!inBar && <IconButton icon={IndentDecrease} label="Outdent" tooltip={{ shortcut: '⇧Tab' }} size={ib} onMouseDown={cmds.outdent} />}
+              {!inBar && <IconButton icon={IndentIncrease} label="Indent" tooltip={{ shortcut: 'Tab' }} size={ib} onMouseDown={cmds.indent} />}
+            </BarGroup>
           </OverflowSection>
 
           {/* Group 5 — Focus: folds early alongside Insert (packet §39 hierarchy note) —
               secondary actions recede into the "More" menu, still one click away. */}
-          <OverflowSection
+{!inBar &&           <OverflowSection
+            priority="first"
             label="Focus"
             items={[
               { key: 'focus', label: focusMode ? 'Exit Focus mode' : 'Focus mode', icon: FocusIcon, checked: focusMode, onSelect: () => toggleFocusMode() },
             ]}
           >
-            <ControlGroup>
+            <BarGroup inBar={inBar} sep={true}>
               <IconButton
                 icon={FocusIcon}
                 label={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}
-                size={24}
+                size={ib}
                 active={focusMode}
                 onMouseDown={() => toggleFocusMode()}
               />
-            </ControlGroup>
-          </OverflowSection>
+            </BarGroup>
+          </OverflowSection>}
 
           {/* Group 6 — Insert: one menu button folding every secondary insert action, per
               packet §39 ("secondary actions recede into a menu; still one click away"). Placed
               last among the foldable groups so it's the first to fold (§40: "Insert first to
               fold → Paragraph → Links & code → never Emphasis/Text") — OverflowGroup folds
               trailing children first. */}
-          <OverflowSection
+          {!insertInSlot && <OverflowSection
+            priority="last"
             label="Insert"
             items={[
               { key: 'insert-table', label: 'Table', icon: Table2, onSelect: () => { const { from, to } = editorView.state.selection; insertBlockNode(editorView, from, to, buildEmptyTable()) } },
@@ -395,7 +456,7 @@ export default function Toolbar({
               { key: 'insert-image', label: 'Image…', icon: ImageIcon, onSelect: () => pickAndInsertImage(editorView) },
             ]}
           >
-            <ControlGroup>
+            <BarGroup inBar={inBar} sep={true}>
               <Button
                 variant="menu"
                 size="xs"
@@ -404,21 +465,39 @@ export default function Toolbar({
                 onMouseDown={(e) => openDropdownAt('insert', e)}
                 tooltip="Insert"
               />
-            </ControlGroup>
-          </OverflowSection>
+            </BarGroup>
+          </OverflowSection>}
 
           {/* Windows: standard convention is minimize/maximize/close on the RIGHT, matching
               the frameless title bar's own WindowControls.tsx (Fluent-ish hover, red close)
               rather than the Mac traffic-light treatment above. */}
           {focusMode && !isMac && (
             <ControlGroup>
-              <IconButton icon={Minus} label="Minimize" size={24} onMouseDown={() => window.windowControls?.minimize()} />
-              <IconButton icon={Square} label={isMaximized ? 'Restore' : 'Maximize'} size={24} onMouseDown={() => window.windowControls?.maximize()} />
-              <IconButton icon={X} label="Close" size={24} danger onMouseDown={() => window.windowControls?.close()} />
+              <IconButton icon={Minus} label="Minimize" size={ib} onMouseDown={() => window.windowControls?.minimize()} />
+              <IconButton icon={Square} label={isMaximized ? 'Restore' : 'Maximize'} size={ib} onMouseDown={() => window.windowControls?.maximize()} />
+              <IconButton icon={X} label="Close" size={ib} danger onMouseDown={() => window.windowControls?.close()} />
             </ControlGroup>
           )}
         </OverflowGroup>
       </Bar>
+
+      {/* The separate Insert control (document insertion ≠ text formatting) — its own toolbar
+          item in the actions zone, same 36px capsule as its neighbours. */}
+      {insertInSlot && insertSlot && createPortal(
+        // Explicit glass: a portal keeps React context, and this bar hands 'ghost' to its items.
+        <BarMetrics><ControlGroup variant="glass">
+          <Button
+            variant="menu"
+            size="xs"
+            icon={SquarePlus}
+            selected={openDropdown === 'insert'}
+            onMouseDown={(e) => openDropdownAt('insert', e)}
+            tooltip="Insert a table, image, verse, divider or code block"
+            aria-label="Insert"
+          />
+        </ControlGroup></BarMetrics>,
+        insertSlot,
+      )}
 
       {/* ── Dropdowns — portaled, anchored to their trigger's own rect via MenuPositioner ── */}
       {openDropdown !== 'none' && dropdownPos && createPortal(

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import './sheet.css'
-import { AnimatePresence, motion, useDragControls, useMotionValue, animate, type PanInfo } from 'framer-motion'
+import { AnimatePresence, motion, useDragControls, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion'
 import { X, ChevronLeft } from 'lucide-react'
 import { haptic } from './haptics'
 import { sheetTakesOver, followY, handsBackToContent, releaseVelocity, blurActiveEditable, scrollOwner } from './sheetGesture'
@@ -175,6 +175,11 @@ export function settleDetent(opts: { heights: number[]; vh: number; releaseY: nu
   return best
 }
 
+/** Gap between a floating (partial-height) sheet and the screen edges, and its corner radius
+ *  (concentric with the iPhone's display corners minus the gap). */
+const SHEET_FLOAT_INSET = 8
+const SHEET_FLOAT_RADIUS = 34
+
 function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose: () => void; depth: number }) {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const hasLow = options.lowDetent != null
@@ -235,6 +240,17 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
   }, [views.length, direction])
 
   const atLow = hasLow && detentIndex === 0
+  // iOS 26 sheet presentation (TEST 2026-10-06): below its full height a sheet FLOATS — inset from
+  // the screen edges, every corner rounded, lighter glass, the page visible around it; at its full
+  // height it attaches to the edges and becomes the more opaque, focused surface. The sheet element
+  // is always as tall as its top detent (part of it sits below the screen at a partial detent), so
+  // the floating bottom edge is a clip that follows the sheet as it moves.
+  const floating = heights.length > 1 && detentIndex < top
+  const floatingRef = useRef(floating); floatingRef.current = floating
+  const clipPath = useTransform(y, (v) => floatingRef.current
+    ? `inset(0px 0px ${Math.max(0, heights[top] - (vh - v) + SHEET_FLOAT_INSET)}px 0px round ${SHEET_FLOAT_RADIUS}px)`
+    : 'none')
+  useEffect(() => { y.set(y.get()) }, [floating]) // eslint-disable-line react-hooks/exhaustive-deps
   const undimmedThrough = options.undimmedThrough ?? (hasLow ? 0 : -1)
   const dimmed = detentIndex > undimmedThrough
   const api: SheetApi = {
@@ -336,11 +352,11 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
         />
       )}
       <motion.div
-        className={`mobile-sheet${atLow ? ' is-low' : ''}`}
+        className={`mobile-sheet${atLow ? ' is-low' : ''}${floating ? ' is-floating' : ''}`}
         role="dialog" aria-modal={dimmed} aria-label={options.title}
         data-sheet-id={options.id}
         data-detent={detentIndex}
-        style={{ y, height: heights[top], zIndex: 101 + depth * 2 }}
+        style={{ y, height: heights[top], zIndex: 101 + depth * 2, clipPath, WebkitClipPath: clipPath }}
         initial={{ y: vh }}
         exit={{ y: vh, transition: { duration: 0.22 } }}
         drag="y"
@@ -356,7 +372,7 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
           {current ? (
             <div className="mobile-sheet-nav">
               <button type="button" className="mobile-sheet-back" onClick={pop} onPointerDown={(e) => e.stopPropagation()} aria-label={`Back to ${backLabel}`}>
-                <ChevronLeft size={22} aria-hidden /><span>{backLabel}</span>
+                <ChevronLeft size={22} strokeWidth={2.25} aria-hidden />
               </button>
               <div className="mobile-sheet-title is-nav" aria-live="polite">{headerTitle}</div>
             </div>

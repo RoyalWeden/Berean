@@ -31,4 +31,9 @@ export function stripMarkdownFormatting(md: string): string {
     // else that might slip through) — broader than a fixed tag allowlist so new tag types don't
     // silently leak through as raw markup again.
     .replace(/<\/?[a-zA-Z][^>]*>/g, '')
+    // HTML entities left over from pasted/rendered HTML (&amp;, &lt;, numeric &#39;/&#x27; etc.) —
+    // a preview should read as the actual character, not the escaped entity.
+    .replace(/&(amp|lt|gt|quot|#0?39|#x27|apos|nbsp);/gi, (_m, name) => ({
+      amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", '#039': "'", '#x27': "'", apos: "'", nbsp: ' ',
+    } as Record<string, string>)[name.toLowerCase()] ?? _m)
 }

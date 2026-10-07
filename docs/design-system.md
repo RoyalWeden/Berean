@@ -74,8 +74,8 @@ only over media), with Berean's own values derived from the theme colours. Apple
   - No glass inside glass: a nested surface drops its own material (CSS rule).
   - `backdrop-filter` is only on floating controls, bars and sheets, never on a scrolling content
     surface (audited).
-- **Shape.** `--radius-capsule` (controls), `--radius-control` 12, `--radius-card` 16,
-  `--radius-sheet` 30.
+- **Shape.** `--glass-radius-capsule` (controls), `--glass-radius-control` 12, `--glass-radius-card` 16,
+  `--glass-radius-sheet` 30 (glass-prefixed so they never override the desktop `--radius-*` scale, where `--radius-control` is the capsule).
 - **States.** `.glass-control` has normal, hover, pressed (scale .96, spring), selected
   (`aria-pressed` / `.is-selected`: accent tint plus accent text, not colour alone), disabled and
   focus-visible (ring).
@@ -370,12 +370,26 @@ controls (`CircularPlayButton`, `Switch`, Windows `WindowControls`), the pre-CSS
 `main.tsx`, ProseMirror node views, pm/Toolbar's focus-mode `motion.button`, and the Verse Picker's
 font-scaled Scripture text. All carry `focus-ring` + hover/pressed lift states.
 
-## Reading column (pass 4 §26–27)
+## Reading column (pass 4 §26–27; side-panel rules 2026-10-04)
 Left-anchored (Michael's decision). `--reading-max-ch` (86) × the Scripture font's `ch` caps the
-measure; `--reading-margin: clamp(24px, 6%, 72px)` scales with the pane; compact/compare views have
-no cap. Measured in the app at 16px system serif: 1ch ≈ 10px → 72ch rendered ~72 chars/line but
-~190px narrower than the old 768px cap, so the token was raised to 86 (≈ 90 chars/line, ~720px of
-text). Tune the ONE token; per-font overrides are allowed if a family lands outside 60–90.
+measure. `--reading-margin` is a share of the whole Scripture PANE — `clamp(24px, 6cqi, 72px)`
+against the `.berean-scripture-pane` container (BiblePanel root) — not of the scroller, so the
+leading margin never changes when the side panel attaches. Compact / Standard / Spacious
+(Settings → Display → Scripture margins) only swap these two tokens. Compact/compare views have no cap.
+
+**Side panel (inspector) never makes the text jump** (TEST 2026-10-04):
+- The text's left edge is fixed (pane-relative margins, left-anchored column).
+- While the pane can spare it (text keeps ≥ 600px), the column keeps the panel's current width
+  clear even when the panel is CLOSED (`--inspector-reserve`, `inspectorReserve()`), so opening /
+  closing at that width re-wraps nothing. Beside an attached panel the trailing margin collapses to
+  ≤ 28px (`--reading-end-pad`) — the panel edge is the separation.
+- Widths snap magnetically while dragging: Compact 260 · Standard 300 (default; double-click the
+  divider) · Expanded 420; max 520, and never so wide the text drops under 400px.
+- Dragging wider than the reserve re-wraps once; the topmost visible verse stays put
+  (`useReadingAnchor`). The scroller's width is never animated (that re-wrapped every frame) — only
+  the panel slides.
+- Attach vs. float is decided at the Standard width (`inspectorShouldReflow`), so dragging never
+  flips an attached panel into one floating over the text.
 
 ## Keyboard model (pass 4)
 - Scripture verses: badges are focusable (Tab in / click a number); ↑/↓ move, ⇧↑/↓ extend, Enter
@@ -533,3 +547,57 @@ icon sits at 40 + 18·depth px whatever its row type, so a note is one clear ste
 folder's icon and a subfolder lines up with its sibling notes. `ListRow` hover actions take real
 space when revealed (they grow from zero width), so meta such as a folder's note count stays
 visible and the title is the element that truncates.
+
+## Apple-design pass (2026-10-04)
+
+**Materials.** Content (Scripture, notes, lists) sits on opaque surfaces; glass is only for the
+functional layer — natively where the platform can draw it (docs/liquid-glass.md: the macOS sidebar
+pane, the iPhone's navigation and Scripture controls), `glass.css` for controls that float over content — toolbar capsules, menus, popovers, the floating
+formatting bar. Inspectors attached to a window edge are flat (`material-inspector`, hairline).
+
+**Menus.** One "…" per bar. Choosing a leaf row closes the menu; opening a submenu (`MenuSub`)
+never does. Submenus open to the trailing side and flip to the leading side at the screen edge.
+A note's Status and Look are submenus at the top of its "…" menu (the row shows the current
+value: "No Status" / "In Progress", "Look  Default").
+
+**Toggles that move.** A toggle keeps its exact position and symbol in both states and shows
+"on" as the selected fill (note outline rail ↔ open outline: same `PanelRight`, same 8px/2px
+inset).
+
+**Document title.** A note's title is the large first line of its page (28px bold, `NoteDocTitle`,
+scrolls with the text; Enter moves into the body). The toolbar shows the small title only once the
+page title has scrolled away. Notes whose body already opens with `# <title>` use that H1 instead.
+System and idiom notes keep their fixed toolbar title.
+
+**Focus mode** clears every inspector (the note outline rail included) — only the column and
+"Exit Focus" remain.
+
+**Haptics (iPhone).** One vocabulary (`haptics.ts`: tap · select · navigate · confirm · warn ·
+press), throttled to one per 35ms, and silenced entirely by Settings → Feedback → Haptic Feedback
+(per device, default on).
+
+## Apple product-design pass — part 2 (2026-10-04)
+
+Rules established in the screen-by-screen audit (macOS + iPhone; see docs/liquid-glass.md for the
+native layer):
+
+- **No hover-hunting.** Commands never hide behind floating hover pills. The sidebar's workspace
+  commands (archived tabs, presenter, Read Aloud, Study Trail, Berean Chat, Settings) are a quiet
+  icon bar at the sidebar's foot (`Ribbon layout="bar"`); the floating rail only stands in while the
+  sidebar is collapsed. Search's "jump to book" is a **Books** popover in the results' control row.
+- **Lists are content, not cards.** Search result sections are a semibold book name + quiet count
+  on the content ground (no grey band); references are semibold accent text (no filled pills).
+- **One home per action.** Notes: + is New note; New folder / New idiom note are in the toolbar's
+  "…"; no second row of creation buttons in the list. Filters (type + status) are ONE filter menu,
+  not two rows of chips; the drag-to-top-level hint is an overlay (no layout shift).
+- **Scroll edges are functional.** macOS: a hairline under the toolbar over the content only once
+  content has scrolled beneath it (hard edge), never across the glass sidebar. iPhone: content
+  fades softly under the floating bottom controls while they show (soft edge), off with Reduce
+  Transparency.
+- **Contextual editing chrome.** The note formatting bar shows while the note is being edited and
+  fades when focus leaves for elsewhere in the app (its space stays reserved — nothing jumps).
+- **Navigation like iOS.** On a page with Back, Back owns the leading edge (the global grid steps
+  aside); root pages keep the grid.
+- **Initial focus like a Mac sheet.** Sheets focus their first text field (or `[data-autofocus]`),
+  else the sheet — never the close button.
+- **Empty states** are one concise line plus one obvious action (No Tab Open → New Tab ⌘T).
