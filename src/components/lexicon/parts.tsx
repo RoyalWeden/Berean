@@ -8,20 +8,11 @@ import { RefChip, SectionHeader, ListRow, Badge, CardButton, cx } from '@/compon
  * (see docs/design-system.md audit: "the two don't read as one feature").
  */
 
-/** Hebrew/Greek language pill next to a Strong's number. */
+/** The entry's language beside its Strong's number — quiet secondary text (as Dictionary shows a
+ *  word's part of speech), not a tinted pill. */
 export function LangBadge({ num, className }: { num: string; className?: string }) {
   const isHebrew = num.toUpperCase().startsWith('H')
-  // Badge text (the taxonomy's informational label), keeping the language's semantic tint.
-  return (
-    <Badge
-      variant="text"
-      size="md"
-      tone={isHebrew ? 'warning' : 'info'}
-      className={cx('normal-case tracking-normal', isHebrew ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info', className)}
-    >
-      {isHebrew ? 'Hebrew' : 'Greek'}
-    </Badge>
-  )
+  return <span className={cx('text-footnote text-text-secondary flex-shrink-0', className)}>{isHebrew ? 'Hebrew' : 'Greek'}</span>
 }
 
 /** Entry header: Strong's number chip + language pill + lemma, with a trailing actions slot. */
@@ -79,7 +70,7 @@ export function OccurrenceRow({
     >
       <span className="flex flex-col gap-1">
         <span className="flex items-center gap-1 flex-wrap">
-          <RefChip size="md" mono={false}>{refLabel}</RefChip>
+          <RefChip size="md" mono={false} appearance="text">{refLabel}</RefChip>
           {badges}
         </span>
         <span className="block text-footnote text-text-secondary leading-relaxed line-clamp-3">{text}</span>

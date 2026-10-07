@@ -57,21 +57,22 @@ export async function mergeTranscriptPack(db: DatabaseAdapter, attachPath: strin
   try {
     const handle = (await db.get<{ value: string }>("SELECT value FROM ytpack.meta WHERE key = 'channel_handle'"))?.value ?? ''
     let videos = 0, segments = 0
+    // Set-based (perf pass 2026-10-05): three statements for the whole pack instead of three
+    // bridge round-trips PER VIDEO — a channel pack is hundreds of videos.
     await db.transaction(async (tx) => {
-      const ids = (await tx.all<{ video_id: string }>('SELECT video_id FROM ytpack.youtube_transcripts')).map((r) => r.video_id)
-      for (const id of ids) {
-        await tx.run('DELETE FROM youtube_transcript_segments WHERE video_id = ?', [id])
-        await tx.run(`
-          INSERT OR REPLACE INTO youtube_transcripts (video_id, lang, source, fetched_at, segment_count, duration_ms, error)
-          SELECT video_id, lang, source, fetched_at, segment_count, duration_ms, error FROM ytpack.youtube_transcripts WHERE video_id = ?
-        `, [id])
-        const r = await tx.run(`
-          INSERT INTO youtube_transcript_segments (video_id, start_ms, dur_ms, text)
-          SELECT video_id, start_ms, dur_ms, text FROM ytpack.youtube_transcript_segments WHERE video_id = ? ORDER BY start_ms
-        `, [id])
-        segments += r.changes
-        videos++
-      }
+      videos = (await tx.get<{ n: number }>('SELECT COUNT(*) AS n FROM ytpack.youtube_transcripts'))?.n ?? 0
+      await tx.run('DELETE FROM youtube_transcript_segments WHERE video_id IN (SELECT video_id FROM ytpack.youtube_transcripts)')
+      await tx.run(`
+        INSERT OR REPLACE INTO youtube_transcripts (video_id, lang, source, fetched_at, segment_count, duration_ms, error)
+        SELECT video_id, lang, source, fetched_at, segment_count, duration_ms, error FROM ytpack.youtube_transcripts
+      `)
+      const r = await tx.run(`
+        INSERT INTO youtube_transcript_segments (video_id, start_ms, dur_ms, text)
+        SELECT s.video_id, s.start_ms, s.dur_ms, s.text FROM ytpack.youtube_transcript_segments s
+        WHERE s.video_id IN (SELECT video_id FROM ytpack.youtube_transcripts)
+        ORDER BY s.video_id, s.start_ms
+      `)
+      segments = r.changes
     })
     return { videos, segments, channelHandle: handle }
   } finally {

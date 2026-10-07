@@ -8,6 +8,8 @@ import { installIosSyncBridge, initIosSyncHost } from './syncHost'
 import { installIosDeepLinks } from './deepLinks'
 import { installIosSpotlight } from './spotlight'
 import { installIosShareInbox } from './shareInbox'
+import { installIosLiquidGlass } from './liquidGlass'
+import { applyLiquidGlassTokens, loadLiquidGlassCapabilities } from '../liquidGlass'
 import { perfMark } from './perf'
 import { installDevProbe } from './devProbe'
 import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
@@ -41,6 +43,10 @@ for (const level of ['error', 'warn'] as const) {
 async function boot() {
   perfMark('boot:start')
   installDevProbe() // no-op unless built with BEREAN_E2E_PROBE=1 (simulator automation)
+  // Native Liquid Glass controls (BereanGlassPlugin.swift) behind window.__bereanGlass; iOS geometry tokens.
+  installIosLiquidGlass()
+  applyLiquidGlassTokens(document.documentElement, 'ios')
+  void loadLiquidGlassCapabilities()
   const root = ReactDOM.createRoot(document.getElementById('root')!)
   try {
     const services = await initIosServices()

@@ -4,6 +4,7 @@ import { CaretCrossRefs } from '../study/CrossRefsSheet'
 import { isEditingInSheet } from './sheetEditingGuards'
 import './readerChrome.css'
 import { motion, useMotionValue, animate, type PanInfo } from 'framer-motion'
+import { useLiquidGlassControls } from '@/platform/liquidGlass'
 import { BookOpen, TextSearch, Hash, Languages, ALargeSmall, Volume2, AlignJustify, ScrollText, Type, Palette, Columns2, GitFork, Tag as TagIcon, Route, Copy, Share2, SunMoon, CaseSensitive, Repeat, MoveHorizontal, NotepadText } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { BibleTabState, Book, Tab } from '@/types'
@@ -318,6 +319,13 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   // A chapter that never loads (no such passage in that text) must not leave the old text up:
   // the hold ends after at most 1.5 s whatever happens.
   useEffect(() => { if (!heldPane) return; const t = setTimeout(releaseHeld, 1500); return () => clearTimeout(t) }, [heldPane, releaseHeld])
+  // The passage title as a native Liquid Glass capsule over the text (docs/liquid-glass.md §iOS);
+  // the web button stays as its placeholder and fallback.
+  const titleRef = useRef<HTMLButtonElement>(null)
+  const titleGlass = useLiquidGlassControls('reader-title', [
+    { id: 'title', ref: titleRef, symbol: 'book', title, subtitle: textId === 'lxx' ? 'LXX' : undefined, label: `${title}, ${translationShortLabel(textId)}. Go to a passage`, iconSize: 17, onPress: openReference },
+  ], { role: 'toolbar' })
+
   return (
     <Page
       noScroll
@@ -326,7 +334,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       // passage navigator (TEST-041).
       // The text is named only when it is the Septuagint (T23-007) — KJV is the default, and the
       // caret's All Translations shows the current text.
-      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}, ${translationShortLabel(textId)}. Go to a passage`}><BookOpen size={16} aria-hidden /> {title}{textId === 'lxx' && <span className="mobile-title-sub">LXX</span>}</button>}
+      title={<button ref={titleRef} type="button" className={`mobile-title-button${titleGlass.isNative('title') ? ' is-native-glass' : ''}`} onClick={openReference} aria-label={`${title}, ${translationShortLabel(textId)}. Go to a passage`} aria-hidden={titleGlass.isNative('title') || undefined}><BookOpen size={16} aria-hidden /> {title}{textId === 'lxx' && <span className="mobile-title-sub">LXX</span>}</button>}
     >
       <CompactPassageHeader label={title} badge={textId === 'lxx' ? 'LXX' : null} visible={headerHidden} onOpen={openReference} />
       <VerseInteractionContext.Provider value={verseInteraction}>

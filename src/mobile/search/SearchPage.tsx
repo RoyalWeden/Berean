@@ -29,7 +29,8 @@ import { HistoryView } from '../history/HistoryPage'
 import type { WordMode } from '@/lib/scriptureHighlight'
 import { Page, ListSection, Row, IconTap } from '../primitives/Page'
 import { useSheets, type SheetApi } from '../primitives/Sheet'
-import { ChoiceList, useActionSheet } from '../primitives/ActionSheet'
+import { ChoiceList } from '../primitives/ActionSheet'
+import { usePopoverMenu } from '../primitives/PopoverMenu'
 import { Segmented } from '../settings/SettingsPage'
 import { haptic } from '../primitives/haptics'
 import { StrongsSheet } from '../study/StrongsSheet'
@@ -37,7 +38,9 @@ import { useIncrementalLimit } from './useIncrementalLimit'
 import { loadTaggedVerses } from './taggedBrowse'
 import { useSearchResultActions, LongPressResult } from './ResultActionSheet'
 import { buildSearchPreview, samePreview, type SearchPreviewSummary } from './resultActions'
+import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
 import { commitSearchStep, isSearchCommitted, markSearchCommitted, searchSnapshot } from './searchHistory'
+import { TYPING_SETTLE_MS } from '@/lib/search/typingHistory'
 import './search.css'
 
 type Scope = 'all' | 'scripture' | 'notes' | 'lexicon'
@@ -68,9 +71,9 @@ function liveSearchState(tabId: string): SearchTabState | undefined {
  * ‹ / › can return to. Recorded BEFORE the tab-state write so the restore-detection effect in
  * SearchPage sees it as already committed. `patch` is the next tab state.
  */
-function commitSearch(tabId: string, patch: Partial<SearchTabState>) {
+function commitSearch(tabId: string, patch: Partial<SearchTabState>, opts: { submitted?: boolean } = {}) {
   const live = liveSearchState(tabId)
-  commitSearchStep(tabId, searchSnapshot(live), searchSnapshot({ ...live, ...patch }))
+  commitSearchStep(tabId, searchSnapshot(live), searchSnapshot({ ...live, ...patch }), opts)
 }
 function patchSearchFilters(tabId: string, patch: Partial<SearchFilterState>) {
   const filters = { ...tabFilters(liveSearchState(tabId)), ...patch } as unknown as Record<string, unknown>
@@ -84,7 +87,9 @@ function resetSearchFilters(tabId: string) {
 /** Throttle for saving the result list's scroll offset into the tab. */
 const SCROLL_SAVE_MS = 250
 /** Typing counts as a committed search once it has settled this long. */
-const QUERY_COMMIT_MS = 800
+// A typing pause long enough to read as a search (TYPING_SETTLE_MS) — and even then the step is
+// provisional: continuing to type replaces it (src/lib/search/typingHistory.ts).
+const QUERY_COMMIT_MS = TYPING_SETTLE_MS
 
 /**
  * Each Search TAB keeps its own scope, query and filters in its tab state (T23-009: several
@@ -102,7 +107,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const setScope = useCallback((v: Scope) => { commitSearch(tabId, { scope: v }); updateTabState('search', tabId, { scope: v }) }, [updateTabState, tabId])
   const [query, setQuery] = useState(st.query ?? '')
   // The query as a committed history step: now (submit / a recent) or once typing settles.
-  const commitQuery = useCallback((q: string) => { commitSearch(tabId, { query: q }); if ((liveSearchState(tabId)?.query ?? '') !== q) updateTabState('search', tabId, { query: q }) }, [tabId, updateTabState])
+  const commitQuery = useCallback((q: string, submitted = false) => { commitSearch(tabId, { query: q }, { submitted }); if ((liveSearchState(tabId)?.query ?? '') !== q) updateTabState('search', tabId, { query: q }) }, [tabId, updateTabState])
   useEffect(() => { markSearchCommitted(tabId, searchSnapshot(liveSearchState(tabId)), true) }, [tabId])
   useEffect(() => {
     const t = setTimeout(() => commitQuery(query), QUERY_COMMIT_MS)
@@ -240,7 +245,11 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const trimmed = query.trim()
     if (!trimmed) return
     addRecent(trimmed)
-    commitQuery(query)
+    recordSubmittedSearch(trimmed)
+    commitQuery(query, true)
+    // The Search key puts the keyboard away so the results can be read (iOS; TEST 2026-10-06 —
+    // after Return the keyboard still covered half the results).
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
     const ref = scope === 'scripture' || scope === 'all' ? parseRef(trimmed) : null
     // A reference opens in THIS tab (it becomes Scripture; ‹ returns to the search — NAV-002).
     if (ref) { void haptic.light(); openDestination({ kind: 'passage', bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? null }, 'current-tab', { origin: { kind: 'search-result', query: trimmed } }) }
@@ -273,7 +282,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
     pendingScroll.current = null
     requestAnimationFrame(() => { body.scrollTop = y })
   }, [loading, hits, browseHits, notes, entries, unified])
-  const runRecent = (r: string) => { setQuery(r); commitQuery(r) }
+  const runRecent = (r: string) => { setQuery(r); commitQuery(r, true) }
   const openEntry = (e: LexiconEntry) => sheets.open({ id: 'strongs', detents: [0.38, 0.92], render: (api) => <StrongsSheet strongsNum={e.strongsNum} api={api} /> })
   // Long-press menus (SEP24): the same Open as a tap, plus new tab / copy / share / note / highlight.
   const resultActions = useSearchResultActions({ openHit, openNote, openEntry, runRecent, scope })
@@ -345,22 +354,21 @@ export function SearchPage({ tab }: { tab: Tab }) {
         ] }] : []),
         { id: 'more', commands: [
           { kind: 'action', id: 'clear', label: 'Clear search', icon: X, disabled: !q, run: () => setQuery('') },
-          // History opens INSIDE this sheet ("‹ Search"), keeping its position (NEW-014).
-          { kind: 'view', id: 'history', label: 'History', icon: HistoryIcon, view: () => ({ title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
+          // (History is the caret's own bottom row — every caret has it, TEST 2026-10-03.)
         ] },
       ],
     }
   })
   const snippetQuery = browsing ? '' : query
   // Tertiary actions (TEST 2026-09-29 IA): the header's "…".
-  const actions = useActionSheet()
-  const openOverflow = () => {
-    void haptic.light()
-    actions('search-more', 'Search', [
-      { id: 'history', label: 'History', icon: HistoryIcon, onSelect: () => {}, view: () => ({ key: 'history', title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
+  const popover = usePopoverMenu()
+  const openOverflow = (e: React.MouseEvent<HTMLButtonElement>) => {
+    popover(e.currentTarget, undefined, [
       ...(scopeHasFilters(scope) ? [{ id: 'filters', label: 'All filters & sort…', icon: SlidersHorizontal, onSelect: () => openFiltersSheet(tabId, scope) }] : []),
       ...(activeFilterCount(filters, scope) ? [{ id: 'reset', label: 'Reset filters', icon: RotateCcw, onSelect: () => resetSearchFilters(tabId) }] : []),
       ...(query ? [{ id: 'clear', label: 'Clear search', icon: X, onSelect: () => setQuery('') }] : []),
+      // History last, in its own section (TEST 2026-10-05: History / Settings at the bottom).
+      { id: 'history', label: 'History', icon: HistoryIcon, section: true, onSelect: () => {}, view: () => ({ key: 'history', title: 'History', render: (a: SheetApi) => <HistoryView onNavigated={a.close} /> }) },
     ])
   }
   // Declared after the caret closure that calls it — only ever invoked on a tap, after render.
@@ -512,32 +520,35 @@ function SearchTagsFilter({ tabId, api }: { tabId: string; api: SheetApi }) {
  */
 function FilterChips({ tabId, filters: f, scope }: { tabId: string; filters: SearchFilterState; scope: Scope }) {
   const sheets = useSheets()
+  const popover = usePopoverMenu()
   const scripture = scope === 'scripture' || scope === 'all'
+  // Quick single choices are popover menus anchored to the chip; Books and Tags (long, multi-select
+  // lists) stay sheets (TEST 2026-10-03 sheets-vs-menus audit).
+  const choose = (el: Element, choices: Array<{ id: string; label: string; detail?: string }>, current: string, set: (id: string) => void) =>
+    popover(el, undefined, choices.map((c) => ({ id: c.id, label: c.label, detail: c.detail, checked: c.id === current, onSelect: () => set(c.id) })))
   const open = (id: string, title: string, render: (api: SheetApi) => React.ReactNode, tall = false) => {
     void haptic.selection()
     sheets.open({ id: `search-chip-${id}-${tabId}`, title, detents: [tall ? 0.72 : 0.42, 0.92], render })
   }
   const sortValue = f.sort === 'relevance' ? 'relevance' : f.direction === 'asc' ? 'bible' : 'bible-rev'
-  const chips: Array<{ id: string; label: string; on: boolean; onClick: () => void }> = [
-    { id: 'words', label: WORD_MODE_LABEL[f.wordMode], on: f.wordMode !== 'all', onClick: () => open('words', 'Match', (api) => (
-      <ChoiceList api={api} closeOnSelect value={f.wordMode} options={(['all', 'any', 'phrase'] as WordMode[]).map((m) => ({ id: m, label: WORD_MODE_LABEL[m] }))} onSelect={(v) => patchSearchFilters(tabId, { wordMode: v as WordMode })} />
-    )) },
+  const chips: Array<{ id: string; label: string; on: boolean; onClick: (el: Element) => void }> = [
+    { id: 'words', label: WORD_MODE_LABEL[f.wordMode], on: f.wordMode !== 'all', onClick: (el) => choose(el,
+      (['all', 'any', 'phrase'] as WordMode[]).map((m) => ({ id: m, label: WORD_MODE_LABEL[m] })), f.wordMode, (v) => patchSearchFilters(tabId, { wordMode: v as WordMode })) },
     ...(scripture ? [
-      { id: 'text', label: textFilterLabel(f.textId), on: f.textId !== 'all', onClick: () => open('text', 'Text', (api: SheetApi) => <SearchTextChoices tabId={tabId} api={api} />, true) },
+      { id: 'text', label: textFilterLabel(f.textId), on: f.textId !== 'all', onClick: (el: Element) => choose(el,
+        [{ id: 'all', label: 'All texts' }, ...TRANSLATIONS.map((t) => ({ id: t.id, label: t.label, detail: t.description }))], f.textId, (v) => patchSearchFilters(tabId, { textId: v })) },
       { id: 'books', label: booksSummary(f.books), on: f.books.length > 0, onClick: () => open('books', 'Books', () => <SearchBooksFilter tabId={tabId} />, true) },
       { id: 'tags', label: f.tagIds.length ? `${f.tagIds.length} tag${f.tagIds.length === 1 ? '' : 's'}` : 'Tags', on: f.tagIds.length > 0, onClick: () => open('tags', 'Verse tags', (api: SheetApi) => <SearchTagsFilter tabId={tabId} api={api} />, true) },
-      { id: 'sort', label: sortValue === 'relevance' ? 'Best match' : sortValue === 'bible' ? 'Bible order' : 'Reverse order', on: f.sort !== 'relevance', onClick: () => open('sort', 'Sort', (api: SheetApi) => (
-        <ChoiceList api={api} closeOnSelect value={sortValue}
-          options={[{ id: 'relevance', label: 'Best match first' }, { id: 'bible', label: 'Bible order', detail: 'Genesis → end' }, { id: 'bible-rev', label: 'Reverse Bible order', detail: 'End → Genesis' }]}
-          onSelect={(v) => patchSearchFilters(tabId, v === 'relevance' ? { sort: 'relevance', direction: 'desc' } : { sort: 'bookOrder', direction: v === 'bible' ? 'asc' : 'desc' })} />
-      )) },
+      { id: 'sort', label: sortValue === 'relevance' ? 'Best match' : sortValue === 'bible' ? 'Bible order' : 'Reverse order', on: f.sort !== 'relevance', onClick: (el: Element) => choose(el,
+        [{ id: 'relevance', label: 'Best match first' }, { id: 'bible', label: 'Bible order', detail: 'Genesis → end' }, { id: 'bible-rev', label: 'Reverse Bible order', detail: 'End → Genesis' }], sortValue,
+        (v) => patchSearchFilters(tabId, v === 'relevance' ? { sort: 'relevance', direction: 'desc' } : { sort: 'bookOrder', direction: v === 'bible' ? 'asc' : 'desc' })) },
     ] : []),
   ]
   const count = activeFilterCount(f, scope)
   return (
     <div className="mobile-search-chips" role="group" aria-label="Filters">
       {chips.map((c) => (
-        <button key={c.id} type="button" className={`mobile-search-chip${c.on ? ' is-on' : ''}`} onClick={c.onClick} aria-label={`${c.id === 'words' ? 'Match' : c.id[0].toUpperCase() + c.id.slice(1)}: ${c.label}`}>
+        <button key={c.id} type="button" className={`mobile-search-chip${c.on ? ' is-on' : ''}`} onClick={(e) => c.onClick(e.currentTarget)} aria-label={`${c.id === 'words' ? 'Match' : c.id[0].toUpperCase() + c.id.slice(1)}: ${c.label}`}>
           <span>{c.label}</span><ChevronDown size={13} aria-hidden />
         </button>
       ))}

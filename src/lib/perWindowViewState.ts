@@ -23,6 +23,12 @@ interface SavedView {
 
 const SPACES: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
 
+/** A saved view whose session wasn't loaded yet at restore time (see initPerWindowViewState). */
+let pending: Partial<SavedView> | null = null
+/** The SQLite tab mirror calls this once, after its first load: the session this window wanted,
+ *  if it couldn't be restored from the localStorage blob. One-shot. */
+export function takePendingViewRestore(): Partial<SavedView> | null { const p = pending; pending = null; return p }
+
 function slotKey(): string | null {
   try {
     const spawned = new URLSearchParams(window.location.search).has('mirrorFrom')
@@ -57,10 +63,17 @@ export function initPerWindowViewState(): () => void {
         const saved = JSON.parse(raw) as Partial<SavedView>
         const store = useAppStore.getState()
 
-        if (saved.currentSessionId && saved.currentSessionId !== store.currentSessionId
-            && store.sessions.some((s) => s.id === saved.currentSessionId)) {
-          // Reuse the tested reconciliation (loads that session's tabs).
-          store.switchSession(saved.currentSessionId)
+        if (saved.currentSessionId && saved.currentSessionId !== store.currentSessionId) {
+          if (store.sessions.some((s) => s.id === saved.currentSessionId)) {
+            // Reuse the tested reconciliation (loads that session's tabs).
+            store.switchSession(saved.currentSessionId)
+          } else {
+            // Not in the localStorage blob yet (its write is debounced — a workspace created just
+            // before the app was killed). The SQLite tab mirror may still have it: keep the wish
+            // until that loads (tabPersistenceRuntime → takePendingViewRestore), and don't let the
+            // fallback session overwrite it meanwhile (TEST 2026-10-05: relaunched into Session 1).
+            pending = { currentSessionId: saved.currentSessionId, activeSpace: saved.activeSpace, activeTabId: saved.activeTabId }
+          }
         }
 
         const after = useAppStore.getState()
@@ -82,7 +95,8 @@ export function initPerWindowViewState(): () => void {
     timer = null
     const s = useAppStore.getState()
     const view: SavedView = {
-      currentSessionId: s.currentSessionId,
+      // While a restore is still pending, keep remembering the WANTED session.
+      currentSessionId: pending?.currentSessionId ?? s.currentSessionId,
       activeSpace: s.activeSpace,
       activeTabId: s.activeTabId,
       panelLayout: s.panelLayout,
@@ -101,18 +115,24 @@ export function initPerWindowViewState(): () => void {
       s.panelLayout !== p.panelLayout
     ) {
       if (timer) clearTimeout(timer)
-      timer = setTimeout(write, 250)
+      if (s.currentSessionId !== p.currentSessionId) { pending = null; write() }   // never lose a workspace switch
+      else timer = setTimeout(write, 250)
     }
   })
 
   const flush = () => { if (timer) { clearTimeout(timer); write() } }
   window.addEventListener('pagehide', flush)
   window.addEventListener('beforeunload', flush)
+  // iOS rarely fires pagehide when the app is backgrounded and may then kill it while suspended —
+  // save the moment the app is hidden (the iPhone shell uses this module too).
+  const onHidden = () => { if (document.visibilityState === 'hidden') flush() }
+  document.addEventListener('visibilitychange', onHidden)
 
   return () => {
     unsub()
     window.removeEventListener('pagehide', flush)
     window.removeEventListener('beforeunload', flush)
+    document.removeEventListener('visibilitychange', onHidden)
     flush()
   }
 }

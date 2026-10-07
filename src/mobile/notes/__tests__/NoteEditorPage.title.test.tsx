@@ -89,3 +89,26 @@ describe('iPhone note page title', () => {
     expect(host.querySelector('.mobile-back')?.getAttribute('aria-label')).toBe('Back to Notes')
   })
 })
+
+describe('iPhone note page controls (TEST 2026-10-03)', () => {
+  it('no Reading view control; the + insert button only while editing', async () => {
+    act(() => root.render(<NoteEditorPage noteId="n1" onBack={() => {}} />))
+    await settle(); await settle()
+    expect(host.querySelector('[aria-label="View"]')).toBeNull()
+    expect(host.textContent).not.toMatch(/Reading view/)
+    const insert = () => host.querySelector('.m-note-insert')
+    expect(insert()?.classList.contains('is-hidden') ?? true).toBe(true)
+    const title = host.querySelector<HTMLTextAreaElement>('.m-note-title')!
+    act(() => title.focus())
+    expect(insert()?.classList.contains('is-hidden')).toBe(false)
+    act(() => (host.querySelector('[aria-label="Done"]') as HTMLButtonElement).click())
+    expect(insert()?.classList.contains('is-hidden') ?? true).toBe(true)
+  })
+
+  it('header circles are fixed squares that never shrink', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const css = readFileSync(resolve(__dirname, '../../mobile.css'), 'utf8')
+    expect(css).toMatch(/\.mobile-back, \.mobile-page-header \.mobile-icon-tap, \.m-float-circle \{ flex: 0 0 auto; width: 44px; min-width: 44px; height: 44px; min-height: 44px; aspect-ratio: 1; \}/)
+  })
+})

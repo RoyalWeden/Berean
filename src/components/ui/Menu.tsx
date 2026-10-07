@@ -1,4 +1,4 @@
-import { Children, createContext, forwardRef, isValidElement, useCallback, useContext, useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
+import { Children, createContext, forwardRef, isValidElement, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cx } from './cx'
@@ -175,6 +175,19 @@ export function MenuSub({ label, icon: Icon, children, disabled }: { label: Reac
   const [open, setOpen] = useState(false)
   const inset = useContext(MenuInsetContext)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // macOS submenus open to the trailing side unless that would leave the screen — then they open
+  // to the leading side (a "…" menu at the window's right edge), and shift up to stay on screen.
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [place, setPlace] = useState<{ flip: boolean; dy: number }>({ flip: false, dy: 0 })
+  useLayoutEffect(() => {
+    if (!open) { setPlace({ flip: false, dy: 0 }); return }
+    const el = panelRef.current, row = el?.parentElement
+    if (!el || !row) return
+    const r = row.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight
+    const flip = r.right + 4 + w > window.innerWidth - 8 && r.left - 4 - w >= 8
+    const dy = Math.min(0, window.innerHeight - 8 - (r.top - 4 + h))
+    setPlace({ flip, dy })
+  }, [open])
   const show = () => { if (timer.current) clearTimeout(timer.current); setOpen(true) }
   const hide = () => { timer.current = setTimeout(() => setOpen(false), 180) }
   return (
@@ -197,8 +210,9 @@ export function MenuSub({ label, icon: Icon, children, disabled }: { label: Reac
         <div
           role="menu"
           onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); (e.currentTarget.previousElementSibling as HTMLElement | null)?.focus() } }}
-          className="absolute top-0 left-full ml-1 z-menu material-popover rounded-menu p-1 min-w-[160px] text-footnote text-text-primary animate-menu-in"
-          style={{ '--menu-origin': 'top left' } as React.CSSProperties}
+          ref={panelRef}
+          className={cx('absolute -top-1 z-menu material-popover rounded-menu p-1 min-w-[160px] text-footnote text-text-primary animate-menu-in', place.flip ? 'right-full mr-1' : 'left-full ml-1')}
+          style={{ '--menu-origin': place.flip ? 'top right' : 'top left', marginTop: place.dy || undefined } as React.CSSProperties}
         >
           {children}
         </div>

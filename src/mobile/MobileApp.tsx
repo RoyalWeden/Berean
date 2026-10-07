@@ -25,6 +25,7 @@ import { lazy, Suspense } from 'react'
 const TagsGraphPanel = lazy(() => import('@/components/tags/TagsGraphPanel'))
 const PDFViewer = lazy(() => import('@/components/pdf/PDFViewer'))
 import { SheetHost, useSheets } from './primitives/Sheet'
+import { PopoverMenuHost } from './primitives/PopoverMenu'
 import { NavigationStack, useNavigation } from './navigation/NavigationStack'
 import { canEdgeBack, performEdgeBack } from './navigation/edgeBack'
 import { Page, ListSection, Row } from './primitives/Page'
@@ -59,6 +60,7 @@ import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { QueuePage } from './audio/QueuePage'
 import { Keyboard } from '@capacitor/keyboard'
 import { installKeyboardDismiss } from './primitives/keyboardDismiss'
+import { initPerWindowViewState } from '@/lib/perWindowViewState'
 import { BereanA11y } from '@/platform/ios/plugins'
 import './mobile.css'
 
@@ -79,6 +81,7 @@ export default function MobileApp() {
   return (
     <SheetHost>
       <Shell />
+      <PopoverMenuHost />
       {onboarding && <OnboardingFlow />}
     </SheetHost>
   )
@@ -376,8 +379,9 @@ function MorePage({ onOpenSpace, initialRoute, onClose }: { onOpenSpace: (space:
     title: 'More',
     sections: [{ id: 'more', commands: [
       { kind: 'action', id: 'back', label: 'Back to the current tab', icon: ArrowLeft, run: onClose },
-      { kind: 'action', id: 'settings', label: 'Settings', icon: SettingsIcon, run: openSettings },
+      // History · Settings last, in that order — the same as every other caret (TEST 2026-10-05).
       { kind: 'action', id: 'history', label: 'History', icon: History, run: openHistory },
+      { kind: 'action', id: 'settings', label: 'Settings', icon: SettingsIcon, run: openSettings },
     ] }],
   }))
   return (
@@ -491,6 +495,11 @@ function useBoot() {
     window.settings?.getAll().then((all) => hydrateSettingsIntoStore(all)).catch(() => {})
     window.appHistory?.getAll().then((entries) => useAppStore.getState().setHistory(entries)).catch(() => {})
     const disposeSettings = persistSettingsFromStore()
+    // Restore the workspace (session), space and tabs this phone was showing (TEST 2026-10-03:
+    // "doesn't remember what workspace I had open") — the same per-window view state the Mac
+    // uses. BEFORE the SQLite tab mirror loads: it keeps a restored session that still exists
+    // and falls back to the first workspace when it was deleted.
+    const disposeView = initPerWindowViewState()
     const disposeTabs = installTabPersistence()
     // Sunrise day boundary for daily notes: refresh the cached fix silently when access was
     // already granted; the first prompt happens when a daily note is opened (location.ts).
@@ -504,7 +513,7 @@ function useBoot() {
     // Remote changes applied by the sync engine → the shared invalidation map (DATA-SYNC-009).
     wireSyncUi()   // the shared iCloud status store (Settings row, iCloud page, progress) — DATA-UX-001
     const disposeSync = window.sync?.onApplied?.((entities) => applySyncInvalidation(entities))
-    return () => { disposeSettings(); disposeTabs?.(); disposeSync?.() }
+    return () => { disposeSettings(); disposeView(); disposeTabs?.(); disposeSync?.() }
   }, [])
 }
 

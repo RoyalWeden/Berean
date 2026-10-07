@@ -72,6 +72,16 @@ export function Sheet({ open, onOpenChange, size = 'md', title, description, hid
       <RD.Portal>
         <RD.Overlay className={cx('fixed inset-0 animate-fade-in', scrim === 'light' ? 'scrim-light' : 'scrim-modal', z)} />
         <RD.Content
+          // Initial focus like a Mac sheet: the first text field (or an explicit [data-autofocus]),
+          // else the sheet itself — never the close button, which drew a focus ring the moment a
+          // sheet opened from a shortcut (⌘, → Settings).
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            const root = e.currentTarget as HTMLElement
+            const field = root.querySelector<HTMLElement>('[data-autofocus], input[type="search"], input[type="text"], input:not([type]), textarea')
+            if (field) field.focus({ preventScroll: true })
+            else root.focus({ preventScroll: true })
+          }}
           onPointerDownOutside={onPointerDownOutside}
           onInteractOutside={onInteractOutside}
           onKeyDown={onKeyDown}

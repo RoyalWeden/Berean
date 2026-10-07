@@ -48,7 +48,6 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
           {s.subtitle && <div className="mobile-caret-subtitle">{s.subtitle}</div>}
         </div>
       ))}
-      {!nested && <CaretGoToRow api={api} />}
       {s.sections.map((sec) => sec.collapsible ? (
         <section key={sec.id} className="mobile-caret-group" aria-label={sec.collapsible.label}>
           <div className="mobile-caret-group-body">
@@ -101,6 +100,8 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
           </div>
         </section>
       ))}
+      {/* History · Settings come LAST (TEST 2026-10-03): the tab's own commands first. */}
+      {!nested && <CaretGoToRow api={api} />}
     </div>
   )
 }

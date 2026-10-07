@@ -20,7 +20,11 @@ describe('caret History / Settings', () => {
     useAppStore.setState({ activeSpace: 'scripture', tabs: { ...st.tabs, scripture: [{ id: 't1', spaceId: 'scripture', type: 'bible', title: 'Genesis 1', state: {} } as never] }, activeTabId: { ...st.activeTabId, scripture: 't1' } })
     const host = document.createElement('div'); document.body.appendChild(host)
     const root = createRoot(host)
-    act(() => root.render(<CaretSheet scope={() => ({ title: 'Genesis 1', sections: [] })} api={api} />))
+    act(() => root.render(<CaretSheet scope={() => ({ title: 'Genesis 1', sections: [{ id: 'reading', title: 'Reading', commands: [{ kind: 'action', id: 'x', label: 'Read aloud', run: () => {} }] }] })} api={api} />))
+    // History · Settings are the LAST group (TEST 2026-10-03), after the tab's own commands.
+    const caret = host.querySelector('.mobile-caret')!
+    expect(caret.lastElementChild?.classList.contains('mobile-caret-goto')).toBe(true)
+    expect(caret.textContent!.indexOf('Read aloud')).toBeLessThan(caret.textContent!.indexOf('History'))
     const settings = host.querySelector('[aria-label="Show Settings in this tab"]') as HTMLButtonElement
     expect(host.querySelector('[aria-label="Show History in this tab"]')).toBeTruthy()
     act(() => settings.click())

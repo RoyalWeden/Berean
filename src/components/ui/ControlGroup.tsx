@@ -6,10 +6,12 @@ export interface ControlGroupProps extends HTMLAttributes<HTMLDivElement> {
   /** Resting material of the group container. Defaults to the surrounding Toolbar's surface
    *  ('glass' in bars → one visible glass container; 'ghost' → invisible until hovered). */
   variant?: ControlSurface
-  /** Hairline dividers between children (default true). */
+  /** Hairline dividers between children. Default: none for a capsule (macOS 26/27 grouped toolbar
+   *  items are one glass shape with no internal rules — each item's own hover/pressed fill shows
+   *  its extent), on for a 'row' group. */
   dividers?: boolean
   /** 'capsule' (default) — the macOS 26/27 grouped-toolbar shape: a cluster of items reads as
-   *  ONE pill with hairline dividers. 'row' — a 10px rounded rectangle, for a group that sits in
+   *  ONE pill. 'row' — a 10px rounded rectangle, for a group that sits in
    *  a list/row context rather than a bar. */
   radius?: 'capsule' | 'row'
   align?: 'center' | 'stretch'
@@ -22,7 +24,7 @@ export interface ControlGroupProps extends HTMLAttributes<HTMLDivElement> {
  * render flat inside it. For mutually-exclusive selection use SegmentedControl instead.
  */
 export const ControlGroup = forwardRef<HTMLDivElement, ControlGroupProps>(function ControlGroup(
-  { variant, dividers = true, radius = 'capsule', align = 'center', className, children, ...rest }, ref,
+  { variant, dividers, radius = 'capsule', align = 'center', className, children, ...rest }, ref,
 ) {
   const surface = useControlSurface(variant)
   return (
@@ -37,7 +39,7 @@ export const ControlGroup = forwardRef<HTMLDivElement, ControlGroupProps>(functi
               align === 'stretch' ? 'items-stretch' : 'items-center',
               radius === 'capsule' ? 'rounded-control' : 'rounded-row',
               surface === 'glass' ? 'control-glass-inset' : 'bg-transparent hover:bg-lift-1 transition-colors duration-base',
-              dividers && '[&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-separator-subtle',
+              (dividers ?? radius === 'row') && '[&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-separator-subtle',
               className,
             )}
             {...rest}

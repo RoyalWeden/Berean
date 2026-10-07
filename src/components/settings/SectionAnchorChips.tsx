@@ -70,7 +70,7 @@ export default function SectionAnchorChips({
       // now — that was what pushed a `sticky top-0` element down and left a gap above it).
       // Translucent + blur so it reads as a frosted strip over the scrolling content;
       // `[&+*]:!mt-2` trims the parent `space-y-6`'s 1.5rem gap under the row to a tight one.
-      className="sticky top-0 z-raised -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 material-bar border-b border-separator [&+*]:!mt-2"
+      className="sticky top-0 z-raised -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 material-bar !bg-surface-2/95 border-b border-separator [&+*]:!mt-2"
     >
       {anchors.map((a) => (
         <Chip

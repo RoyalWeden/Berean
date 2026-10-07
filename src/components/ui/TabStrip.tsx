@@ -61,7 +61,9 @@ export function TabStrip<K extends string = string>({ items, value, onChange, on
       onKeyDown={roving}
       className={cx(
         'no-drag min-w-0',
-        vertical ? 'flex flex-col gap-px px-2' : variant === 'segmented' ? 'inline-flex items-stretch p-0.5 rounded-card bg-control shadow-[inset_0_0_0_1px_var(--control-border)]' : 'flex items-stretch gap-0.5',
+        // inspector: ONE capsule control (track + sliding thumb, like the system's segmented control)
+        // — not loose pills (TEST 2026-10-05: "Notes | Lexicon | Cross Refs" read as web tabs).
+        vertical ? 'flex flex-col gap-px px-2' : variant === 'segmented' ? 'inline-flex items-stretch p-0.5 rounded-card bg-control shadow-[inset_0_0_0_1px_var(--control-border)]' : 'flex items-stretch p-0.5 rounded-control bg-control shadow-[inset_0_0_0_1px_var(--control-border)]',
         className,
       )}
     >
@@ -75,7 +77,7 @@ export function TabStrip<K extends string = string>({ items, value, onChange, on
                 layoutId={pillId}
                 transition={SPRING_SNAPPY}
                 aria-hidden
-                className={cx('absolute inset-0 pointer-events-none', vertical ? 'rounded-control-md bg-accent-muted' : 'rounded-control-md bg-control-selected', variant === 'segmented' && 'border border-hairline shadow-1')}
+                className={cx('absolute inset-0 pointer-events-none', vertical ? 'rounded-control-md bg-accent-muted' : variant === 'inspector' ? 'rounded-control bg-control-selected border border-hairline shadow-1' : 'rounded-control-md bg-control-selected', variant === 'segmented' && 'border border-hairline shadow-1')}
               />
             )}
             <button

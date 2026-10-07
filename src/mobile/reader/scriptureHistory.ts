@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
+import { decideTypedEntry, TYPING_SETTLE_MS } from '@/lib/search/typingHistory'
+export { TYPING_SETTLE_MS }
 
 /**
  * Scripture-picker search history (PICKER-SEARCH): a small localStorage-backed recency list of
@@ -17,6 +19,8 @@ const MAX_ENTRIES = 40
 export interface PickerSearchEntry {
   id: string
   ts: number
+  /** Submitted / a result opened — never replaced by later typing (src/lib/search/typingHistory.ts). */
+  final?: boolean
   /** 'strongs' — a Strong's-number query ("H7225"); 'text' — a free-text verse search. */
   kind: 'text' | 'strongs'
   query: string
@@ -49,14 +53,22 @@ function write(entries: PickerSearchEntry[]): void {
   listeners.forEach((l) => l())
 }
 
-/** Record a search run inside the picker; a repeat of the same (kind, query) just moves to the
- *  front instead of duplicating. No-ops on an empty query. */
-export function recordPickerSearch(kind: 'text' | 'strongs', query: string): void {
+/**
+ * Record a search run inside the picker. Records SEARCHES, not keystrokes: a provisional entry
+ * (typing paused) is replaced while the same query keeps being typed; `final` (a result opened or
+ * the search submitted) seals it. Separate deliberate searches — even of the same words — stay
+ * separate events (the list is event-based, newest first). No-ops on an empty query.
+ */
+export function recordPickerSearch(kind: 'text' | 'strongs', query: string, opts: { final?: boolean; now?: number } = {}): void {
   const q = query.trim()
-  if (!q) return
-  const ts = Date.now()
-  const rest = read().filter((e) => !(e.kind === kind && e.query.toLowerCase() === q.toLowerCase()))
-  write([{ id: `${kind}:${q.toLowerCase()}:${ts}`, ts, kind, query: q }, ...rest].slice(0, MAX_ENTRIES))
+  const now = opts.now ?? Date.now()
+  const list = read()
+  const last = list[0]
+  const decision = decideTypedEntry(last && last.kind === kind ? last : undefined, q, now, !!opts.final)
+  if (decision === 'ignore') return
+  if (decision === 'finalize') { write([{ ...last!, final: true, ts: now }, ...list.slice(1)]); return }
+  const entry: PickerSearchEntry = { id: `${kind}:${q.toLowerCase()}:${now}`, ts: now, kind, query: q, ...(opts.final ? { final: true } : {}) }
+  write(decision === 'replace' ? [entry, ...list.slice(1)] : [entry, ...list].slice(0, MAX_ENTRIES))
 }
 
 export function clearPickerSearchHistory(): void { write([]) }

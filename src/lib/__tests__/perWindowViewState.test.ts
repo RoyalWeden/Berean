@@ -54,3 +54,31 @@ describe('perWindowViewState', () => {
     Object.defineProperty(window, 'location', { value: { ...window.location, search: orig }, writable: true })
   })
 })
+
+describe('iPhone workspace restore (TEST 2026-10-03 "doesn\'t remember what workspace I had open")', () => {
+  it('restores the last workspace AND its active tabs on relaunch', () => {
+    const s = useAppStore.getState()
+    const tabsB = { ...s.tabs, notes: [{ id: 'n-b', spaceId: 'notes', type: 'note', title: 'B note', state: {} } as never] }
+    useAppStore.setState({ sessions: [...s.sessions.filter((x) => x.id !== 'ws-b'), { id: 'ws-b', name: 'Workspace B', tabs: tabsB, activeTabId: { ...s.activeTabId, notes: 'n-b' }, createdAt: 0 } as never] })
+    localStorage.setItem(KEY, JSON.stringify({ currentSessionId: 'ws-b', activeSpace: 'notes', activeTabId: { scripture: null, notes: 'n-b', lexicon: null, youtube: null, search: null } }))
+    teardown = initPerWindowViewState()
+    const after = useAppStore.getState()
+    expect(after.currentSessionId).toBe('ws-b')
+    expect(after.activeSpace).toBe('notes')
+    expect(after.activeTabId.notes).toBe('n-b')
+  })
+
+  it('saves immediately when the app is backgrounded (iOS may kill a suspended app)', () => {
+    teardown = initPerWindowViewState()
+    useAppStore.getState().setActiveSpace('search')
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    expect(JSON.parse(localStorage.getItem(KEY) ?? '{}').activeSpace).toBe('search')
+  })
+
+  it('corrupted saved state keeps the defaults', () => {
+    localStorage.setItem(KEY, '{not json')
+    expect(() => { teardown = initPerWindowViewState() }).not.toThrow()
+  })
+})

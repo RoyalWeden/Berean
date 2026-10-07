@@ -28,16 +28,21 @@ export const readerScrollMemory = {
 export function captureReaderAnchor(scrollEl: HTMLElement): ReaderAnchor | null {
   const top = scrollEl.getBoundingClientRect().top
   const rows = scrollEl.querySelectorAll<HTMLElement>('[data-verse-row]')
-  for (const row of rows) {
-    const r = row.getBoundingClientRect()
-    if (r.bottom > top + 1) {
-      const chapter = Number(row.dataset.chapter)
-      const verse = Number(row.dataset.verse)
-      if (!chapter || !verse) return null
-      return { chapter, verse, offset: r.top - top }
-    }
+  // Rows are laid out top-to-bottom in document order, so the first row whose bottom is below
+  // the viewport top is found by BINARY SEARCH — ~log2(n) layout reads per scroll frame instead
+  // of one per verse above the viewport (perf pass 2026-10-05: in continuous scroll that was
+  // hundreds of getBoundingClientRect calls every frame, deep in a long book).
+  let lo = 0, hi = rows.length - 1, hit = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (rows[mid].getBoundingClientRect().bottom > top + 1) { hit = mid; hi = mid - 1 } else lo = mid + 1
   }
-  return null
+  if (hit < 0) return null
+  const row = rows[hit]
+  const chapter = Number(row.dataset.chapter)
+  const verse = Number(row.dataset.verse)
+  if (!chapter || !verse) return null
+  return { chapter, verse, offset: row.getBoundingClientRect().top - top }
 }
 
 /** Scroll `scrollEl` so the anchor's verse sits where it was. False when that verse isn't rendered

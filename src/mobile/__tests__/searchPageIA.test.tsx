@@ -14,6 +14,7 @@ vi.mock('../commands/caretRegistry', () => ({ useCaretCommands: () => {} }))
 vi.mock('../primitives/haptics', () => ({ haptic: new Proxy({}, { get: () => () => Promise.resolve() }) }))
 vi.mock('../history/HistoryPage', () => ({ HistoryView: () => null }))
 import { SearchPage } from '../search/SearchPage'
+import { _popoverState, closePopoverMenu } from '../primitives/PopoverMenu'
 import { useAppStore } from '@/store'
 
 let root: Root; let host: HTMLDivElement
@@ -39,8 +40,16 @@ describe('Search tab information architecture', () => {
     const chips = [...host.querySelectorAll('.mobile-search-chip')].map((c) => c.getAttribute('aria-label'))
     expect(chips).toEqual(['Match: All words', 'Text: All texts', expect.stringMatching(/^Books: /), 'Tags: Tags', 'Sort: Best match'])
     expect(host.querySelector('.mobile-search-filters-button')).toBeNull()
+    // A quick single choice is an anchored popover menu (TEST 2026-10-03), the current one checked.
     act(() => (host.querySelector('[aria-label="Sort: Best match"]') as HTMLButtonElement).click())
-    expect(sheetOpen).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sort' }))
+    const menu = _popoverState()!
+    expect(menu.actions.map((a) => a.label)).toEqual(['Best match first', 'Bible order', 'Reverse Bible order'])
+    expect(menu.actions.find((a) => a.checked)?.id).toBe('relevance')
+    expect(sheetOpen).not.toHaveBeenCalled()
+    closePopoverMenu()
+    // Books (a long multi-select list) stays a sheet.
+    act(() => (host.querySelector('[aria-label^="Books:"]') as HTMLButtonElement).click())
+    expect(sheetOpen).toHaveBeenCalledWith(expect.objectContaining({ title: 'Books' }))
   })
   it('Notes: only the match chip; Lexicon: no chips', () => {
     renderScope('notes')
@@ -51,8 +60,7 @@ describe('Search tab information architecture', () => {
   it('the "…" overflow holds History (tertiary)', () => {
     renderScope('scripture')
     act(() => (host.querySelector('[aria-label="More search options"]') as HTMLButtonElement).click())
-    expect(actionSheet).toHaveBeenCalled()
-    const items = actionSheet.mock.calls[0][2] as Array<{ id: string }>
-    expect(items.map((i) => i.id)).toContain('history')
+    expect(_popoverState()?.actions.map((i) => i.id)).toContain('history')
+    closePopoverMenu()
   })
 })

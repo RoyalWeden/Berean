@@ -1,6 +1,7 @@
 import { useAppStore } from '@/store'
 import type { SearchTabState, TabNavEntry } from '@/types'
 import { DEFAULT_SEARCH_FILTERS, type SearchFilterState, type SearchScope } from './searchFilters'
+import { decideTypedEntry, type TypedEntry } from '@/lib/search/typingHistory'
 
 /**
  * Per-tab history for Search and Settings tabs (SEP25). A step is a generic `state` snapshot the
@@ -67,15 +68,49 @@ const committed = new Map<string, SearchSnapshot>()
  * when nothing was recorded yet — it also seeds an empty history). The result-list scroll is
  * stamped into the step being left. Returns true when a step was recorded.
  */
-export function commitSearchStep(tabId: string, before: SearchSnapshot, after: SearchSnapshot): boolean {
+export function commitSearchStep(tabId: string, before: SearchSnapshot, after: SearchSnapshot, opts: { submitted?: boolean; now?: number } = {}): boolean {
   const last = committed.get(tabId) ?? before
-  if (searchSnapshotKey(after) === searchSnapshotKey(last)) return false
-  if (useAppStore.getState().isNavJumping) { committed.set(tabId, after); return false }
+  const now = opts.now ?? Date.now()
+  if (searchSnapshotKey(after) === searchSnapshotKey(last)) {
+    // Submitting the query that typing already recorded seals it (no duplicate step).
+    const t = typed.get(tabId)
+    if (opts.submitted && t) typed.set(tabId, { ...t, final: true })
+    return false
+  }
+  if (useAppStore.getState().isNavJumping) { committed.set(tabId, after); typed.delete(tabId); return false }
   committed.set(tabId, after)
+  // Still typing the same query (only the query changed, continuing / backspacing the provisional
+  // step): REPLACE that step instead of adding one per pause (TEST 2026-10-03 "go", "good", …).
+  const onlyQuery = searchSnapshotKey({ ...after, query: last.query }) === searchSnapshotKey(last)
+  const decision = onlyQuery ? decideTypedEntry(typed.get(tabId), after.query, now, !!opts.submitted) : 'append'
+  typed.set(tabId, { query: after.query, ts: now, final: !!opts.submitted })
+  if (decision === 'ignore') return false
+  if (decision === 'replace' || decision === 'finalize') {
+    const cur = useAppStore.getState().tabNavStacks[tabId]
+    if (cur && cur.stack[cur.idx]) {
+      replaceCurrentStep(tabId, searchStep(after))
+      return true
+    }
+  }
   const scrollTop = (useAppStore.getState().tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined)?.scrollTop
   if (scrollTop !== undefined) stampCurrentStep(tabId, { scrollTop })
   recordTabStep(tabId, searchStep(last), searchStep(after))
   return true
+}
+
+/** The provisional / final query each Search tab last recorded (typing-aware history). */
+const typed = new Map<string, TypedEntry>()
+
+/** Overwrite the CURRENT step (same position, new content) — used while a query is still being typed. */
+function replaceCurrentStep(tabId: string, step: NavStep): void {
+  useAppStore.setState((s) => {
+    const cur = s.tabNavStacks[tabId]
+    const top = cur?.stack[cur.idx]
+    if (!cur || !top) return {}
+    const stack = cur.stack.slice()
+    stack[cur.idx] = { ...top, ...step, id: top.id }
+    return { tabNavStacks: { ...s.tabNavStacks, [tabId]: { ...cur, stack } } }
+  })
 }
 
 /** This snapshot is now the recorded one (tab mount, or a restore landed on it) — no step. */
@@ -90,4 +125,4 @@ export function isSearchCommitted(tabId: string, s: SearchSnapshot): boolean {
 }
 
 /** Tests only. */
-export function _resetSearchCommitted(): void { committed.clear() }
+export function _resetSearchCommitted(): void { committed.clear(); typed.clear() }

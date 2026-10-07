@@ -1,3 +1,7 @@
+import { useReadingAnchor } from '@/hooks/useReadingAnchor'
+import { searchNavEntry } from '@/lib/searchNav'
+import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
+import { inspectorShouldReflow, inspectorReserve, maxInspectorWidth, clampInspectorWidth, snapInspectorWidth, INSPECTOR_STANDARD_WIDTH } from '@/lib/inspectorLayout'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react'
 import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2, Tag as TagIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -70,6 +74,7 @@ const BOTTOM_PANEL_HEIGHT_LAYOUTS = new Set<ScriptureLayout>(['panel-bottom', 'n
  *  been resized — an existing tab keeps its persisted `rightPanelWidth`. */
 const DEFAULT_RIGHT_PANEL_WIDTH = 320
 
+
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
   // ActivePanel now keeps this panel mounted while another space is on screen (so a
   // switch back is a display flip, not a teardown of the whole verse tree + refetch).
@@ -90,8 +95,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Inspector yield rule: below 1100px the attached inspector reverts to an absolute overlay
   // (no reflow) so Scripture keeps the full width — narrow windows can't afford to give up
   // reading width to a 260-420px attached pane.
+  // (Refined 2026-10-03: decided from the width Scripture would actually KEEP — window minus the
+  // sidebar minus the inspector — not the window alone; see `inspectorReflow` below.)
   const windowWidth = useAppStore((s) => s.windowWidth)
-  const inspectorReflow = windowWidth >= 1100
+  const sidebarSpace = useAppStore((s) => (s.sidebarCollapsed ? 0 : s.sidebarWidth))
+  const scriptureHostRef = useRef<HTMLDivElement>(null)
   // Whether the floating Read Aloud player is currently showing (it's global — shown for ANY
   // playing chapter, not just this tab's) — used to reserve extra bottom scroll room so the
   // player's card doesn't sit on top of the last verse with no way to scroll past it.
@@ -2586,14 +2594,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         rafId = null
         if (!resizeRef.current) return
         const delta = resizeRef.current.startX - latestX
-        setRightPanelWidth(Math.max(260, Math.min(420, resizeRef.current.startWidth + delta)))
+        setRightPanelWidth(snapInspectorWidth(resizeRef.current.startWidth + delta, maxInspectorWidth(windowWidth - sidebarSpace)))
       })
     }
     function onUp(e: MouseEvent) {
       if (!resizeRef.current) return
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
       const delta = resizeRef.current.startX - e.clientX
-      const finalWidth = Math.max(260, Math.min(420, resizeRef.current.startWidth + delta))
+      const finalWidth = snapInspectorWidth(resizeRef.current.startWidth + delta, maxInspectorWidth(windowWidth - sidebarSpace))
       setRightPanelWidth(finalWidth)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalWidth })
       resizeRef.current = null
@@ -2947,6 +2955,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }, 450)
   }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the reader's place when the text re-wraps (side panel opened / resized, window resized).
+  // Above every early return (the search tab below returns early — hooks must run in the same order).
+  useReadingAnchor(scriptureHostRef, currentLayout === 'standard' && !tabState.compareMode && !tabState.searchMode)
+
   // ── Dedicated search tab — render ONLY ScriptureSearchView (no toolbar) ──────
   if (tabState.searchMode) {
     const isDedicatedSearchTab = activeTab?.id === 'scripture-search-dedicated'
@@ -2962,7 +2974,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // it — it just keeps showing whichever tab's query happened to be there first. Keying
           // on the tab id forces a real remount on tab switch, so each Advanced Search tab
           // starts from its own persisted state again.
-          key={activeTab?.id}
+          key={`${activeTab?.id}:${tabState.searchRestoreSeq ?? 0}`}
           floating={floating}
           initialQuery={tabState.scriptureSearchQuery}
           persistedState={{
@@ -2976,6 +2988,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             scrollAnchor: tabState.searchScrollAnchor,
             tagFilter: tabState.searchTagFilter,
             tagFilterAll: tabState.searchTagFilterAll,
+          }}
+          onSearchSubmitted={(s) => {
+            // One history step per SUBMITTED search in this tab (good tidings → gospel → peace
+            // are three steps; a repeat after something else is a new step).
+            if (s.query) recordSubmittedSearch(s.query)
+            if (activeTab && s.query) useAppStore.getState().pushTabNav(activeTab.id, searchNavEntry(s.query, {
+              searchTextId: s.textId, searchWordMode: s.wordMode, searchTestamentFilter: s.testamentFilter,
+              searchBookFilter: s.bookFilter, searchSortMode: s.sortMode, searchTagFilter: s.tagFilter, searchTagFilterAll: s.tagFilterAll,
+            }))
           }}
           onStateChange={(s) => {
             if (activeTab) {
@@ -3053,7 +3074,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             // these search results (with the query restored) instead of
             // skipping straight past it to whatever was open before the search.
             if (savedQuery) {
-              useAppStore.getState().pushTabNav(activeTab.id, { type: 'bible', title: `Search: "${savedQuery}"`, query: savedQuery })
+              useAppStore.getState().pushTabNav(activeTab.id, searchNavEntry(savedQuery, {
+                searchTextId: tabState.searchTextId, searchWordMode: tabState.searchWordMode, searchTestamentFilter: tabState.searchTestamentFilter,
+                searchBookFilter: tabState.searchBookFilter, searchSortMode: tabState.searchSortMode, searchTagFilter: tabState.searchTagFilter, searchTagFilterAll: tabState.searchTagFilterAll,
+              }))
             }
             // Navigate within this tab (search → reader), preserving search state for back button
             updateTabState('scripture', activeTab.id, {
@@ -3141,7 +3165,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={panelRootRef}
-      className="relative flex flex-col h-full bg-surface-3"
+      className="berean-scripture-pane relative flex flex-col h-full bg-surface-3"
       onMouseDown={() => setActivePanelId('bible')}
     >
       {/* Reference bar. Floating only: pulled OUT of normal flex flow (`absolute`, layered via
@@ -3540,7 +3564,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             bottom: BOTTOM_PANEL_HEIGHT_LAYOUTS.has(currentLayout)
               ? (currentLayout === 'split-bottom'
                   ? Math.max(120, Math.min(520, bottomPanelHeight))
-                  : Math.max(260, Math.min(420, rightPanelWidth))) + 24
+                  : clampInspectorWidth(rightPanelWidth)) + 24
               : 64,
           }}
         >
@@ -3924,8 +3948,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         orientation="vertical"
         active={isResizingPanel}
         onMouseDown={handleResizeMouseDown}
-        onReset={() => { setRightPanelWidth(300); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: 300 }) }}
-        onNudge={(d) => { const w = Math.max(260, Math.min(420, rightPanelWidth - d)); setRightPanelWidth(w); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: w }) }}
+        onReset={() => { setRightPanelWidth(INSPECTOR_STANDARD_WIDTH); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: INSPECTOR_STANDARD_WIDTH }) }}
+        onNudge={(d) => { const w = clampInspectorWidth(rightPanelWidth - d); setRightPanelWidth(w); if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: w }) }}
         label="Resize inspector"
       />
     )
@@ -3938,11 +3962,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // case's motion.div below) tracks the gesture. Shared by every layout case
     // below since panelSize is computed once here, not per-case. Clamp matches the
     // attached-inspector width band (260-420) — see COMMON.md's design-pass rules.
-    const panelSize = Math.max(260, Math.min(420, rightPanelWidth))
+    const panelSize = clampInspectorWidth(rightPanelWidth)
     // Total width the attached inspector (hairline + slot(s), no outer margin — see
     // material-inspector below) actually occupies, for both the panel wrapper's own size and
     // the scripture view's reflowed right inset.
     const panelWrapperWidth = (rightPanelSlotB ? panelSize * 2 : panelSize) + 14
+    // Inspector yield rule: attach (reflow) while Scripture keeps a comfortable reading width beside
+    // the inspector; otherwise it floats over Scripture as an overlay. A 1050px window with the
+    // sidebar hidden reflows; a 900px window with the sidebar open overlays.
+    // Decided at the STANDARD width, so dragging the panel wider never flips an attached panel into
+    // a floating one over the text (the drag is capped instead — see maxInspectorWidth).
+    const inspectorReflow = inspectorShouldReflow(windowWidth, sidebarSpace, (rightPanelSlotB ? INSPECTOR_STANDARD_WIDTH * 2 : INSPECTOR_STANDARD_WIDTH) + 14)
     // For the bottom-docked panel layouts below (panel-bottom/notes-bottom/notes-top/
     // compare-notes) — was using `panelSize` (derived from rightPanelWidth) as a HEIGHT purely
     // because it happened to produce a visually reasonable number, while the divider that
@@ -3987,12 +4017,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // own comment). Only wired up for this 'standard' layout — the one case
           // whose container is a simple position:absolute area a listener can cover
           // without disturbing the flex-based layouts every other case relies on.
-          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
+          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}
+            style={{ '--inspector-reserve': `${inspectorReflow ? inspectorReserve(windowWidth - sidebarSpace, panelWrapperWidth) : 0}px` } as React.CSSProperties}>
             <div
-              className="absolute inset-y-0 left-0 overflow-hidden flex flex-col min-h-0"
+              ref={scriptureHostRef}
+              className={`absolute inset-y-0 left-0 overflow-hidden flex flex-col min-h-0${inspectorReflow && rightPanelOpen ? ' berean-inspector-attached' : ''}`}
               style={{
+                // No transition: animating `right` re-wrapped every verse on every frame. The
+                // reading column is left-anchored with pane-relative (cqi) margins, so a change
+                // here moves nothing unless the measure no longer fits — then it narrows once.
                 right: inspectorReflow && rightPanelOpen ? panelWrapperWidth : 0,
-                transition: 'right 0.18s ease-out',
               }}
             >{scriptureView}</div>
             <AnimatePresence initial={false}>

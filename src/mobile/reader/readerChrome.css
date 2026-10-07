@@ -7,9 +7,16 @@
 /* The band behind the pill (SEP24-005): an OPAQUE surface from the top edge down to the pill's
    bottom, then a short fade — never a blur, so nothing blurred sits next to the black cutout
    shape; scrolled text passes under the band, not behind the pill's edges. */
-.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--m-safe-top) + 24px); background: var(--scripture-bg, rgb(var(--color-surface-1))); z-index: 6; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent); }
-html[data-cutout="none"] .mobile-compact-band { height: calc(var(--m-safe-top) + 30px); }
+/* TEST 2026-10-03 ("the top has a background that makes things not look floating"): no opaque slab.
+   A soft scrim in the page colour — strongest behind the clock / island, clear just below — keeps
+   the status bar legible while the text visibly passes beneath the floating controls. */
+.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--m-safe-top) + 34px); z-index: 6; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  background: linear-gradient(to bottom,
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.97) 0,
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.97) calc(var(--m-safe-top) - 12px),
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.8) var(--m-safe-top),
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0) 100%); }
+html[data-cutout="none"] .mobile-compact-band { height: calc(var(--m-safe-top) + 36px); }
 .mobile-compact-band.is-visible { opacity: 1; }
 .mobile-compact-pill { position: fixed; left: 50%; z-index: 7; display: flex; align-items: flex-end; justify-content: center; border: 0; padding: 0 14px 5px; background: #000; color: #fff;
   font: inherit; font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25)); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
@@ -83,10 +90,16 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
 .mobile-page.is-scripture-chrome { position: relative; --m-reader-top: calc(var(--m-safe-top) + var(--m-header-h)); }
 .mobile-page.is-scripture-chrome > .mobile-page-header {
   position: absolute; top: 0; left: 0; right: 0; z-index: 5; border-bottom: 0; pointer-events: none;
+  /* iOS 26 SOFT SCROLL EDGE, not a slab (TEST 2026-10-03 / 2026-10-05): solid under the status bar,
+     then the text FADES through the control row instead of running at full contrast beside the
+     glass (verses collided with the grid button). A tint ramp, never a blur — no blurred halo by
+     the island. Ends a few px under the controls, so reading starts in clear text. */
   background: linear-gradient(to bottom,
-    var(--scripture-bg, rgb(var(--color-surface-1))) 0,
-    var(--scripture-bg, rgb(var(--color-surface-1))) var(--m-safe-top),
-    transparent calc(var(--m-safe-top) + 12px));
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1))) 0,
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1))) calc(var(--m-safe-top) - 8px),
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.86) calc(var(--m-safe-top) + var(--m-header-h) * 0.45),
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.55) calc(var(--m-safe-top) + var(--m-header-h) * 0.8),
+    rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0) calc(var(--m-safe-top) + var(--m-header-h) + 6px));
   -webkit-backdrop-filter: none; backdrop-filter: none;
   transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -106,8 +119,6 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
 .mobile-page.is-scripture-chrome .mobile-title-button { padding: 0 18px; border-radius: calc(var(--m-control) / 2); font-size: calc(16px * var(--m-type-scale, 1)); gap: 7px; }
 .mobile-page.is-scripture-chrome .mobile-title-button svg { color: rgb(var(--color-accent)); }
 .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap { width: var(--m-control); border-radius: calc(var(--m-control) / 2); }
-.mobile-page.is-scripture-chrome .mobile-title-button:active,
-.mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap:active { transform: scale(0.97); }
 html.scheme-dark .mobile-page.is-scripture-chrome .mobile-title-button,
 html.scheme-dark .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
   background: rgb(var(--color-surface-3) / 0.55); border-color: rgb(255 255 255 / 0.1);

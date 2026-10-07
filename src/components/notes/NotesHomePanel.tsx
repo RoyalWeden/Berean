@@ -146,8 +146,9 @@ export default function NotesHomePanel({
                 {note.title?.trim() || 'Untitled'}
               </div>
             </div>
-            <Button variant="primary" size="sm" icon={ExternalLink} iconTrailing onClick={() => onOpen(note)}>
-              Open in editor
+            {/* Secondary, not a filled primary pill — the preview's main gesture is double-click. */}
+            <Button variant="secondary" size="sm" onClick={() => onOpen(note)}>
+              Open
             </Button>
             <ControlGroup>
               <IconButton icon={Printer} label="Print / export PDF" size={28} onClick={() => onPrint(note)} />

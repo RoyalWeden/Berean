@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { haptic } from '../primitives/haptics'
 import { ChevronDown } from 'lucide-react'
 
 /**
@@ -14,7 +15,7 @@ export function Segmented({ value, options, onChange, full, label }: { value: st
   return (
     <div className={`mobile-segmented${full ? ' is-full' : ''}`} role="radiogroup" aria-label={label}>
       {options.map(([v, label]) => (
-        <button key={v} type="button" role="radio" aria-checked={v === value} className={v === value ? 'is-on' : ''} onClick={() => onChange(v)}>{label}</button>
+        <button key={v} type="button" role="radio" aria-checked={v === value} className={v === value ? 'is-on' : ''} onClick={() => { if (v !== value) { void haptic.select(); onChange(v) } }}>{label}</button>
       ))}
     </div>
   )
@@ -23,16 +24,16 @@ export function Segmented({ value, options, onChange, full, label }: { value: st
 export function Stepper({ value, min, max, onChange, label }: { value: number; min: number; max: number; onChange: (v: number) => void; label?: string }) {
   return (
     <div className="mobile-stepper">
-      <button type="button" aria-label="Smaller" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+      <button type="button" aria-label="Smaller" disabled={value <= min} onClick={() => { void haptic.select(); onChange(Math.max(min, value - 1)) }}>−</button>
       <span aria-live="polite">{value}{label ? ` ${label}` : ''}</span>
-      <button type="button" aria-label="Larger" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+      <button type="button" aria-label="Larger" disabled={value >= max} onClick={() => { void haptic.select(); onChange(Math.min(max, value + 1)) }}>+</button>
     </div>
   )
 }
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`mobile-toggle${checked ? ' is-on' : ''}`} onClick={() => onChange(!checked)}>
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`mobile-toggle${checked ? ' is-on' : ''}`} onClick={() => { void haptic.select(); onChange(!checked) }}>
       <span className="mobile-toggle-knob" />
     </button>
   )

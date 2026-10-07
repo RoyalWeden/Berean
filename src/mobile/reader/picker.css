@@ -9,7 +9,6 @@
 /* History toggle (PICKER-SEARCH) — a glass circle at the end of the search field; it reads as
    "top-right of the sheet" since the search field is the first thing every view renders. */
 .m-pp-history-toggle { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 0; padding: 0; border-radius: 16px; border: 0.5px solid var(--m-hairline); background: var(--m-glass-control); color: rgb(var(--color-text-muted)); }
-.m-pp-history-toggle:active { background: var(--m-glass-control-pressed); }
 .m-pp-history-toggle.is-on { background: rgb(var(--color-accent)); color: white; border-color: transparent; }
 
 .m-pp-history-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 4px 6px 14px; }

@@ -1678,7 +1678,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </span>
         </TabHeaderPortal>
         <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0" zone="actions">
-          <OverflowGroup
+          <div data-overflow-fill className="flex flex-1 min-w-0 justify-end">
+          <OverflowGroup className="justify-end"
             label="More"
             extraItems={[
               ...(playerReady && !videoEnded ? [
@@ -1777,6 +1778,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               </OverflowSection>
             )}
           </OverflowGroup>
+          </div>
         </TabHeaderPortal>
 
         {/* ── Layout container: wraps video column + optional secondary panels ─ */}
@@ -2174,7 +2176,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         />
       </TabHeaderPortal>
       <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} zone="actions">
-      <OverflowGroup label="More filters">
+      {/* data-overflow-fill: this row takes the toolbar's remaining width so it folds (global.css). */}
+      <div data-overflow-fill className="flex flex-1 min-w-0 justify-end">
+      <OverflowGroup label="More filters" className="justify-end">
         {/* Search scope — only shown while searching: Title / Transcript / Both */}
         {search && (
           <SegmentedControl
@@ -2485,6 +2489,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </div>
         )}
       </OverflowGroup>
+      </div>
       </TabHeaderPortal>
 
       {/* Progress bar — only shown while a sync is actively running (total > 0) */}

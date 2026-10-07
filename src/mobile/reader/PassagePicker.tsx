@@ -14,7 +14,7 @@ import {
 } from '@/lib/passageDestinations'
 import { runScriptureSearch, runStrongsSearch, type ScriptureHit } from '@/lib/scriptureSearch'
 import { TextSearchResults, PickerHistoryView } from './PickerSearchResults'
-import { recordPickerSearch, useScriptureHistoryRows, type ScriptureHistoryRow } from './scriptureHistory'
+import { recordPickerSearch, useScriptureHistoryRows, TYPING_SETTLE_MS, type ScriptureHistoryRow } from './scriptureHistory'
 import { historyDestination } from '@/lib/navigation/historyDestination'
 import './picker.css'
 
@@ -338,16 +338,19 @@ function PickerSearch({ textId, bookId, placeholder, children }: { textId: strin
         if (!alive) return
         if (strongsFound) {
           setStrongsHits(strongsFound)
-          if (strongsFound.length) recordPickerSearch('strongs', q)
+          if (strongsFound.length) settle = setTimeout(() => recordPickerSearch('strongs', q), TYPING_SETTLE_MS)
           return
         }
         const hits = await runScriptureSearch(q, { textId, wordMode: 'all', wordReplacerEnabled, wordReplacerRules }).catch(() => [] as ScriptureHit[])
         if (!alive) return
         setTextHits(hits)
-        if (hits.length) recordPickerSearch('text', q)
+        // History records the search once typing has really paused — provisional, replaced while
+        // the same words keep being typed (src/lib/search/typingHistory.ts), sealed on open.
+        if (hits.length) settle = setTimeout(() => recordPickerSearch('text', q), TYPING_SETTLE_MS)
       })()
     }, 300)
-    return () => { alive = false; clearTimeout(t) }
+    let settle: ReturnType<typeof setTimeout> | undefined
+    return () => { alive = false; clearTimeout(t); if (settle) clearTimeout(settle) }
   }, [query, textId, wordReplacerEnabled, wordReplacerRules])
 
   const historyRows = useScriptureHistoryRows()
@@ -368,7 +371,13 @@ function PickerSearch({ textId, bookId, placeholder, children }: { textId: strin
     const c = PASSAGE_COLLECTIONS.find((x) => x.textId === d.textId && x.group === d.group)
     push(collectionView(c ?? { textId: d.textId, group: d.group, short: d.label }))
   }
-  const pickHit = (h: ScriptureHit) => { void haptic.selection(); pick({ textId: h.textId, bookId: h.book_id, chapter: h.chapter, verse: h.verse_num }) }
+  const pickHit = (h: ScriptureHit) => {
+    void haptic.selection()
+    // Opening a result makes the search a real (final) history event.
+    const q = query.trim()
+    if (q) recordPickerSearch(/^[HG]\d+/i.test(q) ? 'strongs' : 'text', q, { final: true })
+    pick({ textId: h.textId, bookId: h.book_id, chapter: h.chapter, verse: h.verse_num })
+  }
   const q = query.trim()
   const anyDestinations = results.length > 0
   const anyStrongs = !!strongsHits?.length

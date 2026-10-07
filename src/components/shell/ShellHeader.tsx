@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
+import { SessionSwitcher } from './SessionSwitcher'
 import { createPortal } from 'react-dom'
 import {
   ArrowLeft, ArrowRight, History, PanelLeft, Home, NotepadText, BookMarked, FileType, ScrollText, Youtube,
   Download, RotateCcw,
 } from 'lucide-react'
 import ShortcutKeys from './ShortcutKeys'
-import { useAppStore } from '@/store'
+import { useAppStore, noteFocusModeActive } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { CLOSE_CONTEXT_MENUS_EVENT, MenuPositioner } from '@/lib/usePositionedMenu'
 import { getAllNotes } from '@/lib/notesCache'
@@ -41,10 +42,10 @@ const NAV_TYPE_ICON: Record<string, typeof NotepadText> = {
  */
 export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement | null) => void }) {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
+  const isVibrantWindow = typeof document !== 'undefined' && document.documentElement.dataset.vibrant !== undefined
   const toggleSidebar    = useAppStore((s) => s.toggleSidebar)
-  const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
   const activeTabId  = useAppStore((s) => s.activeTabId[s.activeSpace])
-  const noteFocusMode = noteFocusModeTabId !== null && noteFocusModeTabId === activeTabId
+  const noteFocusMode = useAppStore(noteFocusModeActive)
   // Derive currentTab/originTab inside the selector itself (rather than subscribing to the whole
   // `s.tabs` record) — originTab's space is dynamic (whatever the tab's originSpaceId says), so
   // there's no single fixed space to narrow to ahead of time. Computing both objects in the
@@ -99,6 +100,25 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   // listener bypasses that entirely: native DOM events bubble along the real DOM tree, which does
   // contain the portaled content, so blank space anywhere under this bar now drags correctly.
   const headerRef = useRef<HTMLDivElement>(null)
+  // Scroll edge: the content scroller directly beneath this bar (its top edge at the bar's bottom)
+  // has scrolled. One capture-phase listener for every panel, so no panel has to report it; reset
+  // whenever the active tab changes (the new tab's scroller decides on its next scroll).
+  const [contentScrolled, setContentScrolled] = useState(false)
+  const activeTabKey = useAppStore((s) => `${s.activeSpace}:${s.activeTabId[s.activeSpace] ?? ''}`)
+  useEffect(() => {
+    setContentScrolled(false)
+    const onScroll = (e: Event) => {
+      const el = e.target
+      const bar = headerRef.current
+      if (!(el instanceof HTMLElement) || !bar) return
+      const top = el.getBoundingClientRect().top
+      const barBottom = bar.getBoundingClientRect().bottom
+      if (Math.abs(top - barBottom) > 60) return // not a scroller that sits under the bar
+      setContentScrolled(el.scrollTop > 1)
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [activeTabKey])
   const windowDragRef = useRef<{ lastScreenX: number; lastScreenY: number } | null>(null)
   const noteFocusModeRef = useRef(noteFocusMode)
   noteFocusModeRef.current = noteFocusMode
@@ -258,7 +278,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
         // controls is equal (8/8) and their centre line (26px) is the traffic lights' centre
         // (trafficLightPosition y 20 + 12/2). Before, the Toolbar sat at the top of the taller
         // bar: 4px above the controls, 12px below, and 4px above the traffic-light centre.
-        className="no-drag flex-shrink-0 material-bar flex flex-col justify-center"
+        className="shell-header no-drag flex-shrink-0 material-bar flex flex-col justify-center"
         // No permanent `border-b` — scroll-edge (macOS 26/27's seamless-at-rest toolbar) owns the
         // hairline instead, appearing only once the content beneath has actually scrolled. Full
         // wiring (a `scrolled` boolean driven by a `scrollEdge` store slice, passed to `Toolbar`
@@ -266,9 +286,10 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
         // so nothing regresses to a permanent line, and the inner Toolbar stays `edge="none"`
         // (no `data-scrolled` is ever set, so `[data-scroll-edge="bottom"][data-scrolled]` in
         // global.css never matches — the bar is seamless until that store slice lands).
-        // TODO(scrollEdge store slice): pass `scrolled` through and switch the inner Toolbar to
-        // `edge="auto"`.
+        // Wired (TEST 2026-10-04): `contentScrolled` — whichever content scroller sits directly
+        // under this bar has scrolled — sets data-scrolled, and the hard scroll edge appears.
         data-scroll-edge="bottom"
+        data-scrolled={contentScrolled || undefined}
         // Unconditional on mac (not gated on sidebarCollapsed), and a FULL 76px inset, not the
         // 30px this briefly used — this bar is a single row spanning the entire window width,
         // sitting ABOVE the Ribbon+Sidebar row rather than beside it (App.tsx renders
@@ -291,15 +312,25 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
       >
         <Toolbar size="md" edge="none" material="none" style={{ zoom: appZoom }}>
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* ── Collapse / expand sidebar ── */}
-            <IconButton
-              icon={PanelLeft}
-              label={sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
-              tooltip={{ shortcut: '⌘⇧S' }}
-              size={28}
-              iconClassName={sidebarCollapsed ? 'rotate-180' : undefined}
-              onClick={toggleSidebar}
-            />
+            {/* ── Collapse / expand sidebar ── On the macOS glass window this zone spans the
+                 sidebar pane (its live width), so the toggle sits at the pane's trailing edge and
+                 the navigation group starts in the CONTENT toolbar — never straddling the pane
+                 edge (macOS 26/27 sidebar windows). Collapsed, the zone is 0 wide. ── */}
+            <div className="shell-sidebar-zone flex items-center gap-1">
+              {/* Session (workspace) — heads the navigation cluster: [Session] [Sidebar] [Back…]. */}
+              <SessionSwitcher variant={isVibrantWindow && !sidebarCollapsed ? 'ghost' : undefined} />
+              <IconButton
+                icon={PanelLeft}
+                // Over the glass pane it is a plain icon (no glass-on-glass); collapsed, it sits on
+                // the window ground and keeps its own control surface.
+                variant={isVibrantWindow && !sidebarCollapsed ? 'ghost' : undefined}
+                label={sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+                tooltip={{ shortcut: '⌘⇧S' }}
+                size={28}
+                iconClassName={sidebarCollapsed ? 'rotate-180' : undefined}
+                onClick={toggleSidebar}
+              />
+            </div>
 
             {/* ── Global nav back / forward — joined pill. Pinned here, flush-left, in every
                  sidebar state (see file header comment — this is the functional fix over the
@@ -385,15 +416,15 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                draggable too. No divider between this and the nav pill above — grouping (the
                ControlGroup container itself) already makes the nav cluster legible as one unit;
                a bar-spanning hairline on top of that read as double emphasis. ── */}
-          <div ref={slotRef} className="flex items-center gap-2 min-w-0 flex-shrink" />
+          <div ref={slotRef} className="shell-context-zone flex items-center gap-2 min-w-0 flex-shrink" />
 
           {/* ── Flexible space — pushes the ACTIONS zone to the right, CONTEXT zone to the
                left, macOS toolbar-style. ── */}
-          <div className="flex-1" />
+          <div className="shell-flex-space flex-1" />
 
           {/* ── ACTIONS zone — portal target for the active panel's trailing action group(s)
                (TabHeaderPortal's `zone="actions"`). ── */}
-          <div ref={actionsSlotRef} className="flex items-center gap-2 flex-shrink-0 justify-end" />
+          <div ref={actionsSlotRef} className="shell-actions-zone flex items-center gap-2 flex-shrink-0 justify-end" />
 
           {/* ── Download in progress — same top-bar spot as the button below, shown instead of
                it while a download is running. Fires from the SAME 'downloading' updateStatus

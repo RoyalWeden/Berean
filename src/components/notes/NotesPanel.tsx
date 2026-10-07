@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints } from 'lucide-react'
-import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel, OverflowGroup, OverflowSection } from '@/components/ui'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints, CircleDashed, Type, ListFilter } from 'lucide-react'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel, OverflowGroup, OverflowSection, MenuSub, MenuLabel, Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -16,11 +16,12 @@ import PrintPreviewModal from './PrintPreviewModal'
 import { idiomExportEntries } from '@/lib/idiomsExport'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
-import NoteLookDropdown from './NoteLookDropdown'
-import NoteStatusDropdown from './NoteStatusDropdown'
+import { NOTE_LOOKS } from './NoteLookDropdown'
+import { NoteDocTitle, contentStartsWithTitle, type NoteDocTitleHandle } from './NoteDocTitle'
+import { finalizeActionFor } from '@/lib/notes/finalizeNote'
 import NotesBoardView from './NotesBoardView'
 import FindBar from '@/components/shell/FindBar'
-import { useAppStore } from '@/store'
+import { useAppStore, noteFocusModeActive } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
@@ -108,6 +109,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const bumpNoteEditToken = useAppStore((s) => s.bumpNoteEditToken)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const noteTypingLook = useAppStore((s) => s.noteTypingLook)
+  const noteSidePanelPinned = useAppStore((s) => s.noteSidePanelPinned)
   const setNoteTypingLook = useAppStore((s) => s.setNoteTypingLook)
   const activeTabId = useAppStore((s) => s.activeTabId.notes)
   // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
@@ -719,7 +721,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const noteScrollRAF = useRef<number | null>(null)
   const editorFocusRef = useRef<(() => void) | null>(null)
   const editorCommandsRef = useRef<{ undo: () => void; redo: () => void } | null>(null)
-  const titleInputRef = useRef<HTMLInputElement>(null)
   // The title sits in the shared drag-region header bar. While it's a plain <input>, a
   // mousedown-drag on it can't also move the window (Electron/Chromium can't treat the
   // same element as both an app-drag-region and a text field taking its own mousedown for
@@ -731,8 +732,26 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // firing onClick, making rename unreliable (reported: "it thinks I'm trying to drag the
   // topbar"). Losing this one small strip of drag surface is the trade for renaming
   // actually working — the rest of the header bar stays draggable.
-  const [titleFocused, setTitleFocused] = useState(false)
-  useEffect(() => { setTitleFocused(false) }, [activeNote?.id])
+  // Whether the in-page document title (NoteDocTitle) is on screen — the toolbar shows the small
+  // title only when it is not.
+  const focusMode = useAppStore(noteFocusModeActive)
+  // The large in-page title — not for system / idiom notes (their title is fixed or owned by the
+  // idiom header) nor for a note whose body already opens with `# <title>`.
+  // Decided once per note (and once more when its body first arrives) — never per keystroke:
+  // re-deciding while typing made the title vanish mid-word the moment it matched the body's H1.
+  const activeHasBody = !!activeNote?.content
+  const showDocTitle = useMemo(
+    () => !!activeNote && !isSystemNote(activeNote) && activeNote.type !== 'idiom' && !contentStartsWithTitle(activeNote.content, activeNote.title),
+    [activeNote?.id, activeHasBody], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  // Renaming in the toolbar — for editable notes without a page title (their body opens with
+  // `# <title>`): click the toolbar title to edit it in place.
+  const [toolbarTitleEditing, setToolbarTitleEditing] = useState(false)
+  useEffect(() => { setToolbarTitleEditing(false) }, [activeNote?.id])
+  const [docTitleVisible, setDocTitleVisible] = useState(true)
+  const [formatSlot, setFormatSlot] = useState<HTMLDivElement | null>(null)
+  const [insertSlot, setInsertSlot] = useState<HTMLDivElement | null>(null)
+  const docTitleRef = useRef<NoteDocTitleHandle>(null)
   // Close note-scoped modals/local UI on a tab switch (ActivePanel no longer remounts
   // NotesPanel for same-type tab switches, so these no longer close "for free" via unmount) —
   // without this, a modal left open for the previous tab's note (print preview, version
@@ -1065,22 +1084,51 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // reaching the list/home position (notesHomeToken), not a local button anymore.
   async function goBack() {
     if (!activeNote) return
-    // Keep notes with a title even if the body is empty, and keep idiom notes
-    // that have term/meaning data — only truly blank notes get pruned on leave.
-    const hasTitle = activeNote.title?.trim()
+    // Leaving the note: an abandoned empty note is deleted; an untitled note with content is
+    // named from Settings → Notes → "Untitled notes are named" (src/lib/notes/finalizeNote.ts).
     const hasIdiomData = activeNote.type === 'idiom' && (activeNote.idiomTerm || activeNote.idiomMeaning)
-    if (activeNote.content.trim() === '' && !hasTitle && !hasIdiomData) {
+    const action = hasIdiomData ? { kind: 'none' as const } : finalizeActionFor(activeNote, useAppStore.getState().untitledNoteNameFormat)
+    if (action.kind === 'delete' && !noteShownInAnotherTab(activeNote.id)) {
       await deleteNote(activeNote)
     } else {
+      if (action.kind === 'name') await applyGeneratedTitle(activeNote, action.title)
       snapshotVersion(activeNote, 'auto')   // consolidate a version on leaving the note
     }
     setActiveNote(null)
     setEditorMode('edit')
   }
 
+  /** Another open tab (any space) still shows this note — leaving it here is not leaving it. */
+  function noteShownInAnotherTab(noteId: string): boolean {
+    const st = useAppStore.getState()
+    return (Object.values(st.tabs) as Tab[][]).some((list) => (list ?? []).some((t) => t.id !== notesTabId && t.type === 'note' && (t.state as NoteTabState | undefined)?.noteId === noteId))
+  }
+
+  async function applyGeneratedTitle(note: Note, title: string) {
+    flushPendingSave()
+    await window.notes.updateNote(note.id, { title }).catch(() => {})
+    setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, title } : n)))
+    bumpNoteToken()
+  }
+
+  /** The note this tab is moving AWAY from (opening another note in the same tab). */
+  async function finalizeOutgoing(note: Note) {
+    if (noteShownInAnotherTab(note.id)) return
+    const hasIdiomData = note.type === 'idiom' && (note.idiomTerm || note.idiomMeaning)
+    if (hasIdiomData) return
+    const action = finalizeActionFor(note, useAppStore.getState().untitledNoteNameFormat)
+    if (action.kind === 'name') await applyGeneratedTitle(note, action.title)
+    else if (action.kind === 'delete') {
+      await window.notes.deleteNote(note.id).catch(() => {})
+      setNotes((prev) => prev.filter((n) => n.id !== note.id))
+      bumpNoteToken()
+    }
+  }
+
   function navigateToNote(note: Note) {
     dismissOpenNoteHint()
     if (activeNote && activeNote.id !== note.id) {
+      void finalizeOutgoing(activeNote)     // empty → deleted, untitled with content → named
       snapshotVersion(activeNote, 'auto')   // snapshot the outgoing note
       // Reset scroll for the new note
       lastScrollTopRef.current = 0
@@ -1238,26 +1286,41 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.notes.createNoteVersion(note.id, note.title || '', note.content, kind).catch(() => {})
   }
 
+  // ONE pending save per note carrying every changed field. Title and body used to each start
+  // their own 500ms save on a shared timer, each writing only its own field — so typing a new
+  // title and then going into the body within half a second cancelled the title save and the
+  // rename silently reverted (TEST 2026-10-04: "unable to change some of the note names").
+  const pendingSaveRef = useRef<{ id: string; patch: { title?: string; content?: string }; updated: Note } | null>(null)
+  function flushPendingSave() {
+    const p = pendingSaveRef.current
+    if (!p) return
+    pendingSaveRef.current = null
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    savePendingRef.current = false
+    lastSelfSaveRef.current = { content: p.updated.content, title: p.updated.title }
+    window.notes.updateNote(p.id, p.patch)
+      .then(() => setLastAutosaveAt(Date.now())) // fires the "Saved" flash only on an actual completed save
+      .catch(() => {})
+    setNotes((prev) => prev.map((n) => (n.id === p.id ? p.updated : n)))
+    if (p.patch.content !== undefined) maybeSyncNote(p.id)
+    bumpNoteToken() // so the sidebar / presenter window / other windows refetch the updated note
+  }
+  function queueSave(updated: Note, patch: { title?: string; content?: string }) {
+    if (pendingSaveRef.current && pendingSaveRef.current.id !== updated.id) flushPendingSave()
+    pendingSaveRef.current = { id: updated.id, patch: { ...pendingSaveRef.current?.patch, ...patch }, updated }
+    savePendingRef.current = true
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(flushPendingSave, 500)
+  }
+
   function handleContentChange(content: string) {
     if (!activeNote) return
     const updated = { ...activeNote, content, updatedAt: Date.now() }
     setActiveNote(updated)
     lastLocalEditAtRef.current = Date.now()
-    savePendingRef.current = true
     // Signal meaningful edit (more than 20 chars means the user is actually writing)
     if (content.trim().length > 20) bumpNoteEditToken()
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      savePendingRef.current = false
-      const id = activeNote.id
-      lastSelfSaveRef.current = { content: updated.content, title: updated.title }
-      window.notes.updateNote(id, { content })
-        .then(() => setLastAutosaveAt(Date.now())) // fires the "Saved" flash only on an actual completed save
-        .catch(() => {})
-      setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)))
-      maybeSyncNote(id)
-      bumpNoteToken() // so the presenter window (if open) refetches the updated note
-    }, 500)
+    queueSave(updated, { content })
     // Restart the idle timer; when editing pauses for SNAPSHOT_IDLE_MS, consolidate a version.
     if (snapshotIdleTimer.current) clearTimeout(snapshotIdleTimer.current)
     snapshotIdleTimer.current = setTimeout(() => snapshotVersion({ ...updated }, 'auto'), SNAPSHOT_IDLE_MS)
@@ -1268,17 +1331,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const updated = { ...activeNote, title, updatedAt: Date.now() }
     setActiveNote(updated)
     lastLocalEditAtRef.current = Date.now()
-    savePendingRef.current = true
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      savePendingRef.current = false
-      lastSelfSaveRef.current = { content: updated.content, title: updated.title }
-      window.notes.updateNote(activeNote.id, { title })
-        .then(() => setLastAutosaveAt(Date.now()))
-        .catch(() => {})
-      setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? updated : n)))
-      bumpNoteToken()
-    }, 500)
+    queueSave(updated, { title })
   }
 
   // Set/clear a note's status from the list/folder-view context menu (parity with the
@@ -1314,6 +1367,17 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     setActiveNote(patched)
     await window.notes.updateNote(activeNote.id, { icon: icon || null }).catch(() => {})
     bumpNoteToken() // so the sidebar/board/other windows pick up the new icon
+  }
+
+  // Lifecycle status (Started / In Progress / Complete / Make Video / Archive) — set from the
+  // note's "…" menu (Status submenu) and the list's right-click menu.
+  async function setNoteStatus(status: NoteStatus | null) {
+    if (!activeNote) return
+    const patched = { ...activeNote, status: status ?? undefined }
+    setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? patched : n)))
+    setActiveNote(patched)
+    await window.notes.updateNote(activeNote.id, { status }).catch(() => {})
+    bumpNoteToken() // so the sidebar/board/other windows pick up the new status
   }
 
   function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -1518,58 +1582,52 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   </>
                 )}
               </div>
-            ) : !titleFocused ? (
+            ) : (
               // Title text is sized to its content and `no-drag` (click it to rename);
               // the `flex-1` filler beside it is what fills the header's blank space,
               // and that IS draggable, so you can move the window from the empty part
               // of the bar. (Earlier this span was `flex-1` itself, so the whole blank
               // strip was a rename target and nothing there dragged the window.)
+              // The large document title (NoteDocTitle, top of the page) is the title; this small
+              // toolbar copy only fades in once that one has scrolled away, and clicking it brings
+              // the document title back and edits it there.
+              toolbarTitleEditing && !showDocTitle ? (
+                <>
+                  <TextField
+                    bare
+                    bareUnderline={false}
+                    padding="none"
+                    autoFocus
+                    value={activeNote.title ?? ''}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setToolbarTitleEditing(false); if (e.key === 'Enter') editorFocusRef.current?.() } }}
+                    onBlur={() => setToolbarTitleEditing(false)}
+                    placeholder="Untitled"
+                    aria-label="Note title"
+                    className="no-drag note-title-inline !h-auto !text-subhead font-semibold"
+                    wrapperClassName="min-w-0 max-w-full"
+                  />
+                  <div className="flex-1 self-stretch" aria-hidden="true" />
+                </>
+              ) : (
+              showDocTitle ? (
+                // The note's title lives in the document (never repeated here). This zone is the
+                // formatting bar's home instead — always visible while editing (Apple Notes).
+                <div ref={setFormatSlot} data-format-slot className="relative self-stretch flex-1 min-w-[160px]" />
+              ) : (
               <>
                 <span
-                  onClick={() => setTitleFocused(true)}
-                  className="no-drag text-subhead font-semibold truncate cursor-text text-text-primary min-w-0"
+                  onClick={() => { if (showDocTitle) { docTitleRef.current?.reveal(); docTitleRef.current?.focus() } else setToolbarTitleEditing(true) }}
+                  aria-hidden={showDocTitle && docTitleVisible}
+                  className={`no-drag text-subhead font-semibold truncate text-text-primary min-w-0 transition-opacity duration-fast cursor-text ${showDocTitle && docTitleVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 >
                   {activeNote.title || <span className="text-text-muted">Untitled</span>}
                 </span>
                 <div className="flex-1 self-stretch" aria-hidden="true" />
               </>
-            ) : (
-              // TEST 2026-09-29: clicking the title must not change it — same size, weight and
-              // width as the resting text (sized to its content, never a bar-wide box, no focus
-              // underline); it only grows as characters are typed. The filler keeps the rest of
-              // the bar draggable exactly as before.
-              <>
-                <TextField
-                  ref={titleInputRef}
-                  bare
-                  bareUnderline={false}
-                  padding="none"
-                  autoFocus
-                  value={activeNote.title ?? ''}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  onKeyDown={handleTitleKeyDown}
-                  onBlur={() => setTitleFocused(false)}
-                  placeholder="Untitled"
-                  className="no-drag note-title-inline !h-auto !text-subhead font-semibold"
-                  wrapperClassName="min-w-0 max-w-full"
-                />
-                <div className="flex-1 self-stretch" aria-hidden="true" />
-              </>
+              )
+              )
             )}
-            {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
-                have none; also settable from the right-click context menu in the list. */}
-            <NoteStatusDropdown
-              value={activeNote.status ?? null}
-              onChange={async (status) => {
-                const updates = { status }
-                const patched = { ...activeNote, status: status ?? undefined }
-                setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? patched : n)))
-                setActiveNote(patched)
-                await window.notes.updateNote(activeNote.id, updates).catch(() => {})
-                bumpNoteToken() // so the sidebar/board/other windows pick up the new status
-              }}
-              compact
-            />
           </>
         ) : restoringSpecificNote ? (
           <span className="text-subhead font-semibold text-text-tertiary">Notes</span>
@@ -1592,6 +1650,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
         {editing ? (
           <>
+            {/* Insert (document elements) — filled by the formatting bar's portal while editing. */}
+            {showDocTitle && editorMode === 'edit' && <div ref={setInsertSlot} className="contents" data-insert-slot />}
             {/* ── Editor mode segmented toggle — never folds (§17), see the zone comment. ── */}
             <SegmentedControl
               size="sm"
@@ -1599,12 +1659,35 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onChange={setEditorMode}
               aria-label="Editor mode (⌘⇧M to toggle)"
               options={[
-                { value: 'edit', label: 'Edit', icon: PenLine, title: 'Edit — rich editing' },
-                { value: 'view', label: 'View', icon: Eye,     title: 'View — rendered read-only output' },
+                // Icons only (TEST 2026-10-05) — the tooltip / accessible name carries the words.
+                { value: 'edit', icon: PenLine, title: 'Edit — rich editing (⌘⇧M)' },
+                { value: 'view', icon: Eye,     title: 'View — read-only (⌘⇧M)' },
               ]}
             />
             <OverflowGroup
               label="More"
+              // Status and Look live in the note's "…" menu as submenus (TEST 2026-10-04) — they
+              // open beside it on hover / → and keep the "…" menu open while browsing them.
+              menuHeader={(() => {
+                const cur = noteStatusMeta(activeNote.status ?? null)
+                const CurIcon = cur?.icon ?? CircleDashed
+                const look = NOTE_LOOKS.find((l) => l.value === noteTypingLook) ?? NOTE_LOOKS[0]
+                return (
+                  <>
+                    <MenuSub label={<span className="flex items-center gap-2.5"><CurIcon size={14} strokeWidth={1.75} className="flex-shrink-0" style={cur ? { color: cur.color } : undefined} /><span>{cur ? cur.label : 'No Status'}</span></span>}>
+                      <MenuItem active={!activeNote.status} onClick={() => void setNoteStatus(null)} label={<span className="flex items-center gap-2"><CircleDashed size={14} className="flex-shrink-0 opacity-60" /><span>No Status</span></span>} />
+                      {NOTE_STATUSES.map((st) => (
+                        <MenuItem key={st.id} active={activeNote.status === st.id} onClick={() => void setNoteStatus(st.id)} label={<span className="flex items-center gap-2"><st.icon size={14} className="flex-shrink-0" style={{ color: st.color }} /><span>{st.label}</span></span>} />
+                      ))}
+                    </MenuSub>
+                    <MenuSub icon={Type} label={<span className="flex items-center justify-between gap-3"><span>Look</span><span className="text-text-muted group-hover/mi:text-white/80">{look.label}</span></span>}>
+                      {NOTE_LOOKS.map((l) => (
+                        <MenuItem key={l.value} active={l.value === look.value} onClick={() => setNoteTypingLook(l.value)} label={<span style={{ fontFamily: l.sample }}>{l.label}</span>} />
+                      ))}
+                    </MenuSub>
+                  </>
+                )
+              })()}
               extraItems={[
                 {
                   key: 'history',
@@ -1639,12 +1722,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 },
               ]}
             >
-              {/* Quick "look" preset for the note editor while typing — placed first among the
-                  foldable groups (protected longest) since, unlike undo/redo, it has no
-                  keyboard-shortcut fallback once tucked into the menu. */}
-              <OverflowSection priority="last">
-                <NoteLookDropdown value={noteTypingLook} onChange={setNoteTypingLook} />
-              </OverflowSection>
               {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
                   editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
                   likely to need undoing as a typed one. Only meaningful while actually editing —
@@ -1696,7 +1773,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 { value: 'board', icon: Columns3, title: 'Board view (by status)' },
               ]}
             />
-            <OverflowGroup label="More">
+            <OverflowGroup label="More" extraItems={[
+              // Creation entry points beside "New note" (+): one home each, in the toolbar's
+              // "…" — not a second row of New Note / New Folder / New Idiom buttons in the list.
+              { key: 'new-folder', label: 'New folder', icon: FolderPlus, onSelect: () => { if (!folderView) changeViewMode('folder'); void handleCreateFolder(null) } },
+              { key: 'new-idiom', label: 'New idiom note', icon: BookOpen, onSelect: () => setIdiomModal({ term: '', meaning: '' }) },
+            ]}>
               {/* Idioms → single PDF export (reachable from list and folder view) */}
               {notes.some((n) => n.type === 'idiom') && (
                 <OverflowSection>{renderIdiomsExport()}</OverflowSection>
@@ -1824,6 +1906,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 />
               )}
               <NoteEditor
+                toolbarSlot={showDocTitle && editorMode === 'edit' ? formatSlot : null}
+                insertSlot={showDocTitle && editorMode === 'edit' ? insertSlot : null}
+                statsInInspector={!focusMode && noteSidePanelPinned}
+                header={showDocTitle ? (
+                  <NoteDocTitle
+                    ref={docTitleRef}
+                    value={activeNote.title ?? ''}
+                    onChange={handleTitleChange}
+                    onEnter={() => editorFocusRef.current?.()}
+                    onVisibleChange={setDocTitleVisible}
+                    readOnly={editorMode === 'view'}
+                  />
+                ) : undefined}
                 content={activeNote.content}
                 noteId={activeNote.id}
                 onExternalDeferred={deferredWhileComposing}
@@ -1863,21 +1958,28 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 }
               />
             </div>
-            {/* Stays visible in Focus mode too — same reasoning as before: outline/folder
-                path/backlinks stay tucked away (collapsed to a thin rail) until the user
-                pins it open, so it's not persistent chrome Focus mode needs to clear away. */}
-            <NoteSidePanel
-              content={activeNote.content}
-              noteTitle={activeNote.title || 'Untitled'}
-              noteId={activeNote.id}
-              noteType={activeNote.type}
-              tabId={notesTabId ?? undefined}
-              allNotes={notes}
-              onNoteClick={navigateToNote}
-              onOpenNewTab={openNoteInNewTab}
-              onOpenInFloatingTab={openNoteInFloatingTab}
-              folderPath={folderPathFor(activeNote, folders)}
-            />
+            {/* Hidden in Focus mode (TEST 2026-10-04): the note is a centred column there, and the
+                outline rail was left stranded at its edge. Focus mode clears every inspector. */}
+            {!focusMode && (
+              <NoteSidePanel
+                content={activeNote.content}
+                noteTitle={activeNote.title || 'Untitled'}
+                noteId={activeNote.id}
+                noteType={activeNote.type}
+                tabId={notesTabId ?? undefined}
+                allNotes={notes}
+                onNoteClick={navigateToNote}
+                onOpenNewTab={openNoteInNewTab}
+                onOpenInFloatingTab={openNoteInFloatingTab}
+                folderPath={folderPathFor(activeNote, folders)}
+                status={activeNote.status ?? null}
+                onStatusChange={(st) => void setNoteStatus(st)}
+                look={noteTypingLook}
+                onLookChange={setNoteTypingLook}
+                createdAt={activeNote.createdAt}
+                updatedAt={activeNote.updatedAt}
+              />
+            )}
           </div>
         ) : (
           // A capped ~760px list column pinned left + the home preview panel filling the rest
@@ -1923,6 +2025,35 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   ]}
                 />
               )}
+              {/* Type + status filters: ONE filter control (list view) — a menu with both sections,
+                  highlighted while a filter is on — not two rows of chips. */}
+              {!folderView && (() => {
+                const TYPES: [NoteFilter, string][] = [
+                  ['all', 'All Notes'], ['scripture', 'Scripture'], ['topic', 'Topic'], ['daily', 'Daily'],
+                  ['youtube', 'Video'], ['biblegateway', 'BibleGateway'], ['esword', 'e-Sword'], ['idiom', 'Idioms'],
+                ]
+                const active = noteFilter !== 'all' || statusFilter !== 'all'
+                return (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <IconButton icon={ListFilter} label={active ? 'Filters on — change' : 'Filter notes'} size={24} active={active} className="flex-shrink-0" />
+                    </PopoverTrigger>
+                    <PopoverSurface align="end" innerClassName="p-1 min-w-[200px]" role="menu">
+                      <MenuLabel>Type</MenuLabel>
+                      {TYPES.map(([value, label]) => (
+                        <MenuItem key={value} active={noteFilter === value} onClick={() => setNoteFilter(value)} label={label} />
+                      ))}
+                      <MenuSeparator />
+                      <MenuLabel>Status</MenuLabel>
+                      <MenuItem active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} label="Any Status" />
+                      {NOTE_STATUSES.map((st) => (
+                        <MenuItem key={st.id} active={statusFilter === st.id} onClick={() => setStatusFilter(st.id)} label={<span className="flex items-center gap-2"><st.icon size={13} style={{ color: st.color }} />{st.label}</span>} />
+                      ))}
+                      <MenuItem active={statusFilter === 'no-status'} onClick={() => setStatusFilter('no-status')} label="No Status" />
+                    </PopoverSurface>
+                  </Popover>
+                )
+              })()}
               <Divider orientation="vertical" />
               <Select
                 variant="ghost"
@@ -1953,46 +2084,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 </>
               )}
             </Toolbar>
-
-            {/* Filter chips bar (list view only) */}
-            {!folderView && (
-            <Toolbar size="sm" className="h-auto py-1 flex-wrap overflow-x-auto">
-              {([
-                ['all',          'All'],
-                ['scripture',    'Scripture'],
-                ['topic',        'Topic'],
-                ['daily',        'Daily'],
-                ['youtube',      'Video'],
-                ['biblegateway', 'BG'],
-                ['esword',       'eSword'],
-                ['idiom',        'Idioms'],
-              ] as [NoteFilter, string][]).map(([f, label]) => (
-                <Chip key={f} selected={noteFilter === f} onClick={() => setNoteFilter(f)}>
-                  {label}
-                </Chip>
-              ))}
-            </Toolbar>
-            )}
-
-            {/* Status filter chips — independent axis from the type chips above, combinable */}
-            {!folderView && (
-            <Toolbar size="sm" className="h-auto py-1 flex-wrap overflow-x-auto">
-              <Chip selected={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
-                All statuses
-              </Chip>
-              {NOTE_STATUSES.map((s) => {
-                const Icon = s.icon
-                return (
-                  <Chip key={s.id} selected={statusFilter === s.id} onClick={() => setStatusFilter(s.id)}>
-                    <Icon size={10} style={{ color: statusFilter === s.id ? undefined : s.color }} /> {s.label}
-                  </Chip>
-                )
-              })}
-              <Chip selected={statusFilter === 'no-status'} onClick={() => setStatusFilter('no-status')}>
-                No status
-              </Chip>
-            </Toolbar>
-            )}
 
             {/* Multi-select action bar */}
             {selectMode && (

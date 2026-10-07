@@ -1,6 +1,7 @@
-import React, { useLayoutEffect, useRef, useState } from 'react'
+import React, { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ChevronLeft, type LucideIcon } from 'lucide-react'
 import { useLongPress } from './useLongPress'
+import { haptic } from './haptics'
 
 /**
  * A full-height page with a safe-area-aware header (title, optional back, right-side actions)
@@ -17,7 +18,16 @@ import { useLongPress } from './useLongPress'
  */
 export type PageHeaderChrome = 'bar' | 'glass' | 'floating'
 
-export function Page({ title, onBack, backLabel, right, left, children, bodyClassName, noScroll, headerBelow, className, header = 'bar', bodyRef }: {
+// Pages currently showing a back button. While any is mounted, global leading controls (the
+// tab-type grid) step aside so Back owns the leading edge, as in every iOS navigation bar.
+let backPages = 0
+const backListeners = new Set<() => void>()
+function setBackPages(delta: number) { backPages += delta; backListeners.forEach((l) => l()) }
+export function useAnyPageHasBack(): boolean {
+  return useSyncExternalStore((l) => { backListeners.add(l); return () => { backListeners.delete(l) } }, () => backPages > 0, () => false)
+}
+
+export function Page({ title, onBack, backLabel, right, left, children, bodyClassName, noScroll, headerBelow, className, header: headerProp, bodyRef }: {
   title?: React.ReactNode
   onBack?: () => void
   backLabel?: string
@@ -35,6 +45,13 @@ export function Page({ title, onBack, backLabel, right, left, children, bodyClas
   /** The scrolling body element (e.g. for scroll-driven title reveal). */
   bodyRef?: React.Ref<HTMLDivElement>
 }) {
+  const hasBack = !!onBack
+  useLayoutEffect(() => { if (!hasBack) return; setBackPages(1); return () => setBackPages(-1) }, [hasBack])
+
+  // Default (TEST 2026-10-03 Apple-style pass): every page that scrolls gets the translucent overlay
+  // bar (content scrolls under it, like iOS Settings / Notes); a page that manages its own scrolling
+  // keeps the in-flow bar so nothing renders beneath it.
+  const header: PageHeaderChrome = headerProp ?? (noScroll ? 'bar' : 'glass')
   const headerRef = useRef<HTMLElement | null>(null)
   const [headerH, setHeaderH] = useState(0)
   const overlay = header !== 'bar'
@@ -72,7 +89,7 @@ export function Page({ title, onBack, backLabel, right, left, children, bodyClas
  *  sheets and pickers so every back looks and behaves the same. */
 export function BackButton({ onClick, label, className }: { onClick: () => void; label?: string; className?: string }) {
   return (
-    <button type="button" className={`mobile-back${className ? ` ${className}` : ''}`} onClick={onClick} aria-label={label ? `Back to ${label}` : 'Back'}>
+    <button type="button" className={`mobile-back${className ? ` ${className}` : ''}`} onClick={() => { void haptic.navigate(); onClick() }} aria-label={label ? `Back to ${label}` : 'Back'}>
       <ChevronLeft size={24} strokeWidth={2.25} aria-hidden />
     </button>
   )
@@ -84,10 +101,10 @@ export function IconGroup({ children, label }: { children: React.ReactNode; labe
   return <span className="mobile-icon-group" role="group" aria-label={label}>{children}</span>
 }
 
-export function IconTap({ icon: Icon, label, onClick, active, disabled, onLongPress }: { icon: LucideIcon; label: string; onClick: () => void; active?: boolean; disabled?: boolean; /** e.g. Today → the calendar (SEP27-CAL-006) */ onLongPress?: () => void }) {
+export function IconTap({ icon: Icon, label, onClick, active, disabled, onLongPress }: { icon: LucideIcon; label: string; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void; active?: boolean; disabled?: boolean; /** e.g. Today → the calendar (SEP27-CAL-006) */ onLongPress?: () => void }) {
   const lp = useLongPress(() => onLongPress?.())
   return (
-    <button type="button" className={`mobile-icon-tap${active ? ' is-active' : ''}`} aria-label={label} aria-pressed={active} onClick={onClick} disabled={disabled}
+    <button type="button" className={`mobile-icon-tap${active ? ' is-active' : ''}`} aria-label={label} aria-pressed={active} onClick={(e) => { void haptic.tap(); onClick(e) }} disabled={disabled}
       {...(onLongPress ? lp : {})}>
       <Icon size={22} aria-hidden />
     </button>

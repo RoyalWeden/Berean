@@ -395,7 +395,7 @@ interface AppAPI {
   takePendingDeepLinks?: () => Promise<string[]>
   // Native File/View/Go/Help menu items — see src/lib/commands.ts's command ids.
   onAppCommand?: (cb: (id: string) => void) => void
-  onWindowActive?: (cb: (active: boolean) => void) => void
+  onWindowActive?: (cb: (active: boolean) => void) => (() => void) | void
   getReduceTransparency?: () => Promise<boolean>
   onReduceTransparency?: (cb: (reduce: boolean) => void) => void
   getIncreaseContrast?: () => Promise<boolean>
@@ -429,6 +429,7 @@ interface AppAPI {
   downloadUpdate: () => Promise<void>
   installUpdate: () => void
   onNativeThemeChanged: (cb: (isDark: boolean) => void) => void
+  setThemeSource?: (source: 'light' | 'dark' | 'system') => void
   getAccentColor: () => Promise<string | null>
   onAccentColorChanged: (cb: (rgb: string | null) => void) => void
   getResourceMode: () => Promise<'normal' | 'throttled'>

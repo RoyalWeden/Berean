@@ -30,7 +30,6 @@ html[data-keyboard] .m-note-insert.is-viewport { bottom: calc(var(--m-keyboard-h
   -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
   transition: transform 0.12s ease, background-color 0.12s ease;
 }
-.m-note-insert-fab:active, .m-note-fab:active { background: var(--m-glass-control-pressed); transform: scale(0.94); }
 .m-note-insert-fab:disabled { opacity: 0.5; }
 
 .m-note-insert-menu {
@@ -106,7 +105,6 @@ html[data-m-selbar] .m-note-insert > * { pointer-events: none; }
   .m-note-insert, .m-note-insert-fab, .m-note-fab { transition: none; }
   .m-note-insert.is-hidden { transform: none; }
   .m-note-insert-menu, .m-selbar { animation: none; }
-  .m-note-insert-fab:active, .m-note-fab:active { transform: none; }
 }
 
 /* Phone editor surface (NoteEditorPM chrome="phone"): no docked toolbar, so no top inset; room at

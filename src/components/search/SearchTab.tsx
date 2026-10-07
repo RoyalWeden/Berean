@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
 import { useShallow } from 'zustand/react/shallow'
 import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -182,7 +183,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const wordReplacerEnabled = useAppStore.getState().wordReplacerEnabled
   const wordReplacerRules   = useAppStore.getState().wordReplacerRules
 
-  const runSearch = useCallback(async (q: string, tid: string) => {
+  const runSearch = useCallback(async (q: string, tid: string, opts?: { submitted?: boolean }) => {
     const trimmed = q.trim()
     if (trimmed.length < 2) { setResults([]); return }
     const state = useAppStore.getState()
@@ -207,8 +208,9 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       setLoading(false)
     }
     if (searchTab) updateTabState('search', searchTab.id, { query: trimmed, results: [] })
-    // Record a history entry with the actual query so the task panel can detect it
-    useAppStore.getState().addHistoryEntry({ type: 'search', title: `"${trimmed}"`, query: trimmed })
+    // History records only a SUBMITTED search (Return / opening a result) — never this live run
+    // after a typing pause, which used to log "go", "good", "good tiding"… (TEST 2026-10-05).
+    if (opts?.submitted) recordSubmittedSearch(trimmed)
   }, [searchTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-run the persisted query on mount. `results` are intentionally never saved into
@@ -256,7 +258,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') runSearch(query, textId)
+    if (e.key === 'Enter') { if (debounceRef.current) clearTimeout(debounceRef.current); void runSearch(query, textId, { submitted: true }) }
   }
 
   function selectTranslation(tid: string) {
@@ -269,6 +271,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   }
 
   function navigateToVerse(bookId: string, chapter: number, verseNum: number, tid: string) {
+    recordSubmittedSearch(query)
     // For "all" mode, look up books for the specific text
     const bookData = books.find((b) => b.id === bookId)
     const bookLabel = bookData?.name ?? bookId

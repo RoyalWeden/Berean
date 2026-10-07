@@ -389,7 +389,8 @@ function restoreTabNavEntry(
     return
   }
   if (entry.query !== undefined && stackType === 'bible') {
-    get().updateTabState(space, tabId, { searchMode: true, scriptureSearchQuery: entry.query })
+    const prevSeq = (get().tabs[space]?.find((t) => t.id === tabId)?.state as BibleTabState | undefined)?.searchRestoreSeq ?? 0
+    get().updateTabState(space, tabId, { searchMode: true, scriptureSearchQuery: entry.query, searchScrollTop: 0, searchScrollAnchor: undefined, searchRestoreSeq: prevSeq + 1 })
   } else if (entry.bookId) {
     // searchMode: false is required here — without it, landing on a bookId entry right after a
     // query entry (stepping back INTO the reader from search results) updates bookId/chapter
@@ -646,6 +647,7 @@ export interface AppState {
   // reference every render would not re-trigger consumers on state change).
   noteFocusModeTabId: string | null
   toggleNoteFocusMode: (tabId: string) => void
+  exitNoteFocusMode: () => void
   // ── Transient bottom-right layout signals (NOT persisted) ──────────────────
   // Only so the portaled Study Trail arrival toast (StudyTrailArrivalPrompt) can step out
   // of the way of whatever else is currently pinned to the bottom-right corner: the Bible
@@ -794,6 +796,11 @@ export interface AppState {
   // Display preferences
   bibleFontSize: number
   bibleLineHeight: 'compact' | 'comfortable' | 'spacious'
+  /** macOS Scripture reading margins (Settings → Display). The iPhone reader keeps its own layout. */
+  scriptureMargins: ScriptureMargins
+  /** How a note left without a title is named (Settings → Notes). */
+  untitledNoteNameFormat: import('@/lib/notes/finalizeNote').UntitledNoteNameFormat
+  setUntitledNoteNameFormat: (f: import('@/lib/notes/finalizeNote').UntitledNoteNameFormat) => void
   defaultBibleTranslation: string
   // Which Shepherd-of-Hermas translation to read: 'hermas' (Roberts-Donaldson) or
   // 'hermas_taylor' (Charles Taylor 1903). Applied to getTranslationForBook + hermasMap.
@@ -818,6 +825,7 @@ export interface AppState {
   resetAppZoom: () => void
   setBibleFontSize: (size: number) => void
   setBibleLineHeight: (h: 'compact' | 'comfortable' | 'spacious') => void
+  setScriptureMargins: (m: ScriptureMargins) => void
   setDefaultBibleTranslation: (id: string) => void
   defaultScriptureLayout: import('@/types').ScriptureLayout
   setDefaultScriptureLayout: (layout: import('@/types').ScriptureLayout) => void
@@ -1337,6 +1345,20 @@ function recordScriptureCloseFallback(
 }
 
 /**
+ * Whether Focus mode is hiding the window chrome RIGHT NOW: it was turned on for the active tab AND
+ * that tab is (still) a note. The one predicate App.tsx and ShellHeader.tsx share, so a stale id
+ * can never hide the toolbar on a Scripture / Search / YouTube tab.
+ */
+export function noteFocusModeActive(s: Pick<AppState, 'noteFocusModeTabId' | 'activeSpace' | 'activeTabId' | 'tabs'>): boolean {
+  const id = s.noteFocusModeTabId
+  if (!id || id !== s.activeTabId[s.activeSpace]) return false
+  return (s.tabs[s.activeSpace] ?? []).some((t) => t.id === id && t.type === 'note')
+}
+
+export type ScriptureMargins = 'compact' | 'standard' | 'spacious'
+export const SCRIPTURE_MARGINS: readonly ScriptureMargins[] = ['compact', 'standard', 'spacious']
+
+/**
  * Whether the tab has an earlier step in its OWN history (the caret's ‹ and the iPhone edge swipe).
  * Note/Lexicon/YouTube tabs can go one step further back than usual, to idx -1 — the list/search/
  * browse view, with nothing open. Other tab types (Bible, Search, PDF) have no equivalent "nothing
@@ -1414,6 +1436,9 @@ export const useAppStore = create<AppState>()(
       bibleFontSize: 16,
       appZoom: ZOOM_DEFAULT,
       bibleLineHeight: 'comfortable' as const,
+      scriptureMargins: 'standard' as ScriptureMargins,
+      untitledNoteNameFormat: 'long' as import('@/lib/notes/finalizeNote').UntitledNoteNameFormat,
+      setUntitledNoteNameFormat: (f) => set({ untitledNoteNameFormat: f }),
       defaultBibleTranslation: 'kjva',
       hermasTranslation: 'hermas_taylor',
       setHermasTranslation: (id) => {
@@ -2525,6 +2550,25 @@ export const useAppStore = create<AppState>()(
         const tabs = state.tabs[spaceId]
         const idx = tabs.findIndex((t) => t.id === tabId)
         if (idx === -1) return
+        // Closing the LAST tab showing a note finalizes it (delete if empty, name if untitled with
+        // content — src/lib/notes/finalizeNote.ts). Runs after the close, never blocking it.
+        {
+          const closing = tabs[idx]
+          const noteId = closing.type === 'note' ? (closing.state as { noteId?: string } | undefined)?.noteId : undefined
+          if (noteId) {
+            const stillShown = SPACES_ALL.some((sp) => (state.tabs[sp] ?? []).some((t) => t.id !== tabId && t.type === 'note' && (t.state as { noteId?: string } | undefined)?.noteId === noteId))
+            if (!stillShown) {
+              const fmt = state.untitledNoteNameFormat
+              // After the editor's own save debounce (500 ms) has flushed, so the decision sees the
+              // last keystrokes; re-checked then in case the note was reopened meanwhile.
+              setTimeout(() => {
+                const now = get()
+                if (SPACES_ALL.some((sp) => (now.tabs[sp] ?? []).some((t) => t.type === 'note' && (t.state as { noteId?: string } | undefined)?.noteId === noteId))) return
+                void import('@/lib/notes/finalizeNote').then((m) => m.finalizeLeftNote(noteId, fmt)).then((a) => { if (a.kind !== 'none') get().bumpNoteToken() }).catch(() => {})
+              }, 900)
+            }
+          }
+        }
         const newTabs = tabs.filter((t) => t.id !== tabId)
         const wasActive = state.activeTabId[spaceId] === tabId
         const newTabsAll = { ...state.tabs, [spaceId]: newTabs }
@@ -3187,7 +3231,16 @@ export const useAppStore = create<AppState>()(
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
       setSidePanelScriptureBlock: (v) => set({ sidePanelScriptureBlock: v }),
-      toggleNoteFocusMode: (tabId) => set((s) => ({ noteFocusModeTabId: s.noteFocusModeTabId === tabId ? null : tabId })),
+      // Focus mode is a NOTE writing mode: only a note tab can turn it on (⌘⇧U / the View menu /
+      // the palette used to hide every bar on a Scripture, Search or YouTube tab too, with no
+      // visible way back — TEST 2026-10-01 "menu buttons sometimes disappear"). Turning it OFF
+      // always works.
+      toggleNoteFocusMode: (tabId) => set((s) => {
+        if (s.noteFocusModeTabId === tabId) return { noteFocusModeTabId: null }
+        const tab = SPACES_ALL.flatMap((sp) => s.tabs[sp] ?? []).find((t) => t.id === tabId)
+        return tab?.type === 'note' ? { noteFocusModeTabId: tabId } : {}
+      }),
+      exitNoteFocusMode: () => set({ noteFocusModeTabId: null }),
       setBibleRightPanelWidth: (v) => set({ bibleRightPanelWidth: Math.max(0, v) }),
       bumpNoteEditorOpen: (delta) => set((s) => ({ noteEditorOpenCount: Math.max(0, s.noteEditorOpenCount + delta) })),
       setBibleSearchTabActive: (v) => set({ bibleSearchTabActive: v }),
@@ -3316,6 +3369,7 @@ export const useAppStore = create<AppState>()(
       resetAppZoom: () => set({ appZoom: ZOOM_DEFAULT }),
       setBibleFontSize: (size) => set({ bibleFontSize: size }),
       setBibleLineHeight: (h) => set({ bibleLineHeight: h }),
+      setScriptureMargins: (m) => set({ scriptureMargins: m }),
       setDefaultBibleTranslation: (id) => set({ defaultBibleTranslation: id }),
       defaultScriptureLayout: 'standard' as import('@/types').ScriptureLayout,
       setDefaultScriptureLayout: (layout) => set({ defaultScriptureLayout: layout }),
@@ -3462,6 +3516,8 @@ export const useAppStore = create<AppState>()(
         bibleFontSize: state.bibleFontSize,
         appZoom: state.appZoom,
         bibleLineHeight: state.bibleLineHeight,
+        scriptureMargins: state.scriptureMargins,
+        untitledNoteNameFormat: state.untitledNoteNameFormat,
         defaultBibleTranslation: state.defaultBibleTranslation,
         hermasTranslation: state.hermasTranslation,
         autoPiP: state.autoPiP,

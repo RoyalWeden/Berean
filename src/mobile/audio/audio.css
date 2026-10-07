@@ -14,13 +14,12 @@
   padding: 0; font: inherit;
   -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
 }
-.m-audio-float:active { background: var(--m-glass-control-pressed); }
 
 /* Top-right speaker: vertically centred in the page header band, clear of the status bar (the
    passage capsule is centred, so right is free). Header rows pad 56px on the right while it shows
    (html[data-floating-right]). Hides with the header when the chrome collapses on scroll. */
 .m-audio-topbtn {
-  position: absolute; top: calc(var(--m-safe-top) + (var(--m-header-h) - var(--m-control)) / 2); right: var(--m-edge); z-index: 9;
+  position: absolute; top: calc(var(--m-safe-top) + (var(--m-header-h) - var(--m-control)) / 2); right: var(--m-edge); z-index: 30; /* above overlay page headers */
   width: var(--m-control); height: var(--m-control); border-radius: 50%;
   transition: opacity 0.2s ease;
 }

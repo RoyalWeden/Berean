@@ -1034,11 +1034,12 @@ function SearchView({
       {/* A search row IS a bar, so it takes BarMetrics and renders the one 34px control height —
           without it this field sat at 28 beside the 34px controls in the header above it. */}
       <BarMetrics>
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-separator">
+      {/* Same filled search field as Scripture search (TEST 2026-10-05: an underlined bare field
+          here read as a different control family). */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-separator-subtle">
         <SearchField
           ref={inputRef}
           size="sm"
-          bare
           value={query}
           onValueChange={handleInput}
           onKeyDown={handleKeyDown}

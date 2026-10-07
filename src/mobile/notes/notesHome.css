@@ -8,7 +8,8 @@
 /* Translucent bar (Page header="glass"): the list scrolls beneath it. While the large title is
    on screen the bar has no fill (iOS large-title behaviour); once it scrolls away the bar shows
    its material, the folder name and the note count centred beneath it. */
-.m-notes-home.is-large-title > .mobile-page-header { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom-color: transparent; }
+/* (more specific than mobile.css's .mobile-page.is-header-glass rule, which loads later) */
+.mobile-page.m-notes-home.is-large-title > .mobile-page-header { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom-color: transparent; }
 .m-notes-home > .mobile-page-header { transition: background-color 0.18s ease; }
 .m-notes-bar-title { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; max-width: 100%; }
 .m-notes-bar-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -20,7 +21,6 @@
   -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
   box-shadow: inset 0 0.5px 0 var(--m-edge-highlight); color: rgb(var(--color-accent)); font-weight: 500;
 }
-.m-notes-home .mobile-page-header .m-notes-textbtn:active { background: var(--m-glass-control-pressed); }
 
 /* ── large title ── */
 .m-notes-large { padding: 2px 4px 12px; }
@@ -133,7 +133,6 @@ html[data-keyboard] .m-notes-float { bottom: calc(var(--m-keyboard-h, 0px) + 8px
 .m-notes-search-clear { flex: none; width: 28px; height: 28px; margin-right: -6px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 14px; background: var(--m-fill-pressed); color: rgb(var(--color-text-secondary)); }
 .m-notes-compose { flex: none; width: 48px; height: 48px; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; color: rgb(var(--color-accent)); }
 .m-notes-float-cancel { flex: none; height: 48px; padding: 0 16px; border-radius: 24px; color: rgb(var(--color-accent)); font: inherit; font-size: 16px; }
-.m-notes-compose:active, .m-notes-float-cancel:active { background: var(--m-glass-control-pressed); transform: scale(0.96); }
 .m-notes-editbar { justify-content: space-between; height: 56px; padding: 0 8px; border-radius: 28px; }
 .m-notes-editbar button { min-width: 52px; height: 48px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: 11px; }
 .m-notes-editbar button.is-destructive { color: #ff3b30; }
@@ -173,5 +172,5 @@ html[data-reduce-transparency] .m-peek { background: rgb(0 0 0 / 0.55); -webkit-
 @media (prefers-reduced-motion: reduce) {
   .m-swipe-content, .m-notes-float, .m-notes-section-chevron, .m-folder-disclosure svg { transition: none; }
   .m-peek, .m-peek-stack { animation: none; }
-  .m-notes-compose:active, .m-notes-float-cancel:active, .m-note-card:active .m-note-card-preview { transform: none; }
+  .m-note-card:active .m-note-card-preview { transform: none; }
 }

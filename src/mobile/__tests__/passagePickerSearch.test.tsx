@@ -38,6 +38,9 @@ beforeEach(() => {
       if (query.toLowerCase() === 'beginning' && textId === 'kjva') {
         return Promise.resolve([{ book_id: 'GEN', chapter: 1, verse_num: 1, text: 'In the beginning God created the heaven and the earth.' }])
       }
+      if (query.toLowerCase().startsWith('go') && textId === 'kjva') {
+        return Promise.resolve([{ book_id: 'ISA', chapter: 52, verse_num: 7, text: 'How beautiful upon the mountains are the feet of him that bringeth good tidings' }])
+      }
       return Promise.resolve([])
     },
   }
@@ -135,9 +138,9 @@ describe('PassagePicker search + history (PICKER-SEARCH)', () => {
     await flush(10)
     // Run a text search and a Strong's search so they land in the picker's own search log.
     type(host, 'beginning')
-    await flush()
+    await flush(2000) // typing has really paused → recorded (typingHistory TYPING_SETTLE_MS)
     type(host, 'H7225')
-    await flush()
+    await flush(2000)
     const toggle = host.querySelector('.m-pp-history-toggle') as HTMLButtonElement
     click(toggle)
     expect(host.textContent).not.toContain('faith') // the Notes/general "search" entry
@@ -159,7 +162,7 @@ describe('PassagePicker search + history (PICKER-SEARCH)', () => {
     const { host, unmount } = mount(<PassagePicker textId="kjva" bookId="GEN" chapter={1} onPick={() => {}} onChapter={() => {}} />)
     await flush(10)
     type(host, 'beginning')
-    await flush()
+    await flush(2000)
     click(host.querySelector('.m-pp-history-toggle'))
     const searchRow = [...host.querySelectorAll('.m-pp-history-row')].find((r) => r.textContent?.includes('beginning'))
     click(searchRow)
@@ -169,4 +172,15 @@ describe('PassagePicker search + history (PICKER-SEARCH)', () => {
     expect(host.textContent).toContain('Genesis 1:1')
     unmount()
   })
+
+  it('typing slowly records ONE search, not every pause (TEST 2026-10-03 "go", "good", …)', async () => {
+    const { host, unmount } = mount(<PassagePicker textId="kjva" bookId="GEN" chapter={1} onPick={() => {}} onChapter={() => {}} />)
+    await flush(10)
+    for (const q of ['go', 'good', 'good tiding', 'good tidings']) { type(host, q); await flush(1800) }
+    await flush(2000) // let the last query settle even on a loaded machine
+    click(host.querySelector('.m-pp-history-toggle'))
+    const titles = [...host.querySelectorAll('.m-pp-history-row .m-pp-row-title')].map((e) => e.textContent)
+    expect(titles.filter((t) => t && /^go/.test(t))).toEqual(['good tidings'])
+    unmount()
+  }, 20_000)
 })

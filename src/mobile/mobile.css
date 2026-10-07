@@ -367,7 +367,6 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
 .mobile-nav-tabs { justify-self: start; }
 .mobile-nav-caret { justify-self: end; border-radius: 24px; background: rgb(var(--color-surface-3)); }
 .mobile-nav-plus { width: 120px; height: 46px; border-radius: 23px; border: 0; background: rgb(var(--color-surface-3)); color: rgb(var(--color-text-primary)); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
-.mobile-nav-plus:active, .mobile-nav-caret:active { background: rgb(var(--color-surface-4)); }
 .mobile-nav-tabs-stack { position: relative; width: 30px; height: 30px; }
 .mobile-nav-tabs-card { position: absolute; inset: 2px 2px 0 4px; border-radius: 6px; border: 2px solid currentColor; background: rgb(var(--color-surface-2)); display: inline-flex; align-items: center; justify-content: center; font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 700; font-variant-numeric: tabular-nums; }
 .mobile-nav-tabs-card.is-back { inset: 0 4px 4px 0; transform: rotate(-8deg); opacity: 0.45; }
@@ -487,7 +486,12 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
   --m-glass-thick: rgb(var(--color-surface-2) / min(0.98, calc(0.88 * var(--glass-alpha-mult, 1))));
   --m-glass-sheet: rgb(var(--color-surface-1) / min(0.98, calc(0.86 * var(--glass-alpha-mult, 1))));
   --m-glass-control: var(--glass-regular-bg);
-  --m-glass-control-pressed: rgb(var(--color-surface-4) / 0.9);
+  /* Interactive glass (TEST 2026-10-05/06): see "ONE interactive Liquid Glass recipe" below. */
+  --m-glass-press-glow: rgb(255 255 255 / 0.5);
+  --m-glass-press-edge: rgb(255 255 255 / 0.9);
+  --m-glass-press-scale: 1.09;
+  --m-glass-press-rim: rgb(0 0 0 / 0.07);
+  --m-glass-control-pressed: radial-gradient(farthest-side at 50% 40%, var(--m-glass-press-glow), transparent), var(--m-glass-control);
   /* Opaque-looking bar for in-flow page headers (nothing scrolls under them). */
   --m-bar-bg: rgb(var(--color-surface-2) / 0.97);
   /* Grouped cards / fields. Light: white cards on the grey sheet (surface-3 is white). */
@@ -577,10 +581,8 @@ button.mobile-row:active, .mobile-caret-row:active, .mobile-choice-row:active { 
 }
 .mobile-nav-tabs, .mobile-nav-caret { width: 48px; height: 48px; border-radius: 24px; }
 .mobile-nav-plus { width: 112px; height: 48px; border-radius: 24px; color: rgb(var(--color-accent)); }
-.mobile-nav-tabs:active, .mobile-nav-caret:active, .mobile-nav-plus:active { background: var(--m-glass-control-pressed); transform: scale(0.96); }
 .mobile-nav-tabs-stack { width: 26px; height: 26px; }
 .mobile-nav-tabs-card { border-width: 1.75px; border-radius: 5px; background: rgb(var(--color-surface-3)); font-size: calc(11px * var(--m-type-scale, 1)); }
-@media (prefers-reduced-motion: reduce) { .mobile-nav-tabs:active, .mobile-nav-caret:active, .mobile-nav-plus:active { transform: none; } }
 
 /* ── search fields: iOS filled rounded field ── */
 .mobile-search-field, .mobile-search-row { background: var(--m-fill); border-radius: var(--m-radius-field); color: rgb(var(--color-text-muted)); }
@@ -677,7 +679,7 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
 .mobile-caret-nav-pair .mobile-caret-nav-btn { width: 44px; border-radius: 0; background: none; }
 .mobile-caret-nav-pair .mobile-caret-nav-btn:active:not(:disabled) { background: var(--m-fill-pressed); }
 /* History · Settings for the current tab (every caret). */
-.mobile-caret-goto { display: flex; gap: 8px; margin: -4px 0 12px; }
+.mobile-caret-goto { display: flex; gap: 8px; margin: 16px 0 4px; padding-top: 14px; border-top: 0.5px solid var(--m-separator); }
 .mobile-caret-goto-btn { flex: 1; min-width: 0; height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 20px; background: var(--m-fill); color: rgb(var(--color-text-primary)); font: inherit; font-weight: 500; font-size: calc(15px * var(--m-type-scale, 1)); }
 .mobile-caret-goto-btn svg { color: rgb(var(--color-accent)); }
 .mobile-caret-goto-btn:active { background: var(--m-fill-pressed); }
@@ -728,19 +730,21 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
   transition: transform 0.12s ease, background-color 0.12s ease;
 }
 .mobile-page-header .mobile-icon-tap { border-radius: 22px; color: rgb(var(--color-text-primary)); }
+/* True circles, never squeezed by a crowded header (TEST 2026-10-03: ✓ / undo became ovals):
+   a fixed square box that cannot shrink; the row gives up space elsewhere first. */
+.mobile-back, .mobile-page-header .mobile-icon-tap, .m-float-circle { flex: 0 0 auto; width: 44px; min-width: 44px; height: 44px; min-height: 44px; aspect-ratio: 1; }
+.mobile-icon-group { flex: 0 0 auto; }
+.mobile-page-header-side { min-width: 0; }
 .mobile-page-header .mobile-icon-tap.is-active { color: rgb(var(--color-accent)); background: color-mix(in srgb, var(--m-glass-control) 78%, rgb(var(--color-accent))); }
-.mobile-back:active, .mobile-page-header .mobile-icon-tap:active, .m-float-circle:active { background: var(--m-glass-control-pressed); transform: scale(0.94); }
 .mobile-page-header .mobile-icon-tap:disabled { opacity: 0.4; }
 .mobile-page-header-side { gap: 8px; }
 /* Joined controls: one capsule, items flat inside (glass never nests). */
 .mobile-icon-group { display: inline-flex; align-items: center; height: 44px; padding: 0 2px; border-radius: 22px; }
 .mobile-icon-group .mobile-icon-tap,
 .mobile-page-header .mobile-icon-group .mobile-icon-tap { width: 44px; height: 40px; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-radius: 20px; }
-.mobile-icon-group .mobile-icon-tap:active { background: var(--m-fill-pressed); transform: none; }
 .m-float-circle { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border-radius: 22px; color: rgb(var(--color-text-primary)); }
 /* Primary "Done" circle (accent fill — the check that ends editing / a selection). */
 .m-float-circle.is-primary { background: rgb(var(--color-accent)); color: #fff; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.m-float-circle.is-primary:active { background: rgb(var(--color-accent) / 0.85); }
 
 /* Overlaid headers: the body scrolls UNDER the header; its measured height pads the body. */
 .mobile-page.has-overlay-header { position: relative; }
@@ -760,8 +764,150 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
 }
 .mobile-page.is-header-floating > .mobile-page-header .mobile-page-header-side > * { pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) {
-  .mobile-back:active, .mobile-page-header .mobile-icon-tap:active, .m-float-circle:active { transform: none; }
 }
 
 .mobile-ref-picker-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; }
 .mobile-ref-picker-title { font-weight: 600; font-size: calc(17px * var(--m-type-scale, 1)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Popover menu (primitives/PopoverMenu.tsx, TEST 2026-10-03) ─────────────────────────────────
+   iOS context-menu look: a thick glass panel anchored to its control, inset rows, a check column for
+   the current choice, trailing icon, hairline group separators. Springs out of its anchor corner. */
+.m-popover-layer { position: fixed; inset: 0; z-index: 140; }
+.m-popover-menu {
+  position: fixed; width: min(250px, calc(100vw - 24px)); overflow-y: auto; overscroll-behavior: contain;
+  padding: 6px 0; border-radius: var(--m-radius-card, 16px);
+  background: var(--m-glass-thick); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  animation: m-popover-in 0.22s cubic-bezier(0.25, 1.3, 0.4, 1) both;
+}
+@keyframes m-popover-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+.m-popover-title { padding: 6px 16px 8px; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); text-align: center; border-bottom: 0.5px solid var(--m-separator); margin-bottom: 4px; }
+.m-popover-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 16px 0 10px;
+  border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit;
+  font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; -webkit-tap-highlight-color: transparent;
+}
+.m-popover-row.is-section { border-top: 6px solid var(--m-separator); }
+.m-popover-row:active { background: var(--m-fill-pressed); }
+.m-popover-row:disabled { opacity: 0.4; }
+.m-popover-row.is-destructive { color: rgb(var(--color-destructive, 255 59 48)); }
+.m-popover-check { flex: none; width: 18px; display: inline-flex; justify-content: center; color: rgb(var(--color-text-primary)); }
+.m-popover-label { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.m-popover-label small { font-size: 0.8em; color: rgb(var(--color-text-muted)); }
+.m-popover-icon { flex: none; color: rgb(var(--color-text-secondary)); }
+.m-popover-row.is-destructive .m-popover-icon { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .m-popover-menu { animation: none; } }
+
+/* ── Rubber-band everywhere (TEST 2026-10-03 "more pages need the rubber band feel") ──────────────
+   WKWebView only bounces an overflow scroller whose content is taller than it, so short pages
+   (Notes home, Settings, empty lists) felt dead. An invisible absolutely-positioned strip 1px
+   taller than the scroller makes every page body scrollable by 1px → it always rubber-bands, with
+   no visible extra space. Sheets keep overscroll none (the pull-down at the top moves the sheet). */
+.mobile-page-body { position: relative; }
+.mobile-page-body:not(.is-static)::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); pointer-events: none; visibility: hidden;
+}
+.m-note-page .berean-pm-editor.pm-chrome-phone { overscroll-behavior-y: contain; }
+/* The reader too: a short chapter (Psalm 23) still rubber-bands. */
+.mobile-reader-scroll { position: relative; }
+.mobile-reader-scroll::before { content: ''; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); pointer-events: none; visibility: hidden; }
+
+/* Native Liquid Glass controls (useLiquidGlassControls + BereanGlassPlugin.swift): a web control
+   whose native twin is being drawn above the web view stays in place as an invisible placeholder —
+   opacity 0, NOT visibility:hidden, which would drop it from the occlusion hit-test. When the native
+   twin hides (a sheet / popover / scrim covers it) the class goes and the web control shows again. */
+.is-native-glass { opacity: 0 !important; transition: none !important; }
+
+/* Soft scroll edge (iOS 26): content passing under the floating bottom controls fades softly into
+   the page instead of running hard into them — a legibility boundary for the controls, not a
+   decoration. Only while those controls are showing (not when they have slid away). */
+.mobile-root.has-overlay-nav:not(.is-nav-collapsed) .mobile-reader-scroll,
+.mobile-root.has-overlay-nav:not(.is-nav-collapsed) .mobile-page-body {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--m-soft-edge, 112px)), rgb(0 0 0 / 0.18) 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--m-soft-edge, 112px)), rgb(0 0 0 / 0.18) 100%);
+}
+:root { --m-soft-edge: calc(72px + var(--m-safe-bottom, 0px)); }
+html[data-reduce-transparency] .mobile-root.has-overlay-nav .mobile-reader-scroll,
+html[data-reduce-transparency] .mobile-root.has-overlay-nav .mobile-page-body { -webkit-mask-image: none; mask-image: none; }
+
+/* ── ONE interactive Liquid Glass recipe for the floating control layer (TEST 2026-10-06) ─────────
+   Root cause of "the button stops looking glassy when I press it": each floating control had its
+   own :active rule — a flat 10% tint, an opaque surface-4 fill, or a solid accent — and shrank to
+   0.94. Over Scripture or an empty background that read as a flat grey disc, not glass; inside a
+   joined capsule (share · more) the pressed item even painted a SECOND glass fill on the group's
+   glass. Now every floating control presses the way iOS 26 interactive glass does: the SAME
+   material stays (blur, tint, rim), light blooms inside it from the touch point, the edge brightens,
+   and the control swells slightly. Items inside a glass group light up inside the group (no glass
+   on glass). Selected = accent-tinted glass; disabled = the same glass, dimmed contents.
+   Native UIGlassEffect controls (bottom bar, passage capsule, grid) get this from UIKit itself.
+   Content controls (list rows, chips, cells) keep their row highlight — they are not glass. */
+:root {
+  --m-glass-group-item-pressed: radial-gradient(closest-side, rgb(var(--color-text-primary) / 0.14), rgb(var(--color-text-primary) / 0.05) 70%, transparent);
+}
+html.dark { --m-glass-press-glow: rgb(255 255 255 / 0.2); --m-glass-press-edge: rgb(255 255 255 / 0.32); --m-glass-press-rim: rgb(255 255 255 / 0.18); }
+@media (prefers-reduced-motion: reduce) { :root { --m-glass-press-scale: 1; } }
+
+/* The floating glass controls (the web ones; the native ones are drawn by UIKit). One compositing
+   layer for their whole life: without it WebKit re-promotes the element when the press transform
+   starts and drops the backdrop blur for that frame. */
+.mobile-nav-tabs, .mobile-nav-caret, .mobile-nav-plus, .mobile-back, .mobile-page-header .mobile-icon-tap,
+.m-float-circle, .mobile-icon-group, .m-tabswitch-button, .m-note-insert-fab, .m-note-fab, .m-notes-compose,
+.m-notes-float-cancel, .m-audio-float, .m-pp-history-toggle, .mobile-title-button, .mobile-sheet-close {
+  will-change: transform;
+  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.5, 1), background 0.18s ease, box-shadow 0.18s ease;
+}
+:root :is(.mobile-nav-tabs, .mobile-nav-caret, .mobile-nav-plus, .mobile-back, .m-float-circle:not(.is-primary),
+  .m-tabswitch-button, .m-note-insert-fab, .m-note-fab, .m-notes-compose, .m-notes-float-cancel, .m-audio-float,
+  .m-pp-history-toggle, .mobile-sheet-close, .m-notes-home .mobile-page-header .m-notes-textbtn,
+  .mobile-page-header .mobile-icon-tap:not(.mobile-icon-group .mobile-icon-tap),
+  .mobile-page.is-scripture-chrome .mobile-title-button):active:not(:disabled) {
+  background: var(--m-glass-control-pressed);
+  /* Light glass: a white bloom alone is invisible on white glass (verified with a real held touch),
+     so the rim firms up as the control swells; dark glass gets a light rim. */
+  box-shadow: inset 0 1px 0 var(--m-glass-press-edge), inset 0 0 0 1px var(--m-glass-press-rim);
+  transform: scale(var(--m-glass-press-scale));
+  transition-duration: 0.08s;
+}
+/* Prominent glass (Done ✓, the accent +): accent-tinted glass that lights up the same way. */
+:root .m-float-circle.is-primary:active:not(:disabled) {
+  background: radial-gradient(farthest-side at 50% 40%, rgb(255 255 255 / 0.32), transparent), rgb(var(--color-accent));
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.6);
+  transform: scale(var(--m-glass-press-scale)); transition-duration: 0.08s;
+}
+.m-float-circle.is-primary { box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.35); }
+/* Items inside ONE glass capsule (share · more, undo · redo, the note selection bar): the group is
+   the glass; a pressed item lights up inside it — never a second glass disc. */
+:root :is(.mobile-icon-group .mobile-icon-tap, .mobile-page-header .mobile-icon-group .mobile-icon-tap, .m-selbar-btn):active:not(:disabled) {
+  background: var(--m-glass-group-item-pressed); transform: none; box-shadow: none;
+}
+/* Disabled floating glass: the material stays, only the contents dim. */
+:root :is(.mobile-back, .mobile-page-header .mobile-icon-tap, .m-float-circle, .m-note-insert-fab):disabled { opacity: 1; color: rgb(var(--color-text-primary) / 0.32); }
+
+/* The note editor scroller too (a short note still rubber-bands — TEST 2026-10-05). */
+.m-note-page .berean-pm-editor.pm-chrome-phone { position: relative; }
+.m-note-page .berean-pm-editor.pm-chrome-phone::before { content: ''; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); pointer-events: none; visibility: hidden; }
+
+/* ── Sheets: floating glass below full height, attached + focused at full height (TEST 2026-10-06) ──
+   Sheet.tsx sets .is-floating below the top detent and clips the floating bottom edge. The page
+   stays visible around a floating sheet, so it is lighter glass; at full height it is the more
+   opaque sheet material. Left/right inset and radius animate as the sheet changes height. */
+.mobile-sheet { transition: left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), right 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), border-radius 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.32s ease; }
+.mobile-sheet.is-floating { left: 8px; right: 8px; border-radius: 34px; background: var(--m-glass-regular);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), inset 0 0 0 0.5px var(--m-hairline); }
+html[data-reduce-transparency] .mobile-sheet.is-floating { background: rgb(var(--color-surface-2)); }
+@media (prefers-reduced-motion: reduce) { .mobile-sheet { transition: none; } }
+/* The sheet's ✕ is a glass control in the sheet's header (iOS 26), not a flat grey disc. */
+.mobile-sheet-close { width: 36px; height: 36px; border-radius: 18px; top: 6px; right: 10px;
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight); color: rgb(var(--color-text-primary)); }
+
+/* ── Menus: the same glass family as the controls that open them (TEST 2026-10-06) ──────────────
+   Lighter than a sheet (the menu is momentary and contextual), a brighter rim + specular top edge
+   so it reads as a lens over the page, larger concentric radius, rows highlight inside it. */
+.m-popover-menu { background: var(--m-glass-regular); border-radius: 22px;
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), inset 0 0 0 0.5px rgb(255 255 255 / 0.08); }
+.m-popover-row { margin: 0 6px; width: calc(100% - 12px); border-radius: 14px; }
+.m-popover-row:active { background: rgb(var(--color-text-primary) / 0.1); }
+html[data-reduce-transparency] .m-popover-menu { background: rgb(var(--color-surface-2)); }
