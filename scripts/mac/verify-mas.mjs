@@ -142,6 +142,10 @@ for (const p of nested) {
 const helper = join(app, 'Contents/Resources/native/berean_icloud.node')
 if (!existsSync(helper)) fail('Contents/Resources/native/berean_icloud.node missing (npm run build:mas builds it)')
 else { try { run('codesign', ['--verify', '--strict', helper]) } catch { fail('berean_icloud.node is not signed') } }
+// Liquid Glass bridge (native/mac-liquid-glass) — optional (the app falls back to CSS materials
+// without it), but every binary in a MAS bundle must be signed.
+const glassBridge = join(app, 'Contents/Resources/native/berean_glass.node')
+if (existsSync(glassBridge)) { try { run('codesign', ['--verify', '--strict', glassBridge]) } catch { fail('berean_glass.node is not signed') } }
 if (!existsSync(join(app, 'Contents/Resources/data'))) fail('bundled Bible databases (Contents/Resources/data) missing')
 
 // 6. Provisioning profile authorises the entitlements

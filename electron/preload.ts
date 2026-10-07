@@ -181,9 +181,12 @@ contextBridge.exposeInMainWorld('app', {
   },
   // Window focus/blur, relayed as a boolean — drives html[data-inactive] so chrome dims
   // to match the rest of the system when the window isn't key.
+  // Any number of subscribers; each call returns its own unsubscribe (removeAllListeners here
+  // would silently drop every earlier subscriber's focus updates).
   onWindowActive: (cb: (active: boolean) => void) => {
-    ipcRenderer.removeAllListeners('app:windowActive')
-    ipcRenderer.on('app:windowActive', (_, active: boolean) => cb(active))
+    const listener = (_: unknown, active: boolean) => cb(active)
+    ipcRenderer.on('app:windowActive', listener)
+    return () => { ipcRenderer.removeListener('app:windowActive', listener) }
   },
   // System Settings → Accessibility → Display → Reduce transparency.
   getReduceTransparency: () => ipcRenderer.invoke('app:getReduceTransparency') as Promise<boolean>,
@@ -314,7 +317,21 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:nativeThemeChanged')
     ipcRenderer.on('app:nativeThemeChanged', (_, isDark) => cb(isDark as boolean))
   },
+  setThemeSource: (source: 'light' | 'dark' | 'system') => ipcRenderer.send('app:setThemeSource', source),
   getAccentColor: () => ipcRenderer.invoke('app:getAccentColor') as Promise<string | null>,
+  // Native Liquid Glass bridge (macOS) — only src/platform/liquidGlass/macos talks to this.
+  glass: {
+    capabilities: () => ipcRenderer.invoke('glass:capabilities'),
+    surface: (msg: unknown) => ipcRenderer.invoke('glass:surface', msg) as Promise<boolean>,
+    group: (msg: unknown) => ipcRenderer.invoke('glass:group', msg) as Promise<boolean>,
+    destroy: (id?: string, kind?: 'surface' | 'group') => ipcRenderer.invoke('glass:destroy', id, kind) as Promise<boolean>,
+    debug: (opts?: { vibrancy?: boolean; hide?: string; show?: string }) => ipcRenderer.invoke('glass:debug', opts) as Promise<{ count: number; tree: string } | null>,
+    onDisabled: (cb: () => void) => {
+      const h = () => cb()
+      ipcRenderer.on('glass:disabled', h)
+      return () => { ipcRenderer.removeListener('glass:disabled', h) }
+    },
+  },
   onAccentColorChanged: (cb: (rgb: string | null) => void) => {
     ipcRenderer.removeAllListeners('app:accentColorChanged')
     ipcRenderer.on('app:accentColorChanged', (_, rgb) => cb(rgb as string | null))
