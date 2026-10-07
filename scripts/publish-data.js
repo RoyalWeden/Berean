@@ -10,13 +10,17 @@
  *
  * USAGE:  npm run data:publish
  *   - Run once to seed the data-v1 release.
- *   - Re-run only when the database files change; it re-uploads with --clobber.
+ *   - Re-run only when the database files change. Only files whose SHA-256
+ *     differs from the release asset are uploaded, one at a time with retries
+ *     (a single bulk upload of every file timed out on youtube_seed.db, and
+ *     --clobber had already deleted the old asset — leaving CI without it).
  *
  * Requires: gh CLI authenticated (gh auth login) — same auth used for pushing.
  */
 
 const { execFileSync, execSync } = require('child_process')
-const { readdirSync, statSync } = require('fs')
+const { readdirSync, statSync, readFileSync } = require('fs')
+const { createHash } = require('crypto')
 const { join } = require('path')
 
 const TAG = 'data-v1'
@@ -72,15 +76,62 @@ function createDraft() {
     '--draft',
     '--title', 'Berean data bundle (CI use)',
     '--notes', notes,
-    ...dbFiles,
   ], { stdio: 'inherit' })
+  uploadChanged()
+}
+
+function sha256(p) {
+  return createHash('sha256').update(readFileSync(p)).digest('hex')
+}
+
+function remoteDigests() {
+  const out = execFileSync('gh', ['release', 'view', TAG, '--json', 'assets'], { encoding: 'utf8' })
+  const map = new Map()
+  for (const a of JSON.parse(out).assets || []) {
+    map.set(a.name, String(a.digest || '').replace(/^sha256:/, ''))
+  }
+  return map
+}
+
+function uploadOne(file) {
+  const name = file.split('/').pop()
+  const mb = (statSync(file).size / 1024 / 1024).toFixed(1)
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      console.log(`  ↑ ${name} (${mb} MB)${attempt > 1 ? ` — attempt ${attempt}` : ''}`)
+      execFileSync('gh', ['release', 'upload', TAG, '--clobber', file], { stdio: 'inherit' })
+      return
+    } catch (err) {
+      if (attempt === 4) throw err
+      const wait = attempt * 10
+      console.warn(`  ! ${name} failed — retrying in ${wait}s…`)
+      execSync(`sleep ${wait}`)
+    }
+  }
+}
+
+function uploadChanged() {
+  const remote = remoteDigests()
+  const changed = dbFiles.filter(f => remote.get(f.split('/').pop()) !== sha256(f))
+  if (changed.length === 0) {
+    console.log('[data:publish] every asset already matches — nothing to upload')
+    return
+  }
+  console.log(`[data:publish] ${changed.length} changed/missing (${dbFiles.length - changed.length} already up to date):`)
+  for (const f of changed) uploadOne(f)
+  const after = remoteDigests()
+  const bad = dbFiles.filter(f => after.get(f.split('/').pop()) !== sha256(f))
+  if (bad.length) {
+    console.error('[data:publish] ✗ still out of date: ' + bad.map(f => f.split('/').pop()).join(', '))
+    process.exit(1)
+  }
 }
 
 if (!exists) {
   createDraft()
 } else if (isDraft) {
-  console.log(`[data:publish] draft release ${TAG} exists — uploading with --clobber…`)
-  execFileSync('gh', ['release', 'upload', TAG, '--clobber', ...dbFiles], { stdio: 'inherit' })
+  console.log(`[data:publish] draft release ${TAG} exists — uploading changed files…`)
+  uploadChanged()
 } else {
   // Published release found — must recreate as draft so the updater ignores it.
   console.log(`[data:publish] ${TAG} is published (breaks auto-updater) — deleting and recreating as draft…`)
