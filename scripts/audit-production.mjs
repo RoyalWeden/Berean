@@ -65,6 +65,12 @@ else console.log(`✓ desktop build identity: ${built ?? '(out/ not built)'}`)
 const release = existsSync(join(root, 'ios/App/BereanRelease.xcconfig')) ? readFileSync(join(root, 'ios/App/BereanRelease.xcconfig'), 'utf8') : ''
 if (/debug\.xcconfig/.test(release)) { console.log('✗ Release config includes debug.xcconfig (CAPACITOR_DEBUG)'); problems++ }
 else console.log('✓ Release config does not include debug.xcconfig')
+// Debug (Xcode ▶ Run on an iPhone) must be Berean Dev so it never replaces the production app.
+const debugXc = existsSync(join(root, 'ios/App/BereanDebug.xcconfig')) ? readFileSync(join(root, 'ios/App/BereanDebug.xcconfig'), 'utf8') : ''
+const debugIncludes = debugXc.split('\n').filter((l) => l.startsWith('#include'))
+if (debugIncludes.at(-1) !== '#include "IdentityDevelopment.xcconfig"' || /IdentityDevelopment/.test(release)) {
+  console.log('✗ Debug builds are not forced to Berean Dev (BereanDebug.xcconfig must include IdentityDevelopment.xcconfig last; Release must not)'); problems++
+} else console.log('✓ Debug builds (Xcode Run) are Berean Dev; Release keeps the synced identity')
 
 // Mac App Store entitlements: App Review rejected 0.2.1 (Guideline 2.4.5(i)) for the Downloads
 // entitlement; development-only keys never ship (docs/mac-app-store.md §2). The signed .app is

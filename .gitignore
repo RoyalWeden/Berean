@@ -33,6 +33,7 @@ sample-pdfs/
 ios/App/Signing.xcconfig
 # Generated per build by scripts/ios/identity.mjs (production or development app identity)
 ios/App/Identity.xcconfig
+ios/App/IdentityDevelopment.xcconfig
 ios/App/App/public/
 ios/App/App/capacitor.config.json
 ios/App/App/config.xml

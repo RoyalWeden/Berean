@@ -38,10 +38,22 @@ CODE_SIGN_STYLE = Automatic
 | iCloud container | `iCloud.com.berean.app` | `iCloud.com.berean.app.dev` |
 | App Group | `group.com.berean.app` | `group.com.berean.app.dev` |
 | URL schemes | `berean`, `berean-pdf` | `berean-dev`, `berean-dev-pdf` |
-| Commands | `npm run ios:sync`, `npm run ios:archive` | `npm run ios:sync:dev`, `npm run ios:archive:dev` |
+| Commands | `npm run ios:sync`, `npm run ios:archive` | `npm run ios:open:dev` (Xcode ▶ Run), `npm run ios:sync:dev`, `npm run ios:archive:dev` |
+| Build configuration | **Release** (archives) | **Debug** — every Xcode ▶ Run, `ios:build`, `ios:device` |
+
+**Debug is always Berean Dev (2026-10-01).** `ios:sync` + Xcode ▶ Run used to install
+`com.berean.app` over the App Store / TestFlight Berean on a physical iPhone, because one generated
+`Identity.xcconfig` (production by default) fed every configuration. Now `scripts/ios/identity.mjs`
+also writes `ios/App/IdentityDevelopment.xcconfig` (always Berean Dev, gitignored), which
+`BereanDebug.xcconfig` includes **last**: every Debug build is `com.berean.app.dev` /
+`com.berean.app.dev.share` / `iCloud.com.berean.app.dev` / `group.com.berean.app.dev` / `berean-dev://`,
+whatever was last synced, and installs next to Berean. A "Berean Dev safety check" build phase
+(first in the App target, `scripts/ios/dev-safety-check.sh`, added by `patch-xcodeproj.mjs`) fails
+any Debug build that is not Berean Dev with `IOS DEV BUILD SAFETY CHECK FAILED`, before anything is
+compiled or installed. `npm run audit:prod` checks the xcconfig wiring.
 
 `ios:sync` runs `scripts/ios/identity.mjs`, which writes `ios/App/Identity.xcconfig` (gitignored)
-from `BEREAN_IDENTITY` (production unless `development`). `ios/App/Berean.xcconfig` includes
+from `BEREAN_IDENTITY` (production unless `development`) — the identity of **Release** builds. `ios/App/Berean.xcconfig` includes
 `Signing.xcconfig` and then `Identity.xcconfig` **last and required**: identity values can only come
 from there (an old `BEREAN_BUNDLE_ID` in `Signing.xcconfig` is overridden), and building without
 it fails instead of guessing. The identity feeds `App.entitlements`, both Info.plists
@@ -103,7 +115,12 @@ network — `NSAllowsLocalNetworking`).
 
 1. Connect the iPhone by cable (first time), trust the computer, enable Developer Mode on the
    phone (Settings → Privacy & Security → Developer Mode) — iOS 16+.
-2. `npm run ios:open` → select the device in the run destination → ⌘R. Or `npm run ios:device`.
+2. `npm run ios:open:dev` (syncs Berean Dev, runs the safety check, opens Xcode) → scheme **App**,
+   destination *your iPhone* → ⌘R. It installs **Berean Dev** (`com.berean.app.dev`) beside the App
+   Store / TestFlight **Berean** — both stay installed with separate data, iCloud, App Group, Share
+   Extension and URL schemes. Or `npm run ios:device` (Debug = Berean Dev too). Never test routine
+   changes with a production-identity build on the phone; production reaches the iPhone only
+   through `ios:archive` → TestFlight.
 3. Debugging the WebView: Safari → Develop → *your iPhone* → Berean. Console logs from the
    renderer appear there; native logs in Xcode's console.
 4. Wireless debugging: Xcode → Devices → *Connect via network*.

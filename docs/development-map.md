@@ -5,7 +5,8 @@ A one-screen reminder of the two Berean apps and the commands that matter. Detai
 ## Two apps, never mixed
 
 ```
-  npm run dev · build:mas:dev · ios:archive:dev         installed Berean (DMG, App Store)
+  npm run dev · build:mas:dev · ios:open:dev (Xcode ▶)   installed Berean (DMG, App Store)
+  ios:archive:dev
                     ↓                                               ↓
                Berean Dev                                         Berean
                     ↓                                               ↓
@@ -23,6 +24,8 @@ A one-screen reminder of the two Berean apps and the commands that matter. Detai
 |---|---|
 | `npm run dev` | Live development app (Berean Dev) with hot reload. |
 | `npm run build:mas:dev` | Packaged Berean Dev for the Mac → `release/mas-dev-arm64/Berean Dev.app`. |
+| `npm run ios:open:dev` | **iPhone development**: syncs Berean Dev, checks it, opens Xcode → pick your iPhone → ▶ Run installs **Berean Dev** next to Berean. |
+| `npm run ios:check:dev` | Prints the Debug (Run) identity and fails unless it is Berean Dev. |
 | `npm run ios:archive:dev` | Berean Dev for the iPhone → `ios/App/build/Berean.xcarchive`. |
 | `npm run build:mas` | Production Mac App Store build → `release/mas-arm64/Berean.app`. |
 | `npm run ios:archive` | Production iPhone archive (TestFlight / App Store). |
@@ -35,7 +38,7 @@ A one-screen reminder of the two Berean apps and the commands that matter. Detai
 |---|---|---|---|---|
 | Everyday coding | `npm run dev` | Berean Dev | `~/Library/Application Support/Berean-dev` | `iCloud.com.berean.app.dev` |
 | Trying the packaged Mac dev app | `build:mas:dev` → Berean Dev.app | Berean Dev | its own sandbox (`~/Library/Containers/com.berean.app.dev`) | `iCloud.com.berean.app.dev` |
-| Testing on the iPhone | `ios:archive:dev` → Berean Dev | Berean Dev | on the iPhone | `iCloud.com.berean.app.dev` |
+| Testing on the iPhone | `ios:open:dev` → Xcode ▶ Run (or `ios:archive:dev`) | Berean Dev | on the iPhone | `iCloud.com.berean.app.dev` |
 | Using Berean for real | installed Berean | Berean | `~/Library/Application Support/Berean` | `iCloud.com.berean.app` |
 | Mac App Store release | `build:mas` | Berean | its own sandbox | `iCloud.com.berean.app` |
 | iPhone release | `ios:archive` | Berean | on the iPhone | `iCloud.com.berean.app` |
@@ -43,6 +46,7 @@ A one-screen reminder of the two Berean apps and the commands that matter. Detai
 ## ⚠️ Never mix identities
 
 - **Dev** = `com.berean.app.dev` + `iCloud.com.berean.app.dev`. **Production** = `com.berean.app` + `iCloud.com.berean.app`.
+- **Xcode ▶ Run is always Berean Dev** (the Debug configuration). Production on the iPhone only comes from `ios:archive` → TestFlight / App Store. Never use the production iOS configuration for routine physical-device testing — both apps stay installed side by side.
 - If sync pauses because this device's history isn't in the current container, **leave it paused** — never point it at the other identity's container.
 - **A paused sync is always better than two datasets mixed together.**
 
