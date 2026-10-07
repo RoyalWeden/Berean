@@ -1060,7 +1060,11 @@ git push origin feature/sidebar
   results stated exactly as run. It never replaces or repeats the report, the
   feature log or the testing backlog, and never claims manual testing happened.
   A global Stop hook sends Claude back once if a turn edited app source without it.
+- **Native-Mac feel/polish requests use the `native-mac-audit` skill.** Its
+  checklist lives at `docs/native-mac-checklist.md` (living status doc, update
+  as items land) — don't maintain a separate list. See
+  `.claude/skills/native-mac-audit/SKILL.md`.
 
 ---
 
-*End of CLAUDE.md — last updated May 2026*
+*End of CLAUDE.md — last updated September 2026*
