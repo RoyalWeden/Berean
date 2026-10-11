@@ -1,6 +1,6 @@
 import { openFloatingTab } from '@/lib/floatingTab'
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
-import { BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, Tag, X } from 'lucide-react'
+import { BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, Tag, X, TextSearch } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SPRING_GENTLE } from '@/lib/motion'
@@ -10,6 +10,7 @@ import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVer
 import { parseMultiBookQuery } from '@/lib/multiBookSearch'
 import { detectTranslationPrefix } from '@/lib/search/searchIntent'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
+import { averageCharWidth, charsThatFit } from '@/lib/textFit'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { expandScriptureQuery, STRONGS_TAGGED_TEXT_IDS } from '@/lib/scriptureSearch'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
@@ -20,7 +21,7 @@ import { getCommands, filterCommands } from '@/lib/commands'
 import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import { IconButton, SectionLabel, SectionHeader, SearchField, SegmentedControl, RefChip, Chip, ListRow, Toolbar, ToolbarSpacer, Button, MenuItem, useContextMenu } from '@/components/ui'
+import { IconButton, SectionLabel, SectionHeader, SearchField, RefChip, Chip, ListRow, Toolbar, ToolbarSpacer, Button, MenuItem, Popover, PopoverTrigger, PopoverSurface, useContextMenu } from '@/components/ui'
 
 /** Spotlight-style group heading for each result kind — the order matches how `results` is
  *  actually built/ranked below; groups are inserted around already-ordered runs (never
@@ -78,12 +79,11 @@ function fuzzyMatch(needle: string, haystack: string): boolean {
   return ni === n.length
 }
 
-// Sub-text truncation per density
-const DENSITY_SUB_LEN: Record<'compact' | 'comfortable' | 'spacious', number> = {
-  compact:     80,
-  comfortable: 140,
-  spacious:    240,
-}
+// Sub-text length used only until the result row's real subtitle width has been measured
+// (subFitChars below). The subtitle is ONE truncated line, so its length must follow the line,
+// not a fixed count: a fixed 80 cut "…shall humble hims…" short of a much wider row, and a fixed
+// 140/240 never windowed a late match into view (TEST 2026-10-07).
+const FALLBACK_SUB_LEN = 90
 interface VerseResult {
   book_id: string
   chapter: number
@@ -206,13 +206,14 @@ export default function FloatingSearch() {
   // is always unscoped now. Kept as a const so `scopedVerseResults` below still
   // type-checks without dead setter state.
   type ScopeFilter = 'all' | 'ot' | 'nt'
-  const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All words', any: 'Any word', phrase: 'Exact phrase' }
+  const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All Words', any: 'Any Word', phrase: 'Exact Phrase' }
 
   const inputRef = useRef<HTMLInputElement>(null)
   // ListRow forwards its ref to the row's outer element (not the inner button).
   const selectedItemRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const [searchWordMode, setSearchWordMode] = useState<SearchWordMode>('all')
+  const [wordMenuOpen, setWordMenuOpen] = useState(false)
   const scopeFilter: ScopeFilter = 'all'
   const [searchTextId, setSearchTextId] = useState(defaultBibleTranslation.toLowerCase())
   const [books, setBooks] = useState<Book[]>([])
@@ -992,7 +993,27 @@ export default function FloatingSearch() {
     }
   }
 
-  const subLen = DENSITY_SUB_LEN[floatingSearchDensity]
+  // Characters that fit on a result row's subtitle line — measured from a rendered subtitle
+  // (its width and font) and kept current as the floating search resizes.
+  const [subFitChars, setSubFitChars] = useState<number | null>(null)
+  const resultsObserverRef = useRef<ResizeObserver | null>(null)
+  const resultsListRef = useCallback((el: HTMLDivElement | null) => {
+    resultsObserverRef.current?.disconnect()
+    resultsObserverRef.current = null
+    if (!el) return
+    const measure = () => {
+      const sub = el.querySelector<HTMLElement>('.floating-search-sub')
+      if (!sub) return
+      const fit = charsThatFit(sub.clientWidth, averageCharWidth(getComputedStyle(sub).font))
+      if (fit != null) setSubFitChars((prev) => (prev === fit ? prev : fit))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    resultsObserverRef.current = ro
+  }, [])
+  useEffect(() => () => resultsObserverRef.current?.disconnect(), [])
+  const subLen = subFitChars ?? FALLBACK_SUB_LEN
   const wr = useCallback(
     (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t,
     [wordReplacerEnabled, wordReplacerRules],
@@ -1182,7 +1203,7 @@ export default function FloatingSearch() {
 
   // Open the advanced Scripture search tab, carrying any selected verse tags and
   // (outside tag mode) the typed keyword.
-  function openAdvancedScriptureSearch() {
+  function openAdvancedScriptureSearch(target?: 'current' | 'new' | 'floating') {
     const keyword = isTagMode ? '' : query.trim()
     let tags = selectedTags
     // In tag mode with nothing explicitly picked yet, fold in the focused chip so
@@ -1193,15 +1214,28 @@ export default function FloatingSearch() {
     const tagIds = tags.map((t) => t.id)
     if (query.trim()) addRecentSearchQuery(query.trim())
     closeSearch()
-    openScriptureSearchHere(keyword || undefined, tagIds)
+    openScriptureSearchHere(keyword || undefined, tagIds, target)
   }
 
   // Advanced Scripture Search destination (MAC-FS-ADV): floating search opened to edit the
   // current tab (⌘L-style) turns the focused Scripture tab itself into the search; ⌘T / floating
   // mode (or no Scripture tab in focus) keeps opening a fresh search tab.
-  function openScriptureSearchHere(keyword: string | undefined, tagIds: string[]) {
+  function openScriptureSearchHere(keyword: string | undefined, tagIds: string[], target?: 'current' | 'new' | 'floating') {
     const st = useAppStore.getState()
-    const tabId = advancedSearchInPlaceTabId(searchMode, st.activeSpace, st.activeTabId.scripture)
+    // Floating destination (the search bar's "open in floating tab" mode): Advanced Scripture
+    // Search opens in its own floating window like every other result (TEST 2026-10-11 — it used
+    // to drop into a main-window tab). Same tab state as a search tab, so it returns to the main
+    // window as one.
+    if (target === 'floating') {
+      const scripture = st.tabs.scripture.find((t) => t.id === st.activeTabId.scripture)
+      const translation = (scripture?.state as { translation?: string } | undefined)?.translation ?? st.defaultBibleTranslation ?? 'KJVA'
+      openFloatingTab('bible', {
+        bookId: 'GEN', chapter: 1, translation, showStrongs: false,
+        ...advancedSearchTabPatch(keyword, tagIds),
+      }).catch((err) => console.error('[FloatingSearch] openFloatingTab (advanced search) failed', err))
+      return
+    }
+    const tabId = advancedSearchInPlaceTabId(target ?? searchMode, st.activeSpace, st.activeTabId.scripture)
     const tab = tabId ? st.tabs.scripture.find((t) => t.id === tabId) : undefined
     if (!tab) { openScriptureSearchTab(keyword, tagIds.length ? { tagIds } : undefined); return }
     const tagNames = tagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter((x): x is string => !!x)
@@ -1383,18 +1417,30 @@ export default function FloatingSearch() {
                 onClick={() => { setSelectedTags([]); setTagFocusIdx(0); inputRef.current?.focus() }}
               />
             )}
-            {/* Word mode — segmented choice (pill taxonomy §44), right-aligned in the input
-                row, where the user is actually typing, rather than below a whole results
-                list's worth of scroll distance in the footer. Same control shape as the
-                identical picker in Advanced Search (ScriptureSearchView) — a segmented
-                choice among 3 mutually-exclusive options is never a menu. */}
-            <SegmentedControl
-              aria-label="Word matching"
-              size="sm"
-              value={searchWordMode}
-              onChange={handleWordModeChange}
-              options={(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => ({ value: m, label: WORD_MODE_LABELS[m] }))}
-            />
+            {/* Word matching — a compact pop-up button at the trailing edge of the field, the way
+                Safari's and Xcode's find fields offer Contains / Begins With / Whole Word, and the
+                same "Match" control Advanced Search uses (ScriptureSearchView). It was a
+                three-segment control here (TEST 2026-10-07: "not Mac native"): a secondary setting
+                then competed with the query itself for attention and width. The trigger names the
+                current choice; ↑↓/Enter in the menu, Esc returns to the field. */}
+            <Popover open={wordMenuOpen} onOpenChange={setWordMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="menu" size="sm" icon={TextSearch} tooltip="How words match" aria-label={`Word matching: ${WORD_MODE_LABELS[searchWordMode]}`}>
+                  {WORD_MODE_LABELS[searchWordMode]}
+                </Button>
+              </PopoverTrigger>
+              <PopoverSurface
+                // Sized to its three options (no heading, no check column): the current choice is
+                // drawn as the selected row, not with a checkmark (TEST 2026-10-08).
+                align="end" sideOffset={6} innerClassName="p-1 w-max" role="menu"
+                onCloseAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus() }}
+              >
+                {(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => (
+                  <MenuItem key={m} active={searchWordMode === m} selectionStyle="highlight" label={WORD_MODE_LABELS[m]}
+                    onClick={() => { handleWordModeChange(m); setWordMenuOpen(false) }} />
+                ))}
+              </PopoverSurface>
+            </Popover>
           </div>
 
           {/* Verse-tag chips — selected (removable) + candidates (click to add).
@@ -1439,6 +1485,7 @@ export default function FloatingSearch() {
           {/* Results */}
           {results.length > 0 && (
             <div
+              ref={resultsListRef}
               className="overflow-y-auto py-1"
               // Cap to the density preference, but never taller than the space between the
               // modal's top offset (12vh) and the bottom of the viewport, minus the input
@@ -1469,6 +1516,7 @@ export default function FloatingSearch() {
                     trailingAlways
                     selected={isSelected}
                     className="mx-2"
+                    subtitleClassName="floating-search-sub"
                     onClick={r.action}
                     // Moving the mouse over a row selects it too (not just arrow keys) — so
                     // Enter after a hover activates that specific row, consistent with arrow
@@ -1556,7 +1604,13 @@ export default function FloatingSearch() {
                 <span className="text-meta whitespace-nowrap">No verse tags yet</span>
               )}
               <ToolbarSpacer />
-              <Button variant="ghost" size="sm" onClick={openAdvancedScriptureSearch}>
+              {/* Right-click: the same Open / New Tab / Floating Tab choice every result row has —
+                  Advanced Search can open in its own floating window like the rest. */}
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => openAdvancedScriptureSearch()}
+                onContextMenu={(e) => resultMenu.openAt(e, { openWith: (t) => openAdvancedScriptureSearch(t) })}
+              >
                 <ShortcutKeys keys="⇧↵" />
                 {selectedTags.length > 0
                   ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`

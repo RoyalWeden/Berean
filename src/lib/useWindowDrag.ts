@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 /**
  * Manual, JS-tracked "drag this element to move the window" handler — an onMouseDown to spread
@@ -67,4 +67,44 @@ export function useWindowDrag(skip?: (target: HTMLElement) => boolean) {
 /** Default `skip` predicate: matches the old `.app-drag-region` CSS exclusion list. */
 export function isInteractiveDragTarget(t: HTMLElement): boolean {
   return !!t.closest('button, a, input, select, textarea, [role="button"], [role="combobox"], [role="listbox"]')
+}
+
+/**
+ * The same window drag, attached as a NATIVE listener on `ref`'s element. Use this for a bar whose
+ * contents are partly PORTALED in by other components (a floating window's title bar: each panel
+ * portals its controls into it): React's synthetic events bubble along the React tree, so a
+ * mousedown on blank space inside portaled content never reaches an `onMouseDown` prop on the
+ * bar — those stretches of the bar didn't drag (TEST 2026-10-11). Native events follow the DOM,
+ * which does contain the portaled nodes. ShellHeader.tsx does the same for the main window.
+ */
+export function useNativeWindowDrag(ref: RefObject<HTMLElement>, skip: (target: HTMLElement) => boolean = isInteractiveDragTarget, enabled = true) {
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !enabled) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as HTMLElement
+      if (skip(t)) return
+      if (e.button !== 0) return
+      if (!window.app?.moveWindowBy) return
+      let last = { x: e.screenX, y: e.screenY }
+      let moved = false
+      const DRAG_THRESHOLD = 4
+      function onMove(ev: MouseEvent) {
+        const dx = ev.screenX - last.x
+        const dy = ev.screenY - last.y
+        if (!moved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return
+        moved = true
+        last = { x: ev.screenX, y: ev.screenY }
+        window.app.moveWindowBy(dx, dy)
+      }
+      function onUp() {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    }
+    el.addEventListener('mousedown', onDown)
+    return () => el.removeEventListener('mousedown', onDown)
+  }, [ref, skip, enabled])
 }

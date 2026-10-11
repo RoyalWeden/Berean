@@ -12,7 +12,9 @@ import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/s
 import StudyTrailArrivalPrompt from '@/components/studyTrail/StudyTrailArrivalPrompt'
 import StudyTrailSplitToast from '@/components/studyTrail/StudyTrailSplitToast'
 import { navigateToVerse } from '@/lib/verseNavigation'
-import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
+import { bookChapterVerseLabel, getTranslationForBook, bookName } from '@/lib/parseRef'
+import { floatingTabState } from '@/lib/floatingTab'
+import { canFloatTabType, FLOATABLE_TAB_SPACES } from '@/components/shell/floatingWindow'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { getCommands } from '@/lib/commands'
 import { SPRING_SNAPPY, TWEEN_FAST } from '@/lib/motion'
@@ -306,52 +308,52 @@ export default function App() {
           break
         }
         case 'addTab': {
-          // Called when a floating tab is returned to the main window
-          const { type: tabType, state: tabState } = payload as { type: string; state: Record<string, unknown> }
-          // 'notes' is the float type; 'note' is the internal TabType — handle both
-          const isNoteTab = tabType === 'note' || tabType === 'notes'
-          const spaceId =
-            tabType === 'bible'   ? 'scripture' :
-            isNoteTab             ? 'notes'     :
-            tabType === 'lexicon' ? 'lexicon'   : null
-          const canonicalType =
-            tabType === 'bible'   ? 'bible' :
-            isNoteTab             ? 'note'  :
-            tabType === 'lexicon' ? 'lexicon' : tabType
-          if (spaceId) {
-            const noteId = tabState?.noteId as string | undefined
-            store.addTab({
-              id: `${canonicalType}-${Date.now()}`,
-              spaceId: spaceId as import('@/types').SpaceId,
-              type: canonicalType as import('@/types').TabType,
-              title:
-                tabType === 'bible'   ? `${tabState.bookId ?? 'GEN'} ${tabState.chapter ?? 1}` :
-                isNoteTab             ? (noteId ? 'Note' : 'Notes') :
-                tabType === 'lexicon' ? String(tabState.strongsNum ?? 'Lexicon') :
-                tabType,
-              state: tabState as unknown as import('@/types').TabState,
-            })
-            // For notes floating tabs: pre-queue the specific note to open
-            if (isNoteTab && noteId) {
-              store.requestOpenNote(noteId)
-            }
+          // A floating tab returned to the main window (FloatingShell's "Return to Main Window"):
+          // re-created in its own space with the state it had in the window. Every floatable type
+          // (floatingWindow.ts) — YouTube, search and PDF tabs used to be silently dropped here.
+          const { type: tabType, state: rawState } = payload as { type: string; state: Record<string, unknown> }
+          if (!canFloatTabType(tabType)) break
+          const { __tabTitle: returnedTitle, ...tabState } = rawState ?? {}
+          const spaceId = FLOATABLE_TAB_SPACES[tabType]
+          const canonicalType = (tabType === 'notes' ? 'note' : tabType) as import('@/types').TabType
+          const noteId = tabState?.noteId as string | undefined
+          if (canonicalType === 'pdf' && tabState.pdfId) {
+            store.openPdf(String(tabState.pdfId), String(tabState.title ?? 'PDF'), typeof tabState.page === 'number' ? tabState.page : undefined)
+            break
           }
+          const title = (typeof returnedTitle === 'string' && returnedTitle && returnedTitle !== 'Berean') ? returnedTitle :
+            canonicalType === 'bible'   ? `${bookName(String(tabState.bookId ?? 'GEN'))} ${tabState.chapter ?? 1}` :
+            canonicalType === 'note'    ? (noteId ? 'Note' : 'Notes') :
+            canonicalType === 'lexicon' ? String(tabState.strongsNum ?? 'Lexicon') :
+            canonicalType === 'search'  ? (tabState.query ? `Search: "${tabState.query}"` : 'Search') :
+            canonicalType === 'youtube' ? 'YouTube' : String(tabType)
+          store.addTab({
+            id: `${canonicalType}-${Date.now()}`,
+            spaceId,
+            type: canonicalType,
+            title,
+            state: tabState as unknown as import('@/types').TabState,
+          })
+          // For notes floating tabs: pre-queue the specific note to open
+          if (canonicalType === 'note' && noteId) store.requestOpenNote(noteId)
+          if (canonicalType === 'youtube' && tabState.videoId) store.openYouTubeVideo(String(tabState.videoId), Number(tabState.startTime ?? 0))
           break
         }
         case 'popOutTab': {
-          // Pop out the currently active tab to a floating window
+          // Pop out the currently active tab to a floating window — the same path as the tab bar's
+          // "Open in floating tab": the tab MOVES (it used to stay behind as well, a duplicate),
+          // and a note tab opens as a note window (type 'note' fell through to "coming soon").
           const s = store
           const space = s.activeSpace
           const activeId = s.activeTabId[space]
           const tab = activeId ? s.tabs[space].find(t => t.id === activeId) : null
-          if (tab) {
-            const state: Record<string, string> = {}
-            if (tab.state && typeof tab.state === 'object') {
-              Object.entries(tab.state as unknown as Record<string, unknown>).forEach(([k, v]) => {
-                if (typeof v === 'string' || typeof v === 'number') state[k] = String(v)
-              })
-            }
-            window.app.openFloatingTab(tab.type, state)
+          if (tab && canFloatTabType(tab.type)) {
+            const floatType = tab.type === 'note' ? 'notes' : tab.type
+            const state = floatingTabState((tab.state ?? {}) as unknown as Record<string, unknown>)
+            if (floatType === 'bible' && state.rightPanelOpen === true) { state.rightPanelOpen = false; state._rightPanelWasOpen = 'true' }
+            window.app.openFloatingTab(floatType, state).catch((err) => console.error('[App] popOutTab failed', err))
+            s.bumpFloatingTabToken()
+            s.closeTab(space, tab.id)
           }
           break
         }

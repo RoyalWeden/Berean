@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, type ReactNode } from 'react'
-import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
-import { Toolbar, ToolbarSpacer } from '@/components/ui'
+import { createContext, useCallback, useContext, useRef, type ReactNode } from 'react'
+import { useNativeWindowDrag } from '@/lib/useWindowDrag'
+import { Toolbar, ToolbarSpacer, IconButton } from '@/components/ui'
+import { ArrowDownLeftFromSquare } from 'lucide-react'
+import { useFloatingWindow } from './floatingWindow'
 
 /**
  * Shared header chrome for every tab-panel type (Bible, Notes, Lexicon,
@@ -53,7 +55,11 @@ export default function PanelHeader({
   className?: string
 }) {
   const chrome = useContext(PanelChromeContext)
-  const onMouseDown = useWindowDrag(isInteractiveDragTarget)
+  const floatingWindow = useFloatingWindow()
+  // Native listener (not an onMouseDown prop): this bar's controls are portaled in by the panel,
+  // and blank space inside portaled content must drag the window too (useNativeWindowDrag).
+  const barRef = useRef<HTMLDivElement>(null)
+  useNativeWindowDrag(barRef, undefined, chrome !== 'phone')
   const actionsRef = useCallback((el: HTMLDivElement | null) => {
     publishFloatingActionsSlot(el)
   }, [])
@@ -70,15 +76,31 @@ export default function PanelHeader({
   }
   return (
     <div
-      onMouseDown={onMouseDown}
-      className={`h-11 flex-shrink-0 no-drag select-none material-bar border-b border-separator ${
-        floating ? 'pl-traffic-lights pr-3' : 'px-3'
+      ref={barRef}
+      // Floating window: the bar has no ground of its own — its controls float as glass groups
+      // over the window's own background, the way the main window's toolbar reads over its
+      // content (TEST 2026-10-11), instead of an opaque grey band with a hairline under it.
+      className={`h-11 flex-shrink-0 no-drag select-none ${
+        floating ? 'pl-traffic-lights pr-3 bg-transparent' : 'px-3 material-bar border-b border-separator'
       } ${className}`}
+      data-floating-bar={floating || undefined}
     >
       <Toolbar size="md" edge="none" material="none">
         <div className="shell-context-zone flex items-center gap-2 min-w-0 flex-shrink">{children}</div>
         <ToolbarSpacer className="shell-flex-space" />
         <div ref={actionsRef} className="shell-actions-zone flex items-center gap-2 flex-shrink-0 justify-end" />
+        {/* A floating window's own control, after the panel's actions — the same spot in every
+            floating window (floatingWindow.ts). */}
+        {floating && floatingWindow && (
+          <IconButton
+            icon={ArrowDownLeftFromSquare}
+            label="Return to Main Window"
+            tooltip={{ side: 'bottom' }}
+            size={28}
+            className="flex-shrink-0"
+            onClick={floatingWindow.returnToMain}
+          />
+        )}
       </Toolbar>
     </div>
   )

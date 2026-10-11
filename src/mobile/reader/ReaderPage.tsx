@@ -324,7 +324,9 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   const titleRef = useRef<HTMLButtonElement>(null)
   const titleGlass = useLiquidGlassControls('reader-title', [
     { id: 'title', ref: titleRef, symbol: 'book', title, subtitle: textId === 'lxx' ? 'LXX' : undefined, label: `${title}, ${translationShortLabel(textId)}. Go to a passage`, iconSize: 17, onPress: openReference },
-  ], { role: 'toolbar' })
+  // Collapses with the page header (slides up with it), so hiding the header on scroll never drops
+  // the native title and rebuilds it with a web → native hand-off when it comes back (G-04).
+  ], { role: 'toolbar', collapsed: headerHidden, collapseEdge: 'top' })
 
   return (
     <Page

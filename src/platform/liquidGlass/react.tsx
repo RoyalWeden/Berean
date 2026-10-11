@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
-import { liquidGlassAdapter, liquidGlassCapabilities, loadLiquidGlassCapabilities, subscribeLiquidGlass } from './capabilities'
+import { liquidGlassAdapter, liquidGlassCapabilities, liquidGlassCapabilitiesSettled, loadLiquidGlassCapabilities, subscribeLiquidGlass } from './capabilities'
 import { liquidGlassTokens, roleRadius } from './tokens'
 import type { LiquidGlassCapabilities, LiquidGlassOptions, LiquidGlassRect } from './types'
 
@@ -194,14 +194,41 @@ export function afterFirstPaint(): Promise<void> {
   return firstPaint
 }
 
+/** The class callers put on a placeholder while `isNative(id)` (mobile.css: invisible). The hook
+ *  removes it itself the moment a placeholder becomes covered — see G-08 in sync. */
+export const NATIVE_GLASS_CLASS = 'is-native-glass'
+
+/** Whether `el` (or an ancestor) is moving / fading in a running CSS transition right now. */
+function inCssTransition(el: Element): boolean {
+  if (typeof document.getAnimations !== 'function' || typeof CSSTransition === 'undefined') return false
+  try {
+    return document.getAnimations().some((a) => {
+      if (!(a instanceof CSSTransition) || a.playState !== 'running') return false
+      const t = (a.effect as KeyframeEffect | null)?.target
+      return !!t && t.contains(el)
+    })
+  } catch { return false }
+}
+
 export function useLiquidGlassControls(
   clusterId: string,
   items: LiquidGlassControlDef[],
-  opts: { role: LiquidGlassOptions['role']; visible?: boolean; collapsed?: boolean; spacing?: number; appearance?: 'light' | 'dark' | null; accent?: string | null; onSwipe?: (dir: 'next' | 'previous') => void },
+  opts: { role: LiquidGlassOptions['role']; visible?: boolean; collapsed?: boolean; collapseEdge?: 'top' | 'bottom'; spacing?: number; appearance?: 'light' | 'dark' | null; accent?: string | null; onSwipe?: (dir: 'next' | 'previous') => void },
 ): { native: boolean; isNative: (id: string) => boolean } {
   const caps = useLiquidGlassCapabilities()
   const adapter = caps.native ? liquidGlassAdapter() : null
   const native = !!adapter?.controls
+  // FIRST appearance (perf/glass QA G-03, docs/mobile/performance-glass-qa.md): while the platform
+  // is going to draw these controls natively — its adapter is installed and capabilities are still
+  // loading, or say native — the web placeholders stay invisible until the first native draw. On
+  // every cold launch they used to show for ~330 ms and then be replaced by the native controls,
+  // with different glyphs and material: a visible swap. Ends (placeholders shown as normal) on
+  // the first confirmed native draw, when capabilities settle as non-native, or if the native call
+  // fails — so a control can never be left missing. Later hand-offs (a sheet covering the bar)
+  // keep the confirmed-on-screen rule below.
+  const nativePending = !caps.native && !liquidGlassCapabilitiesSettled() && !!liquidGlassAdapter()?.controls
+  const [firstDrawDone, setFirstDrawDone] = useState(false)
+  const awaitingFirstDraw = !firstDrawDone && (native || nativePending)
   // Which items the platform is drawing right now (not covered / off screen). A placeholder is
   // made invisible ONLY while its native twin is shown — otherwise the web control is the one seen.
   const [shownKey, setShownKey] = useState('')
@@ -211,6 +238,8 @@ export function useLiquidGlassControls(
   const lastSent = useRef('')
   // When each item's native twin was confirmed on screen (bridge call resolved).
   const drawnAt = useRef(new Map<string, number>())
+  // A covered control's native hide waiting for the web placeholder's frame (G-08).
+  const pendingCoverRef = useRef(false)
 
   const sync = useRef(() => {})
   sync.current = () => {
@@ -219,6 +248,16 @@ export function useLiquidGlassControls(
     const o = optsRef.current
     const collapsed = !!o.collapsed
     const vw = window.innerWidth, vh = window.innerHeight
+    // Who OWNS each control's appearance (perf/glass QA G-04/G-05): only a placeholder that is
+    // genuinely COVERED by another element (a sheet, popover, scrim) hands the control back to the
+    // web, so the web control shows under that overlay. Everything else — collapsed, the cluster
+    // hidden on purpose (visible: false), off screen, or still sliding / fading in a CSS transition
+    // — stays native: the native control hides, slides or fades itself and the placeholder stays
+    // invisible. Dropping native ownership in those cases (as this used to) re-ran the web → native
+    // hand-off every time the reader's chrome came back: the web control showed, then the native one
+    // faded in over it — a ~200 ms doubled title / swapped icons after every scroll.
+    const settledCluster = !collapsed && o.visible !== false
+    const occludedIds = new Set<string>()
     const specItems = itemsRef.current.map((it) => {
       const el = it.ref.current
       let rect = lastRects.current[it.id]
@@ -226,14 +265,28 @@ export function useLiquidGlassControls(
       if (el) {
         const r = el.getBoundingClientRect()
         const onScreen = r.width > 0 && r.height > 0 && r.bottom <= vh + 1 && r.top >= -1 && r.left >= -1 && r.right <= vw + 1
-        // While collapsed the placeholder slides off-screen: keep its resting rect for the native
-        // control (which animates the slide itself).
-        if (onScreen && !collapsed) rect = lastRects.current[it.id] = { x: r.left, y: r.top, width: r.width, height: r.height }
-        if (!collapsed) {
+        // In flight: moving with a CSS transition (the header / bar sliding back, a fade). Its rect
+        // is not where it will rest, so the native control keeps the resting rect meanwhile.
+        const moving = inCssTransition(el)
+        if (onScreen && settledCluster && !moving) rect = lastRects.current[it.id] = { x: r.left, y: r.top, width: r.width, height: r.height }
+        if (settledCluster && !moving) {
           if (!onScreen) hidden = true
           else {
-            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
-            hidden = !hit || !(hit === el || el.contains(hit))
+            // Covered if ANY of top / centre / bottom (inset 3 px) is under another element: a
+            // sheet rising from below covers the bottom edge first, and testing only the centre let
+            // the native control stay drawn over the sheet's leading edge (G-07).
+            const cx = r.left + r.width / 2
+            const covered = [r.top + 3, r.top + r.height / 2, r.bottom - 3].some((y) => {
+              const hit = document.elementFromPoint(cx, y)
+              return !hit || !(hit === el || el.contains(hit))
+            })
+            if (covered) {
+              hidden = true; occludedIds.add(it.id)
+              // Reveal the web control NOW, in this frame, before the native one is told to hide
+              // (it hides instantly): waiting for React's re-render left one frame with neither
+              // drawn (G-08). React's own state update follows and agrees.
+              el.classList.remove(NATIVE_GLASS_CLASS)
+            }
           }
         }
       }
@@ -244,7 +297,7 @@ export function useLiquidGlassControls(
       return { id: it.id, symbol: it.symbol, label: it.label, badge: it.badge, title: it.title, subtitle: it.subtitle, fontSize, paddingX, prominent: it.prominent, iconSize: it.iconSize, rect: rect ?? { x: 0, y: 0, width: 0, height: 0 }, hidden: hidden || !rect }
     })
     const visible = o.visible !== false && specItems.some((i) => !i.hidden || collapsed)
-    const spec = { id: clusterId, role: o.role ?? 'navigation', items: specItems, spacing: o.spacing ?? liquidGlassTokens('ios').groupSpacing, visible, collapsed, appearance: o.appearance !== undefined ? o.appearance : themeAppearance(), accent: o.accent !== undefined ? o.accent : themeAccent() }
+    const spec = { id: clusterId, role: o.role ?? 'navigation', items: specItems, spacing: o.spacing ?? liquidGlassTokens('ios').groupSpacing, visible, collapsed, collapseEdge: o.collapseEdge ?? 'bottom', appearance: o.appearance !== undefined ? o.appearance : themeAppearance(), accent: o.accent !== undefined ? o.accent : themeAccent() }
     // While collapsed the native cluster slides away by itself and the placeholders are off screen
     // anyway, so they stay "native" (no web flash during the slide).
     const shownIds = specItems.filter((i) => visible && (collapsed || !i.hidden)).map((i) => i.id)
@@ -255,13 +308,30 @@ export function useLiquidGlassControls(
     // from alpha 0, so for a moment NEITHER was visible). Going the other way (covered → the web
     // control) is immediate: the native one fades out on top of a visible placeholder.
     const drawn = drawnAt.current
-    for (const id of [...drawn.keys()]) if (!shownIds.includes(id)) drawn.delete(id)
+    const liveIds = new Set(specItems.map((i) => i.id))
+    // A control the native layer is drawing has just become covered.
+    const newlyCovered = [...occludedIds].some((id) => drawn.has(id))
+    // Ownership returns to the web ONLY when covered (or the item went away).
+    for (const id of [...drawn.keys()]) if (occludedIds.has(id) || !liveIds.has(id)) drawn.delete(id)
     const publish = () => {
       const now = performance.now()
-      const ready = shownIds.filter((id) => { const t = drawn.get(id); return t !== undefined && now - t >= NATIVE_FADE_MS - 5 }).sort().join(',')
+      const ready = specItems.map((i) => i.id).filter((id) => { const t = drawn.get(id); return t !== undefined && now - t >= NATIVE_FADE_MS - 5 }).sort().join(',')
       setShownKey((k) => (k === ready ? k : ready))
+      // The first native draw has happened — or every control starts out covered (web shows).
+      if (ready || (specItems.length > 0 && specItems.every((i) => occludedIds.has(i.id)))) setFirstDrawDone(true)
     }
     publish() // anything no longer drawn natively shows its web placeholder at once
+    // Order the hand-off when a control becomes covered (G-08): the web placeholder is revealed now
+    // (above, synchronously); the native control is told to hide only once WebKit has produced a
+    // frame with the placeholder showing — two animation frames — so the two renderers (separate
+    // processes, separate commits) never leave a frame with neither drawn. The native hide itself
+    // is then instant (BereanGlassPlugin.GlassItem.setHidden).
+    if (newlyCovered && !pendingCoverRef.current) {
+      pendingCoverRef.current = true
+      requestAnimationFrame(() => requestAnimationFrame(() => { pendingCoverRef.current = false; sync.current() }))
+      return
+    }
+    if (pendingCoverRef.current) return
     const key = JSON.stringify(spec)
     const waiting = shownIds.filter((id) => !drawn.has(id))
     if (key === lastSent.current && waiting.length === 0) return
@@ -269,11 +339,12 @@ export function useLiquidGlassControls(
     lastSent.current = key
     if (waiting.length) {
       void Promise.resolve(sent).then((ok) => {
-        if (ok === false || lastSent.current !== key) return
+        if (ok === false) { setFirstDrawDone(true); return } // native refused: the web controls stay
+        if (lastSent.current !== key) return
         const t = performance.now()
         for (const id of waiting) if (!drawn.has(id)) drawn.set(id, t)
         window.setTimeout(() => sync.current(), NATIVE_FADE_MS)
-      })
+      }, () => setFirstDrawDone(true)) // native call failed: the web controls stay
     }
   }
 
@@ -291,7 +362,12 @@ export function useLiquidGlassControls(
     for (const it of itemsRef.current) if (it.ref.current) ro.observe(it.ref.current)
     ro.observe(document.documentElement)
     const mo = new MutationObserver(schedule)
-    mo.observe(document.body, { childList: true, subtree: true })
+    // `style` / `class` too (perf/glass QA G-07): sheets and popovers animate by writing inline
+    // transforms frame by frame — no DOM insertion, no transitionend — so a sheet rising over the
+    // bottom bar was only noticed by the 350 ms safety interval, and the native glass stayed drawn
+    // ON TOP of the sheet for several frames. Ordinary scrolling writes no styles (measured: 0
+    // mutations), so this only costs while something actually moves; syncs stay one per frame.
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-keyboard', 'class', 'data-theme'] })
     window.addEventListener('resize', schedule)
     document.addEventListener('transitionend', schedule, true)
@@ -330,6 +406,8 @@ export function useLiquidGlassControls(
     return () => { off(); lastSent.current = ''; drawnAt.current.clear(); setShownKey(''); void a.removeControls?.(clusterId) }
   }, [native, clusterId])
 
+  // Capabilities settled as non-native → the first-draw wait ends at once.
+  useEffect(() => { if (!native && !nativePending) setFirstDrawDone(true) }, [native, nativePending])
   const shownSet = new Set(native && shownKey ? shownKey.split(',') : [])
-  return { native, isNative: (id: string) => shownSet.has(id) }
+  return { native, isNative: (id: string) => awaitingFirstDraw || shownSet.has(id) }
 }

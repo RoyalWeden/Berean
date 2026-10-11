@@ -1,4 +1,5 @@
 import { useReadingAnchor } from '@/hooks/useReadingAnchor'
+import { PresenterOutline } from './PresenterOutline'
 import { searchNavEntry } from '@/lib/searchNav'
 import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
 import { inspectorShouldReflow, inspectorReserve, maxInspectorWidth, clampInspectorWidth, snapInspectorWidth, INSPECTOR_STANDARD_WIDTH } from '@/lib/inspectorLayout'
@@ -1087,9 +1088,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const el = getScrollEl()
     if (!el) return
 
+    // The user's own gesture ends a verse jump's centring (findCenterVerseRef), exactly as a
+    // native scroll does in handleBibleScroll. Under this model the wheel/keys never produce a
+    // native scroll, so without this a jump that landed WITHOUT moving the reader (already at the
+    // top → verse 1, or the verse already in place) kept the anchor forever: every ease step's
+    // computePresenterBand re-centred the target on the jumped verse, undoing the gesture — the
+    // reader and presenter froze until a tab switch remounted the panel (TEST 2026-10-07).
+    function releaseJumpCentring() { findCenterVerseRef.current = null }
+
     function onWheelNative(e: WheelEvent) {
       if (!centeredModelEngaged()) return
       e.preventDefault()
+      releaseJumpCentring()
       ensureCenteredModelInit()
       const r = lastViewerRegionRef.current
       const sensitivity = presenterScrollSensitivity(r?.clientHeight, r?.visibleFraction)
@@ -1115,6 +1125,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         default: return
       }
       e.preventDefault()
+      releaseJumpCentring()
       presenterScrollTargetRef.current = Math.max(0, Math.min(1, next))
       kickPresenterEase()
     }
@@ -3245,9 +3256,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           FRONT of the row to guarantee they fit, which would visually move it ahead of the
           chapter-actions/Display groups — wrong here since it belongs at the trailing edge,
           after "…", matching where an inspector/sidebar toggle sits in Mail/Notes toolbars). */}
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="min-w-0" zone="actions">
+        {/* data-overflow-fill="keep-context": this row takes the toolbar's remaining width so it
+            folds into "…" when narrow, while the chapter navigation keeps its own width (global.css).
+            Content-sized, it never folded: at 860 px with the sidebar open the chapter navigation
+            was squeezed to 0 px and drawn underneath LXX / Strong's (TEST 2026-10-07). */}
+        <div data-overflow-fill="keep-context" className="flex flex-1 min-w-0 justify-end">
         <OverflowGroup
           label="More"
+          className="justify-end"
           extraItems={[
             {
               key: 'search',
@@ -3422,6 +3439,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             </>
           )}
         </OverflowGroup>
+        </div>
         {/* Toggle right panel — hidden in floating windows (no side panel there). Standalone
             square glass icon button, chrome-level (like the leading zone's sidebar toggle) —
             deliberately outside the OverflowGroup above; see the zone comment. */}
@@ -3785,22 +3803,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             Scripture column — presenter state is shown by the toolbar/rail badge and the
             presenter-controls pill (§63). */}
         {presenterBand && (
-          <div
-            // Sized like the reading column (same font → same `ch`) so the outline hugs the
-            // text, not the whole pane; compact/compare views have no column cap (100%).
-            className="absolute pointer-events-none z-raised rounded-card animate-fade-in berean-scripture-text"
-            style={{
-              top: presenterBand.top,
-              height: presenterBand.height,
-              left: 0,
-              right: 0,
-              maxWidth: 'min(calc(var(--reading-max-ch) * 1ch), 100%)',
-              fontSize: bibleFontSize,
-              border: `1.5px dashed ${viewerPaused ? 'rgb(var(--color-warning) / 0.6)' : 'rgb(var(--color-accent) / 0.55)'}`,
-              background: viewerPaused ? 'rgb(var(--color-warning) / 0.035)' : 'rgb(var(--color-accent) / 0.035)',
-              transition: 'height var(--motion-fast) var(--motion-ease-out), border-color var(--motion-base), background-color var(--motion-base)',
-            }}
-          />
+          <PresenterOutline top={presenterBand.top} height={presenterBand.height} paused={!!viewerPaused} fontSize={bibleFontSize} />
         )}
         <div ref={pullContentRef}>
         {tabState.endChapter && tabState.endChapter > tabState.chapter

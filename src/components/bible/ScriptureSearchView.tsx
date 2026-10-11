@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { buildMatchExcerpt, excerptBudgetForWidth } from '@/lib/search/matchExcerpt'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown, Tag, Settings2, SlidersHorizontal, TextSearch } from 'lucide-react'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, ArrowUp, ArrowDown, Tag, Settings2, TextSearch } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import type { Book, Verse } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
@@ -24,7 +24,7 @@ import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 import {
   Badge, CardButton, ControlGroup, Button, Checkbox, Chip, EmptyState, IconButton, ListRow, MenuItem, MenuSurface,
-  RefChip, SearchField, SectionHeader, SegmentedControl, Select, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics, MenuLabel, MenuSeparator,
+  RefChip, SearchField, SectionHeader, SegmentedControl, Switch, Toolbar, Popover, PopoverTrigger, PopoverSurface, SectionLabel, BarMetrics, MenuLabel, MenuSeparator,
 } from '@/components/ui'
 import { displayChapter } from '@/lib/chapterNumbering'
 
@@ -319,6 +319,14 @@ interface Props {
 }
 
 type CtxItem = { bookId: string; chapter: number; verse: number; textId: string; text: string; x: number; y: number }
+
+/** "Show" in the Sort menu — how much of each matching verse a result row shows. */
+const CONTEXT_OPTIONS: { value: 'default' | 'full' | 'plusMinus1' | 'plusMinus2'; label: string }[] = [
+  { value: 'default', label: 'Compact' },
+  { value: 'full', label: 'Full Verse' },
+  { value: 'plusMinus1', label: '±1 Verse' },
+  { value: 'plusMinus2', label: '±2 Verses' },
+]
 
 export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpenInFloating, onClose, initialQuery, persistedState, onStateChange, onSearchSubmitted, floating = false }: Props) {
   // Rendered inside BiblePanel; when that panel is mounted-but-hidden (another space
@@ -1152,7 +1160,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           wrapperClassName="flex-1 min-w-0 basis-40"
         />
         {effectiveMode(query) !== 'crossref' && (
-          // Match · Sort · Refine · Jump — ONE grouped control (one capsule), not four pills.
+          // Match · Tags · Sort · Jump — ONE grouped control (one capsule), not four pills: what
+          // to find, what to keep, how the list reads, then moving through it (TEST 2026-10-08).
           <ControlGroup variant="glass">
             {/* Match — ONE menu for both matching dimensions, in labelled sections: what the
                 query is (automatic / text / Strong's / cross references) and, for text, how its
@@ -1174,26 +1183,92 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       {triggerLabel}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverSurface align="end" innerClassName="p-1 min-w-[210px]" role="menu">
-                    <MenuLabel>Search For</MenuLabel>
-                    {TYPES.map((t) => (
-                      <MenuItem key={t.value} active={searchMode === t.value} label={t.label}
-                        onClick={() => { setSearchMode(t.value); if (query.trim().length >= 2) runForMode(query) }} />
-                    ))}
+                  {/* Word matching first — it is what changes from search to search; the search
+                      type is almost always Automatic (a ref, a Strong's number and words are told
+                      apart on their own), so it sits second. Selected rows are drawn selected,
+                      not checked (TEST 2026-10-08). */}
+                  <PopoverSurface align="end" innerClassName="p-1 min-w-[200px]" role="menu">
                     {mode === 'text' && (
                       <>
-                        <MenuSeparator />
                         <MenuLabel>Match</MenuLabel>
-                        <MenuItem active={wordMode === 'all'} label="All Words" onClick={() => handleWordModeChange('all')} />
-                        <MenuItem active={wordMode === 'any'} label="Any Word" onClick={() => handleWordModeChange('any')} />
-                        <MenuItem active={wordMode === 'phrase'} label="Exact Phrase" onClick={() => handleWordModeChange('phrase')} />
+                        <MenuItem active={wordMode === 'all'} selectionStyle="highlight" label="All Words" onClick={() => handleWordModeChange('all')} />
+                        <MenuItem active={wordMode === 'any'} selectionStyle="highlight" label="Any Word" onClick={() => handleWordModeChange('any')} />
+                        <MenuItem active={wordMode === 'phrase'} selectionStyle="highlight" label="Exact Phrase" onClick={() => handleWordModeChange('phrase')} />
+                        <MenuSeparator />
                       </>
                     )}
+                    <MenuLabel>Search For</MenuLabel>
+                    {TYPES.map((t) => (
+                      <MenuItem key={t.value} active={searchMode === t.value} selectionStyle="highlight" label={t.label}
+                        onClick={() => { setSearchMode(t.value); if (query.trim().length >= 2) runForMode(query) }} />
+                    ))}
                   </PopoverSurface>
                 </Popover>
               )
             })()}
 
+            {/* Tags — the one filter, right after Match: what to find, then what to keep. The
+                tag list lives INSIDE the popover (checkbox rows — it stays open while you pick
+                several); the trigger names the chosen tags (first two, then "+N"). */}
+            {(() => {
+              const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
+              const tagSummary = names.length === 0 ? '' : names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+              const activeCount = selectedTagIds.length > 0 ? 1 : 0
+              return (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="menu" size="sm" icon={Tag}
+                  selected={activeCount > 0}
+                  tooltip="Filter results by verse tags"
+                  className="max-w-[240px]"
+                >
+                  {/* Only the tag filter now (TEST 2026-10-08) — result length is "Show" in the
+                      Sort menu. Names the chosen tags. */}
+                  <span className="truncate">{tagSummary || 'Tags'}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverSurface align="end" innerClassName="p-2 w-[260px] flex flex-col gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between px-1">
+                    <SectionLabel>Verse tags</SectionLabel>
+                    {selectedTagIds.length > 0 && (
+                      <Button variant="ghost" size="xs" onClick={() => setSelectedTagIds([])}>Clear</Button>
+                    )}
+                  </div>
+                  <div className="max-h-[220px] overflow-y-auto overscroll-contain">
+                    {verseTags.length === 0 && <EmptyState compact title="No tags yet." />}
+                    {verseTags.map((t) => {
+                      const on = selectedTagIds.includes(t.id)
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={on}
+                          onClick={() => setSelectedTagIds((prev) => prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}
+                          className="focus-ring w-full flex items-center gap-2 h-7 px-2 rounded-card text-left text-footnote text-text-primary hover:bg-lift-2 active:bg-lift-3 transition-colors"
+                        >
+                          <Checkbox checked={on} onChange={() => {}} tabIndex={-1} className="pointer-events-none" />
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
+                          <span className="truncate flex-1">{t.name}</span>
+                          <span className="text-meta">{t.verseCount + t.chapterCount}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {selectedTagIds.length > 1 && (
+                    <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-footnote text-text-secondary border-t border-separator">
+                      <span>Match all selected tags</span>
+                      <Switch checked={tagMatchAll} onCheckedChange={() => setTagMatchAll(!tagMatchAll)} />
+                    </div>
+                  )}
+                  <Button variant="ghost" size="xs" icon={Settings2} className="self-start" onClick={() => openTagsGraph()}>Manage tags…</Button>
+                </div>
+              </PopoverSurface>
+            </Popover>
+              )
+            })()}
             {/* Sort — order and direction in one menu (was a select + a separate flip button). */}
             <Popover>
               <PopoverTrigger asChild>
@@ -1201,24 +1276,32 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   {sortMode === 'bookOrder' ? 'Book Order' : 'Relevance'}
                 </Button>
               </PopoverTrigger>
-              <PopoverSurface align="end" innerClassName="p-1 min-w-[190px]" role="menu">
+              {/* Sort By · direction · Show — everything about how the list is PRESENTED, the way
+                  Finder's and Mail's View menus hold sorting and display together. "Show" (result
+                  length) moved here from Refine, which is now only the tag filter. */}
+              <PopoverSurface align="end" innerClassName="p-1 min-w-[200px]" role="menu">
                 <MenuLabel>Sort By</MenuLabel>
-                <MenuItem active={sortMode === 'relevance'} label="Relevance" onClick={() => setSortMode('relevance')} />
-                <MenuItem active={sortMode === 'bookOrder'} label="Book Order" onClick={() => setSortMode('bookOrder')} />
+                <MenuItem active={sortMode === 'relevance'} selectionStyle="highlight" label="Relevance" onClick={() => setSortMode('relevance')} />
+                <MenuItem active={sortMode === 'bookOrder'} selectionStyle="highlight" label="Book Order" onClick={() => setSortMode('bookOrder')} />
                 <MenuSeparator />
                 {/* Book order's natural direction is 'asc' (Genesis → Revelation); relevance's
                     is 'desc' (best match first) — see the sort above. */}
                 {sortMode === 'bookOrder' ? (
                   <>
-                    <MenuItem active={sortDirection === 'asc'} label="Genesis → Revelation" onClick={() => setSortDirection('asc')} />
-                    <MenuItem active={sortDirection === 'desc'} label="Revelation → Genesis" onClick={() => setSortDirection('desc')} />
+                    <MenuItem active={sortDirection === 'asc'} selectionStyle="highlight" label="Genesis → Revelation" onClick={() => setSortDirection('asc')} />
+                    <MenuItem active={sortDirection === 'desc'} selectionStyle="highlight" label="Revelation → Genesis" onClick={() => setSortDirection('desc')} />
                   </>
                 ) : (
                   <>
-                    <MenuItem active={sortDirection === 'desc'} label="Best Match First" onClick={() => setSortDirection('desc')} />
-                    <MenuItem active={sortDirection === 'asc'} label="Best Match Last" onClick={() => setSortDirection('asc')} />
+                    <MenuItem active={sortDirection === 'desc'} selectionStyle="highlight" label="Best Match First" onClick={() => setSortDirection('desc')} />
+                    <MenuItem active={sortDirection === 'asc'} selectionStyle="highlight" label="Best Match Last" onClick={() => setSortDirection('asc')} />
                   </>
                 )}
+                <MenuSeparator />
+                <MenuLabel>Show</MenuLabel>
+                {CONTEXT_OPTIONS.map((o) => (
+                  <MenuItem key={o.value} active={contextMode === o.value} selectionStyle="highlight" label={o.label} onClick={() => setContextMode(o.value)} />
+                ))}
               </PopoverSurface>
             </Popover>
 
@@ -1278,86 +1361,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               )
             })()}
 
-            {/* Secondary filters (result length, verse tags) sit behind ONE "Filters" popover
-                (§45 density): the bar keeps scope / mode / word-match / sort visible. The tag
-                list lives INSIDE the popover (checkbox rows — the popover stays open while you
-                pick several); the trigger names the chosen tags (first two, then "+N"). */}
-            {(() => {
-              const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
-              const tagSummary = names.length === 0 ? '' : names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`
-              const activeCount = (contextMode !== 'default' ? 1 : 0) + (selectedTagIds.length > 0 ? 1 : 0)
-              return (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="menu" size="sm" icon={SlidersHorizontal}
-                  selected={activeCount > 0}
-                  badge={contextMode !== 'default' ? { variant: 'dot', label: 'Result length changed' } : undefined}
-                  tooltip="Refine: result length and verse-tag filters"
-                  className="max-w-[240px]"
-                >
-                  {/* "Refine" (TEST 2026-10-05): this holds how results are SHOWN (length) as well
-                      as what's filtered (tags) — "Filters" undersold it. Names chosen tags. */}
-                  <span className="truncate">{tagSummary || 'Refine'}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverSurface align="end" innerClassName="p-2 w-[260px] flex flex-col gap-2">
-                <div className="flex flex-col gap-1 px-1">
-                  <SectionLabel>Result length</SectionLabel>
-                  <Select
-                    variant="field" size="sm"
-                    aria-label="Result length"
-                    value={contextMode}
-                    onChange={setContextMode}
-                    className="w-full"
-                    options={[
-                      { value: 'default', label: 'Compact', icon: AlignJustify },
-                      { value: 'full', label: 'Full verse', icon: Rows },
-                      { value: 'plusMinus1', label: '±1 verse' },
-                      { value: 'plusMinus2', label: '±2 verses' },
-                    ]}
-                  />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center justify-between px-1">
-                    <SectionLabel>Verse tags</SectionLabel>
-                    {selectedTagIds.length > 0 && (
-                      <Button variant="ghost" size="xs" onClick={() => setSelectedTagIds([])}>Clear</Button>
-                    )}
-                  </div>
-                  <div className="max-h-[220px] overflow-y-auto overscroll-contain">
-                    {verseTags.length === 0 && <EmptyState compact title="No tags yet." />}
-                    {verseTags.map((t) => {
-                      const on = selectedTagIds.includes(t.id)
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          role="checkbox"
-                          aria-checked={on}
-                          onClick={() => setSelectedTagIds((prev) => prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}
-                          className="focus-ring w-full flex items-center gap-2 h-7 px-2 rounded-card text-left text-footnote text-text-primary hover:bg-lift-2 active:bg-lift-3 transition-colors"
-                        >
-                          <Checkbox checked={on} onChange={() => {}} tabIndex={-1} className="pointer-events-none" />
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: resolveTagColor(t) }} />
-                          <span className="truncate flex-1">{t.name}</span>
-                          <span className="text-meta">{t.verseCount + t.chapterCount}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {selectedTagIds.length > 1 && (
-                    <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-footnote text-text-secondary border-t border-separator">
-                      <span>Match all selected tags</span>
-                      <Switch checked={tagMatchAll} onCheckedChange={() => setTagMatchAll(!tagMatchAll)} />
-                    </div>
-                  )}
-                  <Button variant="ghost" size="xs" icon={Settings2} className="self-start" onClick={() => openTagsGraph()}>Manage tags…</Button>
-                </div>
-              </PopoverSurface>
-            </Popover>
-              )
-            })()}
           </ControlGroup>
         )}
       </div>

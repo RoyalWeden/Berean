@@ -581,8 +581,13 @@ button.mobile-row:active, .mobile-caret-row:active, .mobile-choice-row:active { 
 }
 .mobile-nav-tabs, .mobile-nav-caret { width: 48px; height: 48px; border-radius: 24px; }
 .mobile-nav-plus { width: 112px; height: 48px; border-radius: 24px; color: rgb(var(--color-accent)); }
-.mobile-nav-tabs-stack { width: 26px; height: 26px; }
-.mobile-nav-tabs-card { border-width: 1.75px; border-radius: 5px; background: rgb(var(--color-surface-3)); font-size: calc(11px * var(--m-type-scale, 1)); }
+/* Drawn like its native twin, SF Symbols `square.on.square` (BereanGlassPlugin): two upright
+   cards at full strength, the back one up-left, the count on the front one — the web placeholder
+   is what shows whenever a sheet covers the bar, and a rotated, faded back card made the control
+   visibly change shape on every hand-off (perf/glass QA G-06). */
+.mobile-nav-tabs-stack { width: 24px; height: 24px; }
+.mobile-nav-tabs-card { inset: 5px 0 0 5px; border-width: 2px; border-radius: 5px; background: rgb(var(--color-surface-3)); font-size: calc(10.5px * var(--m-type-scale, 1)); }
+.mobile-nav-tabs-card.is-back { inset: 0 5px 5px 0; transform: none; opacity: 1; background: none; }
 
 /* ── search fields: iOS filled rounded field ── */
 .mobile-search-field, .mobile-search-row { background: var(--m-fill); border-radius: var(--m-radius-field); color: rgb(var(--color-text-muted)); }

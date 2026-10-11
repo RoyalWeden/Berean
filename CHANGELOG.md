@@ -122,6 +122,62 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.7.2] - 2026-10-11
+
+### Notes
+
+- One link editor for everything: link selected text — or a whole paragraph, heading or list item
+  — to another note or to a web address, change the text the link shows, change where it goes, or
+  remove it. Links to notes keep working when the note is renamed.
+- `[[Note|shown text]]` links are supported, the same form Obsidian and Octarine use.
+- Selecting text no longer adds a count under the note: the Info panel's Words and Characters
+  switch to the selection, in italics.
+- A smaller pop-up beside selected text (bold, italic, underline, highlight, link); the full
+  formatting bar stays in the toolbar.
+- The handle beside a block selects the block instead of its text. Over a list it picks the item
+  under the pointer; "Select Whole List" widens it. The "+" moved into the block menu as
+  "Add Block Below".
+- Typing "/" or "[[" shows its menu again — both closed the moment they opened.
+- Notes: folders grouped into Library and My Notes with aligned rows; a folder overview with every
+  note and a New Note button; a calmer board whose columns all fit the window; clearer selection
+  mode; a comfortable reading width on wide windows.
+- The notes search bar matches Scripture search: one field, then Match, Filter and Sort menus.
+- Daily notes show their date as the page title, with the formatting bar in the toolbar.
+
+### Floating windows (Mac)
+
+- Every floating tab has the same "Return to Main Window" button in its title bar (it used to
+  float over the content), its window is named after what it shows, and the title bar floats over
+  the content and can be dragged from anywhere.
+- A floating note is a focused editor: formatting, Info on demand and one "…" menu.
+- Returning or closing a floating window never loses the last edit.
+- Search, PDF, YouTube and Lexicon windows open — and come back — exactly where you left them;
+  Advanced Scripture Search can open in its own floating window.
+
+### Scripture
+
+- The book picker shows two columns when the names fit. Recognitions of Clement lists Book 1 …
+  Book 10 and the Shepherd of Hermas lists Visions, Mandates and Similitudes.
+- Mac: printing a note — the preview is centred, zoom keeps your place, and Fit follows the window.
+- Presenter: the chapter label moves smoothly between the page and the title bar, and the
+  outline no longer freezes after jumping to a passage.
+
+### Search
+
+- Floating search: a Match menu like Advanced Search, and result text sized to the window.
+- The Lexicon's Occurrences controls are back to their normal size.
+
+### iPhone
+
+- Fixed a freeze (and crash) while scrolling with iCloud sync on.
+- Faster typing in long notes, no dark flash at launch, and glass buttons that no longer flicker
+  or appear twice.
+
+### Mac
+
+- The toolbar shows the session's name, and fits more controls before folding them away.
+- Select several tabs with ⌘- or ⇧-click to archive, move or close them together.
+
 ## [0.7.1] - 2026-10-06
 
 ### Look and feel (Mac and iPhone)

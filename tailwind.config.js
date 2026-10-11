@@ -4,6 +4,11 @@
 // re-tunes all of them with zero component changes. See docs/design-system.md.
 module.exports = {
   darkMode: 'class',
+  // `hover:` utilities only where the device really hovers (@media (hover: hover)). On the iPhone,
+  // WebKit keeps :hover on whatever was last touched — a verse row (shared VerseRow's
+  // hover:bg-lift-1) stayed tinted after every scroll gesture (perf/glass QA S-01). The Mac
+  // (a real pointer) is unchanged.
+  future: { hoverOnlyWhenSupported: true },
   content: [
     './src/**/*.{ts,tsx}',
     './electron/**/*.{ts,tsx}'

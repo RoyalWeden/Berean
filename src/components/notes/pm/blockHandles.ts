@@ -8,8 +8,21 @@ import { bereanSchema as schema } from './schema'
 // simply every direct child — paragraph/heading/list/table/blockquote/
 // callout/horizontal_rule/code_block; `image` is an INLINE-only node in this
 // schema, schema.ts, so it can never be a direct doc child and never gets a
-// handle here) gets a small left-gutter widget: a six-dot drag grip (doubles
-// as the block-menu trigger on a plain click) and a "+" insert button.
+// handle here) gets a small left-gutter widget: a six-dot drag grip that
+// doubles as the block-menu trigger on a plain click.
+//
+// SELECTING, NOT TEXT (TEST 2026-10-10): clicking the grip selects the BLOCK —
+// a NodeSelection painted as a quiet outlined card (`.pm-block-selected` on the
+// editor wrapper hides the native text-selection paint, pmEditor.css) — never a
+// text selection. The old "+" insert button beside it is gone: inserting lives in
+// the block's menu ("Add Block Below", which opens the same / menu), typing "/",
+// and the toolbar's Insert menu.
+//
+// LIST ITEMS: over a bulleted / numbered / task list the grip follows the
+// pointer to the ITEM under it (the deepest list item on that row, so a nested
+// item is its own target) and selects that one item; "Select Whole List" in its
+// menu widens the selection to the list. The grip stays in the left gutter (only
+// its vertical position follows the row), so it never covers a bullet.
 //
 // PHASE-1 SCOPE LIMITS (deliberate, do not "fix" without a product decision):
 //  - Only TOP-LEVEL blocks get a handle. Content nested inside a list item,
@@ -118,7 +131,6 @@ const DRAGGING_WRAPPER_CLASS = 'pm-block-dragging'
 export interface BlockMenuTarget { pos: number; rect: DOMRect }
 
 const GRIP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="14" viewBox="0 0 10 16" fill="currentColor"><circle cx="2" cy="2" r="1.3"/><circle cx="8" cy="2" r="1.3"/><circle cx="2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="2" cy="14" r="1.3"/><circle cx="8" cy="14" r="1.3"/></svg>'
-const PLUS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
 
 // How long `.pm-block-enter` stays on a freshly-inserted/moved block before a
 // clear transaction removes it. The class only establishes the HIDDEN starting
@@ -126,6 +138,68 @@ const PLUS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"
 // top-level block via `.pm-block-hoverable` in pmEditor.css, so REMOVING the
 // class is what animates. Must comfortably exceed one paint.
 const ENTER_ANIM_MS = 180
+
+// On the editor wrapper while the selection is a whole BLOCK (a NodeSelection over a block node):
+// the selected block draws as an outlined card instead of as selected text. Toggled from the
+// plugin view's update — outside view.dom, so PM's DOMObserver never sees it.
+const BLOCK_SELECTED_WRAPPER_CLASS = 'pm-block-selected'
+
+function setWrapperBlockSelected(view: EditorView, on: boolean) {
+  const wrapper = view.dom.parentElement
+  if (!wrapper || wrapper.classList.contains(BLOCK_SELECTED_WRAPPER_CLASS) === on) return
+  wrapper.classList.toggle(BLOCK_SELECTED_WRAPPER_CLASS, on)
+}
+
+function isBlockNodeSelection(view: EditorView): boolean {
+  const sel = view.state.selection
+  return sel instanceof NodeSelection && sel.node.isBlock
+}
+
+/** The list item a DOM `<li>` renders, as a document position (the position BEFORE the item). */
+function listItemPosForDom(view: EditorView, li: HTMLElement): number | null {
+  if (!li.isConnected || !view.dom.contains(li)) return null
+  try {
+    const inside = view.posAtDOM(li, 0)
+    const $pos = view.state.doc.resolve(inside)
+    for (let d = $pos.depth; d > 0; d--) {
+      if ($pos.node(d).type === schema.nodes.list_item) return $pos.before(d)
+    }
+    const after = view.state.doc.nodeAt(inside)
+    if (after?.type === schema.nodes.list_item) return inside
+  } catch { /* stale DOM — fall back to the whole block */ }
+  return null
+}
+
+/**
+ * "Add Block Below" (the block menu) — an empty paragraph right after the top-level block at
+ * `pos` (or an empty item after a list item), with the caret in it. Returns the caret position.
+ * Replaces the gutter's old "+" button, with the same stale-position safety: `pos` is re-checked
+ * against the live document.
+ */
+export function insertBlockBelow(view: EditorView, pos: number): number | null {
+  try {
+    const node = view.state.doc.nodeAt(pos)
+    if (!node) return null
+    const after = pos + node.nodeSize
+    const tr = view.state.tr
+    let cursor: number
+    if (node.type === schema.nodes.list_item) {
+      tr.insert(after, schema.nodes.list_item.create(node.attrs.checked != null ? { checked: false } : null, schema.nodes.paragraph.create()))
+      cursor = after + 2
+    } else {
+      tr.insert(after, schema.nodes.paragraph.create())
+      cursor = after + 1
+      tr.setMeta(blockEnterAnimMeta, after)
+    }
+    tr.setSelection(TextSelection.near(tr.doc.resolve(cursor)))
+    view.dispatch(tr.scrollIntoView())
+    view.focus()
+    return cursor
+  } catch (err) {
+    console.error('[blockHandles] add block below failed:', err)
+    return null
+  }
+}
 
 function setWrapperDragging(view: EditorView, on: boolean) {
   // view.dom.parentElement is the `.berean-pm-editor` scroll container
@@ -165,7 +239,6 @@ function buildHandleWidget(
   pos: number,
   index: number,
   onOpenMenu: (target: BlockMenuTarget) => void,
-  onOpenSlashMenu: (view: EditorView, pos: number) => void,
 ) {
   return (view: EditorView) => {
     const wrap = document.createElement('div')
@@ -183,53 +256,20 @@ function buildHandleWidget(
     // in the first place, so it can never itself go stale relative to what it's labeling.
     wrap.dataset.blockIndex = String(index)
 
-    const inner = document.createElement('div')
+    const inner = document.createElement('div') as HTMLDivElement & { __targetLi?: HTMLElement | null }
     inner.className = 'pm-block-handle-inner'
 
-    // "+" — inserts an empty paragraph at this exact boundary (i.e. right
-    // before the block this handle belongs to), places the cursor in it, AND
-    // opens the slash-command menu right there — lifting the phase-1 limit
-    // this comment used to document (plain insert only, user types "/"
-    // themselves). Reuses autocomplete.ts's own SlashCommandTrigger shape via
-    // onOpenSlashMenu rather than simulating a typed "/" character: the
-    // freshly-inserted paragraph is already empty, so a synthesized trigger
-    // with query='' and from===to===cursor is exactly what typing "/" on an
-    // empty line would have produced (slashCommands.ts's applyBlockCommand
-    // deletes [from,to) first — a no-op here — then runs the block command
-    // against the live selection). That also means dismissing the menu with
-    // Escape naturally leaves nothing behind but the plain empty paragraph
-    // (see NoteEditorPM.tsx's Escape handler for the popup-dismiss path) —
-    // no stray "/" character to clean up.
-    const insertBtn = document.createElement('button')
-    insertBtn.type = 'button'
-    insertBtn.className = 'pm-block-handle-btn pm-block-handle-insert'
-    insertBtn.title = 'Insert block above'
-    insertBtn.innerHTML = PLUS_SVG
-    insertBtn.addEventListener('mousedown', (e) => e.preventDefault())
-    insertBtn.addEventListener('click', (e) => {
-      e.preventDefault()
-      try {
-        // Recompute — see this file's header comment on currentPosForBlockIndex for why the
-        // closed-over `pos` above can't be trusted here.
-        const livePos = currentPosForBlockIndex(view, index)
-        if (livePos == null) return
-        const tr = view.state.tr.insert(livePos, schema.nodes.paragraph.create())
-        const cursorPos = livePos + 1
-        tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPos)))
-        tr.setMeta(blockEnterAnimMeta, livePos)
-        view.dispatch(tr)
-        view.focus()
-        onOpenSlashMenu(view, cursorPos)
-      } catch (err) {
-        // An insert transaction should never be able to hang/crash the whole app — reported as
-        // exactly that ("clicking the plus button in the gutter just freezes the app"), and this
-        // is the one place in that click's call path where an invalid position (livePos pointing
-        // somewhere ProseMirror's transform code rejects) could throw synchronously. Logging
-        // instead of letting it propagate uncaught turns "the app hangs with no explanation"
-        // into "nothing visibly happens, but there's a console error to actually diagnose from."
-        console.error('[blockHandles] insert button failed:', err)
+    // What the grip acts on right now: the list item the hover tracker pointed it at, else the
+    // whole top-level block. Read live at press time (see currentPosForBlockIndex).
+    const targetPos = (): number | null => {
+      const li = inner.__targetLi
+      if (li) {
+        const p = listItemPosForDom(view, li)
+        if (p != null) return p
       }
-    })
+      return currentPosForBlockIndex(view, index)
+    }
+    void pos
 
     // Drag grip — also the block-menu trigger on a plain click (Notion's own
     // handle doubles as both). `draggable=true` lets the browser's native
@@ -238,7 +278,8 @@ function buildHandleWidget(
     const grip = document.createElement('button')
     grip.type = 'button'
     grip.className = 'pm-block-handle-btn pm-block-handle-grip'
-    grip.title = 'Drag to reorder · click for options'
+    grip.title = 'Click to select · drag to move'
+    grip.setAttribute('aria-label', 'Select block')
     grip.draggable = true
     grip.innerHTML = GRIP_SVG
     // Round-11.15 fix: this used to call `e.preventDefault()` here too, on the theory that it
@@ -263,7 +304,7 @@ function buildHandleWidget(
     grip.addEventListener('mousedown', () => {
       try {
         const $doc = view.state.doc
-        const livePos = currentPosForBlockIndex(view, index)
+        const livePos = targetPos()
         if (livePos == null || livePos < 0 || livePos >= $doc.content.size) return
         // Suppress the node-selection paint from the instant the grip goes
         // down, not just once dragging starts — otherwise the block flashes as
@@ -291,7 +332,7 @@ function buildHandleWidget(
     let dragGhost: HTMLElement | null = null
     grip.addEventListener('dragstart', (e) => {
       try {
-        const livePos = currentPosForBlockIndex(view, index)
+        const livePos = targetPos()
         if (livePos == null) return
         const blockDom = view.nodeDOM(livePos)
         if (!(blockDom instanceof HTMLElement)) return
@@ -339,7 +380,8 @@ function buildHandleWidget(
         // time this runs, the browser has taken its drag image and the drag is underway.
         setTimeout(() => {
           const p = currentPosForBlockIndex(view, index)
-          if (p != null) view.dispatch(view.state.tr.setMeta(blockDragSourceMeta, p))
+          // The dim decoration is per top-level block; a dragged list ITEM isn't dimmed.
+          if (p != null && !inner.__targetLi) view.dispatch(view.state.tr.setMeta(blockDragSourceMeta, p))
         }, 0)
       } catch (err) {
         console.error('[blockHandles] grip dragstart failed:', err)
@@ -356,15 +398,19 @@ function buildHandleWidget(
     grip.addEventListener('click', (e) => {
       e.preventDefault()
       try {
-        const livePos = currentPosForBlockIndex(view, index)
+        const livePos = targetPos()
         if (livePos == null) return
+        // The press already selected the block (mousedown above); make sure it still is — a
+        // click that landed after some other selection change re-selects it.
+        if (!(view.state.selection instanceof NodeSelection) || view.state.selection.from !== livePos) {
+          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, livePos)).setMeta(blockGripSelectMeta, true))
+        }
         onOpenMenu({ pos: livePos, rect: grip.getBoundingClientRect() })
       } catch (err) {
         console.error('[blockHandles] grip click failed:', err)
       }
     })
 
-    inner.appendChild(insertBtn)
     inner.appendChild(grip)
     wrap.appendChild(inner)
     return wrap
@@ -373,7 +419,6 @@ function buildHandleWidget(
 
 export function createBlockHandlesPlugin(
   onOpenMenu: (target: BlockMenuTarget) => void,
-  onOpenSlashMenu: (view: EditorView, pos: number) => void,
 ) {
   // Captured via view() the same way blockDecorations.ts's own liveView is —
   // decorations(state) only receives `state`, but this plugin also needs to
@@ -451,47 +496,76 @@ export function createBlockHandlesPlugin(
       // block's own handle widget — accurate regardless of exactly how many px of padding the
       // editor happens to have at any given moment.
       let hoveredIndex: number | null = null
+      let hoveredLi: HTMLElement | null = null
       let hoverRAF: number | null = null
-      function applyHover(index: number | null) {
-        if (index === hoveredIndex) return
+      // Puts the (single) grip level with the first line of what it will act on — the block, or
+      // the hovered list item — and records that item for the grip's press/click handlers.
+      // Writing styles inside a widget is safe: PM ignores DOM mutations inside widget decorations.
+      function placeGrip(handle: HTMLElement, block: HTMLElement | null, li: HTMLElement | null) {
+        const inner = handle.querySelector<HTMLDivElement & { __targetLi?: HTMLElement | null }>('.pm-block-handle-inner')
+        if (!inner) return
+        inner.__targetLi = li
+        const row = li ?? block
+        if (!row) return
+        const lineEl = (li?.querySelector<HTMLElement>(':scope > p, :scope > div > p') ?? row)
+        const cs = getComputedStyle(lineEl)
+        const fontSize = parseFloat(cs.fontSize) || 16
+        const lh = parseFloat(cs.lineHeight) || fontSize * 1.5
+        const padTop = li ? 0 : parseFloat(getComputedStyle(row).paddingTop) || 0
+        const top = row.getBoundingClientRect().top - handle.getBoundingClientRect().top + padTop + (lh - 16) / 2
+        inner.style.top = `${Math.round(top)}px`
+      }
+      function applyHover(index: number | null, block: HTMLElement | null, li: HTMLElement | null) {
+        if (index === hoveredIndex && li === hoveredLi) return
+        const indexChanged = index !== hoveredIndex
         hoveredIndex = index
+        hoveredLi = li
         editorView.dom.querySelectorAll<HTMLElement>(':scope > .pm-block-handle').forEach((el) => {
           const i = Number(el.dataset.blockIndex)
-          el.classList.toggle('pm-gutter-active', index !== null && i === index)
+          const on = index !== null && i === index
+          if (indexChanged) el.classList.toggle('pm-gutter-active', on)
+          if (on) placeGrip(el, block, li)
         })
+      }
+      // The deepest list item whose box contains this row (nested items come after their parent
+      // in document order, so the last match is the innermost).
+      function listItemAt(block: HTMLElement, clientY: number): HTMLElement | null {
+        if (block.tagName !== 'UL' && block.tagName !== 'OL') return null
+        let hit: HTMLElement | null = null
+        for (const li of block.querySelectorAll<HTMLElement>('li')) {
+          const r = li.getBoundingClientRect()
+          if (clientY >= r.top && clientY <= r.bottom) hit = li
+        }
+        return hit
       }
       function measureAndApply(clientX: number, clientY: number) {
         hoverRAF = null
         if (!editorView.editable) return
         let found: number | null = null
+        let blockEl: HTMLElement | null = null
         // Pass 1: the block's own rendered row — covers hovering the block's actual text, and
         // most of the gutter to its left (blocks are full-width, so their rect already spans it).
         for (const el of editorView.dom.querySelectorAll<HTMLElement>(':scope > .pm-block-hoverable')) {
           const r = el.getBoundingClientRect()
-          if (clientY >= r.top && clientY <= r.bottom) { found = Number(el.dataset.blockIndex); break }
+          if (clientY >= r.top && clientY <= r.bottom) { found = Number(el.dataset.blockIndex); blockEl = el; break }
         }
-        // Pass 2: the handle's OWN button stack. `.pm-block-handle-inner` holds two 16px
-        // buttons stacked with a gap (~33px total) — taller than a typical single short line's
-        // row (~24-28px), so the LOWER button (the drag grip) can render below the paired
-        // block's own bottom edge. Pass 1 alone would then lose the match exactly while the
-        // cursor moves down to reach that button — the "goes away when my cursor is in the
-        // gutter" report. Union in each widget's own measured rect (real layout, even though
-        // its `.pm-block-handle` ancestor is `height:0` — the absolutely-positioned inner isn't
-        // constrained by that). X-bounded (unlike pass 1) so this doesn't light up a block's
-        // handle from far off to the right at the same incidental Y — it should only catch "just
-        // outside the row, but still right next to the button."
+        // Pass 2: the grip's OWN rect — between blocks (in a heading's top margin, say) the
+        // pointer can be on the grip while outside every block's row. X-bounded so this doesn't
+        // light up a block's handle from far off to the right at the same incidental Y.
         if (found === null) {
           for (const el of editorView.dom.querySelectorAll<HTMLElement>(':scope > .pm-block-handle')) {
             const inner = el.querySelector<HTMLElement>('.pm-block-handle-inner')
-            if (!inner) continue
+            if (!inner || !el.classList.contains('pm-gutter-active')) continue
             const r = inner.getBoundingClientRect()
             if (clientY >= r.top - 4 && clientY <= r.bottom + 4 && clientX >= r.left - 8 && clientX <= r.right + 8) {
               found = Number(el.dataset.blockIndex)
               break
             }
           }
+          // Keep the item the grip already points at — the pointer is on the grip itself.
+          if (found !== null && found === hoveredIndex) { applyHover(found, null, hoveredLi); return }
         }
-        applyHover(found)
+        applyHover(found, blockEl, blockEl ? listItemAt(blockEl, clientY) : null)
       }
       function onMouseMove(e: MouseEvent) {
         // rAF-coalesced: mousemove fires far faster than layout can usefully change, and this
@@ -503,7 +577,7 @@ export function createBlockHandlesPlugin(
       }
       function onMouseLeave() {
         if (hoverRAF !== null) { cancelAnimationFrame(hoverRAF); hoverRAF = null }
-        applyHover(null)
+        applyHover(null, null, null)
       }
       editorView.dom.addEventListener('mousemove', onMouseMove)
       editorView.dom.addEventListener('mouseleave', onMouseLeave)
@@ -520,6 +594,7 @@ export function createBlockHandlesPlugin(
         // MutationObserver flush does when it finds no doc difference) passes
         // prevState === state, so `enterGen` is equal and nothing fires.
         update(view, prevState) {
+          if (!view.state.selection.eq(prevState.selection)) setWrapperBlockSelected(view, isBlockNodeSelection(view))
           const cur = blockHandlesKey.getState(view.state)
           const prev = blockHandlesKey.getState(prevState)
           if (!cur || !prev || cur.enterGen === prev.enterGen) return
@@ -561,6 +636,7 @@ export function createBlockHandlesPlugin(
           if (clearTimer !== null) clearTimeout(clearTimer)
           if (collapseTimer !== null) clearTimeout(collapseTimer)
           setWrapperDragging(editorView, false)
+          setWrapperBlockSelected(editorView, false)
           editorView.dom.removeEventListener('mousemove', onMouseMove)
           editorView.dom.removeEventListener('mouseleave', onMouseLeave)
         },
@@ -580,7 +656,7 @@ export function createBlockHandlesPlugin(
           if (offset === enterPos) cls.push('pm-block-enter')
           if (offset === dragPos) cls.push('pm-block-dragging-source')
           decorations.push(Decoration.node(offset, offset + node.nodeSize, { class: cls.join(' '), 'data-block-index': String(index) }))
-          decorations.push(Decoration.widget(offset, buildHandleWidget(offset, index, onOpenMenu, onOpenSlashMenu), {
+          decorations.push(Decoration.widget(offset, buildHandleWidget(offset, index, onOpenMenu), {
             side: -1,
             // Keyed on the block's INDEX among its top-level siblings, not its character offset.
             // Offset shifts for every block that follows an edit — so typing a single character

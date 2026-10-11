@@ -114,11 +114,20 @@ export function loadLiquidGlassCapabilities(): Promise<LiquidGlassCapabilities> 
       }
     }
     current = caps
+    settled = true
     stamp(caps)
     notify()
     return caps
   })()
   return loading
+}
+
+let settled = false
+/** True once the platform's capabilities have been read (until then `native` is a provisional
+ *  false). With an adapter installed but not yet settled, native drawing is still PENDING — a
+ *  caller can avoid showing a web control that native glass is about to replace. */
+export function liquidGlassCapabilitiesSettled(): boolean {
+  return settled
 }
 
 // html[data-reduce-transparency] / [data-increase-contrast] are owned by the platform shell
@@ -169,5 +178,5 @@ export function refreshLiquidGlassCapabilities(): Promise<LiquidGlassCapabilitie
 
 /** Tests only. */
 export function _resetLiquidGlass(): void {
-  adapter = undefined; disabled = false; loading = null; current = NONE(); snapshot = current; listeners.clear(); observer?.disconnect(); observer = null
+  adapter = undefined; disabled = false; loading = null; settled = false; current = NONE(); snapshot = current; listeners.clear(); observer?.disconnect(); observer = null
 }

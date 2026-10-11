@@ -1,4 +1,4 @@
-import { Plugin, PluginKey, type EditorState } from 'prosemirror-state'
+import { Plugin, PluginKey, type EditorState, type Transaction } from 'prosemirror-state'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import type { Node as PMNode } from 'prosemirror-model'
 import { parseRef, type ParsedRef } from '@/lib/parseRef'
@@ -78,94 +78,105 @@ export function buildRefDecorationsForDoc(
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
     if (node.type.spec.code) return false
-
-    // node.textContent flattens ALL inline children to their text, including non-text
-    // leaf children (hard_break, image) — which contribute ZERO characters to textContent
-    // even though each still occupies real document position space (nodeSize 1). Regex
-    // match indices computed against that flattened string were then off by however many
-    // such leaf nodes preceded the match, so `base + match.index` pointed too early and
-    // `base + match.index + match.length` landed one position short of the reference's
-    // true end — the reported bug: a verse ref written on its own line after a hard line
-    // break ("hosea 6;\njubilees 4:30") had its underline/color decoration silently
-    // truncated by exactly one character (dropping the ref's last digit) because the
-    // hard_break between the two lines "disappeared" from the string but not from the
-    // document's coordinate space. Building the string by hand — inserting one placeholder
-    // space per position a non-text leaf child actually occupies — keeps every string
-    // index in 1:1 correspondence with a real document position, so `base + index` is
-    // always correct regardless of how many hard_breaks/images sit earlier in the block.
-    let text = ''
-    node.forEach((child) => {
-      text += child.isText ? (child.text ?? '') : ' '.repeat(child.nodeSize)
-    })
-    // nbsp/thin-space → plain space (length-preserving, so `base + match.index` stays
-    // exact) — contenteditable substitutes typed spaces with U+00A0, which the ref
-    // regexes' `[ \t]` gaps reject, so "Isaiah 61:3<nbsp>LXX" never matched the marker.
-    text = normalizeRefWhitespace(text)
-    const base = pos + 1
-
-    // Wikilink-marked ranges within this textblock, computed once by
-    // walking its inline children.
-    const wikilinkRanges: Array<{ from: number; to: number }> = []
-    let walkPos = base
-    node.forEach((child) => {
-      if (child.marks.some((m) => m.type.name === 'wikilink')) {
-        wikilinkRanges.push({ from: walkPos, to: walkPos + child.nodeSize })
-      }
-      walkPos += child.nodeSize
-    })
-    const isWikilinked = (from: number, to: number) => wikilinkRanges.some((r) => r.from < to && r.to > from)
-    const shouldSkip = (from: number, to: number) => isSuppressed(from, to) || isBlockRefCovered(from, to) || isWikilinked(from, to)
-
-    const lxxRanges: Array<{ from: number; to: number }> = []
-    LXX_PREFIX_RE.lastIndex = 0
-    let lm: RegExpExecArray | null
-    while ((lm = LXX_PREFIX_RE.exec(text)) !== null) {
-      const from = base + lm.index
-      const to = from + lm[0].length
-      if (!parseRef(lm[0].replace(/^(?:lxx|LXX):/i, ''))) continue
-      if (shouldSkip(from, to)) continue
-      lxxRanges.push({ from, to })
-      decorations.push(Decoration.inline(from, to, { class: 'pm-lxx-ref', 'data-ref': lm[0] }))
-    }
-
-    for (const ma of findVerseRefMatches(text)) {
-      const from = base + ma.index
-      const to = from + ma.length
-      const skipped = shouldSkip(from, to)
-      const lxxOverlap = lxxRanges.some((r) => r.from < to && r.to > from)
-      if (skipped) continue
-      if (lxxOverlap) continue
-      decorations.push(
-        Decoration.inline(from, to, {
-          class: ma.lxx ? 'pm-lxx-ref' : 'pm-verse-ref',
-          'data-ref': ma.refText,
-          'data-lxx': ma.lxx ? 'true' : 'false',
-        }),
-      )
-    }
-
-    LEXICON_REF_RE.lastIndex = 0
-    while ((lm = LEXICON_REF_RE.exec(text)) !== null) {
-      const from = base + lm.index
-      const to = from + lm[0].length
-      if (shouldSkip(from, to)) continue
-      decorations.push(Decoration.inline(from, to, { class: 'pm-lexicon-ref', 'data-strongs-id': lm[0].toUpperCase() }))
-    }
-
-    for (const hit of scanTagRefs(text, knownTagIndex)) {
-      const from = base + hit.index
-      const to = from + hit.length
-      if (shouldSkip(from, to)) continue
-      const slot = hit.known ? _knownTagSlotByLower.get(hit.name.toLowerCase()) ?? -1 : -1
-      const attrs: Record<string, string> = { class: 'pm-tag-ref', 'data-tag': hit.name }
-      if (slot >= 0) attrs.style = `--pm-tag-slot: var(--tag-slot-${slot})`
-      decorations.push(Decoration.inline(from, to, attrs))
-    }
-
+    decorateTextblock(node, pos, isSuppressed, isBlockRefCovered, knownTagIndex, decorations)
     return false
   })
 
   return DecorationSet.create(doc, decorations)
+}
+
+/** Every reference decoration inside ONE textblock (shared by the full build and the incremental
+ *  update). `pos` is the textblock's position. */
+function decorateTextblock(
+  node: PMNode, pos: number,
+  isSuppressed: (from: number, to: number) => boolean,
+  isBlockRefCovered: (from: number, to: number) => boolean,
+  knownTagIndex: KnownTagIndex,
+  decorations: Decoration[],
+): void {
+  // node.textContent flattens ALL inline children to their text, including non-text
+  // leaf children (hard_break, image) — which contribute ZERO characters to textContent
+  // even though each still occupies real document position space (nodeSize 1). Regex
+  // match indices computed against that flattened string were then off by however many
+  // such leaf nodes preceded the match, so `base + match.index` pointed too early and
+  // `base + match.index + match.length` landed one position short of the reference's
+  // true end — the reported bug: a verse ref written on its own line after a hard line
+  // break ("hosea 6;\njubilees 4:30") had its underline/color decoration silently
+  // truncated by exactly one character (dropping the ref's last digit) because the
+  // hard_break between the two lines "disappeared" from the string but not from the
+  // document's coordinate space. Building the string by hand — inserting one placeholder
+  // space per position a non-text leaf child actually occupies — keeps every string
+  // index in 1:1 correspondence with a real document position, so `base + index` is
+  // always correct regardless of how many hard_breaks/images sit earlier in the block.
+  let text = ''
+  node.forEach((child) => {
+    text += child.isText ? (child.text ?? '') : ' '.repeat(child.nodeSize)
+  })
+  // nbsp/thin-space → plain space (length-preserving, so `base + match.index` stays
+  // exact) — contenteditable substitutes typed spaces with U+00A0, which the ref
+  // regexes' `[ \t]` gaps reject, so "Isaiah 61:3<nbsp>LXX" never matched the marker.
+  text = normalizeRefWhitespace(text)
+  const base = pos + 1
+
+  // Wikilink-marked ranges within this textblock, computed once by
+  // walking its inline children.
+  const wikilinkRanges: Array<{ from: number; to: number }> = []
+  let walkPos = base
+  node.forEach((child) => {
+    if (child.marks.some((m) => m.type.name === 'wikilink')) {
+      wikilinkRanges.push({ from: walkPos, to: walkPos + child.nodeSize })
+    }
+    walkPos += child.nodeSize
+  })
+  const isWikilinked = (from: number, to: number) => wikilinkRanges.some((r) => r.from < to && r.to > from)
+  const shouldSkip = (from: number, to: number) => isSuppressed(from, to) || isBlockRefCovered(from, to) || isWikilinked(from, to)
+
+  const lxxRanges: Array<{ from: number; to: number }> = []
+  LXX_PREFIX_RE.lastIndex = 0
+  let lm: RegExpExecArray | null
+  while ((lm = LXX_PREFIX_RE.exec(text)) !== null) {
+    const from = base + lm.index
+    const to = from + lm[0].length
+    if (!parseRef(lm[0].replace(/^(?:lxx|LXX):/i, ''))) continue
+    if (shouldSkip(from, to)) continue
+    lxxRanges.push({ from, to })
+    decorations.push(Decoration.inline(from, to, { class: 'pm-lxx-ref', 'data-ref': lm[0] }))
+  }
+
+  for (const ma of findVerseRefMatches(text)) {
+    const from = base + ma.index
+    const to = from + ma.length
+    const skipped = shouldSkip(from, to)
+    const lxxOverlap = lxxRanges.some((r) => r.from < to && r.to > from)
+    if (skipped) continue
+    if (lxxOverlap) continue
+    decorations.push(
+      Decoration.inline(from, to, {
+        class: ma.lxx ? 'pm-lxx-ref' : 'pm-verse-ref',
+        'data-ref': ma.refText,
+        'data-lxx': ma.lxx ? 'true' : 'false',
+      }),
+    )
+  }
+
+  LEXICON_REF_RE.lastIndex = 0
+  while ((lm = LEXICON_REF_RE.exec(text)) !== null) {
+    const from = base + lm.index
+    const to = from + lm[0].length
+    if (shouldSkip(from, to)) continue
+    decorations.push(Decoration.inline(from, to, { class: 'pm-lexicon-ref', 'data-strongs-id': lm[0].toUpperCase() }))
+  }
+
+  for (const hit of scanTagRefs(text, knownTagIndex)) {
+    const from = base + hit.index
+    const to = from + hit.length
+    if (shouldSkip(from, to)) continue
+    const slot = hit.known ? _knownTagSlotByLower.get(hit.name.toLowerCase()) ?? -1 : -1
+    const attrs: Record<string, string> = { class: 'pm-tag-ref', 'data-tag': hit.name }
+    if (slot >= 0) attrs.style = `--pm-tag-slot: var(--tag-slot-${slot})`
+    decorations.push(Decoration.inline(from, to, attrs))
+  }
+
 }
 
 export interface RefClickCallbacks {
@@ -228,6 +239,10 @@ export function createRefDecorationsPlugin() {
         // another view) — NoteEditorPM dispatches an empty tr with this meta on verseTagChangeToken.
         const knownTagsChanged = !!(tr.getMeta(refDecorationsKey) as { knownTagsChanged?: boolean } | undefined)?.knownTagsChanged
         if (!tr.docChanged && !tr.getMeta(suppressRangesKey) && !knownTagsChanged) return old.map(tr.mapping, tr.doc)
+        if (tr.docChanged && !tr.getMeta(suppressRangesKey) && !knownTagsChanged) {
+          const inc = updateDecorations(tr, old, _oldState, newState)
+          if (inc) return inc
+        }
         return buildDecorations(newState)
       },
     },
@@ -237,6 +252,71 @@ export function createRefDecorationsPlugin() {
       },
     },
   })
+}
+
+/** Ranges (in the NEW doc) that a transaction replaced. */
+function changedRanges(tr: Transaction): Array<{ from: number; to: number }> {
+  const out: Array<{ from: number; to: number }> = []
+  tr.mapping.maps.forEach((map, i) => {
+    const rest = tr.mapping.slice(i + 1)
+    map.forEach((_oS, _oE, nS, nE) => out.push({ from: rest.map(nS, -1), to: rest.map(nE, 1) }))
+  })
+  return out
+}
+
+/** The verse/lexicon-block `-ref` / `-def` line ranges (excluded from the general scan). */
+function blockRefRangesOf(set: DecorationSet | undefined, doc: PMNode): Array<{ from: number; to: number }> {
+  const out: Array<{ from: number; to: number }> = []
+  ;(set ?? buildBlockDecorations(doc, () => {})).find(0, doc.content.size).forEach((d) => {
+    const cls = (d as unknown as { type: { attrs?: { class?: string } } }).type.attrs?.class ?? ''
+    if (/-(ref|def)\b/.test(cls)) out.push({ from: d.from, to: d.to })
+  })
+  return out
+}
+
+// Above this many textblocks to redo, a full rebuild is as cheap and simpler.
+const INCREMENTAL_MAX_BLOCKS = 40
+
+/**
+ * Incremental update for a doc-changing transaction (perf/glass QA P-03): the previous set is
+ * mapped through the change and ONLY the textblocks that changed — plus any whose verse/lexicon
+ * block-reference exclusion changed (typing can turn a neighbouring paragraph into a verse block's
+ * reference line) — are re-scanned. A full rescan of every textblock on every keystroke cost
+ * ~42 ms per character in a 79 KB note on the iPhone simulator. Returns null to fall back to a full
+ * build (very large changes). Equivalent to a full build — refDecorationsIncremental.test.ts.
+ */
+function updateDecorations(tr: Transaction, old: DecorationSet, oldState: EditorState, state: EditorState): DecorationSet | null {
+  const doc = state.doc
+  const touched: Array<{ from: number; to: number }> = changedRanges(tr)
+  // Exclusion ranges that appeared, vanished or moved (old ones mapped into the new doc).
+  const newRefs = blockRefRangesOf(blockDecorationsKey.getState(state) as DecorationSet | undefined, doc)
+  const oldRefs = blockRefRangesOf(blockDecorationsKey.getState(oldState) as DecorationSet | undefined, oldState.doc)
+    .map((r) => ({ from: tr.mapping.map(r.from, 1), to: tr.mapping.map(r.to, -1) }))
+  const key = (r: { from: number; to: number }) => `${r.from}:${r.to}`
+  const newKeys = new Set(newRefs.map(key)), oldKeys = new Set(oldRefs.map(key))
+  for (const r of newRefs) if (!oldKeys.has(key(r))) touched.push(r)
+  for (const r of oldRefs) if (!newKeys.has(key(r))) touched.push(r)
+
+  const blocks = new Map<number, PMNode>()
+  for (const r of touched) {
+    const from = Math.max(0, Math.min(r.from, r.to) - 1), to = Math.min(doc.content.size, Math.max(r.from, r.to) + 1)
+    doc.nodesBetween(from, to, (node, pos) => {
+      if (node.isTextblock) { blocks.set(pos, node); return false }
+      return true
+    })
+    if (blocks.size > INCREMENTAL_MAX_BLOCKS) return null
+  }
+
+  let set = old.map(tr.mapping, doc)
+  const ranges = suppressRangesKey.getState(state) ?? []
+  const isSuppressed = (from: number, to: number) => ranges.some((r) => r.from < to && r.to > from)
+  const isBlockRefCovered = (from: number, to: number) => newRefs.some((r) => r.from < to && r.to > from)
+  const fresh: Decoration[] = []
+  for (const [pos, node] of blocks) {
+    set = set.remove(set.find(pos, pos + node.nodeSize))
+    if (!node.type.spec.code) decorateTextblock(node, pos, isSuppressed, isBlockRefCovered, _knownTagIndex, fresh)
+  }
+  return fresh.length ? set.add(doc, fresh) : set
 }
 
 function buildDecorations(state: EditorState): DecorationSet {

@@ -75,10 +75,11 @@ export function BottomNav({ onTabs, onPlus, onCaret, caretLabel }: { onTabs: () 
         </span>
       </button>
       <button ref={plusRef} type="button" className={`mobile-nav-plus${isNative('plus') ? ' is-native-glass' : ''}`} onClick={pressPlus} aria-label="New tab or search" aria-hidden={isNative('plus') || undefined} tabIndex={isNative('plus') ? -1 : undefined}>
-        <Plus size={24} aria-hidden />
+        {/* The native twin's metrics (plus 21pt semibold / chevron.up 19pt medium) — G-06. */}
+        <Plus size={22} strokeWidth={2.4} aria-hidden />
       </button>
       <button ref={caretRef} type="button" className={`mobile-nav-caret${isNative('caret') ? ' is-native-glass' : ''}`} onClick={pressCaret} aria-label={caretLabel} aria-hidden={isNative('caret') || undefined} tabIndex={isNative('caret') ? -1 : undefined}>
-        <ChevronUp size={24} aria-hidden />
+        <ChevronUp size={22} strokeWidth={2.2} aria-hidden />
       </button>
     </nav>
   )

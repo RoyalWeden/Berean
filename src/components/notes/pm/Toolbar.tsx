@@ -7,7 +7,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2, Link2Off,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease,
   Table2, Minus, BookOpen, Image as ImageIcon, Rows3, Columns3, Trash2, Plus,
-  Square, X, Maximize2, Focus as FocusIcon, ListMinus, SquarePlus } from 'lucide-react'
+  Square, X, Maximize2, Focus as FocusIcon, ListMinus, SquarePlus, Clock } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
 import { createEditorCommands } from './editorCommands'
@@ -61,7 +61,7 @@ function currentBlockTypeMeta(view: EditorView): BlockTypeMeta {
 // — idiom notes hide the toolbar but still want the count. SAVE_FLASH_HOLD_MS et al. moved
 // there too.
 
-type DropdownKind = 'type' | 'list' | 'highlight' | 'insert' | 'link' | 'verse'
+type DropdownKind = 'type' | 'list' | 'highlight' | 'insert' | 'verse'
 
 // Persistent, always-visible formatting toolbar docked above the note editor —
 // complements (doesn't replace) SelectionToolbar.tsx's selection-triggered bubble menu.
@@ -89,9 +89,16 @@ function BarGroup({ inBar, sep, children }: { inBar: boolean; sep: boolean; chil
 }
 
 export default function Toolbar({
-  view, tabId, inTable, placement = 'floating', insertSlot,
+  view, tabId, inTable, titleLocked = false, placement = 'floating', insertSlot, onOpenLink,
 }: {
   view: EditorView | null; tabId?: string; inTable?: boolean
+  /** Opens the shared link editor (LinkEditor.tsx, owned by NoteEditorPM) for the selection,
+   *  hanging from this rect — the same editor the selection bubble and block menu open. */
+  onOpenLink: (anchor: { left: number; top: number; bottom: number }) => void
+  /** The cursor is on the note's title (NoteEditorPM): every formatting and insert control is
+   *  disabled — `inert`, so it can't be clicked or tabbed to — and drawn dimmed. Undo/Redo, which
+   *  live outside this bar, keep working. */
+  titleLocked?: boolean
   /** Bar placement only: where the separate Insert control lives (TEST 2026-10-05 — inserting a
    *  table / image / verse is a DOCUMENT action, not text formatting, so it leaves the formatting
    *  group for its own toolbar item, as in Pages). Null → Insert stays the formatting bar's last
@@ -106,13 +113,12 @@ export default function Toolbar({
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const [hovering, setHovering] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const linkInputRef = useRef<HTMLInputElement>(null)
-  // Selection as it stood when the link popover opened — focusing the URL input
-  // blurs the editor and can collapse the live selection before submit. See
-  // editorCommands.ts applyLink.
-  const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
-  const [linkUrl, setLinkUrl] = useState('')
   const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
+  // A YouTube tab showing a video — the same test the iPhone editor uses for its timestamp action.
+  const ytVideoOpen = useAppStore((s) => {
+    const t = s.tabs.youtube.find((x) => x.id === s.activeTabId.youtube)
+    return !!(t?.state as { videoId?: string | null } | undefined)?.videoId
+  })
   const focusMode = tabId != null && noteFocusModeTabId === tabId
   const toggleNoteFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
   const toggleFocusMode = () => { if (tabId != null) toggleNoteFocusMode(tabId) }
@@ -174,12 +180,8 @@ export default function Toolbar({
     return () => document.removeEventListener('mousedown', onDown)
   }, [openDropdown, insertSlot])
 
-  // Autofocus the URL field the moment the link popover opens — mirrors what
-  // window.prompt() used to give for free (see editorCommands.ts's applyLink
-  // for why prompt() itself can't be used here — Electron's renderer throws).
-  useEffect(() => {
-    if (openDropdown === 'link') linkInputRef.current?.focus()
-  }, [openDropdown])
+  // Locking (cursor moved onto the title) closes anything opened from the bar.
+  useEffect(() => { if (titleLocked) setOpenDropdown('none') }, [titleLocked])
 
   if (!view) return null
   const editorView = view // narrowed local — TS doesn't carry the null-check narrowing of a
@@ -192,13 +194,9 @@ export default function Toolbar({
   function removeHighlight() { cmds.removeHighlight(); setOpenDropdown('none') }
   function toggleTaskList() { cmds.toggleTaskList(); setOpenDropdown('none') }
 
-  function openLinkDropdownAtRect(rect: { left: number; bottom: number }) {
-    if (openDropdown === 'link') { setOpenDropdown('none'); return }
-    const { from, to } = editorView.state.selection
-    linkRangeRef.current = { from, to }
-    setLinkUrl(cmds.currentLinkHref())
-    setDropdownPos({ left: rect.left, top: rect.bottom + 4 })
-    setOpenDropdown('link')
+  function openLinkDropdownAtRect(rect: { left: number; top: number; bottom: number }) {
+    setOpenDropdown('none')
+    onOpenLink({ left: rect.left, top: rect.top, bottom: rect.bottom })
   }
   function openLinkDropdownAt(e: React.MouseEvent<HTMLButtonElement>) {
     openLinkDropdownAtRect(e.currentTarget.getBoundingClientRect())
@@ -209,11 +207,6 @@ export default function Toolbar({
     if (rect) openLinkDropdownAtRect(rect)
   }
 
-  function submitLink() {
-    const url = linkUrl.trim()
-    setOpenDropdown('none')
-    if (url) cmds.applyLink(url, linkRangeRef.current ?? undefined)
-  }
   // Verse blocks are plain paragraph text auto-detected by blockDecorations.ts once it
   // matches a real verse in the DB (see slashCommands.ts's startVerseBlock for the full
   // reasoning). This button used to be unable to insert a finished block itself, for lack
@@ -249,6 +242,10 @@ export default function Toolbar({
     ? (revealed || inUse ? 'opacity-100' : 'opacity-0 pointer-events-none')
     : 'opacity-100'
 
+  // `inert` (not per-button `disabled`): one switch for every control in the bar, its folded "…"
+  // trigger and the separate Insert item — none can be clicked, focused or tabbed to. React 18
+  // has no `inert` prop, so it is passed as a plain attribute.
+  const lockAttrs = titleLocked ? ({ inert: '', 'aria-disabled': true } as Record<string, unknown>) : {}
   const inBar = placement === 'bar'
   const insertInSlot = inBar && !!insertSlot
   // Bar placement: one 36px capsule (the toolbar's own control height) holding FLAT items with
@@ -258,6 +255,7 @@ export default function Toolbar({
   return (
     <div
       ref={rootRef}
+      {...lockAttrs}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       className={cx(
@@ -266,7 +264,7 @@ export default function Toolbar({
           // capsule — the overflow measuring below takes the SLOT's width as the room available.
           ? 'pm-toolbar-in-bar no-drag absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-full'
           : 'pm-floating-toolbar-host absolute top-2 left-1/2 -translate-x-1/2 z-raised max-w-[calc(100%-1.5rem)] flex-shrink-0',
-        'transition-opacity duration-200', opacityCls,
+        'transition-opacity duration-200', opacityCls, titleLocked && 'pm-toolbar-locked',
       )}
     >
       {/* One grouped editing control: in the window toolbar it shares the toolbar groups' capsule
@@ -275,7 +273,7 @@ export default function Toolbar({
         {/* In the window toolbar only the frequent controls stay visible (TEST 2026-10-05: "still
             too complex"): Aa · B I U Highlight · List Quote · Link. The rest are one click away in
             "…" with their shortcuts; Focus mode's floating bar keeps them all. */}
-        <OverflowGroup label="More formatting" fit="offsetParent" inset={placement === 'bar' ? 16 : 48}
+        <OverflowGroup label="More formatting" fit="offsetParent" inset={placement === 'bar' ? 8 : 48}
           extraItems={inBar ? [
             { key: 'strike', label: 'Strikethrough', icon: Strikethrough, checked: isMarkActive('strike'), onSelect: () => run(toggleMark(schema.marks.strike)) },
             { key: 'code', label: 'Inline Code', icon: Code, shortcut: '⌘`', checked: isMarkActive('code'), onSelect: () => run(toggleMark(schema.marks.code)) },
@@ -326,8 +324,10 @@ export default function Toolbar({
             </div>
           )}
 
-          {/* Group 1 — Text: current block type. (Thread lives in the Insert menu.) Never folds. */}
-          <OverflowSection priority="never">
+          {/* Group 1 — Text: current block type. (Thread lives in the Insert menu.) The very last
+              thing to fold — only when even the emphasis group could not stay (a window at its
+              minimum width with the sidebar open); folded, the picker shows in "…" as itself. */}
+          <OverflowSection priority="last" label="Text Style">
             <BarGroup inBar={inBar} sep={false}>
               {/* "Aa" — the system's text-style control (Notes / Pages); the current style is named in
                   the tooltip and accessible label rather than drawn as a changing glyph. */}
@@ -346,8 +346,19 @@ export default function Toolbar({
 
           {/* Group 2 — Emphasis: inline marks, Highlight included (a colour-swatch emphasis,
               not a reference action — moved out of the old "Annotate & reference" group).
-              Never folds. */}
-          <OverflowSection priority="never">
+              Folds LAST of all, and only when the window is too narrow for anything else to
+              give way (sidebar open at ~800–860 px): it used to be pinned, so the bar could not
+              shrink below ~210 px and was drawn under the editing actions (TEST 2026-10-07). */}
+          <OverflowSection
+            priority="last"
+            label="Emphasis"
+            items={[
+              { key: 'bold', label: 'Bold', icon: Bold, shortcut: '⌘B', checked: isMarkActive('strong'), onSelect: () => run(toggleMark(schema.marks.strong)) },
+              { key: 'italic', label: 'Italic', icon: Italic, shortcut: '⌘I', checked: isMarkActive('em'), onSelect: () => run(toggleMark(schema.marks.em)) },
+              { key: 'underline', label: 'Underline', icon: Underline, shortcut: '⌘U', checked: isMarkActive('underline'), onSelect: () => run(toggleMark(schema.marks.underline)) },
+              { key: 'highlight', label: 'Highlight', icon: Highlighter, shortcut: '⌘⇧H', checked: isMarkActive('highlight'), onSelect: () => run(toggleMark(schema.marks.highlight)) },
+            ]}
+          >
             <BarGroup inBar={inBar} sep={true}>
               <IconButton icon={Bold} label="Bold" tooltip={{ shortcut: '⌘B' }} size={ib} active={isMarkActive('strong')} onMouseDown={() => run(toggleMark(schema.marks.strong))} />
               <IconButton icon={Italic} label="Italic" tooltip={{ shortcut: '⌘I' }} size={ib} active={isMarkActive('em')} onMouseDown={() => run(toggleMark(schema.marks.em))} />
@@ -372,7 +383,7 @@ export default function Toolbar({
             priority="first"
             label="Links & code"
             items={[
-              { key: 'link', label: 'Link', icon: Link2, checked: isMarkActive('link'), onSelect: openLinkDropdownFromToolbar },
+              { key: 'link', label: 'Link', icon: Link2, checked: isMarkActive('link') || isMarkActive('wikilink'), onSelect: openLinkDropdownFromToolbar },
               // In the bar these two already live in "…" (extraItems) — never listed twice.
               ...(inBar ? [] : [
                 { key: 'code', label: 'Inline code', icon: Code, shortcut: '⌘`', checked: isMarkActive('code'), onSelect: () => run(toggleMark(schema.marks.code)) },
@@ -385,7 +396,7 @@ export default function Toolbar({
                 icon={Link2}
                 label="Link"
                 size={ib}
-                active={openDropdown === 'link' || isMarkActive('link')}
+                active={isMarkActive('link') || isMarkActive('wikilink')}
                 onMouseDown={openLinkDropdownAt}
               />
               {!inBar && <IconButton icon={Code} label="Inline code" tooltip={{ shortcut: '⌘`' }} size={ib} active={isMarkActive('code')} onMouseDown={() => run(toggleMark(schema.marks.code))} />}
@@ -485,7 +496,7 @@ export default function Toolbar({
           item in the actions zone, same 36px capsule as its neighbours. */}
       {insertInSlot && insertSlot && createPortal(
         // Explicit glass: a portal keeps React context, and this bar hands 'ghost' to its items.
-        <BarMetrics><ControlGroup variant="glass">
+        <BarMetrics><ControlGroup variant="glass" {...lockAttrs} className={titleLocked ? 'pm-toolbar-locked' : undefined}>
           <Button
             variant="menu"
             size="xs"
@@ -591,37 +602,15 @@ export default function Toolbar({
                     same reasoning) — this reopens the picker below, anchored to the same spot. */}
                 <MenuItem icon={BookOpen} label="Verse…" onMouseDown={() => setOpenDropdown('verse')} />
                 <MenuItem icon={ImageIcon} label="Image…" onMouseDown={() => { setOpenDropdown('none'); pickAndInsertImage(editorView) }} />
-              </MenuSurface>
-            </MenuPositioner>
-          )}
-
-          {openDropdown === 'link' && (
-            // Link editor (§10.3): URL field + Apply / Remove; Enter applies, Esc closes, invalid
-            // URLs are flagged inline (http(s):// or a berean:/mailto: scheme).
-            <MenuPositioner ref={dropdownRef} x={dropdownPos.left} y={dropdownPos.top}
-              className="material-popover rounded-menu animate-menu-in p-2 flex flex-col gap-2 w-[280px]">
-              <TextField
-                ref={linkInputRef}
-                size="sm"
-                type="url"
-                value={linkUrl}
-                invalid={!!linkUrl.trim() && !/^(https?:\/\/|mailto:|berean:)/i.test(linkUrl.trim())}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); submitLink() }
-                  else if (e.key === 'Escape') { e.preventDefault(); setOpenDropdown('none'); editorView.focus() }
-                }}
-                placeholder="https://…"
-                aria-label="Link URL"
-                wrapperClassName="w-full"
-              />
-              <div className="flex items-center justify-end gap-1.5">
-                {cmds.currentLinkHref() && (
-                  <Button variant="ghost" size="xs" danger onMouseDown={(e) => { e.preventDefault(); cmds.removeLink(linkRangeRef.current ?? undefined); setOpenDropdown('none') }}>Remove</Button>
+                {/* Only with a YouTube video open (TEST 2026-10-08: the top-bar button showed with
+                    no YouTube tab at all). YouTubeTab answers with the playback position. */}
+                {ytVideoOpen && (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem icon={Clock} label="YouTube Timestamp" shortcut="⌘⇧L" onMouseDown={() => { setOpenDropdown('none'); window.dispatchEvent(new CustomEvent('berean:requestTimestamp')) }} />
+                  </>
                 )}
-                <Button variant="ghost" size="xs" onMouseDown={(e) => { e.preventDefault(); setOpenDropdown('none'); editorView.focus() }}>Cancel</Button>
-                <Button variant="primary" size="xs" disabled={!linkUrl.trim()} onMouseDown={(e) => { e.preventDefault(); submitLink() }}>Apply</Button>
-              </div>
+              </MenuSurface>
             </MenuPositioner>
           )}
 

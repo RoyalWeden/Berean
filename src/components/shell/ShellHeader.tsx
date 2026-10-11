@@ -316,7 +316,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                  sidebar pane (its live width), so the toggle sits at the pane's trailing edge and
                  the navigation group starts in the CONTENT toolbar — never straddling the pane
                  edge (macOS 26/27 sidebar windows). Collapsed, the zone is 0 wide. ── */}
-            <div className="shell-sidebar-zone flex items-center gap-1">
+            <div className="shell-sidebar-zone flex items-center gap-1" data-collapsed={sidebarCollapsed || undefined}>
               {/* Session (workspace) — heads the navigation cluster: [Session] [Sidebar] [Back…]. */}
               <SessionSwitcher variant={isVibrantWindow && !sidebarCollapsed ? 'ghost' : undefined} />
               <IconButton

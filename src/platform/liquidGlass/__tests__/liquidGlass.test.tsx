@@ -101,13 +101,63 @@ describe('native control clusters', () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 150)) }) // first-paint gate
     const last = f.sent[f.sent.length - 1]
     expect(last.items[0]).toMatchObject({ id: 'plus', symbol: 'plus', hidden: false, rect: { x: 140, y: 780, width: 112, height: 48 } })
-    // The placeholder stays visible until the native control has faded in (no empty frame)…
-    expect(btn().className).toBe('')
-    // …then hides.
+    // First appearance: the web placeholder is never shown while native is about to draw it — no
+    // web control replaced by a different-looking native one on launch (G-03)…
+    expect(btn().className).toBe('is-native-glass')
     await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
     expect(btn().className).toBe('is-native-glass')
     f.press('plus')
     expect(onPlus).toHaveBeenCalledTimes(1)
+  })
+
+  it('first appearance: the placeholder is hidden even before capabilities have loaded', async () => {
+    const f = fakeAdapter()
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => { release = r })
+    const caps = f.a.capabilities
+    f.a.capabilities = async () => { await gate; return caps() }
+    window.__bereanGlass = f.a
+    document.elementFromPoint = () => host.querySelector('button')
+    // Render WITHOUT waiting for capabilities (they're held back by `gate`).
+    await act(async () => { root.render(<Bar onPlus={() => {}} />); await Promise.resolve() })
+    expect(host.querySelector('button')!.className).toBe('is-native-glass')
+    await act(async () => { release(); await loadLiquidGlassCapabilities(); await new Promise((r) => setTimeout(r, 150)) })
+    expect(host.querySelector('button')!.className).toBe('is-native-glass')
+  })
+
+  it('first appearance: a failed native call shows the web placeholder (never left missing)', async () => {
+    const f = fakeAdapter()
+    f.a.controls = async () => { throw new Error('no host view') }
+    window.__bereanGlass = f.a
+    document.elementFromPoint = () => host.querySelector('button')
+    await mountBar({ onPlus: () => {} })
+    await act(async () => { await new Promise((r) => setTimeout(r, 150)) })
+    expect(host.querySelector('button')!.className).toBe('')
+  })
+
+  it('after the first draw, uncovering keeps the placeholder visible until native has faded in', async () => {
+    // Real (async) frames: the hook's re-sync scheduling needs a frame to complete.
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number)
+    vi.stubGlobal('cancelAnimationFrame', (h: number) => clearTimeout(h))
+    const f = fakeAdapter(); window.__bereanGlass = f.a
+    const btn = () => host.querySelector('button')!
+    const sheet = document.createElement('div'); document.body.appendChild(sheet)
+    let covered = false
+    document.elementFromPoint = () => (covered ? sheet : btn())
+    await mountBar({ onPlus: () => {} })
+    await act(async () => { await new Promise((r) => setTimeout(r, 450)) })
+    expect(btn().className).toBe('is-native-glass')
+    // A sheet covers it → the web placeholder shows at once (the native one fades out on top)…
+    covered = true
+    await act(async () => { window.dispatchEvent(new Event('resize')); await new Promise((r) => setTimeout(r, 20)) })
+    expect(btn().className).toBe('')
+    // …uncovered → it stays until the native control is back on screen, then hides.
+    covered = false
+    await act(async () => { window.dispatchEvent(new Event('resize')); await new Promise((r) => setTimeout(r, 20)) })
+    expect(btn().className).toBe('')
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
+    expect(btn().className).toBe('is-native-glass')
+    sheet.remove()
   })
 
   it('a sheet covering the placeholder hides the native control and reveals the web one', async () => {

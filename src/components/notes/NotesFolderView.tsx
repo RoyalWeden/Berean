@@ -1,4 +1,4 @@
-import { userFolderIndent, virtualFolderIndent, noteIndent } from './folderTreeGeometry'
+import { userFolderIndent, virtualFolderIndent, noteIndent, TREE_CHEVRON_BOX, TREE_GAP } from './folderTreeGeometry'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -55,6 +55,9 @@ interface Props {
   onPreview?: (note: Note) => void
   /** Selecting a folder row surfaces its context in the home panel (alongside expand/collapse). */
   onFolderSelect?: (folderId: string) => void
+  /** The folder whose overview the home panel is showing — drawn selected, so the tree says which
+   *  folder you're looking at (it used to show no selection at all once the pointer left). */
+  activeFolderId?: string | null
   onDelete: (note: Note) => void
   onSetNoteFolder: (noteId: string, folderId: string | null) => void
   onCreateNote?: () => void
@@ -88,9 +91,33 @@ interface Props {
   searchQuery?: string
 }
 
+/** System / virtual folder rows (DisclosureRow): a <button> shrinks to its content even with
+ *  display:flex, so without an explicit width the "flex-1" label couldn't push the count and lock
+ *  to the trailing edge — system folders showed "Daily Notes 24 🔒" while user folders right-
+ *  aligned their counts. Full row width minus the rows' 6 px side margins. */
+const TREE_GROUP_ROW = 'mx-1.5 w-[calc(100%-12px)]'
+
+/** Selection mode: the checkbox in front of a user folder's chevron moves it 18 px right; Library /
+ *  virtual rows (no checkbox) take the same shift as padding, and a note's checkbox — which pushed
+ *  it 24 px — gives back the extra 6, so every row moves by exactly 18 and the tree's columns hold
+ *  (measured in the running app). */
+const SELECT_SHIFT = 18
+const NOTE_SELECT_EXTRA = 6
+
+/** A locked folder's lock, in a trailing slot sized so its count lines up with user folders' (which keep a 20 px "•••" slot), so
+ *  every folder's count lines up in one column. */
+function TreeLock() {
+  return <span className="w-[17px] flex-shrink-0 inline-flex items-center justify-center" aria-label="Locked"><Lock size={9} className="text-text-tertiary" /></span>
+}
+
+/** Section heading in the tree (Library · My Notes) — a quiet caption, like a source list's. */
+function TreeSection({ children }: { children: React.ReactNode }) {
+  return <div className="px-4 pt-2.5 pb-1 text-caption2 font-semibold text-text-tertiary select-none" role="presentation">{children}</div>
+}
+
 export default function NotesFolderView({
   notes, folders, activeNoteId,
-  onSelect, onPreview, onFolderSelect, onDelete, onSetNoteFolder,
+  onSelect, onPreview, onFolderSelect, activeFolderId = null, onDelete, onSetNoteFolder,
   onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, autoRenameFolderId, onAutoRenameHandled, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
@@ -555,11 +582,13 @@ export default function NotesFolderView({
         }}
         onDrop={(e) => onDropTo(e, note.folderId ?? null)}
       >
+      {/* Inset, rounded selection like the sidebar's source-list rows (TEST 2026-10-07: "the
+          entries of the notes and folders need rounded corners"); was a square `flush` row. */}
       <ListRow
         data-note-row=""
-        flush
+        inset
         dense
-        indent={noteIndent(depth)}
+        indent={noteIndent(depth) - (selectMode ? NOTE_SELECT_EXTRA : 0)}
         draggable={!isRenaming && !selectMode}
         onDragStart={(e) => onNoteDragStart(e, note)}
         onDragEnd={(e) => onNoteDragEnd(e)}
@@ -647,7 +676,7 @@ export default function NotesFolderView({
       <div key={folder.id}>
         <ListRow
           data-folder-row=""
-          flush
+          inset
           dense
           indent={userFolderIndent(depth)}
           ref={(el) => { if (el) folderRowRefs.current.set(folder.id, el); else folderRowRefs.current.delete(folder.id) }}
@@ -670,6 +699,7 @@ export default function NotesFolderView({
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setFolderMenu({ folder, x: e.clientX, y: e.clientY }); setFolderMoveOpen(false) }}
           className={cx('mx-1.5', dragOverId === folder.id && 'ring-1 ring-inset ring-accent/40')}
           current={isSelected || dragOverId === folder.id}
+          selected={!selectMode && activeFolderId === folder.id}
           titleSize="footnote"
           buttonProps={{ 'data-roving': '' }}
           leadingAction={<>
@@ -708,15 +738,24 @@ export default function NotesFolderView({
           // "→ drop here" badge — shows for both note and folder drags
           meta={(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id
             ? <span className="font-medium text-accent animate-pulse">→ here</span>
-            : (fNotes.length || '')}
-          trailing={!isRenaming && !selectMode ? <>
-            <IconButton icon={FolderPlus} label="New subfolder" size={20}
-              onClick={(e) => { e.stopPropagation(); onCreateFolder(folder.id) }} />
-            <IconButton icon={Pencil} label="Rename" size={20}
-              onClick={(e) => { e.stopPropagation(); setRenameVal(folder.name); setRenamingId(folder.id) }} />
-            <IconButton icon={Trash2} label="Delete folder (notes move to root)" size={20} danger
-              onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id) }} />
-          </> : undefined}
+            : (fNotes.length ? <span className="text-caption2 text-text-muted tabular-nums">{fNotes.length}</span> : '')}
+          // The same single hover "•••" as note rows (it opens the folder's full menu — new note /
+          // subfolder, rename, move, delete), its slot always reserved so the count never moves.
+          // Was three icon buttons that appeared on hover and pushed the count left.
+          trailing={!isRenaming && !selectMode ? (
+            <IconButton
+              icon={MoreHorizontal}
+              label="More actions"
+              size={20}
+              className="opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 transition-opacity duration-fast"
+              onClick={(e) => {
+                e.stopPropagation()
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                setFolderMenu({ folder, x: r.left, y: r.bottom + 4 }); setFolderMoveOpen(false)
+              }}
+            />
+          ) : undefined}
+          trailingAlways
         />
         {/* Was an instant show/hide with no transition at all — flagged in the notes-feel pass.
             AnimatePresence/motion (already a dependency, used throughout the app) handles the
@@ -761,11 +800,11 @@ export default function NotesFolderView({
               <DisclosureRow
                 open={bookIsOpen}
                 onClick={() => toggle(bookFolderId)}
-                indent={virtualFolderIndent(1)}
+                indent={virtualFolderIndent(1) + (selectMode ? SELECT_SHIFT : 0)}
                 icon={bookIsOpen ? FolderOpen : Folder}
                 title={bookName(bid)}
                 count={totalNotes || undefined}
-                className="mx-1.5"
+                className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
               />
               {bookIsOpen && sortedChapters.map(([ch, chNotes]) => {
                 const chFolderId = `sys:${key}:${bid}:${ch}`
@@ -776,11 +815,11 @@ export default function NotesFolderView({
                     <DisclosureRow
                       open={chIsOpen}
                       onClick={() => toggle(chFolderId)}
-                      indent={virtualFolderIndent(2)}
+                      indent={virtualFolderIndent(2) + (selectMode ? SELECT_SHIFT : 0)}
                       icon={chIsOpen ? FolderOpen : Folder}
                       title={`Chapter ${ch}`}
                       count={chNotes.length || undefined}
-                      className="mx-1.5"
+                      className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
                     />
                     {/* Notes inside chapter — depth 3 */}
                     {chIsOpen && chNotes.map((n) => renderNote(n, 3))}
@@ -811,11 +850,11 @@ export default function NotesFolderView({
               <DisclosureRow
                 open={yearIsOpen}
                 onClick={() => toggle(yearFolderId)}
-                indent={virtualFolderIndent(1)}
+                indent={virtualFolderIndent(1) + (selectMode ? SELECT_SHIFT : 0)}
                 icon={yearIsOpen ? FolderOpen : Folder}
                 title={year}
                 count={totalNotes || undefined}
-                className="mx-1.5"
+                className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
               />
               {yearIsOpen && sortedMonths.map(([monthKey, mNotes]) => {
                 const monthFolderId = `sys:daily:${monthKey}`
@@ -828,11 +867,11 @@ export default function NotesFolderView({
                     <DisclosureRow
                       open={monthIsOpen}
                       onClick={() => toggle(monthFolderId)}
-                      indent={virtualFolderIndent(2)}
+                      indent={virtualFolderIndent(2) + (selectMode ? SELECT_SHIFT : 0)}
                       icon={monthIsOpen ? FolderOpen : Folder}
                       title={monthLabel}
                       count={mNotes.length || undefined}
-                      className="mx-1.5"
+                      className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
                     />
                     {/* Notes inside month — depth=3, newest first (pre-sorted in dailySubGroups) */}
                     {monthIsOpen && mNotes.map((n) => renderNote(n, 3))}
@@ -868,6 +907,9 @@ export default function NotesFolderView({
       {/* System folders (locked) — entire section blocks context menu to prevent "New note" appearing.
           While searching, a folder with zero matching notes is hidden entirely rather than shown
           collapsed-and-empty (matches how user folders already behave during search). */}
+      {/* System folders and your own folders are two clearly labelled groups (Apple Notes / a Mac
+          source list), not one list split by a hairline. */}
+      <TreeSection>Library</TreeSection>
       {SYSTEM_FOLDERS.filter(({ key }) => !searchQuery || bySystem[key].length > 0).map(({ key, label, icon: Icon }) => {
         const isOpen = expanded.has(key)
         const sysNotes = bySystem[key]
@@ -875,15 +917,15 @@ export default function NotesFolderView({
         return (
           <div key={key} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
             <DisclosureRow
-              indent={virtualFolderIndent(0)}
+              indent={virtualFolderIndent(0) + (selectMode ? SELECT_SHIFT : 0)}
               ref={(el) => { if (el) folderRowRefs.current.set(key, el); else folderRowRefs.current.delete(key) }}
               open={isOpen}
               onClick={() => toggle(key)}
               icon={Icon}
               title={label}
               count={sysNotes.length || undefined}
-              trailing={<Lock size={9} className="text-text-tertiary" />}
-              className="mx-1.5"
+              trailing={<TreeLock />}
+              className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
             />
             {isOpen && (
               key === 'daily'
@@ -900,14 +942,14 @@ export default function NotesFolderView({
       {pdfFeatureEnabled && (
       <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
         <DisclosureRow
-          indent={virtualFolderIndent(0)}
+          indent={virtualFolderIndent(0) + (selectMode ? SELECT_SHIFT : 0)}
           open={expanded.has('pdfs')}
           onClick={() => toggle('pdfs')}
           icon={FileType2}
           title="PDFs"
           count={pdfs.length || undefined}
-          trailing={<Lock size={9} className="text-text-tertiary" />}
-          className="mx-1.5"
+          trailing={<TreeLock />}
+          className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
         />
         {expanded.has('pdfs') && (
           pdfs.length === 0
@@ -938,15 +980,15 @@ export default function NotesFolderView({
         if (trashedNotes.length > 0) setTrashMenu({ x: e.clientX, y: e.clientY })
       }}>
         <DisclosureRow
-          indent={virtualFolderIndent(0)}
+          indent={virtualFolderIndent(0) + (selectMode ? SELECT_SHIFT : 0)}
           data-folder-row
           open={expanded.has('trash')}
           onClick={() => toggle('trash')}
           icon={Trash2}
           title="Trash"
           count={trashedNotes.length || undefined}
-          trailing={<Lock size={9} className="text-text-tertiary" />}
-          className="mx-1.5"
+          trailing={<TreeLock />}
+          className={TREE_GROUP_ROW} chevronBox={TREE_CHEVRON_BOX} gap={TREE_GAP}
         />
         {expanded.has('trash') && (
           trashedNotes.length === 0
@@ -1028,9 +1070,7 @@ export default function NotesFolderView({
       {/* Divider */}
       {/* Divider + New note/New folder row — hidden while searching, since neither
           action makes sense mid-search and the row was just clutter above the results. */}
-      {!searchQuery && (
-        <Divider className="my-1 mx-2" />
-      )}
+      <TreeSection>My Notes</TreeSection>
 
       {/* User folders + root notes — flex-1 so blank space below notes is also droppable */}
       <div
@@ -1254,7 +1294,7 @@ export default function NotesFolderView({
                   }}
                   leading={<Icon size={12} />}
                   title={label}
-                  trailing={<Lock size={9} className="text-text-tertiary" />}
+                  trailing={<TreeLock />}
                   trailingAlways
                 />
               ))}

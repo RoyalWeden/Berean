@@ -309,7 +309,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
         {editing && <button type="button" className="m-float-circle is-primary" aria-label="Done" data-keep-keyboard onPointerDown={(e) => e.preventDefault()} onClick={doneEditing}><Check size={22} strokeWidth={2.5} aria-hidden /></button>}
       </>}
     >
-      {printOpen && <PrintPreviewModal title={displayNoteTitle(note.title)} content={note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
+      {printOpen && <PrintPreviewModal title={displayNoteTitle(note.title)} content={latest.current?.content ?? note.content} notes={notes} onClose={() => setPrintOpen(false)} />}
       <div className="mobile-note-editor" {...refLongPress} onFocus={onEditorFocusChange} onBlur={onEditorFocusChange}>
         <NoteEditorPM
           content={editorContent}

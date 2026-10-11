@@ -239,7 +239,11 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     /// Ask iCloud to materialise a file. Throttled per file only briefly (a read loop must not
     /// re-request every pass); a NEWER version of the same file is requested again as soon as the
     /// metadata query reports it (see `downloadNonCurrent`).
+    ///
+    /// Call on `queue` only: `startDownloadingUbiquitousItem` is a synchronous XPC round-trip to
+    /// the FileProvider daemon, and `downloadRequested` is owned by `queue`.
     private func requestDownload(_ url: URL, force: Bool = false) {
+        dispatchPrecondition(condition: .onQueue(queue))
         let key = url.path
         if !force, let last = downloadRequested[key], Date().timeIntervalSince(last) < 10 { return }
         downloadRequested[key] = Date()
@@ -250,17 +254,23 @@ public class BereanCloudPlugin: CAPPlugin, CAPBridgedPlugin {
     /// changed. Every sync file the metadata query reports as not current is requested at once, so
     /// the next query update (download finished) is what wakes the engine — no read has to
     /// stumble on a placeholder first and no timer has to come round.
+    ///
+    /// Runs on the main thread (the query's notifications) but only READS item attributes there;
+    /// the download requests go to `queue`. 0.7.1 (3) issued them inline on main — one synchronous
+    /// FileProvider XPC call per file — and a first gather with hundreds of non-current files held
+    /// the main thread long enough to freeze scrolling and get the app killed by the watchdog
+    /// (0x8BADF00D, `FPStartDownloadingItemAtURL` under `BRQuery _postNote`).
     private func downloadNonCurrent(_ items: [NSMetadataItem]) -> Int {
-        var requested = 0
+        var urls: [URL] = []
         for item in items {
             guard let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
             let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
-            if status != nil && status != NSMetadataUbiquitousItemDownloadingStatusCurrent {
-                requestDownload(url, force: true)
-                requested += 1
-            }
+            if status != nil && status != NSMetadataUbiquitousItemDownloadingStatusCurrent { urls.append(url) }
         }
-        return requested
+        if !urls.isEmpty {
+            queue.async { for url in urls { self.requestDownload(url, force: true) } }
+        }
+        return urls.count
     }
 
     /// Our own files iCloud has not uploaded yet (the transport's honest "uploading" signal).

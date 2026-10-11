@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
-import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { laserToPoint } from '@/lib/presenterOverlay'
 import { measureContentHeight } from '@/lib/presenterBand'
+import { motion } from 'framer-motion'
+import { ChapterLabel, type ChapterLabelVariant } from './ChapterLabel'
 import { planPsalmSuperscription, resolveTitleLine, trimVerseOneText, trimVerseOneTagged, extractVerseOneTaggedTitle } from '@/lib/psalmSuperscription'
 import { RED_LETTER_COLOR, HIGHLIGHT_COLOR_IDS, highlightWordBg } from '@/styles/highlightPalette'
 import { IconButton, ColorSwatchRow } from '@/components/ui'
@@ -137,6 +138,11 @@ interface Props {
   verse?: number
   textId: string
   fontScale: number
+  /** The presenter's chapter label, when it lives on the page as the chapter's title (ViewerApp);
+   *  null → the title spot stays empty (the label is the flash or the title-bar pill). */
+  titleLabel?: { text: string; from: ChapterLabelVariant | null } | null
+  /** Whether the page title spot is fully in view below the title bar (→ the label lives there). */
+  onTitleInViewChange?: (inView: boolean) => void
   scrollPercent?: number
   /** Live scroll percent pushed straight from IPC in ViewerApp (no React render). The rAF loop
    *  below prefers this over `scrollPercent` so pushes that skipped the re-render still apply. */
@@ -153,7 +159,7 @@ interface Props {
   onRemoveViewerHighlight: (verseNum: number, startChar: number, endChar: number) => void
 }
 
-export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, scrollPctRef, scrollPctKeyRef, hiddenAnnotations = [], viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
+export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, titleLabel = null, onTitleInViewChange, scrollPercent, scrollPctRef, scrollPctKeyRef, hiddenAnnotations = [], viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
   const [verses, setVerses] = useState<Verse[]>([])
   const [loading, setLoading] = useState(true)
   const [dbHighlights, setDbHighlights] = useState<Record<number, DBHighlight[]>>({})
@@ -520,6 +526,22 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       }
     : null
 
+  // The chapter-title spot is "in view" while it sits wholly below the 34px title bar — then the
+  // label lives there (the page title); once it starts to tuck under the bar it hands off to the
+  // bar's pill, the iOS large-title → inline-title hand-off. Observed even while empty (the label
+  // is elsewhere) so the hand-back on scrolling to the top is decided by geometry alone.
+  const [titleSpot, setTitleSpot] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const root = containerRef.current
+    if (!titleSpot || !root || !onTitleInViewChange || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(
+      ([e]) => onTitleInViewChange(e.isIntersecting && e.intersectionRatio > 0.98),
+      { root, rootMargin: '-34px 0px 0px 0px', threshold: [0, 0.98, 1] },
+    )
+    io.observe(titleSpot)
+    return () => { io.disconnect(); onTitleInViewChange(false) }
+  }, [titleSpot, onTitleInViewChange])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full" style={{ fontSize: baseFontSize, color: muteColor }}>
@@ -532,15 +554,20 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   // span to hang to the left of the text column (classic "hanging verse number in the margin"
   // layout) rather than taking inline horizontal space from the text row itself.
   const gutterWidth = Math.round(baseFontSize * 1.5)
+  const titleFontSize = Math.round(baseFontSize * 0.95)
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto px-6 pb-6 pt-12 relative" onMouseUp={handleMouseUp}>
-      {/* Chapter header */}
+    // motion.div + layoutScroll: the chapter label morphs into / out of this scrolling page, and
+    // framer needs to know this box scrolls to measure the label's real position in it.
+    <motion.div layoutScroll ref={containerRef} className="h-full overflow-y-auto px-6 pb-6 pt-12 relative" onMouseUp={handleMouseUp}>
+      {/* Chapter title — the spot keeps its height whether or not the label is here, so the page
+          never shifts when the label leaves for the title-bar pill or the flash. */}
       <div
-        className="text-center select-none mb-8"
-        style={{ fontSize: Math.round(baseFontSize * 0.75), color: muteColor, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500 }}
+        ref={setTitleSpot}
+        className="flex items-center justify-center select-none mb-8"
+        style={{ height: Math.round(titleFontSize * 1.25 + titleFontSize * 0.6) }}
       >
-        {hermasAwareChapterLabel(bookId, chapter, textId)}{textId === 'lxx' ? ' LXX' : ''}
+        {titleLabel && <ChapterLabel text={titleLabel.text} variant="page" fontSize={titleFontSize} from={titleLabel.from} />}
       </div>
 
       {/* line-height and per-verse margin-bottom deliberately match
@@ -678,6 +705,6 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
           <IconButton icon={X} label="Close" size={20} tooltip={false} onClick={removeHighlight} className="opacity-50 hover:opacity-100" />
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

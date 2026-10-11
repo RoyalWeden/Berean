@@ -45,14 +45,20 @@ function wikilinkRule(state: StateInline, silent: boolean): boolean {
   if (state.src.slice(start, start + 2) !== '[[') return false
   const end = state.src.indexOf(']]', start + 2)
   if (end === -1) return false
-  const title = state.src.slice(start + 2, end)
-  if (!title || title.includes('\n')) return false
+  const inner = state.src.slice(start + 2, end)
+  if (!inner || inner.includes('\n')) return false
+  // `[[Title|display text]]` — Obsidian's alias form: the link targets Title, the note shows the
+  // display text (the link editor writes it when a wikilink's text is changed). The mark's text
+  // stays the title when there is no alias, exactly as before.
+  const bar = inner.indexOf('|')
+  const title = bar > 0 ? inner.slice(0, bar) : inner
+  const display = bar > 0 && inner.slice(bar + 1) ? inner.slice(bar + 1) : title
 
   if (!silent) {
     const open = state.push('wikilink_open', 'span', 1)
     open.meta = { title }
     const text = state.push('text', '', 0)
-    text.content = title
+    text.content = display
     state.push('wikilink_close', 'span', -1)
   }
   state.pos = end + 2

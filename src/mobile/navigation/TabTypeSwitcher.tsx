@@ -78,7 +78,8 @@ export function TabTypeSwitcher({ hidden }: { hidden?: boolean }) {
           onClick={() => { void haptic.selection(); setOpen((o) => !o) }}>
           {/* One stable "experiences" glyph (the current type is already named by the page / the
               passage capsule — repeating its icon beside it read as a duplicate). */}
-          <LayoutGrid size={19} aria-hidden />
+          {/* Size and weight of the native twin (square.grid.2x2, 18pt medium) — G-06. */}
+          <LayoutGrid size={19} strokeWidth={2.2} aria-hidden />
         </button>
         <AnimatePresence>
           {open && (

@@ -110,6 +110,8 @@ export interface LiquidGlassControlsSpec {
   visible: boolean
   /** Slid out of the way (e.g. while reading, scrolled down). */
   collapsed?: boolean
+  /** Which screen edge a collapsed cluster slides off toward (default 'bottom'). */
+  collapseEdge?: 'top' | 'bottom'
   appearance?: 'light' | 'dark' | null
   /** Accent colour for prominent items (#rrggbb). */
   accent?: string | null

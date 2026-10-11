@@ -1,6 +1,7 @@
 import * as RP from '@radix-ui/react-popover'
 import { createContext, forwardRef, useContext, type ComponentPropsWithoutRef } from 'react'
 import { cx } from './cx'
+import { menuKeyNav } from './menuKeyNav'
 import { CompactMetrics } from './metrics'
 
 /**
@@ -24,8 +25,11 @@ export interface PopoverSurfaceProps extends ComponentPropsWithoutRef<typeof RP.
  * (origin from Radix's transform-origin var), not Content — see Tooltip.tsx / global.css.
  */
 export const PopoverSurface = forwardRef<HTMLDivElement, PopoverSurfaceProps>(
-  function PopoverSurface({ className, innerClassName, children, sideOffset = 6, collisionPadding = 8, opaque, compact = true, collisionBoundary, ...rest }, ref) {
+  function PopoverSurface({ className, innerClassName, children, sideOffset = 6, collisionPadding = 8, opaque, compact = true, collisionBoundary, onKeyDown, ...rest }, ref) {
     const boundary = useContext(PopoverBoundaryContext)
+    // A popover that IS a menu (a pop-up button's choices) gets the menu keys too: ↑/↓ between
+    // items, Home/End, typeahead — it used to declare role="menu" but only Tab moved focus.
+    const isMenu = rest.role === 'menu'
     return (
       <RP.Portal>
         <RP.Content
@@ -37,6 +41,7 @@ export const PopoverSurface = forwardRef<HTMLDivElement, PopoverSurfaceProps>(
           sticky="always"
           updatePositionStrategy="always"
           className={cx('z-popover outline-none', className)}
+          onKeyDown={isMenu ? (e) => { onKeyDown?.(e); menuKeyNav(e) } : onKeyDown}
           {...rest}
         >
           <CompactMetrics value={compact}>

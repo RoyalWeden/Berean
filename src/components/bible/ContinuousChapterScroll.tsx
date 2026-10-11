@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { PresenterOutline } from './PresenterOutline'
 import { Tag as TagIcon } from 'lucide-react'
 import ChapterView from './ChapterView'
 import { bookName } from '@/lib/parseRef'
@@ -370,22 +371,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
         {/* Presenter visible-region outline — same style layer as BiblePanel's (§62/§63):
             dashed, subtle tint, no in-column text; geometry pipeline unchanged. */}
         {presenterBand && (
-          <div
-            // Sized like the reading column (same font → same `ch`) so the outline hugs the
-            // text, not the whole pane; compact/compare views have no column cap (100%).
-            className="absolute pointer-events-none z-raised rounded-card animate-fade-in berean-scripture-text"
-            style={{
-              top: presenterBand.top,
-              height: presenterBand.height,
-              left: 0,
-              right: 0,
-              maxWidth: 'min(calc(var(--reading-max-ch) * 1ch), 100%)',
-              fontSize: bibleFontSize,
-              border: `1.5px dashed ${viewerPaused ? 'rgb(var(--color-warning) / 0.6)' : 'rgb(var(--color-accent) / 0.55)'}`,
-              background: viewerPaused ? 'rgb(var(--color-warning) / 0.035)' : 'rgb(var(--color-accent) / 0.035)',
-              transition: 'height var(--motion-fast) var(--motion-ease-out), border-color var(--motion-base), background-color var(--motion-base)',
-            }}
-          />
+          <PresenterOutline top={presenterBand.top} height={presenterBand.height} paused={!!viewerPaused} fontSize={bibleFontSize} />
         )}
 
         {/* Placeholder for evicted chapters before firstCh — keeps scrollHeight (and therefore

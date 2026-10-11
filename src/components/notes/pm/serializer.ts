@@ -235,10 +235,20 @@ export const bereanMarkdownSerializer = new MarkdownSerializer(
       mixable: true,
       expelEnclosingWhitespace: true,
     },
-    // The mark's text content IS the title (set verbatim by the tokenizer in
-    // markdownIt.ts), so serialization is a trivial bracket-wrap — no need to
-    // consult `mark.attrs.title` here, it exists only for click-handling.
-    wikilink: { open: '[[', close: ']]', mixable: false },
+    // The mark's text content is normally the title itself (set verbatim by the tokenizer in
+    // markdownIt.ts), a trivial bracket-wrap. When the text differs from `attrs.title` — an alias
+    // set by the link editor, or `[[Title|text]]` read from the vault — Obsidian's alias form
+    // `[[Title|text]]` is written, so the link keeps its target and its display text.
+    wikilink: {
+      open: (_state, mark, parent, index) => {
+        const title = String(mark.attrs.title ?? '')
+        let text = ''
+        for (let i = index; i < parent.childCount && mark.isInSet(parent.child(i).marks); i++) text += parent.child(i).text ?? ''
+        return !title || text === title ? '[[' : `[[${title}|`
+      },
+      close: ']]',
+      mixable: false,
+    },
   },
 )
 
