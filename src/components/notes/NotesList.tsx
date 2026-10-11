@@ -144,9 +144,14 @@ export default function NotesList({
       <div className="relative" style={{ height: virtualizer.getTotalSize() }} onKeyDown={rovingNavKeyDown}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const note = sortedNotes[virtualRow.index]
-          const rawSnippet = note.type === 'idiom' && note.idiomMeaning
+          const rawSnippetFull = note.type === 'idiom' && note.idiomMeaning
             ? note.idiomMeaning
             : stripMarkdownFormatting(note.content).trim()
+          // A body that opens with `# <title>` would make the preview repeat the title.
+          const titleText = (note.title ?? '').trim()
+          const rawSnippet = titleText && rawSnippetFull.toLowerCase().startsWith(titleText.toLowerCase())
+            ? rawSnippetFull.slice(titleText.length).trimStart()
+            : rawSnippetFull
           const snippet = expandAll
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')
@@ -209,10 +214,11 @@ export default function NotesList({
             >
               {/* Checkbox in select mode */}
               {selectMode && (
+                // Level with the title line (the row is items-stretch; this sat on the top edge).
                 <Checkbox
                   checked={isSelected}
                   onChange={() => onToggleSelect?.(note.id)}
-                  className="pl-3 pr-1 flex-shrink-0"
+                  className="pl-3 pr-1 pt-[19px] self-start flex-shrink-0"
                 />
               )}
 
@@ -235,8 +241,8 @@ export default function NotesList({
                   if (isRenaming) return
                   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (selectMode ? onToggleSelect?.(note.id) : (onPreview ?? onSelect)(note)) }
                 }}
-                className={`focus-ring flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
-                  ${selectMode ? 'px-2 pr-9' : 'px-4 pr-9'}
+                className={`focus-ring flex flex-col items-start gap-0.5 py-2.5 text-left w-full min-w-0 transition-colors cursor-pointer
+                  ${selectMode ? 'px-2 pr-4' : 'px-4'}
                 `}
               >
                 {/* Title: inline rename input or normal text */}
@@ -256,9 +262,12 @@ export default function NotesList({
                     wrapperClassName="w-full"
                   />
                 ) : (
-                  <span className="flex items-center gap-1 w-full min-w-0">
-                    <NoteIcon icon={note.icon} size={14} />
-                    <span className="text-subhead font-medium text-text-primary truncate">
+                  // Title line (Apple Notes): the note's own emoji icon if it has one — no generic
+                  // page glyph repeated on every row — and room reserved on THIS line for the
+                  // hover pin / delete buttons, which sit on it rather than over the preview.
+                  <span className={`flex items-center gap-1 w-full min-w-0 ${selectMode ? '' : 'pr-14'}`}>
+                    {note.icon && <NoteIcon icon={note.icon} size={14} />}
+                    <span className="text-subhead font-semibold text-text-primary truncate">
                       {findQuery ? applyFindHighlight(note.title || 'Untitled', findQuery) : (note.title || 'Untitled')}
                     </span>
                   </span>
@@ -299,7 +308,7 @@ export default function NotesList({
                   active={note.pinned}
                   iconClassName={note.pinned ? 'fill-current' : undefined}
                   onClick={(e) => { e.stopPropagation(); onTogglePinned(note) }}
-                  className={`absolute right-9 top-1/2 -translate-y-1/2 transition-opacity ${note.pinned ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                  className={`absolute right-9 top-1.5 transition-opacity ${note.pinned ? '' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
                 />
               )}
 
@@ -312,7 +321,7 @@ export default function NotesList({
                   variant="ghost"
                   danger
                   onClick={(e) => { e.stopPropagation(); onDelete(note) }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                 />
               )}
             </div>

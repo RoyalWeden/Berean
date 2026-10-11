@@ -39,7 +39,7 @@ function docFromParagraphs(...lines: string[]) {
 
 /** Builds a live view whose `updateState` is counted and hard-capped. */
 function makeCountedView(doc: ReturnType<typeof docFromParagraphs>) {
-  const state = EditorState.create({ schema, doc, plugins: [history(), createBlockHandlesPlugin(() => {}, () => {})] })
+  const state = EditorState.create({ schema, doc, plugins: [history(), createBlockHandlesPlugin(() => {})] })
   const host = document.createElement('div')
   // The plugin toggles its no-text-selection class on view.dom's PARENT
   // (`.berean-pm-editor` in the real app), so the view needs a real parent here.

@@ -898,6 +898,8 @@ export interface AppState {
   // Archived tabs — closed tabs kept for later recovery
   archivedGroups: ArchivedGroup[]
   archiveTab: (spaceId: SpaceId, tabId: string) => void
+  /** Archive several tabs (a sidebar multi-selection) as ONE archived group, then close them. */
+  archiveTabs: (refs: { spaceId: SpaceId; tabId: string }[]) => void
   archiveAllTabs: (label?: string) => void
   restoreArchivedGroup: (groupId: string) => void
   dismissArchivedGroup: (groupId: string) => void
@@ -3265,6 +3267,23 @@ export const useAppStore = create<AppState>()(
         set({ archivedGroups: [group, ...state.archivedGroups] })
         // Also close the tab
         state.closeTab(spaceId, tabId)
+      },
+
+      archiveTabs: (refs) => {
+        const state = get()
+        const tabs = refs
+          .map(({ spaceId, tabId }) => state.tabs[spaceId].find((t) => t.id === tabId))
+          .filter((t): t is Tab => !!t)
+        if (tabs.length === 0) return
+        if (tabs.length === 1) { get().archiveTab(tabs[0].spaceId, tabs[0].id); return }
+        const group: ArchivedGroup = {
+          id: `arch-${Date.now()}-${randomIdPart()}`,
+          label: `${tabs[0].title} and ${tabs.length - 1} more`,
+          archivedAt: Date.now(),
+          tabs,
+        }
+        set({ archivedGroups: [group, ...state.archivedGroups] })
+        for (const t of tabs) get().closeTab(t.spaceId, t.id)
       },
 
       archiveAllTabs: (label) => {

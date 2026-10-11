@@ -54,6 +54,10 @@ export interface OverflowGroupProps {
   fit?: 'self' | 'offsetParent'
   /** Horizontal room to leave inside the offsetParent (px, both sides combined). Default 24. */
   inset?: number
+  /** A control pinned immediately LEFT of the "…" button (never folds, never moves when the
+   *  foldable items before it come and go) — e.g. a mode switch that must stay put while the
+   *  items it reveals appear beside it (Notes' Edit / View; TEST 2026-10-08). */
+  beforeMenu?: ReactNode
 }
 
 /**
@@ -61,7 +65,7 @@ export interface OverflowGroupProps {
  * narrow (§18/§75) — nothing is hidden, nothing scrolls sideways. Measures every child once
  * (all rendered, invisible) and shows as many leading items as fit.
  */
-export function OverflowGroup({ children, className, gap = 8, label = 'More', renderOverflow, extraItems, menuHeader, fit = 'self', inset = 24 }: OverflowGroupProps) {
+export function OverflowGroup({ children, className, gap = 8, label = 'More', renderOverflow, extraItems, menuHeader, fit = 'self', inset = 24, beforeMenu }: OverflowGroupProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const all = Children.toArray(children).filter(isValidElement) as ReactElement[]
   // Priority: 'never' items are pinned (always shown, measured first). Among the rest, 'first'
@@ -73,6 +77,7 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
   const items = [...pinned, ...foldable]
   const rootRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
+  const beforeMenuRef = useRef<HTMLDivElement>(null)
   // Indices (into `items`) currently folded into the menu.
   const [foldedKey, setFoldedKey] = useState('')
   useLayoutEffect(() => {
@@ -93,6 +98,8 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
           avail = cb.clientWidth - inset - chrome
         }
       }
+      // The pinned `beforeMenu` control takes its room first.
+      if (beforeMenuRef.current) avail -= beforeMenuRef.current.getBoundingClientRect().width + gap
       const moreW = 28 + gap
       const hasExtra = !!(extraItems && extraItems.length)
       const total = (k: Set<number>) => {
@@ -112,13 +119,14 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
     if (typeof ResizeObserver === 'undefined') return  // jsdom / tests: measure once
     const ro = new ResizeObserver(compute)
     ro.observe(root); ro.observe(m)
+    if (beforeMenuRef.current) ro.observe(beforeMenuRef.current)
     if (fit === 'offsetParent') {
       let a: HTMLElement | null = root
       while (a && !/^(absolute|fixed)$/.test(getComputedStyle(a).position)) a = a.parentElement
       if (a?.offsetParent instanceof HTMLElement) ro.observe(a.offsetParent)
     }
     return () => ro.disconnect()
-  }, [items.length, gap, fit, inset, pinned.length, !!(extraItems && extraItems.length)]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items.length, gap, fit, inset, pinned.length, !!(extraItems && extraItems.length), beforeMenu != null]) // eslint-disable-line react-hooks/exhaustive-deps
   const foldedSet = new Set(foldedKey ? foldedKey.split(',').map(Number) : [])
   const shown = items.filter((_, i) => !foldedSet.has(i))
   const folded = items.filter((_, i) => foldedSet.has(i))
@@ -136,6 +144,7 @@ export function OverflowGroup({ children, className, gap = 8, label = 'More', re
         {items.map((it, i) => <div key={i} className="flex-shrink-0">{it}</div>)}
       </div>
       {shown}
+      {beforeMenu != null && <div ref={beforeMenuRef} className="flex items-center flex-shrink-0">{beforeMenu}</div>}
       {hasMenu && (
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger asChild>

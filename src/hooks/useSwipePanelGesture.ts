@@ -41,6 +41,25 @@ export interface SwipePanelGestureOptions {
   isOpen: boolean
   /** Called once a gesture (or a fast flick) decides the panel should flip open/closed. */
   onCommit: (open: boolean) => void
+  /** Let a sideways swipe over something that can itself scroll sideways (a wide table or code
+   *  block in a note) scroll it instead of moving the panel. Off for Scripture, whose text never
+   *  scrolls sideways. */
+  yieldToHorizontalScroll?: boolean
+}
+
+/** Whether `target` (or an ancestor up to `root`) can still scroll horizontally by `dx`. */
+function canScrollX(target: EventTarget | null, root: HTMLElement | null, dx: number): boolean {
+  let el = target instanceof Element ? target : null
+  while (el && el !== root) {
+    if (el instanceof HTMLElement && el.scrollWidth > el.clientWidth + 1) {
+      const ox = getComputedStyle(el).overflowX
+      if (ox === 'auto' || ox === 'scroll') {
+        if (dx > 0 ? el.scrollLeft + el.clientWidth < el.scrollWidth - 1 : el.scrollLeft > 0) return true
+      }
+    }
+    el = el.parentElement
+  }
+  return false
 }
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
@@ -94,7 +113,7 @@ const DISPLAY_LERP = 0.35
 // for the ~550ms COMMIT_FALLBACK_MS window after every pause once it's already converged.
 const CONVERGED_EPSILON = 0.001
 
-export function useSwipePanelGesture({ enabled, isOpen, onCommit }: SwipePanelGestureOptions) {
+export function useSwipePanelGesture({ enabled, isOpen, onCommit, yieldToHorizontalScroll = false }: SwipePanelGestureOptions) {
   // The RAW, exact position implied by accumulated wheel delta (+ rubber-banding) — used
   // for segment-seeding math and the final commit decision. Not what's rendered directly.
   // null = no gesture in progress.
@@ -109,6 +128,8 @@ export function useSwipePanelGesture({ enabled, isOpen, onCommit }: SwipePanelGe
   enabledRef.current = enabled
   const isOpenRef = useRef(isOpen)
   isOpenRef.current = isOpen
+  const yieldRef = useRef(yieldToHorizontalScroll)
+  yieldRef.current = yieldToHorizontalScroll
   const onCommitRef = useRef(onCommit)
   onCommitRef.current = onCommit
 
@@ -209,6 +230,7 @@ export function useSwipePanelGesture({ enabled, isOpen, onCommit }: SwipePanelGe
     const absX = Math.abs(e.deltaX)
     const absY = Math.abs(e.deltaY)
     if (absX < 4 || absX <= absY * 1.5) return
+    if (yieldRef.current && !sessionRef.current && canScrollX(e.target, elRef.current, e.deltaX)) return
 
     e.preventDefault()
     setIsDragging(true)

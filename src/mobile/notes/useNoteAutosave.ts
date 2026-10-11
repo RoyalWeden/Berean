@@ -116,7 +116,13 @@ export function useNoteAutosave(noteId: string) {
     if (!n) return
     const updated = { ...n, ...patch, status: patch.status === null ? undefined : (patch.status ?? n.status), icon: patch.icon === null ? undefined : (patch.icon ?? n.icon), updatedAt: Date.now() } as Note
     latest.current = updated
-    setNote(updated)
+    // A content-only patch (every keystroke) does NOT re-render the page: the editor already shows
+    // the text, `latest` holds it for saving, and nothing on the page renders from `note.content`
+    // (the print preview reads `latest`). setNote per keystroke re-rendered the whole note page and
+    // the editor component — ~60 ms of main-thread work per character in a long note, the first
+    // frame after each key landing at ~80 ms (perf/glass QA P-02). Title / icon / status / folder
+    // changes still render.
+    if (Object.keys(patch).some((k) => k !== 'content')) setNote(updated)
     if ('content' in patch || 'title' in patch) lastEditAt.current = Date.now()
     if ('content' in patch && typeof patch.content === 'string') remember(patch.content)
     // Patches ACCUMULATE until the debounced save runs (TEST25-NOTES-001): a title edit within

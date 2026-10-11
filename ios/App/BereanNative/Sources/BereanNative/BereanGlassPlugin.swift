@@ -63,6 +63,7 @@ public class BereanGlassPlugin: CAPPlugin, CAPBridgedPlugin {
         let spacing = CGFloat(call.getDouble("spacing") ?? 12)
         let visible = call.getBool("visible") ?? true
         let collapsed = call.getBool("collapsed") ?? false
+        let collapseToTop = call.getString("collapseEdge") == "top"
         let appearance = call.getString("appearance")
         let accent = Self.color(call.getString("accent"))
         DispatchQueue.main.async {
@@ -81,6 +82,7 @@ public class BereanGlassPlugin: CAPPlugin, CAPBridgedPlugin {
             default: cluster.view.overrideUserInterfaceStyle = .unspecified
             }
             cluster.update(items: items, spacing: spacing, accent: accent, web: web, overlay: overlay)
+            cluster.collapseToTop = collapseToTop
             cluster.setVisible(visible, collapsed: collapsed)
             call.resolve()
         }
@@ -155,6 +157,12 @@ final class GlassCluster {
     // never pops onto the screen (TEST 2026-10-05, cold-launch glass snap).
     private var visible = false
     private var collapsed = false
+    /// Collapsed clusters slide off the bottom edge (the bottom bar) or the top (the reader's title,
+    /// which rides with the page header as it slides away).
+    var collapseToTop = false
+    private var collapseAnimator: UIViewPropertyAnimator?
+    /// The cluster's untransformed origin in the overlay (item frames are relative to it).
+    private var restingOrigin: CGPoint = .zero
 
     init(id: String, spacing: CGFloat) {
         self.id = id
@@ -193,7 +201,15 @@ final class GlassCluster {
         // which used to stretch the cluster's frame to the screen's top-left corner.
         let union = frames.map(\.1).filter { $0.width > 0 && $0.height > 0 }.reduce(CGRect.null) { $0.union($1) }
         // Room on both sides for a labelled capsule that fits its text a little wider than the web one.
-        if !union.isNull { view.transform = .identity; view.frame = union.insetBy(dx: -24, dy: -2) }
+        // Laid out through bounds + center, which (unlike `frame`) stay valid under a transform: an
+        // update arriving while the cluster slides in / out no longer resets the transform to
+        // identity mid-animation (a visible snap of the whole cluster).
+        if !union.isNull {
+            let box = union.insetBy(dx: -24, dy: -2)
+            view.bounds = CGRect(origin: .zero, size: box.size)
+            view.center = CGPoint(x: box.midX, y: box.midY)
+            restingOrigin = box.origin
+        }
         var seen = Set<String>()
         for (s, f) in frames {
             guard let itemId = s["id"] as? String else { continue }
@@ -213,11 +229,13 @@ final class GlassCluster {
                 let w = max(f.height, item.fittingWidth(height: f.height))
                 frame = CGRect(x: f.midX - w / 2, y: f.minY, width: w, height: f.height)
             }
-            item.view.frame = frame.offsetBy(dx: -view.frame.minX, dy: -view.frame.minY)
+            item.view.frame = frame.offsetBy(dx: -restingOrigin.x, dy: -restingOrigin.y)
             item.setHidden((s["hidden"] as? Bool) ?? false)
         }
         for (k, it) in items where !seen.contains(k) { it.view.removeFromSuperview(); items.removeValue(forKey: k) }
-        applyCollapse(animated: false)
+        // Re-assert the resting / collapsed state — unless a collapse animation is running, which
+        // owns the transform until it finishes.
+        if collapseAnimator?.isRunning != true { applyCollapse(animated: false) }
     }
 
     func debugInfo() -> [String: Any] {
@@ -238,12 +256,22 @@ final class GlassCluster {
         let reduce = UIAccessibility.isReduceMotionEnabled
         let apply = {
             self.view.alpha = self.visible ? 1 : 0
-            // Collapsed (reading, scrolled down): slides below the bottom edge like the web bar did.
-            self.view.transform = self.collapsed ? CGAffineTransform(translationX: 0, y: self.view.bounds.height + 40) : .identity
+            // Collapsed (reading, scrolled down): slides off its edge with the web chrome — below the
+            // bottom edge for the bottom bar, above the top for the header's title.
+            let offTop = -(self.restingOrigin.y + self.view.bounds.height + 40)
+            self.view.transform = self.collapsed ? CGAffineTransform(translationX: 0, y: self.collapseToTop ? offTop : self.view.bounds.height + 40) : .identity
         }
         view.isUserInteractionEnabled = visible && !collapsed
-        if animated && !reduce { UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: apply) }
-        else { apply() }
+        if animated && !reduce {
+            // The web chrome's own curve and duration (readerChrome.css: 0.24s cubic-bezier(0.2, 0.8,
+            // 0.2, 1)), so the native controls and the web header / bar they sit in move as one.
+            // A reversal mid-slide (scroll down, then straight back up) continues from where the
+            // cluster IS: stopping the running animator leaves the view at its on-screen state.
+            collapseAnimator?.stopAnimation(true)
+            let anim = UIViewPropertyAnimator(duration: 0.24, controlPoint1: CGPoint(x: 0.2, y: 0.8), controlPoint2: CGPoint(x: 0.2, y: 1), animations: apply)
+            collapseAnimator = anim
+            anim.startAnimation()
+        } else { collapseAnimator?.stopAnimation(true); collapseAnimator = nil; apply() }
     }
 }
 
@@ -296,7 +324,15 @@ final class GlassItem {
         isItemHidden = hidden
         view.isUserInteractionEnabled = !hidden
         let apply = { self.view.alpha = hidden ? 0 : 1 }
-        if UIAccessibility.isReduceMotionEnabled { apply() } else { UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState], animations: apply) }
+        // Hiding is instant: the item is hidden because a web sheet / popover / scrim is now ABOVE
+        // it, and fading out would draw it over that overlay for a couple of frames (G-07).
+        // Re-appearing fades in, so a control never pops onto the screen.
+        if hidden || UIAccessibility.isReduceMotionEnabled {
+            view.layer.removeAllAnimations()
+            apply()
+        } else {
+            UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState], animations: apply)
+        }
     }
 
     var hasTitle: Bool { button.configuration?.attributedTitle != nil }

@@ -13,11 +13,16 @@ export interface DisclosureRowProps extends Omit<ButtonHTMLAttributes<HTMLButton
   trailing?: ReactNode
   indent?: number
   dense?: boolean
+  /** Width of a box the chevron is centred in, and the gap (px) between the leading items — for
+   *  rows that must share leading geometry with ListRow rows whose chevron is a 20 px button (the
+   *  Notes folder tree). Omitted: the compact default (12 px chevron, 6 px gap). */
+  chevronBox?: number
+  gap?: number
 }
 
 /** Collapsible group header row (system folders, sections). Keyboard reachable; chevron rotates. */
 export const DisclosureRow = forwardRef<HTMLButtonElement, DisclosureRowProps>(function DisclosureRow(
-  { open, title, icon: Icon, iconClassName, count, trailing, indent, dense = true, className, type = 'button', ...rest }, ref,
+  { open, title, icon: Icon, iconClassName, count, trailing, indent, dense = true, chevronBox, gap, className, type = 'button', ...rest }, ref,
 ) {
   return (
     <button
@@ -32,10 +37,16 @@ export const DisclosureRow = forwardRef<HTMLButtonElement, DisclosureRowProps>(f
         'text-text-secondary hover:text-text-primary hover:bg-lift-2 active:bg-lift-3 transition-colors duration-fast',
         className,
       )}
-      style={indent ? { paddingLeft: indent } : undefined}
+      style={indent || gap !== undefined ? { ...(indent ? { paddingLeft: indent } : {}), ...(gap !== undefined ? { gap } : {}) } : undefined}
       {...rest}
     >
-      <ChevronRight size={12} strokeWidth={2} className={cx('flex-shrink-0 text-text-muted transition-transform duration-base ease-mac', open && 'rotate-90')} />
+      {chevronBox ? (
+        <span className="flex-shrink-0 inline-flex items-center justify-center" style={{ width: chevronBox }}>
+          <ChevronRight size={12} strokeWidth={2} className={cx('text-text-muted transition-transform duration-base ease-mac', open && 'rotate-90')} />
+        </span>
+      ) : (
+        <ChevronRight size={12} strokeWidth={2} className={cx('flex-shrink-0 text-text-muted transition-transform duration-base ease-mac', open && 'rotate-90')} />
+      )}
       {Icon && <Icon size={14} strokeWidth={1.75} className={cx('flex-shrink-0', iconClassName ?? 'text-text-muted')} />}
       <span className="flex-1 min-w-0 truncate text-footnote font-medium">{title}</span>
       {count !== undefined && <span className="text-caption2 text-text-muted tabular-nums">{count}</span>}

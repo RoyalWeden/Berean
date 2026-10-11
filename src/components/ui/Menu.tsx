@@ -6,6 +6,7 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import { SectionLabel } from './SectionLabel'
 import { CompactMetrics } from './metrics'
 import { InPositionedMenuContext } from '@/lib/usePositionedMenu'
+import { menuKeyNav } from './menuKeyNav'
 
 /**
  * Menu surface — the one recipe for context menus, dropdowns and command lists.
@@ -38,24 +39,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
     }, [])
     const handleKey = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
       onKeyDown?.(e)
-      if (e.defaultPrevented) return
-      const root = e.currentTarget
-      const items = Array.from(root.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled]),[role="menuitemcheckbox"]:not([disabled]),[role="option"]:not([aria-disabled="true"])'))
-      if (!items.length) return
-      // Typeahead: a single printable character jumps to the next item starting with it.
-      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey && /\S/.test(e.key)) {
-        const i = items.indexOf(document.activeElement as HTMLElement)
-        const order = [...items.slice(i + 1), ...items.slice(0, i + 1)]
-        const hit = order.find((el) => (el.textContent ?? '').trim().toLowerCase().startsWith(e.key.toLowerCase()))
-        if (hit) { e.preventDefault(); hit.focus() }
-        return
-      }
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return
-      e.preventDefault()
-      const i = items.indexOf(document.activeElement as HTMLElement)
-      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
-        : e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length
-      items[next]?.focus()
+      menuKeyNav(e)
     }, [onKeyDown])
     return (
       <MenuInsetContext.Provider value={inset}>

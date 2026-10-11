@@ -8,6 +8,7 @@ import { isHermasBook, getHermasSections, getHermasSection, hermasVariantForText
 import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { editionForTextId, type Edition } from '@/lib/bibleTexts'
 import { bookName } from '@/lib/parseRef'
+import { conciseBookLabels } from '@/lib/bookLabels'
 import { Button, Chip, IconButton, ListRow, RefChip, SearchField, SectionLabel, cx } from '@/components/ui'
 
 interface BookChapterPickerProps {
@@ -84,8 +85,11 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   const activeBookRowRef = useRef<HTMLButtonElement>(null)
   const currentChapterBtnRef = useRef<HTMLButtonElement>(null)
 
-  const PANEL_W = 520
+  const PANEL_W_MAX = 520
   const PANEL_H = 380
+  // Never wider than the window it opens in (a floating window can be 480 wide).
+  const [panelW, setPanelW] = useState(PANEL_W_MAX)
+  const PANEL_W = panelW
 
   // Position the (portaled) dropdown relative to the trigger, clamped to the viewport
   // so it's never clipped inside narrow/overflow-hidden containers (e.g. compare columns).
@@ -93,7 +97,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
     const r = triggerRef.current?.getBoundingClientRect()
     if (!r) return
     const pad = 8
-    const left = Math.max(pad, Math.min(r.left, window.innerWidth - PANEL_W - pad))
+    const w = Math.min(PANEL_W_MAX, window.innerWidth - pad * 2)
+    setPanelW(w)
+    const left = Math.max(pad, Math.min(r.left, window.innerWidth - w - pad))
     const spaceBelow = window.innerHeight - r.bottom
     const openUp = spaceBelow < PANEL_H + pad && r.top > spaceBelow
     const top = openUp ? Math.max(pad, r.top - PANEL_H - 4) : r.bottom + 4
@@ -184,16 +190,45 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
 
   const { bookQuery, chapter: searchChapter } = parseSearchChapter(search)
 
+  // Concise row labels (`Book 1`, `Visions` …) for books that all repeat one work's title — the
+  // shared title heads their group instead (lib/bookLabels.ts). Display only.
+  const concise = useMemo(() => conciseBookLabels(books), [books])
+  const labelOf = (b: Book) => concise.labels.get(b.id) ?? b.name
+
   const filtered = books.filter((b) => {
     const rawQuery = bookQuery || search
     if (!rawQuery) return true
     const q = normalizeBookQuery(rawQuery.toLowerCase())
-    return b.name.toLowerCase().includes(q) || b.short_name.toLowerCase().includes(q)
+    return b.name.toLowerCase().includes(q) || b.short_name.toLowerCase().includes(q) || labelOf(b).toLowerCase().includes(q)
   })
 
   const otBooks = filtered.filter((b) => b.testament === 'OT')
   const ntBooks = filtered.filter((b) => b.testament === 'NT')
   const apocBooks = filtered.filter((b) => b.testament === 'Apocrypha' || b.testament === 'Pseudepigrapha')
+  // A group made entirely of one work's parts is headed by that work's title.
+  const groupTitle = (list: Book[], fallback: string) => {
+    const works = new Set(list.map((b) => concise.workOf.get(b.id) ?? ''))
+    return works.size === 1 && !works.has('') ? [...works][0] : fallback
+  }
+
+  // Two columns of books — only when every label fits its column comfortably (measured in the
+  // row font); otherwise the single column, as before. Recomputed when the books or width change.
+  const BOOK_LIST_FRACTION = 0.58
+  const twoColumns = useMemo(() => {
+    if (books.length < 8) return false
+    const colWidth = (panelW * BOOK_LIST_FRACTION - 8) / 2
+    if (colWidth < 120) return false
+    let widest = 0
+    try {
+      const ctx = document.createElement('canvas').getContext('2d')
+      if (!ctx) return false
+      ctx.font = `13px ${getComputedStyle(document.body).fontFamily || 'system-ui'}`
+      for (const b of books) widest = Math.max(widest, ctx.measureText(labelOf(b)).width)
+    } catch { return false }
+    // Row padding (8 + 8) and a little air so nothing truncates.
+    return widest + 24 <= colWidth
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books, panelW, concise])
 
   const activeBook = books.find((b) => b.id === activeBookId)
 
@@ -242,11 +277,20 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   const BookRow = ({ book }: { book: Book }) => (
     <ListRow
       key={book.id}
-      buttonProps={{ ref: book.id === activeBookId ? activeBookRowRef : undefined }}
+      buttonProps={{ ref: book.id === activeBookId ? activeBookRowRef : undefined, title: labelOf(book) !== book.name ? book.name : undefined, 'aria-label': book.name }}
       onClick={() => setActiveBookId(book.id)}
       selected={book.id === activeBookId}
-      title={book.name}
+      dense={twoColumns}
+      title={labelOf(book)}
     />
+  )
+  const BookGroup = ({ label, list }: { label: string; list: Book[] }) => (
+    <>
+      <GroupLabel label={label} />
+      <div className={twoColumns ? 'grid grid-cols-2 gap-x-0.5 px-1' : undefined}>
+        {list.map((b) => <BookRow key={b.id} book={b} />)}
+      </div>
+    </>
   )
 
   const GroupLabel = ({ label }: { label: string }) => (
@@ -418,25 +462,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           {/* Two-column body */}
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Book list */}
-            <div className="w-[55%] overflow-y-auto py-1 border-r border-separator">
-              {otBooks.length > 0 && (
-                <>
-                  <GroupLabel label="Old Testament" />
-                  {otBooks.map((b) => <BookRow key={b.id} book={b} />)}
-                </>
-              )}
-              {ntBooks.length > 0 && (
-                <>
-                  <GroupLabel label="New Testament" />
-                  {ntBooks.map((b) => <BookRow key={b.id} book={b} />)}
-                </>
-              )}
-              {apocBooks.length > 0 && (
-                <>
-                  <GroupLabel label="Apocrypha / Pseudepigrapha" />
-                  {apocBooks.map((b) => <BookRow key={b.id} book={b} />)}
-                </>
-              )}
+            <div className={cx('overflow-y-auto py-1 border-r border-separator', twoColumns ? 'w-[58%]' : 'w-[55%]')} data-columns={twoColumns ? 2 : 1}>
+              {otBooks.length > 0 && <BookGroup label={groupTitle(otBooks, 'Old Testament')} list={otBooks} />}
+              {ntBooks.length > 0 && <BookGroup label={groupTitle(ntBooks, 'New Testament')} list={ntBooks} />}
+              {apocBooks.length > 0 && <BookGroup label={groupTitle(apocBooks, 'Apocrypha / Pseudepigrapha')} list={apocBooks} />}
               {filtered.length === 0 && (
                 <div className="px-3 py-4 text-subhead text-center text-text-muted">
                   No books found
@@ -445,7 +474,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             </div>
 
             {/* Chapter grid / Hermas section picker */}
-            <div className="w-[45%] overflow-y-auto p-3">
+            <div className={cx('overflow-y-auto p-3', twoColumns ? 'w-[42%]' : 'w-[45%]')}>
               {activeBook && isHermasBook(activeBook.id) ? (
                 // Hermas: show Vision / Mandate / Similitude sections
                 <div className="flex flex-col gap-1">

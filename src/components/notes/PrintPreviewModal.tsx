@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
 import type { ChangeEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Printer, FileDown, Eye, ChevronDown, Plus, Minus } from 'lucide-react'
@@ -207,7 +207,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   const pageHeightPx = Math.round((PAPER_SIZE_INCHES[printPaperSize] ?? PAPER_SIZE_INCHES.letter).h * 96)
 
   // Preview zoom: fit-to-width by default (no horizontal scroll); user can zoom in/out.
-  const previewWrapRef = useRef<HTMLDivElement>(null)
+  const previewWrapRef = useRef<HTMLDivElement | null>(null)
   const [fitScale, setFitScale] = useState(1)
   const [userZoom, setUserZoom] = useState<number | null>(null) // null = fit-to-width
   const [zoomEditing, setZoomEditing] = useState(false)
@@ -222,18 +222,38 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
     return Math.min(1, Math.max(0.2, avail / pageWidthPx))
   }
 
-  // ResizeObserver fires when the element reaches its final size (including after dialog animations).
-  // It fires immediately on observation if the element already has a non-zero size.
+  // Fit tracks the pane's real size — window resizes included. The pane is a CALLBACK ref (state):
+  // a mount-only effect reading previewWrapRef could run before the dialog's portal had attached
+  // the pane, find null, and never observe at all — Fit then only updated when the Fit button was
+  // clicked, so a resized window left the page overflowing or tiny (TEST 2026-10-08).
+  const [previewPane, setPreviewPane] = useState<HTMLDivElement | null>(null)
+  const attachPreviewPane = (el: HTMLDivElement | null) => { previewWrapRef.current = el; setPreviewPane(el) }
   useEffect(() => {
-    const el = previewWrapRef.current
+    const el = previewPane
     if (!el) return
     const update = () => { if (el.clientWidth > 0) setFitScale(calcFitScale(el)) }
     const ro = new ResizeObserver(update)
     ro.observe(el)
-    // Also try immediately in case the element already has its size
     update()
     return () => ro.disconnect()
-  }, [])
+  }, [previewPane]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Zoom about the centre of what's in view, not the scroll origin: when the scale changes, the
+  // document point at the middle of the pane stays at the middle (zooming used to leave the
+  // scroll offset unchanged, so the page drifted away from what you were looking at).
+  const prevScaleRef = useRef(scale)
+  useLayoutEffect(() => {
+    const el = previewWrapRef.current
+    const prev = prevScaleRef.current
+    prevScaleRef.current = scale
+    if (!el || prev === scale || prev <= 0) return
+    const k = scale / prev
+    // An edge you're at stays put (the top of page 1 stays in view across a resize-driven Fit).
+    const atLeft = el.scrollLeft < 1, atTop = el.scrollTop < 1
+    const cx = el.scrollLeft + el.clientWidth / 2, cy = el.scrollTop + el.clientHeight / 2
+    if (!atLeft) el.scrollLeft = Math.max(0, cx * k - el.clientWidth / 2)
+    if (!atTop) el.scrollTop = Math.max(0, cy * k - el.clientHeight / 2)
+  }, [scale])
 
   function commitZoomInput() {
     const n = parseInt(zoomInputVal, 10)
@@ -378,10 +398,16 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
           // scrolling, on any window size, which is what "the 100% zoom is too close" was
           // reporting. Widened so a true 100%-zoom Letter/Legal page (816px) comfortably
           // fits the preview pane without scrolling on any normal window.
-          className="material-sheet animate-radix-popup-in fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-modal
-            w-[90vw] max-w-[1400px] h-[85vh]
-            rounded-sheet flex flex-col overflow-hidden outline-none"
+          // Centring (the translate) lives on Content; the pop-in animation on the INNER wrapper
+          // below. Both used to sit on this element, and the animation's `transform: scale()`
+          // (fill-mode both) replaced the -50%/-50% translate once it ran — the dialog's top-left
+          // corner landed at the window centre and most of the preview hung off the right and
+          // bottom edges (TEST 2026-10-08, print preview not centred). Same rule as Sheet.tsx and
+          // HistoryModal.tsx.
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-modal
+            w-[90vw] max-w-[1400px] h-[85vh] flex outline-none"
         >
+          <div className="material-sheet animate-radix-popup-in origin-center flex-1 min-w-0 min-h-0 rounded-sheet flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-separator flex-shrink-0">
             <Eye size={16} className="text-accent" />
@@ -624,7 +650,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                 calculation IS correct (no overflow, nothing to scroll) and is the only real
                 fix for when it briefly isn't.
               */}
-              <div ref={previewWrapRef} className="flex-1 min-w-0 bg-surface-2 p-4 overflow-auto">
+              <div ref={attachPreviewPane} className="flex-1 min-w-0 bg-surface-2 p-4 overflow-auto">
                 {/*
                   Regression fix: this used to be a client-side approximation — one continuous
                   scaled iframe sliced into fixed-height "page" windows purely by dividing
@@ -638,8 +664,17 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   breaks, and "does this get cut off" are no longer guessed, they're read
                   directly off the document that would actually be saved/printed.
                 */}
+                {/* The page column is at least the pane's size (min-w-full / min-h-full) and grows
+                    with its pages (w-max): pages that fit are centred both ways; a page zoomed
+                    wider or taller than the pane overflows to the right / bottom, where it scrolls
+                    — `items-center` straight in the scroller pushed the left edge of a wide page
+                    into unscrollable negative overflow (clipped). */}
+                {/* `safe center` on both axes: centred while the pages fit, start-aligned (fully
+                    scrollable) once they don't — plain `center` overflows to BOTH sides, pushing the
+                    top / left of a tall or zoomed page into unscrollable negative overflow. */}
+                <div className="min-w-full w-max min-h-full flex flex-col" style={{ alignItems: 'safe center', justifyContent: 'safe center' }}>
                 {pdfDoc ? (
-                  <div className="flex flex-col items-center gap-6">
+                  <div className="flex flex-col gap-6" style={{ alignItems: 'safe center' }}>
                     {Array.from({ length: pdfDoc.numPages }, (_, i) => (
                       <PreviewPdfPage key={i} doc={pdfDoc} pageNumber={i + 1} scale={scale * (96 / 72)} />
                     ))}
@@ -658,7 +693,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   // modal's lifetime (pdfDoc stays populated across later regenerations, see
                   // the debounced effect above, so this never reappears on a settings tweak).
                   <div
-                    className="mx-auto shadow-2 rounded-card overflow-hidden relative"
+                    className="flex-shrink-0 shadow-2 rounded-card overflow-hidden relative"
                     style={{ width: Math.ceil(pageWidthPx * scale), height: Math.ceil(pageHeightPx * scale), background: currentTheme.bg }}
                   >
                     <iframe
@@ -681,6 +716,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                     )}
                   </div>
                 )}
+                </div>
                 {pdfLoading && pdfDoc && (
                   <div className="material-popover fixed bottom-20 right-8 px-2.5 py-1 rounded-menu text-caption2 text-text-secondary pointer-events-none">
                     Updating preview…
@@ -705,6 +741,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
             <Button variant="primary" size="sm" icon={FileDown} onClick={doDownload}>
               Download PDF
             </Button>
+          </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

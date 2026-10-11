@@ -1,4 +1,5 @@
 import { floatingTabState } from '@/lib/floatingTab'
+import { canFloatTabType } from './floatingWindow'
 import { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { SPRING_SNAPPY } from '@/lib/motion'
@@ -6,7 +7,7 @@ import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, History, Setting
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
-import { IconButton, ListRow, MenuItem, MenuSeparator, MenuLabel, RefChip, useContextMenu, cx } from '@/components/ui'
+import { IconButton, ListRow, MenuItem, MenuSeparator, MenuSub, RefChip, useContextMenu, cx } from '@/components/ui'
 import { setTabInteraction } from '@/store/tabPersistenceRuntime'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
@@ -69,7 +70,30 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   const [crossSpaceHoverIdx, setCrossSpaceHoverIdx] = useState<number | null>(null)
   // §7.1/§7.3: the one contextual-menu helper — also gives the row's Shift+F10 keyboard
   // invocation (keyboardProps below) for free, so a separate handler isn't needed for that.
-  const tabMenu = useContextMenu<{ tab: Tab }>()
+  // `bulk`: the menu was opened on a multi-selection (two or more tabs) — it then acts on all of them.
+  const tabMenu = useContextMenu<{ tab: Tab; bulk?: Tab[] }>()
+
+  // ── Multi-selection (TEST 2026-10-08) — Finder / Mail list semantics ───────────────────────
+  // ⌘-click adds or removes one tab; ⇧-click selects the run from the anchor (the last tab
+  // clicked) to the clicked one; a plain click goes back to just opening that tab. Right-click
+  // on the selection: archive, move to a session or close them all. Escape clears it. While a
+  // selection exists it is what's drawn selected (the open tab included only if it is part of it).
+  const [multiSel, setMultiSel] = useState<string[]>([])
+  const anchorIdRef = useRef<string | null>(activeTabId)
+  useEffect(() => { anchorIdRef.current = activeTabId }, [activeTabId])
+  // Drop ids that are no longer listed (closed, moved, session switched).
+  useEffect(() => {
+    setMultiSel((sel) => {
+      const kept = sel.filter((id) => tabs.some((t) => t.id === id))
+      return kept.length === sel.length ? sel : kept
+    })
+  }, [tabs])
+  useEffect(() => {
+    if (multiSel.length === 0) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMultiSel([]) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [multiSel.length])
 
   // Keep the active tab's row visible in the (vertically-scrolling) tab list — a tab opened
   // "after active" near the bottom of a long list, or one activated by keyboard, can otherwise
@@ -524,7 +548,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
     setDragOverIdx(null)
     setCrossSpaceHoverIdx(null)
 
-    if (wentOutside && tab && tab.type !== 'tags') {
+    if (wentOutside && tab && canFloatTabType(tab.type)) {
       const floatType = tab.type === 'note' ? 'notes' : tab.type
       const floatState = floatingTabState((tab.state ?? {}) as unknown as Record<string, unknown>)
       if (floatType === 'bible' && floatState.rightPanelOpen === true) {
@@ -539,6 +563,45 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       useAppStore.getState().bumpFloatingTabToken()
       onTabClose(tab)
     }
+  }
+
+  // ── Selection clicks ───────────────────────────────────────────────────
+
+  function handleRowClick(e: React.MouseEvent, tab: Tab, idx: number) {
+    if (e.metaKey || e.ctrlKey) {
+      setMultiSel((prev) => {
+        const base = prev.length > 0 ? prev : activeTabId ? [activeTabId] : []
+        return base.includes(tab.id) ? base.filter((id) => id !== tab.id) : [...base, tab.id]
+      })
+      anchorIdRef.current = tab.id
+      return
+    }
+    if (e.shiftKey) {
+      const a = tabs.findIndex((t) => t.id === anchorIdRef.current)
+      const from = a === -1 ? idx : a
+      const [lo, hi] = from < idx ? [from, idx] : [idx, from]
+      setMultiSel(tabs.slice(lo, hi + 1).map((t) => t.id))
+      return
+    }
+    setMultiSel([])
+    onTabClick(tab)
+  }
+
+  function handleRowContextMenu(e: React.MouseEvent, tab: Tab) {
+    if (multiSel.length > 1 && multiSel.includes(tab.id)) {
+      tabMenu.openAt(e, { tab, bulk: tabs.filter((t) => multiSel.includes(t.id)) })
+      return
+    }
+    // Right-clicking outside the selection acts on that one tab only (Finder).
+    if (multiSel.length > 0) setMultiSel([])
+    tabMenu.openAt(e, { tab })
+  }
+
+  function closeTabs(list: Tab[]) {
+    window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange'))
+    const st = useAppStore.getState()
+    for (const t of list) st.closeTab(t.spaceId, t.id)
+    setMultiSel([])
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -556,6 +619,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
         {tabs.map((tab, idx) => {
           const Icon       = TAB_ICONS[tab.type]
           const isActive   = tab.id === activeTabId
+          const isSelected = multiSel.length > 0 ? multiSel.includes(tab.id) : isActive
           const isDragging = draggingIdx === idx
           const bibleState = tab.type === 'bible' ? (tab.state as BibleTabState) : null
           const isCompare  = bibleState?.compareMode ?? false
@@ -600,7 +664,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 {/* Shared-layout pill: animates a smooth slide when the active tab changes.
                     `selected` below also fills the destination row instantly (same color),
                     so this mainly carries the in-between slide, not the steady-state fill. */}
-                {isActive && !isCrossSpaceTarget && (
+                {isActive && isSelected && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
                     className="absolute inset-0 rounded-control-md bg-accent-muted pointer-events-none"
@@ -614,14 +678,14 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   titleSize="footnote"
                   // Key-window selection is accent-tinted (macOS source list); html[data-inactive]
                   // turns --color-accent-muted neutral, so a background window's row goes gray.
-                  current={isActive || isCrossSpaceTarget}
+                  current={isSelected || isCrossSpaceTarget}
                   data-tab-idx={idx}
                   draggable
-                  onClick={() => onTabClick(tab)}
+                  onClick={(e) => handleRowClick(e, tab, idx)}
                   onDragStart={(e) => handleDragStart(e, idx)}
                   onDragOver={(e) => handleTabDragOver(e, idx)}
                   onDragEnd={handleDragEnd}
-                  onContextMenu={(e) => tabMenu.openAt(e, { tab })}
+                  onContextMenu={(e) => handleRowContextMenu(e, tab)}
                   // Shift+F10 opens the same context menu at the row (§7.1 keyboard).
                   buttonProps={{ title: hoverTitle, 'data-roving': '', ...tabMenu.keyboardProps({ tab }) }}
                   className={cx(
@@ -678,9 +742,39 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           clamps it, closes on Escape/outside/scroll/blur/another-menu-open, and (via
           keyboardProps above) answers Shift+F10 on the focused row for free. */}
       <tabMenu.Menu className="min-w-44">
-        {({ tab: menuTab }) => (
+        {({ tab: menuTab, bulk }) => {
+          // Move to Session — a submenu that is always there (it used to appear only with a
+          // second session, as a list at the foot of the menu).
+          const moveTo = (list: Tab[]) => (
+            <MenuSub icon={Layers} label={list.length > 1 ? `Move ${list.length} Tabs to Session` : 'Move to Session'}>
+              {otherSessions.length === 0 ? (
+                <MenuItem label="No Other Sessions" disabled />
+              ) : otherSessions.map((session) => (
+                <MenuItem
+                  key={session.id}
+                  label={session.name}
+                  onClick={() => { for (const t of list) moveTabToSession(t.spaceId, t.id, session.id); setMultiSel([]) }}
+                />
+              ))}
+            </MenuSub>
+          )
+          if (bulk && bulk.length > 1) {
+            return (
+              <>
+                {moveTo(bulk)}
+                <MenuItem
+                  icon={Archive}
+                  label={`Archive ${bulk.length} Tabs`}
+                  onClick={() => { useAppStore.getState().archiveTabs(bulk.map((t) => ({ spaceId: t.spaceId, tabId: t.id }))); setMultiSel([]) }}
+                />
+                <MenuSeparator />
+                <MenuItem icon={Trash2} label={`Close ${bulk.length} Tabs`} danger onClick={() => closeTabs(bulk)} />
+              </>
+            )
+          }
+          return (
           <>
-            {menuTab.type !== 'tags' && (
+            {canFloatTabType(menuTab.type) && (
             <MenuItem
               icon={ExternalLink}
               label="Open in floating tab"
@@ -688,11 +782,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 // Note tabs use type='note' internally but the float shell checks for 'notes'
                 const floatType = menuTab.type === 'note' ? 'notes' : menuTab.type
                 // Filter out null/undefined values — they stringify to "null"/"undefined" in URL params
-                const rawState = (menuTab.state ?? {}) as unknown as Record<string, unknown>
-                const floatState: Record<string, unknown> = {}
-                for (const [k, v] of Object.entries(rawState)) {
-                  if (v !== null && v !== undefined) floatState[k] = v
-                }
+                // (floatingTabState also carries object/array fields as JSON — an Advanced Search
+                // tab's filters — instead of "[object Object]".)
+                const floatState = floatingTabState((menuTab.state ?? {}) as unknown as Record<string, unknown>)
                 // Hide the right panel in the float; remember to restore it on put-back
                 if (floatType === 'bible' && floatState.rightPanelOpen === true) {
                   floatState.rightPanelOpen = false
@@ -717,11 +809,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             />
             )}
             <MenuSeparator />
+            {moveTo([menuTab])}
             <MenuItem
               icon={Archive}
               label="Archive tab"
               onClick={() => archiveTab(menuTab.spaceId, menuTab.id)}
             />
+            <MenuSeparator />
             <MenuItem
               icon={Trash2}
               label="Close tab"
@@ -732,22 +826,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               danger
               onClick={() => onTabClose(menuTab)}
             />
-            {otherSessions.length > 0 && (
-              <>
-                <MenuSeparator />
-                <MenuLabel>Move to session</MenuLabel>
-                {otherSessions.map((session) => (
-                  <MenuItem
-                    key={session.id}
-                    icon={Layers}
-                    label={session.name}
-                    onClick={() => moveTabToSession(menuTab.spaceId, menuTab.id, session.id)}
-                  />
-                ))}
-              </>
-            )}
           </>
-        )}
+          )
+        }}
       </tabMenu.Menu>
     </>
   )

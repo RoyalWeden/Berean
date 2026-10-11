@@ -66,6 +66,18 @@
   cursor: pointer;
 }
 .berean-pm-editor .ProseMirror a:hover { text-decoration-thickness: 2px; }
+/* The words a link-editor session is about (linkModel.ts createLinkTargetPlugin) — the
+   selection's own tint, kept while focus is in the link popover. */
+.berean-pm-editor .ProseMirror .pm-link-target {
+  background-color: rgb(var(--color-accent) / 0.22);
+  border-radius: 2px;
+}
+/* A link to another NOTE (the link editor's `berean://note/<id>`) wears the note-link colour of a
+   [[wikilink]] — without the pill, so a linked heading or paragraph keeps its own shape. */
+.berean-pm-editor .ProseMirror a:is([href^="berean://note/"], [href^="berean-dev://note/"]) {
+  color: rgb(var(--link-wikilink));
+  text-decoration-color: rgb(var(--link-wikilink) / 0.45);
+}
 
 .pm-wikilink {
   color: rgb(var(--link-wikilink));
@@ -783,7 +795,8 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
 }
 .pm-block-handle-inner {
   position: absolute;
-  left: -26px;
+  /* In the Mac editor's 40px gutter, left of a heading's collapse chevron (at -22px). */
+  left: -39px;
   /* Was `top: 1px` (grip ~18px below the block's own top — not inline with it — and the "+"
      flush with the block top instead of sitting above it), then `top: -16px` (too far up —
      the "+" ended up flush against the block's top edge with nothing "between" anything).
@@ -791,7 +804,9 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
      line between this block and the one above it — spanning 8px into each side, reading as
      "between the two blocks" rather than sitting inside either one. The grip then lands just
      below that boundary, near (not flush with) the block's own top line. */
-  top: -8px;
+  /* Set per hover by blockHandles.ts (placeGrip): level with the first line of the block — or of
+     the list item — the grip will act on. This is only the starting value. */
+  top: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -804,6 +819,8 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
   opacity: 1;
   pointer-events: auto;
 }
+/* The grip moves between the rows of a list as the pointer does (one item at a time). */
+.pm-block-handle-inner { transition: opacity 0.12s ease, top 0.08s ease-out; }
 .pm-block-handle-btn {
   display: flex;
   align-items: center;
@@ -828,6 +845,25 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
 /* Narrow side-panel embed has no room for the gutter — same trade-off as the
    heading-collapse arrow above, which hides in this same scope. */
 .pm-side-panel-note .pm-block-handle { display: none; }
+
+/* ── A selected BLOCK (the grip's click — TEST 2026-10-10) ───────────────────
+   A NodeSelection over a block. ProseMirror would paint it as fully selected text; blockHandles.ts
+   puts `.pm-block-selected` on the wrapper while one is active, and the block draws instead as a
+   quiet outlined card — clearly "this block", never confused with a text selection, a caret, a
+   checked task or a drag. Outline (not a border or padding) so nothing moves; a list item's card
+   takes in its bullet. */
+.berean-pm-editor.pm-block-selected .ProseMirror ::selection { background: transparent; }
+.berean-pm-editor.pm-block-selected .ProseMirror ::-moz-selection { background: transparent; }
+.berean-pm-editor.pm-block-selected .ProseMirror .ProseMirror-selectednode {
+  outline: 1.5px solid rgb(var(--color-accent) / 0.45);
+  outline-offset: 3px;
+  border-radius: 5px;
+  background-color: rgb(var(--color-accent) / 0.06);
+  caret-color: transparent;
+}
+/* A whole selected list reads as one card, distinct from one of its items. */
+.berean-pm-editor.pm-block-selected .ProseMirror :is(ul, ol).ProseMirror-selectednode { outline-offset: 5px; }
+.berean-pm-editor.pm-block-selected .ProseMirror li.ProseMirror-selectednode { outline-offset: 2px; }
 
 /* Both of the transient block states below are applied by blockHandles.ts as
    DECORATION classes, never by classList.add — see that file's header for the
@@ -1117,6 +1153,11 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
    the page, aligned with the body's left gutter, scrolling with the text (TEST 2026-10-04). */
 /* Desktop only — the iPhone note page (.pm-chrome-phone) lays out its own header slot. */
 .berean-pm-editor:not(.pm-chrome-phone) > .pm-header-slot { padding: 18px 16px 0 28px; }
+/* Mac editor gutter (TEST 2026-10-10): wide enough for the block grip AND, beside it, a heading's
+   collapse chevron — they used to share the same 28px and sit on top of each other, so a press on
+   a heading's grip folded the section. The title keeps the body's left edge. */
+.berean-pm-editor:not(.pm-chrome-phone):not(.pm-side-panel-note) > .pm-header-slot { padding-left: 40px; }
+.berean-pm-editor:not(.pm-chrome-phone):not(.pm-side-panel-note) > .ProseMirror { padding-left: 40px; }
 .berean-pm-editor.pm-has-floating-toolbar:not(.pm-chrome-phone) > .pm-header-slot { padding-top: 64px; }
 .berean-pm-editor:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) .ProseMirror,
 .berean-pm-editor.pm-has-floating-toolbar:not(.pm-chrome-phone):has(> .pm-header-slot .note-doc-title) .ProseMirror { padding-top: 6px; }
@@ -1156,3 +1197,18 @@ html[data-reduce-transparency] .berean-pm-editor .ProseMirror .pm-image-actions 
 /* Contextual formatting bar (NoteEditorPM): faded while the note isn't being edited. */
 .pm-toolbar-idle > .pm-floating-toolbar-host { opacity: 0 !important; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .pm-floating-toolbar-host { transition: none !important; } }
+
+/* Formatting bar while the cursor is on the note's title (Toolbar.tsx `titleLocked`, which also
+   makes it `inert`): every control drawn disabled — dimmed glyphs on an unchanged capsule, the
+   way a macOS toolbar shows items that don't apply right now. */
+.pm-toolbar-locked button { opacity: 0.35; }
+
+/* Reading width (desktop note editor and preview): on a wide window lines ran ~150 characters.
+   The page and its title cap at a comfortable measure and centre in the pane; below that width
+   they fill it as before. Not the phone or the narrow side-panel editor. */
+.berean-pm-editor:not(.pm-chrome-phone):not(.pm-side-panel-note) > .ProseMirror,
+.berean-pm-editor:not(.pm-chrome-phone):not(.pm-side-panel-note) > .pm-header-slot {
+  width: 100%;
+  max-width: 980px;
+  margin-inline: auto;
+}

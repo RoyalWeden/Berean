@@ -246,19 +246,17 @@ describe('NotesPanel tab-switch state sync', () => {
     expect(container.textContent).not.toContain('Click a note to open it')
   })
 
-  it('resyncs the status (in the note\'s "…" menu) to the newly active note instead of showing the previous note\'s status', async () => {
-    const el = mount()
-    // Status lives in the "…" menu as a submenu row showing the current value (TEST 2026-10-04).
-    const statusRow = async () => {
-      const more = document.querySelector('button[aria-label="More"]') as HTMLButtonElement
-      await act(async () => { more.click(); await Promise.resolve() })
-      const row = document.querySelector('[role="menu"] [aria-haspopup="menu"]')?.textContent ?? ''
-      await act(async () => { more.click(); await Promise.resolve() })
-      return row
-    }
-    void el
+  it('resyncs the status (in the Info side panel) to the newly active note instead of showing the previous note\'s status', async () => {
+    // Status lives in the Info side panel (TEST 2026-10-08 — no longer in the note's "…" menu).
+    useAppStore.setState({ noteSidePanelPinned: true })
+    mount()
+    // This harness mounts the panel `floating` (its own header). A floating note window keeps its
+    // own Info state, closed to start (TEST 2026-10-10) — open it with the window's toggle.
+    const infoToggle = document.querySelector<HTMLButtonElement>('button[aria-label="Show note info"]')
+    if (infoToggle) act(() => { infoToggle.click() })
+    const statusLabel = () => document.querySelector('button[aria-label^="Status: "]')?.getAttribute('aria-label') ?? ''
     // Note A has status 'in-progress'.
-    expect(await statusRow()).toBe('In Progress')
+    expect(statusLabel()).toBe('Status: In Progress')
 
     await act(async () => {
       useAppStore.getState().setActiveTab('notes', 'tab-b')
@@ -266,7 +264,7 @@ describe('NotesPanel tab-switch state sync', () => {
     })
 
     // Note B has no status — must read "No Status", NOT a stale "In Progress".
-    expect(await statusRow()).toBe('No Status')
+    expect(statusLabel()).toBe('Status: No Status')
   })
 
   // TEST 2026-10-04: renaming a note and then typing in its body within the 500ms autosave

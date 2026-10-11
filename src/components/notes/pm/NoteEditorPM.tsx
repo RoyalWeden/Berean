@@ -26,17 +26,21 @@ import { createThreadCollapsePlugin, threadIdsPresentInDoc, setCollapsedThreadId
 import { threadNodeView, threadEntryNodeView } from './threadNodeView'
 import { createBlockDecorationsPlugin } from './blockDecorations'
 import { createCodeBlockHighlightPlugin } from './codeBlockHighlight'
-import { createBlockHandlesPlugin, blockGripSelectMeta, type BlockMenuTarget } from './blockHandles'
+import { createBlockHandlesPlugin, blockGripSelectMeta, insertBlockBelow, type BlockMenuTarget } from './blockHandles'
 import { createColumnControlsPlugin } from './columnControls'
 import BlockMenu from './BlockMenu'
 import { bereanTablePlugins } from './tablePlugins'
 import { createSuppressRangesPlugin, suppressRangesKeymap } from './suppressRanges'
 import { createFindHighlightPlugin, setFindQuery } from './findHighlight'
-import { createSelectionToolbarPlugin, type SelectionToolbarState } from './selectionToolbarPlugin'
+import { createSelectionToolbarPlugin, selectionToolbarCoords, type SelectionToolbarState } from './selectionToolbarPlugin'
 import { createTableStatusPlugin } from './tableStatusPlugin'
 import { createThreadSelectionPlugin } from './threadSelectionPlugin'
 import SelectionToolbar from './SelectionToolbar'
+import { createSelectionStatsPlugin, selectionStatsKey } from './selectionStats'
+import LinkEditor, { type LinkEditorRequest } from './LinkEditor'
+import { noteIdFromHref, createLinkTargetPlugin } from './linkModel'
 import Toolbar from './Toolbar'
+import { createTitleLinePlugin } from './titleLinePlugin'
 import WordCountFooter from './WordCountFooter'
 import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup, RefHoverPreview } from './AutocompletePopups'
 import { filterSlashCommands, type SlashCommand } from './slashCommands'
@@ -102,6 +106,9 @@ export interface NoteEditorPMProps {
   className?: string
   notes?: Note[]
   onWikilinkClick?: (title: string) => void
+  /** A link to another note made by the link editor (`berean://note/<id>`) was clicked — opened
+   *  the way a [[wikilink]] click opens its note (same history), rather than as an outside link. */
+  onNoteLinkClick?: (noteId: string) => void
   onVerseRefClick?: (ref: ParsedRef & { forcedTranslation?: string }) => void
   onLexiconRefClick?: (strongsId: string) => void
   onWikilinkHoverStart?: (title: string, rect: DOMRect) => void
@@ -177,6 +184,7 @@ export default function NoteEditorPM({
   className = '',
   notes,
   onWikilinkClick,
+  onNoteLinkClick,
   onVerseRefClick,
   onLexiconRefClick,
   onWikilinkHoverStart,
@@ -234,6 +242,9 @@ export default function NoteEditorPM({
   // that rebuilds EditorState with the new note's content.
   const noteIdRef = useRef(noteId)
   noteIdRef.current = noteId
+  // The Info inspector's selection-count key (selectionStats.ts) — this editor's tab + note.
+  const selectionStatsKeyRef = useRef(selectionStatsKey(tabId, noteId))
+  selectionStatsKeyRef.current = selectionStatsKey(tabId, noteId)
   // Read by the note-switch effect below when it detects a genuinely different note opened
   // (not just an external content update to the same note) — kept current every render so the
   // effect always sees the latest restore target, since it can't depend on these directly
@@ -283,7 +294,15 @@ export default function NoteEditorPM({
   const [wikilinkIdx, setWikilinkIdx] = useState(0)
   const [slashIdx, setSlashIdx] = useState(0)
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null)
+  // The shared link editor (LinkEditor.tsx) — one per editor, opened by the toolbar's Link button,
+  // the selection bubble and a block's "Link…" action.
+  const [linkRequest, setLinkRequest] = useState<LinkEditorRequest | null>(null)
   const [inTable, setInTable] = useState(false)
+  // The cursor is on the title — the separate title field above the text has focus, or (a note
+  // with no separate title) the selection is on its leading `# Title` heading. The formatting bar
+  // and Insert disable themselves there: none of them belong on a title (TEST 2026-10-08).
+  const [inTitleLine, setInTitleLine] = useState(false)
+  const [headerFocused, setHeaderFocused] = useState(false)
 
   // Dismiss the floating "select text to format" toolbar on: any right-click
   // anywhere in the app (App.tsx's capture-phase contextmenu listener already
@@ -321,6 +340,58 @@ export default function NoteEditorPM({
     }
   }, [selectionToolbar])
 
+  // Keep the selection bubble WITH the selected text: scrolling the note (or resizing the window)
+  // fires no ProseMirror transaction, so without this the bubble stayed where the selection used to
+  // be. Hidden (not dismissed) while the selection is scrolled out of the note's visible area.
+  useEffect(() => {
+    if (!selectionToolbar) return
+    const host = hostRef.current
+    let raf: number | null = null
+    const follow = () => {
+      raf = null
+      const view = viewRef.current
+      if (!view || view.state.selection.empty || !host) return
+      const coords = selectionToolbarCoords(view)
+      const r = host.getBoundingClientRect()
+      const offscreen = coords.bottom < r.top || coords.top > r.bottom
+      setSelectionToolbar((prev) => (prev ? { coords, offscreen } : prev))
+    }
+    const schedule = () => { if (raf == null) raf = requestAnimationFrame(follow) }
+    host?.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => {
+      if (raf != null) cancelAnimationFrame(raf)
+      host?.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+    }
+  }, [!!selectionToolbar])
+
+  // Opens the link editor. `fallback` is the control it was opened from; the editor hangs from the
+  // text itself whenever that is on screen (TEST 2026-10-10: near the selection when practical).
+  function openLinkEditor(target: LinkEditorRequest['target'], fallback?: { left: number; top: number; bottom: number }) {
+    const view = viewRef.current
+    if (!view) return
+    let anchor = fallback ?? null
+    try {
+      const at = target.kind === 'block' ? target.pos + 1 : target.from
+      const c = view.coordsAtPos(Math.min(at, view.state.doc.content.size))
+      const r = hostRef.current?.getBoundingClientRect()
+      if (!r || (c.top >= r.top && c.bottom <= r.bottom)) {
+        const end = target.kind === 'text' ? view.coordsAtPos(target.to) : c
+        anchor = { left: c.left, top: Math.min(c.top, end.top), bottom: Math.max(c.bottom, end.bottom) }
+      }
+    } catch { /* keep the fallback */ }
+    if (!anchor) return
+    setSelectionToolbar(null)
+    setLinkRequest({ target, anchor })
+  }
+  function openLinkEditorForSelection(fallback?: { left: number; top: number; bottom: number }) {
+    const view = viewRef.current
+    if (!view) return
+    const { from, to } = view.state.selection
+    openLinkEditor({ kind: 'text', from, to }, fallback)
+  }
+
   const [verseCtxTarget, setVerseCtxTarget] = useState<VerseCopyTarget | null>(null)
   const [strongsCtxTarget, setStrongsCtxTarget] = useState<StrongsContextTarget | null>(null)
   const [blockMenuTarget, setBlockMenuTarget] = useState<BlockMenuTarget | null>(null)
@@ -342,8 +413,8 @@ export default function NoteEditorPM({
   // instance (built once at mount, since plugins are baked into EditorState)
   // always calls the LATEST callback identity without needing to rebuild the
   // whole plugin/state on every render.
-  const refCallbacksRef = useRef({ onWikilinkClick, onVerseRefClick, onLexiconRefClick, onWikilinkHoverStart, onWikilinkHoverEnd })
-  refCallbacksRef.current = { onWikilinkClick, onVerseRefClick, onLexiconRefClick, onWikilinkHoverStart, onWikilinkHoverEnd }
+  const refCallbacksRef = useRef({ onWikilinkClick, onNoteLinkClick, onVerseRefClick, onLexiconRefClick, onWikilinkHoverStart, onWikilinkHoverEnd })
+  refCallbacksRef.current = { onWikilinkClick, onNoteLinkClick, onVerseRefClick, onLexiconRefClick, onWikilinkHoverStart, onWikilinkHoverEnd }
 
   // Verse-ref/Strong's-ref right-click menus are handled entirely inside this
   // component (unlike the click callbacks above, which the parent supplies) —
@@ -503,6 +574,10 @@ export default function NoteEditorPM({
           // "click an inline reference and it acts" model as wikilinks/verse
           // refs above, in both edit and view mode. Only external schemes.
           onLinkClick: (href) => {
+            // A note link from the link editor opens like a [[wikilink]] (NotesPanel's own note
+            // navigation and history) when the host provides it.
+            const linkedNoteId = noteIdFromHref(href)
+            if (linkedNoteId && refCallbacksRef.current.onNoteLinkClick) { refCallbacksRef.current.onNoteLinkClick(linkedNoteId); return }
             // Berean links (berean://…, and the berean-pdf:// links PDF "Copy link" writes)
             // navigate inside the app; everything else external.
             if (openDeepLink(href)) return
@@ -538,21 +613,24 @@ export default function NoteEditorPM({
         }),
         createHeadingCollapsePlugin(),
         createThreadCollapsePlugin(),
-        createBlockHandlesPlugin(
+        // The hover gutter ("+" / drag grip) is a pointer affordance — not on the iPhone, which has
+        // its own insert button and selection toolbar (perf/glass QA P-01). There it drew a widget
+        // before EVERY top-level block (74% of a long note's DOM: 5,222 of 7,066 nodes), was
+        // revealed by touch-synthesised mouse moves as stray glyphs in the margin, and rebuilt its
+        // decorations on every transaction.
+        ...(phoneChrome ? [] : [createBlockHandlesPlugin(
           (target) => {
             dispatchCloseContextMenus()
             setBlockMenuTarget(target)
           },
-          (v, pos) => {
-            const coords = v.coordsAtPos(pos)
-            setSlashIdx(0)
-            setSlashTrigger({ query: '', from: pos, to: pos, coords: { left: coords.left, bottom: coords.bottom } })
-          },
-        ),
+        )]),
         createColumnControlsPlugin(),
         createFindHighlightPlugin(),
         createSelectionToolbarPlugin(setSelectionToolbar),
+        createLinkTargetPlugin(),
+        ...(phoneChrome ? [] : [createSelectionStatsPlugin(() => selectionStatsKeyRef.current)]),
         createTableStatusPlugin(setInTable),
+        createTitleLinePlugin(setInTitleLine),
         createThreadSelectionPlugin(),
       ],
     })
@@ -776,6 +854,9 @@ export default function NoteEditorPM({
       },
     })
     viewRef.current = view
+    // Simulator automation only (BEREAN_E2E_PROBE builds; a compile-time constant, so normal builds
+    // have no such path): the live editor view, for timing transactions from the dev probe.
+    if (import.meta.env.VITE_E2E_PROBE === '1') Object.assign(window, { __pmView: view, __pmSerialize: serializeToMarkdown })
     setViewReady(true)
     onEditorReadyRef.current?.(view)
     loadCollapsedHeadings(view, noteIdRef.current)
@@ -1321,6 +1402,7 @@ export default function NoteEditorPM({
   const toolbarInBar = !!toolbarSlot && !(tabId != null && focusModeTabId === tabId)
   const editorWrapRef = useRef<HTMLDivElement>(null)
   const [editingActive, setEditingActive] = useState(!!autoFocus)
+  const titleLocked = (header != null && headerFocused) || (header == null && inTitleLine)
 
   return (
     <div
@@ -1343,8 +1425,8 @@ export default function NoteEditorPM({
           never changes the editor's available height. */}
       {!isSidePanel && !hideFormattingToolbar && !phoneChrome && mode === 'edit' && viewReady && (
         toolbarInBar
-          ? createPortal(<Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} placement="bar" insertSlot={insertSlot} />, toolbarSlot!)
-          : <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />
+          ? createPortal(<Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} titleLocked={titleLocked} placement="bar" insertSlot={insertSlot} onOpenLink={openLinkEditorForSelection} />, toolbarSlot!)
+          : <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} titleLocked={titleLocked} onOpenLink={openLinkEditorForSelection} />
       )}
       {/* Word-count / reading-time footer — rendered independently of the formatting toolbar so
           it still shows on idiom notes (which hide that toolbar). Bottom-right of this same
@@ -1360,7 +1442,7 @@ export default function NoteEditorPM({
         {/* Always rendered (hidden when empty) so it stays the host's FIRST child: ProseMirror
             appends its own DOM to this host, so a slot mounted later (switching from a note
             without a header to one with) used to land BELOW the document (TEST 2026-10-04). */}
-        <div className="pm-header-slot" hidden={header == null}>{header}</div>
+        <div className="pm-header-slot" hidden={header == null} onFocus={() => setHeaderFocused(true)} onBlur={() => setHeaderFocused(false)}>{header}</div>
       </div>
       {importSource && (
         <div className="flex-shrink-0 border-t border-separator select-none">
@@ -1451,12 +1533,42 @@ export default function NoteEditorPM({
         </div>,
         document.body,
       )}
-      {selectionToolbar && mode === 'edit' && viewRef.current && (
+      {selectionToolbar && !selectionToolbar.offscreen && !linkRequest && mode === 'edit' && viewRef.current && (
         renderSelectionToolbar
           ? renderSelectionToolbar(viewRef.current, selectionToolbar)
-          : <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
+          : <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} onOpenLink={openLinkEditorForSelection} />
       )}
-      <BlockMenu target={blockMenuTarget} view={viewRef.current} noteId={noteId} onClose={() => setBlockMenuTarget(null)} />
+      {linkRequest && viewRef.current && (
+        <LinkEditor
+          view={viewRef.current}
+          request={linkRequest}
+          notes={notesRef.current ?? []}
+          currentNoteId={noteId}
+          onClose={() => setLinkRequest(null)}
+        />
+      )}
+      <BlockMenu
+        target={blockMenuTarget}
+        view={viewRef.current}
+        noteId={noteId}
+        onClose={() => setBlockMenuTarget(null)}
+        onLink={(pos, rect) => openLinkEditor({ kind: 'block', pos }, { left: rect.left, top: rect.top, bottom: rect.bottom })}
+        onInsertBelow={(pos) => {
+          // "Add Block Below" — the gutter's old "+" moved into the block menu: a new empty block
+          // under this one with the / menu open on it (Escape leaves just the empty line). After
+          // the menu has unmounted: closing it hands focus back, and that blur would dismiss the
+          // / menu the moment it opened.
+          setTimeout(() => {
+            const view = viewRef.current
+            if (!view || view.isDestroyed) return
+            const at = insertBlockBelow(view, pos)
+            if (at == null || view.state.doc.resolve(at).parent.type.name !== 'paragraph') return
+            const coords = view.coordsAtPos(at)
+            setSlashIdx(0)
+            setSlashTrigger({ query: '', from: at, to: at, coords: { left: coords.left, bottom: coords.bottom } })
+          }, 0)
+        }}
+      />
       <VerseCopyMenu target={verseCtxTarget} onClose={() => setVerseCtxTarget(null)} />
       <StrongsContextMenu
         target={strongsCtxTarget}

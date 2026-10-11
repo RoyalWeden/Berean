@@ -643,8 +643,18 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // isn't in `videos` yet (freshly opened, list still loading) show a loading
   // placeholder rather than leaving the PREVIOUS video's title in place — this
   // effect re-runs on `videos` and corrects it as soon as metadata lands.
+  //
+  // Only rename when `activeVideoId` really belongs to THIS tab (the persist effect above has
+  // already written it to the tab's state). On a tab switch this effect runs once with the
+  // PREVIOUS tab's video still in state — before the restore effect's setActiveVideoId lands —
+  // and used to stamp that video's title onto the tab just switched to: a brand-new YouTube tab
+  // came up named after the video in the old one, so it looked like no new tab had opened
+  // (TEST 2026-10-07). Back on the browse grid the tab is plain "YouTube" again.
   useEffect(() => {
-    if (!activeVideoId || !ytTabId) return
+    if (!ytTabId) return
+    const tab = useAppStore.getState().tabs['youtube'].find((t) => t.id === ytTabId)
+    if (!tab || ((tab.state as YouTubeTabState).videoId ?? null) !== activeVideoId) return
+    if (!activeVideoId) { if (tab.title !== 'YouTube') renameTab('youtube', ytTabId, 'YouTube'); return }
     const video = videos.find((v) => v.videoId === activeVideoId)
     renameTab('youtube', ytTabId, video ? video.title : (youtubeTitleFor(activeVideoId) ?? YOUTUBE_LOADING_TITLE))
   }, [activeVideoId, videos, ytTabId, renameTab])

@@ -2,12 +2,13 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
-import { TREE_STEP, treeIconX, userFolderIndent, virtualFolderIndent, noteIndent } from '../folderTreeGeometry'
+import { TREE_STEP, treeIconX, userFolderIndent, virtualFolderIndent, noteIndent, TREE_CHEVRON_BOX, TREE_GAP, VIRTUAL_ROW_INSET } from '../folderTreeGeometry'
 import { ListRow } from '@/components/ui/ListRow'
 
 // Where each row type actually draws its icon (see folderTreeGeometry.ts).
 const userFolderIcon = (d: number) => 32 + userFolderIndent(d)
-const virtualFolderIcon = (d: number) => virtualFolderIndent(d) + 18
+// System / virtual folder rows share the user folder's leading geometry (chevron box + gap).
+const virtualFolderIcon = (d: number) => virtualFolderIndent(d) + TREE_CHEVRON_BOX + TREE_GAP + VIRTUAL_ROW_INSET
 const noteIcon = (d: number) => noteIndent(d)
 
 describe('folder tree geometry', () => {

@@ -15,7 +15,7 @@ import { installDevProbe } from './devProbe'
 import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
 import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/nativeSpeechBackend'
 import { BereanSpeech } from './plugins'
-import MobileApp from '../../mobile/MobileApp'
+import MobileApp, { applyInitialMobileAppearance } from '../../mobile/MobileApp'
 import '../../styles/global.css'
 import '../../styles/glass.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
@@ -32,6 +32,8 @@ import 'pdfjs-dist/web/pdf_viewer.css'
  */
 document.documentElement.dataset.window = 'main'
 document.documentElement.dataset.platform = 'ios'
+// The saved light/dark appearance before anything paints (the HTML shell ships `class="dark"`).
+applyInitialMobileAppearance()
 
 // Capacitor's console bridge JSON-serialises arguments, so an Error prints as `{}` in the Xcode /
 // simulator console. Print name, message and stack instead (diagnostics only; no behaviour change).

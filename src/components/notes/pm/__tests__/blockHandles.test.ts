@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { EditorState, NodeSelection } from 'prosemirror-state'
+import { EditorState, NodeSelection, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
 import { history, undo } from 'prosemirror-history'
 import { bereanSchema as schema } from '../schema'
-import { createBlockHandlesPlugin, blockEnterAnimMeta } from '../blockHandles'
+import { createBlockHandlesPlugin, blockEnterAnimMeta, insertBlockBelow } from '../blockHandles'
 
 beforeAll(() => {
   const zeroRect = { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
@@ -17,7 +17,7 @@ function docFromParagraphs(...lines: string[]) {
 }
 
 function makeView(doc: ReturnType<typeof docFromParagraphs>, onOpenMenu: (t: { pos: number; rect: DOMRect }) => void = () => {}) {
-  const state = EditorState.create({ schema, doc, plugins: [history(), createBlockHandlesPlugin(onOpenMenu, () => {})] })
+  const state = EditorState.create({ schema, doc, plugins: [history(), createBlockHandlesPlugin(onOpenMenu)] })
   const dom = document.createElement('div')
   document.body.appendChild(dom)
   return new EditorView(dom, { state })
@@ -43,7 +43,7 @@ describe('createBlockHandlesPlugin — decorations', () => {
     const doc = docFromParagraphs('a', 'b')
     const dom = document.createElement('div')
     document.body.appendChild(dom)
-    const state = EditorState.create({ schema, doc, plugins: [createBlockHandlesPlugin(() => {}, () => {})] })
+    const state = EditorState.create({ schema, doc, plugins: [createBlockHandlesPlugin(() => {})] })
     const view = new EditorView(dom, { state, editable: () => false })
     expect(view.dom.querySelectorAll('.pm-block-handle').length).toBe(0)
     view.destroy()
@@ -73,64 +73,86 @@ describe('createBlockHandlesPlugin — drag-grip mousedown stages a NodeSelectio
   })
 })
 
-describe('createBlockHandlesPlugin — "+" insert button', () => {
-  it('click inserts an empty paragraph at the exact block boundary and places the cursor inside it, as ONE transaction', () => {
-    const doc = docFromParagraphs('first', 'second')
-    const view = makeView(doc)
+describe('createBlockHandlesPlugin — the grip selects the BLOCK (TEST 2026-10-10)', () => {
+  it('renders one grip per block and no "+" insert button', () => {
+    const view = makeView(docFromParagraphs('first', 'second'))
+    expect(view.dom.querySelectorAll('.pm-block-handle-grip').length).toBe(2)
+    expect(view.dom.querySelectorAll('.pm-block-handle-insert').length).toBe(0)
+    view.destroy()
+  })
+
+  it('a grip click selects the block as a node (not text), marks the wrapper and opens the menu at its CURRENT position after an earlier edit', () => {
+    const opened: number[] = []
+    const view = makeView(docFromParagraphs('first', 'second', 'third'), (t) => opened.push(t.pos))
+    const thirdGrip = view.dom.querySelectorAll('.pm-block-handle-grip')[2]
+    // Edit block 0 — shifts later offsets while the grip widget (keyed by index) is reused.
+    view.dispatch(view.state.tr.insertText(' EXTRA', view.state.doc.child(0).nodeSize - 1))
+    expect(view.dom.querySelectorAll('.pm-block-handle-grip')[2]).toBe(thirdGrip)
+    thirdGrip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    thirdGrip.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }))
+    thirdGrip.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    const sel = view.state.selection as NodeSelection
+    expect(sel).toBeInstanceOf(NodeSelection)
+    expect(sel.node.textContent).toBe('third')
+    expect(opened).toEqual([sel.from])
+    expect(view.dom.parentElement!.classList.contains('pm-block-selected')).toBe(true)
+    // Clicking into the text again drops the block selection styling.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2)))
+    expect(view.dom.parentElement!.classList.contains('pm-block-selected')).toBe(false)
+    // Nothing about the text changed.
+    expect(view.state.doc.child(2).textContent).toBe('third')
+    view.destroy()
+  })
+
+  it('aimed at a list item (the hover tracker\'s target), the grip selects that ITEM, not the whole list', () => {
+    const md = schema.nodes.doc.create(null, [
+      schema.nodes.bullet_list.create(null, [
+        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text('one'))),
+        schema.nodes.list_item.create(null, [
+          schema.nodes.paragraph.create(null, schema.text('two')),
+          schema.nodes.bullet_list.create(null, [
+            schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text('nested'))),
+          ]),
+        ]),
+      ]),
+    ])
+    const view = makeView(md)
+    const inner = view.dom.querySelector('.pm-block-handle-inner') as HTMLElement & { __targetLi?: HTMLElement | null }
+    const lis = view.dom.querySelectorAll('li')
+    inner.__targetLi = lis[2] as HTMLElement // the nested item
+    const grip = view.dom.querySelector('.pm-block-handle-grip')!
+    grip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    let sel = view.state.selection as NodeSelection
+    expect(sel.node.type.name).toBe('list_item')
+    expect(sel.node.textContent).toBe('nested')
+    inner.__targetLi = null // pointer over the list's own row → the whole list
+    grip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    sel = view.state.selection as NodeSelection
+    expect(sel.node.type.name).toBe('bullet_list')
+    view.destroy()
+  })
+})
+
+describe('insertBlockBelow — "Add Block Below" (replaces the gutter "+")', () => {
+  it('inserts an empty paragraph after the block with the caret in it, as ONE undo step', () => {
+    const view = makeView(docFromParagraphs('first', 'second'))
     const before = view.state.doc.toString()
-    const insertBtns = view.dom.querySelectorAll('.pm-block-handle-insert')
-    // Insert button for the SECOND paragraph (boundary right before it).
-    insertBtns[1].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    const at = insertBlockBelow(view, 0)
+    expect(at).not.toBeNull()
     expect(view.state.doc.childCount).toBe(3)
-    expect(view.state.doc.child(0).textContent).toBe('first')
-    expect(view.state.doc.child(1).textContent).toBe('') // freshly inserted empty paragraph
+    expect(view.state.doc.child(1).textContent).toBe('')
     expect(view.state.doc.child(2).textContent).toBe('second')
-    // Cursor lands inside the new empty paragraph.
     expect(view.state.selection.empty).toBe(true)
-    expect(view.state.selection.from).toBeGreaterThan(0)
-    // Single undo step reverts the whole insert.
+    expect(view.state.selection.$from.parent).toBe(view.state.doc.child(1))
     undo(view.state, view.dispatch)
     expect(view.state.doc.toString()).toBe(before)
     view.destroy()
   })
 
-  it('still inserts at the CORRECT position after an earlier edit shifted offsets without changing block count or order (round 13 regression)', () => {
-    // Widget DOM (and its closures) is reused across redraws whenever a block's INDEX among
-    // its siblings doesn't change — the whole point of keying decorations by index instead of
-    // offset. But that means the widget factory only runs ONCE per index; if the click handler
-    // trusted the `pos` captured at that first build, it would go stale the moment an edit
-    // ANYWHERE EARLIER in the doc shifts character offsets (typing in block 0 doesn't change
-    // block 1's or block 2's INDEX, but does change their character position) — reported as
-    // "clicking the plus button in the gutter just freezes the app" (a stale, now out-of-range
-    // or mid-node position handed to a ProseMirror transform can throw/corrupt the transaction).
-    const doc = docFromParagraphs('first', 'second', 'third')
-    const view = makeView(doc)
-    // Grab a reference to block 2's ("third") insert button BEFORE the earlier edit — this is
-    // the exact DOM node/closure that will be REUSED (not rebuilt) by the edit below, since
-    // "third" stays at index 2 throughout.
-    const insertBtns = view.dom.querySelectorAll('.pm-block-handle-insert')
-    const thirdInsertBtn = insertBtns[2]
-
-    // Edit block 0 ("first" -> "first EXTRA TEXT") — shifts every later block's character
-    // offset without touching block count or order, so blockHandles' decorations() rebuild
-    // reuses "third"'s existing widget DOM/closure by key (index 2), unchanged.
-    const firstParaEnd = view.state.doc.child(0).nodeSize - 1 // end of "first", inside the paragraph
-    view.dispatch(view.state.tr.insertText(' EXTRA TEXT', firstParaEnd))
-    expect(view.state.doc.child(0).textContent).toBe('first EXTRA TEXT')
-
-    // Same DOM node as before the edit — proves this is exercising the REUSE path, not a fresh
-    // rebuild that would trivially have the right position anyway.
-    expect(view.dom.querySelectorAll('.pm-block-handle-insert')[2]).toBe(thirdInsertBtn)
-
-    thirdInsertBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
-
-    // Must not throw, and the new empty paragraph must land between "second" and "third" —
-    // i.e. at THIRD's current (post-edit) position, not its stale pre-edit one.
-    expect(view.state.doc.childCount).toBe(4)
-    expect(view.state.doc.child(0).textContent).toBe('first EXTRA TEXT')
-    expect(view.state.doc.child(1).textContent).toBe('second')
-    expect(view.state.doc.child(2).textContent).toBe('') // freshly inserted, right before "third"
-    expect(view.state.doc.child(3).textContent).toBe('third')
+  it('returns null (and changes nothing) for a position that no longer holds a block', () => {
+    const view = makeView(docFromParagraphs('only'))
+    expect(insertBlockBelow(view, 999)).toBeNull()
+    expect(view.state.doc.childCount).toBe(1)
     view.destroy()
   })
 })
@@ -166,7 +188,7 @@ describe('createBlockHandlesPlugin — mousemove-driven gutter hover (round 12 f
     view.destroy()
   })
 
-  it('falls back to the handle\'s OWN button-stack rect when the cursor is just outside a short block\'s row', async () => {
+  it('keeps the grip while the cursor is on it, just outside a short block\'s row', async () => {
     // The real bug this fixes: two 16px buttons + gap render ~33px tall, taller than a short
     // single-line block's own row (~24-28px) — so the lower button (the drag grip) can sit
     // below the paired block's own bottom edge. Simulate exactly that mismatch.
@@ -180,11 +202,20 @@ describe('createBlockHandlesPlugin — mousemove-driven gutter hover (round 12 f
     inner.getBoundingClientRect = () =>
       ({ top: 1, bottom: 34, left: 2, right: 18, width: 16, height: 33, x: 2, y: 1, toJSON: () => ({}) }) as DOMRect
 
-    // Cursor at y=30 — below the block's own row (ends at 24) but within the button stack.
+    // The grip shows for the block's row first…
+    view.dom.dispatchEvent(new MouseEvent('mousemove', { clientX: 60, clientY: 10, bubbles: true }))
+    await new Promise((r) => requestAnimationFrame(r))
+    expect(handle.classList.contains('pm-gutter-active')).toBe(true)
+    // …and stays while the cursor, reaching for it, is at y=30 — below the block's own row
+    // (ends at 24) but on the grip itself.
     view.dom.dispatchEvent(new MouseEvent('mousemove', { clientX: 8, clientY: 30, bubbles: true }))
     await new Promise((r) => requestAnimationFrame(r))
 
     expect(handle.classList.contains('pm-gutter-active')).toBe(true)
+    // Somewhere unrelated, it goes.
+    view.dom.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 90, bubbles: true }))
+    await new Promise((r) => requestAnimationFrame(r))
+    expect(handle.classList.contains('pm-gutter-active')).toBe(false)
     view.destroy()
   })
 })

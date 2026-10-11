@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, Trash2, Link2 } from 'lucide-react'
+import { Copy, Trash2, Link2, Link, Plus, ListTree } from 'lucide-react'
 import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS } from '@/lib/blockTypeIcons'
 import { NodeSelection, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
@@ -10,9 +10,12 @@ import { MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui
 import { bereanSchema as schema } from './schema'
 import { blockEnterAnimMeta } from './blockHandles'
 import type { BlockMenuTarget } from './blockHandles'
+import { canLinkBlock, blockTextRange, readLinkAt, hasInnerLinks } from './linkModel'
 
 // Block-level menu opened by clicking (not dragging) a block's drag-handle grip
-// (blockHandles.ts) — Duplicate / Delete / Turn into / Copy link to block.
+// (blockHandles.ts) — Link… / Add Block Below / Duplicate / Copy Link to Block / Turn into /
+// Delete, plus "Select Whole List" when the selection is one list item. "Link…" opens the shared
+// link editor (LinkEditor.tsx) for the block; "Add Block Below" replaced the gutter's "+".
 //
 // Every action here reads `view.state.selection` fresh at click time rather
 // than trusting a `[from, to]` captured when the menu opened: blockHandles.ts's
@@ -156,13 +159,18 @@ const ThreadIcon = BLOCK_TYPE_META.thread.icon
 
 
 export default function BlockMenu({
-  target, view, noteId, onClose,
+  target, view, noteId, onClose, onLink, onInsertBelow,
 }: {
   target: BlockMenuTarget | null
   view: EditorView | null
   noteId?: string
   onClose: () => void
+  /** Opens the link editor for the selected block (position BEFORE the block). */
+  onLink?: (pos: number, rect: DOMRect) => void
+  onInsertBelow?: (pos: number) => void
 }) {
+  // Re-render after "Select Whole List" changes the selection under the open menu.
+  const [, setTick] = useState(0)
   useEffect(() => {
     if (!target) return
     const close = () => onClose()
@@ -187,6 +195,40 @@ export default function BlockMenu({
   if (!(sel instanceof NodeSelection)) return null
   const sourceType = sel.node.type.name
   const canTurnInto = TURN_INTO_SOURCE_TYPES.has(sourceType)
+  const isListItem = sourceType === 'list_item'
+  const linkable = canLinkBlock(view.state.doc, sel.from)
+  const blockRange = linkable ? blockTextRange(view.state.doc, sel.from) : null
+  const blockLink = blockRange ? readLinkAt(view.state, blockRange.from, blockRange.to) : null
+  const blockLinked = !!blockLink && !!blockRange && blockLink.from <= blockRange.from && blockLink.to >= blockRange.to
+  // Text that already holds links of its own can't take a block link (links don't nest).
+  const innerLinks = !!blockRange && !blockLinked && hasInnerLinks(view.state.doc, blockRange)
+
+  function link() {
+    const s = currentSelection()
+    onClose()
+    if (s && onLink) onLink(s.from, target!.rect)
+  }
+
+  function insertBelow() {
+    const s = currentSelection()
+    onClose()
+    if (s && onInsertBelow) onInsertBelow(s.from)
+  }
+
+  // One list item is selected → select the list that holds it (the menu stays open on it).
+  function selectWholeList() {
+    const s = currentSelection()
+    if (!s) return
+    const $pos = view!.state.doc.resolve(s.from)
+    for (let d = $pos.depth; d >= 0; d--) {
+      const n = $pos.node(d)
+      if (n.type === schema.nodes.bullet_list || n.type === schema.nodes.ordered_list) {
+        view!.dispatch(view!.state.tr.setSelection(NodeSelection.create(view!.state.doc, $pos.before(d))))
+        setTick((t) => t + 1)
+        return
+      }
+    }
+  }
 
   function currentSelection(): NodeSelection | null {
     const s = view!.state.selection
@@ -208,10 +250,22 @@ export default function BlockMenu({
     const s = currentSelection()
     if (s) {
       const tr = view!.state.tr
+      const $from = view!.state.doc.resolve(s.from)
+      // A list needs at least one item: deleting a list's ONLY item deletes the list.
+      if (s.node.type === schema.nodes.list_item && $from.parent.childCount <= 1 && $from.depth > 0) {
+        const listPos = $from.before($from.depth)
+        const list = $from.parent
+        if ($from.depth === 1 && view!.state.doc.childCount <= 1) {
+          tr.replaceWith(listPos, listPos + list.nodeSize, schema.nodes.paragraph.create())
+          tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 1)))
+        } else {
+          tr.delete(listPos, listPos + list.nodeSize)
+          tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(listPos, tr.doc.content.size))))
+        }
       // A doc needs at least one block (schema.ts's `doc: { content: 'block+' }`)
       // — deleting the ONLY top-level block would leave an invalid document, so
       // replace it with an empty paragraph instead of deleting outright.
-      if (view!.state.doc.childCount <= 1) {
+      } else if (view!.state.doc.childCount <= 1) {
         tr.replaceWith(s.from, s.to, schema.nodes.paragraph.create())
         tr.setSelection(TextSelection.near(tr.doc.resolve(s.from + 1)))
       } else {
@@ -246,28 +300,43 @@ export default function BlockMenu({
   function copyLink() {
     const s = currentSelection()
     if (s) {
-      let index = 0
-      let found = -1
-      view!.state.doc.forEach((_n, offset) => {
-        if (offset === s.from) found = index
-        index++
-      })
+      // The TOP-LEVEL block holding the selection (a list item links to its list).
+      const found = view!.state.doc.resolve(s.from).index(0)
       const link = noteId ? `berean://note/${noteId}#block-${Math.max(found, 0)}` : `berean://note#block-${Math.max(found, 0)}`
       navigator.clipboard.writeText(link).catch(() => {})
     }
     onClose()
   }
 
+  // Below the selected block (left-aligned with its grip), so the menu never covers the block it
+  // acts on; MenuPositioner flips it above when there's no room below.
+  let menuY = target.rect.bottom + 4
+  try {
+    const dom = view.nodeDOM(sel.from)
+    if (dom instanceof HTMLElement) menuY = Math.max(menuY, dom.getBoundingClientRect().bottom + 6)
+  } catch { /* keep the grip's own rect */ }
+
   return createPortal(
     <MenuPositioner
-      x={target.rect.right + 6}
-      y={target.rect.top}
+      x={target.rect.left}
+      y={menuY}
       className="min-w-[190px]"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <MenuSurface>
+        {onLink && (
+          <MenuItem
+            icon={Link}
+            label={blockLinked ? 'Edit Link…' : 'Link…'}
+            disabled={!linkable || innerLinks}
+            title={!linkable ? 'Only a paragraph, heading or single list item can be linked' : innerLinks ? 'This block already contains links — link part of its text instead' : undefined}
+            onClick={link}
+          />
+        )}
+        {onInsertBelow && <MenuItem icon={Plus} label="Add Block Below" onClick={insertBelow} />}
         <MenuItem icon={Copy} label="Duplicate" onClick={duplicate} />
-        <MenuItem icon={Link2} label="Copy link to block" onClick={copyLink} />
+        <MenuItem icon={Link2} label="Copy Link to Block" onClick={copyLink} />
+        {isListItem && <MenuItem icon={ListTree} label="Select Whole List" onClick={selectWholeList} />}
 
         {canTurnInto && (
           <>

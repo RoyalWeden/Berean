@@ -28,7 +28,7 @@ export default function WordCountFooter({ view, lastSavedAt, statsInInspector }:
   view: EditorView | null; lastSavedAt?: number | null
   /** The note's Info inspector shows words / characters / reading time (TEST 2026-10-05: document
    *  metadata belongs in the inspector, the canvas is for the note). The footer then keeps only the
-   *  "Saved" confirmation and a selection's count while text is selected. */
+   *  "Saved" confirmation. */
   statsInInspector?: boolean
 }) {
   // `view` is the live EditorView (already in memory — no markdown round-trip), so the doc's
@@ -36,19 +36,15 @@ export default function WordCountFooter({ view, lastSavedAt, statsInInspector }:
   // cadence as autosave — but computed IMMEDIATELY the first time this effect sees a given
   // `view` (a switched note/tab), which is a doc-identity change same as any keystroke and
   // otherwise made the count visibly pop in ~500ms later with nothing to debounce against.
+  // Whole-note counts only. A text selection never adds a count here (TEST 2026-10-10: the
+  // selection's words / characters show in the Info inspector instead — selectionStats.ts).
   const [wordStats, setWordStats] = useState<WordStats>({ words: 0, minutes: 0, characters: 0 })
-  const [statsAreSelection, setStatsAreSelection] = useState(false)
   const prevViewRef = useRef<EditorView | null>(null)
   useEffect(() => {
-    if (!view) return
+    if (!view || statsInInspector) return
     const compute = () => {
-      const { doc, selection } = view.state
-      const hasSelection = !selection.empty
-      const text = hasSelection
-        ? doc.textBetween(selection.from, selection.to, '\n', '\n')
-        : doc.textBetween(0, doc.content.size, '\n', '\n')
-      setStatsAreSelection(hasSelection)
-      setWordStats(computeWordStats(text))
+      const { doc } = view.state
+      setWordStats(computeWordStats(doc.textBetween(0, doc.content.size, '\n', '\n')))
     }
     if (prevViewRef.current !== view) {
       prevViewRef.current = view
@@ -57,8 +53,7 @@ export default function WordCountFooter({ view, lastSavedAt, statsInInspector }:
     }
     const timer = setTimeout(compute, WORD_COUNT_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-    // view.state.selection included so a pure selection change (no doc edit) retriggers this too.
-  }, [view, view?.state.doc, view?.state.selection])
+  }, [view, view?.state.doc, statsInInspector])
 
   // "Saved" confirmation — shown briefly whenever `lastSavedAt` actually changes (only when
   // NotesPanel's autosave IPC call resolves, never on a raw keystroke). Held fully visible for
@@ -82,12 +77,10 @@ export default function WordCountFooter({ view, lastSavedAt, statsInInspector }:
           <Check size={12} strokeWidth={2.5} /> Saved
         </span>
       )}
-      {!(statsInInspector && !statsAreSelection) && <div className="text-meta">
+      {!statsInInspector && <div className="text-meta">
         {wordStats.words === 0
-          ? (statsAreSelection ? '0 words selected' : '0 words')
-          : statsAreSelection
-            ? `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} selected`
-            : `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} · ${wordStats.minutes} min read`}
+          ? '0 words'
+          : `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} · ${wordStats.minutes} min read`}
       </div>}
     </div>
   )

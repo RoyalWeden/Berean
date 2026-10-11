@@ -47,6 +47,18 @@ describe('useNoteAutosave', () => {
     expect(updateNote).toHaveBeenCalledWith('n1', { content: 'start and more', title: 'New title' })
   })
 
+  it('typing does not re-render the page; a title change does (P-02)', async () => {
+    await mount()
+    const n0 = renders.length
+    act(() => { api!.persist({ content: 'start a' }) })
+    act(() => { api!.persist({ content: 'start ab' }) })
+    expect(renders.length).toBe(n0)
+    act(() => { api!.persist({ title: 'Renamed' }) })
+    expect(renders.length).toBeGreaterThan(n0)
+    expect(api!.note?.title).toBe('Renamed')
+    expect(api!.note?.content).toBe('start ab')
+  })
+
   it('never hands keystrokes back to the editor (editorContent changes only on load / restore)', async () => {
     await mount()
     const afterLoad = renders.at(-1)
@@ -54,8 +66,9 @@ describe('useNoteAutosave', () => {
     act(() => { api!.persist({ content: 'start typing fast' }) })
     act(() => { api!.persist({ content: 'start typing faster' }) })
     expect(renders.at(-1)).toBe('start')
-    expect(api!.note?.content).toBe('start typing faster')
-    act(() => { api!.replace({ ...api!.note!, content: 'restored version' }) })
+    // Keystrokes don't re-render the page (P-02): the live copy is `latest`.
+    expect(api!.latest.current?.content).toBe('start typing faster')
+    act(() => { api!.replace({ ...api!.latest.current!, content: 'restored version' }) })
     expect(renders.at(-1)).toBe('restored version')
   })
 
@@ -106,7 +119,7 @@ describe('useNoteAutosave external-update policy', () => {
     stored = 'changed on the Mac'
     act(() => bump()); await settle()
     expect(renders.at(-1)).toBe('start')
-    expect(api!.note?.content).toBe('start local')
+    expect(api!.latest.current?.content).toBe('start local')
     expect(createNoteVersion).toHaveBeenCalledWith('n1', 'T', 'changed on the Mac', 'external')
   })
 

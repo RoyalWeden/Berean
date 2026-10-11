@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import { computeWordStats } from '@/lib/wordCount'
-import { Link2, ChevronsUpDown, PanelRight, CircleDashed } from 'lucide-react'
+import { selectionStatsKey, useSelectionStats } from './pm/selectionStats'
+import { Link2, ChevronsUpDown, CircleDashed } from 'lucide-react'
 import type { Note, NoteStatus } from '@/types'
 import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import { NOTE_LOOKS } from './NoteLookDropdown'
 import { useAppStore } from '@/store'
 import DailyNoteEditsSection from './DailyNoteEditsSection'
 import { dailyNoteDateKey } from '@/lib/noteUtils'
-import { IconButton, ListRow, cx, MenuItem, Popover, PopoverTrigger, PopoverSurface, ResizeHandle } from '@/components/ui'
+import { ListRow, cx, MenuItem, Popover, PopoverTrigger, PopoverSurface, ResizeHandle } from '@/components/ui'
 
 // ── Heading parsing ────────────────────────────────────────────────────────────
 
@@ -16,22 +18,35 @@ interface Heading {
   text: string
 }
 
+function headingPlainText(md: string): string {
+  return md
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+    .replace(/\[\[([^\]]+)\]\]/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .trim()
+}
+
 function parseHeadings(content: string): Heading[] {
   const headings: Heading[] = []
   for (const line of content.split('\n')) {
     const m = line.match(/^(#{1,6})\s+(.+)$/)
-    if (m) headings.push({ level: m[1].length, text: m[2].trim() })
+    // The heading's TEXT (what the editor shows and berean:scrollToHeading matches) — a linked
+    // heading is `## [Text](berean://note/…)` in the markdown.
+    if (m) headings.push({ level: m[1].length, text: headingPlainText(m[2]) })
   }
   return headings
 }
 
 // ── Backlink detection ─────────────────────────────────────────────────────────
 
+// A note links here by a [[Title]] wikilink (also `[[Title|text]]` / `[[Title#Heading]]`), or by a
+// note link the link editor made — `berean://note/<id>` (stable across renames).
 function findBacklinks(noteTitle: string, allNotes: Note[], noteId: string): Note[] {
-  if (!noteTitle.trim()) return []
-  const escaped = noteTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(`\\[\\[${escaped}\\]\\]`, 'i')
-  return allNotes.filter(n => n.id !== noteId && pattern.test(n.content ?? ''))
+  const escaped = noteTitle.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const byTitle = escaped ? new RegExp(`\\[\\[${escaped}(?:#[^\\]|]*)?(?:\\|[^\\]]*)?\\]\\]`, 'i') : null
+  const idEsc = encodeURIComponent(noteId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const byId = new RegExp(`\\]\\(berean(?:-dev)?://note/${idEsc}(?:[#)?])`)
+  return allNotes.filter(n => n.id !== noteId && ((byTitle && byTitle.test(n.content ?? '')) || byId.test(n.content ?? '')))
 }
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -55,6 +70,13 @@ interface Props {
   onLookChange?: (look: string) => void
   createdAt?: string | number
   updatedAt?: string | number
+  /** Live two-finger swipe position (0 = fully open, 1 = fully closed), null when not swiping. */
+  swipeFrac?: number | null
+  /** A swipe is being tracked — follow it with no easing. */
+  swiping?: boolean
+  /** Upper bound on the inspector's width — a floating note window keeps it compact so the
+   *  note stays the window's main content (the saved width is the main window's). */
+  maxWidth?: number
 }
 
 // Attached-inspector width band — same 260-420 clamp as the Scripture side panel
@@ -70,9 +92,13 @@ export function snapInfoWidth(w: number): number {
   return Math.abs(near - c) <= 24 ? near : c
 }
 
-export default function NoteSidePanel({ content, noteTitle, noteId, noteType, tabId, allNotes, onNoteClick, onOpenNewTab, onOpenInFloatingTab, folderPath = [], status, onStatusChange, look, onLookChange, createdAt, updatedAt }: Props) {
+export default function NoteSidePanel({ content, noteTitle, noteId, noteType, tabId, allNotes, onNoteClick, onOpenNewTab, onOpenInFloatingTab, folderPath = [], status, onStatusChange, look, onLookChange, createdAt, updatedAt, swipeFrac = null, swiping = false, maxWidth }: Props) {
   // Same counter as the editor footer (lib/wordCount), over the note's text without markdown.
   const stats = useMemo(() => computeWordStats(content.replace(/^---\n[\s\S]*?\n---\s*\n?/, '').replace(/[#>*_`~]|\[\[|\]\]|\]\([^)]*\)|\[/g, '')), [content])
+  // While text is selected in this note's editor, Words / Characters count the SELECTION — set in
+  // italics and a quieter tint so the change reads without anything moving (TEST 2026-10-10: the
+  // canvas no longer shows a selection count of its own).
+  const selStats = useSelectionStats(selectionStatsKey(tabId, noteId))
   const headings = useMemo(() => parseHeadings(content), [content])
   const backlinks = useMemo(() => findBacklinks(noteTitle, allNotes, noteId), [noteTitle, allNotes, noteId])
   // Only set for daily/journal notes — drives the "Edited today" section below, matched
@@ -82,9 +108,10 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
     [noteId, noteTitle, noteType]
   )
 
-  const [width, setWidthState] = useState<number>(() => {
+  const [savedWidth, setWidthState] = useState<number>(() => {
     try { const v = Number(localStorage.getItem(INFO_WIDTH_KEY)); return v ? snapInfoWidth(v) : INFO_WIDTH_DEFAULT } catch { return INFO_WIDTH_DEFAULT }
   })
+  const width = maxWidth ? Math.min(savedWidth, maxWidth) : savedWidth
   const setWidth = (w: number) => { setWidthState(w); try { localStorage.setItem(INFO_WIDTH_KEY, String(w)) } catch { /* per-viewer convenience only */ } }
   const [dragging, setDragging] = useState(false)
   function startResize(e: React.PointerEvent) {
@@ -97,29 +124,32 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
   }
-  const pinned    = useAppStore((s) => s.noteSidePanelPinned)
-  const setPinned = useAppStore((s) => s.setNoteSidePanelPinned)
 
   function scrollToHeading(text: string) {
     window.dispatchEvent(new CustomEvent('berean:scrollToHeading', { detail: { headingText: text } }))
   }
 
-  // Collapsed: a thin attached rail (still `material-inspector` — hairline-left, no radius/
-  // blur/shadow) with just the toggle. Replaces the old hover-to-expand floating pill —
-  // this is now a real dock, so it either takes its width or it doesn't.
-  if (!pinned) {
-    return (
-      <div className="flex-shrink-0 h-full w-7 material-inspector flex flex-col items-end pt-2 pr-0.5">
-        <IconButton icon={PanelRight} label="Show outline & backlinks" size={24} onClick={() => setPinned(true)} />
-      </div>
-    )
-  }
+  // Shown/hidden by NotesPanel (inside AnimatePresence) — collapsed it is gone entirely, the
+  // toggle living in the note's top bar like the sidebar's (TEST 2026-10-08). The outer box
+  // animates its WIDTH (the note reflows beside it, as an attached macOS inspector does) while
+  // the content keeps its own width and is clipped, so it slides in from the window edge. A
+  // two-finger swipe drives it live (`swipeFrac`: 0 open → 1 closed), the Scripture panel's
+  // gesture (useSwipePanelGesture).
+  const openFrac = swipeFrac == null ? 1 : 1 - swipeFrac
+  const instant = swiping || dragging
 
   const statusMeta = noteStatusMeta(status ?? null)
   const StatusIcon = statusMeta?.icon ?? CircleDashed
   const lookLabel = (NOTE_LOOKS.find((l) => l.value === look) ?? NOTE_LOOKS[0]).label
 
   return (
+    <motion.div
+      className="relative flex-shrink-0 h-full overflow-hidden flex justify-start"
+      initial={{ width: 0 }}
+      animate={{ width: Math.max(0, width * openFrac) }}
+      exit={{ width: 0 }}
+      transition={{ duration: instant ? 0 : 0.18, ease: 'easeOut' }}
+    >
     <div className="relative flex-shrink-0 h-full material-inspector flex flex-col" style={{ width }}>
       {/* Resizable with snap widths (Compact 260 · Standard 300 · Wide 380 · Large 460), like a
           macOS inspector; double-click returns to Standard. */}
@@ -131,11 +161,11 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
         onNudge={(d) => setWidth(snapInfoWidth(width - d))}
         onPointerDown={startResize}
       />
-      {/* Header — the inspector's title, with the toggle at exactly the collapsed rail's spot
-          (8px from the top, 2px from the right) so it never shifts when clicked (TEST 2026-10-04). */}
-      <div className="flex-shrink-0 flex items-center justify-between pl-4 pr-0.5 h-[41px]">
+      {/* Header — the inspector's title (its show/hide toggle is in the note's top bar). Sized to
+          its text now that the toggle left it (the 41px band was the toggle's; TEST 2026-10-08:
+          "the gap between Info and the status line is too big"). */}
+      <div className="flex-shrink-0 flex items-center pl-4 pr-2 pt-3 pb-1">
         <span className="text-subhead font-semibold text-text-primary">Info</span>
-        <IconButton icon={PanelRight} label="Hide note info" size={24} selected onClick={() => setPinned(false)} />
       </div>
       <div className="flex-1 overflow-y-auto pb-3 text-footnote">
         {/* ── The note's own properties (no heading: they ARE the note, like Pages' Document
@@ -191,8 +221,8 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
           <InfoGroup title="Details">
             {createdAt ? <InfoRow label="Created"><span className="text-text-primary tabular-nums">{formatInfoDate(createdAt)}</span></InfoRow> : null}
             {updatedAt ? <InfoRow label="Modified"><span className="text-text-primary tabular-nums">{formatInfoDate(updatedAt)}</span></InfoRow> : null}
-            <InfoRow label="Words"><span className="text-text-primary tabular-nums">{stats.words.toLocaleString()}</span></InfoRow>
-            <InfoRow label="Characters"><span className="text-text-primary tabular-nums">{stats.characters.toLocaleString()}</span></InfoRow>
+            <InfoRow label="Words" selection={!!selStats}><span className="tabular-nums">{(selStats ?? stats).words.toLocaleString()}</span></InfoRow>
+            <InfoRow label="Characters" selection={!!selStats}><span className="tabular-nums">{(selStats ?? stats).characters.toLocaleString()}</span></InfoRow>
             <InfoRow label="Reading Time"><span className="text-text-primary tabular-nums">{stats.words === 0 ? '—' : `${Math.max(1, stats.minutes)} min`}</span></InfoRow>
           </InfoGroup>
         )}
@@ -219,7 +249,7 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
               {headings.map((h, i) => (
                 <ListRow
                   key={i}
-                  flush
+                  inset
                   dense
                   indent={10 + (h.level - 1) * 12}
                   onClick={() => scrollToHeading(h.text)}
@@ -238,7 +268,7 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
               {backlinks.map((note) => (
                 <ListRow
                   key={note.id}
-                  flush
+                  inset
                   dense
                   onClick={() => onNoteClick(note)}
                   leading={<Link2 size={12} className="text-text-tertiary flex-shrink-0" />}
@@ -252,6 +282,7 @@ export default function NoteSidePanel({ content, noteTitle, noteId, noteType, ta
         )}
       </div>
     </div>
+    </motion.div>
   )
 }
 
@@ -262,7 +293,8 @@ const INFO_VALUE_BTN = 'focus-ring no-drag inline-flex items-center gap-1.5 max-
 /** A group of inspector rows: a small heading over a hairline (first group: no heading). */
 function InfoGroup({ title, count, children }: { title?: string; count?: number; children: React.ReactNode }) {
   return (
-    <section className="px-4 pt-3 [&+&]:border-t [&+&]:border-separator-subtle [&+&]:mt-1">
+    // An untitled group (the note's own properties, right under "Info") sits close to the header.
+    <section className={cx('px-4 [&+&]:border-t [&+&]:border-separator-subtle [&+&]:mt-1', title ? 'pt-3' : 'pt-1')}>
       {title && (
         <h3 className="flex items-baseline gap-1.5 mb-1 text-caption font-semibold text-text-secondary">
           {title}
@@ -276,11 +308,17 @@ function InfoGroup({ title, count, children }: { title?: string; count?: number;
 
 /** One label · value row: the label right-aligned in a fixed column, the value left-aligned
  *  beside it — the macOS inspector alignment (labels and values each line up). */
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+function InfoRow({ label, selection, children }: { label: string; selection?: boolean; children: React.ReactNode }) {
+  // `selection` — the value counts the editor's text selection, not the whole note: label and value
+  // turn italic and one step quieter (same size and metrics, so nothing shifts).
   return (
-    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-x-3 min-h-[26px]">
-      <span className="text-footnote text-text-secondary text-right truncate">{label}</span>
-      <span className="min-w-0 flex items-center text-footnote">{children}</span>
+    <div
+      className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-x-3 min-h-[26px]"
+      title={selection ? `${label} in the selection` : undefined}
+      data-selection={selection ? '' : undefined}
+    >
+      <span className={cx('text-footnote text-right truncate transition-colors', selection ? 'italic text-text-tertiary' : 'text-text-secondary')}>{label}</span>
+      <span className={cx('min-w-0 flex items-center text-footnote transition-colors', selection != null && (selection ? 'italic text-text-secondary' : 'text-text-primary'))}>{children}</span>
     </div>
   )
 }

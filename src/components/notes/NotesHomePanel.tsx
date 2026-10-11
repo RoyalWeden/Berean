@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
-import { ExternalLink, ArrowUpRight, Clock, Pin, FileText, Printer, ChevronUp, ChevronDown } from 'lucide-react'
+import { ExternalLink, ArrowUpRight, Clock, Pin, FileText, Printer, ChevronUp, ChevronDown, SquarePen } from 'lucide-react'
+import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import type { Note, NoteFolder } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
 import { noteStatusMeta } from '@/lib/noteStatus'
@@ -42,13 +43,23 @@ const NOOP = () => {}
 
 // ── Row used in the dashboard / folder lists ──────────────────────────────────
 
-function NoteRow({ note, onPreview, onOpen }: { note: Note; onPreview: (n: Note) => void; onOpen: (n: Note) => void }) {
+/** One line of the note's own text (no markdown), for rows that show a preview. */
+function previewLine(note: Note): string {
+  const raw = note.type === 'idiom' && note.idiomMeaning ? note.idiomMeaning : stripMarkdownFormatting(note.content ?? '')
+  const text = raw.replace(/\s+/g, ' ').trim()
+  // A body that opens with `# <title>` would just repeat the title.
+  const t = (note.title ?? '').trim()
+  return t && text.toLowerCase().startsWith(t.toLowerCase()) ? text.slice(t.length).trim() : text
+}
+
+function NoteRow({ note, onPreview, onOpen, preview = false }: { note: Note; onPreview: (n: Note) => void; onOpen: (n: Note) => void; preview?: boolean }) {
   const meta = noteStatusMeta(note.status)
   return (
     <ListRow
-      flush
+      inset
       leading={<FileText size={14} />}
       title={note.title?.trim() || 'Untitled'}
+      subtitle={preview ? (previewLine(note) || 'No additional text') : undefined}
       meta={<span className="inline-flex items-center gap-1">
         {meta && <meta.icon size={12} style={{ color: meta.color }} />}
         {timeAgo(note.updatedAt)}
@@ -73,13 +84,15 @@ interface Props {
   onOpen: (note: Note) => void
   onOpenNewTab: (note: Note) => void
   onPrint: (note: Note) => void
+  /** Folder overview header: create a note in that folder (the tree's "New note here"). */
+  onNewNoteInFolder?: (folderId: string) => void
   /** Live query from the "Search notes…" box — also highlighted inside the previewed note. */
   searchQuery: string
   searchWordMode: FindMode
 }
 
 export default function NotesHomePanel({
-  note, folder, allNotes, folders, onPreview, onOpen, onOpenNewTab, onPrint, searchQuery, searchWordMode,
+  note, folder, allNotes, folders, onPreview, onOpen, onOpenNewTab, onPrint, onNewNoteInFolder, searchQuery, searchWordMode,
 }: Props) {
   const userNotes = useMemo(() => allNotes.filter((n) => !isSystemNote(n)), [allNotes])
   const recent = useMemo(() => [...userNotes].sort(byRecent).slice(0, 10), [userNotes])
@@ -198,33 +211,44 @@ export default function NotesHomePanel({
     )
   }
 
-  // ── Folder context ────────────────────────────────────────────────────────
+  // ── Folder overview ───────────────────────────────────────────────────────
+  // Compact header (name, counts, the folder's own "New note" action) over ALL of the folder's
+  // notes, most recently edited first, each with a one-line preview — the same row style as the
+  // dashboard. It used to list only the 12 most recent titles, so a folder of one note was a
+  // header, one bare title and an empty pane; a folder of 30 hid most of its notes.
   if (folder) {
-    const inFolder = userNotes.filter((n) => n.folderId === folder.id)
+    const inFolder = [...userNotes.filter((n) => n.folderId === folder.id)].sort(byRecent)
+    const subfolders = folders.filter((f) => f.parentId === folder.id).length
     const fInProgress = inFolder.filter((n) => n.status === 'in-progress').length
-    const fRecent = [...inFolder].sort(byRecent).slice(0, 12)
     const fTags = Array.from(new Set(inFolder.flatMap((n) => n.tags ?? []))).slice(0, 12)
     return (
       <div className={wrap}>
-        <div className="flex-shrink-0 border-b border-separator px-5 py-3">
-          <div className="text-title3 font-semibold text-text-primary">{folder.name}</div>
-          <div className="mt-1 flex flex-wrap gap-x-3 text-caption2 text-text-muted">
-            <span>{inFolder.length} note{inFolder.length === 1 ? '' : 's'}</span>
-            {fInProgress > 0 && <span>{fInProgress} in progress</span>}
+        <div className="flex-shrink-0 border-b border-separator px-5 py-3 flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-title3 font-semibold text-text-primary">{folder.name}</div>
+            <div className="mt-0.5 flex flex-wrap gap-x-3 text-caption2 text-text-muted">
+              <span>{inFolder.length} note{inFolder.length === 1 ? '' : 's'}</span>
+              {subfolders > 0 && <span>{subfolders} subfolder{subfolders === 1 ? '' : 's'}</span>}
+              {fInProgress > 0 && <span>{fInProgress} in progress</span>}
+            </div>
           </div>
+          {onNewNoteInFolder && (
+            <Button variant="secondary" size="sm" icon={SquarePen} onClick={() => onNewNoteInFolder(folder.id)}>
+              New Note
+            </Button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          {fRecent.length === 0
-            ? <EmptyState compact title="No notes in this folder yet." />
+          {inFolder.length === 0
+            ? <EmptyState compact icon={FileText} title="No notes in this folder" hint="Notes you create here or drag in from the list appear here." />
             : (
-              <>
-                <SectionHeader className="pt-3">Recently edited</SectionHeader>
-                {fRecent.map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />)}
-              </>
+              <div className="flex flex-col gap-0.5">
+                {inFolder.map((n) => <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} preview />)}
+              </div>
             )}
           {fTags.length > 0 && (
             <>
-              <SectionHeader className="pt-3">Tags in this folder</SectionHeader>
+              <SectionHeader className="pt-4">Tags in this folder</SectionHeader>
               <div className="flex flex-wrap gap-1 px-2 py-1">
                 {fTags.map((t) => (
                   <Chip key={t} static size="sm">#{t}</Chip>

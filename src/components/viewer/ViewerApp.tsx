@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Minus, Plus } from 'lucide-react'
+import { MotionConfig } from 'framer-motion'
+import { ChapterLabel, type ChapterLabelVariant } from './ChapterLabel'
 import { IconButton, SectionLabel } from '@/components/ui'
 import { useAppStore } from '@/store'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
@@ -324,11 +326,27 @@ export default function ViewerApp() {
     return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current) }
   }, [contentKey])
 
+  // ── The ONE chapter label (ChapterLabel.tsx) — where it lives right now ─────────────────────
+  // flash (a new chapter just arrived) → then the page's own title if the reader is at the top of
+  // the chapter (its title isn't tucked under the title bar), otherwise the title-bar pill.
+  // Scrolling back to the top hands it to the page title again; scrolling away, back to the pill.
+  const [pageTitleInView, setPageTitleInView] = useState(false)
+  const labelVariant: ChapterLabelVariant | null = payload.kind === 'idle' ? null
+    : flashVisible ? 'flash'
+    : payload.kind === 'bible' && pageTitleInView ? 'page'
+    : 'pill'
+  // Where it is coming FROM (for the capsule's fade) — the previous committed variant.
+  const prevLabelVariantRef = useRef<ChapterLabelVariant | null>(null)
+  const labelFrom = prevLabelVariantRef.current === labelVariant ? null : prevLabelVariantRef.current
+  useEffect(() => { prevLabelVariantRef.current = labelVariant }, [labelVariant])
+
   // Derive side panel info from bible payload
   const bibleSidePanel: ViewerSidePanel | undefined =
     payload.kind === 'bible' ? payload.sidePanel : undefined
 
   return (
+    // reducedMotion="user": with Reduce Motion on, the label moves without the glide/zoom.
+    <MotionConfig reducedMotion="user">
     <div
       className="relative h-screen w-screen overflow-hidden bg-surface-1"
       onMouseEnter={handleMouseEnter}
@@ -341,24 +359,16 @@ export default function ViewerApp() {
         className="absolute top-0 left-0 right-0 z-raised flex items-center justify-center"
         style={{
           height: 34,
-          paddingLeft: 78, // clear macOS traffic lights
-          paddingRight: 16,
+          // Symmetric, so the title is centred on the WINDOW (as a macOS title is) — the left inset
+          // clears the traffic lights and the right one mirrors it. It was 78 / 16, which put the
+          // pill ~31px right of the big flash label below (TEST 2026-10-08: "isn't centered").
+          paddingLeft: 78,
+          paddingRight: 78,
           WebkitAppRegion: 'drag',
           background: 'transparent',
         } as React.CSSProperties}
       >
-        <span
-          className="truncate material-control rounded-control text-text-primary"
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: '0.01em',
-            maxWidth: '78%',
-            padding: '2px 12px',
-          }}
-        >
-          {title}
-        </span>
+        {labelVariant === 'pill' && <ChapterLabel text={title} variant="pill" fontSize={13} from={labelFrom} />}
       </div>
 
       {/* Main content — fills the full height so scripture scrolls UNDER the translucent
@@ -389,6 +399,8 @@ export default function ViewerApp() {
                 verse={payload.verse}
                 textId={payload.textId}
                 fontScale={localScale}
+                titleLabel={labelVariant === 'page' ? { text: title, from: labelFrom } : null}
+                onTitleInViewChange={setPageTitleInView}
                 scrollPercent={payload.scrollPercent}
                 scrollPctRef={viewerScrollPctRef}
                 scrollPctKeyRef={viewerScrollTargetKeyRef}
@@ -448,32 +460,11 @@ export default function ViewerApp() {
         )}
       </div>
 
-      {/* Transient content-label flash — appears on navigation, then fades. Lets the
-          presenter audience see what's now showing even when scrolled past the header. */}
-      {payload.kind !== 'idle' && (
-        <div
-          className="absolute left-0 right-0 z-overlay flex justify-center pointer-events-none"
-          style={{
-            top: 50,
-            opacity: flashVisible ? 1 : 0,
-            transition: 'opacity 600ms ease',
-          }}
-        >
-          <div
-            className="material-sheet rounded-control text-text-primary"
-            style={{
-              padding: '8px 20px',
-              fontSize: Math.round(20 * localScale),
-              fontWeight: 700,
-              maxWidth: '80%',
-              textAlign: 'center',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {title}
-          </div>
+      {/* Chapter label, big — on navigation, so the audience sees what's now showing; after a
+          moment it morphs into the title-bar pill or the page's own title (ChapterLabel.tsx). */}
+      {labelVariant === 'flash' && (
+        <div className="absolute left-0 right-0 z-overlay flex justify-center pointer-events-none" style={{ top: 50 }}>
+          <ChapterLabel text={title} variant="flash" fontSize={Math.round(22 * localScale)} from={labelFrom} />
         </div>
       )}
 
@@ -496,5 +487,6 @@ export default function ViewerApp() {
         </div>
       )}
     </div>
+    </MotionConfig>
   )
 }

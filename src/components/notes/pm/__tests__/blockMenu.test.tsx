@@ -142,7 +142,7 @@ describe('BlockMenu — Duplicate/Delete/Turn into/Copy link', () => {
     })
     const el = mount({ content: 'First para.\n\nSecond para.', noteId: 'abc123', onChange: () => {} })
     openBlockMenuFor(el, 1)
-    const copyBtn = menuButton('Copy link to block')
+    const copyBtn = menuButton('Copy Link to Block')
     expect(copyBtn).toBeTruthy()
     act(() => { copyBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
     expect(written).toBe('berean://note/abc123#block-1')

@@ -70,7 +70,10 @@ export function WikilinkPopup({
   return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}
       className="flex material-popover rounded-menu overflow-hidden animate-menu-in">
-      <MenuSurface className="w-56 max-h-64 overflow-y-auto flex-shrink-0" dense role="listbox">
+      {/* autoFocus off: typing continues in the editor (↑/↓/↵ are routed from there). A focused
+          first row blurred the editor, whose blur handler closed this popup the moment it
+          opened — the [[ and / menus never stayed up (TEST 2026-10-10). */}
+      <MenuSurface className="w-56 max-h-64 overflow-y-auto flex-shrink-0" dense role="listbox" autoFocus={false}>
         {notes.map((note, i) => (
           <ListRow
             key={note.id}
@@ -227,7 +230,7 @@ export function SlashCommandPopup({
   })
   return createPortal(
     <MenuPositioner x={x} y={y} onMouseDown={(e) => e.preventDefault()}>
-      <MenuSurface className="w-64 max-h-80 overflow-y-auto" role="listbox">
+      <MenuSurface className="w-64 max-h-80 overflow-y-auto" role="listbox" autoFocus={false}>
         {groups.map(({ group, items }) => (
           <div key={group}>
             <SectionLabel className="px-2.5 pt-2 pb-1">{group}</SectionLabel>

@@ -11,7 +11,8 @@ import { SESSION_ICONS } from './Sidebar'
  * cluster ([Session] [Sidebar] [Back / Forward …]), not a row inside the sidebar (TEST
  * 2026-10-05). Click: the session list (switch, New session ⌘⇧0, Manage sessions…). Right-click
  * the control or a row: rename / change icon / delete. The control shows the current session's
- * symbol; its name is in the tooltip and accessible label.
+ * symbol and NAME (TEST 2026-10-07: "show what session it is on instead of the text Session"),
+ * truncated so a long name can't push the toolbar around; the full name is in the tooltip.
  */
 export function SessionSwitcher({ variant }: { variant?: 'ghost' } = {}) {
   const sessions = useAppStore((s) => s.sessions)
@@ -28,9 +29,8 @@ export function SessionSwitcher({ variant }: { variant?: 'ghost' } = {}) {
   const [renameValue, setRenameValue] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
   const currentSession = sessions.find((s) => s.id === currentSessionId) ?? sessions[0]
-  const currentIdx = sessions.findIndex((s) => s.id === currentSessionId)
   const CurrentIcon = (SESSION_ICONS.find((i) => i.name === currentSession?.icon) ?? SESSION_ICONS[0]).Icon
-  const currentName = currentSession ? currentSession.name : `Session ${currentIdx + 1}`
+  const currentName = currentSession?.name || 'Session'
 
   useEffect(() => {
     if (!menu) return
@@ -58,21 +58,23 @@ export function SessionSwitcher({ variant }: { variant?: 'ghost' } = {}) {
     <>
       <Popover open={open} onOpenChange={(v) => { if (v) { setMenu(null); setMode('default') }; setOpen(v) }}>
         <PopoverTrigger asChild>
-          {/* Labelled (TEST 2026-10-05: "it's not clear that it's for session because it's just
-              the icon"): the word names the control; the symbol is the current session's; the
-              chevron says it opens a switcher. The session's own name is in the tooltip. Over the
-              glass sidebar pane it is a plain (ghost) item — no glass on glass. */}
+          {/* Labelled with the CURRENT session's name (not the generic word "Session"): the
+              symbol is the session's own, the chevron says it opens a switcher, the tooltip and
+              accessible label say what the control is. Over the glass sidebar pane it is a plain
+              (ghost) item — no glass on glass. */}
           <Button
             variant={variant === 'ghost' ? 'ghost' : 'menu'}
             icon={CurrentIcon}
             selected={open}
             tooltip={`Session: ${currentName} — switch, create or manage sessions`}
+            className={variant === 'ghost' ? 'shell-session-control is-ghost' : 'shell-session-control'}
             aria-label={`Session: ${currentName}. Switch session`}
             aria-haspopup="menu"
             onContextMenu={(e) => { e.preventDefault(); if (currentSession) openMenu(e.clientX, e.clientY, currentSession.id, currentSession.name) }}
           >
-            Session
-            {variant === 'ghost' && <ChevronDown size={12} strokeWidth={2} className="-mr-0.5 opacity-60" aria-hidden />}
+            <span className="truncate max-w-[10rem]">{currentName}</span>
+            {/* The `menu` variant draws its own disclosure chevron; the ghost one needs it here. */}
+            {variant === 'ghost' && <ChevronDown size={12} strokeWidth={2} className="-mr-0.5 opacity-60 flex-shrink-0" aria-hidden />}
           </Button>
         </PopoverTrigger>
         <PopoverSurface
@@ -91,6 +93,7 @@ export function SessionSwitcher({ variant }: { variant?: 'ghost' } = {}) {
                 icon={Icon}
                 label={session.name}
                 active={session.id === currentSessionId}
+                selectionStyle="highlight"
                 onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setOpen(false) } }}
                 onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY, session.id, session.name, false) }}
               />

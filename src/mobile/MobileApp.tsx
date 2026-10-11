@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { applySyncInvalidation } from '@/lib/syncInvalidation'
 import { wireSyncUi } from '@/lib/syncUi'
 import { HistoryPage } from './history/HistoryPage'
@@ -431,6 +431,22 @@ function DiagnosticsPage({ onBack }: { onBack: () => void }) {
   return <Page title="Diagnostics" onBack={onBack}>{Boot ? <Boot /> : <div className="mobile-empty">Loading…</div>}</Page>
 }
 
+/** Applies the persisted appearance to <html> NOW, from the store's current state — called by the
+ *  iOS entry before React renders anything (src/platform/ios/main.tsx). The first frames of a cold
+ *  launch used to paint in the hardcoded `<html class="dark">` palette until useAppearance's effect
+ *  ran AFTER the first paint: a ~130 ms dark flash before a light-mode app appeared (perf/glass
+ *  QA, docs/mobile/performance-glass-qa.md G-01). */
+export function applyInitialMobileAppearance(): void {
+  const s = useAppStore.getState()
+  applyMobileAppearance({
+    theme: s.theme, themePreset: s.themePreset, systemIsDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+    systemAccentColor: s.systemAccentColor, backgroundAnimationEnabled: s.backgroundAnimationEnabled,
+    backgroundAnimationStyle: s.backgroundAnimationStyle, backgroundAnimationIntensity: s.backgroundAnimationIntensity,
+    glassAppearance: s.glassAppearance, customThemes: s.customThemes,
+  })
+  applyFontFamilies({ scriptureFontFamily: s.scriptureFontFamily, notesFontFamily: s.notesFontFamily, uiFontFamily: s.uiFontFamily })
+}
+
 /** Theme + fonts on <html>, following iOS light/dark (R079). */
 function useAppearance() {
   const theme = useAppStore((s) => s.theme)
@@ -451,11 +467,13 @@ function useAppearance() {
     return () => mq.removeEventListener('change', h)
   }, [])
   const customThemes = useAppStore((s) => s.customThemes)
-  useEffect(() => {
+  // Layout effects: a theme / font change (iOS appearance flip, settings hydrated from the DB)
+  // lands before the browser paints the frame, never one frame after it.
+  useLayoutEffect(() => {
     // Presets colour Scripture only (SEP25); the app keeps its Light / Dark palette.
     applyMobileAppearance({ theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes })
   }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, glassAppearance, customThemes])
-  useEffect(() => { applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily }) }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
+  useLayoutEffect(() => { applyFontFamilies({ scriptureFontFamily, notesFontFamily, uiFontFamily }) }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
   // Dynamic Type + accessibility switches (R082): the shell's CSS font sizes are multiplied by
   // `--m-type-scale`; VoiceOver / Bold Text / Increase Contrast become data attributes the CSS
   // and components can key on (Reduce Motion is honoured by framer's MotionConfig + CSS already).

@@ -36,7 +36,8 @@ html[data-cutout="none"] .mobile-compact-band { height: calc(var(--m-safe-top) +
    Padding inside the home-indicator inset instead of on top of it: the controls end 12 px above
    the inset's inner edge (the indicator itself sits in its lowest ~13 px), keeping clear of the
    system gesture. On the reader the bar overlays the text and slides away while reading down. */
-.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform 0.24s ease; }
+/* Same curve as the header and the native glass cluster (BereanGlassPlugin.applyCollapse). */
+.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .mobile-root.has-overlay-nav .mobile-bottom-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; }
 .mobile-root.has-overlay-nav.is-nav-collapsed .mobile-bottom-nav { transform: translateY(calc(100% + 2px)); }
 @media (prefers-reduced-motion: reduce) { .mobile-bottom-nav { transition: none; } }
@@ -117,7 +118,10 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
   color: rgb(var(--color-text-primary));
 }
 .mobile-page.is-scripture-chrome .mobile-title-button { padding: 0 18px; border-radius: calc(var(--m-control) / 2); font-size: calc(16px * var(--m-type-scale, 1)); gap: 7px; }
-.mobile-page.is-scripture-chrome .mobile-title-button svg { color: rgb(var(--color-accent)); }
+/* The glyph in the label colour, like its native Liquid Glass twin (BereanGlassPlugin: book symbol,
+   .label) — the web capsule shows whenever a sheet or scrim covers the header, and an accent glyph
+   there made the title visibly change style the moment a sheet opened (perf/glass QA G-06). */
+.mobile-page.is-scripture-chrome .mobile-title-button svg { color: currentColor; stroke-width: 2.2; }
 .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap { width: var(--m-control); border-radius: calc(var(--m-control) / 2); }
 html.scheme-dark .mobile-page.is-scripture-chrome .mobile-title-button,
 html.scheme-dark .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {

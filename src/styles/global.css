@@ -1589,6 +1589,17 @@ html[data-vibrant] .shell-sidebar-zone {
   width: max(60px, calc(var(--sidebar-live-w, 0px) - 84px - var(--lg-pane-inset, 6px) - 10px));
   margin-right: calc(var(--lg-pane-inset, 6px) + 12px);
 }
+/* The Session control carries the session's NAME, so its width varies. Inside the fixed-width
+   zone it shrinks (name truncates) rather than overflowing — with `flex-end` an overflow spills to
+   the LEFT, i.e. under the traffic lights (TEST 2026-10-07: collapsed, the button started at
+   x = −36). Collapsed, the zone has no pane to span: it sizes to its content, right after the
+   header's traffic-light inset. */
+.shell-sidebar-zone > .shell-session-control { flex-shrink: 1; min-width: 0; }
+.shell-session-control > svg { flex-shrink: 0; }
+/* Over the glass pane the control is a plain (ghost) item with no resting capsule, so it takes a
+   sidebar item's inset rather than the toolbar capsule's 16px — more of the name fits. */
+.shell-session-control.is-ghost { padding-inline: 8px; }
+html[data-vibrant] .shell-sidebar-zone[data-collapsed] { width: auto; min-width: max-content; }
 html[data-vibrant] .shell-sidebar {
   background: transparent !important;
   border-right-color: transparent !important;
@@ -2427,5 +2438,13 @@ html[data-verse-dragging] * {
 .shell-actions-zone:has([data-overflow-fill]) { flex: 1 1 0; min-width: 0; }
 .shell-context-zone:has(~ .shell-actions-zone [data-overflow-fill]) { flex: 0 1 280px; min-width: 160px; }
 .shell-flex-space:has(~ .shell-actions-zone [data-overflow-fill]) { flex: 0 0 8px; }
+/* A folding row beside FIXED context content (Scripture's chapter navigation, not a search
+   field): the context keeps its natural width and only the row gives way. */
+.shell-context-zone:has(~ .shell-actions-zone [data-overflow-fill="keep-context"]) { flex: 0 0 auto; min-width: max-content; }
+/* A folding row SHARING the toolbar with a context that folds too (the note formatting bar): both
+   start at their content width and shrink together, each folding its own tail into "…". */
+.shell-actions-zone:has([data-overflow-fill="share"]) { flex: 0 1 auto; }
+.shell-context-zone:has(~ .shell-actions-zone [data-overflow-fill="share"]) { flex: 6 1 auto; min-width: min-content; }
+.shell-flex-space:has(~ .shell-actions-zone [data-overflow-fill="share"]) { display: none; }
 /* iPhone (PanelHeader's phone chrome): the search field and the folding row share the narrow bar. */
 .mobile-hosted-header .shell-context-zone:has(~ .shell-actions-zone [data-overflow-fill]) { flex: 1 1 150px; min-width: 120px; }

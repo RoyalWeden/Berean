@@ -2,10 +2,11 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useLiveNote, ACTIVE_EDIT_MS } from '@/lib/notes/liveNote'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteIconPicker from './NoteIconPicker'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints, CircleDashed, Type, ListFilter } from 'lucide-react'
-import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel, OverflowGroup, OverflowSection, MenuSub, MenuLabel, Popover, PopoverTrigger, PopoverSurface } from '@/components/ui'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, NotepadText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2, Waypoints, ListFilter, PanelRight, Smile, ArrowUpDown, TextSearch } from 'lucide-react'
+import { IconButton, SegmentedControl, SearchField, Select, Divider, Button, MenuSurface, MenuItem, MenuSeparator, Sheet, Switch, TextField, EmptyState, Toolbar, Chip, Radio, TextArea, DisclosureRow, ControlGroup, SectionLabel, OverflowGroup, OverflowSection, MenuLabel, Popover, PopoverTrigger, PopoverSurface, BarMetrics } from '@/components/ui'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -16,7 +17,6 @@ import PrintPreviewModal from './PrintPreviewModal'
 import { idiomExportEntries } from '@/lib/idiomsExport'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
-import { NOTE_LOOKS } from './NoteLookDropdown'
 import { NoteDocTitle, contentStartsWithTitle, type NoteDocTitleHandle } from './NoteDocTitle'
 import { finalizeActionFor } from '@/lib/notes/finalizeNote'
 import NotesBoardView from './NotesBoardView'
@@ -26,7 +26,7 @@ import { recordNavigation } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
-import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
+import { NOTE_STATUSES } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import NotesHomePanel from './NotesHomePanel'
 import { orderedFolders } from './NoteContextMenu'
@@ -35,6 +35,8 @@ import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
 import { readingRegionScale } from '@/lib/zoom'
+import { registerPendingSaveFlusher } from '@/lib/pendingSaves'
+import { useFloatingWindow } from '@/components/shell/floatingWindow'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
@@ -109,14 +111,32 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const bumpNoteEditToken = useAppStore((s) => s.bumpNoteEditToken)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const noteTypingLook = useAppStore((s) => s.noteTypingLook)
-  const noteSidePanelPinned = useAppStore((s) => s.noteSidePanelPinned)
+  const storeInfoPinned = useAppStore((s) => s.noteSidePanelPinned)
+  // A floating note window keeps its own Info state, closed to start (TEST 2026-10-10): opened at
+  // the main window's preference the inspector took ~40% of a 700px window before you'd asked
+  // for it. The main window's preference is never touched from a floating window.
+  const [floatInfoOpen, setFloatInfoOpen] = useState(false)
+  const noteSidePanelPinned = floating ? floatInfoOpen : storeInfoPinned
+  const setInfoPinned = useCallback((open: boolean) => {
+    if (floating) setFloatInfoOpen(open)
+    else useAppStore.getState().setNoteSidePanelPinned(open)
+  }, [floating])
+  // The Scripture side panel's gestures (TEST 2026-10-08): a two-finger swipe anywhere over the
+  // note opens / closes the Info panel, tracking the fingers live — same hook, same Settings
+  // switch. Sideways-scrollable content (a wide table or code block) keeps its own scroll.
+  const swipeGestureEnabled = useAppStore((s) => s.swipePanelGestureEnabled)
+  const { panelAreaRef: noteSwipeAreaRef, dragFrac: noteSwipeFrac, isDragging: noteSwiping } = useSwipePanelGesture({
+    enabled: swipeGestureEnabled,
+    isOpen: noteSidePanelPinned,
+    onCommit: setInfoPinned,
+    yieldToHorizontalScroll: true,
+  })
   const setNoteTypingLook = useAppStore((s) => s.setNoteTypingLook)
   const activeTabId = useAppStore((s) => s.activeTabId.notes)
   // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
   const tabs = useAppStore((s) => s.tabs.notes)
   const renameTab = useAppStore((s) => s.renameTab)
   const updateTabState = useAppStore((s) => s.updateTabState)
-  const youtubeIsPlaying = useAppStore((s) => s.youtubeIsPlaying)
   const notesTabId = activeTabId
   const pushTabNav = useAppStore((s) => s.pushTabNav)
   const resetTabNavHome = useAppStore((s) => s.resetTabNavHome)
@@ -524,6 +544,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const previewFolder = useMemo(() => folders.find((f) => f.id === previewFolderId) ?? null, [folders, previewFolderId])
   const previewNoteInHome = useCallback((note: Note) => { setPreviewNoteId(note.id); setPreviewFolderId(null) }, [])
   const selectFolderInHome = useCallback((folderId: string) => { setPreviewFolderId(folderId); setPreviewNoteId(null) }, [])
+  // "New note here" — the folder tree's row menu and the folder overview's header share it.
+  const createNoteInFolder = async (folderId: string) => {
+    const result = await window.notes.createNote({ content: '', folderId })
+    if (result.success && result.note) {
+      setNotes((prev) => [result.note!, ...prev])
+      setActiveNote(result.note!)
+      bumpNoteToken()
+    }
+  }
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const iconPicker = usePositionedMenu<{ _tag?: 'icon' }>()
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -744,12 +773,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     () => !!activeNote && !isSystemNote(activeNote) && activeNote.type !== 'idiom' && !contentStartsWithTitle(activeNote.content, activeNote.title),
     [activeNote?.id, activeHasBody], // eslint-disable-line react-hooks/exhaustive-deps
   )
-  // Renaming in the toolbar — for editable notes without a page title (their body opens with
-  // `# <title>`): click the toolbar title to edit it in place.
-  const [toolbarTitleEditing, setToolbarTitleEditing] = useState(false)
-  useEffect(() => { setToolbarTitleEditing(false) }, [activeNote?.id])
-  const [docTitleVisible, setDocTitleVisible] = useState(true)
+  // A daily/journal note follows the SAME page layout as a regular note (TEST 2026-10-07:
+  // "formatting controls aren't in the same place as the other regular notes"): its date is the
+  // in-page title — read-only, a daily note's date is its identity — and the top bar is the
+  // formatting bar's home. It used to keep the date in the top bar, which left the editor no
+  // toolbar slot, so the formatting bar fell back to a separate floating bar under the top bar.
+  const dailyDocTitle = !!activeNote && isDailyNote(activeNote) && activeNote.type !== 'idiom'
+  // A note whose body opens with `# <title>` (the built-in guide notes — "Keyboard Shortcuts",
+  // "Welcome" …) already has its page title: that heading. Like every other note, its top bar is
+  // the formatting bar's home, not a second copy of the title (TEST 2026-10-07: the formatting bar
+  // wasn't in the top bar for "Keyboard Shortcuts"); rename it from the notes list.
   const [formatSlot, setFormatSlot] = useState<HTMLDivElement | null>(null)
+  // EVERY note's formatting bar lives in the top bar. Notes that keep their title there (verse,
+  // e-Sword / BibleGateway, idiom) put the slot after it; it never falls back to a floating bar.
+  const formatSlotEl = <div ref={setFormatSlot} data-format-slot className="relative self-stretch flex-1 min-w-[48px]" />
   const [insertSlot, setInsertSlot] = useState<HTMLDivElement | null>(null)
   const docTitleRef = useRef<NoteDocTitleHandle>(null)
   // Close note-scoped modals/local UI on a tab switch (ActivePanel no longer remounts
@@ -1291,20 +1328,32 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // title and then going into the body within half a second cancelled the title save and the
   // rename silently reverted (TEST 2026-10-04: "unable to change some of the note names").
   const pendingSaveRef = useRef<{ id: string; patch: { title?: string; content?: string }; updated: Note } | null>(null)
-  function flushPendingSave() {
+  function flushPendingSave(): Promise<unknown> | undefined {
     const p = pendingSaveRef.current
     if (!p) return
     pendingSaveRef.current = null
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
     savePendingRef.current = false
     lastSelfSaveRef.current = { content: p.updated.content, title: p.updated.title }
-    window.notes.updateNote(p.id, p.patch)
+    const write = window.notes.updateNote(p.id, p.patch)
       .then(() => setLastAutosaveAt(Date.now())) // fires the "Saved" flash only on an actual completed save
       .catch(() => {})
     setNotes((prev) => prev.map((n) => (n.id === p.id ? p.updated : n)))
     if (p.patch.content !== undefined) maybeSyncNote(p.id)
     bumpNoteToken() // so the sidebar / presenter window / other windows refetch the updated note
+    return write
   }
+  // A floating note window: the note it shows is what "Return to Main Window" restores, and its
+  // title is the window's title (it can navigate from note to note without a tab).
+  const floatingWindow = useFloatingWindow()
+  useEffect(() => {
+    if (!floating || !floatingWindow) return
+    floatingWindow.reportCurrent(activeNote ? { noteId: activeNote.id } : {}, activeNote ? (headerDisplayTitle(activeNote) || 'Untitled') : 'Notes')
+  }, [floating, floatingWindow, activeNote?.id, activeNote?.title]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A window about to close (a floating tab returned or closed) writes the pending save first.
+  const flushPendingSaveRef = useRef(flushPendingSave)
+  flushPendingSaveRef.current = flushPendingSave
+  useEffect(() => registerPendingSaveFlusher(() => flushPendingSaveRef.current()), [])
   function queueSave(updated: Note, patch: { title?: string; content?: string }) {
     if (pendingSaveRef.current && pendingSaveRef.current.id !== updated.id) flushPendingSave()
     pendingSaveRef.current = { id: updated.id, patch: { ...pendingSaveRef.current?.patch, ...patch }, updated }
@@ -1519,6 +1568,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 emoji picker (NoteIconPicker) rather than relying on the user knowing to
                 paste one or invoke the OS-level picker — that was the previous approach
                 and read as "there's no picker, it just lets me type". */}
+            {/* A floating note window's title bar is for editing the note — its page icon is set
+                from "•••" (Page Icon…) there instead of a lone "+" beside the traffic lights. */}
+            {!floating && (
             <Button
               variant="ghost"
               size="sm"
@@ -1531,6 +1583,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             >
               {activeNote.icon || <Plus size={14} className="text-text-muted/50" />}
             </Button>
+            )}
             {iconPicker.menu && (
               <NoteIconPicker
                 x={iconPicker.menu.x}
@@ -1542,13 +1595,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 menuRef={iconPicker.menuRef}
               />
             )}
-            {isSystemNote(activeNote) || activeNote.type === 'idiom' ? (
+            {(isSystemNote(activeNote) && !dailyDocTitle) || activeNote.type === 'idiom' ? (
               /* System notes (daily, verse, esword, biblegateway) — title is read-only.
                  Idiom notes too: IdiomHeader below already owns an editable Term field
                  that writes straight to this same `title`, so having a SECOND live
                  title input right here (same value, different box) was confusing —
                  two places to rename the same thing, visible at once. */
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0 self-stretch">
                 {activeNote.verseRef && parseVerseRef(activeNote.verseRef) ? (
                   // Title text is a plain (draggable) span — NOT a <button>, which
                   // the top-bar window-drag listener excludes, so a verse note's
@@ -1558,7 +1611,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     <span
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                       title="Open scripture reference"
-                      className="no-drag text-subhead font-semibold truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0"
+                      className="no-drag text-subhead font-semibold truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0 max-w-[45%]"
                     >
                       {headerDisplayTitle(activeNote)}
                     </span>
@@ -1570,63 +1623,26 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                       className="no-drag"
                       onClick={() => openVerseFromNote(activeNote.verseRef!)}
                     />
-                    {/* draggable filler so the blank header space moves the window */}
-                    <div className="flex-1 self-stretch" aria-hidden="true" />
+                    {/* The formatting bar's slot fills the rest of the bar (its blank part still moves the window). */}
+                    {formatSlotEl}
                   </>
                 ) : (
                   <>
-                    <span className="text-subhead font-semibold truncate text-text-secondary select-none min-w-0">
+                    <span className="text-subhead font-semibold truncate text-text-secondary select-none min-w-0 max-w-[45%]">
                       {headerDisplayTitle(activeNote)}
                     </span>
-                    <div className="flex-1 self-stretch" aria-hidden="true" />
+                    {formatSlotEl}
                   </>
                 )}
               </div>
             ) : (
-              // Title text is sized to its content and `no-drag` (click it to rename);
-              // the `flex-1` filler beside it is what fills the header's blank space,
-              // and that IS draggable, so you can move the window from the empty part
-              // of the bar. (Earlier this span was `flex-1` itself, so the whole blank
-              // strip was a rename target and nothing there dragged the window.)
-              // The large document title (NoteDocTitle, top of the page) is the title; this small
-              // toolbar copy only fades in once that one has scrolled away, and clicking it brings
-              // the document title back and edits it there.
-              toolbarTitleEditing && !showDocTitle ? (
-                <>
-                  <TextField
-                    bare
-                    bareUnderline={false}
-                    padding="none"
-                    autoFocus
-                    value={activeNote.title ?? ''}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setToolbarTitleEditing(false); if (e.key === 'Enter') editorFocusRef.current?.() } }}
-                    onBlur={() => setToolbarTitleEditing(false)}
-                    placeholder="Untitled"
-                    aria-label="Note title"
-                    className="no-drag note-title-inline !h-auto !text-subhead font-semibold"
-                    wrapperClassName="min-w-0 max-w-full"
-                  />
-                  <div className="flex-1 self-stretch" aria-hidden="true" />
-                </>
-              ) : (
-              showDocTitle ? (
-                // The note's title lives in the document (never repeated here). This zone is the
-                // formatting bar's home instead — always visible while editing (Apple Notes).
-                <div ref={setFormatSlot} data-format-slot className="relative self-stretch flex-1 min-w-[160px]" />
-              ) : (
-              <>
-                <span
-                  onClick={() => { if (showDocTitle) { docTitleRef.current?.reveal(); docTitleRef.current?.focus() } else setToolbarTitleEditing(true) }}
-                  aria-hidden={showDocTitle && docTitleVisible}
-                  className={`no-drag text-subhead font-semibold truncate text-text-primary min-w-0 transition-opacity duration-fast cursor-text ${showDocTitle && docTitleVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-                >
-                  {activeNote.title || <span className="text-text-muted">Untitled</span>}
-                </span>
-                <div className="flex-1 self-stretch" aria-hidden="true" />
-              </>
-              )
-              )
+              // The note's title lives in the document — the NoteDocTitle above the text, a daily
+              // note's read-only date, or the body's own `# <title>` heading — never repeated here.
+              // This zone is the formatting bar's home instead — always visible while editing
+              // (Apple Notes). The bar measures the SLOT (fit="offsetParent"); its floor is the bar
+              // at its most folded (just "…"), and the zone reserves it (min-width: min-content in
+              // global.css) — a 160px floor the zone ignored made the bar lay out over the actions.
+              formatSlotEl
             )}
           </>
         ) : restoringSpecificNote ? (
@@ -1647,48 +1663,44 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           panel's primary action, with its own shortcut) gets the same treatment on the trailing
           side instead, after the OverflowGroup's own "…", matching where Mail/Notes/Xcode keep
           an always-visible "compose new" button outside any overflow chevron. */}
-      <TabHeaderPortal floating={floating} active={floating || isActivePanel} zone="actions">
+      <TabHeaderPortal floating={floating} active={floating || isActivePanel} className="min-w-0" zone="actions">
         {editing ? (
           <>
             {/* Insert (document elements) — filled by the formatting bar's portal while editing. */}
-            {showDocTitle && editorMode === 'edit' && <div ref={setInsertSlot} className="contents" data-insert-slot />}
-            {/* ── Editor mode segmented toggle — never folds (§17), see the zone comment. ── */}
-            <SegmentedControl
-              size="sm"
-              value={editorMode}
-              onChange={setEditorMode}
-              aria-label="Editor mode (⌘⇧M to toggle)"
-              options={[
-                // Icons only (TEST 2026-10-05) — the tooltip / accessible name carries the words.
-                { value: 'edit', icon: PenLine, title: 'Edit — rich editing (⌘⇧M)' },
-                { value: 'view', icon: Eye,     title: 'View — read-only (⌘⇧M)' },
-              ]}
-            />
+            {/* (A floating window keeps Insert inside the formatting bar — one editing control.) */}
+            {editorMode === 'edit' && !floating && <div ref={setInsertSlot} className="contents" data-insert-slot />}
+            {/* data-overflow-fill="share": the editing actions and the formatting bar share a
+                narrow toolbar — Undo/Redo fold into "…" here while the bar folds its own tail,
+                instead of the bar being drawn underneath these (TEST 2026-10-07, 800–860 px). */}
+            <div data-overflow-fill="share" className="flex min-w-min justify-end">
             <OverflowGroup
               label="More"
-              // Status and Look live in the note's "…" menu as submenus (TEST 2026-10-04) — they
-              // open beside it on hover / → and keep the "…" menu open while browsing them.
-              menuHeader={(() => {
-                const cur = noteStatusMeta(activeNote.status ?? null)
-                const CurIcon = cur?.icon ?? CircleDashed
-                const look = NOTE_LOOKS.find((l) => l.value === noteTypingLook) ?? NOTE_LOOKS[0]
-                return (
-                  <>
-                    <MenuSub label={<span className="flex items-center gap-2.5"><CurIcon size={14} strokeWidth={1.75} className="flex-shrink-0" style={cur ? { color: cur.color } : undefined} /><span>{cur ? cur.label : 'No Status'}</span></span>}>
-                      <MenuItem active={!activeNote.status} onClick={() => void setNoteStatus(null)} label={<span className="flex items-center gap-2"><CircleDashed size={14} className="flex-shrink-0 opacity-60" /><span>No Status</span></span>} />
-                      {NOTE_STATUSES.map((st) => (
-                        <MenuItem key={st.id} active={activeNote.status === st.id} onClick={() => void setNoteStatus(st.id)} label={<span className="flex items-center gap-2"><st.icon size={14} className="flex-shrink-0" style={{ color: st.color }} /><span>{st.label}</span></span>} />
-                      ))}
-                    </MenuSub>
-                    <MenuSub icon={Type} label={<span className="flex items-center justify-between gap-3"><span>Look</span><span className="text-text-muted group-hover/mi:text-white/80">{look.label}</span></span>}>
-                      {NOTE_LOOKS.map((l) => (
-                        <MenuItem key={l.value} active={l.value === look.value} onClick={() => setNoteTypingLook(l.value)} label={<span style={{ fontFamily: l.sample }}>{l.label}</span>} />
-                      ))}
-                    </MenuSub>
-                  </>
-                )
-              })()}
+              className="justify-end"
+              // Edit / View sits right beside "…", which never moves — so the switch stays under
+              // the pointer when View hides Insert and Undo/Redo to its LEFT (TEST 2026-10-08: it
+              // used to jump when clicked). Never folds (§17).
+              beforeMenu={floating ? undefined : (
+                <SegmentedControl
+                  size="sm"
+                  value={editorMode}
+                  onChange={setEditorMode}
+                  aria-label="Editor mode (⌘⇧M to toggle)"
+                  options={[
+                    // Icons only (TEST 2026-10-05) — the tooltip / accessible name carries the words.
+                    { value: 'edit', icon: PenLine, title: 'Edit — rich editing (⌘⇧M)' },
+                    { value: 'view', icon: Eye,     title: 'View — read-only (⌘⇧M)' },
+                  ]}
+                />
+              )}
+              // Status and Look are NOT here: they live in the Info side panel, whose toggle is
+              // always in the top bar (TEST 2026-10-08: "that is in the side panel now").
               extraItems={[
+                // Floating note window: the Edit/View switch and the page icon live here, so the
+                // title bar holds only the formatting bar, Info, "•••" and Return.
+                ...(floating ? [
+                  { key: 'read-only', label: 'Read Only', icon: Eye, shortcut: '⌘⇧M', checked: editorMode === 'view', onSelect: () => setEditorMode(editorMode === 'view' ? 'edit' : 'view') },
+                  { key: 'page-icon', label: activeNote?.icon ? 'Change Page Icon…' : 'Add Page Icon…', icon: Smile, onSelect: () => iconPicker.openMenu({ x: Math.max(8, window.innerWidth - 300), y: 48 }) },
+                ] : []),
                 {
                   key: 'history',
                   label: 'Version history',
@@ -1741,22 +1753,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   </ControlGroup>
                 </OverflowSection>
               )}
-              {youtubeIsPlaying && (
-                <OverflowSection items={[
-                  { key: 'timestamp', label: 'Insert YouTube timestamp at cursor', icon: Paperclip, onSelect: () => window.dispatchEvent(new CustomEvent('berean:requestTimestamp')) },
-                ]}>
-                  <IconButton
-                    icon={Paperclip}
-                    label="Insert YouTube timestamp at cursor"
-                    size={28}
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      window.dispatchEvent(new CustomEvent('berean:requestTimestamp'))
-                    }}
-                  />
-                </OverflowSection>
-              )}
             </OverflowGroup>
+            </div>
+            {/* Info side panel toggle — always in the top bar at the trailing edge, the way the
+                sidebar's toggle is at the leading edge (TEST 2026-10-08); collapsed, the panel is
+                gone entirely (no rail). Hidden in Focus mode, which clears every inspector. */}
+            {!focusMode && (
+              <IconButton
+                icon={PanelRight}
+                label={noteSidePanelPinned ? 'Hide note info' : 'Show note info'}
+                size={28}
+                onClick={() => setInfoPinned(!noteSidePanelPinned)}
+              />
+            )}
           </>
         ) : restoringSpecificNote ? null : (
           <>
@@ -1890,7 +1899,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           // overlay — the attached outline/backlinks inspector (NoteSidePanel). The
           // inspector only takes its own width while pinned open; collapsed it's a thin
           // dock rail, same "attached pane" treatment as the Scripture side panel.
-          <div className="flex-1 overflow-hidden flex min-h-0">
+          <div ref={focusMode ? undefined : noteSwipeAreaRef} className="flex-1 overflow-hidden flex min-h-0">
             <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
               {/* Idiom header strip — shown when editing an idiom note */}
               {activeNote.type === 'idiom' && (
@@ -1906,8 +1915,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 />
               )}
               <NoteEditor
-                toolbarSlot={showDocTitle && editorMode === 'edit' ? formatSlot : null}
-                insertSlot={showDocTitle && editorMode === 'edit' ? insertSlot : null}
+                toolbarSlot={editorMode === 'edit' ? formatSlot : null}
+                insertSlot={editorMode === 'edit' && !floating ? insertSlot : null}
                 statsInInspector={!focusMode && noteSidePanelPinned}
                 header={showDocTitle ? (
                   <NoteDocTitle
@@ -1915,8 +1924,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     value={activeNote.title ?? ''}
                     onChange={handleTitleChange}
                     onEnter={() => editorFocusRef.current?.()}
-                    onVisibleChange={setDocTitleVisible}
                     readOnly={editorMode === 'view'}
+                  />
+                ) : dailyDocTitle ? (
+                  <NoteDocTitle
+                    value={headerDisplayTitle(activeNote)}
+                    onChange={() => {}}
+                    onEnter={() => editorFocusRef.current?.()}
+                    readOnly
                   />
                 ) : undefined}
                 content={activeNote.content}
@@ -1936,6 +1951,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 typingLook={noteTypingLook}
                 notes={notes}
                 onWikilinkClick={handleWikilinkClick}
+                onNoteLinkClick={(id) => {
+                  const target = notes.find((n) => n.id === id)
+                  if (target) navigateToNote(target)
+                  else useAppStore.getState().requestOpenNote(id)
+                }}
                 onVerseRefClick={handleVerseRefClick}
                 onLexiconRefClick={handleLexiconRefClick}
                 findQuery={findBarVisible ? localFindQuery : ''}
@@ -1960,8 +1980,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </div>
             {/* Hidden in Focus mode (TEST 2026-10-04): the note is a centred column there, and the
                 outline rail was left stranded at its edge. Focus mode clears every inspector. */}
-            {!focusMode && (
+            <AnimatePresence initial={false}>
+            {!focusMode && (noteSidePanelPinned || noteSwipeFrac !== null) && (
               <NoteSidePanel
+                key="note-info"
+                swipeFrac={noteSwipeFrac}
+                swiping={noteSwiping}
                 content={activeNote.content}
                 noteTitle={activeNote.title || 'Untitled'}
                 noteId={activeNote.id}
@@ -1978,8 +2002,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 onLookChange={setNoteTypingLook}
                 createdAt={activeNote.createdAt}
                 updatedAt={activeNote.updatedAt}
+                maxWidth={floating ? 260 : undefined}
               />
             )}
+            </AnimatePresence>
           </div>
         ) : (
           // A capped ~760px list column pinned left + the home preview panel filling the rest
@@ -1999,108 +2025,119 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             }}
           >
           <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
-            {/* Search bar — with sort selector inline on the right */}
-            <Toolbar size="md">
+            {/* Search row — the Scripture search's own pattern (TEST 2026-10-11: "make it feel like
+                the regular search"): a filled capsule search field, then ONE grouped capsule of
+                menu buttons that name their current choice — Match · Filter · Sort · Expand — on the
+                content ground, instead of a grey toolbar band with a bare field and a ghost select. */}
+            <BarMetrics>
+            <div className="flex items-center gap-2 px-3 pt-2 pb-2 border-b border-separator-subtle flex-shrink-0" data-scroll-edge="bottom">
               <SearchField
-                size="sm"
-                bare
                 value={noteSearch}
                 onValueChange={setNoteSearch}
                 placeholder="Search notes…"
                 wrapperClassName="flex-1 min-w-0"
               />
-              {/* Word mode — only meaningful while actively searching; matches the same
-                  all/any/phrase pills used in the floating search bar. */}
-              {noteSearch.trim() && (
-                <SegmentedControl
-                  size="sm"
-                  value={noteSearchWordMode}
-                  onChange={setNoteSearchWordMode}
-                  aria-label="Word match mode"
-                  className="flex-shrink-0"
-                  options={[
-                    { value: 'all', label: 'All' },
-                    { value: 'any', label: 'Any' },
-                    { value: 'phrase', label: 'Phrase' },
-                  ]}
-                />
-              )}
-              {/* Type + status filters: ONE filter control (list view) — a menu with both sections,
-                  highlighted while a filter is on — not two rows of chips. */}
-              {!folderView && (() => {
-                const TYPES: [NoteFilter, string][] = [
-                  ['all', 'All Notes'], ['scripture', 'Scripture'], ['topic', 'Topic'], ['daily', 'Daily'],
-                  ['youtube', 'Video'], ['biblegateway', 'BibleGateway'], ['esword', 'e-Sword'], ['idiom', 'Idioms'],
-                ]
-                const active = noteFilter !== 'all' || statusFilter !== 'all'
-                return (
+              <ControlGroup variant="glass" className="flex-shrink-0">
+                {/* Match — how the words match; only meaningful while searching. */}
+                {noteSearch.trim() && (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <IconButton icon={ListFilter} label={active ? 'Filters on — change' : 'Filter notes'} size={24} active={active} className="flex-shrink-0" />
+                      <Button variant="menu" size="sm" icon={TextSearch} tooltip="How the words match">
+                        {noteSearchWordMode === 'any' ? 'Any word' : noteSearchWordMode === 'phrase' ? 'Phrase' : 'All words'}
+                      </Button>
                     </PopoverTrigger>
-                    <PopoverSurface align="end" innerClassName="p-1 min-w-[200px]" role="menu">
-                      <MenuLabel>Type</MenuLabel>
-                      {TYPES.map(([value, label]) => (
-                        <MenuItem key={value} active={noteFilter === value} onClick={() => setNoteFilter(value)} label={label} />
-                      ))}
-                      <MenuSeparator />
-                      <MenuLabel>Status</MenuLabel>
-                      <MenuItem active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} label="Any Status" />
-                      {NOTE_STATUSES.map((st) => (
-                        <MenuItem key={st.id} active={statusFilter === st.id} onClick={() => setStatusFilter(st.id)} label={<span className="flex items-center gap-2"><st.icon size={13} style={{ color: st.color }} />{st.label}</span>} />
-                      ))}
-                      <MenuItem active={statusFilter === 'no-status'} onClick={() => setStatusFilter('no-status')} label="No Status" />
+                    <PopoverSurface align="end" innerClassName="p-1 min-w-[180px]" role="menu">
+                      <MenuLabel>Match</MenuLabel>
+                      <MenuItem active={noteSearchWordMode === 'all'} selectionStyle="highlight" label="All Words" onClick={() => setNoteSearchWordMode('all')} />
+                      <MenuItem active={noteSearchWordMode === 'any'} selectionStyle="highlight" label="Any Word" onClick={() => setNoteSearchWordMode('any')} />
+                      <MenuItem active={noteSearchWordMode === 'phrase'} selectionStyle="highlight" label="Exact Phrase" onClick={() => setNoteSearchWordMode('phrase')} />
                     </PopoverSurface>
                   </Popover>
-                )
-              })()}
-              <Divider orientation="vertical" />
-              <Select
-                variant="ghost"
-                size="sm"
-                value={noteSort}
-                onChange={(v) => setNoteSort(v)}
-                aria-label="Sort notes"
-                className="flex-shrink-0"
-                options={[
-                  { value: 'modified', label: 'Modified' },
-                  { value: 'created', label: 'Created' },
-                  { value: 'name', label: 'A-Z' },
-                ]}
-              />
-              {/* Expand all toggle — only meaningful in list view (folder view has no
-                  snippets, board view cards are already fixed-height). */}
-              {viewMode === 'list' && (
-                <>
-                  <Divider orientation="vertical" />
+                )}
+                {/* Type + status filters (list view) — one menu with both sections; the trigger
+                    names the active filter. */}
+                {!folderView && (() => {
+                  const TYPES: [NoteFilter, string][] = [
+                    ['all', 'All Notes'], ['scripture', 'Scripture'], ['topic', 'Topic'], ['daily', 'Daily'],
+                    ['youtube', 'Video'], ['biblegateway', 'BibleGateway'], ['esword', 'e-Sword'], ['idiom', 'Idioms'],
+                  ]
+                  const active = noteFilter !== 'all' || statusFilter !== 'all'
+                  const typeLabel = TYPES.find(([v]) => v === noteFilter)?.[1] ?? 'All Notes'
+                  const statusLabel = statusFilter === 'all' ? null : statusFilter === 'no-status' ? 'No Status' : (NOTE_STATUSES.find((st) => st.id === statusFilter)?.label ?? null)
+                  return (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="menu" size="sm" icon={ListFilter} selected={active} tooltip="Filter by type and status">
+                          {active ? [noteFilter !== 'all' ? typeLabel : null, statusLabel].filter(Boolean).join(' · ') : 'All Notes'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverSurface align="end" innerClassName="p-1 min-w-[200px]" role="menu">
+                        <MenuLabel>Type</MenuLabel>
+                        {TYPES.map(([value, label]) => (
+                          <MenuItem key={value} active={noteFilter === value} selectionStyle="highlight" onClick={() => setNoteFilter(value)} label={label} />
+                        ))}
+                        <MenuSeparator />
+                        <MenuLabel>Status</MenuLabel>
+                        <MenuItem active={statusFilter === 'all'} selectionStyle="highlight" onClick={() => setStatusFilter('all')} label="Any Status" />
+                        {NOTE_STATUSES.map((st) => (
+                          <MenuItem key={st.id} active={statusFilter === st.id} selectionStyle="highlight" onClick={() => setStatusFilter(st.id)} label={<span className="flex items-center gap-2"><st.icon size={13} style={{ color: st.color }} />{st.label}</span>} />
+                        ))}
+                        <MenuItem active={statusFilter === 'no-status'} selectionStyle="highlight" onClick={() => setStatusFilter('no-status')} label="No Status" />
+                      </PopoverSurface>
+                    </Popover>
+                  )
+                })()}
+                {/* Sort */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="menu" size="sm" icon={ArrowUpDown} tooltip="Sort notes">
+                      {noteSort === 'created' ? 'Created' : noteSort === 'name' ? 'A–Z' : 'Modified'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverSurface align="end" innerClassName="p-1 min-w-[160px]" role="menu">
+                    <MenuLabel>Sort By</MenuLabel>
+                    <MenuItem active={noteSort === 'modified'} selectionStyle="highlight" label="Date Modified" onClick={() => setNoteSort('modified')} />
+                    <MenuItem active={noteSort === 'created'} selectionStyle="highlight" label="Date Created" onClick={() => setNoteSort('created')} />
+                    <MenuItem active={noteSort === 'name'} selectionStyle="highlight" label="Title (A–Z)" onClick={() => setNoteSort('name')} />
+                  </PopoverSurface>
+                </Popover>
+                {/* Expand all — list view only (folder rows have no snippets, board cards are fixed). */}
+                {viewMode === 'list' && (
                   <IconButton
                     icon={AlignJustify}
                     label={expandAll ? 'Collapse notes' : 'Expand all notes'}
                     size={24}
                     active={expandAll}
-                    className="flex-shrink-0"
                     onClick={() => setExpandAll(v => !v)}
                   />
-                </>
-              )}
-            </Toolbar>
+                )}
+              </ControlGroup>
+            </div>
+            </BarMetrics>
 
             {/* Multi-select action bar */}
             {selectMode && (
+              // The count says what's selected, in words; the actions stay put and are disabled
+              // while nothing is selected (they used to appear only once something was, shifting
+              // the bar under the pointer as the first item was picked).
               <Toolbar size="sm" material="bar">
-                <span className="text-footnote text-text-muted flex-1">
-                  {selectedIds.length + selectedFolderIds.length} selected
-                </span>
-                {folderView && (selectedIds.length + selectedFolderIds.length) > 0 && (
-                  <Button variant="ghost" size="sm" icon={FolderInput} onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}>
+                {(() => {
+                  const n = selectedIds.length, f = selectedFolderIds.length
+                  const parts = [n ? `${n} note${n === 1 ? '' : 's'}` : '', f ? `${f} folder${f === 1 ? '' : 's'}` : ''].filter(Boolean)
+                  return (
+                    <span aria-live="polite" className={`text-footnote flex-1 tabular-nums ${parts.length ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
+                      {parts.length ? `${parts.join(', ')} selected` : (folderView ? 'Select notes or folders' : 'Select notes')}
+                    </span>
+                  )
+                })()}
+                {folderView && (
+                  <Button variant="ghost" size="sm" icon={FolderInput} disabled={(selectedIds.length + selectedFolderIds.length) === 0} onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}>
                     Move to folder
                   </Button>
                 )}
-                {(selectedIds.length + selectedFolderIds.length) > 0 && (
-                  <Button variant="ghost" size="sm" icon={Trash2} className="text-destructive" onClick={deleteSelected}>
-                    Delete selected
-                  </Button>
-                )}
+                <Button variant="ghost" size="sm" icon={Trash2} className="text-destructive" disabled={(selectedIds.length + selectedFolderIds.length) === 0} onClick={deleteSelected}>
+                  Delete
+                </Button>
                 <Button variant="ghost" size="sm" onClick={exitSelectMode}>
                   Cancel
                 </Button>
@@ -2130,17 +2167,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onSelect={navigateToNote}
                   onPreview={homePanelVisible ? previewNoteInHome : undefined}
                   onFolderSelect={homePanelVisible ? selectFolderInHome : undefined}
+                  activeFolderId={homePanelVisible && !previewNoteId ? previewFolderId : null}
                   onDelete={(note) => deleteNote(note)}
                   onSetNoteFolder={handleSetNoteFolder}
                   onCreateNote={createNote}
-                  onCreateNoteInFolder={async (folderId) => {
-                    const result = await window.notes.createNote({ content: '', folderId })
-                    if (result.success && result.note) {
-                      setNotes((prev) => [result.note!, ...prev])
-                      setActiveNote(result.note!)
-                      bumpNoteToken()
-                    }
-                  }}
+                  onCreateNoteInFolder={createNoteInFolder}
                   onCreateIdiom={() => setIdiomModal({ term: '', meaning: '' })}
                   onCreateIdiomInFolder={(folderId) => setIdiomModal({ term: '', meaning: '', folderId })}
                   onCreateFolder={handleCreateFolder}
@@ -2209,6 +2240,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onOpen={navigateToNote}
               onOpenNewTab={openNoteInNewTab}
               onPrint={(n) => setPrintNote(n)}
+              onNewNoteInFolder={createNoteInFolder}
               searchQuery={noteSearch}
               searchWordMode={noteSearchWordMode}
             />

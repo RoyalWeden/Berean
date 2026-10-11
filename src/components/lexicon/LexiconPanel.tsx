@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useFloatingWindow } from '@/components/shell/floatingWindow'
 import { BookMarked, X, ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -16,7 +17,7 @@ import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
-import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, Toolbar, ControlGroup, ControlGroupContext, OverflowGroup, OverflowSection, BarMetrics } from '@/components/ui'
+import { IconButton, SectionLabel, SegmentedControl, Select, RefChip, Divider, SearchField, EmptyState, Button, ListRow, Chip, ControlGroup, ControlGroupContext, OverflowGroup, OverflowSection, BarMetrics } from '@/components/ui'
 import { LexiconEntryHeader, OccurrenceRow as OccurrenceRowUI, DerivedTermRow } from './parts'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
@@ -710,7 +711,10 @@ function EntryView({
 
             return (
               <div className="mb-2 space-y-1.5">
-                <Toolbar size="sm" edge="none" material="none" className="px-0 h-auto flex-wrap gap-1.5">
+                {/* A row of in-content controls, not a toolbar: `Toolbar` gives its children window-bar
+                    metrics (32px controls), which made these read oversized beside the entry text
+                    (TEST 2026-10-11). Plain small controls, like the rest of the entry. */}
+                <div className="flex items-center flex-wrap gap-1.5">
                   {occurrences.length > 5 && (
                     <SegmentedControl
                       size="sm"
@@ -752,7 +756,7 @@ function EntryView({
                       {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
                     </Button>
                   )}
-                </Toolbar>
+                </div>
                 {occurrences.length > 5 && hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
                     <SectionLabel className="mr-0.5">Shown as:</SectionLabel>
@@ -1207,6 +1211,14 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
 
   // Declare activeEntry here so find effects can reference it in their dependency arrays
   const [activeEntry, setActiveEntry] = useState<LexiconEntry | null>(null)
+  // A floating lexicon window reports the entry it shows — "Return to Main Window" restores it,
+  // and it names the window (the window opens entries without activating a tab of its own).
+  const floatingWindow = useFloatingWindow()
+  useEffect(() => {
+    if (!floating || !floatingWindow) return
+    if (activeEntry) floatingWindow.reportCurrent({ strongsNum: activeEntry.strongsNum }, rememberLexiconTitle(activeEntry))
+    else floatingWindow.reportCurrent({}, 'Lexicon')
+  }, [floating, floatingWindow, activeEntry?.strongsNum]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rail's Presenter button (Ribbon.tsx) dispatches this after ensuring the
   // viewer window is open — mirrors the find-bar routing above, since
