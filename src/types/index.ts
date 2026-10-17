@@ -117,6 +117,9 @@ export interface BibleTabState {
   /** Verse-tag filter: comma-joined tag ids; `searchTagFilterAll` = AND (match every) vs OR. */
   searchTagFilter?: string
   searchTagFilterAll?: boolean
+  /** iPhone only (device-local): sort direction and the tab-card preview of this search. */
+  searchSortDirection?: 'asc' | 'desc'
+  searchPreview?: unknown
 }
 
 export interface NoteTabState {

@@ -21,6 +21,7 @@ export const SPACE_ORDER: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube
 
 /** Icon + short kind label for a tab. */
 export function tabKind(t: Tab): { icon: LucideIcon; label: string } {
+  if (t.type === 'bible' && (t.state as { searchMode?: boolean }).searchMode) return { icon: Search, label: 'Scripture Search' }
   if (t.type === 'bible') return { icon: BookOpen, label: (t.state as { compareMode?: boolean }).compareMode ? 'Compare' : 'Scripture' }
   if (t.type === 'pdf') return { icon: FileText, label: 'PDF' }
   if (t.type === 'note') return { icon: NotepadText, label: 'Note' }

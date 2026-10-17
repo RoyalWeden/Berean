@@ -1,23 +1,85 @@
 import React, { useEffect, useState } from 'react'
+import { Check } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { getVoices, subscribeVoices, ttsEngine, type TTSVoiceOption } from '@/lib/tts/ttsEngine'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
 import { Toggle, RateStepper } from './SettingsControls'
+import { GetVoicesView, useVoicePack, voicePackSubtitle } from '../audio/GetVoicesView'
+import { DEFAULT_KOKORO_VOICE_ID } from '@/lib/tts/kokoro/kokoroVoices'
 import './settings.css'
 
 /**
- * Settings → Audio / Read Aloud (R087). Desktop's AudioSection.tsx is Kokoro-specific (voice
- * pack download via `window.ttsModel`, cache stats via `window.ttsAudioCache`) — neither exists
- * on the phone (src/platform/ios/bridge.ts deliberately omits them; the phone's TTSBackend is
- * `NativeSpeechBackend` over iOS's own system speech synthesiser, swapped in at boot in
- * platform/ios/main.tsx). So this is a phone-native page rather than an embed of AudioSection,
- * built on the same backend-agnostic facade (`ttsEngine`/`getVoices`/`subscribeVoices` from
- * lib/tts/ttsEngine.ts) desktop uses — the voice list, rate, and playback controls are real,
- * live iOS voices, not a stub. No voice-pack download step applies (nothing to download; the
- * system voices are already on the device). No pitch control: the shared TTSBackend contract
- * (speakChapter/setRate/setVoice) has no pitch parameter on either platform.
+ * Settings → Audio / Read Aloud (R087). A phone-native page over the same backend-agnostic
+ * facade (`ttsEngine`/`getVoices`/`subscribeVoices` from lib/tts/ttsEngine.ts) desktop uses.
+ * Read Aloud speaks with the iPhone's system voice until Berean Voices (the Mac's Kokoro voices)
+ * are downloaded from Berean Voices (GetVoicesView, src/platform/ios/voicePack.ts); then the
+ * Kokoro engine takes over and the voice list is Berean's. No pitch control: the shared
+ * TTSBackend contract has no pitch parameter on either platform.
  */
+/** The voice list of the active engine, plus which entry is speaking now. With Berean Voices a
+ *  stored choice that isn't one of them (a system voice picked earlier) reads in the default
+ *  Berean voice (kokoroBackend.ts), so it shows as that one. */
+export function useActiveVoice() {
+  const ttsVoiceURI = useAppStore((s) => s.ttsVoiceURI)
+  const berean = useAppStore((s) => s.kokoroModelReady)
+  const [voices, setVoices] = useState<TTSVoiceOption[]>(getVoices())
+  useEffect(() => subscribeVoices(setVoices), [])
+  useEffect(() => setVoices(getVoices()), [berean])
+  const selectable = voices.filter((v) => v.kind !== 'hint')
+  const bereanList = selectable.some((v) => v.voiceURI === DEFAULT_KOKORO_VOICE_ID)
+  const found = ttsVoiceURI ? selectable.find((v) => v.voiceURI === ttsVoiceURI) : undefined
+  const active = found ?? (bereanList ? selectable.find((v) => v.voiceURI === DEFAULT_KOKORO_VOICE_ID) : undefined)
+  return { selectable, active, bereanList, ttsVoiceURI }
+}
+
+export const voiceLabel = (v: TTSVoiceOption | undefined) => (v ? `${v.name}${v.tier ? ` (${v.tier})` : ''}` : 'System default')
+
+/**
+ * The Settings root's Read Aloud rows: the current voice and Berean Voices — so the way to the
+ * natural voices is on the first Settings screen, not two pages down.
+ */
+export function ReadAloudVoiceRows({ openVoices, openReadAloud }: { openVoices: () => void; openReadAloud: () => void }) {
+  const { active } = useActiveVoice()
+  const pack = useVoicePack()
+  return (
+    <>
+      <Row title="Read Aloud" subtitle={`Voice: ${voiceLabel(active)} · speed, auto-advance`} chevron onClick={openReadAloud} />
+      <Row title="Berean Voices" subtitle={voicePackSubtitle(pack)} chevron onClick={openVoices} />
+    </>
+  )
+}
+
+/** Live (a pushed page is a snapshot, so the row reads the download state itself). */
+function BereanVoicesRow({ onClick }: { onClick: () => void }) {
+  const pack = useVoicePack()
+  return <Row title="Berean Voices" subtitle={voicePackSubtitle(pack)} chevron onClick={onClick} />
+}
+
+/** Settings → Read Aloud → Voice: live (reads the store and the voice list itself). */
+function VoiceListPage({ onBack, preview, getVoicesRow }: { onBack: () => void; preview: (uri: string | null) => void; getVoicesRow: React.ReactNode }) {
+  const setTTSVoiceURI = useAppStore((s) => s.setTTSVoiceURI)
+  const { selectable, active, bereanList, ttsVoiceURI } = useActiveVoice()
+  const pick = (uri: string | null) => { setTTSVoiceURI(uri); preview(uri) }
+  return (
+    <Page title="Voice" onBack={onBack}>
+      <ListSection>{getVoicesRow}</ListSection>
+      <ListSection title={bereanList ? 'Berean Voices' : 'iPhone voices'}>
+        {!bereanList && <Row title="System default" subtitle="The voice iOS uses for speech" right={ttsVoiceURI == null ? <Check size={18} aria-label="Selected" /> : undefined} onClick={() => pick(null)} />}
+        {selectable.map((v) => (
+          <Row
+            key={v.voiceURI}
+            title={<>{v.name}{v.tier && <span className="settings-voice-tier">{v.tier}</span>}</>}
+            subtitle={v.lang}
+            right={v.voiceURI === active?.voiceURI ? <Check size={18} aria-label="Selected" /> : undefined}
+            onClick={() => pick(v.voiceURI)}
+          />
+        ))}
+      </ListSection>
+    </Page>
+  )
+}
+
 export function AudioSettingsPage({ onBack }: { onBack?: () => void }) {
   const nav = useNavigation()
   const ttsVoiceURI = useAppStore((s) => s.ttsVoiceURI)
@@ -33,12 +95,8 @@ export function AudioSettingsPage({ onBack }: { onBack?: () => void }) {
   const ttsAutoplayOnOpen = useAppStore((s) => s.ttsAutoplayOnOpen)
   const setTTSAutoplayOnOpen = useAppStore((s) => s.setTTSAutoplayOnOpen)
 
-  const [voices, setVoices] = useState<TTSVoiceOption[]>(getVoices())
   const [previewing, setPreviewing] = useState(false)
-  useEffect(() => subscribeVoices(setVoices), [])
-
-  const selectableVoices = voices.filter((v) => v.kind !== 'hint')
-  const activeVoice = selectableVoices.find((v) => v.voiceURI === ttsVoiceURI) ?? selectableVoices[0]
+  const { active: activeVoice } = useActiveVoice()
 
   const preview = (voiceURI: string | null) => {
     setPreviewing(true)
@@ -48,32 +106,21 @@ export function AudioSettingsPage({ onBack }: { onBack?: () => void }) {
     }).catch(() => setPreviewing(false))
   }
 
+  const openGetVoices = () => nav.push('settings-tts-get-voices', <Page title="Berean Voices" onBack={nav.pop}><GetVoicesView /></Page>)
+  const getVoicesRow = <BereanVoicesRow onClick={openGetVoices} />
+
   return (
     <Page title="Read Aloud" onBack={onBack}>
       <ListSection title="Voice">
         <Row
           title="Voice"
-          subtitle={activeVoice ? `${activeVoice.name}${activeVoice.tier ? ` · ${activeVoice.tier}` : ''}` : 'System default'}
+          subtitle={voiceLabel(activeVoice)}
           chevron
-          onClick={() => nav.push('settings-tts-voice', (
-            <Page title="Voice" onBack={nav.pop}>
-              <ListSection>
-                {voices.length === 0 && <Row title="No voices found" subtitle="Add voices in iOS Settings → Accessibility → Spoken Content → Voices" />}
-                {voices.map((v) => v.kind === 'hint' ? (
-                  <Row key={v.voiceURI} title={v.name} />
-                ) : (
-                  <Row
-                    key={v.voiceURI}
-                    title={<>{v.name}{v.tier && <span className="settings-voice-tier">{v.tier}</span>}</>}
-                    subtitle={v.lang}
-                    right={v.voiceURI === ttsVoiceURI ? '✓' : undefined}
-                    onClick={() => { setTTSVoiceURI(v.voiceURI); preview(v.voiceURI) }}
-                  />
-                ))}
-              </ListSection>
-            </Page>
-          ))}
+          // A component, not an element built here: a pushed element is a snapshot, so the
+          // checkmark never moved when another voice was picked (TEST 2026-10-11).
+          onClick={() => nav.push('settings-tts-voice', <VoiceListPage onBack={nav.pop} preview={preview} getVoicesRow={getVoicesRow} />)}
         />
+        {getVoicesRow}
         {previewing && <div className="settings-section-note">Playing Genesis 1:1 preview…</div>}
       </ListSection>
 

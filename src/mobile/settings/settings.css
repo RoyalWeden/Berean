@@ -67,3 +67,11 @@
 .settings-menu-value { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 2px; border: 0; background: none;
   color: rgb(var(--color-accent)); font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
 .settings-menu-value:active { opacity: 0.55; }
+
+/* Berean Voices download progress (GetVoicesView). */
+.get-voices-progress { padding: 12px 16px; }
+.get-voices-progress-label { display: flex; justify-content: space-between; gap: 12px; font-size: calc(15px * var(--m-type-scale, 1)); margin-bottom: 8px; color: rgb(var(--color-text-primary)); }
+.get-voices-progress-label span:last-child { color: rgb(var(--color-text-muted)); font-variant-numeric: tabular-nums; }
+.get-voices-progress-track { height: 6px; border-radius: 3px; background: rgb(var(--color-text-primary) / 0.1); overflow: hidden; }
+.get-voices-progress-fill { height: 100%; border-radius: 3px; background: rgb(var(--color-accent)); transition: width 0.3s ease; }
+.get-voices-destructive { color: rgb(220 70 70); }

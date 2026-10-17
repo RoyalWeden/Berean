@@ -45,7 +45,7 @@ export const SWITCHER_EXPERIENCES: ExperienceId[] = ['scripture', 'notes', 'cale
 export function experienceOfTab(tab: Pick<Tab, 'type' | 'state'> | null | undefined): ExperienceId | null {
   if (!tab) return null
   switch (tab.type) {
-    case 'bible': return (tab.state as { compareMode?: boolean }).compareMode ? 'compare' : 'scripture'
+    case 'bible': return (tab.state as { compareMode?: boolean }).compareMode ? 'compare' : (tab.state as { searchMode?: boolean }).searchMode ? 'search' : 'scripture'
     case 'note': return 'notes'
     case 'lexicon': return 'lexicon'
     case 'youtube': return 'youtube'
@@ -118,8 +118,8 @@ export function runExperience(id: ExperienceId, target: 'current-tab' | 'new-tab
       s.transformTab(cur.id, 'bible', { state: patch as Record<string, unknown> })
       return
     }
-    // Scripture from a Compare tab leaves Compare (same tab).
-    if (id === 'scripture' && cur.type === 'bible') { s.updateTabState('scripture', cur.id, { compareMode: false }); return }
+    // Scripture from a Compare tab (or a synced desktop Scripture Search) leaves it (same tab).
+    if (id === 'scripture' && cur.type === 'bible') { s.updateTabState('scripture', cur.id, { compareMode: false, searchMode: false }); return }
     // Today = today's daily note, in this tab (the shared daily-note destination).
     if (id === 'today') { void openDailyNoteInCurrentTab(dailyNoteToday()); return }
     s.transformTab(cur.id, EXPERIENCES[id].tabType)

@@ -12,6 +12,7 @@ import { dailyNoteToday, toDateKey } from '@/lib/dailyNoteUtils'
 import { useDailyNoteDates } from '../calendar/useDailyNoteDates'
 import type { SearchPreviewSummary } from '../search/resultActions'
 import './tabPreview.css'
+import { isScriptureSearchTab, readSearchState } from '../search/searchTabBinding'
 import { readerScrollMemory } from '../reader/readerScrollMemory'
 import { columnsForState, translationLabel } from '../reader/compareState'
 import { displayNoteTitle } from '@/lib/noteTitle'
@@ -28,7 +29,7 @@ import { displayNoteTitle } from '@/lib/noteTitle'
  */
 export function TabPreview({ tab }: { tab: Tab }) {
   switch (tab.type) {
-    case 'bible': return (tab.state as BibleTabState).compareMode ? <ComparePreview tab={tab} /> : <ScripturePreview tab={tab} />
+    case 'bible': return isScriptureSearchTab(tab) ? <SearchPreview state={readSearchState(tab) as SearchTabState} /> : (tab.state as BibleTabState).compareMode ? <ComparePreview tab={tab} /> : <ScripturePreview tab={tab} />
     case 'note': return <NotePreview tab={tab} />
     case 'search': return <SearchPreview state={tab.state as SearchTabState} />
     case 'lexicon': return <LexiconPreview state={tab.state as LexiconTabState} />
@@ -46,7 +47,7 @@ export function TabPreview({ tab }: { tab: Tab }) {
 export function tabTextBadge(tab: Tab): string | null {
   if (tab.type !== 'bible') return null
   const st = tab.state as BibleTabState
-  if (st.compareMode) return null
+  if (st.compareMode || st.searchMode) return null
   const t = (st.translation ?? getTranslationForBook(st.bookId) ?? 'KJVA').toLowerCase()
   return t === 'lxx' ? 'LXX' : null
 }

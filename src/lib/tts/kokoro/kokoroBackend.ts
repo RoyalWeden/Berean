@@ -30,9 +30,10 @@
  * the original "Read Aloud" button click that started the chapter.
  */
 import { buildLatencyChunks } from './kokoroChunking'
+import { getKokoroModelBaseUrl, getKokoroNativeInfer } from './modelBase'
 import { estimateWordTimings, advanceToTime, type WordTimingEvent } from './timestampAlignment'
 import { cacheKeyFor, hashText, encodeCachedChunk, decodeCachedChunk } from './audioCacheStore'
-import { KOKORO_MODEL_ID, KOKORO_VOICE_OPTIONS, DEFAULT_KOKORO_VOICE_ID } from './kokoroVoices'
+import { KOKORO_MODEL_ID, KOKORO_VOICE_OPTIONS, DEFAULT_KOKORO_VOICE_ID, isKokoroVoiceId } from './kokoroVoices'
 import type { SentenceChunk, SpokenVerse } from '../extractSpokenText'
 import type { TTSBackend, TTSVoiceOption, TTSVoiceProvider, SpeakChapterOptions } from '../ttsBackend'
 
@@ -94,6 +95,10 @@ function pcmToWavBlob(samplingRate: number, samples: Float32Array): Blob {
   return new Blob([buffer], { type: 'audio/wav' })
 }
 
+/** A stored voice that isn't a Kokoro voice (e.g. an iPhone system voice chosen before the
+ *  Berean voices were downloaded) reads in the default Kokoro voice instead of failing. */
+const kokoroVoiceOr = (id: string | null | undefined) => (id && isKokoroVoiceId(id) ? id : DEFAULT_KOKORO_VOICE_ID)
+
 export class KokoroBackend implements TTSBackend {
   private worker: Worker | null = null
   private modelLoadPromise: Promise<void> | null = null
@@ -126,8 +131,20 @@ export class KokoroBackend implements TTSBackend {
   // ── Worker + model lifecycle ────────────────────────────────────────────────────────────
   private ensureWorker(): Worker {
     if (this.worker) return this.worker
-    this.worker = new Worker(new URL('./kokoro.worker.ts', import.meta.url), { type: 'module' })
-    return this.worker
+    const worker = new Worker(new URL('./kokoro.worker.ts', import.meta.url), { type: 'module' })
+    // iPhone: the worker asks the main thread to run the model natively (modelBase.ts).
+    worker.addEventListener('message', (e: MessageEvent) => {
+      const msg = e.data
+      if (msg?.type !== 'nativeInfer') return
+      const infer = getKokoroNativeInfer()
+      if (!infer) { worker.postMessage({ type: 'nativeInferResult', reqId: msg.reqId, error: 'no native engine' }); return }
+      infer({ ids: msg.ids, style: msg.style, speed: msg.speed }).then(
+        (samples) => { const buffer = samples.buffer as ArrayBuffer; worker.postMessage({ type: 'nativeInferResult', reqId: msg.reqId, buffer }, [buffer]) },
+        (err) => worker.postMessage({ type: 'nativeInferResult', reqId: msg.reqId, error: String((err as Error)?.message ?? err) }),
+      )
+    })
+    this.worker = worker
+    return worker
   }
 
   /** Resolves once the model is loaded in the worker (idempotent — safe to call before every
@@ -151,7 +168,7 @@ export class KokoroBackend implements TTSBackend {
         }
       }
       worker.addEventListener('message', onMessage)
-      worker.postMessage({ type: 'loadModel', modelId: KOKORO_MODEL_ID })
+      worker.postMessage({ type: 'loadModel', modelId: KOKORO_MODEL_ID, localModelPath: getKokoroModelBaseUrl(), native: !!getKokoroNativeInfer() })
     })
     return this.modelLoadPromise
   }
@@ -383,7 +400,7 @@ export class KokoroBackend implements TTSBackend {
     this.queueContentHash = hashText(queue.map((v) => v.spokenText).join('\n'))
     this.opts = opts
     this.rate = opts.rate
-    this.voiceURI = opts.voiceURI ?? DEFAULT_KOKORO_VOICE_ID
+    this.voiceURI = kokoroVoiceOr(opts.voiceURI)
     this.stopped = false
     this.paused = false
     void this.speakFrom(opts.startVerseIndex ?? 0)
@@ -441,7 +458,7 @@ export class KokoroBackend implements TTSBackend {
   }
 
   setVoice(voiceURI: string | null): void {
-    this.voiceURI = voiceURI ?? DEFAULT_KOKORO_VOICE_ID
+    this.voiceURI = kokoroVoiceOr(voiceURI)
     this.restartAtCurrentVerse()
   }
 
@@ -481,7 +498,7 @@ export class KokoroBackend implements TTSBackend {
       let url: string | null = null
       try {
         await this.ensureModelLoaded()
-        const raw = await this.synthesizeRaw(text, voiceURI ?? DEFAULT_KOKORO_VOICE_ID)
+        const raw = await this.synthesizeRaw(text, kokoroVoiceOr(voiceURI))
         url = URL.createObjectURL(pcmToWavBlob(raw.samplingRate, raw.samples))
         const audio = new Audio(url)
         audio.playbackRate = rate

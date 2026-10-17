@@ -59,7 +59,7 @@ export const BereanAudio = registerPlugin<BereanAudioPlugin>('BereanAudio')
 
 /** System speech voices for Read Aloud (BereanSpeechPlugin.swift). */
 export interface BereanSpeechPlugin {
-  voices(): Promise<{ voices: Array<{ id: string; name: string; lang: string; quality: 'Default' | 'Enhanced' | 'Premium' }> }>
+  voices(): Promise<{ voices: Array<{ id: string; name: string; lang: string; quality: 'Default' | 'Enhanced' | 'Premium' }>}>
   speak(opts: { id: string; text: string; voice?: string | null; lang?: string; rate?: number }): Promise<void>
   pause(): Promise<void>
   resume(): Promise<void>
@@ -67,8 +67,26 @@ export interface BereanSpeechPlugin {
   status(): Promise<{ speaking: boolean; paused: boolean }>
   addListener(event: 'start' | 'end' | 'cancel', cb: (e: { id: string }) => void): Promise<{ remove: () => Promise<void> }>
   addListener(event: 'boundary', cb: (e: { id: string; charIndex: number; charLength: number }) => void): Promise<{ remove: () => Promise<void> }>
+  /** The installed voices changed (one downloaded / removed in iOS Settings). */
+  addListener(event: 'voicesChanged', cb: () => void): Promise<{ remove: () => Promise<void> }>
 }
 export const BereanSpeech = registerPlugin<BereanSpeechPlugin>('BereanSpeech')
+
+/** Berean's own (Kokoro) voice pack download (BereanVoicePackPlugin.swift). */
+export interface BereanVoicePackPlugin {
+  /** `root` is the absolute tts-models folder; `manifest` is the installed pack's manifest or null. */
+  status(opts: { modelId: string }): Promise<{ root: string; manifest: unknown; downloading: boolean }>
+  /** Resolves when the whole pack is installed, failed or was cancelled (`error: 'Cancelled'`). */
+  download(opts: { modelId: string; files: Array<{ path: string; url: string }>; estimatedBytes: number }): Promise<{ success: boolean; error?: string }>
+  cancel(): Promise<{ cancelled: boolean }>
+  clear(opts: { modelId: string }): Promise<{ success: boolean; error?: string }>
+  /** Runs the voice model natively. `style` is base64 Float32[256]; `pcm` is base64 Int16 LE mono. */
+  synthesize(opts: { modelId: string; ids: number[]; style: string; speed: number }): Promise<{ pcm: string; samplingRate: number }>
+  unload(): Promise<void>
+  addListener(event: 'progress', cb: (p: { receivedBytes: number; totalBytes: number }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'verifying', cb: () => void): Promise<{ remove: () => Promise<void> }>
+}
+export const BereanVoicePack = registerPlugin<BereanVoicePackPlugin>('BereanVoicePack')
 
 /** Native YouTube player web view (BereanWebViewPlugin.swift). Rect in CSS px of the app web view. */
 export interface BereanWebViewPlugin {

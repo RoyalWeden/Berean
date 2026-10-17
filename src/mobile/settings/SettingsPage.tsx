@@ -7,7 +7,8 @@ import { ICloudRow, ICloudSettingsPage } from './ICloudSettingsPage'
 import AboutSection from '@/components/settings/sections/AboutSection'
 import { YouTubeSettingsPage } from './YouTubeSettingsPage'
 import { NotesSettingsPage } from './NotesSettingsPage'
-import { AudioSettingsPage } from './AudioSettingsPage'
+import { AudioSettingsPage, ReadAloudVoiceRows } from './AudioSettingsPage'
+import { GetVoicesView } from '../audio/GetVoicesView'
 import { DataSettingsPage } from './DataSettingsPage'
 import { ExperimentalSettingsPage } from './ExperimentalSettingsPage'
 import { WordReplacerPage } from './WordReplacerPage'
@@ -52,6 +53,7 @@ function routeElement(route: SettingsRoute, back: () => void): React.ReactNode {
     case 'word-replacer': return <WordReplacerPage onBack={back} />
     case 'notes': return <NotesSettingsPage onBack={back} />
     case 'audio': return <AudioSettingsPage onBack={back} />
+    case 'voices': return <Page title="Berean Voices" onBack={back}><GetVoicesView /></Page>
     case 'youtube': return <YouTubeSettingsPage onBack={back} />
     case 'data': return <DataSettingsPage onBack={back} />
     case 'icloud': return <ICloudSettingsPage onBack={back} />
@@ -71,11 +73,19 @@ function useSettingsRoutes(tab: Tab | null) {
   const tabId = tab?.id ?? null
   const route = tab ? settingsRouteOf(tab.state as SettingsTabState) : null
   const shown = useRef<SettingsRoute | null>(null)
+  // Live stack (the Back button's closure is created when its page is pushed).
+  const navRef = useRef(nav)
+  navRef.current = nav
   const go = useCallback((next: SettingsRoute | null) => {
     if (!tabId) return
     const s = useAppStore.getState()
     const cur = settingsRouteOf(s.tabs.search.find((t) => t.id === tabId)?.state as SettingsTabState | undefined)
-    if (cur === next) return
+    if (cur === next) {
+      // The tab already says so but a page is still on screen (e.g. restored from an older
+      // copy of the tab): just take it off.
+      if (next == null && navRef.current.depth > 0) { shown.current = null; navRef.current.popToRoot() }
+      return
+    }
     recordTabStep(tabId, settingsStep(cur), settingsStep(next))
     s.updateTabState('search', tabId, { settingsRoute: next } as Partial<SettingsTabState>)
   }, [tabId])
@@ -83,10 +93,12 @@ function useSettingsRoutes(tab: Tab | null) {
   const open = useCallback((r: SettingsRoute) => (tabId ? go(r) : nav.push(`settings-${r}`, routeElement(r, nav.pop))), [tabId, go, nav])
   // Tab state → stack (a row tap, a restore, or the persisted route on remount).
   useEffect(() => {
-    if (!tabId || route === shown.current) return
+    if (!tabId) return
+    // Compare with what is actually on screen, not only what this instance pushed: the page
+    // stack outlives a remount of this component.
+    if (route === shown.current && (route == null) === (nav.depth === 0)) return
     if (route == null) nav.popToRoot()
-    else if (shown.current == null) nav.push(`settings-${route}`, routeElement(route, back))
-    else { nav.popToRoot(); nav.push(`settings-${route}`, routeElement(route, back)) }
+    else { if (nav.depth > 0) nav.popToRoot(); nav.push(`settings-${route}`, routeElement(route, back)) }
     shown.current = route
   }, [tabId, route]) // eslint-disable-line react-hooks/exhaustive-deps
   // Stack → tab state: an edge-swipe pop back to the root.
@@ -205,8 +217,10 @@ export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }
         <Row title="Notes" subtitle="Reference detection, editor, print & export" chevron onClick={() => routes.open('notes')} />
       </ListSection>
 
-      <ListSection title="Audio">
-        <Row title="Read Aloud" subtitle="Voice, speed, auto-advance" chevron onClick={() => routes.open('audio')} />
+      {/* Read Aloud's voice is on this root list (TEST 2026-10-11: "I don't see anywhere to get
+          the better voices" — it sat two pages down, under Audio → Read Aloud → Voice). */}
+      <ListSection title="Read Aloud">
+        <ReadAloudVoiceRows openVoices={() => routes.open('voices')} openReadAloud={() => routes.open('audio')} />
       </ListSection>
 
       <ListSection title="iCloud">

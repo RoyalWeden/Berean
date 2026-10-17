@@ -7,10 +7,12 @@
  * TestFlight or App Store build: the guard below is a compile-time constant.
  */
 import { useAppStore } from '@/store'
+import { ttsEngine, getVoices } from '@/lib/tts/ttsEngine'
 
 export function installDevProbe(): void {
   if (import.meta.env.VITE_E2E_PROBE !== '1') return
   ;(window as unknown as { __bereanStore: typeof useAppStore }).__bereanStore = useAppStore
+  ;(window as unknown as { __bereanTTS: unknown }).__bereanTTS = { ttsEngine, getVoices }
   const base = 'http://127.0.0.1:9555'
   const tick = async () => {
     try {

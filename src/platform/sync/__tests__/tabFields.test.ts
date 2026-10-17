@@ -65,3 +65,12 @@ describe('tab state split (sync vs local)', () => {
     expect(stableJson({ b: 1, a: { d: undefined, c: 2 } })).toBe(stableJson({ a: { c: 2 }, b: 1 }))
   })
 })
+
+describe('settings tab subsection (TEST 2026-10-11)', () => {
+  it('keeps the open Settings page on this device across a reload (local, never synced)', () => {
+    const { sync, local } = splitTabState('settings', { settingsRoute: 'audio' } as never)
+    expect(local).toEqual({ settingsRoute: 'audio' })
+    expect(sync).not.toHaveProperty('settingsRoute')
+    expect(mergeTabState('settings', sync, local)).toMatchObject({ settingsRoute: 'audio' })
+  })
+})

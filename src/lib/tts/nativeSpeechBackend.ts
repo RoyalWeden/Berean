@@ -131,7 +131,6 @@ const NOVELTY_VOICE_NAMES = new Set([
 // the base name (see normalizeName) so "Samantha (Enhanced)"/"Samantha" both match "samantha".
 const PREFERRED_VOICE_NAMES = ['ava', 'zoe', 'evan', 'nathan', 'samantha', 'daniel', 'serena']
 
-const MAX_CURATED_VOICES = 6
 
 /** Apple voice names sometimes carry a "(Enhanced)"/"(Premium)" suffix baked into the name
  *  itself (in addition to the separate `quality` field) — strip it so name-based matching
@@ -164,12 +163,12 @@ function byQualityThenPreference(a: TTSVoiceOption, b: TTSVoiceOption): number {
 }
 
 /** The explanatory, non-selectable row shown when no Premium/Enhanced English voice is
- *  installed — apps cannot download Apple's higher-quality voices programmatically, so the best
- *  Berean can do is say where to get one. Exported so the settings UI can recognise it (kind
- *  === 'hint') and so the test suite can assert on it directly. */
+ *  installed. The natural voices on the iPhone are Berean Voices (one in-app download,
+ *  src/platform/ios/voicePack.ts). Exported so the settings UI can recognise it (kind === 'hint')
+ *  and so the test suite can assert on it directly. */
 export const NO_PREMIUM_VOICE_HINT: TTSVoiceOption = {
   voiceURI: '__ios-voice-hint__',
-  name: 'Download higher-quality voices: Settings → Accessibility → Spoken Content → Voices → English',
+  name: 'For natural speech, download Berean Voices in Settings → Read Aloud',
   lang: '',
   tier: null,
   kind: 'hint',
@@ -180,7 +179,7 @@ export const NO_PREMIUM_VOICE_HINT: TTSVoiceOption = {
  * a small set of high-quality, natural-sounding, free, offline English voices:
  *  - English only, Premium/Enhanced quality only, novelty voices excluded outright;
  *  - ranked Premium before Enhanced, then by PREFERRED_VOICE_NAMES, then alphabetically;
- *  - capped at MAX_CURATED_VOICES.
+ *  - every one the user installed is listed (a cap hid voices they had just downloaded).
  * If literally none qualify (a clean iOS install ships zero Enhanced/Premium voices until the
  * user downloads one), falls back to the single best non-novelty English voice available (any
  * tier) plus NO_PREMIUM_VOICE_HINT explaining how to get a better one. If there is no English
@@ -190,7 +189,7 @@ export function curateIosVoices(raw: TTSVoiceOption[]): TTSVoiceOption[] {
   const english = raw.filter((v) => isEnglish(v.lang) && !isNovelty(v.name))
   const highQuality = english.filter((v) => v.tier === 'Premium' || v.tier === 'Enhanced')
   if (highQuality.length > 0) {
-    return [...highQuality].sort(byQualityThenPreference).slice(0, MAX_CURATED_VOICES)
+    return [...highQuality].sort(byQualityThenPreference)
   }
   if (english.length === 0) return [NO_PREMIUM_VOICE_HINT]
   const best = [...english].sort(byQualityThenPreference)[0]
@@ -201,14 +200,24 @@ export function createNativeVoiceProvider(plugin: SpeechPluginLike): TTSVoicePro
   let voices: TTSVoiceOption[] = []
   const subs = new Set<(v: TTSVoiceOption[]) => void>()
   let loaded = false
-  const load = () => {
-    if (loaded) return
-    loaded = true
+  let inFlight = false
+  const fetchVoices = () => {
+    if (inFlight) return
+    inFlight = true
     plugin.voices().then((r) => {
       const all = r.voices.map((v): TTSVoiceOption => ({ voiceURI: v.id, name: v.name, lang: v.lang, tier: v.quality === 'Premium' ? 'Premium' : v.quality === 'Enhanced' ? 'Enhanced' : null }))
       voices = curateIosVoices(all)
       for (const cb of subs) cb(voices)
-    }).catch(() => { loaded = false })
+    }).catch(() => { loaded = false }).finally(() => { inFlight = false })
+  }
+  const load = () => {
+    if (loaded) return
+    loaded = true
+    fetchVoices()
+    // Voices are downloaded in the Settings app, so the list must refresh when one arrives —
+    // it used to be read once per launch, so a new voice appeared only after relaunching.
+    void plugin.addListener('voicesChanged', () => fetchVoices()).catch(() => {})
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') fetchVoices() })
   }
   return {
     getVoices: () => { load(); return voices },
