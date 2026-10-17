@@ -81,10 +81,26 @@ export async function activateKokoroBackend(): Promise<void> {
   setActiveTTSBackend(kokoroBackendSingleton, kokoroVoiceProvider)
 }
 
+// Voice-list subscribers follow backend swaps: a list open on screen when the engine changes
+// (the iPhone switching from system voices to Berean's own once the pack downloads) re-renders
+// with the new engine's voices instead of staying subscribed to the old provider.
+const voiceListeners = new Set<(voices: TTSVoiceOption[]) => void>()
+let providerUnsub: (() => void) | null = null
+function wireVoiceProvider() {
+  providerUnsub?.()
+  providerUnsub = voiceListeners.size ? activeVoiceProvider.subscribeVoices((v) => voiceListeners.forEach((l) => l(v))) : null
+}
+
 /** Swaps which backend `ttsEngine` delegates to. */
 export function setActiveTTSBackend(backend: TTSBackend, voiceProvider: TTSVoiceProvider) {
   activeBackend = backend
+  const providerChanged = voiceProvider !== activeVoiceProvider
   activeVoiceProvider = voiceProvider
+  if (providerChanged && voiceListeners.size) {
+    wireVoiceProvider()
+    const voices = voiceProvider.getVoices()
+    voiceListeners.forEach((l) => l(voices))
+  }
 }
 
 export function getActiveTTSBackend(): TTSBackend {
@@ -112,7 +128,12 @@ export function getVoices(): TTSVoiceOption[] {
 }
 
 export function subscribeVoices(cb: (voices: TTSVoiceOption[]) => void): () => void {
-  return activeVoiceProvider.subscribeVoices(cb)
+  voiceListeners.add(cb)
+  if (voiceListeners.size === 1) wireVoiceProvider()
+  return () => {
+    voiceListeners.delete(cb)
+    if (!voiceListeners.size) { providerUnsub?.(); providerUnsub = null }
+  }
 }
 
 /** "Can this environment run Kokoro at all" (Worker + AudioContext) — true whether or not the

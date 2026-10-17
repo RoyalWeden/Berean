@@ -12,8 +12,9 @@
  * build (Vite under the hood) supports natively and bundles as its own chunk.
  */
 import { KokoroTTS } from 'kokoro-js'
-import { env } from '@huggingface/transformers'
+import { env, AutoTokenizer } from '@huggingface/transformers'
 import { TTS_MODEL_LOCAL_MODEL_PATH, TTS_RUNTIME_FILE_RELATIVE_PATH, TTS_MODEL_DTYPE } from './modelProtocolConstants'
+import { KOKORO_MODEL_ID } from './kokoroVoiceData'
 
 // `kokoro-js` sets NOTHING of its own on `env` — allowLocalModels/localModelPath/
 // allowRemoteModels/useBrowserCache below (and env.backends.onnx.wasm.* in
@@ -33,6 +34,35 @@ env.localModelPath = TTS_MODEL_LOCAL_MODEL_PATH
 // disabling it avoids a second silent copy of ~100MB of model weights living in Chromium's own
 // Cache Storage on top of the one in userData.
 env.useBrowserCache = false
+
+// kokoro-js fetches each voice's style vectors from Hugging Face at first use (its own
+// `getVoiceData`), not from the pack Berean already downloaded — so Read Aloud wasn't truly
+// offline. Serve those requests from the downloaded pack instead.
+const HF_VOICE_PREFIX = `https://huggingface.co/${KOKORO_MODEL_ID}/resolve/main/voices/`
+const originalFetch = self.fetch.bind(self)
+self.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (url.startsWith(HF_VOICE_PREFIX)) {
+    return originalFetch(`${env.localModelPath}${KOKORO_MODEL_ID}/voices/${url.slice(HF_VOICE_PREFIX.length)}`, init)
+  }
+  return originalFetch(input, init)
+}) as typeof fetch
+
+// Native model runs (iPhone): the main thread answers each `nativeInfer` request through
+// BereanVoicePackPlugin.swift (see modelBase.ts's KokoroNativeInfer).
+let nativeReqCounter = 0
+const nativeWaiters = new Map<number, { resolve: (s: Float32Array) => void; reject: (e: Error) => void }>()
+type KokoroInputs = { input_ids: { data: ArrayLike<number | bigint> }; style: { data: Float32Array }; speed: { data: ArrayLike<number> } }
+async function nativeModel(inputs: KokoroInputs): Promise<{ waveform: { data: Float32Array } }> {
+  const reqId = ++nativeReqCounter
+  const ids = Array.from(inputs.input_ids.data, Number)
+  const style = new Float32Array(inputs.style.data)
+  const samples = await new Promise<Float32Array>((resolve, reject) => {
+    nativeWaiters.set(reqId, { resolve, reject })
+    self.postMessage({ type: 'nativeInfer', reqId, ids, style, speed: Number(inputs.speed.data[0] ?? 1) })
+  })
+  return { waveform: { data: samples } }
+}
 
 let tts: KokoroTTS | null = null
 let loadingPromise: Promise<KokoroTTS> | null = null
@@ -92,7 +122,7 @@ async function primeOfflineWasmRuntime(modelId: string): Promise<void> {
   const wasm = env.backends.onnx.wasm
   if (!wasm) return // defensive only — `backends.onnx.wasm` is always populated by onnx.js's own module-load side effect
   wasm.wasmPaths = undefined
-  const url = `${TTS_MODEL_LOCAL_MODEL_PATH}${modelId}/${TTS_RUNTIME_FILE_RELATIVE_PATH}`
+  const url = `${env.localModelPath}${modelId}/${TTS_RUNTIME_FILE_RELATIVE_PATH}`
   const res = await fetch(url)
   if (!res.ok) {
     // Most likely cause: a voice pack downloaded before this runtime file existed in the
@@ -105,9 +135,22 @@ async function primeOfflineWasmRuntime(modelId: string): Promise<void> {
   wasm.wasmBinary = await res.arrayBuffer()
 }
 
-async function loadModel(modelId: string, onProgress: (p: unknown) => void): Promise<KokoroTTS> {
+async function loadModel(modelId: string, onProgress: (p: unknown) => void, localModelPath?: string, native?: boolean): Promise<KokoroTTS> {
   if (tts) return tts
   if (loadingPromise) return loadingPromise
+  // The iPhone serves the downloaded pack from app storage through Capacitor's
+  // `_capacitor_file_` URLs instead of `berean-model://` (kokoroBackend.ts setKokoroModelBaseUrl).
+  if (localModelPath) env.localModelPath = localModelPath
+  if (native) {
+    // Only the tokenizer loads here; the 330 MB model never enters the WebView.
+    loadingPromise = (async () => {
+      const tokenizer = await AutoTokenizer.from_pretrained(modelId, { progress_callback: onProgress })
+      type Ctor = new (model: unknown, tokenizer: unknown) => KokoroTTS
+      tts = new (KokoroTTS as unknown as Ctor)(nativeModel, tokenizer)
+      return tts
+    })()
+    return loadingPromise
+  }
   loadingPromise = (async () => {
     await primeOfflineWasmRuntime(modelId)
     const device = await pickDevice()
@@ -126,20 +169,30 @@ async function loadModel(modelId: string, onProgress: (p: unknown) => void): Pro
   return loadingPromise
 }
 
-interface LoadModelMsg { type: 'loadModel'; modelId: string }
+interface LoadModelMsg { type: 'loadModel'; modelId: string; localModelPath?: string; native?: boolean }
+interface NativeInferResultMsg { type: 'nativeInferResult'; reqId: number; buffer?: ArrayBuffer; error?: string }
 interface SynthesizeMsg { type: 'synthesize'; id: string; text: string; voice: string; speed: number }
 interface CancelMsg { type: 'cancel'; id: string }
-type InboundMsg = LoadModelMsg | SynthesizeMsg | CancelMsg
+type InboundMsg = LoadModelMsg | SynthesizeMsg | CancelMsg | NativeInferResultMsg
 
 self.onmessage = async (event: MessageEvent<InboundMsg>) => {
   const msg = event.data
   if (msg.type === 'loadModel') {
     try {
-      await loadModel(msg.modelId, (p) => self.postMessage({ type: 'loadProgress', progress: p }))
+      await loadModel(msg.modelId, (p) => self.postMessage({ type: 'loadProgress', progress: p }), msg.localModelPath, msg.native)
       self.postMessage({ type: 'loadComplete' })
     } catch (e) {
+      loadingPromise = null // allow a retry (e.g. after the pack is re-downloaded)
       self.postMessage({ type: 'loadError', message: String((e as Error)?.message ?? e) })
     }
+    return
+  }
+
+  if (msg.type === 'nativeInferResult') {
+    const w = nativeWaiters.get(msg.reqId)
+    nativeWaiters.delete(msg.reqId)
+    if (msg.buffer) w?.resolve(new Float32Array(msg.buffer))
+    else w?.reject(new Error(msg.error ?? 'native synthesis failed'))
     return
   }
 

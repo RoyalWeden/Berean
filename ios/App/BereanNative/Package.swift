@@ -12,13 +12,16 @@ let package = Package(
         .library(name: "BereanNative", targets: ["BereanNative"])
     ],
     dependencies: [
-        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.0.0")
+        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.0.0"),
+        // Read Aloud: runs Berean's own (Kokoro) voice model natively — BereanVoicePackPlugin.swift.
+        .package(url: "https://github.com/microsoft/onnxruntime-swift-package-manager.git", exact: "1.24.2")
     ],
     targets: [
         .target(
             name: "BereanNative",
             dependencies: [
-                .product(name: "Capacitor", package: "capacitor-swift-pm")
+                .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")
             ],
             path: "Sources/BereanNative",
             linkerSettings: [.linkedLibrary("sqlite3")]

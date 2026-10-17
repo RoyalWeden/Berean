@@ -33,7 +33,7 @@ const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
     'scrollPosition', 'rightPanelOpen', 'rightPanelWidth', 'bottomPanelHeight', 'rightPanelNoteCursor',
     'rightPanelNoteFocused', 'rightPanelExpandAll', 'rightPanelExpandAllB', 'rightPanelScrollTop', 'rightPanelScrollTopB',
     'rightPanelScrollTops', 'rightPanelScrollTopsB',
-    'rightPanelNoteCursorB', 'rightPanelNoteFocusedB', 'searchScrollTop', 'searchScrollAnchor',
+    'rightPanelNoteCursorB', 'rightPanelNoteFocusedB', 'searchScrollTop', 'searchScrollAnchor', 'searchSortDirection', 'searchPreview',
   ],
   note: ['scrollTop', 'cursorPos', 'listScrollTop', 'continuousDailyDate'],
   lexicon: ['scrollTop', 'searchScrollTop'],
@@ -42,7 +42,10 @@ const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
   pdf: ['scrollTop'],
   tags: [],
   history: [],
-  settings: [],
+  // The open Settings subsection is this device's own place in the tab (TEST 2026-10-11: being
+  // neither synced nor local, it was dropped when tabs reloaded from the tables — the page stayed
+  // on screen from the first paint while the tab said "root", so ‹ did nothing).
+  settings: ['settingsRoute'],
   calendar: [],
 }
 

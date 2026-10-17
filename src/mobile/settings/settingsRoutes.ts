@@ -12,6 +12,7 @@ export const SETTINGS_ROUTE_TITLES = {
   'word-replacer': 'Word replacer',
   'notes': 'Notes',
   'audio': 'Read Aloud',
+  'voices': 'Berean Voices',
   'youtube': 'YouTube',
   'data': 'Data',
   'icloud': 'iCloud',

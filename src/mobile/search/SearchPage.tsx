@@ -39,6 +39,7 @@ import { loadTaggedVerses } from './taggedBrowse'
 import { useSearchResultActions, LongPressResult } from './ResultActionSheet'
 import { buildSearchPreview, samePreview, type SearchPreviewSummary } from './resultActions'
 import { recordSubmittedSearch } from '@/lib/search/submittedSearch'
+import { findSearchTab, isScriptureSearchTab, leaveScriptureSearch, liveSearchState, readSearchState, renameSearchTab, searchTabSpace, writeSearchState } from './searchTabBinding'
 import { commitSearchStep, isSearchCommitted, markSearchCommitted, searchSnapshot } from './searchHistory'
 import { TYPING_SETTLE_MS } from '@/lib/search/typingHistory'
 import './search.css'
@@ -62,27 +63,26 @@ const RESULT_CHUNK = 50
 export function tabFilters(st: SearchTabState | undefined): SearchFilterState {
   return { ...DEFAULT_SEARCH_FILTERS, ...((st?.filters ?? {}) as Partial<SearchFilterState>) }
 }
-/** Live state of search tab `tabId` (store, not a render snapshot — caret views read it lazily). */
-function liveSearchState(tabId: string): SearchTabState | undefined {
-  return useAppStore.getState().tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined
-}
 /**
  * Per-tab history (SEP25): committing a query, switching scope or changing a filter is a step
  * ‹ / › can return to. Recorded BEFORE the tab-state write so the restore-detection effect in
  * SearchPage sees it as already committed. `patch` is the next tab state.
  */
 function commitSearch(tabId: string, patch: Partial<SearchTabState>, opts: { submitted?: boolean } = {}) {
+  // A desktop Advanced Scripture Search tab keeps the desktop's history model: the search is one
+  // step, recorded when a result is opened (openHit) — not a phone search step per edit.
+  if (searchTabSpace(tabId) !== 'search') return
   const live = liveSearchState(tabId)
   commitSearchStep(tabId, searchSnapshot(live), searchSnapshot({ ...live, ...patch }), opts)
 }
 function patchSearchFilters(tabId: string, patch: Partial<SearchFilterState>) {
   const filters = { ...tabFilters(liveSearchState(tabId)), ...patch } as unknown as Record<string, unknown>
   commitSearch(tabId, { filters })
-  useAppStore.getState().updateTabState('search', tabId, { filters })
+  writeSearchState(tabId, { filters })
 }
 function resetSearchFilters(tabId: string) {
   commitSearch(tabId, { filters: {} })
-  useAppStore.getState().updateTabState('search', tabId, { filters: {} })
+  writeSearchState(tabId, { filters: {} })
 }
 /** Throttle for saving the result list's scroll offset into the tab. */
 const SCROLL_SAVE_MS = 250
@@ -99,15 +99,15 @@ const QUERY_COMMIT_MS = TYPING_SETTLE_MS
 export function SearchPage({ tab }: { tab: Tab }) {
   const sheets = useSheets()
   const tabId = tab.id
-  const st = tab.state as SearchTabState
+  // A desktop Advanced Scripture Search tab (synced) is shown here too, always Scripture-scoped.
+  const scriptureTab = isScriptureSearchTab(tab)
+  const st = (readSearchState(tab) ?? { query: '', results: [] }) as SearchTabState
   // Default: everything (SRCH-001) — a scope only narrows when the user picks one.
   const scope: Scope = st.scope ?? 'all'
-  const updateTabState = useAppStore((s) => s.updateTabState)
-  const renameTab = useAppStore((s) => s.renameTab)
-  const setScope = useCallback((v: Scope) => { commitSearch(tabId, { scope: v }); updateTabState('search', tabId, { scope: v }) }, [updateTabState, tabId])
+  const setScope = useCallback((v: Scope) => { commitSearch(tabId, { scope: v }); writeSearchState(tabId, { scope: v }) }, [tabId])
   const [query, setQuery] = useState(st.query ?? '')
   // The query as a committed history step: now (submit / a recent) or once typing settles.
-  const commitQuery = useCallback((q: string, submitted = false) => { commitSearch(tabId, { query: q }, { submitted }); if ((liveSearchState(tabId)?.query ?? '') !== q) updateTabState('search', tabId, { query: q }) }, [tabId, updateTabState])
+  const commitQuery = useCallback((q: string, submitted = false) => { commitSearch(tabId, { query: q }, { submitted }); if ((liveSearchState(tabId)?.query ?? '') !== q) writeSearchState(tabId, { query: q }) }, [tabId])
   useEffect(() => { markSearchCommitted(tabId, searchSnapshot(liveSearchState(tabId)), true) }, [tabId])
   useEffect(() => {
     const t = setTimeout(() => commitQuery(query), QUERY_COMMIT_MS)
@@ -135,7 +135,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
     let t: ReturnType<typeof setTimeout> | null = null
     const onScroll = () => {
       if (t) return
-      t = setTimeout(() => { t = null; useAppStore.getState().updateTabState('search', tabId, { scrollTop: Math.round(body.scrollTop) }) }, SCROLL_SAVE_MS)
+      t = setTimeout(() => { t = null; writeSearchState(tabId, { scrollTop: Math.round(body.scrollTop) }) }, SCROLL_SAVE_MS)
     }
     body.addEventListener('scroll', onScroll, { passive: true })
     return () => { body.removeEventListener('scroll', onScroll); if (t) clearTimeout(t) }
@@ -143,13 +143,15 @@ export function SearchPage({ tab }: { tab: Tab }) {
   // The typed query is saved into the tab (and names it) once typing pauses.
   useEffect(() => {
     const t = setTimeout(() => {
-      const q = query.trim()
-      if ((liveSearchState(tabId)?.query ?? '') !== query) updateTabState('search', tabId, { query })
-      renameTab('search', tabId, q ? `“${q}”` : 'Search')
+      if ((liveSearchState(tabId)?.query ?? '') !== query) writeSearchState(tabId, { query })
+      renameSearchTab(tabId, query)
     }, 400)
     return () => clearTimeout(t)
-  }, [query, tabId, updateTabState, renameTab])
-  const filters = tabFilters(st)
+  }, [query, tabId])
+  // Stable by content: a desktop Scripture Search tab's filters are re-derived from its fields on
+  // every render (searchTabBinding), and a fresh `books` array each time re-created `run` and
+  // rescheduled the debounced search forever — the page never searched.
+  const filters = useMemo(() => tabFilters(st), [filtersSig]) // eslint-disable-line react-hooks/exhaustive-deps
   const setFilters = useCallback((next: SearchFilterState | ((f: SearchFilterState) => SearchFilterState)) => {
     const cur = tabFilters(liveSearchState(tabId))
     patchSearchFilters(tabId, typeof next === 'function' ? next(cur) : next)
@@ -171,9 +173,9 @@ export function SearchPage({ tab }: { tab: Tab }) {
   const pendingSearchQuery = useAppStore((s) => s.pendingSearchQuery)
   const clearSearchQuery = useAppStore((s) => s.clearSearchQuery)
   useEffect(() => {
-    if (!pendingSearchQuery) return
+    if (!pendingSearchQuery || scriptureTab) return
     setScope('all'); setQuery(pendingSearchQuery); clearSearchQuery()
-  }, [pendingSearchQuery, clearSearchQuery])
+  }, [pendingSearchQuery, clearSearchQuery, scriptureTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The tag filter needs the tag list; App.tsx loads it at launch on desktop — make sure the
   // phone store has it too (idempotent, one query).
@@ -262,6 +264,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
     const q = query.trim()
     if (q) addRecent(q)
     const origin = { kind: 'search-result' as const, query: q || tagIds.map((id) => verseTags.find((t) => t.id === id)?.name ?? id).join(', ') }
+    if (scriptureTab && intent === 'current-tab') leaveScriptureSearch(tabId)
     openDestination({ kind: 'passage', bookId: h.book_id, chapter: h.chapter, verse: h.verse_num, textId: h.textId, highlight: { query: h.strongsWords || browsing ? undefined : q, wordMode, strongsWords: h.strongsWords } }, intent, { origin })
   }
 
@@ -327,10 +330,10 @@ export function SearchPage({ tab }: { tab: Tab }) {
     if (loading) return
     const t = setTimeout(() => {
       const cur = (liveSearchState(tabId) as (SearchTabState & { preview?: SearchPreviewSummary | null }) | undefined)?.preview ?? null
-      if (!samePreview(cur, previewSummary)) updateTabState('search', tabId, { preview: previewSummary } as unknown as Partial<SearchTabState>)
+      if (!samePreview(cur, previewSummary)) writeSearchState(tabId, { preview: previewSummary })
     }, 300)
     return () => clearTimeout(t)
-  }, [previewSummary, loading, tabId, updateTabState])
+  }, [previewSummary, loading, tabId])
 
   // Search's caret (T23-013): the filters live here now (no filter button in the header), in a
   // clear order — what to search, how to match, which texts / books / tags, how to sort. Values
@@ -379,7 +382,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
 
   return (
     <Page
-      title="Search"
+      title={scriptureTab ? 'Scripture Search' : 'Search'}
       right={<IconTap icon={MoreHorizontal} label="More search options" onClick={openOverflow} />}
       headerBelow={
         <>
@@ -390,7 +393,7 @@ export function SearchPage({ tab }: { tab: Tab }) {
               value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
             {query && <button type="button" className="mobile-search-clear" aria-label="Clear" onClick={() => setQuery('')}><X size={16} aria-hidden /></button>}
           </form>
-          <div className="mobile-search-scope"><Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as Scope)} /></div>
+          {!scriptureTab && <div className="mobile-search-scope"><Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as Scope)} /></div>}
           {scopeHasFilters(scope) && <FilterChips tabId={tabId} filters={filters} scope={scope} />}
         </>
       }
@@ -466,7 +469,7 @@ function snippetQueryFor(q: string): string { return /^[HG]\d+$/i.test(q) ? '' :
 
 /** Caret → Text: every text or one. Picking returns to the caret. */
 function SearchTextChoices({ tabId, api }: { tabId: string; api: SheetApi }) {
-  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
+  const f = useAppStore((s) => tabFilters(readSearchState(findSearchTab(tabId, s))))
   return (
     <ChoiceList api={api} value={f.textId}
       options={[{ id: 'all', label: 'All texts' }, ...TRANSLATIONS.map((t) => ({ id: t.id, label: t.label, detail: t.description }))]}
@@ -476,13 +479,13 @@ function SearchTextChoices({ tabId, api }: { tabId: string; api: SheetApi }) {
 
 /** Caret → Books: individual books, several at once (NEW-015; the shared BooksFilterView). */
 function SearchBooksFilter({ tabId }: { tabId: string }) {
-  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
+  const f = useAppStore((s) => tabFilters(readSearchState(findSearchTab(tabId, s))))
   return <BooksFilterView value={f.books} onChange={(ids) => patchSearchFilters(tabId, { books: ids })} />
 }
 
 /** Caret → Verse tags: narrow results to tagged verses (any / every tag). */
 function SearchTagsFilter({ tabId, api }: { tabId: string; api: SheetApi }) {
-  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
+  const f = useAppStore((s) => tabFilters(readSearchState(findSearchTab(tabId, s))))
   const verseTags = useAppStore((s) => s.verseTags)
   const openTagsGraph = useAppStore((s) => s.openTagsGraph)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
@@ -564,7 +567,7 @@ function FilterChips({ tabId, filters: f, scope }: { tabId: string; filters: Sea
  * typing H7225 / G3056 searches their occurrences.
  */
 function SearchFiltersSheet({ tabId, scope, api }: { tabId: string; scope: Scope; api: SheetApi }) {
-  const f = useAppStore((s) => tabFilters(s.tabs.search.find((t) => t.id === tabId)?.state as SearchTabState | undefined))
+  const f = useAppStore((s) => tabFilters(readSearchState(findSearchTab(tabId, s))))
   const count = activeFilterCount(f, scope)
   const scripture = scope === 'scripture'
   return (

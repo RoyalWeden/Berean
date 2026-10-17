@@ -27,6 +27,21 @@ public class BereanSpeechPlugin: CAPPlugin, CAPBridgedPlugin, AVSpeechSynthesize
         return s
     }()
     private var ids: [ObjectIdentifier: String] = [:]
+    private var voicesObserver: NSObjectProtocol?
+
+    /// A system voice downloaded (or deleted) in the Settings app while
+    /// Berean is running → `voicesChanged`, so the picker lists it without relaunching the app.
+    override public func load() {
+        voicesObserver = NotificationCenter.default.addObserver(
+            forName: AVSpeechSynthesizer.availableVoicesDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.notifyListeners("voicesChanged", data: [:])
+        }
+    }
+
+    deinit {
+        if let o = voicesObserver { NotificationCenter.default.removeObserver(o) }
+    }
 
     @objc func voices(_ call: CAPPluginCall) {
         let list = AVSpeechSynthesisVoice.speechVoices().map { v -> [String: Any] in

@@ -99,6 +99,21 @@ describe('NativeSpeechBackend', () => {
   })
 })
 
+describe('voice list refresh', () => {
+  it('re-reads the voices when iOS reports a voice was downloaded (no relaunch needed)', async () => {
+    const list = [{ id: 'ava', name: 'Ava', lang: 'en-US', quality: 'Enhanced' }]
+    const p = fakePlugin(list)
+    const vp = createNativeVoiceProvider(p)
+    const seen: string[][] = []
+    vp.subscribeVoices((v) => seen.push(v.map((x) => x.name)))
+    await tick(); await tick()
+    list.push({ id: 'zoe', name: 'Zoe', lang: 'en-US', quality: 'Premium' })
+    p.fire('voicesChanged', { id: '' })
+    await tick(); await tick()
+    expect(seen.at(-1)).toEqual(['Zoe', 'Ava'])
+  })
+})
+
 describe('curateIosVoices', () => {
   const v = (over: Partial<TTSVoiceOption>): TTSVoiceOption => ({ voiceURI: over.name ?? 'id', name: 'Voice', lang: 'en-US', tier: null, ...over })
 
@@ -129,9 +144,9 @@ describe('curateIosVoices', () => {
     expect(out.map((x) => x.name)).toEqual(['Karen', 'Ava', 'Zoe', 'Nathan'])
   })
 
-  it('caps the curated list at 6 voices', () => {
+  it('lists every installed high-quality English voice (no cap hiding a new download)', () => {
     const many = ['Ava', 'Zoe', 'Evan', 'Nathan', 'Karen', 'Daniel', 'Serena', 'Moira'].map((name) => v({ name, tier: 'Enhanced' }))
-    expect(curateIosVoices(many)).toHaveLength(6)
+    expect(curateIosVoices(many)).toHaveLength(8)
   })
 
   it('matches "Name (Enhanced)"-suffixed names against the novelty/preferred lists the same as the bare name', () => {

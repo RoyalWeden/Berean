@@ -80,7 +80,7 @@ inside `createNativeVoiceProvider` before the picker ever sees the list:
   `"Premium" | "Enhanced" | "Default"` (no Swift change was needed here — the data was already
   there; only the TS-side list was unfiltered).
 - **Ranked** Premium before Enhanced, then by a preferred-name list (Ava, Zoe, Evan, Nathan,
-  Samantha, Daniel, Serena), then alphabetically; **capped at 6**.
+  Samantha, Daniel, Serena), then alphabetically. (Originally capped at 6 — removed 2026-10-11, see the update below.)
 - **Empty-installed-voices fallback**: if the device has zero Premium/Enhanced English voices
   (a stock, never-touched iOS install), the picker shows the single best available English voice
   (any tier, novelty still excluded) plus a non-selectable explanatory row: "Download
@@ -129,3 +129,55 @@ is never treated as "the active voice."
    wrongly caught by the novelty name-match (e.g. a real voice literally named "Reed" or "Flo" if
    Apple ever reuses those as non-novelty names in a future iOS release — unlikely, but worth one
    glance at the actual list `voices()` returns on-device).
+
+## Update 2026-10-11 — Berean Voices on the iPhone (supersedes the decision above)
+
+Reported: "I don't see the settings thing for the voices… the download for the voice should be
+inside the app." Apple's Premium voices can only be downloaded in the Settings app (no API; the
+Open Settings button landed on Berean's own, voice-less Settings page), so the iPhone now uses
+the Mac's voices instead — **Berean Voices** (Kokoro), downloaded with one tap inside Berean.
+
+- **Where:** Settings → Read Aloud → Berean Voices (also the Voice list, the player's Voice view,
+  and a "Get Berean's natural voices" prompt in the player until installed). One tap downloads
+  ~341 MB (the Mac's files minus its WASM runtime) with progress and Cancel; Remove frees it.
+- **Download:** `BereanVoicePackPlugin.swift` fetches the files one at a time from Hugging Face
+  into `Application Support/Berean/tts-models/.download-tmp`, moves the folder into place and writes
+  `.manifest.json` last (never a half pack that reports ready), excluded from backup. Module-level
+  state (`src/platform/ios/voicePack.ts`) keeps the progress when the user leaves the screen. It
+  installs `window.ttsModel` (the Mac's contract), so the store's `kokoroModelReady` →
+  `activateKokoroBackend()` path is shared.
+- **Synthesis:** blocker 2 above was real — WASM in the WebView ran ~5 s for 3.5 s of speech on
+  the simulator. So the worker still phonemizes and tokenizes with kokoro-js (`new KokoroTTS(model,
+  tokenizer)` with a stand-in model), and the model runs natively on ONNX Runtime's multi-threaded
+  CPU engine (`synthesize`, SPM `onnxruntime-swift-package-manager` 1.24.2): ~1.4 s to start a
+  6–7 s sentence on the simulator. Blocker 1 needed no new scheme: the worker reads the files via
+  Capacitor's `_capacitor_file_` URLs (`modelBase.ts`).
+- **Offline, both apps:** kokoro-js fetched each voice's style file from Hugging Face at first use
+  (not from the downloaded pack). The worker now serves those requests from the pack — verified by
+  emptying one voice file on the simulator: that voice failed, others played.
+- **Engine switch:** download finished / voices removed while reading → the chapter carries on from
+  the same verse on the new engine (it used to leave the player "playing" with no sound).
+- A stored system-voice choice reads in Heart (the default Berean voice) once Berean Voices are on.
+- App size: ONNX Runtime is a ~40 MB static library before dead-stripping.
+- **Device-only:** real-iPhone speed and memory, reading with the screen locked (the WebView's
+  JavaScript drives each sentence), and the download over cellular / when leaving the app.
+
+## Earlier update 2026-10-11 — finding and getting better voices (superseded)
+
+Reported: "I don't see anywhere to get the better voices." The download hint above only appeared
+when the device had **zero** Premium/Enhanced English voices, and only as a row inside the Voice
+list; the voice list was read once per launch (a voice downloaded in Settings did not appear until
+Berean was relaunched); and the list was capped at 6, which could hide a voice just downloaded.
+
+- **Get Better Voices** (`src/mobile/audio/GetVoicesView.tsx`) is always reachable: Settings →
+  Read Aloud (row under Voice, and at the bottom of the Voice list) and the player's Voice view.
+  It lists the installed Premium/Enhanced voices, gives the exact path, and has **Open Settings**.
+- The path names **Read & Speak (or Spoken Content)** on iOS 26+ (both pages ship in 26.5 and 27.0 — the iOS 27 simulator shows Spoken Content), **Spoken Content**
+  before. The version comes from `BereanSpeechPlugin.voices()` (`osMajor`) because the WKWebView
+  user agent is frozen (it reports "iPhone OS 18_7" on iOS 27).
+- Apps cannot download Apple voices or deep-link to the Voices page (only private `App-prefs:` URLs
+  can, which App Review rejects), so Open Settings uses `UIApplication.openSettingsURLString`.
+- The list refreshes on `AVSpeechSynthesizer.availableVoicesDidChangeNotification` (plugin event
+  `voicesChanged`) and whenever Berean returns to the foreground. No cap on installed voices.
+- Not verifiable in the simulator: downloading a voice (the simulator cannot download voices) and
+  the live refresh after a real download — check on a physical iPhone.

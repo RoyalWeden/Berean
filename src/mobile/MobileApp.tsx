@@ -46,6 +46,7 @@ import { NotesHomePage } from './notes/NotesHomePage'
 import { pushNotesListHistory, currentNotesListState } from './notes/notesHistory'
 import { NoteEditorPage } from './notes/NoteEditorPage'
 import { CalendarTabPage } from './calendar/CalendarTabPage'
+import { isScriptureSearchTab } from './search/searchTabBinding'
 import { SearchPage } from './search/SearchPage'
 import { AudioBar } from './audio/AudioBar'
 import { useChromeScrollCollapse } from './primitives/useChromeScrollCollapse'
@@ -312,6 +313,9 @@ function NotesSpace() {
 
 function TabPage({ tab }: { tab: Tab }) {
   if (tab.spaceId === 'scripture' && tab.type === 'bible') {
+    // The desktop's Advanced Scripture Search (synced over iCloud) is a Scripture tab in search
+    // mode: it opens in Search, Scripture-scoped, reading/writing that tab's own search fields.
+    if (isScriptureSearchTab(tab)) return <ErrorBoundary label="search error"><SearchPage key={tab.id} tab={tab} /></ErrorBoundary>
     return (tab.state as { compareMode?: boolean }).compareMode ? <ComparePage tab={tab} /> : <ReaderPage tab={tab} />
   }
   // Interim hosts (documented in feature-matrix.md): the desktop panel's content, full width.

@@ -122,6 +122,36 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.7.3] - 2026-10-17
+
+### Read Aloud (iPhone)
+
+- Berean Voices on the iPhone: the same natural voices as Berean on the Mac, downloaded once with
+  one tap in Settings → Read Aloud → Berean Voices (about 340 MB, with progress and Cancel). After
+  that, Read Aloud works fully offline. Until they are downloaded, the iPhone's own voice reads,
+  and the player offers "Get Berean's natural voices".
+- Removing Berean Voices asks first, frees the space and keeps reading from the same verse in the
+  iPhone's voice. Finishing the download mid-chapter switches voices the same way, without
+  leaving the player stuck.
+- The Voice row and the player show the voice that is really reading, and the checkmark follows
+  your choice.
+- The Apple Settings instructions and the "Open Settings" button are gone; everything happens in
+  Berean.
+
+### Read Aloud (Mac)
+
+- Voices now read from the downloaded voice files instead of being fetched from the internet the
+  first time each one was used, so every voice works offline.
+
+### Search (iPhone)
+
+- Advanced Scripture Search tabs from the Mac open as searches on the iPhone (they used to show
+  Genesis 1), and edits made on either device carry over to the other.
+
+### Settings (iPhone)
+
+- The open Settings page is kept after a relaunch, and ‹ goes back again.
+
 ## [0.7.2] - 2026-10-11
 
 ### Notes

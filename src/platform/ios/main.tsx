@@ -12,9 +12,11 @@ import { installIosLiquidGlass } from './liquidGlass'
 import { applyLiquidGlassTokens, loadLiquidGlassCapabilities } from '../liquidGlass'
 import { perfMark } from './perf'
 import { installDevProbe } from './devProbe'
-import { setActiveTTSBackend } from '../../lib/tts/ttsEngine'
+import { setActiveTTSBackend, ttsEngine } from '../../lib/tts/ttsEngine'
+import { installIosVoicePack, refreshVoicePack } from './voicePack'
 import { NativeSpeechBackend, createNativeVoiceProvider } from '../../lib/tts/nativeSpeechBackend'
 import { BereanSpeech } from './plugins'
+import { useAppStore } from '../../store'
 import MobileApp, { applyInitialMobileAppearance } from '../../mobile/MobileApp'
 import '../../styles/global.css'
 import '../../styles/glass.css'
@@ -61,7 +63,17 @@ async function boot() {
     void installIosSpotlight()   // notes searchable from the home screen; results are deep links
     installIosShareInbox()       // "Open in Berean": items the Share Extension left in the App Group
     // Read Aloud: the system speech synthesiser implements the shared TTSBackend on the phone.
-    setActiveTTSBackend(new NativeSpeechBackend(BereanSpeech), createNativeVoiceProvider(BereanSpeech))
+    // Once Berean's own voices are downloaded (voicePack.ts) the Kokoro engine takes over — the
+    // store's kokoroModelReady → activateKokoroBackend(), same as the Mac — and removing them
+    // hands Read Aloud back to the system voices.
+    const nativeBackend = new NativeSpeechBackend(BereanSpeech)
+    const nativeVoices = createNativeVoiceProvider(BereanSpeech)
+    setActiveTTSBackend(nativeBackend, nativeVoices)
+    installIosVoicePack()
+    useAppStore.subscribe((st, prev) => {
+      if (prev.kokoroModelReady && !st.kokoroModelReady) { ttsEngine.stop(); setActiveTTSBackend(nativeBackend, nativeVoices) }
+    })
+    void refreshVoicePack()
     perfMark('boot:render')
     root.render(
       <React.StrictMode>

@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Timer, ListMusic, Square, LocateFixed, Eye, EyeOff, AudioLines, Check } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Timer, ListMusic, Square, LocateFixed, Eye, EyeOff, AudioLines, Check, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
-import { getVoices, subscribeVoices, type TTSVoiceOption } from '@/lib/tts/ttsEngine'
 import { useChapterProgress } from '@/hooks/useChapterProgress'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
@@ -12,6 +11,8 @@ import { requestMore } from '../navigation/shellNav'
 import { useAudioControlsHidden, setAudioControlsHidden, nextSpeed, speedLabel, verseProgressLabel } from './audioControls'
 import { useSleepTimer, setSleepTimer, sleepStatusLabel, sleepPresetId, SLEEP_PRESETS } from './sleepTimer'
 import { useAudioFollowPaused, resumeAudioFollow } from './followState'
+import { GetVoicesView, useVoicePack, voicePackSubtitle } from './GetVoicesView'
+import { useActiveVoice } from '../settings/AudioSettingsPage'
 
 /** Sheet id of the audio sheet (the floating controls check it). */
 export const AUDIO_SHEET_ID = 'audio'
@@ -32,10 +33,6 @@ function useNowWhile(active: boolean): number {
   return now
 }
 
-function voiceName(voiceURI: string | null, voices: TTSVoiceOption[]): string {
-  if (!voiceURI) return 'Default voice'
-  return voices.find((v) => v.voiceURI === voiceURI)?.name ?? 'Default voice'
-}
 
 /**
  * The audio sheet (TEST25-AUDIO-003): what is being read and from which edition / voice, the
@@ -52,20 +49,19 @@ export function AudioSheet({ api }: { api: SheetApi }) {
   const stopPlayback = useAppStore((s) => s.stopPlayback)
   const rate = useAppStore((s) => s.ttsRate)
   const setRate = useAppStore((s) => s.setTTSRate)
-  const voiceURI = useAppStore((s) => s.ttsVoiceURI)
+  const { active: activeVoice } = useActiveVoice()
+  const berean = useAppStore((s) => s.kokoroModelReady)
   const hidden = useAudioControlsHidden()
   const followPaused = useAudioFollowPaused()
   const sleep = useSleepTimer()
   const now = useNowWhile(sleep.mode === 'time')
-  const [voices, setVoices] = useState<TTSVoiceOption[]>(() => getVoices())
-  useEffect(() => subscribeVoices(setVoices), [])
   const { verses, currentIdx } = useChapterProgress(playback?.bookId ?? '', playback?.chapter ?? 0, playback?.textId ?? 'kjva', playback?.verse ?? 0, playback?.endVerse ?? null)
   const [draft, setDraft] = useState<number | null>(null)
   if (!playback) return <div className="mobile-empty">Nothing is playing.</div>
 
   const playing = playback.isPlaying && !playback.isPaused
   const title = bookChapterVerseLabel(playback.bookId, playback.chapter)
-  const source = `${playback.textId.toUpperCase()} · ${voiceName(voiceURI, voices)}`
+  const source = `${playback.textId.toUpperCase()} · ${activeVoice?.name ?? 'Default voice'}`
   const idx = draft ?? currentIdx
   const shownVerse = verses?.[idx]?.verse_num ?? playback.verse
   const progress = verseProgressLabel(shownVerse, verses?.length ? verses[verses.length - 1].verse_num : null)
@@ -82,6 +78,11 @@ export function AudioSheet({ api }: { api: SheetApi }) {
       <div className="m-audio-sheet-head">
         <div className="m-audio-sheet-title" aria-live="polite">{title}</div>
         <div className="m-audio-sheet-source">{source}{playback.finished ? ' · Finished' : ''}</div>
+        {!berean && (
+          <button type="button" className="m-audio-voice-hint" onClick={() => api.push({ key: 'get-voices', title: 'Berean Voices', render: () => <GetVoicesView /> })}>
+            <Sparkles size={14} aria-hidden />Get Berean’s natural voices
+          </button>
+        )}
       </div>
 
       <div className="m-audio-progress">
@@ -125,7 +126,7 @@ export function AudioSheet({ api }: { api: SheetApi }) {
           <LocateFixed size={16} aria-hidden />Follow reading
         </button>
         <button type="button" className="m-audio-link" onClick={() => { api.close(); requestMore('queue') }}><ListMusic size={16} aria-hidden />Queue</button>
-        <button type="button" className="m-audio-link" onClick={() => api.push({ key: 'voice', title: 'Voice', render: () => <VoiceView /> })}><AudioLines size={16} aria-hidden />Voice</button>
+        <button type="button" className="m-audio-link" onClick={() => api.push({ key: 'voice', title: 'Voice', render: () => <VoiceView api={api} /> })}><AudioLines size={16} aria-hidden />Voice</button>
         <button type="button" className="m-audio-link is-destructive" onClick={() => { void haptic.light(); api.close(); stopPlayback() }}><Square size={14} fill="currentColor" aria-hidden />Stop</button>
       </div>
     </div>
@@ -149,24 +150,29 @@ function SleepTimerView() {
   )
 }
 
-function VoiceView() {
-  const voiceURI = useAppStore((s) => s.ttsVoiceURI)
+function VoiceView({ api }: { api: SheetApi }) {
   const setVoice = useAppStore((s) => s.setTTSVoiceURI)
   const autoAdvance = useAppStore((s) => s.ttsAutoAdvanceEnabled)
   const setAutoAdvance = useAppStore((s) => s.setTTSAutoAdvanceEnabled)
-  const [voices, setVoices] = useState<TTSVoiceOption[]>(() => getVoices())
-  useEffect(() => subscribeVoices(setVoices), [])
-  const english = voices.filter((v) => v.lang.toLowerCase().startsWith('en'))
-  const shown = english.length ? english : voices
+  const { selectable, active, bereanList, ttsVoiceURI: voiceURI } = useActiveVoice()
+  const pack = useVoicePack()
+  const english = selectable.filter((v) => v.lang.toLowerCase().startsWith('en'))
+  const shown = english.length ? english : selectable
   return (
     <div className="m-audio-subview">
-      <div className="mobile-option-row"><span>Auto-advance to the next chapter</span><Toggle checked={autoAdvance} onChange={setAutoAdvance} label="Auto-advance" /></div>
-      <ListSection title="Voice">
-        <Row title="System default" right={voiceURI === null ? <Check size={18} aria-label="Selected" /> : undefined} onClick={() => setVoice(null)} />
-        {shown.map((v) => <Row key={v.voiceURI} title={v.name} subtitle={`${v.lang}${v.tier ? ` · ${v.tier}` : ''}`} right={voiceURI === v.voiceURI ? <Check size={18} aria-label="Selected" /> : undefined} onClick={() => setVoice(v.voiceURI)} />)}
+      {/* First, not after a long list (TEST 2026-10-11: the way to better voices wasn't found). */}
+      <ListSection>
+        <Row leading={<Sparkles size={18} aria-hidden />} title="Berean Voices" subtitle={voicePackSubtitle(pack)} chevron onClick={() => api.push({ key: 'get-voices', title: 'Berean Voices', render: () => <GetVoicesView /> })} />
+      </ListSection>
+      <ListSection>
+        <Row title="Auto-advance to the next chapter" right={<Toggle checked={autoAdvance} onChange={setAutoAdvance} label="Auto-advance" />} />
+      </ListSection>
+      <ListSection title={bereanList ? 'Berean Voices' : 'iPhone voices'}>
+        {!bereanList && <Row title="System default" right={voiceURI === null ? <Check size={18} aria-label="Selected" /> : undefined} onClick={() => setVoice(null)} />}
+        {shown.map((v) => <Row key={v.voiceURI} title={v.name} subtitle={`${v.lang}${v.tier ? ` · ${v.tier}` : ''}`} right={active?.voiceURI === v.voiceURI ? <Check size={18} aria-label="Selected" /> : undefined} onClick={() => setVoice(v.voiceURI)} />)}
         {shown.length === 0 && <div className="mobile-empty">No voices reported yet — iOS lists them once speech has started.</div>}
       </ListSection>
-      <p className="mobile-muted m-audio-footnote">Voices come from iOS (Settings → Accessibility → Spoken Content → Voices to download more). The Mac's Kokoro neural voices are not available on the phone yet — see the feature matrix.</p>
+
     </div>
   )
 }

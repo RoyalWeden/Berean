@@ -52,6 +52,8 @@
 .m-audio-sheet-head { text-align: center; }
 .m-audio-sheet-title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: rgb(var(--color-text-primary)); }
 .m-audio-sheet-source { margin-top: 3px; font-size: 13px; color: rgb(var(--color-text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-audio-voice-hint { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 5px 11px; border: 0; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.12); }
+.m-audio-voice-hint:active { opacity: 0.6; }
 
 .m-audio-progress { display: flex; flex-direction: column; gap: 6px; }
 .m-audio-slider {

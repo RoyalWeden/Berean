@@ -19,6 +19,7 @@ class BereanBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(BereanCloudPlugin())
         bridge?.registerPluginInstance(BereanAudioPlugin())
         bridge?.registerPluginInstance(BereanSpeechPlugin())
+        bridge?.registerPluginInstance(BereanVoicePackPlugin())
         bridge?.registerPluginInstance(BereanWebViewPlugin())
         bridge?.registerPluginInstance(BereanDownloadsPlugin())
         bridge?.registerPluginInstance(BereanPrintPlugin())
