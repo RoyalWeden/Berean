@@ -8,11 +8,19 @@
  */
 import { useAppStore } from '@/store'
 import { ttsEngine, getVoices } from '@/lib/tts/ttsEngine'
+import { perfMarks } from './perf'
 
 export function installDevProbe(): void {
   if (import.meta.env.VITE_E2E_PROBE !== '1') return
   ;(window as unknown as { __bereanStore: typeof useAppStore }).__bereanStore = useAppStore
   ;(window as unknown as { __bereanTTS: unknown }).__bereanTTS = { ttsEngine, getVoices }
+  // Boot profiling: the boot marks, and every main-thread stall > 80 ms from the first moment the
+  // bundle runs (a probe connection comes too late to see the first seconds of launch).
+  const w = window as unknown as { __perfMarks: unknown; __bootGaps: Array<[number, number]> }
+  w.__perfMarks = perfMarks
+  w.__bootGaps = []
+  let last = performance.now()
+  const iv = setInterval(() => { const t = performance.now(); if (t - last > 80) w.__bootGaps.push([Math.round(last), Math.round(t - last)]); last = t; if (t > 60000) clearInterval(iv) }, 16)
   const base = 'http://127.0.0.1:9555'
   const tick = async () => {
     try {

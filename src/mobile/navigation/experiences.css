@@ -58,3 +58,18 @@ html.scheme-dark .m-tabswitch-item { background: rgb(var(--color-surface-3) / 0.
 html.scheme-dark .m-tabswitch-menu .m-tabswitch-item { background: none; }
 html[data-reduce-transparency] .m-tabswitch-menu { background: rgb(var(--color-surface-2)); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html[data-contrast="more"] .m-tabswitch-menu { background: rgb(var(--color-surface-2) / 0.98); border-color: rgb(var(--color-text-muted) / 0.7); }
+
+/* Berean Chat full-screen cover (chatOverlay.tsx): above the bottom bar, the grid and the audio
+   button (≤ 30) — so their native glass sees itself covered and hides — below sheets (100+) and
+   popover menus (140), which the chat page opens over itself. */
+/* Transparent: Chat's pages carry their own background, so a left-edge swipe on the list reveals
+   the actual tab underneath (like popping back to it). */
+.m-chat-cover { position: fixed; inset: 0; z-index: 60; background: transparent; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgb(0 0 0 / 0.18); }
+.m-chat-cover > .mobile-page { flex: 1; min-height: 0; }
+/* Chat runs its own NavigationStack; in flow so the keyboard padding below still applies. */
+.m-chat-cover > .mobile-nav-stack { position: relative; inset: auto; flex: 1; min-height: 0; background: transparent; }
+/* With the keyboard up the cover ends at the keyboard, so the composer sits right above it (the
+   web view does not resize for the keyboard — the shell publishes its height as --m-keyboard-h). */
+html[data-keyboard] .m-chat-cover { padding-bottom: var(--m-keyboard-h, 0px); }
+html[data-keyboard] .m-chat-cover .m-chat-composer-wrap { padding-bottom: 8px; }
+.m-tabswitch-sep { height: 0.5px; margin: 4px 10px; background: var(--m-separator); }

@@ -105,6 +105,21 @@ const SHORTCUT_GROUPS = [
     ],
   },
   {
+    label: 'Berean Chat',
+    shortcuts: [
+      { key: '↵', action: 'Send message' },
+      { key: '⇧↵', action: 'New line / new list item' },
+      { key: '⌘↵', action: 'Send as Ask Berean' },
+      { key: '⌘B / ⌘I / ⌘U', action: 'Bold / Italic / Underline' },
+      { key: '⌘⇧X / ⌘E', action: 'Strikethrough / Inline code' },
+      { key: '⌘K', action: 'Add link' },
+      { key: '⌘N', action: 'New conversation (Chat window)' },
+      { key: '⌘F', action: 'Search messages' },
+      { key: '⌃⌘S', action: 'Show / hide the conversation sidebar (Chat window)' },
+      { key: 'Esc', action: 'Cancel edit / turn off Ask Berean / collapse the message field' },
+    ],
+  },
+  {
     label: 'Lexicon',
     shortcuts: [
       { key: '⌘F', action: 'Find text in lexicon entry' },

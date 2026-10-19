@@ -1,3 +1,4 @@
+import { perfMark } from './perf'
 import { createServiceEvents, consoleLogger, defaultUuid, type ServiceContext } from '../services/context'
 import { createServices, type Services } from '../services'
 import { runMigrations } from '../db/bereanMigrations'
@@ -105,11 +106,23 @@ export async function initIosServices(): Promise<Services> {
     // Runs in the BACKGROUND (perf pass 2026-10-05): it used to be awaited here, so a new seed
     // version delayed the first Scripture paint by the whole merge. The adapter queues every
     // outside statement behind the merge's transaction, so a YouTube read during it just waits.
+    // Perf pass 2026-10-17: it ran (attach + detach of the 7 MB index on berean.db's connection,
+    // ~0.7 s) on EVERY launch even when already merged, right when the notes and the first chapter
+    // were queued behind it on the same connection. Now: a few seconds after launch, and only if
+    // the bundled seed is newer — read through its own read-only connection, never blocking berean.db.
     void (async () => {
       try {
+        await new Promise((r) => setTimeout(r, 4000))
         const info = await BereanSQLite.fileInfo({ path: bundlePath('youtube_index.db') })
         if (info.exists) {
+          const idx = await openBundled('youtube_index.db', 'youtube_index')
+          const bundled = Number((await idx?.get<{ value: string }>("SELECT value FROM meta WHERE key = 'seed_version'").catch(() => undefined))?.value ?? 0)
+          await idx?.close().catch(() => {})
+          const merged = Number(JSON.parse((await userDb.get<{ value: string }>("SELECT value FROM settings WHERE key = 'youtubeSeedVersion'"))?.value ?? '0'))
+          if (bundled && merged >= bundled) return
+          perfMark('youtube-merge:start')
           const r = await mergeYoutubeIndex(userDb, bundlePath('youtube_index.db'))
+          perfMark('youtube-merge:done')
           if (r.merged) console.log(`[ios-services] youtube index merged (seed v${r.seedVersion})`)
         } else console.warn('[ios-services] youtube_index.db not bundled — run scripts/data/split-youtube-seed.mjs')
       } catch (err) { console.warn('[ios-services] youtube index merge failed', err) }

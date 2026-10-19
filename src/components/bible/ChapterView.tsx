@@ -1,11 +1,12 @@
 import { verseMatchesFind } from '@/lib/scriptureFind'
 import { isAudioFollowPaused } from '@/mobile/audio/followState'
-import { useState, useEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
+import { perfMark, markInteractiveWhenIdle } from '@/lib/perfMarks'
 import { flushSync, createPortal } from 'react-dom'
 // Aliased away from the design system's `Tooltip` (@/components/ui/Tooltip) — only used here
 // as the shared per-chapter Radix Provider for StrongsTooltip.tsx's rich hover cards.
 import * as RadixTooltip from '@radix-ui/react-tooltip'
-import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2, ListChecks } from 'lucide-react'
+import { Copy, X, BookOpen, ChevronDown, Link2, ListChecks } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { MenuSurface, MenuItem, MenuSeparator, EmptyState, RefChip, SectionLabel, Tooltip, ColorSwatchRow } from '@/components/ui'
 import { versesSpanned } from '@/lib/verseSelection'
@@ -485,6 +486,8 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const pendingViewTransitionRef = useRef<{ finished: Promise<unknown>; skipTransition: () => void } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const versesRef = useRef(verses)
+  // Startup benchmark (src/lib/perfMarks.ts): the first chapter on screen is the first useful content.
+  useLayoutEffect(() => { if (verses.length) { perfMark('scripture-visible'); markInteractiveWhenIdle() } }, [verses.length > 0]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { versesRef.current = verses }, [verses])
 
   // Psalm superscription → faint title line above the first body verse (see psalmSuperscription.ts).
@@ -1130,23 +1133,6 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
     setMultiToolbar(null)
   }
 
-  async function addRangeNote() {
-    if (!multiToolbar) return
-    const vns = multiToolbar.verseNums
-    const bName = bookName(bookId)
-    const lxxSuffix = textId === 'lxx' ? ' LXX' : ''
-    const title = `${bName} ${chapter}:${vns[0]}-${vns[vns.length - 1]}${lxxSuffix}`
-    const verseRef = `${bookId}.${chapter}.${vns[0]}`
-    const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '', textId: textId ?? 'kjva' })
-    window.getSelection()?.removeAllRanges()
-    setMultiToolbar(null)
-    if (result.success && result.note) {
-      bumpNoteToken()
-      ensureTab('note')
-      requestOpenNote(result.note.id)
-    }
-  }
-
   // Only show the skeleton on a genuine first load (no verses at all yet) — reusing it for
   // every chapter/translation switch is what caused the "flash" some switches showed: the
   // query (a local SQLite read) usually resolves within a frame or two, so the skeleton would
@@ -1425,15 +1411,11 @@ const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
             shortcut="⌘⇧C"
             onClick={copyText}
           />
-          <MenuSeparator />
-          {/* A verse note anchors to one verse — the same rule as a multi-verse number
-              selection (TEST-007, selectionAllows 'add-note'): shown disabled with the reason. */}
-          <MenuItem
-            icon={NotepadText}
-            label="Add note (select a single verse)"
-            disabled
-            onClick={addRangeNote}
-          />
+          {/* No "Add note" here: a verse note anchors to ONE verse (TEST-007, selectionAllows
+              'add-note') and this toolbar only ever opens for a selection spanning ≥2 verses, so
+              the item could only ever be a disabled hint — Michael asked for it gone
+              (TEST 2026-10-17). A single-verse text selection gets VerseRow's own toolbar, which
+              keeps "Add note to verse". */}
           </MenuSurface>
         </MenuPositioner>,
         document.body,

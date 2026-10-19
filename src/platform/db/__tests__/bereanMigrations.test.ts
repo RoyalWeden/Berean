@@ -25,7 +25,7 @@ describe('bereanMigrations (shared runner)', () => {
     const versions = BEREAN_MIGRATIONS.map((m) => m.version)
     expect(versions[0]).toBe(1)
     expect(versions).not.toContain(18)
-    expect(BEREAN_SCHEMA_VERSION).toBe(47)
+    expect(BEREAN_SCHEMA_VERSION).toBe(48)
     // strictly increasing
     for (let i = 1; i < versions.length; i++) expect(versions[i]).toBeGreaterThan(versions[i - 1])
   })
@@ -34,7 +34,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     const applied = await runMigrations(db)
     expect(applied.length).toBe(BEREAN_MIGRATIONS.length)
-    expect(await currentSchemaVersion(db)).toBe(47)
+    expect(await currentSchemaVersion(db)).toBe(48)
     const names = await tableNames(db)
     for (const t of EXPECTED_TABLES) expect(names, `missing table ${t}`).toContain(t)
     // v1 seeded defaults are present and JSON-encoded
@@ -71,7 +71,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     await runMigrations(db)
     expect(await runMigrations(db)).toEqual([])
-    expect(await currentSchemaVersion(db)).toBe(47)
+    expect(await currentSchemaVersion(db)).toBe(48)
   })
 
   it('upgrades a database left at an intermediate version', async () => {
@@ -82,7 +82,7 @@ describe('bereanMigrations (shared runner)', () => {
     await db.run("INSERT INTO notes (id, title, content, created_at, updated_at, tags) VALUES ('n1', 'Old', 'kept', 1, 1, '[]')")
     const applied = await runMigrations(db)
     expect(applied[0]).toBe(21)
-    expect(await currentSchemaVersion(db)).toBe(47)
+    expect(await currentSchemaVersion(db)).toBe(48)
     expect(await db.get('SELECT title FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Old' })
   })
 

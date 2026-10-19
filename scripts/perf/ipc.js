@@ -1,0 +1,21 @@
+const T = async (name, fn, n = 8) => { const xs = []; for (let i = 0; i < n; i++) { const t0 = performance.now(); await fn(i); xs.push(performance.now() - t0) } xs.sort((a, b) => a - b); return [name, +xs[Math.floor((n - 1) / 2)].toFixed(1), +xs[n - 1].toFixed(1)] }
+const books = ['GEN', 'PSA', 'ISA', 'MAT', 'JHN', 'ROM', 'REV', 'LEV']
+const out = []
+out.push(await T('bible.queryChapter (varied)', (i) => window.bible.queryChapter(books[i], 3 + i)))
+out.push(await T('bible.queryChapter (same)', () => window.bible.queryChapter('JHN', 3)))
+out.push(await T('bible.searchText grace', () => window.bible.searchText('grace')))
+out.push(await T('bible.searchText the', () => window.bible.searchText('the'), 4))
+out.push(await T('notes.getNotes(all)', () => window.notes.getNotes()))
+out.push(await T('notes.getChapterNotes', (i) => window.notes.getChapterNotes(books[i], 1)))
+out.push(await T('notes.getChapterCounts', (i) => window.notes.getChapterCounts(books[i], 1)))
+out.push(await T('notes.searchNotes faith', () => window.notes.searchNotes('faith')))
+out.push(await T('highlights.getChapter', (i) => window.highlights.getChapter(books[i], 1)))
+out.push(await T('crossrefs.getForChapter', (i) => window.crossrefs.getForChapter(books[i], 1)))
+out.push(await T('verseTags.getForChapter', (i) => window.verseTags.getForChapter(books[i], 1)))
+out.push(await T('aiLookup.listChats (346)', () => window.aiLookup.listChats()))
+out.push(await T('aiLookup.getChat long (600)', async () => { const l = await window.aiLookup.listChats(); const id = l.find((c) => c.title.startsWith('Perf long'))?.id; return id && window.aiLookup.getChat(id) }, 4))
+out.push(await T('aiLookup.queryMessages page', () => window.aiLookup.queryMessages({ limit: 80 })))
+out.push(await T('aiLookup.listDays', () => window.aiLookup.listDays()))
+out.push(await T('lexicon.getEntry', () => window.lexicon.getEntry('G5485')))
+out.push(await T('ipc roundtrip (settings.get)', () => window.settings.get('icloudSyncEnabled')))
+return out.map((r) => r.join(' | '))

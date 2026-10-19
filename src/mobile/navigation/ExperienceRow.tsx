@@ -1,5 +1,5 @@
 import React from 'react'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, MessagesSquare } from 'lucide-react'
 import { haptic } from '../primitives/haptics'
 import { useLongPress } from '../primitives/useLongPress'
 import { useCalendarOverlay } from '../calendar/CalendarOverlay'
@@ -12,13 +12,15 @@ import './experiences.css'
  * Labels are just the name ("Notes", "Settings") — what happens is said by the surface and by
  * VoiceOver ("Change this tab to Notes" / "New Notes tab").
  */
-export function ExperienceRow({ items, target, onDone, onMore, label }: {
+export function ExperienceRow({ items, target, onDone, onMore, onChat, label }: {
   items: ExperienceId[]
   target: 'current-tab' | 'new-tab'
   /** Runs before the destination (close the sheet). */
   onDone?: () => void
   /** Plus sheet: a trailing More tile. */
   onMore?: () => void
+  /** Plus sheet: a Chat tile (Berean Chat opens over the tab — not a new tab). */
+  onChat?: () => void
   label?: string
 }) {
   const go = (id: ExperienceId) => { void haptic.light(); onDone?.(); runExperience(id, target) }
@@ -32,6 +34,12 @@ export function ExperienceRow({ items, target, onDone, onMore, label }: {
           // Calendar: a long press opens the contextual calendar over this tab (SEP27-CAL-006).
           onLongPress={id === 'calendar' ? () => { void haptic.medium(); onDone?.(); openCalendar() } : undefined} />
       })}
+      {onChat && (
+        <button type="button" className="m-exp-tile" onClick={() => { void haptic.light(); onChat() }} aria-label="Open Berean Chat">
+          <MessagesSquare size={21} aria-hidden />
+          <span aria-hidden>Chat</span>
+        </button>
+      )}
       {onMore && (
         <button type="button" className="m-exp-tile is-more" onClick={() => { void haptic.light(); onMore() }} aria-label="More — study trail, tags, queue, PDFs, sessions">
           <MoreHorizontal size={21} aria-hidden />

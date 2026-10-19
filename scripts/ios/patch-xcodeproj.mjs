@@ -20,6 +20,9 @@
  * 10. a "Berean Dev safety check" run-script phase FIRST in the App target
  *     (scripts/ios/dev-safety-check.sh): a Debug build that is not Berean Dev fails before anything
  *     is compiled or installed, so Xcode ▶ Run can never put com.berean.app on an iPhone.
+ * 11. the BereanWidget WidgetKit extension (ios/App/BereanWidget: "New Message" → Berean Chat),
+ *     embedded in the App target like the Share Extension; bundle id `$(BEREAN_BUNDLE_ID).widget`
+ *     and URL scheme from the same identity xcconfigs, so Dev and production never cross.
  *
  * Run: node scripts/ios/patch-xcodeproj.mjs   (also invoked by `npm run ios:sync`)
  */
@@ -66,6 +69,22 @@ const ID = {
   privacyBuildFile: 'BE4EA0000000000000000F19',
   // Berean Dev safety check (step 10)
   devSafetyPhase: 'BE4EA0000000000000000F20',
+  // BereanWidget extension (step 11)
+  widgetTarget: 'BE4EA0000000000000000E01',
+  widgetProduct: 'BE4EA0000000000000000E02',
+  widgetGroup: 'BE4EA0000000000000000E03',
+  widgetSrcRef: 'BE4EA0000000000000000E04',
+  widgetSrcBuild: 'BE4EA0000000000000000E05',
+  widgetPlistRef: 'BE4EA0000000000000000E06',
+  widgetSourcesPhase: 'BE4EA0000000000000000E07',
+  widgetFrameworksPhase: 'BE4EA0000000000000000E08',
+  widgetResourcesPhase: 'BE4EA0000000000000000E09',
+  widgetConfigList: 'BE4EA0000000000000000E10',
+  widgetDebugConfig: 'BE4EA0000000000000000E11',
+  widgetReleaseConfig: 'BE4EA0000000000000000E12',
+  widgetEmbedBuildFile: 'BE4EA0000000000000000E13',
+  widgetDependency: 'BE4EA0000000000000000E14',
+  widgetContainerProxy: 'BE4EA0000000000000000E15',
 }
 const TARGET_ID = '504EC3031FED79650016851F'
 const APP_GROUP_ID = '504EC3061FED79650016851F'
@@ -268,6 +287,64 @@ if (!s.includes(ID.devSafetyPhase)) {
   const phase = `\t\t${ID.devSafetyPhase} /* Berean Dev safety check */ = {\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = "Berean Dev safety check";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = "\\"$SRCROOT/../../scripts/ios/dev-safety-check.sh\\"\\n";\n\t\t};\n`
   insertAfter('/* Begin PBXShellScriptBuildPhase section */\n', phase)
   replaceOnce(`\t\t\tbuildPhases = (\n\t\t\t\t${SOURCES_PHASE_ID} /* Sources */,\n`, `\t\t\tbuildPhases = (\n\t\t\t\t${ID.devSafetyPhase} /* Berean Dev safety check */,\n\t\t\t\t${SOURCES_PHASE_ID} /* Sources */,\n`)
+}
+
+// 11. BereanWidget (WidgetKit) extension target ---------------------------------------------------
+if (!s.includes(ID.widgetTarget)) {
+  const PROJECT_ID = '504EC2FC1FED79650016851F'
+  const PRODUCTS_GROUP_ID = '504EC3051FED79650016851F'
+  const cfg = (id, name, extra) => `\t\t${id} /* ${name} */ = {\n\t\t\tisa = XCBuildConfiguration;\n` +
+    `\t\t\tbaseConfigurationReference = ${name === 'Debug' ? ID.debugXcconfig : ID.releaseXcconfig} /* Berean${name}.xcconfig */;\n\t\t\tbuildSettings = {\n` +
+    `\t\t\t\tASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";\n\t\t\t\tCODE_SIGN_STYLE = Automatic;\n` +
+    `\t\t\t\tDEVELOPMENT_TEAM = "$(BEREAN_TEAM_ID)";\n` +
+    `\t\t\t\tGENERATE_INFOPLIST_FILE = NO;\n\t\t\t\tINFOPLIST_FILE = BereanWidget/Info.plist;\n` +
+    `\t\t\t\tLD_RUNPATH_SEARCH_PATHS = (\n\t\t\t\t\t"$(inherited)",\n\t\t\t\t\t"@executable_path/Frameworks",\n\t\t\t\t\t"@executable_path/../../Frameworks",\n\t\t\t\t);\n` +
+    `\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = "$(BEREAN_BUNDLE_ID).widget";\n\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";\n` +
+    `\t\t\t\tSKIP_INSTALL = YES;\n\t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;\n${extra}\t\t\t};\n\t\t\tname = ${name};\n\t\t};\n`
+  insertAfter('/* Begin PBXFileReference section */\n',
+    `\t\t${ID.widgetProduct} /* BereanWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BereanWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };\n` +
+    `\t\t${ID.widgetSrcRef} /* BereanChatWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BereanChatWidget.swift; sourceTree = "<group>"; };\n` +
+    `\t\t${ID.widgetPlistRef} /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };\n`)
+  insertAfter('/* Begin PBXBuildFile section */\n',
+    `\t\t${ID.widgetSrcBuild} /* BereanChatWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ID.widgetSrcRef} /* BereanChatWidget.swift */; };\n` +
+    `\t\t${ID.widgetEmbedBuildFile} /* BereanWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ${ID.widgetProduct} /* BereanWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };\n`)
+  insertAfter('/* Begin PBXGroup section */\n',
+    `\t\t${ID.widgetGroup} /* BereanWidget */ = {\n\t\t\tisa = PBXGroup;\n\t\t\tchildren = (\n\t\t\t\t${ID.widgetSrcRef} /* BereanChatWidget.swift */,\n\t\t\t\t${ID.widgetPlistRef} /* Info.plist */,\n\t\t\t);\n\t\t\tpath = BereanWidget;\n\t\t\tsourceTree = "<group>";\n\t\t};\n`)
+  {
+    const root = s.indexOf(`${ROOT_GROUP_ID} = {`)
+    const ch = s.indexOf('children = (\n', root)
+    s = s.slice(0, ch + 'children = (\n'.length) + `\t\t\t\t${ID.widgetGroup} /* BereanWidget */,\n` + s.slice(ch + 'children = (\n'.length)
+    const pg = s.indexOf(`${PRODUCTS_GROUP_ID} /* Products */ = {`)
+    const pch = s.indexOf('children = (\n', pg)
+    s = s.slice(0, pch + 'children = (\n'.length) + `\t\t\t\t${ID.widgetProduct} /* BereanWidget.appex */,\n` + s.slice(pch + 'children = (\n'.length)
+  }
+  insertAfter('/* Begin PBXSourcesBuildPhase section */\n',
+    `\t\t${ID.widgetSourcesPhase} /* Sources */ = {\n\t\t\tisa = PBXSourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t\t${ID.widgetSrcBuild} /* BereanChatWidget.swift in Sources */,\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n`)
+  insertAfter('/* Begin PBXFrameworksBuildPhase section */\n',
+    `\t\t${ID.widgetFrameworksPhase} /* Frameworks */ = {\n\t\t\tisa = PBXFrameworksBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n`)
+  insertAfter('/* Begin PBXResourcesBuildPhase section */\n',
+    `\t\t${ID.widgetResourcesPhase} /* Resources */ = {\n\t\t\tisa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n`)
+  insertAfter('/* Begin XCBuildConfiguration section */\n',
+    cfg(ID.widgetDebugConfig, 'Debug', '\t\t\t\tSWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;\n\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = "-Onone";\n') +
+    cfg(ID.widgetReleaseConfig, 'Release', '\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = "-O";\n'))
+  insertAfter('/* Begin XCConfigurationList section */\n',
+    `\t\t${ID.widgetConfigList} /* Build configuration list for PBXNativeTarget "BereanWidget" */ = {\n\t\t\tisa = XCConfigurationList;\n\t\t\tbuildConfigurations = (\n\t\t\t\t${ID.widgetDebugConfig} /* Debug */,\n\t\t\t\t${ID.widgetReleaseConfig} /* Release */,\n\t\t\t);\n\t\t\tdefaultConfigurationIsVisible = 0;\n\t\t\tdefaultConfigurationName = Release;\n\t\t};\n`)
+  insertAfter('/* Begin PBXNativeTarget section */\n',
+    `\t\t${ID.widgetTarget} /* BereanWidget */ = {\n\t\t\tisa = PBXNativeTarget;\n\t\t\tbuildConfigurationList = ${ID.widgetConfigList} /* Build configuration list for PBXNativeTarget "BereanWidget" */;\n` +
+    `\t\t\tbuildPhases = (\n\t\t\t\t${ID.widgetSourcesPhase} /* Sources */,\n\t\t\t\t${ID.widgetFrameworksPhase} /* Frameworks */,\n\t\t\t\t${ID.widgetResourcesPhase} /* Resources */,\n\t\t\t);\n` +
+    `\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n\t\t\tname = BereanWidget;\n\t\t\tproductName = BereanWidget;\n` +
+    `\t\t\tproductReference = ${ID.widgetProduct} /* BereanWidget.appex */;\n\t\t\tproductType = "com.apple.product-type.app-extension";\n\t\t};\n`)
+  replaceOnce(`\t\t\t\t${ID.shareTarget} /* ShareExtension */,\n\t\t\t);`, `\t\t\t\t${ID.shareTarget} /* ShareExtension */,\n\t\t\t\t${ID.widgetTarget} /* BereanWidget */,\n\t\t\t);`)
+  replaceOnce('\t\t\t\tTargetAttributes = {\n', `\t\t\t\tTargetAttributes = {\n\t\t\t\t\t${ID.widgetTarget} = {\n\t\t\t\t\t\tCreatedOnToolsVersion = 26.0;\n\t\t\t\t\t\tProvisioningStyle = Automatic;\n\t\t\t\t\t};\n`)
+  insertAfter('/* Begin PBXContainerItemProxy section */\n',
+    `\t\t${ID.widgetContainerProxy} /* PBXContainerItemProxy */ = {\n\t\t\tisa = PBXContainerItemProxy;\n\t\t\tcontainerPortal = ${PROJECT_ID} /* Project object */;\n\t\t\tproxyType = 1;\n\t\t\tremoteGlobalIDString = ${ID.widgetTarget};\n\t\t\tremoteInfo = BereanWidget;\n\t\t};\n`)
+  insertAfter('/* Begin PBXTargetDependency section */\n',
+    `\t\t${ID.widgetDependency} /* PBXTargetDependency */ = {\n\t\t\tisa = PBXTargetDependency;\n\t\t\ttarget = ${ID.widgetTarget} /* BereanWidget */;\n\t\t\ttargetProxy = ${ID.widgetContainerProxy} /* PBXContainerItemProxy */;\n\t\t};\n`)
+  // Embedded beside the Share Extension; the App target depends on it.
+  replaceOnce(`\t\t\t\t${ID.shareEmbedBuildFile} /* ShareExtension.appex in Embed Foundation Extensions */,\n`,
+    `\t\t\t\t${ID.shareEmbedBuildFile} /* ShareExtension.appex in Embed Foundation Extensions */,\n\t\t\t\t${ID.widgetEmbedBuildFile} /* BereanWidget.appex in Embed Foundation Extensions */,\n`)
+  replaceOnce(`\t\t\tdependencies = (\n\t\t\t\t${ID.shareDependency} /* PBXTargetDependency */,\n\t\t\t);\n\t\t\tname = App;`,
+    `\t\t\tdependencies = (\n\t\t\t\t${ID.shareDependency} /* PBXTargetDependency */,\n\t\t\t\t${ID.widgetDependency} /* PBXTargetDependency */,\n\t\t\t);\n\t\t\tname = App;`)
 }
 
 if (s !== before) {

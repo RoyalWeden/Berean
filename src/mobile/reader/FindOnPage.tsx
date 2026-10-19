@@ -71,7 +71,7 @@ export function FindOnPageBar({ textId, bookId, chapters, query, onQuery, onGo, 
   const m = matches[idx]
   const status = !query.trim() ? '' : verses == null ? 'Searching…' : matches.length ? `${idx + 1} of ${matches.length}` : 'No matches'
   return (
-    <div className="mobile-find-bar m-glass" role="search" aria-label="Find in this book">
+    <div className="mobile-find-bar m-glass-thick" role="search" aria-label="Find in this book">
       <form className="mobile-find-field" onSubmit={(e) => { e.preventDefault(); go(idx + (m ? 1 : 0)) }}>
         <Search size={15} aria-hidden />
         <input ref={inputRef} type="search" enterKeyHint="search" autoCorrect="off" placeholder="Find in this book"

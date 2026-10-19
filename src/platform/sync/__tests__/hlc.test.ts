@@ -35,15 +35,18 @@ describe('HybridLogicalClock', () => {
     expect(parseHlc(next)).toMatchObject({ wallMs: 5000, counter: 4 })
   })
 
-  it('clamps a wall clock that jumped more than an hour ahead and reports drift', () => {
+  it('follows the wall clock after a long gap (app closed for a week) — no clamping, no drift report', () => {
     let now = 10_000
     let drift = 0
-    const c = new HybridLogicalClock('d', { now: () => now, onDrift: (ms) => { drift = ms } })
-    c.tick()
-    now = 10_000 + MAX_CLOCK_DRIFT_MS * 3
+    const c1 = new HybridLogicalClock('d', { now: () => now })
+    c1.tick()
+    now = 10_000 + 7 * 24 * 60 * 60 * 1000
+    const c = new HybridLogicalClock('d', { now: () => now, last: c1.latest(), onDrift: (ms) => { drift = ms } })
     const t = c.tick()
-    expect(drift).toBeGreaterThan(0)
-    expect(parseHlc(t).wallMs).toBe(10_000 + MAX_CLOCK_DRIFT_MS)
+    expect(drift).toBe(0)
+    expect(parseHlc(t).wallMs).toBe(now)
+    // …and an edit made then beats one stamped by another device in between.
+    expect(compareHlc(t, formatHlc({ wallMs: 10_000 + 24 * 60 * 60 * 1000, counter: 0, deviceId: 'other' }))).toBe(1)
   })
 
   it('ignores a remote timestamp absurdly far in the future', () => {

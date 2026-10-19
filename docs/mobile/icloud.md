@@ -286,7 +286,7 @@ bootstraps). Settings → iCloud shows the journal size and the last compaction 
 |---|---|
 | Partial file (interrupted upload) | `.jsonl` parsed line-by-line; a trailing partial line is ignored and retried on the next pass; `manifest.json` is written atomically (temp + rename / `NSFileCoordinator` coordinated write) |
 | Missing intermediate journal (evicted / not downloaded) | Reader stops at the gap for that device (contiguous `seq` requirement), requests download (`startDownloadingUbiquitousItem` / `brctl download`), retries |
-| Clock skew | HLC tolerates it; a wall clock > 1 h ahead of the latest seen HLC is clamped and logged |
+| Clock skew | HLC tolerates it; a received timestamp > 1 h ahead of this device's wall clock is ignored and logged (local ticks always follow the wall clock — 2026-10-18: clamping them to last + 1 h back-dated every edit made after a long gap) |
 | Corrupt op line | Skipped, counted, surfaced in sync status ("2 unreadable changes from MacBook") — never fatal |
 | Schema newer than mine | See §4.8 |
 | Storage full | Journal write fails → outbox retains ops; status shows error |

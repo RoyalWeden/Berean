@@ -12,6 +12,9 @@ import { initScrollbarAutoHide } from '@/lib/scrollbarAutoHide'
 import './styles/global.css'
 import './styles/glass.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
+import { perfMark } from '@/lib/perfMarks'
+
+perfMark('modules-evaluated')
 
 initScrollbarAutoHide()
 
@@ -55,6 +58,7 @@ const isFloatMode = searchParams.get('float') === '1'
 const isViewerMode = searchParams.get('viewer') === '1'
 const isStudyTrailMode = searchParams.get('studyTrail') === '1'
 const isVersePickerMode = searchParams.get('versePicker') === '1'
+const isChatMode = searchParams.get('chat') === '1'
 
 // Design-system window stamps (read by global.css). `data-window` names which renderer root
 // this is; `data-vibrant` is present ONLY where the BrowserWindow is genuinely transparent with
@@ -63,7 +67,7 @@ const isVersePickerMode = searchParams.get('versePicker') === '1'
 // secondary window: pop-out tab, presenter/viewer, Study Trail, verse picker are all opaque).
 {
   const html = document.documentElement
-  html.dataset.window = isViewerMode ? 'viewer' : isStudyTrailMode ? 'trail' : isVersePickerMode ? 'picker' : isFloatMode ? 'float' : 'main'
+  html.dataset.window = isViewerMode ? 'viewer' : isStudyTrailMode ? 'trail' : isVersePickerMode ? 'picker' : isChatMode ? 'chat' : isFloatMode ? 'float' : 'main'
   if (html.dataset.window === 'main' && window.__berean_platform === 'darwin') html.dataset.vibrant = ''
   else delete html.dataset.vibrant
 }
@@ -104,8 +108,9 @@ installWindowActiveStamp({ html: document.documentElement, win: window, doc: doc
   })
 }
 
-// Dev-only: expose the store for visual-QA tooling driven over CDP (BEREAN_CDP_PORT).
-if (import.meta.env.DEV) {
+// Dev-only: expose the store for visual-QA tooling driven over CDP (BEREAN_CDP_PORT) — and in a
+// performance-benchmark build (`VITE_PERF_PROBE=1 electron-vite build`, never a release build).
+if (import.meta.env.DEV || import.meta.env.VITE_PERF_PROBE === '1') {
   import('@/store').then((m) => { (window as unknown as { __bereanStore?: unknown }).__bereanStore = m.useAppStore }).catch(() => {})
 }
 
@@ -224,12 +229,20 @@ window.addEventListener('unhandledrejection', (e) => {
 })
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Berean Chat: the standalone chat window (?chat=1) is code-split; the main window installs the
+// listeners that serve it (open a result here, report the active tab, re-show the panel).
+const ChatWindowApp = React.lazy(() => import('@/components/ailookup/ChatWindowApp'))
+if (document.documentElement.dataset.window === 'main') {
+  import('@/components/ailookup/chatMainBridge').then((m) => m.installChatMainBridge()).catch(() => {})
+}
+
+perfMark('react-render')
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {/* reducedMotion="user": every framer-motion animation in every window honors the OS
         "Reduce motion" setting (CSS transitions are covered by global.css's media rule). */}
     <MotionConfig reducedMotion="user">
-      {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isFloatMode ? <FloatingShell /> : <App />}
+      {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isVersePickerMode ? <VersePickerApp /> : isChatMode ? <React.Suspense fallback={null}><ChatWindowApp /></React.Suspense> : isFloatMode ? <FloatingShell /> : <App />}
     </MotionConfig>
   </React.StrictMode>
 )

@@ -146,7 +146,7 @@ button.mobile-row:active { background: rgb(var(--color-surface-3)); }
    out of the clipped pane and the reader looked empty. */
 .mobile-reader-pane.is-continuous { display: flex; flex-direction: column; min-height: 0; }
 .mobile-reader-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding: 4px 4px 0; }
-.mobile-reader-end { height: 80px; }
+.mobile-reader-end { height: max(80px, calc(var(--m-sheet-cover, 0px) + 16px)); }
 .mobile-reader-boundary { display: flex; align-items: center; justify-content: center; height: 100%; color: rgb(var(--color-text-muted)); }
 .mobile-pinch-badge { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 14px; background: rgb(0 0 0 / 0.65); color: white; font-size: calc(13px * var(--m-type-scale, 1)); pointer-events: none; }
 .mobile-hosted-panel { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding-top: var(--m-safe-top); background: rgb(var(--color-surface-2)); }
@@ -382,7 +382,7 @@ html[data-contrast="more"] .strongs-sup { opacity: 1; }
 .mobile-caret-title { font-weight: 700; font-size: calc(17px * var(--m-type-scale, 1)); }
 .mobile-caret-subtitle { font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); }
 .mobile-caret-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-bottom: 14px; }
-.mobile-caret-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 8px 4px; border: 0; border-radius: 16px; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); text-align: center; }
+.mobile-caret-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; padding: 8px 4px; border: 0; border-radius: 16px; background: rgb(var(--color-surface-3)); color: inherit; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); text-align: center; }
 .mobile-caret-tile small { font-size: 0.85em; color: rgb(var(--color-text-muted)); }
 .mobile-caret-tile.is-on { background: rgb(var(--color-accent) / 0.18); color: rgb(var(--color-accent)); }
 .mobile-caret-tile:disabled { opacity: 0.4; }
@@ -557,7 +557,9 @@ html.scheme-dark {
 .mobile-row:last-child, .mobile-caret-row:last-child, .mobile-choice-row:last-child { border-bottom-color: transparent; }
 button.mobile-row:active, .mobile-caret-row:active, .mobile-choice-row:active { background: var(--m-card-pressed); }
 .mobile-caret-tile { background: var(--m-card-bg); border-radius: var(--m-radius-card); }
-.mobile-caret-tile:active { background: var(--m-card-pressed); }
+.mobile-caret-tile { transition: background-color 0.12s ease, transform 0.12s ease; }
+.mobile-caret-tile:active { background: var(--m-card-pressed); transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) { .mobile-caret-tile:active { transform: none; } }
 .mobile-caret-tile.is-on { background: rgb(var(--color-accent) / 0.16); }
 .mobile-caret-group-title, .mobile-list-section-title { font-weight: 500; letter-spacing: 0.02em; }
 .mobile-action-row { background: var(--m-card-bg); border-radius: var(--m-radius-control); }
@@ -778,6 +780,10 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
    iOS context-menu look: a thick glass panel anchored to its control, inset rows, a check column for
    the current choice, trailing icon, hairline group separators. Springs out of its anchor corner. */
 .m-popover-layer { position: fixed; inset: 0; z-index: 140; }
+/* A press-and-hold opens a popup under the finger that is still down; iOS's own long-press then
+   selected whatever was beneath it — the "Reply" label (TEST 2026-10-18). Nothing in a popup menu
+   is text to select. */
+.m-popover-layer, .m-popover-layer * { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
 .m-popover-menu {
   position: fixed; width: min(250px, calc(100vw - 24px)); overflow-y: auto; overscroll-behavior: contain;
   padding: 6px 0; border-radius: var(--m-radius-card, 16px);
@@ -789,10 +795,11 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
 @keyframes m-popover-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
 .m-popover-title { padding: 6px 16px 8px; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); text-align: center; border-bottom: 0.5px solid var(--m-separator); margin-bottom: 4px; }
 .m-popover-row {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 16px 0 10px;
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 16px;
   border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit;
   font-size: calc(16px * var(--m-type-scale, 1)); text-align: left; -webkit-tap-highlight-color: transparent;
 }
+.m-popover-row.has-check { padding-left: 10px; }
 .m-popover-row.is-section { border-top: 6px solid var(--m-separator); }
 .m-popover-row:active { background: var(--m-fill-pressed); }
 .m-popover-row:disabled { opacity: 0.4; }
@@ -916,3 +923,21 @@ html[data-reduce-transparency] .mobile-sheet.is-floating { background: rgb(var(-
 .m-popover-row { margin: 0 6px; width: calc(100% - 12px); border-radius: 14px; }
 .m-popover-row:active { background: rgb(var(--color-text-primary) / 0.1); }
 html[data-reduce-transparency] .m-popover-menu { background: rgb(var(--color-surface-2)); }
+
+/* ── Search fields: one shape everywhere (TEST 2026-10-17 "all the search boxes across the app need
+   to have fully rounded corners … and make the height slightly taller") — a capsule, ~2 pt taller
+   than before. Covers Search (tab + sheet), the passage / reference pickers, books filter, note
+   finder and icon picker, Berean Chat, the caret's location field and pair, Notes' floating
+   search (already a capsule, 48 → 50) and Find on Page (already a capsule). */
+.mobile-search-field, .mobile-search-row, .m-pp-search, .mobile-caret-nav-field, .mobile-caret-nav-pair { border-radius: 999px; }
+.mobile-search-field { min-height: 46px; padding-left: 14px; padding-right: 14px; }
+.mobile-search-field .mobile-search-input { height: 44px; }
+.mobile-search-row { height: 38px; padding-left: 14px; padding-right: 14px; }
+.m-pp-search { min-height: 42px; padding-left: 14px; padding-right: 14px; }
+.mobile-caret-nav-field { height: 42px; padding-left: 14px; }
+.mobile-caret-nav-pair { height: 42px; }
+.m-notes-float .m-notes-searchfield { height: 50px; border-radius: 25px; }
+.mobile-caret-nav-pair .mobile-caret-nav-btn, .mobile-caret-nav > .mobile-caret-nav-btn { height: 42px; }
+/* Go-to row as three icon buttons (TEST 2026-10-18). */
+.mobile-caret-goto.is-icons .mobile-caret-goto-btn { height: 44px; }
+.mobile-caret-goto-btn.is-current { opacity: 0.4; }

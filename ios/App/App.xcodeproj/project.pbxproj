@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BE4EA0000000000000000E05 /* BereanChatWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4EA0000000000000000E04 /* BereanChatWidget.swift */; };
+		BE4EA0000000000000000E13 /* BereanWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BE4EA0000000000000000E02 /* BereanWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		BE4EA0000000000000000F19 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BE4EA0000000000000000F18 /* PrivacyInfo.xcprivacy */; };
 		BE4EA00000000000000000F5 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4EA00000000000000000F4 /* ShareViewController.swift */; };
 		BE4EA0000000000000000F15 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BE4EA00000000000000000F2 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -25,6 +27,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BE4EA0000000000000000E02 /* BereanWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BereanWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE4EA0000000000000000E04 /* BereanChatWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BereanChatWidget.swift; sourceTree = "<group>"; };
+		BE4EA0000000000000000E06 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BE4EA0000000000000000F18 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BE4EA00000000000000000F2 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE4EA00000000000000000F4 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -48,6 +53,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		BE4EA0000000000000000E08 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BE4EA00000000000000000F9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -67,6 +79,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		BE4EA0000000000000000E03 /* BereanWidget */ = {
+			isa = PBXGroup;
+			children = (
+				BE4EA0000000000000000E04 /* BereanChatWidget.swift */,
+				BE4EA0000000000000000E06 /* Info.plist */,
+			);
+			path = BereanWidget;
+			sourceTree = "<group>";
+		};
 		BE4EA00000000000000000F3 /* ShareExtension */ = {
 			isa = PBXGroup;
 			children = (
@@ -80,6 +101,7 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
+				BE4EA0000000000000000E03 /* BereanWidget */,
 				BE4EA00000000000000000F3 /* ShareExtension */,
 				BE4EA00000000000000000C1 /* BereanDebug.xcconfig */,
 				BE4EA00000000000000000C2 /* BereanRelease.xcconfig */,
@@ -92,6 +114,7 @@
 		504EC3051FED79650016851F /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				BE4EA0000000000000000E02 /* BereanWidget.appex */,
 				BE4EA00000000000000000F2 /* ShareExtension.appex */,
 				504EC3041FED79650016851F /* App.app */,
 			);
@@ -120,6 +143,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXContainerItemProxy section */
+		BE4EA0000000000000000E15 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE4EA0000000000000000E01;
+			remoteInfo = BereanWidget;
+		};
 		BE4EA0000000000000000F17 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
@@ -137,6 +167,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				BE4EA0000000000000000F15 /* ShareExtension.appex in Embed Foundation Extensions */,
+				BE4EA0000000000000000E13 /* BereanWidget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -144,6 +175,23 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		BE4EA0000000000000000E01 /* BereanWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE4EA0000000000000000E10 /* Build configuration list for PBXNativeTarget "BereanWidget" */;
+			buildPhases = (
+				BE4EA0000000000000000E07 /* Sources */,
+				BE4EA0000000000000000E08 /* Frameworks */,
+				BE4EA0000000000000000E09 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BereanWidget;
+			productName = BereanWidget;
+			productReference = BE4EA0000000000000000E02 /* BereanWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		BE4EA00000000000000000F1 /* ShareExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = BE4EA0000000000000000F11 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
@@ -177,6 +225,7 @@
 			);
 			dependencies = (
 				BE4EA0000000000000000F16 /* PBXTargetDependency */,
+				BE4EA0000000000000000E14 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -196,6 +245,10 @@
 				LastSwiftUpdateCheck = 0920;
 				LastUpgradeCheck = 0920;
 				TargetAttributes = {
+					BE4EA0000000000000000E01 = {
+						CreatedOnToolsVersion = 26.0;
+						ProvisioningStyle = Automatic;
+					};
 					BE4EA00000000000000000F1 = {
 						CreatedOnToolsVersion = 26.0;
 						ProvisioningStyle = Automatic;
@@ -226,11 +279,19 @@
 			targets = (
 				504EC3031FED79650016851F /* App */,
 				BE4EA00000000000000000F1 /* ShareExtension */,
+				BE4EA0000000000000000E01 /* BereanWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BE4EA0000000000000000E09 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BE4EA0000000000000000F10 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -304,6 +365,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		BE4EA0000000000000000E07 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE4EA0000000000000000E05 /* BereanChatWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BE4EA00000000000000000F8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -326,6 +395,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		BE4EA0000000000000000E14 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE4EA0000000000000000E01 /* BereanWidget */;
+			targetProxy = BE4EA0000000000000000E15 /* PBXContainerItemProxy */;
+		};
 		BE4EA0000000000000000F16 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = BE4EA00000000000000000F1 /* ShareExtension */;
@@ -353,6 +427,51 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		BE4EA0000000000000000E11 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE4EA00000000000000000C1 /* BereanDebug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "$(BEREAN_TEAM_ID)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BereanWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BEREAN_BUNDLE_ID).widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BE4EA0000000000000000E12 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE4EA00000000000000000C2 /* BereanRelease.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "$(BEREAN_TEAM_ID)";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BereanWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BEREAN_BUNDLE_ID).widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
 		BE4EA0000000000000000F12 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BE4EA00000000000000000C1 /* BereanDebug.xcconfig */;
@@ -547,6 +666,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		BE4EA0000000000000000E10 /* Build configuration list for PBXNativeTarget "BereanWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE4EA0000000000000000E11 /* Debug */,
+				BE4EA0000000000000000E12 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		BE4EA0000000000000000F11 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

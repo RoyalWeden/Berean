@@ -198,6 +198,20 @@ export function afterFirstPaint(): Promise<void> {
  *  removes it itself the moment a placeholder becomes covered — see G-08 in sync. */
 export const NATIVE_GLASS_CLASS = 'is-native-glass'
 
+/**
+ * The element that really covers a point, looking THROUGH invisible tap-catcher layers marked
+ * `data-glass-passthrough` (a popover menu's full-screen outside-tap layer, the tab switcher's
+ * light scrim). TEST 2026-10-17 "whenever i click a button, it turns off the glass/liquid of other
+ * things": opening any popover put its transparent layer over the whole screen, every native
+ * control counted as covered, and the bar and the title fell back to their flatter web twins until
+ * the menu closed. A real cover (a sheet, its dimming backdrop, the menu itself) still counts.
+ */
+function topHit(x: number, y: number): Element | null {
+  const stack = typeof document.elementsFromPoint === 'function' ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)]
+  for (const e of stack) if (e && !e.closest('[data-glass-passthrough]')) return e
+  return null
+}
+
 /** Whether `el` (or an ancestor) is moving / fading in a running CSS transition right now. */
 function inCssTransition(el: Element): boolean {
   if (typeof document.getAnimations !== 'function' || typeof CSSTransition === 'undefined') return false
@@ -209,6 +223,17 @@ function inCssTransition(el: Element): boolean {
     })
   } catch { return false }
 }
+
+/**
+ * One live owner per native cluster id (TEST 2026-10-17 "sometimes that label of the book and
+ * chapter goes away"). Pages remount on every tab switch (NavigationStack key) and each reader
+ * instance uses the same `reader-title` cluster. The old instance's late timers (the post-fade
+ * re-sync, the cover hand-off frames) used to run AFTER it unmounted: its refs were null, so it
+ * sent an all-hidden spec for the shared cluster, the new instance never re-sent (its own spec had
+ * not changed) and the title stayed hidden — its placeholder transparent — until an option changed.
+ * Now only the current owner may send or remove a cluster, and an unmounted instance does nothing.
+ */
+const clusterOwners = new Map<string, symbol>()
 
 export function useLiquidGlassControls(
   clusterId: string,
@@ -240,11 +265,28 @@ export function useLiquidGlassControls(
   const drawnAt = useRef(new Map<string, number>())
   // A covered control's native hide waiting for the web placeholder's frame (G-08).
   const pendingCoverRef = useRef(false)
+  const owner = useRef<symbol>(Symbol(clusterId))
+  const mounted = useRef(false)
+  const timers = useRef(new Set<number>())
+  const later = (fn: () => void, ms: number) => { const t = window.setTimeout(() => { timers.current.delete(t); fn() }, ms); timers.current.add(t) }
+  useEffect(() => {
+    mounted.current = true
+    const me = owner.current
+    clusterOwners.set(clusterId, me)
+    return () => {
+      mounted.current = false
+      for (const t of timers.current) window.clearTimeout(t)
+      timers.current.clear()
+      if (clusterOwners.get(clusterId) === me) clusterOwners.delete(clusterId)
+    }
+  }, [clusterId])
 
   const sync = useRef(() => {})
   sync.current = () => {
     const a = liquidGlassAdapter()
     if (!a?.controls) return
+    // A stale (unmounted or superseded) instance must never touch the shared native cluster.
+    if (!mounted.current || clusterOwners.get(clusterId) !== owner.current) return
     const o = optsRef.current
     const collapsed = !!o.collapsed
     const vw = window.innerWidth, vh = window.innerHeight
@@ -277,7 +319,7 @@ export function useLiquidGlassControls(
             // the native control stay drawn over the sheet's leading edge (G-07).
             const cx = r.left + r.width / 2
             const covered = [r.top + 3, r.top + r.height / 2, r.bottom - 3].some((y) => {
-              const hit = document.elementFromPoint(cx, y)
+              const hit = topHit(cx, y)
               return !hit || !(hit === el || el.contains(hit))
             })
             if (covered) {
@@ -328,7 +370,7 @@ export function useLiquidGlassControls(
     // is then instant (BereanGlassPlugin.GlassItem.setHidden).
     if (newlyCovered && !pendingCoverRef.current) {
       pendingCoverRef.current = true
-      requestAnimationFrame(() => requestAnimationFrame(() => { pendingCoverRef.current = false; sync.current() }))
+      requestAnimationFrame(() => requestAnimationFrame(() => { pendingCoverRef.current = false; if (mounted.current) sync.current() }))
       return
     }
     if (pendingCoverRef.current) return
@@ -343,7 +385,7 @@ export function useLiquidGlassControls(
         if (lastSent.current !== key) return
         const t = performance.now()
         for (const id of waiting) if (!drawn.has(id)) drawn.set(id, t)
-        window.setTimeout(() => sync.current(), NATIVE_FADE_MS)
+        later(() => sync.current(), NATIVE_FADE_MS)
       }, () => setFirstDrawDone(true)) // native call failed: the web controls stay
     }
   }
@@ -372,13 +414,24 @@ export function useLiquidGlassControls(
     window.addEventListener('resize', schedule)
     document.addEventListener('transitionend', schedule, true)
     document.addEventListener('animationend', schedule, true)
-    // Safety net for overlays that animate in without a DOM change near the bar (cheap: three
-    // elementFromPoint reads, and nothing is sent unless the spec changed).
-    const iv = window.setInterval(schedule, 350)
+    // Safety net for overlays that animate in without a DOM change near the bar (three
+    // elementFromPoint reads, nothing sent unless the spec changed). It re-checks only when
+    // something COULD have moved since the last tick — any DOM change at all (attributes beyond
+    // the filter above too), a scroll, or a running animation. An idle page now costs nothing:
+    // the unconditional 350 ms re-check kept the iPhone's web process at ~1.6% CPU while idle
+    // (0.3% without it — performance audit 2026-10-19).
+    let dirty = true
+    const markDirty = () => { dirty = true }
+    const anyChange = new MutationObserver(markDirty)
+    anyChange.observe(document.documentElement, { childList: true, subtree: true, attributes: true })
+    document.addEventListener('scroll', markDirty, { capture: true, passive: true })
+    const animating = () => typeof document.getAnimations === 'function' && document.getAnimations().some((a) => a.playState === 'running')
+    const iv = window.setInterval(() => { if (dirty || animating()) { dirty = false; schedule() } }, 350)
     return () => {
       alive = false
       if (raf) cancelAnimationFrame(raf)
-      ro.disconnect(); mo.disconnect()
+      ro.disconnect(); mo.disconnect(); anyChange.disconnect()
+      document.removeEventListener('scroll', markDirty, true)
       window.removeEventListener('resize', schedule)
       document.removeEventListener('transitionend', schedule, true)
       document.removeEventListener('animationend', schedule, true)
@@ -403,7 +456,14 @@ export function useLiquidGlassControls(
       if (e.swipe) { optsRef.current.onSwipe?.(e.swipe); return }
       itemsRef.current.find((i) => i.id === e.item)?.onPress()
     })
-    return () => { off(); lastSent.current = ''; drawnAt.current.clear(); setShownKey(''); void a.removeControls?.(clusterId) }
+    const me = owner.current
+    return () => {
+      off(); lastSent.current = ''; drawnAt.current.clear(); setShownKey('')
+      // Only the instance that owns the cluster removes it; a newer instance mounted for the same
+      // id (a remount) keeps its controls.
+      const cur = clusterOwners.get(clusterId)
+      if (!cur || cur === me) void a.removeControls?.(clusterId)
+    }
   }, [native, clusterId])
 
   // Capabilities settled as non-native → the first-draw wait ends at once.

@@ -18,11 +18,27 @@ import { iosServiceContext } from './services'
 type Fn = (...args: never[]) => unknown
 /** Registers `cb` for `data:changed` events of the given entities; mirrors preload's on* helpers
  *  (which replace the previous listener rather than stacking — same here). */
+// Change notifications are COALESCED (perf pass 2026-10-17): every callback here bumps a store
+// token, and each new token makes every consumer re-read its data — for notes, all ~8 MB of them.
+// An iCloud catch-up or a bulk import emits hundreds of changes in a burst; one refresh 60 ms after
+// the burst (scopes merged; a mixed burst reports no scope = everything) replaces hundreds.
+const COALESCE_MS = 60
 function makeChangeSubscription(entities: (e: string) => boolean): (cb: (scope?: string) => void) => void {
   let off: (() => void) | null = null
   return (cb) => {
     off?.()
-    off = iosServiceContext().events.on('data:changed', (c) => { if (entities(c.entity)) cb(c.scope) })
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let scopes = new Set<string | undefined>()
+    off = iosServiceContext().events.on('data:changed', (c) => {
+      if (!entities(c.entity)) return
+      scopes.add(c.scope)
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        const all = scopes; scopes = new Set()
+        cb(all.size === 1 ? [...all][0] : undefined)
+      }, COALESCE_MS)
+    })
   }
 }
 

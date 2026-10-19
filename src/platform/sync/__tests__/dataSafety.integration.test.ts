@@ -471,3 +471,66 @@ describe('explicit deletion', () => {
     expect((await a.services.notes.getAll()).length).toBe(1)
   })
 })
+
+describe('snapshots carry what this device published (2026-10-18)', () => {
+  const titles = async (d: SimDevice) => (await d.services.notes.getAll()).map((x) => x.title).sort()
+  const snapshotOf = async (d: SimDevice) => {
+    const m = await d.store.readManifest(d.engine.deviceId)
+    const text = m?.snapshot ? await d.store.readFile(d.engine.deviceId, m.snapshot.name) : null
+    return text ? (JSON.parse(text) as { records: Array<{ entity: string }> }).records : null
+  }
+  /** What pruneCompacted does once every device acknowledged: drop own journals ≤ the snapshot. */
+  const pruneNow = async (d: SimDevice) => {
+    const m = (await d.store.readManifest(d.engine.deviceId))!
+    const gone = m.files.filter((f) => f.seqTo <= m.snapshot!.seq)
+    for (const f of gone) await d.store.deleteOwnFile(f.name)
+    await d.store.writeOwnManifest({ ...m, files: m.files.filter((f) => f.seqTo > m.snapshot!.seq) })
+    return gone.length
+  }
+  /** a's history is in another container; a chooses "use this iCloud" and republishes there. */
+  async function republishedInto(other: MemoryCloud) {
+    const a = await sim.device('a'); const b = await sim.device('b')
+    await a.services.notes.create({ type: 'general', title: 'Mine', content: 'x' })
+    await sim.syncAll([a, b])
+    const s = await sim.device('s', { cloud: other }); await s.services.notes.create({ type: 'general', title: 'Theirs', content: 'y' }); await s.engine.sync()
+    const a2 = await sim.restart(a, { cloud: other })
+    await sim.syncAll([a2, s])
+    await a2.engine.resolveHold('republish')
+    const a3 = await sim.restart(a2)
+    await sim.syncAll([a3, s])
+    return { a3, s }
+  }
+
+  it('after "use this iCloud", the snapshot holds the republished records — a new device bootstrapping from it after the journals are pruned gets them', async () => {
+    const other = new MemoryCloud()
+    const { a3, s } = await republishedInto(other)
+    expect(await a3.engine.compact(true)).toBe(true)
+    expect((await snapshotOf(a3))!.filter((r) => r.entity === 'note').length).toBeGreaterThanOrEqual(1)
+    expect(await pruneNow(a3)).toBeGreaterThan(0)
+    const fresh = await sim.device('n', { cloud: other })
+    await sim.syncAll([fresh])
+    expect(await titles(fresh)).toEqual(['Mine', 'Theirs'])
+  })
+
+  it('an empty snapshot written before the fix is rebuilt before anything is pruned', async () => {
+    const other = new MemoryCloud()
+    const { a3, s } = await republishedInto(other)
+    // Recreate the pre-fix state: publisher left at the original writer, an empty snapshot, no repair flag.
+    const me = a3.engine.deviceId
+    await a3.db.run("UPDATE sync_record_meta SET device = 'olddevice' WHERE device = ?", [me])
+    const seq = (await a3.store.readManifest(me))!.seq
+    const name = `snapshot-${String(seq).padStart(9, '0')}.json`
+    const empty = JSON.stringify({ format: 1, device: me, seq, schema: 47, writtenAt: sim.clock, records: [] })
+    await a3.store.writeOwnFile(name, empty)
+    await a3.db.run("INSERT OR REPLACE INTO sync_state (key, value) VALUES ('own_snapshot', ?)", [JSON.stringify({ name, seq, records: 0, bytes: empty.length })])
+    await a3.db.run("DELETE FROM sync_state WHERE key = 'snapshot_repaired_v1'")
+    const a4 = await sim.restart(a3)
+    await sim.syncAll([a4, s])
+    expect((await snapshotOf(a4))!.filter((r) => r.entity === 'note').length).toBeGreaterThanOrEqual(1)
+    expect((await a4.db.get<{ value: string }>("SELECT value FROM sync_state WHERE key = 'snapshot_repaired_v1'"))?.value).toBe('1')
+    expect(await pruneNow(a4)).toBeGreaterThan(0)
+    const fresh = await sim.device('n', { cloud: other })
+    await sim.syncAll([fresh])
+    expect(await titles(fresh)).toEqual(['Mine', 'Theirs'])
+  })
+})

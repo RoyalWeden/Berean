@@ -1,4 +1,4 @@
-import type { IpcMain } from 'electron'
+import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import { getBereanDb } from '../db/berean'
 import { services } from '../services'
 import { queryVerse, searchVerses } from './bible'
@@ -497,7 +497,7 @@ function buildEffectiveQuestion(question: string, history: ChatHistoryTurn[]): s
     .replace(SCOPE_REFINEMENT_FILLER_RE, '')
     .trim()
   if (stripped.split(/\s+/).filter(Boolean).length >= 3) return question // has its own real content
-  const lastUserTurn = [...history].reverse().find((t) => t.role === 'user')
+  const lastUserTurn = [...history].reverse().find((t) => t.role === 'user' && !t.content.startsWith('(my note) '))
   return lastUserTurn ? `${lastUserTurn.content} — ${question}` : question
 }
 
@@ -754,7 +754,7 @@ function extractionPrompt(question: string, focusWorkName: string | null, histor
   // ("what about the chapter after that") something to resolve against, without needing the
   // model to somehow remember anything itself (each call is still a fresh, stateless request).
   const historyBlock = history.length > 0
-    ? `\nRecent conversation (for context only — answer the CURRENT question below, not these):\n${history.map((h) => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')}\n`
+    ? `\nRecent conversation (for context only — answer the CURRENT question below, not these; lines starting "(my note)" are the user's own notes in this conversation; a line starting "(the message I am replying to)" is the message the current question replies to — "this" / "that" in the question refers to it):\n${history.map((h) => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')}\n`
     : ''
   // Found via testing: asking for "Yeshua's longest prayer" (John 17) got a guess of
   // {chapter:17, verse:1} with no endVerse — a completely natural way to CITE the passage, but
@@ -2505,7 +2505,8 @@ export async function runLookup(
   const wordReplacerRules = opts.wordReplacerRules ?? []
   // Last few turns only — enough for a natural follow-up to resolve against without letting
   // prompt size grow unbounded over a long chat.
-  let history = (opts.history ?? []).slice(-4)
+  // Berean Chat also sends the conversation's plain notes ("(my note) …" user turns) as context.
+  let history = (opts.history ?? []).slice(-6)
   let tabContextBlock = buildTabContextBlock(opts.tabContext)
 
   // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
@@ -3598,10 +3599,58 @@ export function registerAiLookupHandlers(ipcMain: IpcMain): void {
 
   // ChatMessage (this file's local shape) and the shared service's AiChatMessage are the same
   // JSON on the wire; the cast bridges the two declarations without touching this file's types.
-  ipcMain.handle('ailookup:saveChat', (_e, chat: { id?: string; title: string; messages: ChatMessage[] }) =>
-    services().aiChats.saveChat(chat as unknown as Parameters<ReturnType<typeof services>['aiChats']['saveChat']>[0]))
+  ipcMain.handle('ailookup:saveChat', async (e, chat: { id?: string; title: string; messages: ChatMessage[] }) => {
+    const res = await services().aiChats.saveChat(chat as unknown as Parameters<ReturnType<typeof services>['aiChats']['saveChat']>[0])
+    broadcastChatsChanged(e, { id: res.id, op: 'upsert' })
+    return res
+  })
 
-  ipcMain.handle('ailookup:deleteChat', (_e, id: string) => services().aiChats.deleteChat(id))
+  ipcMain.handle('ailookup:deleteChat', async (e, id: string) => {
+    const res = await services().aiChats.deleteChat(id)
+    broadcastChatsChanged(e, { id, op: 'delete' })
+    return res
+  })
+
+  // Berean Chat redesign — merge-by-message-id writes, rename, cross-conversation queries.
+  ipcMain.handle('ailookup:upsertMessages', async (e, input: Parameters<ReturnType<typeof services>['aiChats']['upsertMessages']>[0]) => {
+    const res = await services().aiChats.upsertMessages(input)
+    broadcastChatsChanged(e, { id: res.id, op: 'upsert' })
+    return res
+  })
+
+  ipcMain.handle('ailookup:renameChat', async (e, id: string, title: string) => {
+    const res = await services().aiChats.renameChat(id, title)
+    broadcastChatsChanged(e, { id, op: 'upsert' })
+    return res
+  })
+
+  ipcMain.handle('ailookup:organizeChat', async (e, id: string, change: { pinned?: boolean; folder?: string | null }) => {
+    const res = await services().aiChats.organizeChat(id, change)
+    broadcastChatsChanged(e, { id, op: 'upsert' })
+    return res
+  })
+
+  ipcMain.handle('ailookup:renameFolder', async (e, from: string, to: string | null) => {
+    const res = await services().aiChats.renameFolder(from, to)
+    broadcastChatsChanged(e, { op: 'upsert' })
+    return res
+  })
+
+  ipcMain.handle('ailookup:queryMessages', (_e, q: Parameters<ReturnType<typeof services>['aiChats']['queryMessages']>[0]) =>
+    services().aiChats.queryMessages(q))
+
+  ipcMain.handle('ailookup:listDays', () => services().aiChats.listDays())
+}
+
+/** Tells every OTHER window (embedded panel in a main window ↔ the standalone chat window) that a
+ *  conversation changed, so it re-reads it. The writer already has the result; skipping it keeps
+ *  its own optimistic state from being re-merged. Remote (iCloud) applies reach windows through
+ *  `sync:applied` instead. */
+function broadcastChatsChanged(e: IpcMainInvokeEvent, change: { id?: string; op: 'upsert' | 'delete' }): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed() || win.webContents.id === e.sender.id) continue
+    win.webContents.send('ailookup:chatsChanged', change)
+  }
 }
 
 // Exported for potential reuse (e.g. a future "explain this verse" entry point

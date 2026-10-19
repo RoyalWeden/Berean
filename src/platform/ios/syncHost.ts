@@ -1,4 +1,5 @@
 import { SyncEngine } from '../sync/engine'
+import { perfMark } from './perf'
 import type { SyncStatusSnapshot } from '../sync/types'
 import { createSyncHostCore, type SyncHostCore } from '../sync/hostCore'
 import { createSyncTrace } from '../sync/trace'
@@ -177,7 +178,9 @@ function installLifecycle(): void {
 export async function initIosSyncHost(): Promise<void> {
   installLifecycle()
   if ((await setting<boolean>('icloudSyncEnabled')) === true) {
+    perfMark('sync:start')
     const r = await startEngine({ requireAvailable: false, reconcile: 'since-last' })
+    perfMark('sync:started')
     if (!r.ok) console.warn(`[sync] not started: ${r.reason}`)
   }
 }

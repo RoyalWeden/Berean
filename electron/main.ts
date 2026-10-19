@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme, screen, systemPreferences } from 'electron'
 import type Electron from 'electron'
 import { join } from 'path'
-import { mkdirSync, openSync, writeSync } from 'fs'
+import { mkdirSync, openSync, writeSync, appendFileSync } from 'fs'
 import os from 'os'
 import { is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -52,7 +52,11 @@ function earlyLog(msg: string) {
     }
     writeSync(earlyLogFd, `[${new Date().toISOString()}] ${msg}\n`)
   } catch { /* sandbox may block this pre-ready; tolerate */ }
+  // Startup benchmark (docs/performance-audit-2026-10-19.md): an unpackaged run can mirror these
+  // breadcrumbs to a readable file — the Berean Dev container itself is privacy-protected.
+  if (PERF_LOG) { try { appendFileSync(PERF_LOG, `[${new Date().toISOString()}] ${msg}\n`) } catch { /* */ } }
 }
+const PERF_LOG = !app.isPackaged ? process.env.BEREAN_PERF_LOG : undefined
 earlyLog('main.ts: module loaded')
 // Dev-only: verify the early log is actually writing by reading it back, confirming
 // the container path is correct. Pure development sanity check — skipped in packaged
@@ -115,6 +119,10 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 // open the other's berean.db (macOS HFS+/APFS is case-insensitive: 'berean' and 'Berean' collide).
 app.setPath('userData', join(app.getPath('appData'), APP_IDENTITY.userDataDir))
 if (!app.isPackaged) {
+  // Dev-only: `BEREAN_QA_USER_DATA=/tmp/… BEREAN_CDP_PORT=9223 electron-vite dev` runs a throwaway
+  // visual-QA instance with its own fresh berean.db (sync and vault export are off in a fresh DB),
+  // so screenshots never touch the developer's Berean Dev data or its iCloud container.
+  if (process.env.BEREAN_QA_USER_DATA) app.setPath('userData', process.env.BEREAN_QA_USER_DATA)
   // Dev-only: `BEREAN_CDP_PORT=9222 npm run dev` exposes the Chrome DevTools Protocol so
   // visual-QA tooling can drive the real window (screenshots, resize, theme cycling).
   if (process.env.BEREAN_CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.BEREAN_CDP_PORT)
@@ -199,6 +207,9 @@ app.on('child-process-gone', (_event, details) => {
 // Crash logging — catches any uncaught error before Electron quits silently.
 // Writes to the electron-log file so sandbox/TestFlight crashes are diagnosable.
 log.transports.file.level = 'debug'
+// Berean Dev keeps its own log (~/Library/Logs/Berean-dev/main.log): both identities are named
+// "berean", so they used to append to one file and Dev sync lines read like production's.
+if (APP_IDENTITY.name === 'development') log.transports.file.resolvePathFn = () => join(app.getPath('home'), 'Library', 'Logs', 'Berean-dev', 'main.log')
 log.transports.console.level = is.dev ? 'debug' : false
 
 process.on('uncaughtException', (err) => {
@@ -275,6 +286,13 @@ let viewerWindow: BrowserWindow | null = null
 // channels, and closing that window closes the presenter.
 let viewerOwnerId: number | null = null
 let studyTrailWindow: BrowserWindow | null = null
+// Berean Chat's standalone window (`?chat=1`) — a single instance; see createChatWindow.
+let chatWindow: BrowserWindow | null = null
+/** What the chat window should show when it (re)opens: the conversation (and unsent draft) the
+ *  embedded panel had — "make sure when opening the dedicated berean window the current chat is
+ *  preserved". A new window pulls it with chat:takeHandoff; an open one gets chat:handoff. */
+type ChatHandoff = { chatId: string | null; draft?: string }
+let pendingChatHandoff: ChatHandoff | null = null
 // The verse-tie picker — a small auxiliary window (two chapters side by side, click verse
 // numbers to build a "from"/"to" tie) opened from either the arrival-prompt toast (main window)
 // or the full "why'd you jump here" popover (which can be opened from the Study Trail window's
@@ -572,6 +590,8 @@ function buildAppMenu(): Electron.Menu {
           // sessions / settings; its own active tab, space, layout and scroll).
           click: () => {
             const from = BrowserWindow.getFocusedWindow()
+            // ⌘N in the Berean Chat window is "New Conversation" (Messages convention).
+            if (from && chatWindow && from === chatWindow) { chatWindow.webContents.send('chat:newConversation'); return }
             createWindow(from ? { mirrorFromWebContentsId: from.webContents.id } : undefined)
           },
         },
@@ -905,6 +925,68 @@ function createStudyTrailWindow(trailSessionId?: string): void {
   studyTrailWindow.on('closed', () => { studyTrailWindow = null })
 }
 
+// Berean Chat standalone window — the embedded chat panel "popped out" into an ordinary,
+// Messages-like document window (NOT always-on-top: it's a place you work in, like Notes or
+// Messages, not a utility palette). Single instance: opening again focuses the existing window.
+// It reads/writes the same ai_chats rows over the same IPC as the embedded panel; the
+// `ailookup:chatsChanged` broadcast (electron/ipc/aiLookup.ts) keeps both presentations live.
+// Closing it destroys its renderer, so nothing keeps running in the background; an AI request
+// still in flight there simply has no window to answer to (its request message is already saved).
+function broadcastChatWindowState(open: boolean): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('chat:windowState', open)
+  }
+}
+function createChatWindow(handoff?: ChatHandoff | null): void {
+  if (chatWindow && !chatWindow.isDestroyed()) {
+    if (handoff) chatWindow.webContents.send('chat:handoff', handoff)
+    if (chatWindow.isMinimized()) chatWindow.restore()
+    chatWindow.show()
+    chatWindow.focus()
+    return
+  }
+  const iconPath = is.dev
+    ? join(app.getAppPath(), 'assets/icon.icns')
+    : join(process.resourcesPath, 'assets/icon.icns')
+  const isWin = process.platform === 'win32'
+  pendingChatHandoff = handoff ?? null
+  const chatBoundsStore = makeBoundsStore('chatWindowBounds', { width: 880, height: 640 }, { minWidth: 480, minHeight: 420 })
+  chatWindow = new BrowserWindow({
+    ...chatBoundsStore.load(),
+    minWidth: 480,
+    minHeight: 420,
+    titleBarStyle: isWin ? 'default' : 'hiddenInset',
+    // Same as the main window: centred on the 52px title bar, with the sidebar toggle at
+    // TRAFFIC_LIGHT_INSET beside them (ChatWindowApp.tsx).
+    ...(isWin ? {} : { trafficLightPosition: { x: 20, y: 20 } }),
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111114' : '#f5f5f8',
+    icon: nativeImage.createFromPath(iconPath),
+    title: is.dev ? 'Berean Chat [Dev]' : 'Berean Chat',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+  persistBoundsOnClose(chatWindow, chatBoundsStore)
+  chatWindow.on('focus', () => { chatWindow?.webContents.send('app:windowActive', true) })
+  chatWindow.on('blur', () => { chatWindow?.webContents.send('app:windowActive', false) })
+  const query = { chat: '1' }
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    chatWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${new URLSearchParams(query).toString()}`)
+  } else {
+    chatWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
+  }
+  chatWindow.on('closed', () => { chatWindow = null; broadcastChatWindowState(false) })
+  broadcastChatWindowState(true)
+}
+
+// Chat window → main window "what tab is active?" round-trips (the active tab lives in the main
+// window's renderer store). Keyed by request id so concurrent asks can't swap answers.
+const chatTabContextWaiters = new Map<string, (ref: unknown) => void>()
+let chatTabContextSeq = 0
+
 // The last payload sent to the picker (or waiting to be, if it hasn't finished loading yet) —
 // sent immediately on 'versePicker:ready' rather than requiring the caller to race the window's
 // own load time.
@@ -1124,7 +1206,8 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     win.loadFile(join(__dirname, '../renderer/index.html'), query ? { search: `?${query}` } : undefined)
   }
 
-  if (is.dev) {
+  // (Not in a startup-benchmark run: a DevTools window competes with the launch it measures.)
+  if (is.dev && !PERF_LOG) {
     win.webContents.openDevTools({ mode: 'detach' })
   }
 
@@ -1197,6 +1280,10 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: b
     log.error('[did-fail-load]', code, desc, url)
   })
   win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    // A packaged build keeps only warnings and errors: every forwarded line is a synchronous write
+    // on the main process (performance audit 2026-10-19), and routine console.info chatter
+    // (and the text it may contain) does not belong in the on-disk logs.
+    if (app.isPackaged && level < 2) return
     const lvl = ['verbose', 'info', 'warning', 'error'][level] ?? 'unknown'
     earlyLog(`[renderer-console:${lvl}] ${message}  (${sourceId}:${line})`)
     log.info(`[renderer:${lvl}] ${message}`)
@@ -1534,6 +1621,39 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('app:isStudyTrailWindowOpen', () => !!studyTrailWindow && !studyTrailWindow.isDestroyed())
   ipcMain.handle('app:closeStudyTrailWindow', () => { studyTrailWindow?.close(); return true })
+  // ── Berean Chat window ──
+  ipcMain.handle('chat:openWindow', (_e, handoff?: ChatHandoff | null) => { createChatWindow(handoff); return true })
+  ipcMain.handle('chat:takeHandoff', () => { const h = pendingChatHandoff; pendingChatHandoff = null; return h })
+  ipcMain.handle('chat:isWindowOpen', () => !!chatWindow && !chatWindow.isDestroyed())
+  ipcMain.handle('chat:closeWindow', () => { chatWindow?.close(); return true })
+  ipcMain.handle('chat:returnToMain', (_e, handoff?: ChatHandoff | null) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+      mainWindow.webContents.send('chat:showPanel', handoff ?? null)
+    }
+    chatWindow?.close()
+    return true
+  })
+  ipcMain.handle('chat:openInMain', (_e, payload: unknown) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('chat:openInMain', payload)
+    return true
+  })
+  ipcMain.handle('chat:getMainTabContext', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return null
+    const requestId = `ctx-${++chatTabContextSeq}`
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => { chatTabContextWaiters.delete(requestId); resolve(null) }, 1500)
+      chatTabContextWaiters.set(requestId, (ref) => { clearTimeout(timer); chatTabContextWaiters.delete(requestId); resolve(ref ?? null) })
+      mainWindow!.webContents.send('chat:requestTabContext', requestId)
+    })
+  })
+  ipcMain.on('chat:tabContextReply', (_e, requestId: string, ref: unknown) => { chatTabContextWaiters.get(requestId)?.(ref) })
   // Study Trail (and any other secondary window) has its own independent renderer store — a
   // click on a chapter/Strong's label there can't just call the main window's own tab-state
   // setters directly, since those would only mutate THIS window's store. This focuses the real
@@ -2046,6 +2166,7 @@ app.whenReady().then(async () => {
     for (const w of appWindows) reclampIfOffscreen(w)
     reclampIfOffscreen(viewerWindow)
     reclampIfOffscreen(studyTrailWindow)
+    reclampIfOffscreen(chatWindow)
     reclampIfOffscreen(versePickerWindow)
   }
   screen.on('display-removed', reclampAllWindows)

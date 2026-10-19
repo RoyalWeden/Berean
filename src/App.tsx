@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import { typeToFindAction } from '@/lib/findHandoff'
+import { useEffect, useLayoutEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
+import { perfMark } from '@/lib/perfMarks'
 import { applySyncInvalidation } from '@/lib/syncInvalidation'
 import { wireSyncUi } from '@/lib/syncUi'
 import type { ReactNode } from 'react'
@@ -73,6 +75,7 @@ function LazyOnce({ when, children }: { when: boolean; children: ReactNode }) {
 }
 
 export default function App() {
+  useLayoutEffect(() => { perfMark('app-mounted') }, [])
   // DOM node for the top bar's portal slot — set once ShellHeader mounts, consumed
   // by the active tab panel via useTopBarSlot() to portal its own controls in.
   const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
@@ -490,8 +493,8 @@ export default function App() {
   useEffect(() => { activeSpaceRef.current = activeSpace }, [activeSpace])
 
   // Keep activePanelId in a ref so Cmd+F closure routes to the correct panel
-  const activePanelIdRef = useRef(activePanelId)
-  useEffect(() => { activePanelIdRef.current = activePanelId }, [activePanelId])
+  const activePanelIdRef = { get current() { return useAppStore.getState().activePanelId } }
+  void activePanelId
 
   // Sync activePanelId when the user navigates between sidebar spaces.
   // Mouse-down on individual panels (in dual-panel layout) will override this.
@@ -503,12 +506,14 @@ export default function App() {
 
   // Auto-dismiss timer for find bar opened by typing (not by Cmd+F)
   const autoOpenDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const findBarOpenRef = useRef(findBarOpen)
-  const findBarAutoOpenRef = useRef(findBarAutoOpen)
-  const findBarQueryRef = useRef(findBarQuery)
-  useEffect(() => { findBarOpenRef.current = findBarOpen }, [findBarOpen])
-  useEffect(() => { findBarAutoOpenRef.current = findBarAutoOpen }, [findBarAutoOpen])
-  useEffect(() => { findBarQueryRef.current = findBarQuery }, [findBarQuery])
+  // The find bar's state is read straight from the store (`.current` getters), never from refs
+  // synced by effects: right after a navigation the main thread is busy mounting the new chapter
+  // and passive effects can lag by a second — keys handled meanwhile saw stale values (opened the
+  // bar twice, reset the query, or routed to the previous panel). See lib/findHandoff.ts.
+  const findBarOpenRef = { get current() { return useAppStore.getState().findBarOpen } }
+  const findBarAutoOpenRef = { get current() { return useAppStore.getState().findBarAutoOpen } }
+  const findBarQueryRef = { get current() { return useAppStore.getState().findBarQuery } }
+  void findBarOpen; void findBarAutoOpen; void findBarQuery
 
   // FindBar.tsx dispatches this on hover-start/hover-end/click/focus so the
   // auto-dismiss countdown resets on those interactions too, not just on
@@ -940,64 +945,25 @@ export default function App() {
           e.preventDefault()
           setActiveSpace(space)
         }
-      } else if (!cmd && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        // ── Type-anywhere → auto-open find bar ───────────────────────────
-        // Only trigger for printable single characters (not Enter, Escape, Tab, arrows, etc.)
-        if (
-          e.key.length === 1 &&
-          !isTypingTarget(document.activeElement) &&
-          !findBarOpenRef.current
-        ) {
-          const pid = activePanelIdRef.current
-          if (pid === 'bible') {
-            // Digit keys → go-to-verse (accumulate in BiblePanel)
-            if (e.key >= '0' && e.key <= '9') {
-              window.dispatchEvent(new CustomEvent('berean:verseDigit', { detail: { digit: e.key } }))
-            } else {
-              openFindBar(true, e.key)
-              // Sync these refs NOW rather than waiting for their useEffect to run after the
-              // commit. Right after flipping to a chapter the main thread is busy rendering the
-              // fresh verse tree, so React's passive effects (which is where findBarOpenRef /
-              // findBarQueryRef get updated) can lag ~1s. Until they flush, every further
-              // keystroke still sees findBarOpenRef.current === false, re-enters this branch, and
-              // calls openFindBar(true, e.key) again — resetting the query to a single character
-              // each time, so the find bar looks like it "isn't picking up typing." Updating the
-              // refs synchronously makes the very next keystroke take the append branch below.
-              findBarOpenRef.current = true
-              findBarAutoOpenRef.current = true
-              findBarQueryRef.current = e.key
-              // Auto-dismiss timer for type-anywhere (bible only uses global findbar)
-              if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
-              autoOpenDismissRef.current = setTimeout(() => {
-                if (findBarAutoOpenRef.current) closeFindBar()
-              }, 3500)
-            }
-          } else if (pid === 'notes') {
-            window.dispatchEvent(new CustomEvent('berean:openNotesFindBar', { detail: { seedChar: e.key } }))
-          } else if (pid === 'lexicon') {
-            window.dispatchEvent(new CustomEvent('berean:openLexiconFindBar', { detail: { seedChar: e.key } }))
-          }
-        } else if (findBarOpenRef.current && findBarAutoOpenRef.current && e.key.length === 1 && !isTypingTarget(document.activeElement)) {
-          // Characters typed while findbar is open but input isn't focused yet (fast typing
-          // before the 20ms focus delay). Forward them into the query so nothing is lost.
-          // Advance findBarQueryRef synchronously — its useEffect can lag behind a burst of
-          // keystrokes (see the ref-sync note above), and reading a stale value here would drop
-          // every character typed between commits.
-          const nextQuery = findBarQueryRef.current + e.key
-          findBarQueryRef.current = nextQuery
-          setFindBarQuery(nextQuery)
-          // Reset auto-dismiss timer
+      } else if (!cmd && !e.ctrlKey && !e.altKey && !e.metaKey && !e.isComposing) {
+        // ── Type-anywhere → auto-open find bar (decision: lib/findHandoff.ts) ─────────
+        const st = useAppStore.getState()
+        const action = typeToFindAction(e.key, {
+          typing: isTypingTarget(document.activeElement),
+          findOpen: st.findBarOpen, autoOpen: st.findBarAutoOpen, query: st.findBarQuery, panel: st.activePanelId,
+        })
+        const restartDismiss = () => {
           if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
           autoOpenDismissRef.current = setTimeout(() => {
             if (findBarAutoOpenRef.current) closeFindBar()
           }, 3500)
-        } else if (findBarOpenRef.current && findBarAutoOpenRef.current && isTypingTarget(document.activeElement)) {
-          // User is actively typing inside the find bar input — reset dismiss timer so it
-          // doesn't close while they're still typing
-          if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
-          autoOpenDismissRef.current = setTimeout(() => {
-            if (findBarAutoOpenRef.current) closeFindBar()
-          }, 3500)
+        }
+        if (action?.kind === 'verse-digit') window.dispatchEvent(new CustomEvent('berean:verseDigit', { detail: { digit: action.digit } }))
+        else if (action?.kind === 'open') { openFindBar(true, action.seed); restartDismiss() }
+        else if (action?.kind === 'append') { setFindBarQuery(action.query); restartDismiss() }
+        else if (action?.kind === 'keep-alive') restartDismiss()
+        else if (action?.kind === 'panel') {
+          window.dispatchEvent(new CustomEvent(action.panel === 'notes' ? 'berean:openNotesFindBar' : 'berean:openLexiconFindBar', { detail: { seedChar: action.seed } }))
         }
       }
     }

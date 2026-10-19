@@ -11,6 +11,7 @@ import { installIosShareInbox } from './shareInbox'
 import { installIosLiquidGlass } from './liquidGlass'
 import { applyLiquidGlassTokens, loadLiquidGlassCapabilities } from '../liquidGlass'
 import { perfMark } from './perf'
+import { afterFirstPaint } from '../liquidGlass/react'
 import { installDevProbe } from './devProbe'
 import { setActiveTTSBackend, ttsEngine } from '../../lib/tts/ttsEngine'
 import { installIosVoicePack, refreshVoicePack } from './voicePack'
@@ -58,7 +59,9 @@ async function boot() {
     installIosBridge(services)
     installIosBridgeExtras(services, import.meta.env.VITE_APP_VERSION ?? '0')
     installIosSyncBridge()
-    void initIosSyncHost()   // starts only if the user enabled iCloud sync; never blocks boot
+    // Starts only if the user enabled iCloud sync; never blocks boot. Its catch-up apply (and the
+    // note refreshes it triggers) waits until the first screen has painted (perf pass 2026-10-17).
+    void afterFirstPaint().then(() => setTimeout(() => { void initIosSyncHost() }, 1500))
     void installIosDeepLinks()   // berean:// URLs queue until the mobile shell registers its target
     void installIosSpotlight()   // notes searchable from the home screen; results are deep links
     installIosShareInbox()       // "Open in Berean": items the Share Extension left in the App Group

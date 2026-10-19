@@ -1564,7 +1564,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   return (
     <div
       ref={lexiconContentRef}
-      className="flex flex-col h-full"
+      className="flex flex-col h-full relative"
       onMouseDown={() => setActivePanelId('lexicon')}
     >
       <FindBar

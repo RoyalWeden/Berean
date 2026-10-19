@@ -78,11 +78,14 @@ describe('Folders home', () => {
     expect(container.querySelector('[aria-label="New Folder"]')).not.toBeNull()
     expect(byText('button', 'Edit')).toBeTruthy()
   })
-  it('nested folders expand in place; the expansion is remembered', async () => {
+  it('lists top-level folders only; a subfolder appears on its parent folder page (TEST 2026-10-17)', async () => {
     await mount()
-    click(container.querySelector('[aria-label="Expand Sermons"]'))
+    expect(container.querySelector('.m-folder-disclosure')).toBeNull()
+    expect([...container.querySelectorAll('.m-folder-name')].map((e) => e.textContent)).not.toContain('Torah')
+    expect(byText('.m-folder-main', 'Sermons')!.getAttribute('aria-label')).toContain('has subfolders')
+    click(byText('.m-folder-main', 'Sermons'))
+    expect(loc()).toBe('a')
     expect([...container.querySelectorAll('.m-folder-name')].map((e) => e.textContent)).toContain('Torah')
-    expect(notesHomePrefs.get().expandedFolders).toEqual(['a'])
   })
   it('All Notes has no folder actions (it cannot be renamed or deleted); Edit shows actions only on your folders', async () => {
     await mount()
@@ -142,7 +145,11 @@ describe('folder view', () => {
     const rows = container.querySelectorAll('.m-note-row')
     click(rows[0]); click(rows[1])
     expect(container.querySelector('.m-notes-editbar-count')!.textContent).toBe('2 Selected')
-    click(byText('.m-notes-editbar button', 'Delete'))
+    // Icon-only actions keep their names for VoiceOver; the checkmark ends selecting.
+    expect([...container.querySelectorAll('.m-notes-editbar button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Move', 'Pin', 'Share', 'Delete'])
+    expect(container.querySelector('.m-notes-editbar button')!.textContent).toBe('')
+    expect(container.querySelector('[aria-label="Done"]')).not.toBeNull()
+    click(container.querySelector('.m-notes-editbar [aria-label="Delete"]'))
     await flush()
     expect(api.deleteNote).toHaveBeenCalledTimes(2)
   })

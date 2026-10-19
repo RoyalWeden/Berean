@@ -230,6 +230,7 @@ final class GlassCluster {
                 frame = CGRect(x: f.midX - w / 2, y: f.minY, width: w, height: f.height)
             }
             item.view.frame = frame.offsetBy(dx: -restingOrigin.x, dy: -restingOrigin.y)
+            item.view.layoutIfNeeded() // the label lays out in its new width this pass
             item.setHidden((s["hidden"] as? Bool) ?? false)
         }
         for (k, it) in items where !seen.contains(k) { it.view.removeFromSuperview(); items.removeValue(forKey: k) }
@@ -240,7 +241,7 @@ final class GlassCluster {
 
     func debugInfo() -> [String: Any] {
         var it: [String: Any] = [:]
-        for (k, v) in items { it[k] = ["frame": NSCoder.string(for: v.view.frame), "hidden": v.isItemHidden, "title": v.debugTitle] }
+        for (k, v) in items { it[k] = ["frame": NSCoder.string(for: v.view.frame), "hidden": v.isItemHidden, "title": v.debugTitle, "label": v.debugLabel] }
         return ["frame": NSCoder.string(for: view.frame), "alpha": view.alpha, "interactive": view.isUserInteractionEnabled, "transformY": view.transform.ty, "items": it]
     }
 
@@ -280,8 +281,10 @@ final class GlassCluster {
 final class GlassItem {
     let id: String
     let view: UIVisualEffectView
-    private let button = UIButton(type: .custom)
+    private var button = UIButton(type: .custom)
     private var wasProminent = false
+    /// The title the current button was built with (labelled capsules only).
+    private var builtTitle: String?
     private let badge = UILabel()
     var onPress: (() -> Void)?
     private var symbol = ""
@@ -316,6 +319,10 @@ final class GlassItem {
     // Starts hidden (alpha 0) so the first setHidden(false) fades the new control in.
     private(set) var isItemHidden = true
     var debugTitle: String { button.configuration?.title ?? "" }
+    var debugLabel: [String: Any] {
+        guard let l = button.titleLabel else { return ["none": true] }
+        return ["text": l.text ?? "", "frame": NSCoder.string(for: l.frame), "alpha": l.alpha, "hidden": l.isHidden, "button": NSCoder.string(for: button.frame), "superview": l.superview != nil]
+    }
 
     /// Covered by a web sheet / popover / scrim (or off screen): fade out and stop taking touches,
     /// so the web overlay — and the web placeholder React reveals — read as on top.
@@ -336,11 +343,38 @@ final class GlassItem {
     }
 
     var hasTitle: Bool { button.configuration?.attributedTitle != nil }
+    /// The labelled capsule's natural width, measured from its own parts (TEST 2026-10-17 "that label
+    /// of the book and chapter goes away"): `sizeThatFits` on an existing button returned the size of
+    /// its PREVIOUS configuration after the title changed (Find on Page jumping Genesis 2 → 8 gave a
+    /// 55 pt capsule), so the new title truncated to nothing and only the book glyph showed.
     func fittingWidth(height: CGFloat) -> CGFloat {
-        ceil(button.sizeThatFits(CGSize(width: 600, height: height)).width)
+        guard let c = button.configuration, let t = c.attributedTitle else {
+            return ceil(button.sizeThatFits(CGSize(width: 600, height: height)).width)
+        }
+        let text = NSAttributedString(t).boundingRect(with: CGSize(width: 2000, height: height), options: [.usesLineFragmentOrigin], context: nil).width
+        let image = c.image?.size.width ?? 0
+        let gap = c.image != nil ? c.imagePadding : 0
+        let parts = text + image + gap + c.contentInsets.leading + c.contentInsets.trailing
+        // UIButton adds a little internal spacing of its own; with the configuration applied
+        // (configure → updateConfiguration) sizeThatFits is current, so take the larger + a hair.
+        button.updateConfiguration()
+        let fitted = button.sizeThatFits(CGSize(width: 600, height: height)).width
+        return ceil(max(parts, fitted) + 6)
     }
 
     @objc private func tap() { onPress?() }
+
+    private func replaceButton() {
+        let fresh = UIButton(type: .custom)
+        fresh.frame = view.contentView.bounds
+        fresh.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        fresh.addTarget(self, action: #selector(tap), for: .touchUpInside)
+        view.contentView.insertSubview(fresh, belowSubview: badge)
+        button.removeFromSuperview()
+        button = fresh
+        symbol = ""
+        wasProminent = false
+    }
 
     func debugPress() { button.sendActions(for: .touchUpInside) }
 
@@ -350,6 +384,14 @@ final class GlassItem {
         let size = CGFloat(spec["iconSize"] as? Double ?? 20)
         let title = spec["title"] as? String
         if let title, !title.isEmpty {
+            // A NEW title gets a fresh button (TEST 2026-10-17 "that label of the book and chapter
+            // goes away"): re-configuring an existing UIButton with a different attributed title
+            // kept the label laid out for the old content — after Find on Page jumped Genesis 2 → 8
+            // only the book glyph was drawn. A first configuration always lays out correctly, so a
+            // title change (a chapter change: rare) rebuilds the button the same way.
+            let fullTitle = title + ((spec["subtitle"] as? String) ?? "")
+            if let built = builtTitle, built != fullTitle { replaceButton() }
+            builtTitle = fullTitle
             // A labelled capsule (the reader's passage title): symbol + semibold title (+ subtitle).
             let fontSize = CGFloat(spec["fontSize"] as? Double ?? 15)
             let padX = CGFloat(spec["paddingX"] as? Double ?? 12)
@@ -388,6 +430,12 @@ final class GlassItem {
         button.automaticallyUpdatesConfiguration = false
         button.configuration?.baseForegroundColor = prominent ? (accent ?? view.tintColor) : .label
         button.tintColor = prominent ? (accent ?? view.tintColor) : .label
+        // Apply the configuration NOW (automaticallyUpdatesConfiguration is off): a changed title
+        // was otherwise laid out with the previous content size — a zero-width label, so only the
+        // book glyph showed (TEST 2026-10-17). Measuring with sizeThatFits used to force this as a
+        // side effect; fittingWidth no longer relies on it.
+        button.updateConfiguration()
+        button.setNeedsLayout()
         button.accessibilityLabel = spec["label"] as? String
         button.accessibilityTraits = .button
         let b = spec["badge"] as? String

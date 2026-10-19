@@ -59,9 +59,11 @@ export default function SectionAnchorChips({
   }, [scrollRef, anchors])
 
   // No chip bar for this section — still emit the top spacing the scroll container no
-  // longer provides (see SettingsModal's `settings-content` comment). `[&+*]:!mt-0`
-  // cancels the parent `space-y-6` gap that would otherwise stack on top of it.
-  if (anchors.length < 2) return <div aria-hidden className="pt-6 [&+*]:!mt-0" />
+  // longer provides (see SettingsModal's `settings-content` comment). `-mb-6` cancels the
+  // parent `space-y-6` gap that would otherwise stack on top of it (a negative margin rather than
+  // a `[&+*]` next-sibling rule — universal sibling selectors make Chromium restyle whole lists
+  // on every insertion; docs/performance-audit-2026-10-19.md).
+  if (anchors.length < 2) return <div aria-hidden className="pt-6 -mb-6" />
 
   return (
     <div
@@ -69,8 +71,8 @@ export default function SectionAnchorChips({
       // Sits flush at the very top of the scroll area (the container has no `padding-top`
       // now — that was what pushed a `sticky top-0` element down and left a gap above it).
       // Translucent + blur so it reads as a frosted strip over the scrolling content;
-      // `[&+*]:!mt-2` trims the parent `space-y-6`'s 1.5rem gap under the row to a tight one.
-      className="sticky top-0 z-raised -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 material-bar !bg-surface-2/95 border-b border-separator [&+*]:!mt-2"
+      // `-mb-4` trims the parent `space-y-6`'s 1.5rem gap under the row to a tight 0.5rem.
+      className="sticky top-0 z-raised -mx-6 px-6 pt-2 pb-2 -mb-4 flex flex-wrap gap-1.5 material-bar !bg-surface-2/95 border-b border-separator"
     >
       {anchors.map((a) => (
         <Chip

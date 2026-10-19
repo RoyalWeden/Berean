@@ -122,7 +122,57 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.7.3] - 2026-10-17
+## [0.7.3] - 2026-10-19
+
+### Berean Chat
+
+- Chat is redesigned on both the Mac and the iPhone: a rich message field where **bold**, lists,
+  links and code show as formatting while you type (even inside a word), and messages and Berean's
+  answers display as formatted text with working verse and Strong's links.
+- The Mac has a Chat panel and a separate Chat window; your unsent text is kept for each
+  conversation and moves with you between the two.
+- Reply to a message (swipe right on the iPhone), with the quoted message shown above your reply.
+- Each message's "…" menu holds Ask Berean, Edit and Delete; on the iPhone a press and hold opens a
+  menu over the message. Clicking "…" again closes it.
+- Ask Berean shows its mode (Commentary, Deep Search or Passages Only) and a separate "This Tab"
+  switch inside the message field, naming what it will read. Return asks Berean while ✦ is on.
+- Choose which conversation a message goes to from a searchable picker beside the text you type.
+  Messages sent from All Messages without a conversation are kept together in Unfiled, which now
+  opens like a conversation near the top of the list.
+- Conversations can be pinned and sorted into folders, are grouped by date (older months start
+  folded) and reopen where you left off.
+- Search all messages with All / Conversations / Messages filters and highlighted matches. ⌘F (or
+  "Find in Conversation" on the iPhone) finds within the open conversation, even in long ones.
+- Swipe left on the messages (two fingers on a trackpad) to see when each was sent and, in All
+  Messages, which conversation it belongs to; pull further to keep the times showing.
+- Long conversations open faster and stay smooth to scroll.
+
+### Scripture
+
+- The Find bar sits right under the toolbar as one compact row, and typing straight after opening a
+  passage with Enter no longer loses the first letters.
+- Scripture search from ⌘K shows results sooner.
+- The verse, Strong's and Study Trail menus open in the right place and stay on screen.
+
+### iPhone
+
+- A Home Screen widget starts a new Chat message in one tap.
+- Notes opens and scrolls quickly even with thousands of notes, and the app no longer freezes while
+  starting up with a large library.
+- The Notes title and header float above the list, and the glass controls behave correctly when
+  menus and sheets open over them.
+- The glass controls no longer use the battery while the app sits idle.
+
+### Sync
+
+- Chats, pins and folders sync between the Mac and the iPhone, and edits to the same conversation on
+  two devices merge instead of overwriting each other.
+
+### Mac
+
+- Lists that add items at the top (Chat history, Show Earlier Messages) no longer stall the window.
+- Selecting Scripture text no longer writes debug information to the log.
+
 
 ### Read Aloud (iPhone)
 

@@ -24,24 +24,36 @@ export interface PopoverAction extends SheetAction {
   detail?: string
 }
 
-interface OpenMenu { anchor: DOMRect; title?: string; actions: PopoverAction[]; id: number }
+interface OpenMenu { anchor: DOMRect; title?: string; actions: PopoverAction[]; id: number; onClose?: () => void }
+
+/** Anything with a rect — an element, or a virtual anchor such as the point a finger pressed. */
+export type PopoverAnchor = Pick<Element, 'getBoundingClientRect'>
 
 let current: OpenMenu | null = null
 let seq = 0
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((l) => l())
-export function closePopoverMenu(): void { if (current) { current = null; emit() } }
-function openMenu(anchor: Element, title: string | undefined, actions: PopoverAction[]) {
-  current = { anchor: anchor.getBoundingClientRect(), title, actions, id: ++seq }
+export function closePopoverMenu(): void {
+  if (!current) return
+  const done = current.onClose
+  current = null
   emit()
+  done?.()
+}
+function openMenu(anchor: PopoverAnchor, title: string | undefined, actions: PopoverAction[], onClose?: () => void) {
+  const prev = current?.onClose
+  current = { anchor: anchor.getBoundingClientRect(), title, actions, id: ++seq, onClose }
+  emit()
+  prev?.()
 }
 
-/** `open(anchorElement, title?, actions)` — the popover twin of useActionSheet(). */
+/** `open(anchorElement, title?, actions, opts?)` — the popover twin of useActionSheet().
+ *  `opts.onClose` runs once the menu goes away (a row picked, an outside tap, Escape). */
 export function usePopoverMenu() {
-  return (anchor: Element | null | undefined, title: string | undefined, actions: PopoverAction[]) => {
+  return (anchor: PopoverAnchor | null | undefined, title: string | undefined, actions: PopoverAction[], opts?: { onClose?: () => void; haptic?: boolean }) => {
     if (!anchor) return
-    void haptic.tap()
-    openMenu(anchor, title, actions)
+    if (opts?.haptic !== false) void haptic.tap()
+    openMenu(anchor, title, actions, opts?.onClose)
   }
 }
 
@@ -86,22 +98,25 @@ export function PopoverMenuHost() {
     }
     a.onSelect()
   }
+  const hasChecks = menu.actions.some((a) => a.checked !== undefined)
   return createPortal(
     // An outside tap only DISMISSES (iOS): closing on pointerdown unmounted this layer before the
     // finger lifted, so the click landed on whatever was underneath — a search result opened
     // (TEST 2026-10-06, real tap in the simulator). Closing on the click consumes it; a drag
     // that starts outside closes the menu as the page starts to move.
-    <div className="m-popover-layer"
+    <div className="m-popover-layer" data-glass-passthrough=""
       onClick={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); e.stopPropagation(); closePopoverMenu() } }}
       onTouchMove={(e) => { if (e.target === e.currentTarget) closePopoverMenu() }}>
       <div ref={ref} key={menu.id} role="menu" aria-label={menu.title} className="m-popover-menu"
         style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight, transformOrigin: pos.origin } : { visibility: 'hidden', top: 0, left: 0 }}>
         {menu.title && <div className="m-popover-title">{menu.title}</div>}
+        {/* The checkmark column only in menus that mark a choice (iOS) — a plain action menu
+            starts its labels at the edge (TEST 2026-10-17 "extra space on the left"). */}
         {menu.actions.map((a, i) => (
           <button key={a.id} type="button" role="menuitem" disabled={a.disabled}
-            className={`m-popover-row${a.destructive ? ' is-destructive' : ''}${a.section && i > 0 ? ' is-section' : ''}`}
+            className={`m-popover-row${hasChecks ? ' has-check' : ''}${a.destructive ? ' is-destructive' : ''}${a.section && i > 0 ? ' is-section' : ''}`}
             onClick={() => choose(a)}>
-            <span className="m-popover-check" aria-hidden>{a.checked ? <Check size={15} strokeWidth={2.5} /> : null}</span>
+            {hasChecks && <span className="m-popover-check" aria-hidden>{a.checked ? <Check size={15} strokeWidth={2.5} /> : null}</span>}
             <span className="m-popover-label">{a.label}{a.detail && <small>{a.detail}</small>}</span>
             {a.icon && <a.icon size={18} aria-hidden className="m-popover-icon" />}
           </button>

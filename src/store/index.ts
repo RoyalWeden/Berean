@@ -39,7 +39,8 @@ const VIEWER_FONT_SCALE_SYNC_KEY = 'berean-viewer-font-scale'
 const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
   try {
     const p = new URLSearchParams(window.location.search)
-    return p.get('viewer') === '1' || p.get('studyTrail') === '1' || p.get('float') === '1' || p.get('versePicker') === '1'
+    // ?chat=1 — the Berean Chat window (same rule: reads the shared blob, never writes it).
+    return p.get('viewer') === '1' || p.get('studyTrail') === '1' || p.get('float') === '1' || p.get('versePicker') === '1' || p.get('chat') === '1'
   } catch { return false }
 })()
 
@@ -2065,7 +2066,7 @@ export const useAppStore = create<AppState>()(
       autoPiP: true,
       youtubeIsPlaying: false,
       aiLookupPanelOpen: false,
-      aiLookupCommentaryOn: false,
+      aiLookupCommentaryOn: true, // Commentary is the everyday mode (chatModes.ts)
       aiLookupAgenticOn: false,
       aiLookupUseTabContext: false,
       aiLookupPanelPos: null,
@@ -3543,6 +3544,9 @@ export const useAppStore = create<AppState>()(
         aiLookupCommentaryOn: state.aiLookupCommentaryOn,
         aiLookupAgenticOn: state.aiLookupAgenticOn,
         aiLookupUseTabContext: state.aiLookupUseTabContext,
+        // The conversation the panel last showed — reopened on relaunch (deleted → newest). Device-
+        // local on purpose: syncing it would switch conversations under another device.
+        aiLookupActiveChatId: state.aiLookupActiveChatId,
         aiLookupPanelPos: state.aiLookupPanelPos,
         aiLookupPanelSize: state.aiLookupPanelSize,
         pdfFeatureEnabled: state.pdfFeatureEnabled,

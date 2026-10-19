@@ -851,3 +851,19 @@ describe('extractRefsFromNote — LXX marker', () => {
     expect(isa.some(r => !r.lxx)).toBe(true)
   })
 })
+
+describe('extractRefsFromNote — performance (TEST 2026-10-17 cold-launch freeze)', () => {
+  it('stays linear on long prose full of "of" with no chapter numbers', () => {
+    // Before the fix this exact shape backtracked exponentially (53 s for one 4.5 KB note).
+    const prose = Array.from({ length: 120 }, () => 'the children of Israel and the house of the LORD').join(' ')
+    const t = performance.now()
+    expect(extractRefsFromNote(prose, 'Long note')).toEqual([])
+    expect(performance.now() - t).toBeLessThan(250)
+  })
+
+  it('still finds multi-word "of" books inside that prose', () => {
+    const prose = 'the children of Israel and the house of the LORD '.repeat(40)
+    const refs = extractRefsFromNote(`${prose}Song of Solomon 2:1 and ${prose} Wisdom of Solomon 3:1`, 'n')
+    expect(refs.map((r) => `${r.bookId} ${r.chapter}:${r.verse}`)).toEqual(['SNG 2:1', 'WIS 3:1'])
+  })
+})

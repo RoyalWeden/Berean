@@ -1,5 +1,6 @@
 import { openFloatingTab } from '@/lib/floatingTab'
-import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
+import { handOffToScriptureFind, releaseFocusWithin, shouldRestoreFocus } from '@/lib/findHandoff'
 import { BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, Tag, X, TextSearch } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -138,6 +139,10 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
 // around detectTranslationPrefix/parseRef) is a synchronous, blocking call — a real
 // contributor to "type, freeze, then a burst of characters appears". Re-enable for a
 // session by running `localStorage.berean_search_diag = '1'` in the console.
+/** Pause after the last keystroke before searching. The query + render takes ~25–35 ms (perf audit
+ *  2026-10-19), so the debounce was most of the ~145 ms keystroke → results; a stale-response
+ *  guard (searchGenRef) makes firing sooner safe. */
+const SEARCH_DEBOUNCE_MS = 60
 const DIAG = (() => {
   try { return localStorage.getItem('berean_search_diag') === '1' } catch { return false }
 })()
@@ -209,6 +214,12 @@ export default function FloatingSearch() {
   const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All Words', any: 'Any Word', phrase: 'Exact Phrase' }
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  /** Set while an Enter keypress is being handled: a Scripture jump made by it hands the keyboard
+   *  to the find bar (lib/findHandoff.ts). */
+  const enterHandoffRef = useRef(false)
+  // Closing: give up focus NOW, not after the exit animation (keys typed meanwhile were lost).
+  useLayoutEffect(() => { if (!searchOpen) releaseFocusWithin(contentRef.current) }, [searchOpen])
   // ListRow forwards its ref to the row's outer element (not the inner button).
   const selectedItemRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
@@ -587,7 +598,7 @@ export default function FloatingSearch() {
         setYoutubeResults(merged.slice(0, 10))
       } catch (err) {
       }
-    }, 120)
+    }, SEARCH_DEBOUNCE_MS)
   }, [])
 
   // Load cross-references when the query is a verse ref with a verse number.
@@ -760,6 +771,7 @@ export default function FloatingSearch() {
     // "Open in floating tab" (which only closes the source tab, never reassigns activeSpace).
     if (target !== 'floating') setActiveSpace('scripture')
     closeSearch()
+    if (target !== 'floating' && enterHandoffRef.current) handOffToScriptureFind()
   }
 
   function openLexicon(strongsNum: string, targetOverride?: 'current' | 'new' | 'floating') {
@@ -1254,6 +1266,12 @@ export default function FloatingSearch() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) { handleKeyDownInner(e); return }
+    enterHandoffRef.current = true
+    try { handleKeyDownInner(e) } finally { enterHandoffRef.current = false }
+  }
+
+  function handleKeyDownInner(e: React.KeyboardEvent) {
     // ── Tag mode ("#…") owns the keyboard: arrow through candidate tag chips,
     //    Enter selects the focused one, ⇧↵ (or Enter with nothing left to pick)
     //    opens the advanced Scripture search with the selected tags. ──
@@ -1350,8 +1368,11 @@ export default function FloatingSearch() {
           aria-describedby={undefined}
           asChild
           forceMount
+          // Never pull focus back over an element that claimed it meanwhile (the find bar).
+          onCloseAutoFocus={(e) => { if (!shouldRestoreFocus(contentRef.current)) e.preventDefault() }}
         >
           <motion.div
+            ref={contentRef}
             className="
               fixed left-1/2 top-[12%]
               z-critical w-full max-w-2xl

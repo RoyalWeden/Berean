@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ChevronRight, Folder, FolderOpen, Pin, PinOff, Trash2, FolderInput, CheckCircle2, Circle, CalendarDays, BookOpen, FileInput, NotebookText } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, Folders, Pin, PinOff, Trash2, FolderInput, Check, CalendarDays, BookOpen, FileInput, NotebookText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Note } from '@/types'
 import { displayNoteTitle } from '@/lib/noteTitle'
@@ -111,10 +111,30 @@ export function SwipeRow({ leading = [], trailing = [], disabled, children, labe
   )
 }
 
+// ── derived row text, once per note object ─────────────────────────────────────────────────
+// Previews strip ~25 markdown patterns from the whole body and look for an image; rows re-render
+// on selection, swipes and list changes, so the result is cached per note object (a refetch
+// yields new objects, so an edited note is recomputed — no manual invalidation).
+const derived = new WeakMap<Note, { preview: string; card: string; thumb: string | null }>()
+function noteDerived(note: Note) {
+  let d = derived.get(note)
+  if (!d) {
+    d = { preview: notePreviewText(note, stripMarkdownFormatting), card: notePreviewText(note, stripMarkdownFormatting, 220), thumb: firstImageSrc(note.content) }
+    derived.set(note, d)
+  }
+  return d
+}
+
+/** The iOS selection mark: an empty ring, or a filled accent disc with a white check. */
+function SelectMark({ on, className }: { on: boolean; className: string }) {
+  return <span className={`${className} m-select-mark${on ? ' is-on' : ''}`} aria-hidden>{on && <Check size={14} strokeWidth={3} />}</span>
+}
+
 // ── note row (list) ─────────────────────────────────────────────────────────────────────────
 const typeIcon = (n: Note) => (n.type === 'daily' ? CalendarDays : n.verseRef || n.type === 'verse' ? BookOpen : null)
 
-export function NoteListRow({ note, now, folderName, selecting, selected, onOpen, onToggle, onLongPress, onPin, onMove, onDelete, canMove }: {
+/** Memoised: a windowed list re-renders its visible rows only when their own props change. */
+export const NoteListRow = React.memo(function NoteListRow({ note, now, folderName, selecting, selected, onOpen, onToggle, onLongPress, onPin, onMove, onDelete, canMove }: {
   note: Note; now: number
   /** Shown under the preview where the location doesn't already say it (All Notes, search, pinned). */
   folderName?: string | null
@@ -127,8 +147,7 @@ export function NoteListRow({ note, now, folderName, selecting, selected, onOpen
   const ref = useRef<HTMLButtonElement>(null)
   const lp = useLongPress(() => { if (!onLongPress || selecting || !ref.current) return; void haptic.medium(); onLongPress(note, ref.current.getBoundingClientRect()) })
   const title = displayNoteTitle(note.title)
-  const preview = notePreviewText(note, stripMarkdownFormatting)
-  const thumb = firstImageSrc(note.content)
+  const { preview, thumb } = noteDerived(note)
   const date = rowDateLabel(note.updatedAt, now)
   const Icon = typeIcon(note)
   const body = (
@@ -136,7 +155,7 @@ export function NoteListRow({ note, now, folderName, selecting, selected, onOpen
       aria-label={`${title}, ${date}${preview ? `, ${preview}` : ''}${folderName ? `, in ${folderName}` : ''}${note.pinned ? ', pinned' : ''}`}
       aria-pressed={selecting ? !!selected : undefined}
       onClick={() => (selecting ? onToggle?.(note) : onOpen(note))} {...(selecting ? {} : lp)} onContextMenu={(e) => e.preventDefault()}>
-      {selecting && <span className="m-note-row-check" aria-hidden>{selected ? <CheckCircle2 size={22} /> : <Circle size={22} />}</span>}
+      {selecting && <SelectMark on={!!selected} className="m-note-row-check" />}
       <span className="m-note-row-text">
         <span className="m-note-row-title">{note.icon && <span aria-hidden>{note.icon} </span>}{title}</span>
         <span className="m-note-row-line"><span className="m-note-row-date">{date}</span>{preview ? <span className="m-note-row-preview">{preview}</span> : <span className="m-note-row-preview is-empty">No additional text</span>}</span>
@@ -158,19 +177,18 @@ export function NoteListRow({ note, now, folderName, selecting, selected, onOpen
       {body}
     </SwipeRow>
   )
-}
+})
 
 // ── gallery card ────────────────────────────────────────────────────────────────────────────
 /** The tab-preview card language (TabPreview's `.mobile-tab-preview is-note`) as a grid cell. */
-export function NoteGalleryCard({ note, now, selecting, selected, onOpen, onToggle, onLongPress }: {
+export const NoteGalleryCard = React.memo(function NoteGalleryCard({ note, now, selecting, selected, onOpen, onToggle, onLongPress }: {
   note: Note; now: number; selecting?: boolean; selected?: boolean
   onOpen: (n: Note) => void; onToggle?: (n: Note) => void; onLongPress?: (n: Note, rect: DOMRect) => void
 }) {
   const ref = useRef<HTMLButtonElement>(null)
   const lp = useLongPress(() => { if (!onLongPress || selecting || !ref.current) return; void haptic.medium(); onLongPress(note, ref.current.getBoundingClientRect()) })
   const title = displayNoteTitle(note.title)
-  const thumb = firstImageSrc(note.content)
-  const body = notePreviewText(note, stripMarkdownFormatting, 220)
+  const { card: body, thumb } = noteDerived(note)
   const date = rowDateLabel(note.updatedAt, now)
   return (
     <button ref={ref} type="button" className={`m-note-card${selected ? ' is-selected' : ''}`} aria-label={`${title}, ${date}${note.pinned ? ', pinned' : ''}`}
@@ -179,18 +197,20 @@ export function NoteGalleryCard({ note, now, selecting, selected, onOpen, onTogg
       <span className="mobile-tab-preview is-note m-note-card-preview">
         {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" className="m-note-card-img" />
           : <><span className="mobile-tab-preview-passage">{note.icon ? `${note.icon} ` : ''}{title}</span><span className="mobile-tab-preview-text is-sans">{body}</span></>}
-        {selecting && <span className="m-note-card-check" aria-hidden>{selected ? <CheckCircle2 size={22} /> : <Circle size={22} />}</span>}
+        {selecting && <SelectMark on={!!selected} className="m-note-card-check" />}
         {note.pinned && !selecting && <Pin size={12} aria-hidden className="m-note-card-pin" />}
       </span>
       <span className="m-note-card-title">{title}</span>
       <span className="m-note-card-date">{date}</span>
     </button>
   )
-}
+})
 
 // ── folder row ──────────────────────────────────────────────────────────────────────────────
-export function FolderRow({ name, count, depth = 0, kind = 'folder', expandable, expanded, onToggleExpand, onOpen, onLongPress, trailing }: {
+export function FolderRow({ name, count, depth = 0, kind = 'folder', expandable, expanded, onToggleExpand, onOpen, onLongPress, trailing, hasChildren }: {
   name: string; count: number; depth?: number
+  /** Has subfolders (shown on its page): a stacked-folder glyph, no inline expansion. */
+  hasChildren?: boolean
   kind?: 'folder' | 'all' | 'daily' | 'verse' | 'import' | 'trash'
   expandable?: boolean; expanded?: boolean; onToggleExpand?: () => void
   onOpen: () => void; onLongPress?: () => void
@@ -198,14 +218,14 @@ export function FolderRow({ name, count, depth = 0, kind = 'folder', expandable,
   trailing?: React.ReactNode
 }) {
   const lp = useLongPress(() => { if (!onLongPress) return; void haptic.medium(); onLongPress() })
-  const Icon = kind === 'all' ? NotebookText : kind === 'daily' ? CalendarDays : kind === 'verse' ? BookOpen : kind === 'import' ? FileInput : kind === 'trash' ? Trash2 : expanded ? FolderOpen : Folder
+  const Icon = kind === 'all' ? NotebookText : kind === 'daily' ? CalendarDays : kind === 'verse' ? BookOpen : kind === 'import' ? FileInput : kind === 'trash' ? Trash2 : expanded ? FolderOpen : hasChildren ? Folders : Folder
   return (
     <div className="m-folder-row" style={{ ['--depth' as string]: depth }} role="listitem">
       {expandable
         ? <button type="button" className={`m-folder-disclosure${expanded ? ' is-open' : ''}`} aria-expanded={expanded} aria-label={`${expanded ? 'Collapse' : 'Expand'} ${name}`} onClick={() => { void haptic.selection(); onToggleExpand?.() }}><ChevronRight size={16} aria-hidden /></button>
-        : <span className="m-folder-disclosure is-spacer" aria-hidden />}
+        : depth > 0 ? <span className="m-folder-disclosure is-spacer" aria-hidden /> : null}
       <button type="button" className="m-folder-main" onClick={onOpen} {...(onLongPress ? lp : {})} onContextMenu={(e) => e.preventDefault()}
-        aria-label={`${name}, ${count} note${count === 1 ? '' : 's'}`}>
+        aria-label={`${name}, ${count} note${count === 1 ? '' : 's'}${hasChildren ? ', has subfolders' : ''}`}>
         <Icon size={20} aria-hidden className={`m-folder-icon is-${kind}`} />
         <span className="m-folder-name">{name}</span>
         <span className="m-folder-count">{count}</span>

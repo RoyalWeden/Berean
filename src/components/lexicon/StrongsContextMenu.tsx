@@ -1,8 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import { useRef, useState, useCallback } from 'react'
 import { BookMarked, ExternalLink, Layers, Copy, Hash } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { MenuPositioner, dispatchCloseContextMenus, useMenuDismiss } from '@/lib/usePositionedMenu'
 import { MenuSurface, MenuItem, MenuSeparator, MenuLabel } from '@/components/ui'
 
 export interface StrongsContextTarget {
@@ -28,42 +27,9 @@ export function StrongsContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!target) return
-    const close = () => onClose()
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    // Close when any OTHER context menu opens (or a right-click hits empty space).
-    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
-    const t = setTimeout(() => {
-      window.addEventListener('click', close)
-      window.addEventListener('contextmenu', close)
-      window.addEventListener('keydown', onKey)
-    }, 0)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
-      window.removeEventListener('click', close)
-      window.removeEventListener('contextmenu', close)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [target, onClose])
-
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    const pad = 8
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    let x = parseFloat(el.style.left) || 0
-    let y = parseFloat(el.style.top) || 0
-    if (x + width + pad > vw) x = Math.max(pad, x - width)
-    if (y + height + pad > vh) y = Math.max(pad, y - height)
-    x = Math.max(pad, Math.min(x, vw - width - pad))
-    y = Math.max(pad, Math.min(y, vh - height - pad))
-    el.style.left = `${x}px`
-    el.style.top = `${y}px`
-  })
+  // Shared dismissal (outside mousedown / Escape / wheel / resize / blur / another menu opening)
+  // and MenuPositioner placement (portal to <body>, measure, flip, clamp) — TEST 2026-10-17.
+  useMenuDismiss(!!target, [ref], () => onClose(), { closeOnScroll: false })
 
   if (!target) return null
 
@@ -73,14 +39,9 @@ export function StrongsContextMenu({
     onClose()
   }
 
-  return createPortal(
-    <div
-      ref={ref}
-      className="fixed z-menu min-w-[160px]"
-      style={{ left: target.x, top: target.y }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <MenuSurface>
+  return (
+    <MenuPositioner ref={ref} x={target.x} y={target.y} onClick={(e) => e.stopPropagation()}>
+      <MenuSurface className="min-w-[184px]">
         <MenuLabel>{target.strongsNum}</MenuLabel>
         <MenuSeparator />
         <MenuItem
@@ -110,8 +71,7 @@ export function StrongsContextMenu({
           onClick={() => { navigator.clipboard.writeText(`Strong's ${target.strongsNum}`); onClose() }}
         />
       </MenuSurface>
-    </div>,
-    document.body,
+    </MenuPositioner>
   )
 }
 

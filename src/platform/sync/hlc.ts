@@ -28,7 +28,7 @@ export function compareHlc(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-/** Maximum a wall clock may run ahead of the latest observed HLC before it is clamped (§9). */
+/** How far ahead of this device's wall clock a received timestamp may be before it is ignored (§9). */
 export const MAX_CLOCK_DRIFT_MS = 60 * 60 * 1000
 
 export class HybridLogicalClock {
@@ -50,13 +50,14 @@ export class HybridLogicalClock {
     }
   }
 
-  /** Timestamp for a local event. */
+  /** Timestamp for a local event. The local wall clock is followed however far it moved since
+   *  the last timestamp: an app that was closed for a week is simply a week later. (It used to be
+   *  clamped to last + 1 h, which stamped the first edits after any long gap with times up to
+   *  days in the past, so they lost last-writer-wins to older edits from other devices — seen on
+   *  the Mac 2026-10-18 as "clock drift 600557612 ms clamped" on every launch.) Only REMOTE
+   *  timestamps far in the future are refused (receive). */
   tick(): string {
-    let wall = this.now()
-    if (wall > this.wallMs + MAX_CLOCK_DRIFT_MS && this.wallMs > 0) {
-      this.onDrift?.(wall - this.wallMs)
-      wall = this.wallMs + MAX_CLOCK_DRIFT_MS
-    }
+    const wall = this.now()
     if (wall > this.wallMs) {
       this.wallMs = wall
       this.counter = 0

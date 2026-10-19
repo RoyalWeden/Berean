@@ -1,3 +1,4 @@
+import { perfSpan } from './perfSpan'
 /**
  * Reciprocal (backward) cross-reference index.
  *
@@ -32,6 +33,21 @@ interface MinimalNote {
 }
 
 /** Parse a list of notes into cross-ref sources (pure — unit testable). */
+// The references a note's text makes, cached by note id and kept while its title and content are
+// unchanged (TEST 2026-10-17 "ios is taking way too long to load things": every chapter view and
+// every note change re-parsed EVERY note — ~345 ms per pass with ~3,800 notes on the simulator).
+const refsCache = new Map<string, { title: string; content: string; refs: ReturnType<typeof extractRefsFromNote> }>()
+function refsOf(id: string | undefined, content: string, title: string) {
+  if (!id) return extractRefsFromNote(content, title)
+  const hit = refsCache.get(id)
+  if (hit && hit.content === content && hit.title === title) return hit.refs
+  const refs = extractRefsFromNote(content, title)
+  refsCache.set(id, { title, content, refs })
+  return refs
+}
+/** Tests only. */
+export function __clearRefsCache(): void { refsCache.clear() }
+
 export function buildCrossRefSources(notes: MinimalNote[]): CrossRefSource[] {
   const sources: CrossRefSource[] = []
   for (const note of notes) {
@@ -40,7 +56,7 @@ export function buildCrossRefSources(notes: MinimalNote[]): CrossRefSource[] {
     const ch = parseInt(chStr ?? '0', 10)
     const vs = parseInt(vsStr ?? '0', 10)
     if (!bId || !ch || !vs) continue
-    const refs = extractRefsFromNote(note.content, note.title || 'Untitled')
+    const refs = refsOf(note.id, note.content, note.title || 'Untitled')
     if (refs.length === 0) continue
     sources.push({ homeBookId: bId, homeChapter: ch, homeVerse: vs, title: note.title || 'Untitled', refs, ...(note.id ? { noteId: note.id } : {}) })
   }
@@ -176,6 +192,22 @@ export function flagReciprocalChapterRefs(
   return flags
 }
 
+/**
+ * buildCrossRefSources in slices that give the main thread back between them: the first parse of
+ * a large library (~470 verse notes with references: ~310 ms on the simulator) used to be ONE
+ * task at launch, so taps and scrolling waited for it. Later builds hit the per-note cache.
+ */
+async function buildCrossRefSourcesYielding(notes: MinimalNote[]): Promise<CrossRefSource[]> {
+  const SLICE = 60
+  if (notes.length <= SLICE) return buildCrossRefSources(notes)
+  const out: CrossRefSource[] = []
+  for (let i = 0; i < notes.length; i += SLICE) {
+    out.push(...perfSpan('crossRefSources', () => buildCrossRefSources(notes.slice(i, i + SLICE))))
+    if (i + SLICE < notes.length) await new Promise<void>((r) => setTimeout(r, 0))
+  }
+  return out
+}
+
 // ── Cached loader (renderer-only; uses window.notes) ──────────────────────────
 
 let cache: { token: number; promise: Promise<CrossRefSource[]> } | null = null
@@ -189,7 +221,7 @@ export function getCrossRefSources(token: number): Promise<CrossRefSource[]> {
     cache = {
       token,
       promise: getAllNotes(token)
-        .then((notes) => buildCrossRefSources(notes as MinimalNote[]))
+        .then((notes) => buildCrossRefSourcesYielding(notes as MinimalNote[]))
         .catch(() => [] as CrossRefSource[]),
     }
   }

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useContext, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, NotepadText, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2, Tag as TagIcon } from 'lucide-react'
+import { Copy, NotepadText, NotebookTabs, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2, Tag as TagIcon } from 'lucide-react'
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { selectionToRanges, chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import StrongsInline from './StrongsInline'
@@ -12,7 +12,7 @@ import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToD
 import { navigateToVerse, recordNavigation } from '@/lib/verseNavigation'
 import { applyFindHighlight } from '@/lib/highlight'
 import { verseMatchesFind } from '@/lib/scriptureFind'
-import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
@@ -25,6 +25,8 @@ import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { Button, ColorSwatchRow, IconButton, ListRow, SectionLabel, MenuSurface, MenuItem, MenuSeparator, RefChip } from '@/components/ui'
+import { MenuGroup, MenuIconAction, MenuIconRow } from '@/components/ui/Menu'
+import { useContextMenu } from '@/components/ui/ContextMenu'
 import { VerseInteractionContext, verseRowKey, type VerseActionContext } from './verseInteraction'
 import { startVerseDrag, consumeDragClick } from './verseDragSelect'
 import type { Swatch } from '@/components/ui'
@@ -205,8 +207,9 @@ const MAX_HOVER_ITEMS = 8
 // "[berean-highlight-debug]"), for confirming the Revelation/Recognitions-of-Clement
 // highlight-mapping investigation live. See the console.log call in handleVerseMouseUp
 // below. Flip back to false — or delete this const and that block — once confirmed;
-// this is not meant to ship on.
-const HIGHLIGHT_OFFSET_DEBUG = true
+// this is not meant to ship on. (Performance audit 2026-10-19: it HAD shipped on — every text
+// selection logged the verse text, which the main process wrote to disk synchronously.)
+const HIGHLIGHT_OFFSET_DEBUG = false
 
 /**
  * Decide whether a hover popup should open above or below its trigger, and return the
@@ -462,7 +465,14 @@ function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, supe
   // output. Subscribing via the hook would re-render every mounted VerseRow in the chapter
   // on ANY note change anywhere in the app, defeating this component's memo() wrap. Reading
   // it fresh from getState() at call time avoids that while still seeing the latest value.
-  const [popoverOpen, setPopoverOpen] = useState(false)
+  // Verse context menu (right-click / Shift+F10 on the number or text). useContextMenu portals
+  // it to <body> and MenuPositioner measures + flips + clamps it — TEST 2026-10-17: rendered
+  // inline in the chapter (zoomed + view-transition stacking context) it opened away from the
+  // cursor, clipped at the window bottom and let the verse text show through. Programmatic
+  // scrolls (chapter restore / smooth scroll) don't close it; a user wheel does.
+  const verseMenu = useContextMenu<null>({ closeOnScroll: false })
+  const popoverOpen = verseMenu.isOpen
+  const setPopoverOpen = (open: false) => { if (!open) verseMenu.close(false) }
   const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean; anchorTop: number; anchorBottom: number } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const crossRefHoverRef = useRef<HTMLDivElement>(null)
@@ -565,12 +575,9 @@ function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, supe
   // being built is unmistakable while the pointer is still down (TEST-001).
   const dragInThisTab = useAppStore((s) => !!s.verseDrag && s.verseDrag.tabId === rowTabId)
   const toggleVerseSelection = useAppStore((s) => s.toggleVerseSelection)
-  const [popoverAbove, setPopoverAbove] = useState(false)
-  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [tagPick, setTagPick] = useState<{ rect: DOMRect; scope: 'verse' | 'chapter' } | null>(null)
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
-  const popoverPanelRef = useRef<HTMLDivElement>(null)
   const verseTextRef = useRef<HTMLDivElement>(null)
   const selToolbarRef = useRef<HTMLDivElement>(null)
 
@@ -584,38 +591,14 @@ function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, supe
   const activeHighlight: HighlightColor | null = verseHL?.color ?? null
 
   function openPopover(e?: React.MouseEvent) {
-    const MENU_W = 180, MENU_H = 240, pad = 8
-    if (e) {
-      // Position at cursor, clamped to viewport
-      const x = Math.max(pad, Math.min(e.clientX, window.innerWidth  - MENU_W - pad))
-      const y = Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad))
-      setPopoverPos({ x, y })
-      setPopoverAbove(false) // unused when fixed-positioned; kept for safety
-    } else if (popoverRef.current) {
-      const rect = popoverRef.current.getBoundingClientRect()
-      setPopoverPos({ x: rect.left, y: rect.bottom + 4 })
-      setPopoverAbove(rect.top > window.innerHeight * 0.6)
+    // Pointer: exactly at the cursor. Keyboard (Shift+F10): just below the verse number.
+    if (e) verseMenu.openAt(e, null)
+    else {
+      const rect = popoverRef.current?.getBoundingClientRect()
+      verseMenu.openAt({ x: rect ? rect.left : 16, y: rect ? rect.bottom + 4 : 16, target: popoverRef.current?.querySelector('button') ?? null }, null)
     }
-    dispatchCloseContextMenus()
-    setPopoverOpen(true)
     bumpVersePopoverToken()
   }
-
-  useEffect(() => {
-    if (!popoverOpen) return
-    function onDown(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setPopoverOpen(false)
-      }
-    }
-    function onClose() { setPopoverOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
-    }
-  }, [popoverOpen])
 
 
   const lxxSuffix = textId === 'lxx' ? ' LXX' : ''
@@ -890,7 +873,8 @@ function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, supe
   useLayoutEffect(() => {
     if (!selToolbar || !selToolbarRef.current) return
     const el = selToolbarRef.current
-    const r = el.getBoundingClientRect()
+    // Layout box, not the (scale(0.96) entrance-animated) transformed rect.
+    const r = { left: selToolbar.x, top: selToolbar.y, width: el.offsetWidth, height: el.offsetHeight, right: selToolbar.x + el.offsetWidth, bottom: selToolbar.y + el.offsetHeight }
     const pad = 8
     const vw = window.innerWidth
     const vh = window.innerHeight
@@ -904,29 +888,6 @@ function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, supe
       setSelToolbar(prev => prev ? { ...prev, x, y } : null)
     }
   }, [selToolbar])
-
-  // After the verse-number popover renders, measure its ACTUAL size and re-clamp — the
-  // click-position clamp in openPopover() only guesses the height (MENU_H = 240px), but the
-  // real panel (6 action rows + a divider + 3 rows of highlight swatches) renders taller than
-  // that, so a click near the bottom of the viewport still let it run off-screen. Same
-  // measure-then-clamp pattern as the selection toolbar above.
-  useLayoutEffect(() => {
-    if (!popoverOpen || !popoverPanelRef.current) return
-    const el = popoverPanelRef.current
-    const r = el.getBoundingClientRect()
-    const pad = 8
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    let x = popoverPos.x
-    let y = popoverPos.y
-    if (r.right  > vw - pad) x = vw - r.width  - pad
-    if (x < pad)             x = pad
-    if (r.bottom > vh - pad) y = vh - r.height - pad
-    if (y < pad)             y = pad
-    if (x !== popoverPos.x || y !== popoverPos.y) {
-      setPopoverPos({ x, y })
-    }
-  }, [popoverOpen, popoverPos])
 
   // Dismiss selection toolbar when clicking away — skip dismissal if click is inside toolbar
   useEffect(() => {
@@ -1644,35 +1605,45 @@ function VerseRow({ verse, verseLabel, showStrongs, showVerseNumber = true, supe
         </button>
         {!isTouch && verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
 
-        {popoverOpen && (
-          <MenuSurface
-            ref={popoverPanelRef}
-            className="fixed z-popover min-w-[160px] overflow-hidden !p-0 py-1"
-            style={{ left: popoverPos.x, top: popoverPos.y }}
-          >
-            <MenuItem icon={Copy} label="Copy verse" onClick={copyVerse} />
-            <MenuItem icon={Hash} label="Copy reference" onClick={copyReference} />
-            <MenuItem icon={NotepadText} label="Add note" onClick={addVerseNote} />
-            <MenuItem icon={NotepadText} label="Show all notes" onClick={() => { openVerseNotes(); setPopoverOpen(false) }} />
-            <MenuItem icon={GitFork} label="Show cross references" onClick={openVerseCrossRefs} />
-            <MenuItem icon={Volume2} label="Play audio from here" onClick={playAudioFromHere} />
-            <MenuItem
-              icon={TagIcon}
-              label="Tag verse…"
-              onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'verse' }); setPopoverOpen(false) }}
-            />
-            <MenuSeparator />
-            <div className="px-3 py-2">
-              <ColorSwatchRow
-                swatches={HIGHLIGHT_SWATCHES}
-                value={activeHighlight}
-                onChange={(id) => { if (id) applyHighlight(id as HighlightColor); else removeHighlight() }}
-                allowNone
-                size={16}
-              />
-            </div>
-          </MenuSurface>
-        )}
+        <verseMenu.Menu label={`${verseRef} actions`} className="w-max">
+          {() => (
+            <>
+              {/* The three most-used verbs as one compact icon row (TEST 2026-10-17: the menu
+                  read as "way too much text"); everything else stays a labelled row. */}
+              <MenuIconRow label="Quick actions">
+                <MenuIconAction icon={Copy} label="Copy verse" onClick={copyVerse} />
+                <MenuIconAction icon={Hash} label="Copy reference" onClick={copyReference} />
+                <MenuIconAction icon={NotepadText} label="Add note" onClick={addVerseNote} />
+              </MenuIconRow>
+              <MenuSeparator />
+              <MenuGroup>
+                <MenuItem icon={NotebookTabs} label="Show all notes" onClick={openVerseNotes} />
+                <MenuItem icon={GitFork} label="Show cross references" onClick={openVerseCrossRefs} />
+                <MenuItem icon={Volume2} label="Play audio from here" onClick={playAudioFromHere} />
+                <MenuItem
+                  icon={TagIcon}
+                  label="Tag verse…"
+                  onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'verse' }); setPopoverOpen(false) }}
+                />
+              </MenuGroup>
+              <MenuSeparator />
+              {/* A wrapped 8×2 grid of small swatches (the "remove" swatch first) instead of one
+                  long horizontal line that forced the whole menu wide. No visible "Highlight"
+                  label (Michael, TEST 2026-10-17) — the group keeps it as its accessible name. */}
+              <div role="group" aria-label="Highlight" className="px-2 py-1.5">
+                <ColorSwatchRow
+                  swatches={HIGHLIGHT_SWATCHES}
+                  value={activeHighlight}
+                  onChange={(id) => { if (id) applyHighlight(id as HighlightColor); else removeHighlight() }}
+                  allowNone
+                  noneLabel="Remove highlight"
+                  rows={2}
+                  size={16}
+                />
+              </div>
+            </>
+          )}
+        </verseMenu.Menu>
       </div>
 
       {/* Verse text */}

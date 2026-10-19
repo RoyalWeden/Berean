@@ -1,3 +1,4 @@
+import { perfSpan } from './perfSpan'
 import type { Note } from '@/types'
 
 /**
@@ -33,10 +34,19 @@ let lastKnownNotes: Note[] | null = (() => {
   }
 })()
 
+/** Characters of note text above which the warm-start snapshot is not written: WebKit (iPhone)
+ *  allows ~5 MB of UTF-16 (~2.5 M chars), Chromium (Mac) ~5 M chars. */
+const WARM_START_MAX_CHARS = import.meta.env.VITE_PLATFORM === 'ios' ? 2_000_000 : 4_500_000
 function rememberNotes(notes: Note[]): void {
   lastKnownNotes = notes
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+    // A large library never fits WebKit's ~5 MB localStorage quota: serialising ~8 MB only to have
+    // the write rejected cost every note change ~10–20 ms for nothing. Estimate first; when it
+    // can't fit, drop the stale snapshot so the next launch doesn't warm-start from old data.
+    let est = 0
+    for (const n of notes) { est += (n.content?.length ?? 0) + 200; if (est > WARM_START_MAX_CHARS) break }
+    if (est > WARM_START_MAX_CHARS) { localStorage.removeItem(STORAGE_KEY); return }
+    perfSpan('rememberNotes', () => localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)))
   } catch {
     // Quota exceeded or unavailable — the in-memory warm start still works for this session,
     // just without surviving to the next restart.
@@ -51,7 +61,10 @@ export function clearWarmStartNotes(): void {
 
 export function getAllNotes(token: number): Promise<Note[]> {
   if (!cache || cache.token !== token) {
+    const t0 = performance.now()
     const promise = window.notes.getNotes(100000, 0).catch(() => [] as Note[])
+    // Simulator profiling (probe builds only): when each all-notes fetch ran and how long it took.
+    if (import.meta.env.VITE_E2E_PROBE === '1') void promise.then((n) => { const w = window as unknown as { __notesFetches?: Array<[number, number, number]> }; (w.__notesFetches ??= []).push([Math.round(t0), Math.round(performance.now() - t0), n.length]) })
     promise.then(rememberNotes)
     cache = { token, promise }
   }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { ArrowRight, ExternalLink, PictureInPicture2, CornerUpLeft, GitBranch, Flag, Trash2, Scissors, Heading, StickyNote } from 'lucide-react'
-import { usePositionedMenu } from '@/lib/usePositionedMenu'
+import { usePositionedMenu, MenuPositioner } from '@/lib/usePositionedMenu'
 import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { MenuSurface, MenuItem, MenuSeparator, MenuLabel, Button } from '@/components/ui'
@@ -76,12 +75,13 @@ export function TrailRefContextMenu({
   useEffect(() => { setConfirmingDelete(false) }, [menu])
   if (!menu) return null
   const label = trailRefLabel(menu.ref, bookChapterVerseLabel)
-  // Portaled to document.body — same reason as TrailHoverCard: MapView's zoom feature wraps
-  // the spine in `transform: scale(...)`, which makes that ancestor the containing block for
-  // `position: fixed` descendants instead of the real viewport.
-  return createPortal(
-    <div ref={menuRef} style={{ position: 'fixed', top: menu.y, left: menu.x, zIndex: 'var(--z-menu)' as unknown as number, minWidth: 190 }}>
-      <MenuSurface>
+  // MenuPositioner portals to document.body — same reason as TrailHoverCard: MapView's zoom
+  // feature wraps the spine in `transform: scale(...)`, which makes that ancestor the containing
+  // block for `position: fixed` descendants instead of the real viewport — and re-places the
+  // menu when it changes size (the inline Delete confirmation row), flipping/clamping at edges.
+  return (
+    <MenuPositioner ref={menuRef} x={menu.x} y={menu.y}>
+      <MenuSurface className="min-w-[200px] max-w-[280px]">
         <MenuLabel>{label}</MenuLabel>
 
         <MenuItem icon={ArrowRight} label="Open in current tab" onClick={() => { navigateTrailRef(menu.ref, false); onClose() }} />
@@ -151,7 +151,6 @@ export function TrailRefContextMenu({
           </>
         )}
       </MenuSurface>
-    </div>,
-    document.body,
+    </MenuPositioner>
   )
 }

@@ -4141,7 +4141,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
+                <div className="flex-[3] flex min-w-0 [&>*:not(:first-child)]:border-l [&>*:not(:first-child)]:border-separator">
                   {rightPanelSlotB && (
                     <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
@@ -4160,7 +4160,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex min-w-0 [&>*+*]:border-l [&>*+*]:border-separator">
+                <div className="flex-[1.5] flex min-w-0 [&>*:not(:first-child)]:border-l [&>*:not(:first-child)]:border-separator">
                   {rightPanelSlotB && (
                     <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
                   )}
@@ -4208,7 +4208,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex [&>*+*]:border-l [&>*+*]:border-separator">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex [&>*:not(:first-child)]:border-l [&>*:not(:first-child)]:border-separator">
               {rightPanelSlotB && (
                 <div className="flex-1 min-w-0 flex flex-col overflow-hidden material-inspector">{panelEl('B')}</div>
               )}

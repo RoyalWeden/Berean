@@ -10,7 +10,7 @@
    its material, the folder name and the note count centred beneath it. */
 /* (more specific than mobile.css's .mobile-page.is-header-glass rule, which loads later) */
 .mobile-page.m-notes-home.is-large-title > .mobile-page-header { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom-color: transparent; }
-.m-notes-home > .mobile-page-header { transition: background-color 0.18s ease; }
+.m-notes-home > .mobile-page-header { transition: background-color 0.12s ease; }
 .m-notes-bar-title { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; max-width: 100%; }
 .m-notes-bar-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-notes-bar-count { font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 500; color: rgb(var(--color-text-muted)); }
@@ -22,6 +22,17 @@
   box-shadow: inset 0 0.5px 0 var(--m-edge-highlight); color: rgb(var(--color-accent)); font-weight: 500;
 }
 
+/* ── windowed note list (VirtualNoteList): each section = header + a run of rows drawing ONE card ── */
+.m-vlist { contain: layout; }
+.m-vlist-item.is-header { padding-top: 22px; }
+.m-vlist-item.is-header.is-first { padding-top: 0; }
+.m-vlist-item.is-header .m-notes-section-title { margin-bottom: 6px; }
+.m-vlist-item.is-row { background: var(--m-card-bg); overflow: hidden; }
+.m-vlist-item.is-row:not(.is-first) { box-shadow: inset 0 0.5px 0 var(--m-separator); }
+.m-vlist-item.is-row.is-first { border-top-left-radius: var(--m-radius-card, 16px); border-top-right-radius: var(--m-radius-card, 16px); }
+.m-vlist-item.is-row.is-last { border-bottom-left-radius: var(--m-radius-card, 16px); border-bottom-right-radius: var(--m-radius-card, 16px); }
+.m-vlist-item.is-cards { padding-bottom: 16px; }
+
 /* ── large title ── */
 .m-notes-large { padding: 2px 4px 12px; }
 .m-notes-large-title { margin: 0; font-size: calc(32px * var(--m-type-scale, 1)); line-height: 1.12; font-weight: 700; letter-spacing: -0.01em; color: rgb(var(--color-text-primary)); overflow-wrap: anywhere; }
@@ -31,7 +42,7 @@
 
 /* ── grouped lists ── */
 .m-notes-group { background: var(--m-card-bg); border-radius: var(--m-radius-card, 16px); overflow: hidden; }
-.m-notes-group > * + * { box-shadow: inset 0 0.5px 0 var(--m-separator); }
+.m-notes-group > :where(:not(:first-child)) { box-shadow: inset 0 0.5px 0 var(--m-separator); }
 .m-notes-group + .m-notes-section, .m-notes-section + .m-notes-section, .m-notes-section + .m-notes-group, .m-notes-group + .m-notes-group { margin-top: 22px; }
 .m-notes-section-title { margin: 0 0 6px; font-size: calc(20px * var(--m-type-scale, 1)); font-weight: 700; color: rgb(var(--color-text-primary)); }
 .m-notes-section-title.is-static { padding: 0 4px; font-size: calc(15px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-text-secondary)); }
@@ -52,6 +63,9 @@
 .m-folder-disclosure svg { transition: transform 0.18s ease; }
 .m-folder-disclosure.is-open svg { transform: rotate(90deg); }
 .m-folder-disclosure.is-spacer { width: 12px; }
+/* One left inset for every row (TEST 2026-10-17 "extra space on the left"): icons line up with the
+   note rows' 14px padding; only an indented (nested) row adds the disclosure column. */
+.m-folder-row > .m-folder-main:first-child { padding-left: 14px; }
 .m-folder-main {
   flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 2px; border: 0; background: none;
   color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); text-align: left;
@@ -84,8 +98,9 @@
 
 /* ── swipe ── */
 .m-swipe { position: relative; overflow: hidden; touch-action: pan-y; }
-.m-swipe-content { position: relative; z-index: 1; transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
-.m-swipe.is-dragging .m-swipe-content { transition: none; }
+.m-swipe-content { position: relative; z-index: 1; transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* A compositing layer only while a row is being dragged (was on every row: one GPU layer per note). */
+.m-swipe.is-dragging .m-swipe-content { transition: none; will-change: transform; }
 .m-swipe-actions { position: absolute; top: 0; bottom: 0; display: flex; overflow: hidden; }
 .m-swipe-actions.is-leading { left: 0; }
 .m-swipe-actions.is-trailing { right: 0; flex-direction: row-reverse; }
@@ -136,6 +151,10 @@ html[data-keyboard] .m-notes-float { bottom: calc(var(--m-keyboard-h, 0px) + 8px
 .m-notes-editbar { justify-content: space-between; height: 56px; padding: 0 8px; border-radius: 28px; }
 .m-notes-editbar button { min-width: 52px; height: 48px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 0; background: none; color: rgb(var(--color-accent)); font: inherit; font-size: 11px; }
 .m-notes-editbar button.is-destructive { color: #ff3b30; }
+/* Icon-only actions: 48 pt circles with an immediate pressed highlight. */
+.m-notes-editbar.is-icons button { width: 48px; min-width: 48px; border-radius: 24px; transition: background-color 0.12s ease, transform 0.12s ease; }
+.m-notes-editbar.is-icons button:active:not(:disabled) { background: rgb(var(--color-text-primary) / 0.1); transform: scale(0.94); }
+.m-notes-home .mobile-page-header .m-notes-done { width: 44px; height: 44px; }
 .m-notes-editbar button:disabled { color: rgb(var(--color-text-muted) / 0.6); }
 .m-notes-editbar-count { flex: 1; text-align: center; font-size: calc(14px * var(--m-type-scale, 1)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-notes-search-results { padding-top: 8px; }
@@ -174,3 +193,8 @@ html[data-reduce-transparency] .m-peek { background: rgb(0 0 0 / 0.55); -webkit-
   .m-peek, .m-peek-stack { animation: none; }
   .m-note-card:active .m-note-card-preview { transform: none; }
 }
+
+/* Selection mark (Notes / Photos): a ring, filled with the accent and a white check when chosen. */
+.m-select-mark { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px rgb(var(--color-text-muted) / 0.55); color: #fff; transition: background-color 0.12s ease, box-shadow 0.12s ease; }
+.m-select-mark.is-on { background: rgb(var(--color-accent)); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .m-select-mark { transition: none; } }

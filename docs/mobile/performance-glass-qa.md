@@ -132,3 +132,35 @@ scroll · E re-entry / navigation · K keyboard.
 | Keyboard (search sheet, note editor) | PASS: native bar hidden while the keyboard is up, returns natively; scroll dismisses the keyboard | `srch2`, `kb4`, `kb5` |
 | Stress: 12 rounds of tab switch + rapid scroll + tab-cards open / close + verse sheet | PASS: same PID (20091 → 20091), DOM 1,761 → 1,829 (end state differs), no Berean crash report | stress run |
 | macOS shared-code check | PASS: hover tint works (`(hover: hover)` true); incremental reference decorations correct while typing and deleting; Notes top-bar order Insert · Undo · Redo · Edit/View · … · Info | desktop dev, CDP |
+
+## 2026-10-17 pass (branch `feature/overhaul-1017`)
+
+Simulator iPhone 18 Pro, Berean Dev probe build, **3,865 temporary notes** (3,268 BibleGateway-tagged, 471 verse, 90 daily, the rest in 14 nested test folders; all tagged `perfseed` and removed afterwards). Timings are main-thread time from the action to the first rendered frame (rAF probe); the simulator runs at 60 Hz, and device numbers will differ.
+
+| ID | Area | Evidence | Root cause | Fix | Before → after |
+|---|---|---|---|---|---|
+| P-10 | Cold launch | One uninterrupted ~108 s main-thread block starting 267 ms after launch (`sample` of WebContent: a single `RegExpObject::exec`) | `extractRefsFromNote`'s book-word repeat `(?:\s+(?:of\s+)?…)*`: "of" matched both branches → exponential backtracking on long prose without chapter numbers (one 4.5 KB note: 53 s). Runs for every verse note when the cross-reference index builds | Redundant `of` branch removed, repeat capped at 8 words (`src/lib/noteRefs.ts`); regression test fails against the old regex | ~108 s → ~0.4 s (remaining: GC + first Scripture render). Mac uses the same code |
+| P-11 | All Notes | 3,865 rows mounted, 37,931 DOM nodes | Unwindowed list; per-row markdown stripping on every render; `will-change` on every row | `VirtualNoteList` (windowed, grouped-card look kept), memoised rows with stable callbacks, previews cached per note object, folder labels one map per folder list, `will-change` only while dragging | 675 ms → 42 ms; DOM 37,931 → ~300–470 |
+| P-12 | BibleGateway folder | | as P-11 | as P-11 | 510 ms → 29 ms |
+| P-13 | Scrolling All Notes | | | | p99 20 ms, 0 frames > 50 ms (slow and fast); reaches the true end |
+| P-14 | Notes large title / bar ("topper late") | | IntersectionObserver waited for the last pixel of title + subtitle + padding; every flip re-rendered all rows | Observes the title line; rows memoised | — |
+| G-10 | Reader title vanishes | Native capsule showed only the book glyph after Find on Page jumped Genesis 2 → 8 (`__bereanGlassDebug`: item 55 pt wide, then a stale zero-width label) | (a) `sizeThatFits` on an existing UIButton returned the previous configuration's size; (b) re-configuring an existing button with a new attributed title kept the old label layout; (c) separately, a remounted page's stale timers could send an all-hidden spec for the shared cluster | Width measured from title + icon + insets; a new title rebuilds the button; one live owner per cluster id, stale instances never sync or remove (regression test fails without it) | Verified through Find jumps and Genesis 9 → 11 |
+| G-11 | Find bar see-through | Verse text read through the bar | Backdrop blur can't reach past the reader's mask | Near-opaque fill, capsule shape | — |
+
+Not measured: device CPU/GPU/battery, memory (no `performance.memory` in WebKit), Instruments.
+
+### 2026-10-17, round 2 — launch audit ("ios is taking way too long to load things")
+
+Device log (Michael): `WebProcessProxy::didBecomeUnresponsive` during launch. Re-measured on the simulator with 3,865 notes (471 verse notes now carrying references) using probe-build boot marks, a boot-time stall recorder and `perfSpan` timings (`src/lib/perfSpan.ts`, compiled out of normal builds).
+
+| ID | Found | Fix | Before → after |
+|---|---|---|---|
+| P-20 | `classifyChapterNotes` 691 ms (2 calls) + `chapterXRefsFromNotes`: every chapter view rebuilt the cross-reference index by re-parsing EVERY note | Loaders take the shared per-token index (`getCrossRefSources`); references cached per note (id + title + content) | 691 ms → 2 ms; chapter change 141 / 207 ms → 25–37 / 65–104 ms (update / painted) |
+| P-21 | The one first parse (~310 ms) was a single task at launch | `buildCrossRefSourcesYielding`: 60-note slices that yield | Launch stall: ~1,050 ms → none > 80 ms |
+| P-22 | YouTube index merge attached/detached the 7 MB index on berean.db's connection on every launch (~0.7–1.2 s), queueing the notes / chapter reads behind it | Version check via its own read-only connection, attach only when newer, 4 s after launch | — (off the launch path) |
+| P-23 | Spotlight full re-index (2,000 notes) and iCloud catch-up started during launch | Spotlight 6 s after launch; sync after first paint + 1.5 s | — |
+| P-24 | Every note change event bumped the notes token → every consumer re-read all ~8 MB of notes (a sync catch-up = hundreds of re-reads) | Change notifications coalesced (60 ms) in the iOS bridge | Bursts → one refresh |
+| P-25 | Warm-start snapshot serialised ~8 MB per change only to be rejected by the ~5 MB quota | Skipped (and cleared) when it can't fit | ~10–20 ms per change |
+| G-20 | "whenever i click a button, it turns off the glass": a popover's transparent outside-tap layer counted as covering every native control | Occlusion looks through `data-glass-passthrough` layers (popover layer, tab-switcher scrim) | Native glass stays drawn with a popover open (verified via `__bereanGlassDebug`) |
+
+The log's "Networking / GPU / WebContent process took 4.6 s to launch" is WebKit's own process start-up before any Berean code runs. It is typically much slower in a Debug build launched under the Xcode debugger; not measured on a Release build yet — check the TestFlight build on device.

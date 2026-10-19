@@ -1,0 +1,66 @@
+/* Berean Chat composer (ChatEditor.tsx / FormatToolbar.tsx). The field reads like the bubble it
+   becomes: same type size, quiet structure (lists, quotes, code) — never markdown punctuation. */
+
+.chat-editor { min-width: 0; overflow-y: auto; overscroll-behavior: contain; cursor: text; }
+.chat-editor-pm {
+  outline: none; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere;
+  -webkit-user-select: text; user-select: text; caret-color: rgb(var(--color-accent));
+  color: rgb(var(--color-text-primary));
+}
+.chat-editor-pm > :where(:not(:first-child)) { margin-top: 4px; }
+.chat-editor-pm p { margin: 0; }
+.chat-editor-pm p.is-empty:first-child::before {
+  content: attr(data-placeholder); color: rgb(var(--color-text-muted)); pointer-events: none;
+  float: left; height: 0;
+}
+.chat-editor-pm strong { font-weight: 600; }
+.chat-editor-pm h1, .chat-editor-pm h2, .chat-editor-pm h3 { font-weight: 600; margin: 0; }
+.chat-editor-pm h1 { font-size: 1.2em; }
+.chat-editor-pm h2 { font-size: 1.1em; }
+.chat-editor-pm h3 { font-size: 1em; }
+.chat-editor-pm ul, .chat-editor-pm ol { margin: 0; padding-left: 1.35em; }
+.chat-editor-pm ul { list-style: disc; }
+.chat-editor-pm ol { list-style: decimal; }
+.chat-editor-pm li > :where(:not(:first-child)) { margin-top: 2px; }
+.chat-editor-pm li + li { margin-top: 1px; }
+.chat-editor-pm blockquote { margin: 0; border-left: 2px solid rgb(var(--color-text-muted) / 0.6); padding-left: 8px; color: rgb(var(--color-text-secondary)); }
+.chat-editor-pm code, .chat-editor-pm pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em;
+  background: rgb(127 127 127 / 0.16); border-radius: 4px;
+}
+.chat-editor-pm code { padding: 0 3px; }
+.chat-editor-pm pre { margin: 0; padding: 4px 6px; white-space: pre-wrap; tab-size: 2; }
+.chat-editor-pm pre code { background: none; padding: 0; font-size: 1em; }
+.chat-editor-pm a { color: rgb(var(--color-accent)); text-decoration: underline; text-underline-offset: 2px; cursor: text; }
+.chat-editor-pm mark { background: rgb(var(--highlight-yellow) / 0.45); color: inherit; border-radius: 2px; }
+.chat-editor-pm hr { border: 0; border-top: 1px solid rgb(var(--color-text-muted) / 0.4); margin: 6px 0; }
+.chat-editor-pm table { border-collapse: collapse; font-size: 0.95em; display: block; overflow-x: auto; }
+.chat-editor-pm th, .chat-editor-pm td { border: 1px solid rgb(var(--color-text-muted) / 0.35); padding: 1px 6px; text-align: left; }
+.chat-editor-pm th { font-weight: 600; }
+.chat-editor-pm li[data-checked]::marker { content: none; }
+
+/* Formatting toolbar — quiet icons (no pills), 24px targets; it slides open (height only) so the
+   transcript above moves smoothly instead of jumping. */
+.chat-fmt-reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 160ms ease; }
+.chat-fmt-reveal[data-open='true'] { grid-template-rows: 1fr; }
+.chat-fmt-reveal > div { overflow: hidden; min-height: 0; }
+@media (prefers-reduced-motion: reduce) { .chat-fmt-reveal { transition: none; } }
+.chat-fmt-bar { display: flex; align-items: center; gap: 2px; padding: 2px 4px 0; min-height: 26px; }
+.chat-fmt-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 24px; height: 24px; border: 0; border-radius: 6px; background: none; padding: 0;
+  color: rgb(var(--color-text-secondary)); cursor: default;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.chat-fmt-btn:hover { color: rgb(var(--color-text-primary)); background: rgb(var(--color-text-primary) / 0.06); }
+.chat-fmt-btn[aria-pressed='true'] { color: rgb(var(--color-accent)); }
+.chat-fmt-btn:disabled { opacity: 0.35; }
+.chat-fmt-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-focus-ring); }
+.chat-fmt-sep { width: 1px; height: 14px; margin: 0 3px; background: rgb(var(--color-text-muted) / 0.3); flex: none; }
+.chat-fmt-link { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.chat-fmt-link input {
+  flex: 1; min-width: 0; border: 0; outline: none; background: rgb(var(--color-text-primary) / 0.06);
+  border-radius: 6px; padding: 2px 6px; font: inherit; font-size: 12px; color: rgb(var(--color-text-primary));
+}
+.chat-fmt-link input::placeholder { color: rgb(var(--color-text-muted)); }
+.chat-fmt-link-error { font-size: 11px; color: rgb(var(--color-destructive)); white-space: nowrap; }
