@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, Sparkles, Volume2, GitBranch,
+  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, MessagesSquare, Volume2, GitBranch,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
@@ -357,7 +357,7 @@ export default function Ribbon({ layout = 'rail' }: { layout?: 'rail' | 'bar' } 
 
       <IconButton
         {...RAIL_BTN}
-        icon={Sparkles}
+        icon={MessagesSquare}
         label="Berean Chat"
         tooltip={{ side: tipSide }}
         active={aiLookupPanelOpen}

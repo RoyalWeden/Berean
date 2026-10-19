@@ -722,6 +722,45 @@ export interface AiLookupChatSummary {
   title: string
   created_at: string
   updated_at: string
+  /** Derived from the messages by the service (Berean Chat redesign); absent from older hosts. */
+  messageCount?: number
+  lastMessageAt?: string
+  preview?: string
+  /** Pinned (ISO time of the pin), or null. */
+  pinnedAt?: string | null
+  /** The folder it is filed in (name), or null. */
+  folder?: string | null
+}
+
+/** Berean Chat message kinds — see src/platform/services/aiChatsService.ts for the compat rules
+ *  (absent = legacy: user → 'ai-request', assistant → 'ai-reply'). A 'note' is never sent to AI. */
+export type AiLookupChatMessageKind = 'note' | 'ai-request' | 'ai-reply'
+
+/** The AI options one ai-request was sent with (recorded on the message, shown on its bubble). */
+export interface AiLookupChatAiMode {
+  commentary: boolean
+  deepSearch: boolean
+  tabContext: boolean
+}
+
+export interface AiLookupChatStreamItem {
+  chatId: string
+  chatTitle: string
+  message: AiLookupChatMessage & { id: string; kind: AiLookupChatMessageKind }
+  key: string
+}
+
+export interface AiLookupChatDaySummary {
+  dayKey: string
+  count: number
+  notes: number
+  ai: number
+}
+
+export interface AiLookupChatMessagePage {
+  items: AiLookupChatStreamItem[]
+  hasMore: boolean
+  cursor: string | null
 }
 
 export interface AiLookupChatMessage {
@@ -738,6 +777,14 @@ export interface AiLookupChatMessage {
   notesAreThePrimaryAnswer?: boolean
   videos?: AiLookupVideoResult[]
   createdAt: string
+  /** Berean Chat redesign — all optional/additive so older clients still read the JSON. */
+  id?: string
+  kind?: AiLookupChatMessageKind
+  aiMode?: AiLookupChatAiMode
+  replyTo?: string
+  /** On a note / ai-request: the message in the same conversation it replies to (quoted). */
+  inReplyTo?: string
+  editedAt?: string
   /** True only while this message is still being filled in by the live pipeline — set on the
    *  placeholder AiLookupPanel appends when a question is sent, and kept on any partial that
    *  lands before the final response replaces it. Purely transient UI state: it is stripped
@@ -759,6 +806,8 @@ export interface AiLookupChat {
  *  DB-verified-only principle as every other candidate this pipeline ever shows. */
 export interface AiLookupTabContextRef {
   type: 'bible' | 'note' | 'lexicon' | 'youtube'
+  /** The tab's title ("John 3") — shown by the composer's This Tab toggle; not sent to the model. */
+  label?: string
   bookId?: string
   chapter?: number
   translation?: string
@@ -796,6 +845,19 @@ interface AiLookupAPI {
   getChat: (id: string) => Promise<AiLookupChat | null>
   saveChat: (chat: { id?: string; title: string; messages: AiLookupChatMessage[] }) => Promise<{ id: string }>
   deleteChat: (id: string) => Promise<{ success: boolean }>
+  /** Merge messages into a conversation by message id (creates it when `chatId` is absent) and
+   *  return the whole stored conversation — the Berean Chat write path. */
+  upsertMessages: (input: { chatId?: string | null; title?: string; messages: AiLookupChatMessage[]; removeIds?: string[] }) => Promise<AiLookupChat>
+  renameChat: (id: string, title: string) => Promise<{ success: boolean }>
+  /** Pin / unpin, file in a folder / take out of it (null). */
+  organizeChat: (id: string, change: { pinned?: boolean; folder?: string | null }) => Promise<{ success: boolean }>
+  /** Rename a folder, or remove it (to: null — its conversations stay, unfiled). */
+  renameFolder: (from: string, to: string | null) => Promise<{ success: boolean; moved: number }>
+  /** A page of messages across conversations (All Messages / one day / search), oldest → newest. */
+  queryMessages: (q: { chatId?: string; dayKey?: string; search?: string; before?: string; limit?: number }) => Promise<AiLookupChatMessagePage>
+  listDays: () => Promise<AiLookupChatDaySummary[]>
+  /** A conversation was written by ANOTHER window (desktop) / anywhere (iPhone). Returns an unsubscribe. */
+  onChatsChanged?: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => () => void
   /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,
    *  not per-query; same removeAllListeners-then-on pattern as the other progress bridges. */
   onProgress: (cb: (status: string) => void) => void
@@ -809,6 +871,43 @@ interface AiLookupAPI {
    *  electron/ipc/aiLookup.ts's `emitPartial` call site for where this fires. Call once, same
    *  removeAllListeners-then-on pattern as onProgress above. */
   onPartial: (cb: (partial: AiLookupResponse) => void) => void
+}
+
+/** Something a chat result opens in the MAIN window (a verse, note, Strong's entry, video). */
+export type ChatNavPayload =
+  | { kind: 'verse'; result: AiLookupResult; question?: string }
+  | { kind: 'note'; noteId: string }
+  | { kind: 'lexicon'; strongsNum: string }
+  | { kind: 'video'; videoId: string; startSeconds: number }
+
+/** Berean Chat standalone window (`?chat=1`) — electron/main.ts createChatWindow. */
+/** The conversation (and unsent draft) carried between the embedded panel and the chat window. */
+export interface ChatHandoff { chatId: string | null; draft?: string }
+
+interface ChatWindowAPI {
+  /** Opens (or focuses — single instance) the chat window, showing `handoff`'s conversation. */
+  open: (handoff?: ChatHandoff | null) => Promise<boolean>
+  /** Chat window, on load: the conversation it was opened for (once), or null. */
+  takeHandoff: () => Promise<ChatHandoff | null>
+  /** Chat window: re-targeted while already open. */
+  onHandoff: (cb: (handoff: ChatHandoff) => void) => () => void
+  close: () => Promise<boolean>
+  isOpen: () => Promise<boolean>
+  /** From the chat window: close it and show the embedded panel in the main window. */
+  returnToMain: (handoff?: ChatHandoff | null) => Promise<boolean>
+  /** From the chat window: open a result in the main window (focuses it). */
+  openInMain: (payload: ChatNavPayload) => Promise<boolean>
+  /** From the chat window: the main window's active-tab context pointer, or null. */
+  getMainTabContext: () => Promise<AiLookupTabContextRef | null>
+  /** Chat window: menu ⌘N (File/Window → New) while the chat window is key. */
+  onNewConversation: (cb: () => void) => () => void
+  /** Main window: listeners serving the chat window's requests. */
+  onShowPanel: (cb: (handoff: ChatHandoff | null) => void) => () => void
+  onOpenInMain: (cb: (payload: ChatNavPayload) => void) => () => void
+  onRequestTabContext: (cb: (requestId: string) => void) => () => void
+  replyTabContext: (requestId: string, ref: AiLookupTabContextRef | null) => void
+  /** Any window: the chat window opened/closed. */
+  onWindowStateChanged: (cb: (open: boolean) => void) => () => void
 }
 
 /** Read Aloud (TTS) — Kokoro model download bridge (electron/ipc/ttsModel.ts). Mirrors the
@@ -868,6 +967,8 @@ declare global {
     youtube: YouTubeAPI
     crossrefs: CrossRefsAPI
     aiLookup: AiLookupAPI
+    /** Berean Chat's standalone window (desktop only — undefined on iPhone). */
+    chatWindow?: ChatWindowAPI
     app: AppAPI
     bgImport: BgImportAPI
     eSwordImport: ESwordImportAPI

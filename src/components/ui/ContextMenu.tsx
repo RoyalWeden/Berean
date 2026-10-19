@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { MenuSurface } from './Menu'
-import { MenuPositioner, dispatchCloseContextMenus, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
+import { MenuPositioner, dispatchCloseContextMenus, useMenuDismiss } from '@/lib/usePositionedMenu'
 
 export interface ContextMenuState<T> { x: number; y: number; payload: T }
 
 /**
  * The one contextual-menu helper (§64–68): open at the pointer (right-click) or below an anchor
  * rect (keyboard: Shift+F10 on a focused row), render `MenuSurface` children, focus the first
- * item, close on Escape / outside mousedown / scroll of any ancestor / window blur /
- * another-menu-open, and return focus to the element that opened it.
+ * item, close on Escape / outside mousedown / wheel or scroll outside the menu / window resize or
+ * blur / another-menu-open, and return focus to the element that opened it (Escape). The menu is
+ * portaled to document.body and measured + flipped + clamped by MenuPositioner.
  *
  *   const menu = useContextMenu<{ note: Note }>()
  *   <ListRow onContextMenu={(e) => menu.openAt(e, { note })} ... />
  *   <menu.Menu>{(p) => <><MenuItem … /></>}</menu.Menu>
  */
-export function useContextMenu<T>() {
+export function useContextMenu<T>(opts: { /** Close when anything outside the menu scrolls, programmatic scrolls included (default true). A user wheel always closes. */ closeOnScroll?: boolean } = {}) {
   const [state, setState] = useState<ContextMenuState<T> | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -41,37 +41,26 @@ export function useContextMenu<T>() {
     if (refocus && openerRef.current && document.contains(openerRef.current)) openerRef.current.focus({ preventScroll: true })
   }, [])
 
+  useMenuDismiss(!!state, [surfaceRef], (reason) => close(reason === 'escape'), { closeOnScroll: opts.closeOnScroll ?? true })
   useEffect(() => {
     if (!state) return
-    const onDown = (e: MouseEvent) => { if (!surfaceRef.current?.contains(e.target as Node)) close(false) }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(true) } }
-    const onAway = () => close(false)
-    document.addEventListener('mousedown', onDown, true)
-    document.addEventListener('keydown', onKey, true)
-    document.addEventListener('scroll', onAway, true)
-    window.addEventListener('blur', onAway)
-    window.addEventListener('berean:closeMenus', onAway)
-    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onAway)
-    requestAnimationFrame(() => surfaceRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled])')?.focus())
-    return () => {
-      document.removeEventListener('mousedown', onDown, true)
-      document.removeEventListener('keydown', onKey, true)
-      document.removeEventListener('scroll', onAway, true)
-      window.removeEventListener('blur', onAway)
-      window.removeEventListener('berean:closeMenus', onAway)
-      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onAway)
-    }
-  }, [!!state, close])
+    const raf = requestAnimationFrame(() => {
+      const root = surfaceRef.current
+      if (root && !root.contains(document.activeElement)) root.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled])')?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(raf)
+    // A second right-click while open re-anchors (new x/y) without re-running this.
+  }, [!!state])
 
-  const Menu = useCallback(({ children, className }: { children: (payload: T, close: () => void) => ReactNode; className?: string }) => {
+  // MenuPositioner portals to document.body and measures/flips/clamps the real menu.
+  const Menu = useCallback(({ children, className, label }: { children: (payload: T, close: () => void) => ReactNode; className?: string; label?: string }) => {
     if (!state) return null
-    return createPortal(
+    return (
       <MenuPositioner x={state.x} y={state.y}>
-        <MenuSurface ref={surfaceRef} className={className} onClick={(e) => { const t = e.target as HTMLElement; if (t.closest('[role^="menuitem"]')) close(true) }}>
+        <MenuSurface ref={surfaceRef} aria-label={label} className={className} onClick={(e) => { const t = e.target as HTMLElement; if (t.closest('[role^="menuitem"]')) close(true) }}>
           {children(state.payload, () => close(true))}
         </MenuSurface>
-      </MenuPositioner>,
-      document.body,
+      </MenuPositioner>
     )
   }, [state, close])
 

@@ -120,9 +120,13 @@ export function ListSection({ title, children }: { title?: string; children: Rea
   )
 }
 
-export function Row({ title, subtitle, right, onClick, leading, chevron, destructive }: {
+export function Row({ title, subtitle, right, onClick, leading, chevron, destructive, selected, rowId }: {
   title: React.ReactNode; subtitle?: React.ReactNode; right?: React.ReactNode; onClick?: () => void
   leading?: React.ReactNode; chevron?: boolean; destructive?: boolean
+  /** The current choice in a picker list: shown by a tinted row (`is-selected`), not a check. */
+  selected?: boolean
+  /** `data-row-id` on the row — lets a list find which row a long press landed on. */
+  rowId?: string
 }) {
   const inner = (
     <>
@@ -136,6 +140,6 @@ export function Row({ title, subtitle, right, onClick, leading, chevron, destruc
     </>
   )
   return onClick
-    ? <button type="button" className={`mobile-row${destructive ? ' is-destructive' : ''}`} onClick={onClick}>{inner}</button>
-    : <div className="mobile-row">{inner}</div>
+    ? <button type="button" className={`mobile-row${destructive ? ' is-destructive' : ''}${selected ? ' is-selected' : ''}`} aria-current={selected || undefined} data-row-id={rowId} onClick={onClick}>{inner}</button>
+    : <div className="mobile-row" data-row-id={rowId}>{inner}</div>
 }

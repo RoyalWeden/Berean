@@ -21,7 +21,9 @@ import type { UpdateStatus } from '../../types/electron'
  *  - `pdf`        rows from the shared service; bytes in the app container via Filesystem
  *                 (`Library/Berean/pdfs/<id>.pdf`), import through a file input (Phase 18 adds
  *                 the Files/Share Sheet routes), hash-matched to synced metadata like desktop.
- *  - `aiLookup`   not available on the phone (desktop-only local model); rejects clearly.
+ *  - `aiLookup`   Berean Chat conversations via the shared aiChats service (list/get/save/
+ *                 upsert/rename/delete/query/days, remote-change events); the AI query itself
+ *                 is the Mac's local model and rejects clearly.
  */
 const warned = new Set<string>()
 function unavailable(name: string, why = 'not available on iPhone'): never {
@@ -220,11 +222,34 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
     bookmarksList: (pdfId) => p.bookmarksList(pdfId), bookmarksAdd: (pdfId, page, label) => p.bookmarksAdd(pdfId, page, label), bookmarksRemove: (id) => p.bookmarksRemove(id), bookmarksImport: (pdfId, entries) => p.bookmarksImport(pdfId, entries),
   }
 
+  // Berean Chat on the phone: conversations (plain messages + the synced history of Mac AI
+  // exchanges) read/write the same ai_chats rows through the shared service, so they sync over
+  // iCloud like on desktop. Ask Berean itself (`query`) stays Mac-only — the local model.
+  const chats = s.aiChats
+  const chatListeners = new Set<(c: { id?: string; op: 'upsert' | 'delete' }) => void>()
+  // Only REMOTE applies are forwarded: on the phone the chat page is the only writer, and it
+  // already has the result of its own writes.
+  ctx.events.on('data:changed', (c) => {
+    if (c.entity === 'ai_chat' && c.remote) for (const cb of chatListeners) cb({ id: c.id, op: c.op === 'delete' ? 'delete' : 'upsert' })
+  })
   const aiLookup: Window['aiLookup'] = {
     checkAvailable: async () => ({ available: false, models: [] }),   // local Ollama model is desktop-only
     unloadModel: async () => ({ success: true }),
     query: async () => unavailable('aiLookup.query', 'AI lookup runs a local model on the Mac'),
     commentary: async () => unavailable('aiLookup.commentary', 'AI lookup runs a local model on the Mac'),
+    listChats: () => chats.listChats(),
+    getChat: (id: string) => chats.getChat(id),
+    saveChat: (chat: Parameters<typeof chats.saveChat>[0]) => chats.saveChat(chat),
+    deleteChat: (id: string) => chats.deleteChat(id),
+    upsertMessages: (input: Parameters<typeof chats.upsertMessages>[0]) => chats.upsertMessages(input),
+    renameChat: (id: string, title: string) => chats.renameChat(id, title),
+    organizeChat: (id: string, change: Parameters<typeof chats.organizeChat>[1]) => chats.organizeChat(id, change),
+    renameFolder: (from: string, to: string | null) => chats.renameFolder(from, to),
+    queryMessages: (q: Parameters<typeof chats.queryMessages>[0]) => chats.queryMessages(q),
+    listDays: () => chats.listDays(),
+    onChatsChanged: (cb: (c: { id?: string; op: 'upsert' | 'delete' }) => void) => { chatListeners.add(cb); return () => { chatListeners.delete(cb) } },
+    onProgress: () => {},
+    onPartial: () => {},
   } as unknown as Window['aiLookup']
 
   Object.assign(window, { app, studyTrail, youtube, pdf, aiLookup })

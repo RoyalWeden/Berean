@@ -30,18 +30,26 @@ const POP_DISTANCE = 90
  *  reader's own chapter-edge tap strip and text selection keep working. */
 const ROOT_EDGE_PX = 20
 
-export function NavigationStack({ root, rootKey = 'root', canEdgeBack, onEdgeBack }: {
+export function NavigationStack({ root, rootKey = 'root', canEdgeBack, onEdgeBack, initialStack }: {
   root: React.ReactNode
   rootKey?: string
+  /** Pages already pushed on first render (shown without the slide-in). */
+  initialStack?: StackEntry[]
   /** The root page's edge swipe (iOS back gesture) — see navigation/edgeBack.ts. */
   canEdgeBack?: () => boolean
   onEdgeBack?: () => void
 }) {
-  const [stack, setStack] = useState<StackEntry[]>([])
+  const [stack, setStack] = useState<StackEntry[]>(() => initialStack ?? [])
   const push = useCallback((key: string, element: React.ReactNode) => {
     setStack((s) => [...s.filter((e) => e.key !== key), { key, element }])
   }, [])
-  const pop = useCallback(() => setStack((s) => s.slice(0, -1)), [])
+  // Leaving a page dismisses its keyboard (‹ or the edge swipe) instead of leaving it up over the
+  // page underneath while the popped one slides away.
+  const pop = useCallback(() => {
+    const el = document.activeElement as HTMLElement | null
+    if (el && el !== document.body && el.closest('.mobile-nav-page.is-pushed')) el.blur()
+    setStack((s) => s.slice(0, -1))
+  }, [])
   const popToRoot = useCallback(() => setStack([]), [])
   const replaceTop = useCallback((key: string, element: React.ReactNode) => {
     setStack((s) => [...s.slice(0, -1), { key, element }])

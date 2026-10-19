@@ -48,7 +48,9 @@ html[data-cutout="none"] .mobile-compact-band { height: calc(var(--m-safe-top) +
 .mobile-reader-pane.is-held { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 
 /* Find on Page (SEP24-019): a glass bar under the reader header. */
-.mobile-find-bar { position: absolute; left: 10px; right: 10px; top: calc(var(--m-reader-top, 0px) + 6px); z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px 5px 5px 10px; border-radius: 16px; box-shadow: var(--m-shadow-float, 0 6px 20px rgb(0 0 0 / 0.18)); }
+/* Thick glass (TEST 2026-10-17 screenshot: verse text read straight through the regular-material bar
+   and its "4 of 6 · 2 Esdras 7:97" status). A floating search field is a capsule (iOS 26). */
+.mobile-find-bar { position: absolute; left: 10px; right: 10px; top: calc(var(--m-reader-top, 0px) + 6px); z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px 5px 5px 12px; border-radius: 24px; border: 0.5px solid var(--m-hairline); box-shadow: inset 0 0.5px 0 var(--m-edge-highlight), var(--m-shadow-float, 0 6px 20px rgb(0 0 0 / 0.18)); }
 .mobile-find-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; color: rgb(var(--color-text-muted)); }
 .mobile-find-field input { flex: 1; min-width: 0; border: 0; background: none; color: rgb(var(--color-text-primary)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); outline: none; }
 .mobile-find-status { flex: none; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); white-space: nowrap; }
@@ -148,7 +150,7 @@ html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-page-header 
    The content viewport is the whole screen; each scroller ends with room for the measured bar
    (--m-nav-h) so nothing is permanently hidden behind the controls — no arbitrary padding. */
 .mobile-root.has-overlay-nav .mobile-page-body:not(.is-static) { padding-bottom: calc(var(--m-nav-h, 64px) + 16px); scroll-padding-bottom: var(--m-nav-h, 64px); }
-.mobile-root.has-overlay-nav .mobile-reader-end { height: calc(var(--m-nav-h, 64px) + 24px); }
+.mobile-root.has-overlay-nav .mobile-reader-end { height: max(calc(var(--m-nav-h, 64px) + 24px), calc(var(--m-sheet-cover, 0px) + 16px)); }
 .mobile-root.has-overlay-nav .mobile-hosted-panel,
 .mobile-root.has-overlay-nav .mobile-note-editor { padding-bottom: var(--m-nav-h, 64px); box-sizing: border-box; }
 html[data-keyboard] .mobile-root.has-overlay-nav .mobile-note-editor,
@@ -177,3 +179,8 @@ html[data-reader-width="narrow"] .mobile-reader .berean-reading-column { padding
   position: static; background: none; -webkit-backdrop-filter: none; backdrop-filter: none;
   border-bottom: 0; box-shadow: none; padding: 18px 12px 6px 6px;
 }
+/* The Find bar floats over Scripture text, where the backdrop blur can't reach (the reader's
+   soft-edge mask isolates it), so it carries its own near-opaque fill: the field, the "4 of 6 ·
+   2 Esdras 7:97" status and the arrows stay readable over any verse (TEST 2026-10-17 screenshot). */
+.mobile-find-bar.m-glass-thick { background: rgb(var(--color-surface-1) / 0.94); }
+html[data-reduce-transparency] .mobile-find-bar.m-glass-thick { background: rgb(var(--color-surface-1)); }

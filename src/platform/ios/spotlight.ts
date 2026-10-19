@@ -1,3 +1,4 @@
+import { perfSpan } from '../../lib/perfSpan'
 import { BereanSpotlight } from './plugins'
 import { iosServiceContext, iosServices } from './services'
 import { formatDeepLink } from '../../lib/deepLinks'
@@ -6,6 +7,7 @@ import { stripMarkdownFormatting } from '../../lib/notePreviewText'
 import { bookName, normalizeBookName } from '../../lib/parseRef'
 import { TRANSLATIONS } from '../../lib/bibleTexts'
 import { useAppStore } from '../../store'
+import { perfMark } from './perf'
 
 /**
  * Keeps Core Spotlight in step with the user's data (R093): notes, tab sessions, saved
@@ -30,13 +32,13 @@ async function indexInChunks(items: Item[]): Promise<void> {
 async function indexNotes(ids?: string[]): Promise<void> {
   const notes = await iosServices().notes.getAll(2000, 0)
   const wanted = ids ? notes.filter((n) => ids.includes(n.id)) : notes
-  const items: Item[] = wanted.filter((n) => !n.deletedAt).map((n) => ({
+  const items: Item[] = perfSpan('spotlightItems', () => wanted.filter((n) => !n.deletedAt).map((n) => ({
     url: formatDeepLink({ kind: 'note', noteId: n.id }),
     title: n.title || 'Untitled note',
     text: stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 600),
     keywords: ['Berean', 'note', ...(n.tags ?? []), ...(n.verseRef ? [n.verseRef.replace(/\./g, ' ')] : [])],
     updatedAt: n.updatedAt,
-  }))
+  })))
   await indexInChunks(items)
   if (ids) {
     const gone = ids.filter((id) => !wanted.some((n) => n.id === id) || wanted.find((n) => n.id === id)?.deletedAt)
@@ -104,7 +106,9 @@ async function indexBooks(textId: string): Promise<void> {
 }
 
 async function fullIndex(): Promise<void> {
+  perfMark('spotlight:start')
   await indexNotes()
+  perfMark('spotlight:notes-done')
   await indexSessions()
   await indexWorkspaces()
   await indexBooks(useAppStore.getState().defaultBibleTranslation || 'kjva')
@@ -116,7 +120,9 @@ export async function installIosSpotlight(): Promise<void> {
     if (!available) return
   } catch { return }
   await BereanSpotlight.addListener('open', ({ url }) => { openIosDeepLink(url) }).catch(() => {})
-  void fullIndex().catch((err) => console.warn('[spotlight] initial index failed', err))
+  // After launch has settled (perf pass 2026-10-17): the full re-index reads up to 2,000 notes and
+  // sends them across the bridge — Spotlight can wait a few seconds, the first screen can't.
+  setTimeout(() => { void fullIndex().catch((err) => console.warn('[spotlight] initial index failed', err)) }, 6000)
   // Default translation changed → chapters of the new text (the old ones stay valid links).
   useAppStore.subscribe((s, prev) => {
     if (s.defaultBibleTranslation !== prev.defaultBibleTranslation) void indexBooks(s.defaultBibleTranslation).catch(() => {})

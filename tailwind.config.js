@@ -156,5 +156,31 @@ module.exports = {
       }
     }
   },
-  plugins: []
+  // `space-y-*` / `divide-y` / `divide-<color>` with a cheap sibling selector (performance audit
+  // 2026-10-19, docs/performance-audit-2026-10-19.md). Tailwind 3 targets
+  // `> :not([hidden]) ~ :not([hidden])`: a general-sibling rule whose right side matches nearly
+  // any element, which makes Chromium restyle EVERY following sibling's whole subtree whenever an
+  // element is inserted before them — prepending one message to a 300-message transcript cost
+  // ~120 ms of style recalculation. `> :not(:first-child):not([hidden])` selects the same children
+  // (all but the first, same specificity) and only ever re-checks the old first child.
+  corePlugins: { space: false, divideWidth: false, divideColor: false },
+  plugins: [
+    ({ matchUtilities, theme }) => {
+      const notFirst = '& > :not(:first-child):not([hidden])'
+      matchUtilities(
+        { 'space-y': (value) => ({ [notFirst]: { 'margin-top': value, 'margin-bottom': '0px' } }),
+          'space-x': (value) => ({ [notFirst]: { 'margin-left': value, 'margin-right': '0px' } }) },
+        { values: theme('space'), supportsNegativeValues: true },
+      )
+      matchUtilities(
+        { 'divide-y': (value) => ({ [notFirst]: { 'border-top-width': value, 'border-bottom-width': '0px' } }),
+          'divide-x': (value) => ({ [notFirst]: { 'border-left-width': value, 'border-right-width': '0px' } }) },
+        { values: theme('divideWidth') },
+      )
+      matchUtilities(
+        { divide: (value) => ({ [notFirst]: { 'border-color': typeof value === 'function' ? value({ opacityValue: 1 }) : value } }) },
+        { values: Object.fromEntries(Object.entries(theme('colors')).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v.replace('<alpha-value>', '1')]] : Object.entries(v).map(([s, c]) => [s === 'DEFAULT' ? k : `${k}-${s}`, String(c).replace('<alpha-value>', '1')])))), type: 'color' },
+      )
+    },
+  ]
 }

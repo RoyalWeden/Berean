@@ -1,10 +1,11 @@
+import { perfSpan } from '@/lib/perfSpan'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { pushNotesListHistory } from './notesHistory'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import {
   Plus, CalendarDays, FolderPlus, FolderInput, Pin, PinOff, Trash2, Search, Rows3, ArrowDownUp, FileUp, Printer, X,
-  SquarePen, MoreHorizontal, LayoutGrid, List, Filter as FilterIcon, Pencil, ArrowUpRight, SquarePlus, Copy, Share2, CheckSquare, ChevronDown, FolderTree,
+  SquarePen, MoreHorizontal, LayoutGrid, List, Filter as FilterIcon, Pencil, ArrowUpRight, SquarePlus, Copy, Share2, CheckSquare, ChevronDown, FolderTree, Check,
 } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { useAppStore } from '@/store'
@@ -32,12 +33,13 @@ import { idiomExportEntries } from '@/lib/idiomsExport'
 import { parseNoteMarkdownFile } from '@/lib/noteMarkdownFile'
 import { useNoteHomeView, noteHomeView, NOTE_GROUPING_OPTIONS, NOTE_SORT_OPTIONS, type NoteGrouping, type NoteSortMode } from './noteGrouping'
 import {
-  buildFolderTree, findFolderNode, subtreeIds, visibleFolderRows, folderPathLabel, notesAt, systemFolderCounts, locationTitle, parentLocation,
+  buildFolderTree, findFolderNode, subtreeIds, folderPathLabel, notesAt, systemFolderCounts, locationTitle, parentLocation,
   isSystemLocation, SYSTEM_FOLDERS, NOTE_FILTER_OPTIONS, matchesFilter, folderViewSections, matchFolders, notesHomePrefs, useNotesHomePrefs, sectionCollapse,
   type FolderLocation, type FolderNode, type NoteFilter,
 } from './notesHomeModel'
-import { NoteListRow, NoteGalleryCard, FolderRow, FolderTreeRows } from './NoteListItems'
+import { NoteListRow, NoteGalleryCard, FolderRow } from './NoteListItems'
 import { NotePeek, type PeekAction } from './NotePeek'
+import { VirtualNoteList, type NoteListSection } from './VirtualNoteList'
 
 /**
  * Notes Home for the phone (NOTES-HOME-001…; redesigned after Apple Notes, 2026-09-28).
@@ -107,18 +109,38 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     if (loaded && loc && loc !== 'all' && !isSystemLocation(loc) && !folders.some((f) => f.id === loc)) go(null)
   }, [loaded, loc, folders]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Each location keeps its own scroll position (the page body is shared): going into a folder
+  // starts at its top, coming back returns to where that list was — instead of the next list
+  // inheriting the previous one's offset (seen 2026-10-17: Folders opened half-way down).
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const scrollByLoc = useRef(new Map<string, number>())
+  const locKey = String(loc)
+  const prevLocKey = useRef(locKey)
+  useLayoutEffect(() => {
+    const el = bodyRef.current
+    if (!el || prevLocKey.current === locKey) return
+    scrollByLoc.current.set(prevLocKey.current, lastScroll.current)
+    prevLocKey.current = locKey
+    el.scrollTop = scrollByLoc.current.get(locKey) ?? 0
+  }, [locKey])
+  const lastScroll = useRef(0)
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const on = () => { lastScroll.current = el.scrollTop }
+    el.addEventListener('scroll', on, { passive: true })
+    return () => el.removeEventListener('scroll', on)
+  }, [])
+
   const refresh = () => useAppStore.getState().bumpNoteToken()
   const prefs = useNotesHomePrefs()
   const view = useNoteHomeView()
   const now = useMemo(() => Date.now(), [noteToken, loc]) // eslint-disable-line react-hooks/exhaustive-deps
-  const tree = useMemo(() => buildFolderTree(folders, notes), [folders, notes])
-  const sysCounts = useMemo(() => systemFolderCounts(notes), [notes])
-  const expanded = useMemo(() => new Set(prefs.expandedFolders), [prefs.expandedFolders])
-  const toggleExpanded = (id: string) => {
-    const next = new Set(expanded); if (next.has(id)) next.delete(id); else next.add(id)
-    notesHomePrefs.set({ expandedFolders: [...next] })
-  }
-  const folderName = (id: string | null | undefined) => folderPathLabel(id, folders)
+  const tree = useMemo(() => perfSpan('folderTree', () => buildFolderTree(folders, notes)), [folders, notes])
+  const sysCounts = useMemo(() => perfSpan('sysCounts', () => systemFolderCounts(notes)), [notes])
+  // One label per folder per folder-list change, not a path walk per row per render.
+  const folderLabels = useMemo(() => new Map(folders.map((f) => [f.id, folderPathLabel(f.id, folders)])), [folders])
+  const folderName = (id: string | null | undefined) => (id ? folderLabels.get(id) ?? null : null)
 
   // ── search: one field, notes + folders, everything (not only this folder) ───────────────────
   const [query, setQuery] = useState('')
@@ -201,7 +223,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     const name = prompt(parentId ? 'New subfolder name' : 'New folder name')?.trim()
     if (!name) return
     const r = await window.notes.createFolder(name, parentId).catch(() => null)
-    if (r?.success) { void haptic.success(); if (parentId && !expanded.has(parentId)) toggleExpanded(parentId); refresh() }
+    if (r?.success) { void haptic.success(); refresh() }
   }
   const renameFolder = (f: NoteFolder) => { const name = prompt('Folder name', f.name)?.trim(); if (name && name !== f.name) window.notes.renameFolder(f.id, name).then(refresh).catch(() => {}) }
   const moveFolder = (node: FolderNode) => {
@@ -269,8 +291,12 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const sections = useMemo(() => folderViewSections(here, { sort: view.sort, grouping: view.grouping, folders, now }), [here, view.sort, view.grouping, folders, now])
   const subfolders = userFolderNode?.children ?? []
   const title = locationTitle(loc, folders)
-  const [, bumpCollapse] = useState(0)
+  const [collapseVer, bumpCollapse] = useState(0)
   const toggleSection = useCallback((id: string) => { sectionCollapse.toggle(loc, id); bumpCollapse((n) => n + 1); void haptic.selection() }, [loc])
+  const listSections = useMemo<NoteListSection[]>(
+    () => sections.map((s) => ({ id: s.id, title: s.title, notes: s.notes, collapsible: true, collapsed: sectionCollapse.isCollapsed(loc, s.id) })),
+    [sections, loc, collapseVer], // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   // ── caret (the Notes commands; Today / calendar stay here) ───────────────────────────────
   const viewSection = {
@@ -307,8 +333,12 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   // The large title scrolls with the content; the small bar title appears once it has gone.
   const largeRef = useRef<HTMLDivElement>(null)
   const [largeVisible, setLargeVisible] = useState(true)
+  // TEST 2026-10-17 "when scrolling down it takes a second for the topper to show": it waited for
+  // the LAST pixel of the whole block (title + subtitle + padding) to pass under the bar, and every
+  // flip re-rendered all rows. Now it follows the title line itself (iOS swaps as the large title
+  // goes under the bar), and the rows are memoised so a flip only re-renders the page chrome.
   useEffect(() => {
-    const el = largeRef.current
+    const el = largeRef.current?.querySelector<HTMLElement>('.m-notes-large-title') ?? largeRef.current
     if (!el || typeof IntersectionObserver === 'undefined') { setLargeVisible(true); return }
     // The glass bar overlays the list, so "scrolled away" means "gone under the bar".
     const bar = el.closest('.mobile-page')?.querySelector(':scope > .mobile-page-header')
@@ -329,28 +359,36 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
   const parent = parentLocation(loc, folders)
   const back = loc ? { onBack: () => go(parent), backLabel: locationTitle(parent, folders) } : {}
   const right = editing
-    ? <button type="button" className="m-notes-textbtn is-strong" onClick={endEdit}>Done</button>
+    // The accent checkmark circle ends selecting, as in Notes / Photos (TEST 2026-10-17: not "Done").
+    ? <button type="button" className="m-float-circle is-primary m-notes-done" onClick={() => { void haptic.selection(); endEdit() }} aria-label="Done"><Check size={22} strokeWidth={2.5} aria-hidden /></button>
     : loc
       ? <><button type="button" className="m-notes-textbtn" onClick={() => setEditing(true)}>Edit</button><IconTap icon={MoreHorizontal} label="Folder options" onClick={moreMenu} /></>
       : <><IconTap icon={FolderPlus} label="New Folder" onClick={() => { void newFolder(null) }} /><button type="button" className="m-notes-textbtn" onClick={() => setEditing(true)}>Edit</button></>
 
   // ── rendering helpers ────────────────────────────────────────────────────────────────────
   const showFolderOnRow = loc === 'all' || isSystemLocation(loc) || searching
-  const onPeek = (note: Note, rect: DOMRect) => setPeek({ note, rect })
-  const renderNotes = (list: Note[], key: string) => prefs.layout === 'gallery' ? (
-    <div className="m-notes-gallery" role="list" key={key}>
-      {list.map((n) => <div role="listitem" key={n.id}><NoteGalleryCard note={n} now={now} selecting={editing} selected={selected.has(n.id)} onOpen={open} onToggle={toggleSel} onLongPress={onPeek} /></div>)}
-    </div>
-  ) : (
-    <div className="m-notes-group" role="list" key={key}>
-      {list.map((n) => (
-        <div role="listitem" key={n.id}>
-          <NoteListRow note={n} now={now} folderName={showFolderOnRow ? folderName(n.folderId) : null} selecting={editing} selected={selected.has(n.id)}
-            onOpen={open} onToggle={toggleSel} onLongPress={onPeek}
-            onPin={(x) => { void setPinned([x], !x.pinned) }} onMove={(x) => moveNotes([x])} onDelete={(x) => { void trash([x]) }} canMove={noteIsMovable(n)} />
-        </div>
-      ))}
-    </div>
+  // Rows are memoised (NoteListItems) — their callbacks must keep their identity across renders,
+  // so they call through a ref to the latest handlers instead of being recreated each render.
+  const rowHandlers = useRef({ open, toggleSel, setPeek, setPinned, moveNotes, trash })
+  rowHandlers.current = { open, toggleSel, setPeek, setPinned, moveNotes, trash }
+  const rowCb = useMemo(() => ({
+    open: (n: Note) => rowHandlers.current.open(n),
+    toggle: (n: Note) => rowHandlers.current.toggleSel(n),
+    peek: (note: Note, rect: DOMRect) => rowHandlers.current.setPeek({ note, rect }),
+    pin: (x: Note) => { void rowHandlers.current.setPinned([x], !x.pinned) },
+    move: (x: Note) => rowHandlers.current.moveNotes([x]),
+    del: (x: Note) => { void rowHandlers.current.trash([x]) },
+  }), [])
+  const renderRow = (n: Note) => (
+    <NoteListRow note={n} now={now} folderName={showFolderOnRow ? folderName(n.folderId) : null} selecting={editing} selected={selected.has(n.id)}
+      onOpen={rowCb.open} onToggle={rowCb.toggle} onLongPress={rowCb.peek} onPin={rowCb.pin} onMove={rowCb.move} onDelete={rowCb.del} canMove={noteIsMovable(n)} />
+  )
+  const renderCard = (n: Note) => <NoteGalleryCard note={n} now={now} selecting={editing} selected={selected.has(n.id)} onOpen={rowCb.open} onToggle={rowCb.toggle} onLongPress={rowCb.peek} />
+  const renderHeader = (s: NoteListSection) => s.collapsible
+    ? <SectionHeader id={s.id} title={s.title} count={s.notes.length} collapsed={!!s.collapsed} onToggle={toggleSection} />
+    : <h2 className="m-notes-section-title is-static">{s.title}</h2>
+  const renderNotes = (list: readonly NoteListSection[]) => (
+    <VirtualNoteList sections={list} layout={prefs.layout} renderHeader={renderHeader} renderRow={renderRow} renderCard={renderCard} />
   )
 
   const searchBody = (
@@ -369,7 +407,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
             <h2 className="m-notes-section-title is-static">{results == null ? 'Notes' : `${results.length} Note${results.length === 1 ? '' : 's'}`}</h2>
             {results == null ? <div className="m-notes-hint">Searching…</div>
               : results.length === 0 ? <div className="m-notes-hint">No notes match “{q}”.</div>
-              : renderNotes(results, 'search')}
+              : renderNotes([{ id: 'search', title: '', notes: results, bare: true }])}
           </section>
         </>
       )}
@@ -388,8 +426,13 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
         <section className="m-notes-section" aria-label="My folders">
           <h2 className="m-notes-section-title is-static">My Folders</h2>
           <div className="m-notes-group" role="list">
-            <FolderTreeRows rows={visibleFolderRows(tree, expanded)} expanded={expanded} onToggle={toggleExpanded} onOpen={(id) => go(id)} onLongPress={folderActions}
-              trailing={editing ? (n) => <button type="button" className="m-folder-more" aria-label={`${n.folder.name} actions`} onClick={() => folderActions(n)}><MoreHorizontal size={20} aria-hidden /></button> : undefined} />
+            {/* One level (TEST 2026-10-17): only top-level folders here — the old inline disclosure
+                indented a folder that HAS subfolders like a subfolder, then showed its children at
+                the same depth. A folder's subfolders are listed on its own page (Apple Notes). */}
+            {tree.map((n) => (
+              <FolderRow key={n.folder.id} name={n.folder.name} count={n.total} hasChildren={n.children.length > 0} onOpen={() => go(n.folder.id)} onLongPress={() => folderActions(n)}
+                trailing={editing ? <button type="button" className="m-folder-more" aria-label={`${n.folder.name} actions`} onClick={() => folderActions(n)}><MoreHorizontal size={20} aria-hidden /></button> : undefined} />
+            ))}
           </div>
         </section>
       )}
@@ -412,15 +455,11 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
           )}
         </section>
       )}
-      {sections.map((s) => {
-        const c = sectionCollapse.isCollapsed(loc, s.id)
-        return (
-          <section key={s.id} className="m-notes-section" aria-label={s.title}>
-            <SectionHeader id={s.id} title={s.title} count={s.notes.length} collapsed={c} onToggle={toggleSection} />
-            {!c && renderNotes(s.notes, s.id)}
-          </section>
-        )
-      })}
+      {sections.length > 0 && (
+        <div className={subfolders.length > 0 ? 'm-notes-after-folders' : undefined}>
+          {renderNotes(listSections)}
+        </div>
+      )}
       {loaded && here.length === 0 && subfolders.length === 0 && (
         <div className="m-notes-empty">
           <div>{filter !== 'all' ? `No ${NOTE_FILTER_OPTIONS.find((o) => o.id === filter)?.label.toLowerCase()} notes here.` : 'No Notes'}</div>
@@ -449,6 +488,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
       left={loc ? undefined : <IconTap icon={CalendarDays} label="Today's daily note. Press and hold for the calendar" onClick={() => void openDaily()} onLongPress={openCalendar} />}
       right={searching ? undefined : right}
       bodyClassName="m-notes-body"
+      bodyRef={bodyRef}
     >
       {idiomsOpen && <PrintPreviewModal title="Idioms" content="" idiomEntries={idiomExportEntries(notes)} onClose={() => setIdiomsOpen(false)} />}
       {printNote && <PrintPreviewModal title={displayNoteTitle(printNote.title)} content={printNote.content} notes={notes} onClose={() => setPrintNote(null)} />}
@@ -461,14 +501,16 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
       {searching ? searchBody : loc ? folderBody : homeBody}
 
       {editing && loc ? (
-        <div className="m-notes-float m-notes-editbar" role="toolbar" aria-label={`${selected.size} selected`}>
-          <button type="button" disabled={!selectedNotes.some(noteIsMovable)} onClick={() => moveNotes(selectedNotes, endEdit)}><FolderInput size={20} aria-hidden /><span>Move</span></button>
-          <button type="button" disabled={!selected.size} onClick={() => { void setPinned(selectedNotes, !allSelected).then(endEdit) }}>
-            {allSelected ? <PinOff size={20} aria-hidden /> : <Pin size={20} aria-hidden />}<span>{allSelected ? 'Unpin' : 'Pin'}</span>
+        // Compact glass bar of icon-only actions (TEST 2026-10-17 "only show the icons"); each keeps
+        // its name for VoiceOver and the count stays visible in the middle.
+        <div className="m-notes-float m-notes-editbar is-icons" role="toolbar" aria-label={`${selected.size} selected`}>
+          <button type="button" aria-label="Move" disabled={!selectedNotes.some(noteIsMovable)} onClick={() => moveNotes(selectedNotes, endEdit)}><FolderInput size={22} aria-hidden /></button>
+          <button type="button" aria-label={allSelected ? 'Unpin' : 'Pin'} disabled={!selected.size} onClick={() => { void setPinned(selectedNotes, !allSelected).then(endEdit) }}>
+            {allSelected ? <PinOff size={22} aria-hidden /> : <Pin size={22} aria-hidden />}
           </button>
           <span className="m-notes-editbar-count" aria-live="polite">{selected.size ? `${selected.size} Selected` : 'Select Notes'}</span>
-          <button type="button" disabled={!selected.size} onClick={() => { void shareNotes(selectedNotes) }}><Share2 size={20} aria-hidden /><span>Share</span></button>
-          <button type="button" className="is-destructive" disabled={!selected.size} onClick={() => { void trash(selectedNotes).then(endEdit) }}><Trash2 size={20} aria-hidden /><span>Delete</span></button>
+          <button type="button" aria-label="Share" disabled={!selected.size} onClick={() => { void shareNotes(selectedNotes) }}><Share2 size={22} aria-hidden /></button>
+          <button type="button" aria-label="Delete" className="is-destructive" disabled={!selected.size} onClick={() => { void trash(selectedNotes).then(endEdit) }}><Trash2 size={22} aria-hidden /></button>
         </div>
       ) : !editing && (
         <div className={`m-notes-float${searching ? ' is-searching' : ''}`}>

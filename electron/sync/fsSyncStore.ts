@@ -56,7 +56,10 @@ export class FsSyncStore implements SyncStore {
   }
 
   private devicesDir(): string { return join(this.root, 'devices') }
-  private ownDir(): string { return join(this.devicesDir(), this.deviceId) }
+  private ownDir(): string {
+    if (!/^[A-Za-z0-9]+$/.test(this.deviceId)) throw new Error(`refusing an unsafe device id: ${JSON.stringify(this.deviceId)}`)
+    return join(this.devicesDir(), this.deviceId)
+  }
 
   async status(): Promise<SyncStoreStatus> {
     if (this.requiredParent && !existsSync(this.requiredParent)) return { available: false, reason: `iCloud folder not found: ${this.requiredParent}` }
@@ -124,9 +127,15 @@ export class FsSyncStore implements SyncStore {
     await fs.rename(tmp, path)
   }
 
+  /** A file name of this device's own folder — never a path that could reach outside it. */
+  private ownPath(name: string): string {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes('..')) throw new Error(`refusing an unsafe sync file name: ${JSON.stringify(name)}`)
+    return join(this.ownDir(), name)
+  }
+
   async writeOwnFile(name: string, content: string): Promise<void> {
     await this.guardIdentity()
-    await this.atomicWrite(join(this.ownDir(), name), content)
+    await this.atomicWrite(this.ownPath(name), content)
   }
 
   async writeOwnManifest(manifest: DeviceManifest): Promise<void> {
@@ -136,7 +145,7 @@ export class FsSyncStore implements SyncStore {
 
   async deleteOwnFile(name: string): Promise<void> {
     await this.guardIdentity()
-    await fs.rm(join(this.ownDir(), name), { force: true })
+    await fs.rm(this.ownPath(name), { force: true })
   }
 
   watch(onChange: () => void): () => void {

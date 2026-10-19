@@ -80,3 +80,20 @@ describe('deep links (berean://)', () => {
     expect(spy).toHaveBeenCalledWith('x')
   })
 })
+
+describe('chat links (iOS widget, TEST 2026-10-17)', () => {
+  it('parses chat and chat/new in both identities and round-trips', () => {
+    expect(parseDeepLink('berean://chat/new')).toEqual({ kind: 'chat', compose: true })
+    expect(parseDeepLink('berean-dev://chat/new')).toEqual({ kind: 'chat', compose: true })
+    expect(parseDeepLink('berean://chat')).toEqual({ kind: 'chat' })
+    expect(formatDeepLink({ kind: 'chat', compose: true })).toBe('berean://chat/new')
+    expect(parseDeepLink(formatDeepLink({ kind: 'chat' }))).toEqual({ kind: 'chat' })
+  })
+  it('routes to openChat; a target without chat ignores it', () => {
+    const openChat = vi.fn()
+    const base = { openVerse: vi.fn(), openNote: vi.fn(), openLexicon: vi.fn(), openVideo: vi.fn(), openPdf: vi.fn(), openSearch: vi.fn(), openTrail: vi.fn(), openDaily: vi.fn(), openWorkspace: vi.fn(), openSession: vi.fn() }
+    expect(handleDeepLink('berean-dev://chat/new', { ...base, openChat })).toBe(true)
+    expect(openChat).toHaveBeenCalledWith({ compose: true })
+    expect(handleDeepLink('berean://chat/new', base)).toBe(true)
+  })
+})

@@ -1,4 +1,4 @@
-import { LayoutGrid } from 'lucide-react'
+import { LayoutGrid, MessagesSquare } from 'lucide-react'
 import { useLiquidGlassControls } from '@/platform/liquidGlass'
 import { useAnyPageHasBack } from '../primitives/Page'
 import React, { useEffect, useRef, useState } from 'react'
@@ -7,6 +7,7 @@ import { useAppStore } from '@/store'
 import { haptic } from '../primitives/haptics'
 import { useChromeState } from './chromeState'
 import { EXPERIENCES, otherExperiences, runExperience, tabTypeFace } from './experiences'
+import { openChatOverlay } from './chatOverlay'
 import { useCalendarOverlay } from '../calendar/CalendarOverlay'
 import './experiences.css'
 
@@ -59,7 +60,8 @@ export function TabTypeSwitcher({ hidden }: { hidden?: boolean }) {
 
   if (!present) return null
   const face = tabTypeFace(tab)
-  const items = otherExperiences(tab)
+  // History and Settings live in the caret's Go-to row, not here (TEST 2026-10-18).
+  const items = otherExperiences(tab).filter((id) => id !== 'history' && id !== 'settings')
   const close = () => setOpen(false)
   // Calendar here is CONTEXTUAL (SEP27-CAL-004): an overlay over this tab, not a tab change —
   // dismissing it leaves the tab untouched; choosing a day opens that day's daily note.
@@ -71,7 +73,7 @@ export function TabTypeSwitcher({ hidden }: { hidden?: boolean }) {
 
   return (
     <>
-      {open && <div className="m-tabswitch-scrim" aria-hidden onClick={close} onTouchMove={close} onWheel={close} />}
+      {open && <div className="m-tabswitch-scrim" data-glass-passthrough="" aria-hidden onClick={close} onTouchMove={close} onWheel={close} />}
       <div className={`m-tabswitch${shown ? '' : ' is-away'}`} aria-hidden={!shown || undefined}>
         <button ref={buttonRef} type="button" className={`m-tabswitch-button${open ? ' is-open' : ''}${glass.isNative('grid') ? ' is-native-glass' : ''}`} aria-expanded={open} aria-haspopup="menu"
           aria-label={`${face.label} tab. Change this tab to…`} tabIndex={shown && !glass.isNative('grid') ? 0 : -1} aria-hidden={glass.isNative('grid') || undefined}
@@ -99,6 +101,15 @@ export function TabTypeSwitcher({ hidden }: { hidden?: boolean }) {
                   </motion.button>
                 )
               })}
+              {/* Berean Chat opens over this tab (it isn't a tab type) — always one tap away here. */}
+              <div className="m-tabswitch-sep" role="separator" />
+              <motion.button key="chat" type="button" role="menuitem" className="m-tabswitch-item"
+                aria-label="Open Berean Chat" onClick={() => { void haptic.light(); setOpen(false); openChatOverlay() }}
+                initial={reduce ? false : { opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0, transition: reduce ? { duration: 0 } : { delay: 0.02 + items.length * 0.015, duration: 0.16 } }}>
+                <MessagesSquare size={18} aria-hidden />
+                <span>Berean Chat</span>
+              </motion.button>
             </motion.div>
           )}
         </AnimatePresence>

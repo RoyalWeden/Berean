@@ -1,0 +1,135 @@
+/* Berean Chat layout (panel + window chrome, history list) — tokens in chatTokens.css. */
+
+/* One centred column shared by the transcript and the composer. */
+.chat-column {
+  width: 100%;
+  max-width: var(--chat-column-max);
+  margin-inline: auto;
+}
+
+/* ── History list rows ─────────────────────────────────────────────────────────────────────
+   Two lines: title (footnote medium) + time on the first, preview (caption2 muted) below.
+   The trailing "…" button sits in the time's slot and replaces it on hover / keyboard focus /
+   while its menu is open — it never covers the title or the preview, and has no tooltip. */
+.chat-hist-item { position: relative; }
+.chat-hist-row {
+  display: flex;
+  align-items: center;
+  gap: var(--chat-space-2);
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  padding: var(--chat-row-py) var(--chat-row-px);
+  border-radius: 8px;
+  color: rgb(var(--color-text-primary));
+  transition: background-color 100ms ease;
+}
+.chat-hist-row-stack { flex-direction: column; align-items: stretch; gap: 0; }
+.chat-hist-row:hover { background: var(--color-surface-hover); }
+.chat-hist-row[aria-current='true'] { background: var(--color-accent-muted); }
+.chat-hist-line { display: flex; align-items: baseline; gap: var(--chat-space-2); min-width: 0; }
+.chat-hist-title {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--text-footnote); line-height: 1.35; font-weight: 500;
+}
+.chat-hist-time {
+  flex-shrink: 0;
+  min-width: 20px;            /* = the "…" button: the title never runs under it */
+  text-align: right;
+}
+.chat-hist-preview {
+  display: block; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--text-caption2); line-height: 1.3;
+  color: rgb(var(--color-text-muted));
+}
+.chat-hist-more {
+  position: absolute;
+  top: calc(var(--chat-row-py) - 2px);
+  right: calc(var(--chat-row-px) - 2px);
+  opacity: 0;
+  pointer-events: none;
+}
+.chat-hist-item:hover .chat-hist-more,
+.chat-hist-item:has(:focus-visible) .chat-hist-more,
+.chat-hist-item[data-menu-open] .chat-hist-more { opacity: 1; pointer-events: auto; }
+.chat-hist-item:hover .chat-hist-time,
+.chat-hist-item:has(:focus-visible) .chat-hist-time,
+.chat-hist-item[data-menu-open] .chat-hist-time { visibility: hidden; }
+
+/* Group headings (Today / Yesterday / Previous 7 Days / …). */
+.chat-hist-heading {
+  padding: 0 var(--chat-row-px) var(--chat-space-1);
+  font-size: var(--text-caption2); line-height: 1.3; font-weight: 600;
+  color: rgb(var(--color-text-muted));
+  user-select: none;
+}
+
+/* Loading skeleton rows. */
+.chat-hist-skeleton { padding: var(--chat-row-py) var(--chat-row-px); }
+.chat-hist-skeleton i {
+  display: block; height: 8px; border-radius: 4px;
+  background: rgb(var(--color-text-primary) / 0.07);
+}
+.chat-hist-skeleton i + i { margin-top: 6px; width: 70%; }
+
+/* ── In-place rename (title bar + history rows) ─────────────────────────────────────────────
+   Finder / Mail style: the text turns into a field without moving — same font, size and
+   position, a hairline accent outline instead of the thick text-field ring, nothing else in the
+   row or header changes. The negative margin cancels the padding so the text does not shift. */
+.chat-rename-input {
+  display: block;
+  width: calc(100% + 8px);
+  min-width: 0;
+  margin: -1px -4px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 4px;
+  font-family: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  background: rgb(var(--color-surface-1));
+  box-shadow: 0 0 0 1px rgb(var(--color-accent) / 0.7);
+  outline: none;
+}
+.chat-hist-title .chat-rename-input { font-size: inherit; line-height: inherit; font-weight: inherit; }
+/* The title bar's field is as wide as its text (Finder), not a fixed-width box. */
+.chat-rename-input.is-title { width: auto; field-sizing: content; min-width: 6ch; max-width: calc(100% + 8px); }
+.chat-rename-input::selection { background: rgb(var(--color-accent) / 0.3); }
+.chat-hist-title:has(> .chat-rename-input) { overflow: visible; }
+
+/* Folder rows (sidebar / switcher): disclosure chevron, folder glyph, name, count. */
+.chat-folder-row { cursor: pointer; gap: 6px; padding-left: calc(var(--chat-row-px) - 4px); }
+.chat-folder-row[data-menu-open] { background: var(--color-surface-hover); }
+
+/* Collapsible date groups: the heading is the toggle; the chevron sits at the trailing edge
+   (Finder / Mail sidebar sections), the count only while collapsed. */
+.chat-group-toggle {
+  display: flex; align-items: center; gap: var(--chat-space-1);
+  width: 100%; min-height: 20px; border-radius: 6px; cursor: pointer;
+}
+.chat-group-chevron { flex-shrink: 0; opacity: 0; transition: opacity var(--duration-fast, 120ms), transform var(--duration-fast, 120ms); }
+.chat-group-toggle[aria-expanded='false'] .chat-group-chevron,
+.chat-group-toggle:focus-visible .chat-group-chevron { opacity: 1; }
+@media (hover: hover) { .chat-group-toggle:hover .chat-group-chevron { opacity: 1; } .chat-group-toggle:hover { color: rgb(var(--color-text-secondary)); } }
+.chat-group-count { font-weight: 500; font-variant-numeric: tabular-nums; }
+.chat-hist-divider { height: 1px; margin: var(--chat-space-2) var(--chat-row-px) 0; background: var(--color-separator); }
+
+/* All Messages' day list toggle (trailing, like a sidebar section disclosure). */
+.chat-days-toggle { cursor: pointer; position: absolute; top: 50%; right: calc(var(--chat-row-px) - 4px); transform: translateY(-50%); color: rgb(var(--color-text-muted)); }
+.chat-days-toggle svg { transition: transform var(--duration-fast, 120ms); }
+.chat-days-toggle.is-open svg { transform: rotate(90deg); }
+.chat-day-row { padding-top: 4px; padding-bottom: 4px; }
+.chat-day-row .chat-hist-title { font-weight: 400; }
+
+/* Global search filters: a quiet segmented row (All · Conversations · Messages). */
+.chat-search-filters { display: flex; gap: 2px; flex-shrink: 0; }
+.chat-search-filter { height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 500; color: rgb(var(--color-text-muted)); white-space: nowrap; }
+.chat-search-filter.is-on { background: rgb(var(--color-text-primary) / 0.09); color: rgb(var(--color-text-primary)); }
+@media (hover: hover) { .chat-search-filter:not(.is-on):hover { color: rgb(var(--color-text-primary)); } }
+.chat-search-mark { background: rgb(var(--highlight-yellow) / 0.45); color: inherit; border-radius: 2px; }
+
+/* The history list keeps its scrollbar track reserved: collapsing a group (or folding the days)
+   so the list no longer overflows must not change the rows' width. */
+.chat-hist-scroll.chat-hist-scroll { scrollbar-gutter: stable; padding-right: max(0px, calc(var(--chat-list-inset) - var(--scrollbar-w, 6px))); }

@@ -1,8 +1,9 @@
 import { useLongPress } from '../primitives/useLongPress'
 import React, { useReducer, useState } from 'react'
-import { ChevronRight, ChevronLeft, ChevronDown, Search, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react'
-import { useAppStore, tabCanGoBack } from '@/store'
+import { ChevronRight, ChevronLeft, ChevronDown, Search, MessagesSquare, History as HistoryIcon, Settings as SettingsIcon } from 'lucide-react'
+import { openChatOverlay } from '../navigation/chatOverlay'
 import { runExperience } from '../navigation/experiences'
+import { useAppStore, tabCanGoBack } from '@/store'
 import type { SheetApi } from '../primitives/Sheet'
 import { haptic } from '../primitives/haptics'
 import { Segmented, Stepper, Toggle } from '../settings/SettingsControls'
@@ -68,6 +69,8 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
           </div>
         </section>
       ) : sec.style === 'tiles' ? (
+        // Icon-only quick actions (TEST 2026-10-17 "remove the text that is below the main buttons"):
+        // each tile's name stays in the accessibility tree (visually hidden), its state in the tint.
         <div key={sec.id} className="mobile-caret-tiles" role="group" aria-label={sec.title ?? 'Quick actions'}>
           {sec.commands.map((c) => {
             const Icon = c.icon
@@ -75,14 +78,14 @@ export function CaretSheet({ scope, api }: { scope: () => CaretScope; api: Sheet
               return (
                 <button key={c.id} type="button" className={`mobile-caret-tile${c.value ? ' is-on' : ''}`} aria-pressed={c.value}
                   onClick={() => { void haptic.selection(); c.set(!c.value); bump() }}>
-                  {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>
+                  {Icon && <Icon size={22} aria-hidden />}<span className="mobile-sr-only">{c.label}</span>
                 </button>
               )
             }
             if (c.kind === 'view') {
               return (
                 <button key={c.id} type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={open(c)}>
-                  {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.value && <small>{c.value}</small>}
+                  {Icon && <Icon size={22} aria-hidden />}<span className="mobile-sr-only">{c.label}{c.value ? `, ${c.value}` : ''}</span>
                 </button>
               )
             }
@@ -204,29 +207,32 @@ function ActionTile({ c, onClick, onLongPress }: { c: Extract<CaretCommand, { ki
   return (
     <button type="button" className="mobile-caret-tile" disabled={c.disabled} onClick={onClick} aria-label={c.a11yLabel}
       {...(onLongPress ? lp : {})}>
-      {Icon && <Icon size={22} aria-hidden />}<span>{c.label}</span>{c.detail && <small>{c.detail}</small>}
+      {Icon && <Icon size={22} aria-hidden />}<span className="mobile-sr-only">{c.label}{c.detail ? `, ${c.detail}` : ''}</span>
     </button>
   )
 }
 
 /**
- * Every caret can turn the CURRENT tab into History or Settings (TEST 2026-09-29) — the same
- * transform the tab-type switcher uses (runExperience 'current-tab': the tab keeps its place and
- * its history, so ‹ returns). The entry for the tab's own type is omitted.
+ * The caret's Go-to row: History, Settings and Berean Chat as three icon-only buttons side by side
+ * (TEST 2026-10-18 "keep it in the sheet … just have the 3 buttons side by side, no text needed").
+ * History / Settings turn the CURRENT tab into that page (runExperience 'current-tab': the tab keeps
+ * its place and history, so ‹ returns); Chat opens over the tab. The tab's own type shows as
+ * current and does nothing.
  */
 function CaretGoToRow({ api }: { api: SheetApi }) {
   const type = useAppStore((s) => s.tabs[s.activeSpace]?.find((t) => t.id === s.activeTabId[s.activeSpace])?.type)
-  const items = ([
-    { id: 'history', label: 'History', icon: HistoryIcon },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon },
-  ] as const).filter((it) => it.id !== type)
-  if (!items.length) return null
+  const items = [
+    { id: 'history', label: 'Show History in this tab', icon: HistoryIcon, current: type === 'history', run: () => runExperience('history', 'current-tab') },
+    { id: 'settings', label: 'Show Settings in this tab', icon: SettingsIcon, current: type === 'settings', run: () => runExperience('settings', 'current-tab') },
+    { id: 'chat', label: 'Open Berean Chat', icon: MessagesSquare, current: false, run: () => openChatOverlay() },
+  ]
   return (
-    <div className="mobile-caret-goto" role="group" aria-label="Switch this tab">
-      {items.map(({ id, label, icon: Icon }) => (
-        <button key={id} type="button" className="mobile-caret-goto-btn" aria-label={`Show ${label} in this tab`}
-          onClick={() => { void haptic.light(); api.close(); runExperience(id, 'current-tab') }}>
-          <Icon size={17} aria-hidden /><span>{label}</span>
+    <div className="mobile-caret-goto is-icons" role="group" aria-label="Go to">
+      {items.map(({ id, label, icon: Icon, current, run }) => (
+        <button key={id} type="button" className={`mobile-caret-goto-btn${current ? ' is-current' : ''}`} aria-label={label}
+          aria-current={current ? 'page' : undefined} disabled={current}
+          onClick={() => { void haptic.light(); api.close(); run() }}>
+          <Icon size={20} aria-hidden />
         </button>
       ))}
     </div>

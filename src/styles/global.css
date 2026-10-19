@@ -1999,6 +1999,15 @@ html[data-vibrant] .material-sidebar { background: var(--material-sidebar-bg); }
   border: 1px solid var(--color-separator);
   box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-2);
 }
+/* Menus (MenuSurface / MenuSub panels) sit over body text, so their fill gets a floor the glass
+   preset cannot push below (clear glass × 0.8 left context menus at 0.69 alpha — the verse text
+   read straight through: TEST 2026-10-17). The blur works again because every menu is portaled
+   to <body>, outside the chapter's view-transition backdrop root. Declared before
+   .popover-opaque so an explicitly opaque menu still wins; reduce-transparency rules outrank it. */
+.material-popover.material-menu {
+  background: rgb(var(--color-surface-1) / clamp(0.92, calc(0.95 * var(--glass-alpha-mult)), 0.985));
+  --material-popover-blur: 24px;
+}
 /* Opaque popover — opened over a blurred sheet, where blur-over-blur would stack two filters. */
 .material-popover.popover-opaque { background: var(--material-popover-bg-opaque); backdrop-filter: none; -webkit-backdrop-filter: none; }
 /* Denser popover for hover cards that sit directly over body text (verse / note previews). */
@@ -2070,7 +2079,7 @@ html[data-reduce-transparency] .scrim-light { backdrop-filter: none !important; 
   .material-bar, .material-sidebar, html[data-vibrant] .material-bar, html[data-vibrant] .material-sidebar { background: var(--material-bar-bg-opaque); }
   .material-elevated { background: var(--material-elevated-bg-opaque); }
   .material-panel    { background: var(--material-panel-bg-opaque); }
-  .material-popover  { background: var(--material-popover-bg-opaque); }
+  .material-popover, .material-popover.material-menu { background: var(--material-popover-bg-opaque); }
   .material-sheet    { background: var(--material-sheet-bg-opaque); }
   .material-control  { background: var(--material-control-bg-opaque); }
   .material-elevated, .material-panel, .material-popover, .material-sheet, .material-control { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }

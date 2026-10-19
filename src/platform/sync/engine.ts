@@ -112,6 +112,9 @@ const STATE = {
   forks: 'forks',
   /** Set by resolveHold('republish'): publish every record on the next start. */
   republish: 'republish',
+  /** Set once this database's own snapshot has been rebuilt with what it actually published
+   *  (2026-10-18: snapshots used to leave out republished records — see compact()). */
+  snapshotRepaired: 'snapshot_repaired_v1',
 } as const
 
 /** A reconciliation looks this far behind the watermark (clock adjustments, in-flight writes). */
@@ -131,6 +134,8 @@ export class SyncEngine {
   private ownSeq = 0
   private ownFiles: JournalFileInfo[] = []
   private ownSnapshot: DeviceManifest['snapshot'] | null = null
+  /** The own snapshot predates the publisher fix: rebuild it before any journal is pruned. */
+  private snapshotNeedsRepair = false
   private lastError: string | null = null
   private lastPushAt: number | null = null
   private lastPullAt: number | null = null
@@ -231,6 +236,10 @@ export class SyncEngine {
     engine.ownSeq = Number((await get(STATE.ownSeq)) ?? 0)
     try { engine.ownFiles = JSON.parse((await get(STATE.ownFiles)) ?? '[]') } catch { engine.ownFiles = [] }
     try { engine.ownSnapshot = JSON.parse((await get(STATE.snapshot)) ?? 'null') } catch { engine.ownSnapshot = null }
+    if ((await get(STATE.snapshotRepaired)) !== '1') {
+      if (engine.ownSnapshot) engine.snapshotNeedsRepair = true
+      else await set(STATE.snapshotRepaired, '1') // nothing to repair: the next snapshot is built right
+    }
     engine.lastPushAt = numOrNull(await get(STATE.lastPushAt))
     engine.lastPullAt = numOrNull(await get(STATE.lastPullAt))
     engine.lastSyncedAt = numOrNull(await get(STATE.lastSyncedAt))
@@ -301,7 +310,12 @@ export class SyncEngine {
         ...(rec ? { fields: rec.fields } : {}), schema: this.opts.schema,
         ...(v.fieldHlc ? { fh: v.fieldHlc } : {}), ...(v.lineage ? { lin: v.lineage.slice(-LINEAGE_SEND) } : {}),
       }
-      await this.db.run('INSERT INTO sync_outbox (entity, key, op_json, created_at) VALUES (?, ?, ?, ?)', [m.entity, m.key, JSON.stringify(op), this.now()])
+      await this.db.transaction(async (tx) => {
+        await tx.run('INSERT INTO sync_outbox (entity, key, op_json, created_at) VALUES (?, ?, ?, ?)', [m.entity, m.key, JSON.stringify(op), this.now()])
+        // This device now publishes this version: its snapshot must carry it (compact() snapshots
+        // the records whose publisher is this device). The version itself (HLC, lineage) is unchanged.
+        await tx.run('UPDATE sync_record_meta SET device = ? WHERE entity = ? AND key = ?', [this.deviceId, m.entity, m.key])
+      })
       n++
     }
     await this.db.run('DELETE FROM sync_state WHERE key = ?', [STATE.republish])
@@ -700,6 +714,7 @@ export class SyncEngine {
       // Nothing new. A crash after the outbox was committed but before the manifest was written
       // leaves published files unlisted — other devices would never read them (DATA-SAFE-033).
       if ((own === null || (own && own.seq < this.ownSeq)) && this.ownSeq > 0) { try { await this.writeManifest(); this.trace('push:manifest-repaired', { seq: this.ownSeq }) } catch (err) { this.opts.log.warn('[sync] manifest repair failed', err) } }
+      if (this.snapshotNeedsRepair) { try { await this.compact(true) } catch (err) { this.opts.log.warn('[sync] snapshot repair failed', err) } return 0 }
       // Journal files waiting on other devices' acknowledgement may be prunable now.
       try { await this.pruneCompacted() } catch (err) { this.opts.log.warn('[sync] prune failed', err) }
       return 0
@@ -724,7 +739,7 @@ export class SyncEngine {
       await this.setState(STATE.lastPushAt, String(this.lastPushAt))
       this.lastError = null
       this.trace('push:written', { ops: ops.length, files: files.length, seq: this.ownSeq })
-      try { await this.compact() } catch (err) { this.opts.log.warn('[sync] compaction failed', err) }
+      try { await this.compact(this.snapshotNeedsRepair) } catch (err) { this.opts.log.warn('[sync] compaction failed', err) }
       return ops.length
     } catch (err) {
       this.lastError = `push: ${err instanceof Error ? err.message : String(err)}`
@@ -764,9 +779,23 @@ export class SyncEngine {
   async compact(force = false): Promise<boolean> {
     const live = this.liveJournal()
     if (!force && live.ops < COMPACT_AFTER_OPS && live.bytes < COMPACT_AFTER_BYTES) return false
-    if (this.ownSnapshot && this.ownSnapshot.seq >= this.ownSeq) return false
+    if (this.ownSnapshot && this.ownSnapshot.seq >= this.ownSeq && !this.snapshotNeedsRepair) return false
+    // What this device has published and is still the current version: records whose publisher is
+    // this device, plus (repair) every version its own journal / previous snapshot carries that is
+    // still current here. A republish used to leave the publisher at the ORIGINAL writer, so the
+    // snapshot came out empty (Mac, 2026-10-18: "compacted … (0 records)" after republishing
+    // 5005) — a device bootstrapping from it once the journals were pruned would get nothing.
+    const published = await this.publishedVersions()
+    if (!published) return false // an own file is unreadable right now: never write a partial snapshot
     const records: SnapshotRecord[] = []
-    const metas = await this.db.all<MetaRow & { entity: string; key: string }>(`SELECT entity, key, ${META_COLS} FROM sync_record_meta WHERE device = ? ORDER BY entity, key`, [this.deviceId])
+    const metas = (await this.db.all<MetaRow & { entity: string; key: string }>(`SELECT entity, key, ${META_COLS} FROM sync_record_meta ORDER BY entity, key`))
+      .filter((m) => m.device === this.deviceId || published.get(`${m.entity}\u0000${m.key}`) === m.hlc)
+    const adopt = metas.filter((m) => m.device !== this.deviceId)
+    if (adopt.length) {
+      await this.db.transaction(async (tx) => {
+        for (const m of adopt) await tx.run('UPDATE sync_record_meta SET device = ? WHERE entity = ? AND key = ? AND hlc = ?', [this.deviceId, m.entity, m.key, m.hlc])
+      })
+    }
     for (const m of metas) {
       const v = versionOfMeta(m)
       const extra = { ...(v.fieldHlc ? { fh: v.fieldHlc } : {}), ...(v.lineage ? { lin: v.lineage.slice(-LINEAGE_SEND) } : {}) }
@@ -786,9 +815,39 @@ export class SyncEngine {
     await this.setState(STATE.snapshot, JSON.stringify(this.ownSnapshot))
     await this.writeManifest()
     if (previous && previous.name !== name) await this.store.deleteOwnFile(previous.name).catch(() => {})
+    if (this.snapshotNeedsRepair) {
+      this.snapshotNeedsRepair = false
+      await this.setState(STATE.snapshotRepaired, '1')
+    }
     this.opts.log.info(`[sync] compacted: snapshot ${name} (${records.length} records)`)
     await this.pruneCompacted()
     return true
+  }
+
+  /** `entity\0key` → HLC of every version in this device's own journal files and snapshot; null
+   *  when one of them cannot be read right now. */
+  private async publishedVersions(): Promise<Map<string, string> | null> {
+    const out = new Map<string, string>()
+    const keep = (entity: string, key: string, hlc: string) => {
+      const k = `${entity}\u0000${key}`
+      const prev = out.get(k)
+      if (!prev || compareHlc(hlc, prev) > 0) out.set(k, hlc)
+    }
+    try {
+      if (this.ownSnapshot) {
+        const text = await this.store.readFile(this.deviceId, this.ownSnapshot.name)
+        if (text == null) return null
+        for (const r of (JSON.parse(text) as SnapshotFile).records ?? []) keep(r.entity, r.key, r.hlc)
+      }
+      for (const f of this.ownFiles) {
+        const text = await this.store.readFile(this.deviceId, f.name)
+        if (text == null) return null
+        for (const op of decodeJournal(text).ops) keep(op.entity, op.key, op.hlc)
+      }
+    } catch {
+      return null
+    }
+    return out
   }
 
   /**
@@ -797,7 +856,7 @@ export class SyncEngine {
    * snapshot). A device never touches another device's folder.
    */
   async pruneCompacted(): Promise<number> {
-    if (!this.ownSnapshot) return 0
+    if (!this.ownSnapshot || this.snapshotNeedsRepair) return 0
     const prunable = this.ownFiles.filter((f) => f.seqTo <= this.ownSnapshot!.seq)
     if (prunable.length === 0) return 0
     for (const device of await this.store.listDevices()) {
@@ -1088,7 +1147,7 @@ export class SyncEngine {
       return
     }
     // ── both edited: field by field ──
-    const merged = mergeConcurrent({ ...local, fields: cur.fields }, { ...remote, fields: op.fields ?? {} }, { preferNonEmpty: op.entity === 'note' ? ['content', 'title'] : [] })
+    const merged = mergeConcurrent({ ...local, fields: cur.fields }, { ...remote, fields: op.fields ?? {} }, { preferNonEmpty: op.entity === 'note' ? ['content', 'title'] : [], unionById: op.entity === 'ai_chat' ? ['messages'] : [] })
     if (merged.conflicts.length) await this.preserveConflicts(tx, op, meta, cur.fields, merged.conflicts, touched)
     if (merged.changed.length) {
       await adapter.applyUpsert(tx, op.key, merged.fields)

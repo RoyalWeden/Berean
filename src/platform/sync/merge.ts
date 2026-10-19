@@ -103,7 +103,13 @@ const blank = (v: unknown) => v == null || (typeof v === 'string' && v.trim() ==
 export function mergeConcurrent(
   local: VersionInfo & { fields: Record<string, unknown> },
   remote: VersionInfo & { fields: Record<string, unknown> },
-  o: { preferNonEmpty?: readonly string[] } = {},
+  o: {
+    preferNonEmpty?: readonly string[]
+    /** JSON-array-of-objects fields merged as a UNION by element id instead of one side winning
+     *  (Berean Chat `ai_chats.messages`: a note typed on the Mac and one typed on the iPhone into
+     *  the same conversation while apart both survive). See unionJsonArrayById. */
+    unionById?: readonly string[]
+  } = {},
 ): MergeResult {
   const fields: Record<string, unknown> = { ...local.fields }
   const fieldHlc: Record<string, Hlc> = {}
@@ -121,6 +127,16 @@ export function mergeConcurrent(
     let conflict = false
     if (!(f in local.fields)) takeRemote = true
     else if (same(lv, rv)) { fieldHlc[f] = newerClock; continue }
+    else if (o.unionById?.includes(f) && !contains(local, rc) && !contains(remote, lc)) {
+      // Both sides changed it apart: keep every element of both (deterministic on every device).
+      const u = unionJsonArrayById(lv, rv)
+      if (u !== undefined) {
+        fieldHlc[f] = newerClock
+        if (!same(u, lv)) { fields[f] = u; changed.push(f) }
+        continue
+      }
+      takeRemote = compareHlc(rc, lc) > 0; conflict = true
+    }
     else {
       const localSawRemote = contains(local, rc), remoteSawLocal = contains(remote, lc)
       if (localSawRemote && !remoteSawLocal) takeRemote = false
@@ -142,6 +158,49 @@ export function mergeConcurrent(
   const lower = hlc === remote.hlc ? local.hlc : remote.hlc
   const lineage = trimLineage([...(local.lineage ?? []), ...(remote.lineage ?? []), lower].filter((h) => h !== hlc), LINEAGE_KEEP)
   return { fields, fieldHlc, hlc, lineage, changed, conflicts }
+}
+
+/**
+ * Union of two JSON arrays of objects (stored as JSON text or as arrays), matched by `id` — or, for
+ * legacy elements without one, by createdAt+role+content. The same id on both sides keeps the
+ * later-edited copy (`editedAt ?? createdAt`, then the larger JSON as a tiebreak), and the result
+ * is ordered by createdAt then key, so merging (a, b) and (b, a) gives the identical value and both
+ * devices converge. An element deleted on one side while the other side changed the array comes
+ * back (nothing is ever silently lost). Returns undefined when either side isn't such an array, so
+ * the caller falls back to the normal field rule. The value keeps the input's representation.
+ */
+export function unionJsonArrayById(a: unknown, b: unknown): unknown {
+  const parse = (v: unknown): Array<Record<string, unknown>> | null => {
+    const x = typeof v === 'string' ? parseJsonOr<unknown>(v, null) : v
+    return Array.isArray(x) && x.every((e) => e && typeof e === 'object' && !Array.isArray(e)) ? (x as Array<Record<string, unknown>>) : null
+  }
+  const la = parse(a), lb = parse(b)
+  if (!la || !lb) return undefined
+  const keyOf = (e: Record<string, unknown>) => (typeof e.id === 'string' && e.id ? `id:${e.id}` : `legacy:${String(e.createdAt ?? '')}|${String(e.role ?? '')}|${String(e.content ?? '')}`)
+  // Instants, not strings: ISO text with different offsets ("11:30+02:00" vs "09:45Z") sorts
+  // wrong as text (sync audit 2026-10-18). Unparseable stamps fall back to text order.
+  const instant = (v: unknown): number => { const t = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isFinite(t) ? t : NaN }
+  const cmpStamp = (x: unknown, y: unknown): number => {
+    const tx = instant(x), ty = instant(y)
+    if (Number.isFinite(tx) && Number.isFinite(ty) && tx !== ty) return tx < ty ? -1 : 1
+    const sx = String(x ?? ''), sy = String(y ?? '')
+    return Number.isFinite(tx) && Number.isFinite(ty) ? 0 : sx < sy ? -1 : sx > sy ? 1 : 0
+  }
+  const byKey = new Map<string, Record<string, unknown>>()
+  for (const e of [...la, ...lb]) {
+    const k = keyOf(e)
+    const prev = byKey.get(k)
+    if (!prev) { byKey.set(k, e); continue }
+    const c = cmpStamp(e.editedAt ?? e.createdAt, prev.editedAt ?? prev.createdAt)
+    if (c > 0 || (c === 0 && JSON.stringify(e) > JSON.stringify(prev))) byKey.set(k, e)
+  }
+  const out = [...byKey.entries()]
+    .sort(([ka, ea], [kb, eb]) => {
+      const c = cmpStamp(ea.createdAt, eb.createdAt)
+      return c !== 0 ? c : ka < kb ? -1 : ka > kb ? 1 : 0
+    })
+    .map(([, e]) => e)
+  return typeof a === 'string' ? JSON.stringify(out) : out
 }
 
 /** Per-field hashes of a record, to see which fields a local write changed. */

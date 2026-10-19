@@ -1228,6 +1228,18 @@ export const BEREAN_MIGRATIONS: Migration[] = [
       `)
       console.log('[berean-db] v47: per-field sync clocks, lineage, sync_conflicts')
     }
+  },
+  {
+    // Berean Chat organisation (2026-10-18): a conversation can be pinned (`pinned_at`, ISO time —
+    // pinned conversations list newest pin first) and filed in a folder (`folder`, its name; a
+    // folder exists while a conversation is in it). Both are ordinary ai_chats columns, so they
+    // sync per field with the row.
+    version: 48,
+    up: async (db) => {
+      if (!(await hasColumn(db, 'ai_chats', 'pinned_at'))) await db.exec('ALTER TABLE ai_chats ADD COLUMN pinned_at TEXT')
+      if (!(await hasColumn(db, 'ai_chats', 'folder'))) await db.exec('ALTER TABLE ai_chats ADD COLUMN folder TEXT')
+      console.log('[berean-db] v48: ai_chats pinned_at, folder')
+    }
   }
 ]
 

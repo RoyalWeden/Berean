@@ -1,6 +1,7 @@
+import { perfSpan } from '../perfSpan'
 import type { Note } from '@/types'
 import { extractRefsFromNote } from '../noteRefs'
-import { buildCrossRefSources, chapterCrossRefSources } from '../crossRefIndex'
+import { buildCrossRefSources, chapterCrossRefSources, getCrossRefSources, type CrossRefSource } from '../crossRefIndex'
 import { getAllNotes } from '../notesCache'
 import { displayNoteTitle } from '../noteTitle'
 
@@ -105,7 +106,7 @@ export function normalizeVerseXRefs(data: readonly RawVerseXRefs[], source: XRef
  *   - Taylor: the Taylor translation's chapter footnotes, when reading Hermas (Taylor)
  * Each target once.
  */
-export function chapterXRefsFromNotes(notes: ReadonlyArray<Pick<Note, 'id' | 'title' | 'content' | 'verseRef'> & { deletedAt?: number | null }>, bookId: string, chapter: number): XRefResult {
+export function chapterXRefsFromNotes(notes: ReadonlyArray<Pick<Note, 'id' | 'title' | 'content' | 'verseRef'> & { deletedAt?: number | null }>, bookId: string, chapter: number, precomputed?: CrossRefSource[]): XRefResult {
   const live = notes.filter((n) => !n.deletedAt)
   const seen = new Map<string, XRefItem>()
   const makes: XRefItem[] = []
@@ -121,7 +122,7 @@ export function chapterXRefsFromNotes(notes: ReadonlyArray<Pick<Note, 'id' | 'ti
       seen.set(key, item); makes.push(item)
     }
   }
-  const sources = buildCrossRefSources(live.map((n) => ({ id: n.id, title: n.title ?? null, content: n.content ?? '', verseRef: n.verseRef ?? null })))
+  const sources = precomputed ?? buildCrossRefSources(live.map((n) => ({ id: n.id, title: n.title ?? null, content: n.content ?? '', verseRef: n.verseRef ?? null })))
   for (const s of chapterCrossRefSources(sources, bookId, chapter)) {
     const key = xrefKey({ bookId: s.homeBookId, chapter: s.homeChapter, verse: s.homeVerse })
     if (seen.has(key)) continue
@@ -135,7 +136,8 @@ export function chapterXRefsFromNotes(notes: ReadonlyArray<Pick<Note, 'id' | 'ti
 }
 
 export async function loadChapterXRefs(bookId: string, chapter: number, textId: string, token: number): Promise<XRefResult> {
-  const res = chapterXRefsFromNotes(await getAllNotes(token), bookId, chapter)
+  const [all, sources] = await Promise.all([getAllNotes(token), getCrossRefSources(token)])
+  const res = perfSpan('chapterXRefsFromNotes', () => chapterXRefsFromNotes(all, bookId, chapter, sources))
   if (textId === 'hermas_taylor' && window.crossrefs?.getHermasTaylorChapter) {
     const t = await window.crossrefs.getHermasTaylorChapter(bookId, chapter).catch(() => ({ refs: [] as Array<{ bookId: string; chapter: number; verse: number; text: string }> }))
     const items: XRefItem[] = []

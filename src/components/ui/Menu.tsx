@@ -48,7 +48,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
           ref={setRef}
           role="menu"
           onKeyDown={handleKey}
-          className={cx('material-popover rounded-menu text-footnote text-text-primary select-none min-w-[160px] animate-menu-in', dense ? 'p-0.5' : 'p-1', className)}
+          className={cx('material-popover material-menu rounded-menu text-subhead text-text-primary select-none min-w-[160px] animate-menu-in', dense ? 'p-0.5' : 'p-1', className)}
           {...rest}
         >
           {children}
@@ -98,8 +98,9 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
       aria-checked={active !== undefined ? active : undefined}
       disabled={disabled}
       className={cx(
-        'group/mi flex w-full items-center gap-2.5 px-2.5 rounded-card text-left outline-none cursor-pointer',
-        description ? 'py-1.5' : 'h-7',
+        'group/mi flex w-full items-center gap-2 px-2 rounded-card text-left outline-none cursor-pointer',
+        // macOS 26/27 menu metrics (TEST 2026-10-17 "too much / too wide"): 24px rows, 13px text.
+        description ? 'py-1' : 'h-6',
         'transition-colors duration-fast active:brightness-90',
         'disabled:opacity-40 disabled:pointer-events-none',
         // NSMenu highlight: accent fill + white text (danger: destructive fill). A 'highlight'
@@ -183,7 +184,7 @@ export function MenuSub({ label, icon: Icon, children, disabled }: { label: Reac
         aria-expanded={open}
         disabled={disabled}
         onKeyDown={(e) => { if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); show(); requestAnimationFrame(() => (e.currentTarget.nextElementSibling as HTMLElement | null)?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus()) } }}
-        className={cx('group/mi flex w-full items-center gap-2.5 px-2.5 h-7 rounded-card text-left outline-none cursor-pointer transition-colors duration-fast text-text-primary hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white aria-expanded:bg-accent aria-expanded:text-white disabled:opacity-40 disabled:pointer-events-none')}
+        className={cx('group/mi flex w-full items-center gap-2 px-2 h-6 rounded-card text-left outline-none cursor-pointer transition-colors duration-fast text-text-primary hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white aria-expanded:bg-accent aria-expanded:text-white disabled:opacity-40 disabled:pointer-events-none')}
       >
         {inset && <span className="w-3 -ml-0.5 flex-shrink-0" />}
         {Icon && <Icon size={14} strokeWidth={1.75} className="flex-shrink-0 text-text-muted group-hover/mi:text-white/85" />}
@@ -195,13 +196,46 @@ export function MenuSub({ label, icon: Icon, children, disabled }: { label: Reac
           role="menu"
           onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); (e.currentTarget.previousElementSibling as HTMLElement | null)?.focus() } }}
           ref={panelRef}
-          className={cx('absolute -top-1 z-menu material-popover rounded-menu p-1 min-w-[160px] text-footnote text-text-primary animate-menu-in', place.flip ? 'right-full mr-1' : 'left-full ml-1')}
+          className={cx('absolute -top-1 z-menu material-popover material-menu rounded-menu p-1 min-w-[160px] text-subhead text-text-primary animate-menu-in', place.flip ? 'right-full mr-1' : 'left-full ml-1')}
           style={{ '--menu-origin': place.flip ? 'top right' : 'top left', marginTop: place.dy || undefined } as React.CSSProperties}
         >
           {children}
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * A compact row of icon-only menu actions (macOS 26 context menus put the most common verbs —
+ * Copy / Paste / Share style — as a small button row above the labelled items). Each button is
+ * a real `role="menuitem"`, so ↑/↓ reach it (typeahead skips it — no text) and
+ * useContextMenu's click-to-close applies; the label lives in `aria-label` + native `title`
+ * (a native tooltip can never be layered under the menu the way a z-popover tooltip can).
+ */
+export function MenuIconRow({ children, className, label }: { children: ReactNode; className?: string; label?: string }) {
+  return <div role="group" aria-label={label} className={cx('flex items-center gap-0.5 px-0.5 pb-0.5', className)}>{children}</div>
+}
+
+export function MenuIconAction({ icon: Icon, label, className, disabled, ...rest }: Omit<HTMLAttributes<HTMLButtonElement>, 'children'> & { icon: LucideIcon; label: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      className={cx(
+        'group/mi flex-1 min-w-[32px] h-7 inline-flex items-center justify-center rounded-card outline-none cursor-pointer',
+        'text-text-secondary transition-colors duration-fast active:brightness-90',
+        'hover:bg-accent hover:text-white focus-visible:bg-accent focus-visible:text-white',
+        'disabled:opacity-40 disabled:pointer-events-none',
+        className,
+      )}
+      {...rest}
+    >
+      <Icon size={15} strokeWidth={1.75} />
+    </button>
   )
 }
 

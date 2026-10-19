@@ -1558,7 +1558,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         currentMatch={findMatchIdx}
         onPrev={findPrev}
         onNext={findNext}
-        placeholder="Find in note…"
+        placeholder="Find in Note"
       />
       {/* Header */}
       <TabHeaderPortal floating={floating} active={floating || isActivePanel}>

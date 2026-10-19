@@ -1,0 +1,44 @@
+/*
+ * Berean Chat layout tokens (macOS panel + window) — the ONE place chat spacing, column width,
+ * control sizes and list geometry are defined. Components read them through Tailwind arbitrary
+ * values (`px-[var(--chat-gutter)]`) or the classes in chatLayout.css; nothing in the chat
+ * chrome hard-codes its own spacing. Type roles reuse the design-system scale:
+ *   row title  = footnote (12) medium · preview = caption2 (10) muted · meta/time = `text-meta`
+ *   group heading = caption2 semibold muted · header title = footnote semibold.
+ * Imported once, from ChatSurface.tsx.
+ */
+:root {
+  /* 4-pt rhythm: the only gaps chat chrome uses. */
+  --chat-space-1: 4px;
+  --chat-space-2: 8px;
+  --chat-space-3: 12px;
+  --chat-space-4: 16px;
+
+  /* Content: transcript + composer share one centred column. */
+  --chat-gutter: 16px;
+  --chat-column-max: 720px;
+
+  /* Chrome. Window title bar = 52 (traffic lights centred on it, electron/main.ts); its controls
+     are 28. The embedded panel overrides both below (compact). */
+  --chat-header-h: 52px;
+  --chat-control: 28px;
+  --chat-sidebar-w: 264px;
+
+  /* History list (sidebar + panel switcher). */
+  --chat-list-inset: 8px;      /* list container side padding */
+  --chat-row-px: 8px;          /* row inner padding */
+  --chat-row-py: 6px;
+  --chat-row-gap: 1px;         /* between rows (selection fills never touch) */
+  --chat-group-gap: 12px;      /* between date groups */
+  --chat-switcher-w: 300px;    /* panel conversation switcher popover */
+
+  --chat-bubble-radius: 18px;
+}
+
+/* Embedded floating panel: compact chrome, the column is simply the panel. */
+.chat-scope-panel {
+  --chat-gutter: 12px;
+  --chat-header-h: 40px;
+  --chat-control: 24px;
+  --chat-column-max: none;
+}

@@ -1,0 +1,197 @@
+/* Berean Chat on iPhone (ChatPage.tsx). Bubbles/rows come from the shared desktop components
+   (src/components/ailookup); this file only lays out the phone page and its composer. */
+
+.m-chat-search { margin: 0 var(--m-edge) 10px; }
+.m-chat-search-clear { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 14px; background: none; color: rgb(var(--color-text-muted)); }
+.m-chat-time { color: rgb(var(--color-text-muted)); font-size: calc(14px * var(--m-type-scale, 1)); font-variant-numeric: tabular-nums; }
+
+.m-chat-layout { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.m-chat-body { flex: 1; min-height: 0; display: flex; flex-direction: column; -webkit-user-select: none; user-select: none; }
+/* Bubbles a little larger on the phone — 17pt body like Messages. */
+.m-chat-body .chat-row .text-footnote { font-size: calc(16px * var(--m-type-scale, 1)); line-height: 1.35; }
+
+.m-chat-composer-wrap { flex: none; padding: 6px var(--m-edge) calc(8px + var(--m-safe-bottom)); }
+.m-chat-destination, .m-chat-hint { font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); padding: 0 8px 4px; }
+.m-chat-hint { color: rgb(var(--color-accent)); }
+.m-chat-composer {
+  display: flex; flex-direction: column; padding: 4px;
+  border-radius: 22px; border: 0.5px solid var(--m-hairline, rgb(var(--color-text-primary) / 0.12));
+  background: rgb(var(--color-surface-2) / 0.97);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+}
+.m-chat-composer-row { display: flex; align-items: flex-end; gap: 6px; }
+/* Formatting row (focused only), inside the capsule above the text. */
+.m-chat-format { padding: 0 4px 2px 38px; }
+.m-chat-format .chat-fmt-bar { gap: 6px; padding: 0; min-height: 34px; }
+.m-chat-format .chat-fmt-btn { width: 34px; height: 34px; border-radius: 17px; }
+.m-chat-format .chat-fmt-btn:hover { background: none; }
+.m-chat-format .chat-fmt-btn:active { background: rgb(var(--color-text-primary) / 0.08); }
+.m-chat-format .chat-fmt-link input { font-size: calc(16px * var(--m-type-scale, 1)); padding: 5px 10px; border-radius: 14px; }
+.m-chat-ask, .m-chat-send {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 17px; border: 0; padding: 0;
+}
+.m-chat-ask { background: none; color: rgb(var(--color-text-muted)); opacity: 0.55; }
+.m-chat-send { background: rgb(var(--color-accent)); color: #fff; }
+.m-chat-send:disabled { opacity: 0.35; }
+/* The shared rich-text field (composer/ChatEditor.tsx): 17pt like Messages, grows to ~5 lines. */
+.m-chat-input {
+  flex: 1; min-width: 0; align-self: center;
+  color: rgb(var(--color-text-primary)); font-size: calc(17px * var(--m-type-scale, 1));
+  line-height: 1.3; padding: 7px 4px; max-height: 140px; -webkit-user-select: text; user-select: text;
+}
+.m-chat-input .chat-editor-pm { -webkit-touch-callout: default; }
+/* Long press opens the bubble's actions; iOS text selection would steal it. */
+.m-chat-body .select-text { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.m-chat-editing { display: flex; align-items: center; gap: 5px; color: rgb(var(--color-accent)); }
+.m-chat-editing > span { flex: 1; }
+.m-chat-edit-cancel { font: inherit; font-weight: 600; color: rgb(var(--color-accent)); background: none; border: 0; padding: 2px 4px; }
+
+/* Conversation list rows: one-line title, two-line preview (long titles no longer wrap 4×). */
+.m-chat-list .mobile-row-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-chat-list .mobile-row-subtitle { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.m-chat-list .mobile-row-text { min-width: 0; }
+.m-chat-list .mobile-row-right { align-self: flex-start; padding-top: 2px; }
+.m-chat-more { color: rgb(var(--color-accent)); }
+
+/* AI replies on the phone: the shared reply uses the desktop's fixed caption sizes — scale them to
+   the phone's reading size (and Dynamic Type via --m-type-scale) so references and the Strong's
+   card aren't tiny next to 17pt text. */
+.m-chat-page .chat-ai { font-size: calc(16px * var(--m-type-scale, 1)); }
+.m-chat-page .chat-ai .text-footnote { font-size: calc(16px * var(--m-type-scale, 1)); }
+.m-chat-page .chat-ai .text-caption { font-size: calc(14px * var(--m-type-scale, 1)); }
+.m-chat-page .chat-ai .text-caption2 { font-size: calc(12.5px * var(--m-type-scale, 1)); }
+.m-chat-page .chat-passage-ref { font-size: calc(14px * var(--m-type-scale, 1)); }
+/* Touch has no hover: the Mac's hover action cluster (Copy / Edit / Delete) would only reserve an
+   empty strip beside every reply — long-press opens those actions on the phone. */
+.m-chat-page .chat-row .group > .order-first,
+.m-chat-page .chat-row .group > .order-last { display: none; }
+/* Chat has no bottom navigation under it: drop the page body's bottom fade mask (it was meant to
+   blend content into the floating tab bar and here washed out the composer and Send button). */
+.m-chat-page .mobile-page-body,
+.mobile-root.has-overlay-nav .m-chat-cover .m-chat-page .mobile-page-body { -webkit-mask-image: none; mask-image: none; }
+
+/* ── Messages on touch: no text selection, press-and-hold popup, swipe to reply ────────────────
+   A long press opens the message's popup menu (Copy is there), so iOS's own selection loupe and
+   callout must never start under the finger (TEST 2026-10-18 "sometimes it selects the text"). */
+.m-chat-body .chat-row,
+.m-chat-body .chat-row * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none;
+}
+.m-chat-body .chat-row { position: relative; touch-action: pan-y; }
+.m-chat-body .chat-row > * { transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.m-chat-body .chat-row[data-swiping] > * { transform: translateX(var(--swipe-x, 0)); transition: none; }
+/* The reply arrow that appears behind a message as it is swiped. */
+.m-chat-body .chat-row[data-swiping]::before {
+  content: '';
+  position: absolute; left: 14px; top: 50%;
+  width: 22px; height: 22px; margin-top: -11px;
+  border-radius: 50%;
+  background: rgb(var(--color-accent) / calc(0.12 + 0.18 * var(--swipe-p, 0)));
+  opacity: var(--swipe-p, 0);
+  transform: scale(calc(0.6 + 0.4 * var(--swipe-p, 0)));
+}
+.m-chat-body .chat-row[data-swiping]::after {
+  content: '';
+  position: absolute; left: 18px; top: 50%;
+  width: 14px; height: 14px; margin-top: -7px;
+  background: rgb(var(--color-accent));
+  opacity: var(--swipe-p, 0);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 14 4 9 9 4'/%3E%3Cpath d='M20 20v-7a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 14 4 9 9 4'/%3E%3Cpath d='M20 20v-7a4 4 0 0 0-4-4H4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* The message a press-and-hold menu belongs to lifts slightly while the menu is open. */
+.m-chat-body .chat-row > .group > div:not(.order-first):not(.order-last) { transition: transform 180ms ease, box-shadow 180ms ease; }
+.m-chat-body .chat-row[data-pressed] > .group > div:not(.order-first):not(.order-last) {
+  transform: scale(1.025);
+  box-shadow: 0 6px 22px rgb(0 0 0 / 0.18);
+}
+.m-chat-body .chat-row[data-pressed] > .group > .chat-ai-column { transform: none; box-shadow: none; background: rgb(var(--color-text-primary) / 0.05); border-radius: 12px; }
+
+/* "Replying to …" in the phone composer. */
+.m-chat-composer-wrap .chat-reply-bar { margin: 0 10px 6px; }
+.chat-reply-bar.is-compact .chat-reply-bar-label,
+.chat-reply-bar.is-compact .chat-reply-bar-text { font-size: calc(13px * var(--m-type-scale, 1)); }
+@media (prefers-reduced-motion: reduce) {
+  .m-chat-body .chat-row > *, .m-chat-body .chat-row > .group > div { transition: none; }
+}
+
+/* ── Floating thread chrome ─────────────────────────────────────────────────────────────────────
+   The header is the Page "floating" chrome: no bar, the status bar keeps a surface fade, back and
+   the title float as glass over the transcript, which starts under them and scrolls beneath. */
+.m-chat-page.is-header-floating .mobile-page-title { overflow: visible; pointer-events: auto; }
+.m-chat-title-pill {
+  display: inline-block; max-width: min(62vw, 300px); height: 36px; line-height: 36px; padding: 0 16px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+  border-radius: 18px;
+  background: var(--m-glass-control);
+  border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  font-size: calc(15px * var(--m-type-scale, 1)); font-weight: 600;
+}
+.m-chat-page .chat-transcript-content { padding-top: calc(var(--m-page-header-h, 0px) + 6px); }
+.m-chat-page .chat-reveal-time { font-size: 12px; }
+.m-chat-page .chat-transcript-scroll { --chat-reveal-w: 60px; } /* 12 px times */
+.m-chat-page .chat-transcript-scroll[data-reveal-size='wide'] { --chat-reveal-w: 108px; }
+.m-chat-page .chat-reveal-conv { font-size: 11px; }
+.m-chat-page .chat-transcript-scroll { scroll-padding-top: calc(var(--m-page-header-h, 0px) + 6px); }
+
+/* "To: …" in All Messages is a button (pick a conversation, or none). */
+.m-chat-destination.m-chat-destination-pick { display: flex; align-items: center; gap: 3px; border: 0; background: none; font-family: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
+.m-chat-destination-pick .is-set { color: rgb(var(--color-text-primary)); font-weight: 600; }
+
+/* The conversation's "…" (Find in Conversation, Search All Messages): a glass circle that
+   matches the floating back button. */
+.m-chat-more-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 18px; padding: 0;
+  color: rgb(var(--color-text-primary));
+  background: var(--m-glass-control); border: 0.5px solid var(--m-hairline);
+  -webkit-backdrop-filter: var(--m-glass-filter); backdrop-filter: var(--m-glass-filter);
+  box-shadow: inset 0 0.5px 0 var(--m-edge-highlight);
+  -webkit-tap-highlight-color: transparent;
+}
+.m-chat-more-btn:active { transform: scale(0.94); }
+
+/* Find in conversation (PhoneFindBar.tsx) — takes the composer's place, Safari-style. */
+.m-chat-find { display: flex; align-items: center; gap: 4px; }
+.m-chat-find-field {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 12px;
+  border-radius: 20px; border: 0.5px solid var(--m-hairline, rgb(var(--color-text-primary) / 0.12));
+  background: rgb(var(--color-surface-2) / 0.97);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+}
+.m-chat-find-icon { flex: none; color: rgb(var(--color-text-muted)); }
+.m-chat-find-field input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 0;
+  color: rgb(var(--color-text-primary)); font-size: calc(17px * var(--m-type-scale, 1)); -webkit-appearance: none; appearance: none;
+}
+.m-chat-find-field input::-webkit-search-cancel-button { display: none; }
+.m-chat-find-count { flex: none; font-size: calc(13px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); font-variant-numeric: tabular-nums; }
+.m-chat-find-clear { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 11px; border: 0; padding: 0; background: rgb(var(--color-text-muted) / 0.35); color: rgb(var(--color-surface-1)); }
+.m-chat-find-step { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 40px; border: 0; padding: 0; background: none; color: rgb(var(--color-accent)); }
+.m-chat-find-step:disabled { color: rgb(var(--color-text-muted)); opacity: 0.5; }
+.m-chat-find-done { flex: none; border: 0; background: none; padding: 0 4px 0 6px; height: 40px; font: inherit; font-size: calc(17px * var(--m-type-scale, 1)); font-weight: 600; color: rgb(var(--color-accent)); }
+
+/* Global search filter (All · Conversations · Messages): an iOS segmented control. */
+.m-chat-filters { display: flex; margin: 8px var(--m-edge) 6px; padding: 2px; border-radius: 9px; background: rgb(var(--color-text-primary) / 0.07); }
+.m-chat-filters > button { flex: 1; height: 30px; border: 0; border-radius: 7px; background: none; font: inherit; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; color: rgb(var(--color-text-primary)); }
+.m-chat-filters > button.is-on { background: rgb(var(--color-surface-1)); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); font-weight: 600; }
+.m-chat-list mark.chat-search-mark { background: rgb(var(--highlight-yellow) / 0.45); color: inherit; border-radius: 2px; }
+.m-chat-check { color: rgb(var(--color-accent)); }
+/* The current destination in Send To: a tinted row, not a check (TEST 2026-10-19). */
+.m-chat-list .mobile-row.is-selected { background: rgb(var(--color-accent) / 0.14); }
+.m-chat-list .mobile-row.is-selected .mobile-row-title { color: rgb(var(--color-accent)); font-weight: 600; }
+.m-chat-destination-pick svg:first-child { flex: none; }
+/* WebKit paints no custom highlight (::highlight, chatFind.ts) on user-select:none text — so while
+   Find is open (no long-press menu in use) the transcript's text is selectable again. */
+.m-chat-layout[data-finding] .m-chat-body .chat-row,
+.m-chat-layout[data-finding] .m-chat-body .chat-row * { -webkit-user-select: text !important; user-select: text !important; }
+/* Wide tables and code scroll sideways inside a message (the row itself only pans vertically, for
+   swipe-to-reply — which already ignores touches that start in a sideways scroller). */
+.m-chat-body .chat-table-wrap,
+.m-chat-body .chat-table-wrap *,
+.m-chat-body pre,
+.m-chat-body pre * { touch-action: pan-x pan-y; }

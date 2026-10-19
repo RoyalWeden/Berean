@@ -46,6 +46,15 @@ interface BodyGesture {
  * Opening a genuinely separate surface (the audio player, a new-tab flow from elsewhere) is still
  * `useSheets().open`.
  */
+
+// Screen height covered by undimmed (non-modal) sheets, as `--m-sheet-cover` on <html>.
+const sheetCovers = new Map<string, number>()
+function publishSheetCover(id: string, px: number): void {
+  if (px > 0) sheetCovers.set(id, px); else sheetCovers.delete(id)
+  const max = Math.max(0, ...sheetCovers.values())
+  document.documentElement.style.setProperty('--m-sheet-cover', `${max}px`)
+}
+
 export interface SheetOptions {
   id: string
   title?: string
@@ -100,6 +109,7 @@ export function useSheetApi(): SheetApi | null { return useContext(SheetApiConte
 interface SheetHostState {
   open: (o: SheetOptions) => void
   close: (id?: string) => void
+  closeAll: () => void
   /** Update an open sheet in place (e.g. a new verse in the same verse sheet). */
   update: (id: string, patch: Partial<SheetOptions>) => void
   /** Top-most open sheet id. */
@@ -139,7 +149,11 @@ export function SheetHost({ children }: { children: React.ReactNode }) {
     })
   }, [])
   const isOpen = useCallback((id: string) => stackRef.current.some((x) => x.id === id), [])
-  const value = useMemo(() => ({ open, close, update, isOpen, currentId: stack[stack.length - 1]?.id ?? null }), [open, close, update, isOpen, stack])
+  /** Every open sheet (a deep link taking the user somewhere else entirely, e.g. the chat widget). */
+  const closeAll = useCallback(() => {
+    setStack((s) => { for (const x of [...s].reverse()) x.onClose?.(); return [] })
+  }, [])
+  const value = useMemo(() => ({ open, close, closeAll, update, isOpen, currentId: stack[stack.length - 1]?.id ?? null }), [open, close, closeAll, update, isOpen, stack])
   return (
     <SheetContext.Provider value={value}>
       {children}
@@ -253,6 +267,15 @@ function SheetView({ options, onClose, depth }: { options: SheetOptions; onClose
   useEffect(() => { y.set(y.get()) }, [floating]) // eslint-disable-line react-hooks/exhaustive-deps
   const undimmedThrough = options.undimmedThrough ?? (hasLow ? 0 : -1)
   const dimmed = detentIndex > undimmedThrough
+  // An undimmed sheet leaves the page usable beneath it (the verse sheet over Scripture): publish
+  // how much of the screen it covers so the page can add that much scroll room at its end — every
+  // verse, the last ones included, can be brought above the sheet and tapped (TEST 2026-10-17
+  // "it should allow me to have more scroll room so that i can see the verses below").
+  const coverPx = !dimmed ? Math.round(heights[detentIndex] ?? 0) : 0
+  useEffect(() => {
+    publishSheetCover(options.id, coverPx)
+    return () => publishSheetCover(options.id, 0)
+  }, [options.id, coverPx])
   const api: SheetApi = {
     close: onClose, expand: () => setDetentIndex(top), setDetent: (i) => setDetentIndex(Math.max(0, Math.min(top, i))), detent: detentIndex, atLow,
     push, pop, popToRoot, depth: views.length,

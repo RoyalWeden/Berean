@@ -62,7 +62,13 @@ function makeVerseRefRe() {
   // comma segment is split into its own NoteVerseRef in extractRefsFromNote below. The
   // trailing `(?:[ \t]+LXX\b)?` folds an "Isaiah 6:4 LXX" marker into the captured span so
   // the resulting rows can be flagged `lxx` (stripped back off via stripLxxMarker).
-  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?,?\s+(?:Chapter\s+)?\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*)?(?:[ \t]+LXX\b)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
+  // PERFORMANCE (TEST 2026-10-17, cold launch frozen ~108 s with ~3,800 notes): the book-word
+  // repeat used to be `(?:\s+(?:of\s+)?…)*`. "of" also matches as an ordinary word, so every "of"
+  // in a long line without a chapter number doubled the backtracking — exponential (one 4.5 KB
+  // note took 53 s). The `of` branch was redundant (it matches as a word) and the repeat is now
+  // capped at 8 extra words (the longest book name, "Teaching of the Twelve Apostles", needs 4):
+  // linear, and parseRef() still trims any leading non-book words.
+  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?!Book\s+\d)[A-Za-z][a-z]*\d*){0,8}(?:,?\s*Book\s+\d{1,3})?,?\s+(?:Chapter\s+)?\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*)?(?:[ \t]+LXX\b)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
 }
 
 export function extractRefsFromNote(content: string, noteTitle: string): NoteVerseRef[] {

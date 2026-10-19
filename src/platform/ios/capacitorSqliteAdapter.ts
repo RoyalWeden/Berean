@@ -1,3 +1,4 @@
+import { perfSpan } from '../../lib/perfSpan'
 import type { AdapterKind, DatabaseAdapter, RunResult, SqlParams, SqlValue } from '../db/DatabaseAdapter'
 import { BereanSQLite, type SqliteJsonValue } from './plugins'
 
@@ -62,7 +63,7 @@ export class CapacitorSqliteAdapter implements DatabaseAdapter {
   // direct executors (inside a transaction, or after the outside-tx wait)
   private async allNow<T>(sql: string, params?: SqlParams): Promise<T[]> {
     const { rows } = await BereanSQLite.query({ handle: this.handle, sql, params: encodeParams(params) })
-    return rows.map((r) => decodeRow<T>(r))
+    return perfSpan('sqlDecode', () => rows.map((r) => decodeRow<T>(r)))
   }
   private async runNow(sql: string, params?: SqlParams): Promise<RunResult> {
     return BereanSQLite.run({ handle: this.handle, sql, params: encodeParams(params) })

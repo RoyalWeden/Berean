@@ -1,12 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { Copy, Hash, BookOpen, ExternalLink } from 'lucide-react'
+import { useRef, useState, useCallback } from 'react'
+import { Copy, Hash, BookOpen, ExternalLink, PictureInPicture2 } from 'lucide-react'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { getTranslationForBook } from '@/lib/parseRef'
-import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
-import { MenuSurface, MenuItem } from '@/components/ui'
+import { MenuPositioner, dispatchCloseContextMenus, useMenuDismiss } from '@/lib/usePositionedMenu'
+import { MenuSurface, MenuItem, MenuSeparator } from '@/components/ui'
 
 export interface VerseCopyTarget {
   bookId: string
@@ -27,44 +26,9 @@ export interface VerseCopyTarget {
  */
 export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | null; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!target) return
-    const close = () => onClose()
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    // Defer so the opening right-click doesn't immediately close it.
-    // Close when any OTHER context menu opens (or a right-click hits empty space).
-    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
-    const t = setTimeout(() => {
-      window.addEventListener('click', close)
-      window.addEventListener('contextmenu', close)
-      window.addEventListener('keydown', onKey)
-    }, 0)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
-      window.removeEventListener('click', close)
-      window.removeEventListener('contextmenu', close)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [target, onClose])
-
-  // Clamp to viewport after first render so it never overflows in floating windows.
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    const pad = 8
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    let x = parseFloat(el.style.left) || 0
-    let y = parseFloat(el.style.top) || 0
-    if (x + width + pad > vw) x = Math.max(pad, x - width)
-    if (y + height + pad > vh) y = Math.max(pad, y - height)
-    x = Math.max(pad, Math.min(x, vw - width - pad))
-    y = Math.max(pad, Math.min(y, vh - height - pad))
-    el.style.left = `${x}px`
-    el.style.top = `${y}px`
-  })
+  // Shared dismissal (outside mousedown / Escape / wheel / resize / blur / another menu opening)
+  // and MenuPositioner placement (portal to <body>, measure, flip, clamp) — TEST 2026-10-17.
+  useMenuDismiss(!!target, [ref], () => onClose(), { closeOnScroll: false })
 
   if (!target) return null
 
@@ -114,24 +78,21 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
     useAppStore.getState().bumpFloatingTabToken()
   }
 
-  return createPortal(
-    <MenuSurface
-      ref={ref}
-      className="fixed z-menu min-w-[150px]"
-      style={{ left: target.x, top: target.y }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <MenuItem icon={BookOpen} label="Open verse" onClick={() => { openVerse(); onClose() }} />
-      <MenuItem
-        icon={Copy}
-        label={target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
-        onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}
-      />
-      <MenuItem icon={Hash} label="Copy reference" onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }} />
-      <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { openInNewTab(); onClose() }} />
-      <MenuItem icon={ExternalLink} label="Open in floating tab" onClick={() => { openInFloatingTab(); onClose() }} />
-    </MenuSurface>,
-    document.body,
+  return (
+    <MenuPositioner ref={ref} x={target.x} y={target.y} onClick={(e) => e.stopPropagation()}>
+      <MenuSurface className="min-w-[184px] max-w-[260px]">
+        <MenuItem icon={BookOpen} label="Open verse" onClick={() => { openVerse(); onClose() }} />
+        <MenuItem icon={ExternalLink} label="Open in new tab" onClick={() => { openInNewTab(); onClose() }} />
+        <MenuItem icon={PictureInPicture2} label="Open in floating tab" onClick={() => { openInFloatingTab(); onClose() }} />
+        <MenuSeparator />
+        <MenuItem
+          icon={Copy}
+          label={target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
+          onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}
+        />
+        <MenuItem icon={Hash} label="Copy reference" onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }} />
+      </MenuSurface>
+    </MenuPositioner>
   )
 }
 

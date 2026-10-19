@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
-import { ChevronUp, ChevronDown, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { ChevronUp, ChevronDown, X, Search } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { TextField, IconButton, SegmentedControl, RefChip, SectionLabel, Button } from '@/components/ui'
+import { IconButton, SegmentedControl, Button, cx } from '@/components/ui'
 
 type WordMode = 'phrase' | 'all' | 'any'
 
@@ -14,16 +14,38 @@ interface Props {
   currentMatch?: number     // 0-indexed
   onPrev?: () => void
   onNext?: () => void
-  autoOpen?: boolean        // if true, shows subtle "auto" badge and bar has lighter weight
+  autoOpen?: boolean        // opened by typing (auto-dismisses) rather than ⌘F
   placeholder?: string
-  showAdvancedSearch?: boolean  // show "Advanced search" link (scripture context)
+  showAdvancedSearch?: boolean  // show "Advanced Search" (scripture context)
   onAdvancedSearch?: () => void
-  rightOffset?: number      // px from right edge (default 16); increases when side panel is open
+  rightOffset?: number      // px from the panel's right edge (default 16); grows with the side panel
   showWordMode?: boolean    // show phrase/all/any toggle (scripture context)
   wordMode?: WordMode
   onWordModeChange?: (mode: WordMode) => void
+  /** Window event that re-selects the query (⌘F while open). Each bar has its own, so ⌘F in one
+   *  place never pulls focus into another bar. */
+  selectAllEvent?: string
 }
 
+/** Gap between the window toolbar (the panel's top edge) and the bar. */
+export const FIND_BAR_TOP = 8
+
+/**
+ * Find-in-page bar for the Scripture, Notes and Lexicon panels and Berean Chat's conversations: one compact row (field, match
+ * count, previous / next, close) on the popover material, with Scripture's match mode and
+ * Advanced Search in a quieter second row.
+ *
+ * Positioning: `absolute`, anchored to its panel (every host is `position: relative` and starts
+ * right under the window toolbar). It used to be `fixed` with `top: 50` — measured from the
+ * window in Notes/Lexicon (overlapping the toolbar's edge) but from the Scripture pane in the
+ * reader, whose `container-type` makes it the containing block for fixed children, so there it
+ * sat 50px below the toolbar ("too low").
+ *
+ * Focus: established in a layout effect (same frame the input exists), caret at the end — keys
+ * already appended to the query during a handoff stay in order and later keys type straight in
+ * (lib/findHandoff.ts). The material is the CSS popover material, not native Liquid Glass (on
+ * macOS native glass draws behind the page and would be hidden under the reader).
+ */
 export default function FindBar({
   visible,
   query,
@@ -34,30 +56,41 @@ export default function FindBar({
   onPrev,
   onNext,
   autoOpen,
-  placeholder = 'Find in page…',
+  placeholder = 'Find in Page',
   showAdvancedSearch,
   onAdvancedSearch,
   rightOffset = 16,
   showWordMode,
   wordMode = 'phrase',
   onWordModeChange,
+  selectAllEvent = 'berean:findBarSelectAll',
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const openSearchTab = useAppStore((s) => s.openSearchTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const ensureTab = useAppStore((s) => s.ensureTab)
 
-  // Focus and select when the bar becomes visible (initial open)
-  useEffect(() => {
-    if (!visible) return
-    const t = setTimeout(() => {
-      inputRef.current?.focus()
-      if (!autoOpen) inputRef.current?.select()   // select-all only for explicit Cmd+F
-    }, 20)
-    return () => clearTimeout(t)
+  // Focus as soon as the bar exists. ⌘F selects what is there; type-to-find keeps the caret at
+  // the end of what was typed so far.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!visible || !el) return
+    const take = () => {
+      el.focus({ preventScroll: true })
+      if (autoOpen) { const n = el.value.length; el.setSelectionRange(n, n) } else el.select()
+    }
+    take()
+    // A closing overlay's focus trap (the floating search, Radix) is torn down only in its passive
+    // effects — in this same commit it can pull focus back, and then releases it to <body>. Take it
+    // again on the next frame, unless something real (another field) holds it by then.
+    const raf = requestAnimationFrame(() => {
+      const a = document.activeElement
+      if (a !== el && (!a || a === document.body)) take()
+    })
+    return () => cancelAnimationFrame(raf)
   }, [visible, autoOpen])
 
-  // Select all when Cmd+F is pressed while bar is already open
+  // ⌘F while the bar is already open: select the query again.
   useEffect(() => {
     function onSelectAll() {
       if (visible) {
@@ -65,14 +98,15 @@ export default function FindBar({
         inputRef.current?.select()
       }
     }
-    window.addEventListener('berean:findBarSelectAll', onSelectAll)
-    return () => window.removeEventListener('berean:findBarSelectAll', onSelectAll)
-  }, [visible])
+    window.addEventListener(selectAllEvent, onSelectAll)
+    return () => window.removeEventListener(selectAllEvent, onSelectAll)
+  }, [visible, selectAllEvent])
 
   if (!visible) return null
 
-  const hasMatches = typeof matchCount === 'number'
-  const noMatch = hasMatches && matchCount === 0 && query.length > 0
+  const hasMatches = typeof matchCount === 'number' && query.length > 0
+  const noMatch = hasMatches && matchCount === 0
+  const navDisabled = !hasMatches || matchCount === 0
 
   function handleAdvancedSearch() {
     if (onAdvancedSearch) {
@@ -85,13 +119,7 @@ export default function FindBar({
     onClose()
   }
 
-  // Auto-dismiss (autoOpen-only) countdown lives in App.tsx and previously only
-  // reset on printable-character keydowns while the input already had focus —
-  // hovering the bar to read a match, or clicking into it, didn't count as
-  // "still using it" and it could vanish out from under the pointer. Pausing
-  // on hover-enter (not just resetting) means it genuinely never counts down
-  // while the cursor is resting on it, resuming a fresh countdown on
-  // hover-leave; click/focus resets it the same way a keystroke does.
+  // Type-to-find auto-dismisses (App.tsx); hovering pauses the countdown, a click / focus resets it.
   function pauseAutoDismiss() {
     if (autoOpen) window.dispatchEvent(new Event('berean:findBarPauseTimer'))
   }
@@ -99,97 +127,71 @@ export default function FindBar({
     if (autoOpen) window.dispatchEvent(new Event('berean:findBarResetTimer'))
   }
 
+  const secondRow = showWordMode || showAdvancedSearch
+
   return (
     <div
-      className="material-popover fixed z-overlay rounded-menu overflow-hidden transition-[right] duration-150 animate-fade-in-drop"
-      style={{ top: 50, right: rightOffset, width: 360 }}
+      role="search"
+      aria-label="Find in page"
+      data-find-bar
+      className="find-bar material-popover absolute z-overlay rounded-[14px] overflow-hidden animate-fade-in-drop"
+      style={{ top: FIND_BAR_TOP, right: rightOffset, width: 'min(380px, calc(100% - 24px))' }}
       onMouseDown={(e) => e.stopPropagation()}
       onMouseEnter={pauseAutoDismiss}
       onMouseLeave={resetAutoDismiss}
     >
-      <div className="flex items-center gap-1.5 px-3 py-2">
-        <TextField
+      <div className="flex items-center gap-1 h-9 pl-2.5 pr-1">
+        <Search size={13} strokeWidth={2} className="flex-shrink-0 text-text-muted" aria-hidden />
+        <input
           ref={inputRef}
-          size="sm"
-          bare
-          bareUnderline={false}
+          type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
             if (e.key === 'Escape') { e.preventDefault(); onClose() }
-            if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? onPrev?.() : onNext?.() }
+            if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) onPrev?.(); else onNext?.() }
           }}
           onClick={resetAutoDismiss}
           onFocus={resetAutoDismiss}
           placeholder={placeholder}
+          aria-label={placeholder}
           spellCheck={false}
-          className={noMatch ? 'text-destructive' : undefined}
-          wrapperClassName="flex-1 min-w-0"
+          autoComplete="off"
+          className={cx('find-bar-input flex-1 min-w-0 h-7 px-1.5 bg-transparent outline-none text-footnote text-text-primary placeholder:text-text-muted', noMatch && 'text-destructive')}
         />
-
-        {/* Match counter */}
         {hasMatches && (
-          <span className="text-caption text-text-muted flex-shrink-0 tabular-nums">
-            {matchCount === 0
-              ? 'No matches'
-              : `${(currentMatch ?? 0) + 1} / ${matchCount}`}
+          <span className="flex-shrink-0 px-1 text-caption2 tabular-nums text-text-muted" aria-live="polite">
+            {matchCount === 0 ? 'No Matches' : `${(currentMatch ?? 0) + 1} of ${matchCount}`}
           </span>
         )}
-
-        {/* Prev / Next arrows */}
-        {onPrev && (
-          <IconButton
-            icon={ChevronUp}
-            label="Previous match"
-            tooltip={{ shortcut: '⇧↵' }}
-            size={24}
-            onClick={onPrev}
-            disabled={!hasMatches || matchCount === 0}
-          />
-        )}
-        {onNext && (
-          <IconButton
-            icon={ChevronDown}
-            label="Next match"
-            tooltip={{ shortcut: '↵' }}
-            size={24}
-            onClick={onNext}
-            disabled={!hasMatches || matchCount === 0}
-          />
-        )}
-
-        {/* Auto-open badge */}
-        {autoOpen && <RefChip variant="neutral" size="xs" className="flex-shrink-0 uppercase tracking-wide">auto</RefChip>}
-
-        {/* Close */}
-        <IconButton icon={X} label="Close" tooltip={{ shortcut: 'Esc' }} size={24} onClick={onClose} className="flex-shrink-0" />
+        {(onPrev || onNext) && <span className="w-px h-4 mx-0.5 bg-separator flex-shrink-0" aria-hidden />}
+        {onPrev && <IconButton icon={ChevronUp} label="Previous Match" tooltip={{ shortcut: '⇧↵' }} size={24} onClick={onPrev} disabled={navDisabled} />}
+        {onNext && <IconButton icon={ChevronDown} label="Next Match" tooltip={{ shortcut: '↵' }} size={24} onClick={onNext} disabled={navDisabled} />}
+        <IconButton icon={X} label="Close" tooltip={{ shortcut: 'esc' }} size={24} onClick={onClose} className="flex-shrink-0" />
       </div>
 
-      {/* Word mode toggle row */}
-      {showWordMode && (
-        <div className="px-3 py-1.5 border-t border-separator flex items-center gap-1.5">
-          <SectionLabel className="flex-shrink-0">Match</SectionLabel>
-          <SegmentedControl
-            size="sm"
-            aria-label="Word match mode"
-            value={wordMode}
-            onChange={(m) => onWordModeChange?.(m)}
-            options={[
-              { value: 'phrase', label: 'Phrase' },
-              { value: 'all', label: 'All words' },
-              { value: 'any', label: 'Any word' },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* Advanced search row (scripture context only) */}
-      {showAdvancedSearch && (
-        <div className="px-3 py-1 border-t border-separator flex items-center justify-between">
-          <span className="text-caption2 text-text-muted">Find in page</span>
-          <Button variant="link" size="sm" onClick={handleAdvancedSearch}>
-            Advanced scripture search →
-          </Button>
+      {secondRow && (
+        <div className="flex items-center gap-2 h-8 px-2 border-t border-separator">
+          {showWordMode && (
+            <SegmentedControl
+              size="sm"
+              aria-label="Match"
+              value={wordMode}
+              onChange={(m) => onWordModeChange?.(m)}
+              options={[
+                { value: 'phrase', label: 'Phrase' },
+                { value: 'all', label: 'All Words' },
+                { value: 'any', label: 'Any Word' },
+              ]}
+            />
+          )}
+          <span className="flex-1" />
+          {showAdvancedSearch && (
+            <Button variant="link" size="sm" onClick={handleAdvancedSearch} className="flex-shrink-0">
+              Advanced Search
+            </Button>
+          )}
         </div>
       )}
     </div>

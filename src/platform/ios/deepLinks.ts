@@ -20,8 +20,18 @@ export function setIosDeepLinkTarget(t: DeepLinkTarget | null): void {
   if (t) { const urls = pending; pending = []; for (const u of urls) handleDeepLink(u, t) }
 }
 
+// The same URL can arrive twice for one tap: a cold launch reports it as the launch URL AND, on
+// some iOS versions, as an `appUrlOpen` event a moment later (a widget tap twice would otherwise
+// open two new messages). One delivery per URL per short window.
+const DEDUPE_MS = 1500
+let lastUrl = ''
+let lastAt = 0
+
 export function openIosDeepLink(url: string): boolean {
   if (!isDeepLink(url)) return false
+  const now = Date.now()
+  if (url === lastUrl && now - lastAt < DEDUPE_MS) return true
+  lastUrl = url; lastAt = now
   if (target) return handleDeepLink(url, target)
   pending.push(url)
   return true
@@ -41,3 +51,4 @@ export async function installIosDeepLinks(): Promise<void> {
 
 /** Test/inspection hook. */
 export function __iosPendingDeepLinks(): string[] { return [...pending] }
+export function __resetIosDeepLinks(): void { pending = []; target = null; lastUrl = ''; lastAt = 0 }

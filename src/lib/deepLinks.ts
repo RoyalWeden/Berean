@@ -23,6 +23,7 @@ import { displayChapter } from './chapterNumbering'
  *   berean://daily                        (today's daily note — App Intents)
  *   berean://workspace?name=<name>        (open a saved workspace by name — App Intents)
  *   berean://session/<sessionId>          (switch to a tab session — Spotlight)
+ *   berean://chat[/new]                   (Berean Chat; `new` opens a fresh message — the iOS widget)
  *   …&play=1 on a verse/open link starts Read Aloud at that passage
  */
 export type DeepLinkRoute =
@@ -38,6 +39,8 @@ export type DeepLinkRoute =
   | { kind: 'session'; sessionId: string }
   /** `berean://share` — the Share Extension left items in the inbox; the platform drains it. */
   | { kind: 'share' }
+  /** `berean://chat/new` — Berean Chat with the composer ready for a new message (iOS widget). */
+  | { kind: 'chat'; compose?: boolean }
 
 export const DEEP_LINK_SCHEME = 'berean'
 // Both app identities' schemes route here (config/app-identity.json): berean:// / berean-pdf://
@@ -121,6 +124,7 @@ export function parseDeepLink(href: string): DeepLinkRoute | null {
     case 'share': return { kind: 'share' }
     case 'workspace': { const name = (q.get('name') ?? rest.join(' ')).trim(); return name ? { kind: 'workspace', name } : null }
     case 'session': return rest[0] ? { kind: 'session', sessionId: rest[0] } : null
+    case 'chat': return (rest[0] ?? '').toLowerCase() === 'new' ? { kind: 'chat', compose: true } : { kind: 'chat' }
     default: return null
   }
 }
@@ -143,6 +147,7 @@ export function formatDeepLink(route: DeepLinkRoute): string {
     case 'share': return `${DEEP_LINK_SCHEME}://share`
     case 'workspace': return `${DEEP_LINK_SCHEME}://workspace?name=${e(route.name)}`
     case 'session': return `${DEEP_LINK_SCHEME}://session/${e(route.sessionId)}`
+    case 'chat': return `${DEEP_LINK_SCHEME}://chat${route.compose ? '/new' : ''}`
   }
 }
 
@@ -160,6 +165,7 @@ export function describeDeepLink(route: DeepLinkRoute): string {
     case 'share': return 'shared items'
     case 'workspace': return `workspace "${route.name}"`
     case 'session': return 'tab session'
+    case 'chat': return route.compose ? 'new message' : 'Berean Chat'
   }
 }
 
@@ -181,6 +187,8 @@ export interface DeepLinkTarget {
   openSession: (sessionId: string) => void
   /** Platform hook for `berean://share` (iOS drains the Share Extension inbox). */
   openShareInbox?: () => void
+  /** Berean Chat; `compose` focuses a new message. A platform without chat ignores the link. */
+  openChat?: (opts: { compose: boolean }) => void
 }
 
 export function routeDeepLink(route: DeepLinkRoute, target: DeepLinkTarget): void {
@@ -196,6 +204,7 @@ export function routeDeepLink(route: DeepLinkRoute, target: DeepLinkTarget): voi
     case 'workspace': target.openWorkspace(route.name); break
     case 'session': target.openSession(route.sessionId); break
     case 'share': target.openShareInbox?.(); break
+    case 'chat': target.openChat?.({ compose: !!route.compose }); break
   }
 }
 

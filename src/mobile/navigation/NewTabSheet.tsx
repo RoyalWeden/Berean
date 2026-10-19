@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react'
+import { openChatOverlay } from './chatOverlay'
 import { Clock } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
@@ -42,7 +43,7 @@ export function NewTabSheet({ api, openMore }: { api: SheetApi; openMore: (route
     <SearchSurface api={api} target="new-tab" empty={
       <>
         {/* The major experiences, each a real new tab; More is last (NEW-013, TEST25-NAV-001). */}
-        <ExperienceRow items={SWITCHER_EXPERIENCES} target="new-tab" onDone={close} onMore={() => { close(); openMore('more') }} />
+        <ExperienceRow items={SWITCHER_EXPERIENCES} target="new-tab" onDone={close} onChat={() => { close(); openChatOverlay() }} onMore={() => { close(); openMore('more') }} />
         {recent.length > 0 && (
           <section className="mobile-newtab-section" aria-label="Recent">
             <div className="mobile-newtab-section-head">

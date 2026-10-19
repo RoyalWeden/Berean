@@ -1,0 +1,145 @@
+/* Berean Chat message content (ChatMarkdown + AiReplyBody). Shared by the Mac panel / window and
+   the iPhone chat (same components). Sizes are em-relative so the phone's larger bubble text
+   (src/mobile/chat/chat.css) scales everything inside together. */
+
+.chat-md {
+  --chat-block-gap: 6px;
+  --chat-list-indent: 1.3em;
+  --chat-quote-rule: rgb(var(--color-text-muted) / 0.45);
+  --chat-code-bg: rgb(127 127 127 / 0.12);
+  --chat-rule: rgb(var(--color-text-primary) / 0.1);
+  --chat-cell-pad: 4px 8px;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+.chat-md.is-accent {
+  --chat-quote-rule: rgb(255 255 255 / 0.6);
+  --chat-code-bg: rgb(255 255 255 / 0.2);
+  --chat-rule: rgb(255 255 255 / 0.3);
+  line-height: 1.35;
+}
+
+/* Block rhythm — one gap between blocks, none at the edges (overrides chat.css's 4px). */
+.chat-rich.chat-md > :where(:not(:first-child)),
+.chat-md blockquote > :where(:not(:first-child)),
+.chat-md li > :where(:not(:first-child)) { margin-top: var(--chat-block-gap); }
+.chat-md .chat-p { margin: 0; }
+
+/* Headings: restrained — a chat answer never gets a document-sized title. */
+.chat-md .chat-h { margin: 0; font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; }
+.chat-md .chat-h-lg { font-size: 1.12em; }
+.chat-md .chat-h-sm { font-size: 1em; }
+.chat-md > .chat-h:not(:first-child) { margin-top: calc(var(--chat-block-gap) * 1.75); }
+
+/* Lists */
+.chat-md .chat-list { padding-left: var(--chat-list-indent); margin: 0; }
+.chat-md .chat-list > li + li { margin-top: 2px; }
+.chat-md .chat-list > li::marker { color: rgb(var(--color-text-muted)); }
+.chat-md.is-accent .chat-list > li::marker { color: rgb(255 255 255 / 0.75); }
+.chat-md .chat-task-list { list-style: none; padding-left: 0.1em; }
+.chat-md .chat-task { display: flex; align-items: flex-start; gap: 6px; }
+.chat-md .chat-task-body { min-width: 0; flex: 1; }
+.chat-md .chat-task-box {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 0.95em; height: 0.95em; margin-top: 0.27em; border-radius: 3px;
+  border: 1.25px solid rgb(var(--color-text-muted) / 0.8);
+}
+.chat-md .chat-task.is-done .chat-task-box { background: rgb(var(--color-accent)); border-color: rgb(var(--color-accent)); color: #fff; }
+.chat-md .chat-task.is-done .chat-task-body { color: rgb(var(--color-text-secondary)); }
+.chat-md.is-accent .chat-task-box { border-color: rgb(255 255 255 / 0.8); }
+.chat-md.is-accent .chat-task.is-done .chat-task-box { background: #fff; border-color: #fff; color: rgb(var(--color-accent)); }
+.chat-md.is-accent .chat-task.is-done .chat-task-body { color: inherit; opacity: 0.8; }
+
+/* Quotes */
+.chat-md .chat-quote { margin: 0; border-left: 2px solid var(--chat-quote-rule); padding-left: 9px; opacity: 1; color: rgb(var(--color-text-secondary)); }
+.chat-md.is-accent .chat-quote { color: inherit; opacity: 0.92; }
+
+.chat-md .chat-hr { border: 0; border-top: 1px solid var(--chat-rule); margin: calc(var(--chat-block-gap) * 1.5) 0; }
+
+/* Inline code + code blocks — monospace, whitespace kept, scrolls sideways, never wraps markup. */
+.chat-md .chat-code { background: var(--chat-code-bg); padding: 0.05em 0.3em; border-radius: 4px; overflow-wrap: anywhere; }
+.chat-md .chat-pre-wrap { position: relative; }
+.chat-md .chat-pre {
+  margin: 0; padding: 7px 30px 7px 9px; border-radius: 8px; background: var(--chat-code-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; line-height: 1.45;
+  white-space: pre; overflow-x: auto; -webkit-overflow-scrolling: touch; tab-size: 4;
+}
+.chat-md .chat-pre code { font: inherit; background: none; padding: 0; }
+.chat-md .chat-pre-copy {
+  position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border: 0; border-radius: 5px; padding: 0; cursor: pointer;
+  background: rgb(var(--color-surface-2) / 0.85); color: rgb(var(--color-text-muted));
+  opacity: 0; transition: opacity 120ms ease;
+}
+.chat-md .chat-pre-wrap:hover .chat-pre-copy,
+.chat-md .chat-pre-copy:focus-visible { opacity: 1; }
+@media (hover: none) { .chat-md .chat-pre-copy { opacity: 0.85; } }
+.chat-md.is-accent .chat-pre-copy { background: rgb(255 255 255 / 0.25); color: #fff; }
+
+/* Tables — compact, no heavy grid, scroll sideways inside the message (never the page). */
+.chat-md .chat-table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chat-md .chat-table { border-collapse: collapse; font-size: 0.95em; line-height: 1.35; min-width: 60%; }
+.chat-md .chat-table th,
+.chat-md .chat-table td { padding: var(--chat-cell-pad); text-align: left; vertical-align: top; min-width: 4em; max-width: 28em; overflow-wrap: break-word; }
+.chat-md .chat-table th { font-weight: 600; border-bottom: 1px solid var(--chat-rule); white-space: nowrap; }
+.chat-md .chat-table tbody tr + tr td { border-top: 0.5px solid var(--chat-rule); }
+.chat-md .chat-table th:first-child,
+.chat-md .chat-table td:first-child { padding-left: 0; }
+
+/* Links — long URLs break anywhere instead of widening the bubble. */
+.chat-md a.chat-a { overflow-wrap: anywhere; word-break: break-word; }
+.chat-md a.chat-a:not(.is-on-accent) { text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.35); text-underline-offset: 2px; }
+
+/* ─── Berean reply (AiReplyBody) ─────────────────────────────────────────────────────────── */
+
+.chat-ai-column { border-radius: 10px; }
+.chat-ai { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.chat-ai-section-label { margin-bottom: 4px; }
+
+/* Passages: a list, not a stack of cards. */
+.chat-passages { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.chat-passage {
+  display: block; text-align: left; border: 0; background: none; color: inherit; font: inherit;
+  padding: 6px 8px; margin: 0 -8px; width: calc(100% + 16px); border-radius: 8px; cursor: pointer;
+  transition: background-color 120ms ease;
+}
+/* Pointer devices only — on touch, iOS keeps :hover on whatever was last tapped (a passage stayed
+   grey after a popup-menu tap, simulator 2026-10-18). */
+@media (hover: hover) { .chat-passage:hover { background: rgb(var(--color-text-primary) / 0.045); } }
+.chat-passage:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: -2px; }
+.chat-passage-ref { display: flex; align-items: center; gap: 5px; font-weight: 600; color: rgb(var(--color-text-primary)); }
+.chat-scripture {
+  margin-top: 3px; padding-left: 10px; border-left: 2px solid rgb(var(--color-accent) / 0.35);
+  color: rgb(var(--color-text-secondary)); line-height: 1.55; font-family: var(--font-scripture, inherit);
+}
+.chat-commentary { margin-top: 5px; color: rgb(var(--color-text-primary)); line-height: 1.45; }
+
+.chat-crossrefs { margin: 2px 0 2px 10px; }
+.chat-crossrefs-toggle {
+  display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 4px; margin-left: -4px;
+  font: inherit; color: rgb(var(--color-text-muted)); cursor: pointer; border-radius: 5px;
+}
+.chat-crossrefs-toggle:hover { color: rgb(var(--color-accent)); }
+.chat-crossrefs-toggle:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); }
+.chat-crossref-list { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 0; padding: 0; list-style: none; }
+.chat-crossref {
+  display: flex; gap: 6px; align-items: baseline; width: 100%; min-width: 0; text-align: left; border: 0; background: none;
+  font: inherit; color: inherit; padding: 3px 6px; margin-left: -6px; border-radius: 6px; cursor: pointer;
+}
+@media (hover: hover) { .chat-crossref:hover { background: rgb(var(--color-text-primary) / 0.045); } }
+.chat-crossref:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); }
+.chat-crossref-ref { flex: none; font-weight: 600; color: rgb(var(--color-text-secondary)); }
+.chat-crossref-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--color-text-muted)); }
+
+/* Compact rows: Strong's word, notes, videos, related passages. */
+.chat-ai-row {
+  display: flex; gap: 8px; align-items: flex-start; width: 100%; min-width: 0; text-align: left; border: 0;
+  font: inherit; color: inherit; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  background: rgb(var(--color-text-primary) / 0.035); transition: background-color 120ms ease;
+}
+@media (hover: hover) { .chat-ai-row:hover { background: rgb(var(--color-text-primary) / 0.07); } }
+.chat-ai-row:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: -2px; }
+.chat-ai-rows { display: flex; flex-direction: column; gap: 4px; }
+.chat-strongs-lemma { font-family: var(--font-lemma, serif); font-size: 1.15em; line-height: 1.1; }

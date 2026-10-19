@@ -139,6 +139,9 @@ describe('native control clusters', () => {
     // Real (async) frames: the hook's re-sync scheduling needs a frame to complete.
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number)
     vi.stubGlobal('cancelAnimationFrame', (h: number) => clearTimeout(h))
+    // Real (asynchronous) frames: the shared synchronous stub would leave a frame "pending" forever.
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number)
+    vi.stubGlobal('cancelAnimationFrame', (h: number) => clearTimeout(h))
     const f = fakeAdapter(); window.__bereanGlass = f.a
     const btn = () => host.querySelector('button')!
     const sheet = document.createElement('div'); document.body.appendChild(sheet)
@@ -172,6 +175,30 @@ describe('native control clusters', () => {
     sheet.remove()
   })
 
+  it('idle: the safety-net re-check does no hit-testing while nothing changes, and still catches an attribute-only overlay (perf audit 2026-10-19)', async () => {
+    // Real (asynchronous) frames: the shared synchronous stub would leave a frame "pending" forever.
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number)
+    vi.stubGlobal('cancelAnimationFrame', (h: number) => clearTimeout(h))
+    const f = fakeAdapter(); window.__bereanGlass = f.a
+    const btn = () => host.querySelector('button')!
+    const sheet = document.createElement('div'); document.body.appendChild(sheet)
+    let covered = false
+    const hits = vi.fn(() => (covered ? sheet : btn()))
+    document.elementFromPoint = hits
+    await mountBar({ onPlus: () => {} })
+    await act(async () => { await new Promise((r) => setTimeout(r, 900)) }) // first paint + the first (dirty) tick
+    hits.mockClear()
+    await act(async () => { await new Promise((r) => setTimeout(r, 1100)) }) // three idle ticks
+    expect(hits).not.toHaveBeenCalled()
+    // An overlay shown only by an attribute the targeted observers ignore (not style/class):
+    covered = true
+    act(() => { sheet.setAttribute('data-state', 'open') })
+    await act(async () => { await new Promise((r) => setTimeout(r, 450)) })
+    expect(hits).toHaveBeenCalled()
+    expect(f.sent[f.sent.length - 1].items[0].hidden).toBe(true)
+    sheet.remove()
+  })
+
   it('collapsed: keeps the resting rect and lets the native cluster slide itself', async () => {
     const f = fakeAdapter(); window.__bereanGlass = f.a
     document.elementFromPoint = () => host.querySelector('button')
@@ -188,6 +215,35 @@ describe('native control clusters', () => {
     act(() => root.unmount())
     expect(f.removed).toContain('nav')
     root = createRoot(host)
+  })
+
+  it('a remount (same cluster id) is never hidden or removed by the old instance (TEST 2026-10-17)', async () => {
+    const f = fakeAdapter(); window.__bereanGlass = f.a
+    document.elementFromPoint = (() => host.querySelector('button')) as typeof document.elementFromPoint
+    await mountBar({ onPlus: () => {} })
+    await act(async () => { await new Promise((r) => setTimeout(r, 150)) })
+    // The page remounts (tab switch): new instance, same id, while the old one's timers are pending.
+    await act(async () => { root.render(<Bar key="b" onPlus={() => {}} />); await new Promise((r) => setTimeout(r, 20)) })
+    const before = f.sent.length
+    await act(async () => { await new Promise((r) => setTimeout(r, 600)) })
+    const late = f.sent.slice(before).filter((s) => s.id === 'nav')
+    // Nothing sent after the remount hides the cluster (the old instance's refs are gone).
+    expect(late.every((s) => s.visible && s.items.every((i) => !i.hidden))).toBe(true)
+    expect(f.sent[f.sent.length - 1]).toMatchObject({ id: 'nav', visible: true })
+  })
+
+  it('an invisible tap-catcher layer (popover outside-tap layer) does not take the glass away (TEST 2026-10-17)', async () => {
+    const f = fakeAdapter(); window.__bereanGlass = f.a
+    const btn = () => host.querySelector('button')!
+    const layer = document.createElement('div'); layer.setAttribute('data-glass-passthrough', ''); document.body.appendChild(layer)
+    ;(document as unknown as { elementsFromPoint: (x: number, y: number) => Element[] }).elementsFromPoint = () => [layer, btn()]
+    await mountBar({ onPlus: () => {} })
+    await act(async () => { await new Promise((r) => setTimeout(r, 450)) })
+    expect(f.sent[f.sent.length - 1].items[0].hidden).toBe(false)
+    expect(btn().className).toBe('is-native-glass')
+    // (A real cover still hands the control to the web — 'a sheet covering the placeholder…' below.)
+    layer.remove()
+    delete (document as unknown as { elementsFromPoint?: unknown }).elementsFromPoint
   })
 
   it('without an adapter the web control is untouched', async () => {

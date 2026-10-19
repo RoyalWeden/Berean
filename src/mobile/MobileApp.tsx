@@ -12,6 +12,7 @@ import { installTabPersistence } from '@/store/tabPersistenceRuntime'
 import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import { storeDeepLinkTarget } from '@/lib/deepLinkTarget'
 import { setIosDeepLinkTarget } from '@/platform/ios/deepLinks'
+import { ChatOverlayHost, openChatOverlay } from './navigation/chatOverlay'
 import { drainShareInbox } from '@/platform/ios/shareInbox'
 import { ensureDailyNoteLocation } from '@/platform/ios/location'
 import BiblePanel from '@/components/bible/BiblePanel'
@@ -112,7 +113,18 @@ function Shell() {
   // trail page wherever the user is — not only while More happens to be mounted.
   const openTrailRoute = useCallback(() => setMoreRoute((r) => (r === 'trail' ? r : 'trail')), [])
   useOpenStudyTrailPageEvent(openTrailRoute)
-  useEffect(() => { setIosDeepLinkTarget({ ...storeDeepLinkTarget, openShareInbox: () => { void drainShareInbox() } }); return () => setIosDeepLinkTarget(null) }, [])
+  const shellSheets = useSheets()
+  const closeSheetsRef = useRef(shellSheets.closeAll)
+  closeSheetsRef.current = shellSheets.closeAll
+  useEffect(() => {
+    setIosDeepLinkTarget({
+      ...storeDeepLinkTarget,
+      openShareInbox: () => { void drainShareInbox() },
+      // The Home Screen widget's "New Message" (berean://chat/new), warm or cold.
+      openChat: ({ compose }) => { closeSheetsRef.current(); openChatOverlay({ compose }) },
+    })
+    return () => setIosDeepLinkTarget(null)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The YouTube space stays mounted (parked, hidden) while a video tab is open and another space
   // is showing, so the native player keeps playing — the phone's counterpart of desktop auto-PiP
@@ -157,6 +169,7 @@ function Shell() {
       {/* No Study Trail "Why'd you go to …?" prompt on the phone (SEP24-003): trail stops are still
           recorded; reasons are added from the Study trail page. The Mac keeps its prompt. */}
       <BottomNav onTabs={nav.openTabs} onPlus={nav.openPlus} onCaret={nav.openCaret} caretLabel={nav.caretLabel} />
+      <ChatOverlayHost />
     </div>
   )
 }

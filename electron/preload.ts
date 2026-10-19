@@ -427,6 +427,19 @@ contextBridge.exposeInMainWorld('aiLookup', {
   getChat: (id: string) => ipcRenderer.invoke('ailookup:getChat', id),
   saveChat: (chat: unknown) => ipcRenderer.invoke('ailookup:saveChat', chat),
   deleteChat: (id: string) => ipcRenderer.invoke('ailookup:deleteChat', id),
+  upsertMessages: (input: unknown) => ipcRenderer.invoke('ailookup:upsertMessages', input),
+  renameChat: (id: string, title: string) => ipcRenderer.invoke('ailookup:renameChat', id, title),
+  organizeChat: (id: string, change: { pinned?: boolean; folder?: string | null }) => ipcRenderer.invoke('ailookup:organizeChat', id, change),
+  renameFolder: (from: string, to: string | null) => ipcRenderer.invoke('ailookup:renameFolder', from, to),
+  queryMessages: (q: unknown) => ipcRenderer.invoke('ailookup:queryMessages', q),
+  listDays: () => ipcRenderer.invoke('ailookup:listDays'),
+  // Another window wrote a conversation (the main process skips the writing window itself).
+  // Returns an unsubscribe — unlike onProgress/onPartial, several chat surfaces can listen at once.
+  onChatsChanged: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => {
+    const handler = (_: unknown, change: { id?: string; op: 'upsert' | 'delete' }) => cb(change)
+    ipcRenderer.on('ailookup:chatsChanged', handler)
+    return () => { ipcRenderer.removeListener('ailookup:chatsChanged', handler) }
+  },
   // Live status text during a single query() call (e.g. "Searching Jubilees…") — the main
   // process handler sends these via event.sender.send while the async work is still in
   // flight, same request/response call still resolves with the final result as normal.
@@ -441,6 +454,30 @@ contextBridge.exposeInMainWorld('aiLookup', {
     ipcRenderer.removeAllListeners('ailookup:partial')
     ipcRenderer.on('ailookup:partial', (_, partial) => cb(partial))
   },
+})
+
+// Berean Chat standalone window (electron/main.ts createChatWindow). The chat window asks the
+// main window for things only its store knows (active tab context) and hands it navigation.
+function chatListener<T extends unknown[]>(channel: string, cb: (...args: T) => void) {
+  const handler = (_: unknown, ...args: unknown[]) => cb(...(args as T))
+  ipcRenderer.on(channel, handler)
+  return () => { ipcRenderer.removeListener(channel, handler) }
+}
+contextBridge.exposeInMainWorld('chatWindow', {
+  open: (handoff?: unknown) => ipcRenderer.invoke('chat:openWindow', handoff ?? null),
+  takeHandoff: () => ipcRenderer.invoke('chat:takeHandoff'),
+  onHandoff: (cb: (handoff: unknown) => void) => chatListener('chat:handoff', cb),
+  close: () => ipcRenderer.invoke('chat:closeWindow'),
+  isOpen: () => ipcRenderer.invoke('chat:isWindowOpen'),
+  returnToMain: (handoff?: unknown) => ipcRenderer.invoke('chat:returnToMain', handoff ?? null),
+  openInMain: (payload: unknown) => ipcRenderer.invoke('chat:openInMain', payload),
+  getMainTabContext: () => ipcRenderer.invoke('chat:getMainTabContext'),
+  onNewConversation: (cb: () => void) => chatListener('chat:newConversation', cb),
+  onShowPanel: (cb: (handoff: unknown) => void) => chatListener('chat:showPanel', cb),
+  onOpenInMain: (cb: (payload: unknown) => void) => chatListener('chat:openInMain', cb),
+  onRequestTabContext: (cb: (requestId: string) => void) => chatListener('chat:requestTabContext', cb),
+  replyTabContext: (requestId: string, ref: unknown) => ipcRenderer.send('chat:tabContextReply', requestId, ref),
+  onWindowStateChanged: (cb: (open: boolean) => void) => chatListener('chat:windowState', cb),
 })
 
 contextBridge.exposeInMainWorld('youtube', {
