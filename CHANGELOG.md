@@ -122,7 +122,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.7.3] - 2026-10-19
+## [0.8.0] - 2026-10-19
 
 ### Berean Chat
 
