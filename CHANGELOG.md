@@ -122,6 +122,27 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.8.1] - 2026-10-20
+
+### Scripture
+
+- Opening a passage with Enter shows just the chapter; the Find bar appears only once you start
+  typing, and every letter you type lands in it exactly once (the first letter no longer doubles).
+- Letters typed right after ⌘T or ⌘K go into the search, even when you start typing instantly.
+
+### Berean Chat
+
+- A message's "…" menu is more compact, with shorter labels: Ask Berean, Edit, Delete.
+
+### iPhone
+
+- Scrolling Scripture no longer freezes when you change direction mid-drag.
+- The passage title now morphs into the pill at the Dynamic Island or notch as you read down, and
+  back again as you scroll up.
+- The reading controls move together on one smooth motion, and they no longer flip back and forth
+  when you scroll up and down a few lines to re-read, or when you bounce at the end of a chapter.
+- The top of the screen no longer shows a dark haze around the passage pill.
+
 ## [0.8.0] - 2026-10-19
 
 ### Berean Chat

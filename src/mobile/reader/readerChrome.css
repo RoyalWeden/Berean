@@ -10,7 +10,7 @@
 /* TEST 2026-10-03 ("the top has a background that makes things not look floating"): no opaque slab.
    A soft scrim in the page colour — strongest behind the clock / island, clear just below — keeps
    the status bar legible while the text visibly passes beneath the floating controls. */
-.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--m-safe-top) + 34px); z-index: 6; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+.mobile-compact-band { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--m-safe-top) + 34px); z-index: 6; opacity: 0; pointer-events: none; transition: opacity var(--m-chrome-dur) var(--m-chrome-ease);
   background: linear-gradient(to bottom,
     rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.97) 0,
     rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.97) calc(var(--m-safe-top) - 12px),
@@ -18,26 +18,63 @@
     rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0) 100%); }
 html[data-cutout="none"] .mobile-compact-band { height: calc(var(--m-safe-top) + 36px); }
 .mobile-compact-band.is-visible { opacity: 1; }
-.mobile-compact-pill { position: fixed; left: 50%; z-index: 7; display: flex; align-items: flex-end; justify-content: center; border: 0; padding: 0 14px 5px; background: #000; color: #fff;
-  font: inherit; font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25)); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
-  transform: translate(-50%, -8px) scaleY(0.6); opacity: 0; pointer-events: none; transform-origin: top center; transition: transform 0.22s ease, opacity 0.18s ease; }
-.mobile-compact-pill.is-visible { transform: translate(-50%, 0) scaleY(1); opacity: 1; pointer-events: auto; }
+/* The pill MORPHS from the passage capsule (TEST 2026-10-19): hidden, it has the capsule's place,
+   size, font and glass tint (--pill-from-*, measured by CompactPassageHeader); shown, it is the
+   black shape joined to the island / notch (--pill-to-*). Every property between the two moves on
+   the chrome's one curve. Opacity is asymmetric so the shape never thins out mid-morph: the native
+   capsule is drawn ABOVE the web view, so going down the pill turns solid first and the capsule
+   fades off it; coming back the capsule turns solid first and the pill fades out under it. */
+.mobile-compact-pill { position: fixed; left: 50%; z-index: 7; display: flex; align-items: flex-end; justify-content: center; box-sizing: border-box; border: 0; margin: 0;
+  font: inherit; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap;
+  top: var(--pill-from-top, calc(var(--m-safe-top) + 4px)); height: var(--pill-from-h, var(--m-control)); min-width: var(--pill-from-w, 150px);
+  border-radius: calc(var(--pill-from-h, var(--m-control)) / 2);
+  padding: 0 14px calc((var(--pill-from-h, var(--m-control)) - 1.25em) / 2);
+  font-size: var(--pill-from-fs, calc(16px * var(--m-type-scale, 1)));
+  background-color: var(--glass-regular-bg, rgb(var(--color-surface-2) / 0.7)); color: rgb(var(--color-text-primary));
+  transform: translateX(-50%); opacity: 0; pointer-events: none;
+  transition: top var(--m-chrome-dur) var(--m-chrome-ease), height var(--m-chrome-dur) var(--m-chrome-ease),
+    min-width var(--m-chrome-dur) var(--m-chrome-ease), border-radius var(--m-chrome-dur) var(--m-chrome-ease),
+    padding var(--m-chrome-dur) var(--m-chrome-ease), font-size var(--m-chrome-dur) var(--m-chrome-ease),
+    background-color var(--m-chrome-dur) var(--m-chrome-ease), color var(--m-chrome-dur) var(--m-chrome-ease),
+    opacity 0.2s linear 0.12s; }
+html.scheme-dark .mobile-compact-pill { background-color: rgb(var(--color-surface-3) / 0.55); }
 /* Dynamic Island: starts at the island top edge with fully round ends (the island is a capsule; SEP24-005). */
-.mobile-compact-pill.is-island { top: 11px; min-width: 126px; height: calc(var(--m-safe-top) - 11px + 20px); border-radius: 999px; }
+.mobile-compact-pill.is-island { --pill-to-top: 11px; --pill-to-h: calc(var(--m-safe-top) - 11px + 20px); --pill-to-w: 126px; --pill-to-radius: calc(var(--pill-to-h) / 2); --pill-to-pad: 5px; }
 /* Notch: attached to the top edge like the notch, rounded only at the bottom. */
-.mobile-compact-pill.is-notch { top: 0; min-width: 164px; height: calc(var(--m-safe-top) + 18px); border-radius: 0 0 32px 32px; }
+.mobile-compact-pill.is-notch { --pill-to-top: 0px; --pill-to-h: calc(var(--m-safe-top) + 18px); --pill-to-w: 164px; --pill-to-radius: 0 0 32px 32px; --pill-to-pad: 5px; }
 /* Home-button iPhones: a small pill just under the status bar. */
-.mobile-compact-pill.is-none { top: calc(var(--m-safe-top) + 2px); height: 24px; padding-bottom: 0; align-items: center; border-radius: 12px; }
+.mobile-compact-pill.is-none { --pill-to-top: calc(var(--m-safe-top) + 2px); --pill-to-h: 24px; --pill-to-w: 126px; --pill-to-radius: 12px; --pill-to-pad: calc((24px - 1.25em) / 2); }
+.mobile-compact-pill.is-visible, .mobile-compact-pill.is-measure {
+  top: var(--pill-to-top); height: var(--pill-to-h); min-width: var(--pill-to-w); border-radius: var(--pill-to-radius);
+  padding: 0 14px var(--pill-to-pad); font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25));
+  background-color: #000; color: #fff; }
+.mobile-compact-pill.is-visible { opacity: 1; pointer-events: auto;
+  transition: top var(--m-chrome-dur) var(--m-chrome-ease), height var(--m-chrome-dur) var(--m-chrome-ease),
+    min-width var(--m-chrome-dur) var(--m-chrome-ease), border-radius var(--m-chrome-dur) var(--m-chrome-ease),
+    padding var(--m-chrome-dur) var(--m-chrome-ease), font-size var(--m-chrome-dur) var(--m-chrome-ease),
+    background-color var(--m-chrome-dur) var(--m-chrome-ease), color var(--m-chrome-dur) var(--m-chrome-ease),
+    opacity 0.14s linear; }
+.mobile-compact-pill.is-measure { visibility: hidden; opacity: 0; pointer-events: none; transition: none; }
 .mobile-compact-pill-badge { margin-left: 6px; font-size: 0.85em; opacity: 0.75; }
-.mobile-compact-pill-text { display: inline-flex; align-items: baseline; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
-@media (prefers-reduced-motion: reduce) { .mobile-compact-pill, .mobile-compact-band { transition: opacity 0.1s linear; } }
+.mobile-compact-pill-text { display: inline-flex; align-items: baseline; max-width: 70vw; overflow: hidden; text-overflow: ellipsis;
+  /* The label swaps faster than the shape moves: the capsule's own label (native, centred) and the
+     pill's (bottom-aligned) never both show mid-morph as a doubled "Genesis 18". */
+  opacity: 0; transition: opacity 0.08s linear; }
+.mobile-compact-pill.is-visible .mobile-compact-pill-text { opacity: 1; transition: opacity 0.14s linear 0.1s; }
+/* Reduced motion: no morph — the pill keeps its resting shape and simply cross-fades. */
+@media (prefers-reduced-motion: reduce) {
+  .mobile-compact-pill { top: var(--pill-to-top); height: var(--pill-to-h); min-width: var(--pill-to-w); border-radius: var(--pill-to-radius);
+    padding: 0 14px var(--pill-to-pad); font-size: calc(12.5px * min(var(--m-type-scale, 1), 1.25)); background-color: #000; color: #fff; }
+  .mobile-compact-pill, .mobile-compact-pill.is-visible, .mobile-compact-band { transition: opacity 0.12s linear; }
+  .mobile-compact-pill-text, .mobile-compact-pill.is-visible .mobile-compact-pill-text { transition: none; }
+}
 
 /* ── bottom controls (NEW-006 / NEW-012) ────────────────────────────────
    Padding inside the home-indicator inset instead of on top of it: the controls end 12 px above
    the inset's inner edge (the indicator itself sits in its lowest ~13 px), keeping clear of the
    system gesture. On the reader the bar overlays the text and slides away while reading down. */
 /* Same curve as the header and the native glass cluster (BereanGlassPlugin.applyCollapse). */
-.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.mobile-bottom-nav { padding: 6px 18px max(6px, calc(var(--m-safe-bottom) - 12px)); transition: transform var(--m-chrome-dur) var(--m-chrome-ease); }
 .mobile-root.has-overlay-nav .mobile-bottom-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; }
 .mobile-root.has-overlay-nav.is-nav-collapsed .mobile-bottom-nav { transform: translateY(calc(100% + 2px)); }
 @media (prefers-reduced-motion: reduce) { .mobile-bottom-nav { transition: none; } }
@@ -104,9 +141,14 @@ html[data-contrast="more"] [data-verse-badge][data-marks~="tag"]:not([aria-press
     rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.55) calc(var(--m-safe-top) + var(--m-header-h) * 0.8),
     rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0) calc(var(--m-safe-top) + var(--m-header-h) + 6px));
   -webkit-backdrop-filter: none; backdrop-filter: none;
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity var(--m-chrome-dur) var(--m-chrome-ease), transform var(--m-chrome-dur) var(--m-chrome-ease);
 }
-.mobile-page.is-scripture-chrome.is-header-hidden > .mobile-page-header { transform: translateY(-100%); }
+/* Hidden = faded with a small lift, not slid a whole header height off the screen (TEST 2026-10-19):
+   the passage capsule is not carried away with it — it morphs into the island pill — and a
+   fading band reads far calmer than a 100 px slab sweeping up and down on every reversal. Nothing
+   in it takes touches while it is away. */
+.mobile-page.is-scripture-chrome.is-header-hidden > .mobile-page-header { opacity: 0; transform: translateY(-10px); }
+.mobile-page.is-scripture-chrome.is-header-hidden > .mobile-page-header * { pointer-events: none !important; }
 .mobile-page.is-scripture-chrome .mobile-page-header-row > *, .mobile-page.is-scripture-chrome .mobile-page-header > :not(.mobile-page-header-row) { pointer-events: auto; }
 .mobile-page.is-scripture-chrome .mobile-title-button,
 .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
@@ -138,7 +180,10 @@ html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-title-button
 html[data-contrast="more"] .mobile-page.is-scripture-chrome .mobile-page-header .mobile-icon-tap {
   background: rgb(var(--color-surface-2) / 0.97); border-color: rgb(var(--color-text-muted) / 0.7);
 }
-@media (prefers-reduced-motion: reduce) { .mobile-page.is-scripture-chrome > .mobile-page-header { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .mobile-page.is-scripture-chrome > .mobile-page-header { transition: opacity 0.12s linear; }
+  .mobile-page.is-scripture-chrome.is-header-hidden > .mobile-page-header { transform: none; }
+}
 
 /* Compare under the same chrome: column labels as small glass chips, columns start below them. */
 .mobile-page.is-compare { --m-compare-top: calc(var(--m-reader-top) + 26px); }

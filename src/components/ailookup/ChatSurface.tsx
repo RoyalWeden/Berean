@@ -268,7 +268,7 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, {
           </div>
           <VerseCopyMenu target={verseCopy.target} onClose={verseCopy.close} />
           {/* Right-click on a message: every action it has, Messages-style. */}
-          <msgMenu.Menu label="Message actions" className="min-w-[200px]">
+          <msgMenu.Menu label="Message actions" className="!min-w-[140px]">
             {({ m, chatId, more }) => {
               const editable = !!chatId && (m.kind === 'note' || (m.kind === 'ai-request' && c.ai.available))
               const askable = m.kind === 'note' && c.ai.available
@@ -277,10 +277,10 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, {
                   {/* "…" beside the message leaves out Reply / Copy — they are buttons right there. */}
                   {!more && chatId && <MenuItem icon={CornerUpLeft} label="Reply" onClick={() => rowActions.startReply!(m, chatId)} />}
                   {!more && <MenuItem icon={Copy} label="Copy" onClick={() => { void navigator.clipboard.writeText(m.content || m.summary || '').catch(() => {}) }} />}
-                  {askable && <MenuItem icon={Sparkles} label="Ask Berean About This" onClick={() => rowActions.askAbout!(m)} />}
+                  {askable && <MenuItem icon={Sparkles} label="Ask Berean" onClick={() => rowActions.askAbout!(m)} />}
                   {editable && <MenuItem icon={Pencil} label={m.kind === 'ai-request' ? 'Edit and Ask Again' : 'Edit'} onClick={() => rowActions.startEdit!(m, chatId)} />}
                   {(!more || askable || editable) && <MenuSeparator />}
-                  <MenuItem icon={Trash2} label="Delete…" danger onClick={() => setConfirmDelete({ id: m.id, chatId })} />
+                  <MenuItem icon={Trash2} label="Delete" danger onClick={() => setConfirmDelete({ id: m.id, chatId })} />
                 </>
               )
             }}

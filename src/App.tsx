@@ -1,4 +1,4 @@
-import { typeToFindAction } from '@/lib/findHandoff'
+import { handleTypeToFindKey } from '@/lib/findHandoff'
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, lazy, Suspense } from 'react'
 import { perfMark } from '@/lib/perfMarks'
 import { applySyncInvalidation } from '@/lib/syncInvalidation'
@@ -946,25 +946,16 @@ export default function App() {
           setActiveSpace(space)
         }
       } else if (!cmd && !e.ctrlKey && !e.altKey && !e.metaKey && !e.isComposing) {
-        // ── Type-anywhere → auto-open find bar (decision: lib/findHandoff.ts) ─────────
-        const st = useAppStore.getState()
-        const action = typeToFindAction(e.key, {
-          typing: isTypingTarget(document.activeElement),
-          findOpen: st.findBarOpen, autoOpen: st.findBarAutoOpen, query: st.findBarQuery, panel: st.activePanelId,
+        // ── Type-anywhere → auto-open find bar (lib/findHandoff.ts handleTypeToFindKey) ──
+        handleTypeToFindKey(e, {
+          isTypingTarget,
+          restartDismiss: () => {
+            if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
+            autoOpenDismissRef.current = setTimeout(() => {
+              if (findBarAutoOpenRef.current) closeFindBar()
+            }, 3500)
+          },
         })
-        const restartDismiss = () => {
-          if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
-          autoOpenDismissRef.current = setTimeout(() => {
-            if (findBarAutoOpenRef.current) closeFindBar()
-          }, 3500)
-        }
-        if (action?.kind === 'verse-digit') window.dispatchEvent(new CustomEvent('berean:verseDigit', { detail: { digit: action.digit } }))
-        else if (action?.kind === 'open') { openFindBar(true, action.seed); restartDismiss() }
-        else if (action?.kind === 'append') { setFindBarQuery(action.query); restartDismiss() }
-        else if (action?.kind === 'keep-alive') restartDismiss()
-        else if (action?.kind === 'panel') {
-          window.dispatchEvent(new CustomEvent(action.panel === 'notes' ? 'berean:openNotesFindBar' : 'berean:openLexiconFindBar', { detail: { seedChar: action.seed } }))
-        }
       }
     }
 

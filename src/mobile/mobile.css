@@ -14,6 +14,13 @@
   --m-control: 44px;
   --m-edge: 12px;           /* screen-edge inset of floating controls */
   --m-radius: 14px;
+  /* ONE motion for the reader chrome (TEST 2026-10-19 "it flickers too much"): the header, the
+     island pill, the bottom controls, the floating switcher, the soft edge and their native glass
+     twins (BereanGlassPlugin.applyCollapse uses the same numbers) all move on this duration and
+     curve — a quick start and a long, soft settle, so a reversal mid-way glides back instead of
+     jerking. They used to mix 0.16 / 0.2 / 0.24 s and three curves. */
+  --m-chrome-dur: 0.34s;
+  --m-chrome-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 html[data-platform="ios"], html[data-platform="ios"] body {
@@ -834,14 +841,29 @@ html[data-contrast="more"] .mobile-search-row { box-shadow: 0 0 0 1px var(--m-ha
 /* Soft scroll edge (iOS 26): content passing under the floating bottom controls fades softly into
    the page instead of running hard into them — a legibility boundary for the controls, not a
    decoration. Only while those controls are showing (not when they have slid away). */
-.mobile-root.has-overlay-nav:not(.is-nav-collapsed) .mobile-reader-scroll,
-.mobile-root.has-overlay-nav:not(.is-nav-collapsed) .mobile-page-body {
+/* Only a page body that scrolls ITSELF: a static body (`.is-static` — Reader, Compare, Chat, the
+   note editor, Study Trail) holds its own scrollers, and a mask toggled on it rebuilds THEIR native
+   scroll layers mid-drag too (see .mobile-reader-soft-edge below). */
+.mobile-root.has-overlay-nav:not(.is-nav-collapsed) .mobile-page-body:not(.is-static) {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--m-soft-edge, 112px)), rgb(0 0 0 / 0.18) 100%);
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--m-soft-edge, 112px)), rgb(0 0 0 / 0.18) 100%);
 }
 :root { --m-soft-edge: calc(72px + var(--m-safe-bottom, 0px)); }
-html[data-reduce-transparency] .mobile-root.has-overlay-nav .mobile-reader-scroll,
 html[data-reduce-transparency] .mobile-root.has-overlay-nav .mobile-page-body { -webkit-mask-image: none; mask-image: none; }
+/* The Scripture reader's soft edge is a separate, non-scrolling overlay in the page colour — never a
+   mask on the scroller. Adding / removing (or even changing) a mask on a scrolling element makes
+   WebKit rebuild its native scroll layer, which drops the finger's active drag: the reader froze
+   mid-drag exactly when the bars came back on a change of direction, until the finger was lifted
+   (reproduced in the simulator 2026-10-19; scrolling followed every reversal once the mask stopped
+   toggling). The overlay fades with the bottom controls instead of switching abruptly. */
+.mobile-reader-soft-edge {
+  position: absolute; left: 0; right: 0; bottom: 0; height: var(--m-soft-edge, 112px); z-index: 4; pointer-events: none;
+  background: linear-gradient(to bottom, rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0), rgb(var(--scripture-bg-rgb, var(--color-surface-1)) / 0.82));
+  opacity: 0; transition: opacity var(--m-chrome-dur) var(--m-chrome-ease);
+}
+.mobile-root.has-overlay-nav:not(.is-nav-collapsed) .mobile-reader-soft-edge { opacity: 1; }
+html[data-reduce-transparency] .mobile-reader-soft-edge { display: none; }
+@media (prefers-reduced-motion: reduce) { .mobile-reader-soft-edge { transition: none; } }
 
 /* ── ONE interactive Liquid Glass recipe for the floating control layer (TEST 2026-10-06) ─────────
    Root cause of "the button stops looking glassy when I press it": each floating control had its

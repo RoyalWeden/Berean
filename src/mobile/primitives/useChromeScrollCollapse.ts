@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { chromeState } from '../navigation/chromeState'
-import { stepHideOnScroll } from '../reader/useHideOnScroll'
+import { stepHideOnScroll, type HideOnScrollState } from '../reader/useHideOnScroll'
 
 /**
  * Bottom controls hide while scrolling DOWN on every page, return on scrolling up (TEST25-NAV-010)
@@ -9,7 +9,7 @@ import { stepHideOnScroll } from '../reader/useHideOnScroll'
  * inside sheets never count. `resetKey` (space / tab) brings the controls back.
  */
 export function useChromeScrollCollapse(rootRef: React.RefObject<HTMLElement>, resetKey: string): void {
-  const st = useRef({ hidden: false, acc: 0 })
+  const st = useRef<HideOnScrollState>({ hidden: false, acc: 0 })
   const lastTop = useRef(new WeakMap<EventTarget, number>())
   useEffect(() => { st.current = { hidden: false, acc: 0 }; chromeState.set({ pageCollapsed: false }) }, [resetKey])
   useEffect(() => {

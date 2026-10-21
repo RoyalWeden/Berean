@@ -238,7 +238,7 @@ const clusterOwners = new Map<string, symbol>()
 export function useLiquidGlassControls(
   clusterId: string,
   items: LiquidGlassControlDef[],
-  opts: { role: LiquidGlassOptions['role']; visible?: boolean; collapsed?: boolean; collapseEdge?: 'top' | 'bottom'; spacing?: number; appearance?: 'light' | 'dark' | null; accent?: string | null; onSwipe?: (dir: 'next' | 'previous') => void },
+  opts: { role: LiquidGlassOptions['role']; visible?: boolean; collapsed?: boolean; collapseEdge?: 'top' | 'bottom'; collapseInto?: RefObject<HTMLElement | null>; spacing?: number; appearance?: 'light' | 'dark' | null; accent?: string | null; onSwipe?: (dir: 'next' | 'previous') => void },
 ): { native: boolean; isNative: (id: string) => boolean } {
   const caps = useLiquidGlassCapabilities()
   const adapter = caps.native ? liquidGlassAdapter() : null
@@ -339,7 +339,11 @@ export function useLiquidGlassControls(
       return { id: it.id, symbol: it.symbol, label: it.label, badge: it.badge, title: it.title, subtitle: it.subtitle, fontSize, paddingX, prominent: it.prominent, iconSize: it.iconSize, rect: rect ?? { x: 0, y: 0, width: 0, height: 0 }, hidden: hidden || !rect }
     })
     const visible = o.visible !== false && specItems.some((i) => !i.hidden || collapsed)
-    const spec = { id: clusterId, role: o.role ?? 'navigation', items: specItems, spacing: o.spacing ?? liquidGlassTokens('ios').groupSpacing, visible, collapsed, collapseEdge: o.collapseEdge ?? 'bottom', appearance: o.appearance !== undefined ? o.appearance : themeAppearance(), accent: o.accent !== undefined ? o.accent : themeAccent() }
+    // Morph target (the compact pill's resting shape): measured from a layout-only element, so it
+    // is the same rect whether or not the pill is currently shown.
+    const into = o.collapseInto?.current?.getBoundingClientRect()
+    const collapseRect = into && into.width > 0 && into.height > 0 ? { x: Math.round(into.left), y: Math.round(into.top), width: Math.round(into.width), height: Math.round(into.height) } : undefined
+    const spec = { id: clusterId, role: o.role ?? 'navigation', items: specItems, spacing: o.spacing ?? liquidGlassTokens('ios').groupSpacing, visible, collapsed, collapseEdge: o.collapseEdge ?? 'bottom', collapseRect, appearance: o.appearance !== undefined ? o.appearance : themeAppearance(), accent: o.accent !== undefined ? o.accent : themeAccent() }
     // While collapsed the native cluster slides away by itself and the placeholders are off screen
     // anyway, so they stay "native" (no web flash during the slide).
     const shownIds = specItems.filter((i) => visible && (collapsed || !i.hidden)).map((i) => i.id)

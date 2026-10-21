@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCaretCommands } from '../commands/caretRegistry'
 import { ArrowLeftRight, ArrowUpDown, BookOpen, ChevronLeft, ChevronRight, Hash, X } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -240,15 +240,18 @@ export function ComparePage({ tab }: { tab: Tab }) {
   const compareRef = useRef<HTMLDivElement>(null)
   const headerHidden = useHideOnScroll(compareRef, { frozen: sheets.currentId != null, forceShown: sheets.currentId === 'caret', resetKey: `${lead.bookId}:${lead.chapter}:${tab.id}` })
   useEffect(() => { chromeState.set({ overlay: true }); return () => chromeState.set({ overlay: false, collapsed: false }) }, [])
-  useEffect(() => { chromeState.set({ collapsed: headerHidden }) }, [headerHidden])
+  // In the same commit as the header (a layout effect, not a passive one): the bottom controls, the
+  // tab switcher and the pill start moving on the same frame as the header instead of one later.
+  useLayoutEffect(() => { chromeState.set({ collapsed: headerHidden }) }, [headerHidden])
 
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const displayBook = leadBook?.name ?? bookName(lead.bookId)
   const title = `${displayBook} ${lead.chapter}`
+  const titleRef = useRef<HTMLButtonElement>(null)
   return (
     <Page noScroll
       className={`is-compare is-scripture-chrome${headerHidden ? ' is-header-hidden' : ''}`}
-      title={<button type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Choose passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
+      title={<button ref={titleRef} type="button" className="mobile-title-button" onClick={openReference} aria-label={`${title}. Choose passage`}><BookOpen size={16} aria-hidden /> {title}</button>}
       left={<IconTap icon={ChevronLeft} label="Previous chapter" disabled={prev == null} onClick={() => { if (prev != null) { void haptic.selection(); goTo(lead.bookId, prev) } }} />}
       right={<IconTap icon={ChevronRight} label="Next chapter" disabled={next == null} onClick={() => { if (next != null) { void haptic.selection(); goTo(lead.bookId, next) } }} />}
       headerBelow={pair ? (
@@ -261,7 +264,7 @@ export function ComparePage({ tab }: { tab: Tab }) {
     >
       {/* VerseRow's Strong's chips need a Tooltip provider — ChapterView supplies one per chapter;
           these columns render VerseRow directly. */}
-      <CompactPassageHeader label={title} visible={headerHidden} onOpen={openReference} />
+      <CompactPassageHeader label={title} visible={headerHidden} onOpen={openReference} fromRef={titleRef} />
       <RadixTooltip.Provider delayDuration={200} skipDelayDuration={500}>
       <VerseInteractionContext.Provider value={verseInteraction}>
         <div className="m-compare" ref={compareRef}>
@@ -303,6 +306,8 @@ export function ComparePage({ tab }: { tab: Tab }) {
               })}
             </div>
           )}
+          {/* Soft scroll edge as an overlay, never a mask on the scrollers (mobile.css). */}
+          <div className="mobile-reader-soft-edge" aria-hidden />
           <SelectionBar tabId={tab.id} onOpenNote={openNoteInNotesSpace} />
         </div>
       </VerseInteractionContext.Provider>

@@ -104,7 +104,7 @@ describe('Berean Chat window (StrictMode)', () => {
     act(() => h.querySelector<HTMLButtonElement>('[data-message-id="n1"] button[aria-label="More Actions"]')!.click())
     const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role^="menuitem"]')]
     expect(items.map((b) => b.textContent)).not.toContain('Reply')
-    expect(items.map((b) => b.textContent)).toContain('Delete…')
+    expect(items.map((b) => b.textContent)).toContain('Delete')
     const edit = items.find((b) => b.textContent === 'Edit')!
     act(() => edit.click())
     await settle()
