@@ -15,6 +15,12 @@ class BereanBridgeViewController: CAPBridgeViewController {
         webView?.isOpaque = false
         webView?.backgroundColor = .systemBackground
         webView?.scrollView.backgroundColor = .systemBackground
+        // No system scroll-edge blur under the status bar (iOS 26): it smeared the compact passage
+        // pill at the Dynamic Island into a dark haze (simulator, 2026-10-19). The page draws its own
+        // status-bar band in the Scripture colour (readerChrome.css .mobile-compact-band).
+        if #available(iOS 26.0, *) {
+            webView?.scrollView.topEdgeEffect.isHidden = true
+        }
         bridge?.registerPluginInstance(BereanSQLitePlugin())
         bridge?.registerPluginInstance(BereanCloudPlugin())
         bridge?.registerPluginInstance(BereanAudioPlugin())

@@ -112,6 +112,10 @@ export interface LiquidGlassControlsSpec {
   collapsed?: boolean
   /** Which screen edge a collapsed cluster slides off toward (default 'bottom'). */
   collapseEdge?: 'top' | 'bottom'
+  /** Collapse by MORPHING into this rect (page coordinates) instead of sliding off the edge: the
+   *  cluster's control shrinks / moves into it and fades out (the reader's passage capsule turning
+   *  into the compact pill at the Dynamic Island / notch). */
+  collapseRect?: LiquidGlassRect
   appearance?: 'light' | 'dark' | null
   /** Accent colour for prominent items (#rrggbb). */
   accent?: string | null

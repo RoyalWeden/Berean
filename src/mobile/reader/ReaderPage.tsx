@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChapterNotesView, useChapterNotes } from '../study/ChapterNotesView'
 import { CaretCrossRefs } from '../study/CrossRefsSheet'
 import { isEditingInSheet } from './sheetEditingGuards'
@@ -285,7 +285,9 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   // The bottom controls overlay the reader and collapse with the header (NEW-012); a sheet being
   // open keeps them as they are (the hook is frozen then).
   useEffect(() => { chromeState.set({ overlay: true }); return () => chromeState.set({ overlay: false, collapsed: false }) }, [])
-  useEffect(() => { chromeState.set({ collapsed: headerHidden }) }, [headerHidden])
+  // In the same commit as the header (a layout effect, not a passive one): the bottom controls, the
+  // tab switcher and the pill start moving on the same frame as the header instead of one later.
+  useLayoutEffect(() => { chromeState.set({ collapsed: headerHidden }) }, [headerHidden])
 
   // ── per-tab scroll memory (device-local; scroll-state audit) ───────────────────────────
   // The position is a verse anchor, so it survives a translation switch and a paged ⇄ continuous
@@ -322,11 +324,14 @@ export function ReaderPage({ tab }: { tab: Tab }) {
   // The passage title as a native Liquid Glass capsule over the text (docs/liquid-glass.md §iOS);
   // the web button stays as its placeholder and fallback.
   const titleRef = useRef<HTMLButtonElement>(null)
+  // The compact pill's resting shape: the capsule morphs into it (and back) instead of sliding away.
+  const pillTargetRef = useRef<HTMLSpanElement>(null)
   const titleGlass = useLiquidGlassControls('reader-title', [
     { id: 'title', ref: titleRef, symbol: 'book', title, subtitle: textId === 'lxx' ? 'LXX' : undefined, label: `${title}, ${translationShortLabel(textId)}. Go to a passage`, iconSize: 17, onPress: openReference },
-  // Collapses with the page header (slides up with it), so hiding the header on scroll never drops
-  // the native title and rebuilds it with a web → native hand-off when it comes back (G-04).
-  ], { role: 'toolbar', collapsed: headerHidden, collapseEdge: 'top' })
+  // Collapses with the page header — by morphing into the compact pill at the island / notch — so
+  // hiding the header on scroll never drops the native title and rebuilds it with a web → native
+  // hand-off when it comes back (G-04).
+  ], { role: 'toolbar', collapsed: headerHidden, collapseEdge: 'top', collapseInto: pillTargetRef })
 
   return (
     <Page
@@ -338,7 +343,7 @@ export function ReaderPage({ tab }: { tab: Tab }) {
       // caret's All Translations shows the current text.
       title={<button ref={titleRef} type="button" className={`mobile-title-button${titleGlass.isNative('title') ? ' is-native-glass' : ''}`} onClick={openReference} aria-label={`${title}, ${translationShortLabel(textId)}. Go to a passage`} aria-hidden={titleGlass.isNative('title') || undefined}><BookOpen size={16} aria-hidden /> {title}{textId === 'lxx' && <span className="mobile-title-sub">LXX</span>}</button>}
     >
-      <CompactPassageHeader label={title} badge={textId === 'lxx' ? 'LXX' : null} visible={headerHidden} onOpen={openReference} />
+      <CompactPassageHeader label={title} badge={textId === 'lxx' ? 'LXX' : null} visible={headerHidden} onOpen={openReference} fromRef={titleRef} targetRef={pillTargetRef} />
       <VerseInteractionContext.Provider value={verseInteraction}>
       <div className="mobile-reader" ref={readerRef} {...pinch.handlers}>
         {continuous ? (
@@ -382,6 +387,9 @@ export function ReaderPage({ tab }: { tab: Tab }) {
             pager. Thin strips, so text selection and the verse tap zone are unaffected. */}
         <button type="button" className="mobile-reader-edge is-left" aria-label={neighbours.prev ? `Previous chapter, ${bookName(neighbours.prev.bookId)} ${displayChapter(neighbours.prev.bookId, neighbours.prev.chapter)}` : 'No previous chapter'} onClick={() => goNeighbour('prev')} />
         <button type="button" className="mobile-reader-edge is-right" aria-label={neighbours.next ? `Next chapter, ${bookName(neighbours.next.bookId)} ${displayChapter(neighbours.next.bookId, neighbours.next.chapter)}` : 'No next chapter'} onClick={() => goNeighbour('next')} />
+        {/* Soft scroll edge above the bottom controls (mobile.css): an overlay, never a mask on the
+            scroller — a mask change mid-drag froze the drag. */}
+        <div className="mobile-reader-soft-edge" aria-hidden />
         {pinch.badge && <div className="mobile-pinch-badge" aria-live="polite">{pinch.badge}</div>}
         {find.open && (
           <FindOnPageBar textId={textId} bookId={state.bookId} chapters={chapterCount} query={find.query}

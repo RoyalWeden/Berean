@@ -64,6 +64,11 @@ public class BereanGlassPlugin: CAPPlugin, CAPBridgedPlugin {
         let visible = call.getBool("visible") ?? true
         let collapsed = call.getBool("collapsed") ?? false
         let collapseToTop = call.getString("collapseEdge") == "top"
+        var collapseRect: CGRect?
+        if let r = call.getObject("collapseRect"), let x = r["x"] as? Double, let y = r["y"] as? Double,
+           let w = r["width"] as? Double, let h = r["height"] as? Double, w > 0, h > 0 {
+            collapseRect = CGRect(x: x, y: y, width: w, height: h)
+        }
         let appearance = call.getString("appearance")
         let accent = Self.color(call.getString("accent"))
         DispatchQueue.main.async {
@@ -81,8 +86,9 @@ public class BereanGlassPlugin: CAPPlugin, CAPBridgedPlugin {
             case "light": cluster.view.overrideUserInterfaceStyle = .light
             default: cluster.view.overrideUserInterfaceStyle = .unspecified
             }
-            cluster.update(items: items, spacing: spacing, accent: accent, web: web, overlay: overlay)
             cluster.collapseToTop = collapseToTop
+            cluster.collapseTarget = collapseRect.map { web.convert($0, to: overlay) }
+            cluster.update(items: items, spacing: spacing, accent: accent, web: web, overlay: overlay)
             cluster.setVisible(visible, collapsed: collapsed)
             call.resolve()
         }
@@ -160,6 +166,11 @@ final class GlassCluster {
     /// Collapsed clusters slide off the bottom edge (the bottom bar) or the top (the reader's title,
     /// which rides with the page header as it slides away).
     var collapseToTop = false
+    /// Collapse by MORPHING into this rect (overlay coordinates) instead of sliding off an edge:
+    /// the reader's passage capsule shrinks and rises into the compact pill at the Dynamic Island /
+    /// notch while it fades, and the web pill grows out of the capsule's shape along the same path
+    /// with the same curve — one shape turning into the other.
+    var collapseTarget: CGRect?
     private var collapseAnimator: UIViewPropertyAnimator?
     /// The cluster's untransformed origin in the overlay (item frames are relative to it).
     private var restingOrigin: CGPoint = .zero
@@ -253,23 +264,44 @@ final class GlassCluster {
         if changed { applyCollapse(animated: true) }
     }
 
+    /// The transform that lays the cluster's (first) control exactly over `target`.
+    private func morphTransform(into target: CGRect) -> CGAffineTransform {
+        let item = items.values.map(\.view.frame).first ?? CGRect(origin: .zero, size: view.bounds.size)
+        guard item.width > 0, item.height > 0 else { return .identity }
+        let sx = target.width / item.width, sy = target.height / item.height
+        // Where the control's centre is with no transform, relative to the cluster's centre (the
+        // transform's anchor), and where it has to end up.
+        let rel = CGPoint(x: item.midX - view.bounds.midX, y: item.midY - view.bounds.midY)
+        let tx = target.midX - view.center.x - sx * rel.x, ty = target.midY - view.center.y - sy * rel.y
+        return CGAffineTransform(translationX: tx, y: ty).scaledBy(x: sx, y: sy)
+    }
+
     private func applyCollapse(animated: Bool) {
         let reduce = UIAccessibility.isReduceMotionEnabled
+        let morph = collapseToTop ? collapseTarget : nil
         let apply = {
-            self.view.alpha = self.visible ? 1 : 0
-            // Collapsed (reading, scrolled down): slides off its edge with the web chrome — below the
-            // bottom edge for the bottom bar, above the top for the header's title.
+            // Morphing: the capsule fades as it turns into the pill. Sliding: stays opaque.
+            self.view.alpha = self.visible && !(self.collapsed && morph != nil) ? 1 : 0
+            // Collapsed (reading, scrolled down): morphs into the compact pill (the reader's title) or
+            // slides off its edge with the web chrome (below the bottom edge for the bottom bar).
             let offTop = -(self.restingOrigin.y + self.view.bounds.height + 40)
-            self.view.transform = self.collapsed ? CGAffineTransform(translationX: 0, y: self.collapseToTop ? offTop : self.view.bounds.height + 40) : .identity
+            if !self.collapsed { self.view.transform = .identity }
+            else if let t = morph, !reduce { self.view.transform = self.morphTransform(into: t) }
+            else if morph != nil { self.view.transform = .identity } // reduced motion: a cross-fade in place
+            else { self.view.transform = CGAffineTransform(translationX: 0, y: self.collapseToTop ? offTop : self.view.bounds.height + 40) }
         }
         view.isUserInteractionEnabled = visible && !collapsed
-        if animated && !reduce {
-            // The web chrome's own curve and duration (readerChrome.css: 0.24s cubic-bezier(0.2, 0.8,
-            // 0.2, 1)), so the native controls and the web header / bar they sit in move as one.
-            // A reversal mid-slide (scroll down, then straight back up) continues from where the
-            // cluster IS: stopping the running animator leaves the view at its on-screen state.
+        if animated && (!reduce || morph != nil) {
+            // The web chrome's own curve and duration (mobile.css --m-chrome-dur / --m-chrome-ease:
+            // 0.34s cubic-bezier(0.32, 0.72, 0, 1)), so the native controls and the web header / bar
+            // / pill move as one. A reversal mid-way (scroll down, then straight back up) continues
+            // from where the cluster IS: stopping the running animator leaves the view where it is.
+            // Reduced motion: the morph becomes a short cross-fade in place; a slide is instant (as the
+            // web bar's is).
             collapseAnimator?.stopAnimation(true)
-            let anim = UIViewPropertyAnimator(duration: 0.24, controlPoint1: CGPoint(x: 0.2, y: 0.8), controlPoint2: CGPoint(x: 0.2, y: 1), animations: apply)
+            let anim = reduce
+                ? UIViewPropertyAnimator(duration: 0.12, curve: .linear, animations: apply)
+                : UIViewPropertyAnimator(duration: 0.34, controlPoint1: CGPoint(x: 0.32, y: 0.72), controlPoint2: CGPoint(x: 0, y: 1), animations: apply)
             collapseAnimator = anim
             anim.startAnimation()
         } else { collapseAnimator?.stopAnimation(true); collapseAnimator = nil; apply() }

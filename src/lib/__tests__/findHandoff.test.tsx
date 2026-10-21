@@ -12,19 +12,16 @@ import { act, useLayoutEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
-import { handOffToScriptureFind, releaseFocusWithin, shouldRestoreFocus, typeToFindAction } from '../findHandoff'
+import { handOffToScriptureFind, handleTypeToFindKey, releaseFocusWithin, shouldRestoreFocus, typeToFindAction } from '../findHandoff'
 
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const isTyping = (el: Element | null) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)
 
-/** App.tsx's global keydown routing, applied exactly as App applies it. */
+/** App.tsx's global keydown routing — the very function App calls. */
 function onWindowKey(e: KeyboardEvent) {
   if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return
-  const st = useAppStore.getState()
-  const a = typeToFindAction(e.key, { typing: isTyping(document.activeElement), findOpen: st.findBarOpen, autoOpen: st.findBarAutoOpen, query: st.findBarQuery, panel: st.activePanelId })
-  if (a?.kind === 'open') st.openFindBar(true, a.seed)
-  else if (a?.kind === 'append') st.setFindBarQuery(a.query)
+  handleTypeToFindKey(e, { isTypingTarget: isTyping, restartDismiss: () => {} })
 }
 
 /** One real keystroke on whatever has focus: keydown, then (unless handled) the character. */
@@ -41,6 +38,27 @@ function press(ch: string) {
   }
 }
 
+/**
+ * A keystroke in the browser's real order: keydown is dispatched, React commits whatever the
+ * handlers changed (a newly opened find bar focuses its field in that commit), and only THEN does
+ * the browser perform the default action — inserting the character into whatever is focused NOW —
+ * unless a handler cancelled it. This is the ordering that typed "gg" for one "g".
+ */
+async function pressRealOrder(ch: string) {
+  const target = (document.activeElement ?? document.body) as HTMLElement
+  const ev = new KeyboardEvent('keydown', { key: ch, bubbles: true, cancelable: true })
+  await act(async () => { target.dispatchEvent(ev) })
+  const now = document.activeElement
+  if (!ev.defaultPrevented && now instanceof HTMLInputElement) {
+    await act(async () => {
+      const at = now.selectionStart ?? now.value.length
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(now, now.value.slice(0, at) + ch + now.value.slice(now.selectionEnd ?? at))
+      now.setSelectionRange(at + 1, at + 1)
+      now.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+}
+
 let endExit: () => void = () => {}
 /** The floating search's lifecycle, as FloatingSearch wires it — including the exit animation
  *  (AnimatePresence + forceMount): after close the content stays mounted, input and all, until
@@ -53,14 +71,16 @@ function SearchOverlay({ onEnter }: { onEnter: () => void }) {
   wasOpen.current = open
   endExit = () => setExiting(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const handedOff = useRef(false)
+  if (open) handedOff.current = false
   useLayoutEffect(() => { if (!open) releaseFocusWithin(contentRef.current) }, [open])
   if (!open && !exiting) return null
   return (
     <Dialog.Root open={open}>
       <Dialog.Portal forceMount>
-        <Dialog.Content forceMount ref={contentRef} aria-describedby={undefined} onCloseAutoFocus={(e) => { if (!shouldRestoreFocus(contentRef.current)) e.preventDefault() }}>
+        <Dialog.Content forceMount ref={contentRef} aria-describedby={undefined} onCloseAutoFocus={(e) => { if (handedOff.current || !shouldRestoreFocus(contentRef.current)) e.preventDefault() }}>
           <Dialog.Title>Search</Dialog.Title>
-          <input aria-label="search" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter() } }} />
+          <input aria-label="search" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handedOff.current = true; onEnter() } }} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -143,12 +163,15 @@ describe('Enter → new Scripture tab → typing', () => {
       expect(useAppStore.getState().searchOpen).toBe(false)
       expect(document.activeElement).not.toBe(search)
       expect(document.activeElement?.getAttribute('aria-label')).not.toBe('notes editor')
-      expect(useAppStore.getState().findBarOpen).toBe(true)
+      // The new tab shows just the chapter: no find bar until a key is typed.
+      expect(useAppStore.getState().findBarOpen).toBe(false)
       expect(useAppStore.getState().activePanelId).toBe('bible')
       // Keys typed while the new chapter is still rendering (FindBar not mounted yet).
       await act(async () => { for (const ch of 'lov') press(ch) })
+      expect(useAppStore.getState().findBarOpen).toBe(true)
       expect(useAppStore.getState().findBarQuery).toBe('lov')
       await act(async () => { endExit() }) // the search's exit animation ends
+      expect(document.activeElement?.getAttribute('aria-label')).not.toBe('notes editor')
       // The chapter finishes; the bar mounts and takes focus with the caret after "lov".
       await act(async () => { setReady(true) })
       await flushFrame()
@@ -166,6 +189,8 @@ describe('Enter → new Scripture tab → typing', () => {
   it('takes focus back on the next frame when a closing overlay dropped it to <body>', async () => {
     await act(async () => { setReady(true) })
     await act(async () => { useAppStore.getState().closeSearch(); handOffToScriptureFind() })
+    window.addEventListener('keydown', onWindowKey)
+    try { await act(async () => { press('g') }) } finally { window.removeEventListener('keydown', onWindowKey) }
     ;(document.activeElement as HTMLElement | null)?.blur() // what Radix's teardown left behind
     await flushFrame()
     expect(document.activeElement).toBe(findInput())
@@ -175,6 +200,9 @@ describe('Enter → new Scripture tab → typing', () => {
     await act(async () => { setReady(true) })
     const notes = document.querySelector<HTMLInputElement>('[aria-label="notes editor"]')!
     await act(async () => { useAppStore.getState().closeSearch(); handOffToScriptureFind() })
+    window.addEventListener('keydown', onWindowKey)
+    try { await act(async () => { press('g') }) } finally { window.removeEventListener('keydown', onWindowKey) }
+    ;(document.activeElement as HTMLElement | null)?.blur()
     notes.focus() // the user clicks into another field before the next frame
     await flushFrame()
     expect(document.activeElement).toBe(notes)
@@ -198,9 +226,106 @@ describe('Enter → new Scripture tab → typing', () => {
 
   it('a second Enter in the bar moves to the next match instead of typing', async () => {
     await act(async () => { setReady(true) })
-    await act(async () => { useAppStore.getState().closeSearch(); handOffToScriptureFind() })
-    await flushFrame()
-    await act(async () => { press('a'); press('Enter'); press('Enter') })
-    expect(findInput()!.value).toBe('a')
+    window.addEventListener('keydown', onWindowKey)
+    try {
+      await act(async () => { useAppStore.getState().closeSearch(); handOffToScriptureFind() })
+      await flushFrame()
+      await act(async () => { press('a') })
+      await act(async () => { press('Enter'); press('Enter') })
+      expect(findInput()!.value).toBe('a')
+    } finally { window.removeEventListener('keydown', onWindowKey) }
+  })
+
+  it('Enter and then nothing typed: the find bar never appears (2026-10-19)', async () => {
+    const opens = { n: 0 }
+    const unsub = useAppStore.subscribe((st, prev) => { if (st.findBarOpen && !prev.findBarOpen) opens.n++ })
+    window.addEventListener('keydown', onWindowKey)
+    try {
+      await act(async () => { for (const ch of 'John 3') press(ch) })
+      await act(async () => { press('Enter') })
+      await act(async () => { endExit() })
+      await act(async () => { setReady(true) })
+      await flushFrame()
+      expect(useAppStore.getState().findBarOpen).toBe(false)
+      expect(findInput()).toBeNull()
+      expect(opens.n).toBe(0)
+      // Focus stays with the reader, not the field the search was opened from.
+      expect(document.activeElement?.getAttribute('aria-label')).not.toBe('notes editor')
+    } finally { window.removeEventListener('keydown', onWindowKey); unsub() }
   })
 })
+
+describe('every keystroke exactly once (2026-10-19: "g" → "gg", find bar opening twice)', () => {
+  /** How many times the bar went from closed to open. */
+  function countOpens() {
+    let n = 0
+    let prev = useAppStore.getState().findBarOpen
+    const unsub = useAppStore.subscribe((st) => { if (st.findBarOpen && !prev) n++; prev = st.findBarOpen })
+    return { get n() { return n }, stop: unsub }
+  }
+
+  it('type-to-find from the reader: the first letter appears once, then each one once', async () => {
+    await act(async () => { useAppStore.getState().closeSearch() })
+    await act(async () => { endExit() })
+    await act(async () => { setReady(true); useAppStore.setState({ activePanelId: 'bible' }) })
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    const opens = countOpens()
+    window.addEventListener('keydown', onWindowKey)
+    try {
+      await pressRealOrder('g')
+      expect(findInput()!.value).toBe('g')
+      expect(document.activeElement).toBe(findInput())
+      for (const ch of 'race') await pressRealOrder(ch)
+      expect(findInput()!.value).toBe('grace')
+      expect(useAppStore.getState().findBarQuery).toBe('grace')
+      expect(opens.n).toBe(1)
+    } finally { window.removeEventListener('keydown', onWindowKey); opens.stop() }
+  })
+
+  it('Enter → the bar opens once; the first key typed as it mounts appears once; rapid typing stays exact', async () => {
+    const opens = countOpens()
+    window.addEventListener('keydown', onWindowKey)
+    try {
+      await act(async () => { for (const ch of 'John 3') press(ch) })
+      await act(async () => { press('Enter') })
+      await act(async () => { endExit() })
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      // The chapter mounts (and the bar with it) inside the first key's event.
+      const target = document.body
+      const ev = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true })
+      await act(async () => { target.dispatchEvent(ev); setReady(true) })
+      expect(ev.defaultPrevented).toBe(true) // the handler applied it: the browser must not type it again
+      const input = findInput()!
+      expect(document.activeElement).toBe(input)
+      expect(input.value).toBe('a')
+      for (const ch of 'mazing grace') await pressRealOrder(ch)
+      expect(input.value).toBe('amazing grace')
+      expect(opens.n).toBe(1)
+      expect(input.value.includes('\n')).toBe(false)
+    } finally { window.removeEventListener('keydown', onWindowKey); opens.stop() }
+  })
+
+  it('while the floating search is open, no letter opens the find bar behind it', async () => {
+    await act(async () => { setReady(true); useAppStore.setState({ activePanelId: 'bible' }) })
+    ;(document.activeElement as HTMLElement | null)?.blur() // the search field has not taken focus yet
+    window.addEventListener('keydown', onWindowKey)
+    try {
+      const ev = new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true })
+      await act(async () => { document.body.dispatchEvent(ev) })
+      expect(useAppStore.getState().findBarOpen).toBe(false)
+      expect(ev.defaultPrevented).toBe(false)
+    } finally { window.removeEventListener('keydown', onWindowKey) }
+  })
+
+  it('typing inside the open bar is left to the field (never applied twice by the global handler)', async () => {
+    await act(async () => { useAppStore.getState().closeSearch(); handOffToScriptureFind() })
+    await act(async () => { endExit(); setReady(true) })
+    await flushFrame()
+    window.addEventListener('keydown', onWindowKey)
+    try {
+      for (const ch of 'love') await pressRealOrder(ch)
+      expect(findInput()!.value).toBe('love')
+    } finally { window.removeEventListener('keydown', onWindowKey) }
+  })
+})
+

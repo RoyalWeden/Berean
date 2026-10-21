@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { resolveDetentHeights, settleDetent } from '../primitives/Sheet'
-import { stepHideOnScroll, HIDE_AFTER_PX } from '../reader/useHideOnScroll'
+import { stepHideOnScroll, hideOnScrollTop, HIDE_AFTER_PX, SHOW_AFTER_PX, SETTLE_FACTOR, type HideOnScrollState } from '../reader/useHideOnScroll'
 import { readerScrollMemory } from '../reader/readerScrollMemory'
 
 describe('sheet detents', () => {
@@ -37,10 +37,41 @@ describe('reader top bar auto-hide (TEST-029)', () => {
     st = stepHideOnScroll(st, 200, 210); expect(st.hidden).toBe(false)       // jitter
     st = stepHideOnScroll(st, 210, 210 + HIDE_AFTER_PX + 5); expect(st.hidden).toBe(true)
   })
+  it('an end-of-chapter rubber-band bounce does not bring the bars back (2026-10-19: max 880 → 914 → 880)', () => {
+    const max = { scrollHeight: 1700, clientHeight: 820 } // scrollable range 0…880
+    const at = (top: number) => hideOnScrollTop(top, max.scrollHeight, max.clientHeight)
+    let st = { hidden: false, acc: 0 }
+    let prev = at(600)
+    for (const top of [700, 820, 880, 900, 914, 905, 890, 880]) { st = stepHideOnScroll(st, prev, at(top)); prev = at(top) }
+    expect(st.hidden).toBe(true) // still reading down: the bounce is not an upward scroll
+    // A real upward scroll afterwards still reveals them.
+    for (const top of [840, 760, 680]) { st = stepHideOnScroll(st, prev, at(top)); prev = at(top) }
+    expect(st.hidden).toBe(false)
+    expect(at(-30)).toBe(0) // the top bounce clamps too
+  })
   it('a small upward scroll reveals it; jitter does not flicker it', () => {
-    let st = { hidden: true, acc: 0 }
+    let st: HideOnScrollState = { hidden: true, acc: 0 }
     st = stepHideOnScroll(st, 500, 495); expect(st.hidden).toBe(true)
-    st = stepHideOnScroll(st, 495, 480); expect(st.hidden).toBe(false)
+    st = stepHideOnScroll(st, 495, 495 - SHOW_AFTER_PX - 2); expect(st.hidden).toBe(false)
+  })
+  it('scrolling up and down a few lines right after the bars moved does not flip them every time (2026-10-19)', () => {
+    let st: HideOnScrollState = { hidden: false, acc: 0 }
+    let top = 400, flips = 0
+    const go = (to: number) => { for (const step of [0.25, 0.5, 0.75, 1]) { const next = top + (to - top) * step; const was = st.hidden; st = stepHideOnScroll(st, top + (to - top) * (step - 0.25), next); if (st.hidden !== was) flips++ } top = to }
+    go(460) // reading down: the bars go away
+    expect(st.hidden).toBe(true)
+    for (let i = 0; i < 4; i++) { go(top - 60); go(top + 60) } // re-reading: ±60 px, four times
+    expect(flips).toBe(1)
+    // A deliberate scroll back up still brings them back, even right after.
+    go(top - SHOW_AFTER_PX * SETTLE_FACTOR - 10)
+    expect(st.hidden).toBe(false)
+  })
+  it('once settled, the usual small travel works again', () => {
+    let st: HideOnScrollState = { hidden: false, acc: 0, anchor: 300 }
+    st = stepHideOnScroll(st, 300, 300 + HIDE_AFTER_PX + 5); expect(st.hidden).toBe(false) // just moved here: needs more
+    st = stepHideOnScroll(st, 345, 600); expect(st.hidden).toBe(true)
+    st = stepHideOnScroll(st, 600, 900) // keeps reading down: settles
+    st = stepHideOnScroll(st, 900, 900 - SHOW_AFTER_PX - 2); expect(st.hidden).toBe(false)
   })
 })
 

@@ -267,12 +267,27 @@ export default function FloatingSearch() {
   // Focus returns to whatever was focused before ⌘K opened it (Spotlight convention) —
   // captured on open, restored on close (only if that element is still attached).
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const skipFocusRestoreRef = useRef(false)
+  // The field takes focus in the same commit that shows it: keys typed right after ⌘T / ⌘K arrive
+  // as separate events after this commit, so they all land in the field. (It used to focus 50 ms
+  // later — every key typed in that gap reached the page instead: type-to-find opened the
+  // Scripture find bar behind the search with that letter, and the search lost it — "mark 2" →
+  // "ark 2", reproduced with real keystrokes 2026-10-19.)
+  useLayoutEffect(() => {
+    if (!searchOpen) return
+    skipFocusRestoreRef.current = false
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
+    const take = () => inputRef.current?.focus({ preventScroll: true })
+    take()
+    if (document.activeElement === inputRef.current) return
+    // Not mounted yet in this commit (the dialog's portal): the next frame, unless focus moved on.
+    const raf = requestAnimationFrame(() => { const a = document.activeElement; if (!a || a === document.body) take() })
+    return () => cancelAnimationFrame(raf)
+  }, [searchOpen])
   useEffect(() => {
     if (searchOpen) {
-      previouslyFocusedRef.current = document.activeElement as HTMLElement | null
       const tid = defaultBibleTranslation.toLowerCase()
       setSearchTextId(tid)
-      setTimeout(() => inputRef.current?.focus(), 50)
     } else {
       setQuery('')
       setVerseResults([])
@@ -771,7 +786,13 @@ export default function FloatingSearch() {
     // "Open in floating tab" (which only closes the source tab, never reassigns activeSpace).
     if (target !== 'floating') setActiveSpace('scripture')
     closeSearch()
-    if (target !== 'floating' && enterHandoffRef.current) handOffToScriptureFind()
+    if (target !== 'floating' && enterHandoffRef.current) {
+      // The keyboard now belongs to the reader (type-to-find): don't put focus back into the
+      // field the search was opened from, neither on close nor when Radix's exit ends.
+      previouslyFocusedRef.current = null
+      skipFocusRestoreRef.current = true
+      handOffToScriptureFind()
+    }
   }
 
   function openLexicon(strongsNum: string, targetOverride?: 'current' | 'new' | 'floating') {
@@ -1369,7 +1390,7 @@ export default function FloatingSearch() {
           asChild
           forceMount
           // Never pull focus back over an element that claimed it meanwhile (the find bar).
-          onCloseAutoFocus={(e) => { if (!shouldRestoreFocus(contentRef.current)) e.preventDefault() }}
+          onCloseAutoFocus={(e) => { if (skipFocusRestoreRef.current || !shouldRestoreFocus(contentRef.current)) e.preventDefault() }}
         >
           <motion.div
             ref={contentRef}
