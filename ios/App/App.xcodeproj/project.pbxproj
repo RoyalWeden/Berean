@@ -220,6 +220,7 @@
 				BE4EA0000000000000000F14 /* Embed Foundation Extensions */,
 				BE4EA00000000000000000D1 /* Copy Bundled Databases */,
 				BE4EA00000000000000000D2 /* Finalize Info.plist */,
+				BE4EA00000000000000000D3 /* Fix Embedded Framework Versions */,
 			);
 			buildRules = (
 			);
@@ -316,6 +317,22 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		BE4EA00000000000000000D3 /* Fix Embedded Framework Versions */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/onnxruntime.framework/Info.plist",
+			);
+			name = "Fix Embedded Framework Versions";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/../../scripts/ios/fix-framework-minos.sh\"\n";
+		};
 		BE4EA0000000000000000F20 /* Berean Dev safety check */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

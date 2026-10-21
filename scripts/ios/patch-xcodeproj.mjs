@@ -23,6 +23,10 @@
  * 11. the BereanWidget WidgetKit extension (ios/App/BereanWidget: "New Message" → Berean Chat),
  *     embedded in the App target like the Share Extension; bundle id `$(BEREAN_BUNDLE_ID).widget`
  *     and URL scheme from the same identity xcconfigs, so Dev and production never cross.
+ * 12. a "Fix Embedded Framework Versions" run-script phase LAST in the App target
+ *     (scripts/ios/fix-framework-minos.sh): an embedded framework's Info.plist MinimumOSVersion is
+ *     made to match its binary (App Store Connect ITMS-90208 rejected 0.8.0 (5) for
+ *     onnxruntime.framework: plist 15.1, binary 17.0).
  *
  * Run: node scripts/ios/patch-xcodeproj.mjs   (also invoked by `npm run ios:sync`)
  */
@@ -44,6 +48,7 @@ const ID = {
   releaseXcconfig: 'BE4EA00000000000000000C2',
   copyDataPhase: 'BE4EA00000000000000000D1',
   finalizePlistPhase: 'BE4EA00000000000000000D2',
+  fixFrameworkMinosPhase: 'BE4EA00000000000000000D3',
   intentsFileRef: 'BE4EA00000000000000000E1',
   intentsBuildFile: 'BE4EA00000000000000000E2',
   // Share Extension target (step 8)
@@ -345,6 +350,15 @@ if (!s.includes(ID.widgetTarget)) {
     `\t\t\t\t${ID.shareEmbedBuildFile} /* ShareExtension.appex in Embed Foundation Extensions */,\n\t\t\t\t${ID.widgetEmbedBuildFile} /* BereanWidget.appex in Embed Foundation Extensions */,\n`)
   replaceOnce(`\t\t\tdependencies = (\n\t\t\t\t${ID.shareDependency} /* PBXTargetDependency */,\n\t\t\t);\n\t\t\tname = App;`,
     `\t\t\tdependencies = (\n\t\t\t\t${ID.shareDependency} /* PBXTargetDependency */,\n\t\t\t\t${ID.widgetDependency} /* PBXTargetDependency */,\n\t\t\t);\n\t\t\tname = App;`)
+}
+
+// 12. Fix Embedded Framework Versions — the LAST App build phase ----------------------------------
+if (!s.includes(ID.fixFrameworkMinosPhase)) {
+  // The embedded onnxruntime.framework's Info.plist as an input orders this phase after Xcode has
+  // embedded the Swift package frameworks (it embeds them without an explicit phase).
+  const phase = `\t\t${ID.fixFrameworkMinosPhase} /* Fix Embedded Framework Versions */ = {\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t\t"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/onnxruntime.framework/Info.plist",\n\t\t\t);\n\t\t\tname = "Fix Embedded Framework Versions";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/bash;\n\t\t\tshellScript = "\\"$SRCROOT/../../scripts/ios/fix-framework-minos.sh\\"\\n";\n\t\t};\n`
+  insertAfter('/* Begin PBXShellScriptBuildPhase section */\n', phase)
+  replaceOnce(`\t\t\t\t${ID.finalizePlistPhase} /* Finalize Info.plist */,\n\t\t\t);`, `\t\t\t\t${ID.finalizePlistPhase} /* Finalize Info.plist */,\n\t\t\t\t${ID.fixFrameworkMinosPhase} /* Fix Embedded Framework Versions */,\n\t\t\t);`)
 }
 
 if (s !== before) {
