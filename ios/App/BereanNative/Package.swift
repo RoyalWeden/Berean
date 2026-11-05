@@ -21,6 +21,8 @@ let package = Package(
             name: "BereanNative",
             dependencies: [
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                // Capacitor's headers import Cordova; the package only builds alone with it listed.
+                .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")
             ],
             path: "Sources/BereanNative",

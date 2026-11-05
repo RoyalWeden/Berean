@@ -100,6 +100,13 @@ echo "  ok    node_modules  (per-package links into main; iOS plugins copied)"
 # Signing (gitignored; DEVELOPMENT_TEAM etc.) — device and archive builds need it.
 link "ios/App/Signing.xcconfig"
 
+# Mac App Store profiles (gitignored) — `build:mas` and `build:mas:dev` need them. Copied, not
+# linked: a signed bundle can't contain a link pointing outside it. For the same reason those two
+# builds need real data/*.db files in a worktree, not the links made below.
+for profile in "$main"/build/*.provisionprofile; do
+  [ -e "$profile" ] && cp -f "$profile" "$here/build/"
+done
+
 # Real YouTube API key (gitignored; youtube-key.example.ts is the only committed one).
 link "electron/youtube-key.ts"
 

@@ -47,11 +47,8 @@ already be implemented. Items below reflect real state, not the original assumpt
 
 ## Open — Phase 1: Native Mac feel
 
-- [ ] **File / Help menus** — currently only Berean (mac)/Edit/View(dev-only)/Window
-      exist (`electron/main.ts:336-427`). No File menu, no Help menu.
-- [ ] **⌘[ / ⌘] accelerators** — `prevChapter`/`nextChapter`/`navBack`/`navForward`
-      actions already exist and are reachable via command palette / mouse buttons
-      (`ShellHeader.tsx:345,364,547-548`), but no keyboard accelerator is wired
+- [x] **File / Help menus** — both exist (`electron/main.ts`).
+- [x] **⌘[ / ⌘] accelerators** — wired in the application menu (`electron/main.ts`).
 - [ ] **AI Lookup floating panel vs. native popover** — already has blur/shadow/resize
       (`src/components/ailookup/AiLookupPanel.tsx`); default anchor position and
       dismiss-on-click-away behavior not yet confirmed against "native popover" feel
