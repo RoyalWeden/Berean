@@ -57,7 +57,7 @@ describe.skipIf(!(kjva && lxx && heb && grk))('answerComparison (real data)', ()
     const r = await modelFreeLookup(s, 'how does the LXX read Isaiah 7:14')
     expect(r.research?.passageComparison?.panes).toHaveLength(2)
     expect(r.summary).toBe('Isaiah 7:14 in KJV and LXX (Brenton)')
-    expect(r.results).toEqual([])
+    expect(r.results.map((v) => v.textId)).toEqual(['kjva', 'lxx'])
     expect(r.research).toEqual(comparisonPayload((await s.research.answerComparison('how does the LXX read Isaiah 7:14'))!))
   })
 

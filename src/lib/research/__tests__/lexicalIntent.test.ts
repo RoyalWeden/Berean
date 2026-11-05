@@ -69,4 +69,10 @@ describe('phrasings found by holdout3 (consumed)', () => {
     expect(detectLexicalIntent('what is koinonia')).toMatchObject({ kind: 'word-study', term: 'koinonia', bare: true })
     expect(kind('what is the sabbath about')).toBeNull()
   })
+
+  it('reads phrasings that used to depend on the model routing them', () => {
+    for (const [q, term] of [['what is the Greek for peace', 'peace'], ['Greek word used for "light" in John 1', 'light'], ["which Hebrew word is 'remember' in Exodus 20:8", 'remember'], ['yeshua as a word', 'yeshua']]) {
+      expect(detectLexicalIntent(q)).toMatchObject({ kind: 'word-study', term })
+    }
+  })
 })

@@ -102,6 +102,12 @@ describe('lookup routing', () => {
     expect(res.results.length).toBeGreaterThan(0)
   })
 
+  it('always includes a chapter the question names', async () => {
+    local.mockResolvedValue({ keywords: ['commentary'], guesses: [] })
+    const res = await runLookup('structured commentary on Psalm 1 with headings', { commentary: false })
+    expect(res.results.some((r) => r.bookId === 'PSA' && r.chapter === 1)).toBe(true)
+  })
+
   it('keeps what it found when cancelled mid-request, and makes no further model calls', async () => {
     const ctrl = new AbortController()
     local.mockImplementationOnce(async () => { ctrl.abort(); throw new Error('This operation was aborted') })

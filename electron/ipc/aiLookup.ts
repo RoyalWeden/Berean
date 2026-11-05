@@ -18,7 +18,7 @@ import { budgetPromptMaterial } from '../tokenBudget'
 import { parseRef, isExactBookToken, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
 import { PSEUDEPIGRAPHA_ARCHAIC_VOCAB } from './archaicVocab'
 import { gatherSemanticCandidates } from './semanticCandidates'
-import { comparisonLabel, comparisonPayload, lexicalPayload } from '../../src/platform/services/researchService'
+import { comparisonLabel, comparisonVerses, comparisonPayload, lexicalPayload } from '../../src/platform/services/researchService'
 import { parseStrongsIds } from '../../src/lib/research/strongsId'
 import { classifyModelError, isRetryable, type ResearchErrorCode } from '../../src/lib/research/errors'
 import { removeNonexistentReferences, nonexistentReferenceNote } from '../../src/lib/research/outputGuard'
@@ -2785,13 +2785,14 @@ function modelIsInstalled(model: string, installed: string[]): boolean {
 function withNamedVerses(question: string, candidates: AiLookupResult[]): AiLookupResult[] {
   const named: AiLookupResult[] = []
   for (const ref of findAllReferencesInText(question).slice(0, 3)) {
-    if (ref.verse == null) continue
-    const covered = candidates.some((c) => c.bookId === ref.bookId && c.chapter === ref.chapter && c.verse <= ref.verse! && (c.endVerse ?? c.verse) >= ref.verse!)
+    // A whole chapter ("commentary on Psalm 1") is covered by anything from it, else its first verse.
+    const verse = ref.verse ?? 1
+    const covered = candidates.some((c) => c.bookId === ref.bookId && c.chapter === ref.chapter && (ref.verse == null || (c.verse <= verse && (c.endVerse ?? c.verse) >= verse)))
     if (covered) continue
     const textId = getTranslationForBook(ref.bookId) ?? DEFAULT_TEXT_ID
-    const row = queryVerse(ref.bookId, ref.chapter, ref.verse, textId)
+    const row = queryVerse(ref.bookId, ref.chapter, verse, textId)
     if (!row) continue
-    named.push({ textId, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, textId), chapter: ref.chapter, verse: ref.verse, text: row.text, source: 'named' })
+    named.push({ textId, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, textId), chapter: ref.chapter, verse, text: row.text, source: 'named' })
   }
   return named.length > 0 ? [...named, ...candidates] : candidates
 }
@@ -2985,10 +2986,12 @@ async function runLookupInner(
     return await maybeAddCommentary(withExtras, question, opts, emitPartial, state)
   }
 
-  // Translation parallels / passage comparisons: texts only, labels only — no commentary pass.
+  // Translation parallels / passage comparisons come from the texts alone. Commentary, when on,
+  // is added over the same verses like any other answer; off, the reply is labels only.
   const compared = await services().research.answerComparison(question).catch(() => null)
   if (compared) {
-    return { results: [], visibleCount: 0, keywords: [], related: [], research: comparisonPayload(compared), summary: comparisonLabel(compared) }
+    const verses = comparisonVerses(compared).map((v): AiLookupResult => ({ ...v, bookName: bookNameFor(v.bookId, v.textId), source: 'named' }))
+    return await maybeAddCommentary({ results: verses, visibleCount: verses.length, keywords: [], related: [], research: comparisonPayload(compared), summary: comparisonLabel(compared) }, question, opts, emitPartial, state)
   }
 
   emit(pick(READING_MESSAGES))

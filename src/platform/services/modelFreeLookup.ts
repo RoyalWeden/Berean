@@ -2,7 +2,7 @@ import type { Services } from './index'
 import type { AiLookupResponse, AiLookupResult } from '../../types/electron'
 import { parseRef, bookName, getTranslationForBook } from '../../lib/parseRef'
 import { mentionsExcluded, parseExclusions } from '../../lib/research/exclusions'
-import { comparisonLabel, comparisonPayload, lexicalPayload } from './researchService'
+import { comparisonLabel, comparisonVerses, comparisonPayload, lexicalPayload } from './researchService'
 import { resolveFollowUp, stateFromTurns, type Turn } from '../../lib/research/conversationState'
 import { activeCollections, collectionOf, detectQuestionScope, type CollectionId } from '../../lib/research/collections'
 import { asksForInterpretation } from '../../lib/research/modePolicy'
@@ -72,7 +72,10 @@ export async function modelFreeLookup(services: Services, question: string, opts
 
   // 1b. Translation parallels and passage comparisons: the texts themselves, side by side.
   const compared = await services.research.answerComparison(q).catch(() => null)
-  if (compared) return complete({ ...base, research: comparisonPayload(compared), summary: comparisonLabel(compared) })
+  if (compared) {
+    const results = comparisonVerses(compared).map((v) => result(v.textId, v.bookId, v.chapter, v.verse, v.text, 'named'))
+    return { ...complete({ ...base, results, research: comparisonPayload(compared), summary: comparisonLabel(compared) }), visibleCount: results.length }
+  }
 
   // 2. A bare reference ("John 3:16", "Psalm 23", "Genesis 1:1 LXX").
   const ref = parseRef(q.trim())

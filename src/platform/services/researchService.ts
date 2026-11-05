@@ -315,6 +315,11 @@ export function comparisonPayload(answer: ComparisonAnswer): ResearchPayload {
   }
 }
 
+/** The verses shown in the panes, so saving research, follow-ups and Commentary see them too. */
+export function comparisonVerses(answer: ComparisonAnswer): Array<{ textId: string; bookId: string; chapter: number; verse: number; text: string }> {
+  return answer.panes.flatMap((p) => (p.missing ? [] : p.verses.map((v) => ({ textId: p.textId, bookId: p.bookId, ...v }))))
+}
+
 /** A deterministic label for the reply (no prose): "Genesis 1:1 in KJV and LXX (Brenton)". */
 export function comparisonLabel(answer: ComparisonAnswer): string {
   const { panes } = answer

@@ -19,7 +19,7 @@ export interface CompareIntent {
 /** Most passages one comparison shows side by side. */
 export const MAX_COMPARE_REFS = 4
 
-const COMPARE_RE = /\b(compare|comparison|compared|contrast|versus|vs\.?|against|side[\s-]+by[\s-]+side|alongside|parallel)\b/i
+const COMPARE_RE = /\b(compare|comparison|compared|contrast|versus|vs\.?|side[\s-]+by[\s-]+side|alongside)\b/i
 const LXX_RE = /\b(septuagint|lxx|brenton)\b/i
 const KJV_RE = /\b(kjv|king\s+james)\b/i
 const READ_RE = /\bhow\s+(?:does|do|did|is|was)\b[^?]*\b(?:read|say|render|translate|translated|rendered|worded)\b/i

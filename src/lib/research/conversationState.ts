@@ -44,7 +44,7 @@ export interface FollowUp {
 
 const refKey = (r: ParsedRef) => `${r.bookId} ${r.chapter}${r.verse ? `:${r.verse}${r.endVerse ? `-${r.endVerse}` : ''}` : ''}`
 
-const FOLLOW_UP_RE = /^(?:and|now|any|anything|do\s+\S+\s+next|ok(?:ay)?|also|then|what about|how about|same|do the same|more|show|find|give|just|only|try|check|trace|compare|contrast|switch|no,|actually|i meant|where does (?:that|this|it))\b|\b(that|those|these|them|it|(?:have|say|says|read|reads)\s+there|the same|same restriction|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b/i
+const FOLLOW_UP_RE = /^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart)|and|now|any|anything|do\s+\S+\s+next|ok(?:ay)?|also|then|what about|how about|same|do the same|more|show|find|give|just|only|try|check|trace|compare|contrast|switch|no,|actually|i meant|where does (?:that|this|it))\b|\b(that|those|these|them|it|(?:have|say|says|read|reads)\s+there|the same|same restriction|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b/i
 const SCOPE_RE = /\b(only\s+(?:in\s+)?(?:the\s+)?(?:psalms|proverbs|gospels|new testament|old testament|torah|prophets|[1-3]?\s?[A-Z][a-z]+)|in\s+the\s+(?:new|old)\s+testament|only\s+new\s+testament|only\s+old\s+testament)\b/i
 const TOPIC_RE = /\b(?:verses?|passages?|scriptures?)\s+(?:about|on|regarding|concerning|that\s+mentions?|mentioning)\s+(.+?)(?:[?.!]|$)|\b(?:about|on)\s+(.+?)(?:[?.!]|$)/i
 const ORDINALS: Record<string, number> = { first: 0, second: 1, third: 2, fourth: 3, fifth: 4, last: -1 }
@@ -143,7 +143,7 @@ export function resolveFollowUp(question: string, state: ResearchState): FollowU
   }
 
   // "what about the Greek?" / "I meant the Hebrew word".
-  const langSwitch = q.match(/\b(?:what about|how about|i meant|now only|now|only|and|switch to|in)\s+(?:the\s+)?(greek|hebrew)\b/i) ?? q.match(/^(?:the\s+)?(greek|hebrew)\s+one\??$/i)
+  const langSwitch = q.match(/\b(?:what about|how about|i meant|now only|now|only|and|switch to|in)\s+(?:the\s+)?(greek|hebrew)\b/i) ?? q.match(/^(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(greek|hebrew)\s+(?:one|equivalent|counterpart)\??$/i)
   if (langSwitch) {
     const lang = langSwitch[1].toLowerCase()
     if (state.strongs.length && /\boccurrence/i.test(q)) {

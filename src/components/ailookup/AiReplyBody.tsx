@@ -245,7 +245,7 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
       {(m.videos ?? []).length > 0 && <div className="chat-ai-rows">{m.videos!.map((v) => <VideoCard key={v.videoId} video={v} />)}</div>}
       {(m.external ?? []).length > 0 && <ExternalSources sources={m.external!} />}
 
-      {visiblePrimary.length > 0 && (
+      {visiblePrimary.length > 0 && !m.research?.passageComparison && (
         <ul className="chat-passages" aria-label="Passages">
           {visiblePrimary.map((r, ri) => {
             const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []

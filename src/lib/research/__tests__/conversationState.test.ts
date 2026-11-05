@@ -98,4 +98,9 @@ describe('follow-up phrasings found by holdout3 (consumed)', () => {
   it('"what does the Septuagint have there" reads the last reference in the LXX', () => {
     expect(follow([u('Genesis 1:2'), a('Passages: Genesis 1:2')], 'what does the Septuagint have there')?.question).toBe('Genesis 1:2 LXX')
   })
+
+  it('reads "Greek equivalent?" after a word study', () => {
+    const r = resolveFollowUp('Greek equivalent?', stateFromTurns([{ role: 'user', content: 'the Hebrew word for salvation' }]))
+    expect(r?.question).toBe('the greek word for salvation')
+  })
 })

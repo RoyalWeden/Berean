@@ -38,7 +38,10 @@ const UNTAGGED_RE = /\b(no|without|missing|untagged)\b[^?.]{0,30}\bstrong'?s\b|\
 
 // Word-study phrasings. Group 1 (or the named group) is the term.
 const WORD_STUDY_PATTERNS: RegExp[] = [
-  /\b(?:hebrew|greek|original|aramaic)\s+(?:words?|nouns?|verbs?|terms?|adjectives?)\s+(?:(?:is|was|that\s+is|which\s+is)\s+)?(?:for|meaning|that\s+means?|translated(?:\s+as)?|rendered(?:\s+as)?|glossed(?:\s+as)?|behind)\s+["“']?([^"”'?.,;]+?)["”']?(?=$|[?.,;]|\s+(?:in|within|across|throughout)\s)/i,
+  /\bthe\s+(?:hebrew|greek|aramaic)\s+for\s+["“']?([^"”'?.,;]+?)["”']?(?=$|[?.,;]|\s+(?:in|within)\s)/i,
+  /\bwhich\s+(?:hebrew|greek|aramaic)\s+word\s+is\s+["“']?([\p{L}-]{2,30})/iu,
+  /^["“']?([\p{L}'-]{2,30})["”']?\s+as\s+a\s+word\b/iu,
+  /\b(?:hebrew|greek|original|aramaic)\s+(?:words?|nouns?|verbs?|terms?|adjectives?)\s+(?:(?:is|was|that\s+is|which\s+is|used)\s+)?(?:for|meaning|that\s+means?|translated(?:\s+as)?|rendered(?:\s+as)?|glossed(?:\s+as)?|behind)\s+["“']?([^"”'?.,;]+?)["”']?(?=$|[?.,;]|\s+(?:in|within|across|throughout)\s)/i,
   /\b(?:the\s+)?word\s+["“']?([\p{L}'-]{2,30})["”']?\s+(?:is\s+|was\s+)?(?:used|found|appears?|occurs?|means?)\b/iu,
   /\bthe\s+words?\s+(?:for|translated|rendered)\s+["“']?([^"”'?.,;]+?)["”']?(?=$|[?.,;]|\s+(?:in|within)\s)/i,
   /\bstrong'?s(?:\s+number)?\s+for\s+["“']?([^"”'?.,;]+?)["”']?(?=$|[?.,;]|\s+(?:in|within)\s)/i,
