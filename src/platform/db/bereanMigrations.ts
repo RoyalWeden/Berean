@@ -1240,6 +1240,39 @@ export const BEREAN_MIGRATIONS: Migration[] = [
       if (!(await hasColumn(db, 'ai_chats', 'folder'))) await db.exec('ALTER TABLE ai_chats ADD COLUMN folder TEXT')
       console.log('[berean-db] v48: ai_chats pinned_at, folder')
     }
+  },
+  {
+    // Berean AI upgrade (2026-10-28, spec §4.4, §7.1, §7.2):
+    //  - `ai_excluded` on notes and note folders: excluded notes (and every note under an excluded
+    //    folder, inherited) never reach AI retrieval, prompts or ranking. Synced per field.
+    //  - `study_profiles`: named study profiles (config JSON), synced, tombstoned like sessions.
+    //  - `ai_saved_contexts`: explicitly saved research context (verified refs, Strong's ids,
+    //    filters, summary) the user can reuse and delete — never silent memory.
+    // All additive; older builds ignore the new columns/tables.
+    version: 49,
+    up: async (db) => {
+      if (!(await hasColumn(db, 'notes', 'ai_excluded'))) await db.exec('ALTER TABLE notes ADD COLUMN ai_excluded INTEGER NOT NULL DEFAULT 0')
+      if (!(await hasColumn(db, 'note_folders', 'ai_excluded'))) await db.exec('ALTER TABLE note_folders ADD COLUMN ai_excluded INTEGER NOT NULL DEFAULT 0')
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS study_profiles (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          config TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS ai_saved_contexts (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT
+        );
+      `)
+      console.log('[berean-db] v49: notes/note_folders ai_excluded, study_profiles, ai_saved_contexts')
+    }
   }
 ]
 

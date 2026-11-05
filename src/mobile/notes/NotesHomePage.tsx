@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { pushNotesListHistory } from './notesHistory'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
 import {
-  Plus, CalendarDays, FolderPlus, FolderInput, Pin, PinOff, Trash2, Search, Rows3, ArrowDownUp, FileUp, Printer, X,
+  Plus, CalendarDays, FolderPlus, FolderInput, Pin, PinOff, Eye, EyeOff, Trash2, Search, Rows3, ArrowDownUp, FileUp, Printer, X,
   SquarePen, MoreHorizontal, LayoutGrid, List, Filter as FilterIcon, Pencil, ArrowUpRight, SquarePlus, Copy, Share2, CheckSquare, ChevronDown, FolderTree, Check,
 } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
@@ -211,6 +211,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     { id: 'open', label: 'Open', icon: ArrowUpRight, run: () => open(n) },
     { id: 'new-tab', label: 'Open in New Tab', icon: SquarePlus, run: () => openDestination({ kind: 'note', noteId: n.id }, 'new-tab') },
     { id: 'pin', label: n.pinned ? 'Unpin Note' : 'Pin Note', icon: n.pinned ? PinOff : Pin, run: () => { void setPinned([n], !n.pinned) } },
+    { id: 'ai-exclude', label: n.aiExcluded ? 'Include in AI' : 'Exclude from AI', icon: n.aiExcluded ? Eye : EyeOff, run: () => { void window.notes.setNoteAiExcluded(n.id, !n.aiExcluded).then(refresh) } },
     ...(noteIsMovable(n) ? [{ id: 'move', label: 'Move', icon: FolderInput, run: () => moveNotes([n]) }] : []),
     { id: 'duplicate', label: 'Duplicate', icon: Copy, run: () => { void duplicate(n) } },
     { id: 'share', label: 'Share', icon: Share2, run: () => { void shareNotes([n]) } },
@@ -243,6 +244,7 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
     { id: 'rename', label: 'Rename…', icon: Pencil, onSelect: () => renameFolder(node.folder) },
     { id: 'sub', label: 'New Subfolder…', icon: FolderPlus, onSelect: () => { void newFolder(node.folder.id) } },
     { id: 'move', label: 'Move…', icon: FolderTree, onSelect: () => moveFolder(node) },
+    { id: 'ai-exclude', label: node.folder.aiExcluded ? 'Include in AI' : 'Exclude from AI', icon: node.folder.aiExcluded ? Eye : EyeOff, onSelect: () => { void window.notes.setFolderAiExcluded(node.folder.id, !node.folder.aiExcluded).then(refresh) } },
     { id: 'delete', label: node.total || node.children.length ? 'Delete Folder…' : 'Delete Folder', icon: Trash2, destructive: true, onSelect: () => deleteFolder(node) },
   ]
   const folderActions = (node: FolderNode) => actions(`folder-${node.folder.id}`, node.folder.name, folderActionList(node))
@@ -264,9 +266,12 @@ export function NotesHomePage({ dailyRequest = 0 }: { dailyRequest?: number }) {
         if (existing) {
           const r = await window.notes.updateNote(existing.id, { title: parsed.title, content: parsed.content, tags: parsed.tags, ...(parsed.icon ? { icon: parsed.icon } : {}), ...(parsed.color ? { color: parsed.color } : {}) }).catch(() => ({ success: false }))
           if (r.success) updated++
+          if (r.success && parsed.aiExcluded) await window.notes.setNoteAiExcluded(existing.id, true).catch(() => {})
         } else {
           const r = await window.notes.createNote({ type: parsed.type, title: parsed.title, content: parsed.content, tags: parsed.tags, ...(parsed.verseRef ? { verseRef: parsed.verseRef } : {}), ...(parsed.icon ? { icon: parsed.icon } : {}), ...(parsed.color ? { color: parsed.color } : {}) }).catch(() => ({ success: false as const }))
           if (r.success) created++
+          const newId = (r as { note?: { id: string } }).note?.id
+          if (r.success && parsed.aiExcluded && newId) await window.notes.setNoteAiExcluded(newId, true).catch(() => {})
         }
       }
       if (created || updated) { refresh(); void haptic.success() }

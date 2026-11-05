@@ -31,7 +31,8 @@
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 17px; border: 0; padding: 0;
 }
-.m-chat-ask { background: none; color: rgb(var(--color-text-muted)); opacity: 0.55; }
+.m-chat-ask { background: none; color: rgb(var(--color-text-muted)); }
+.m-chat-ask[data-armed='true'] { background: rgb(var(--color-accent) / 0.14); color: rgb(var(--color-accent)); }
 .m-chat-send { background: rgb(var(--color-accent)); color: #fff; }
 .m-chat-send:disabled { opacity: 0.35; }
 /* The shared rich-text field (composer/ChatEditor.tsx): 17pt like Messages, grows to ~5 lines. */
@@ -195,6 +196,10 @@
 .m-chat-body .chat-table-wrap *,
 .m-chat-body pre,
 .m-chat-body pre * { touch-action: pan-x pan-y; }
+/* Armed Ask Berean: the active study profile and scope, one tap from the options page. */
+.m-chat-ask-options { display: flex; align-items: center; gap: 4px; border: 0; background: none; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); padding: 0 8px 4px; text-align: left; -webkit-tap-highlight-color: transparent; }
+.m-chat-ask-options svg { flex: none; }
+.m-chat-ask-options span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The conversation name is a button (tap → Rename): keep the pill's look, no button chrome. */
 .m-chat-title-btn { appearance: none; color: inherit; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }

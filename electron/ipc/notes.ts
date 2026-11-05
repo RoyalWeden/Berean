@@ -93,6 +93,11 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('notes:setPinned', (event, noteId: string, pinned: boolean) =>
     withSender(event.sender.id, () => notes().setPinned(noteId, pinned)))
 
+  ipcMain.handle('notes:setAiExcluded', (event, noteId: string, excluded: boolean) =>
+    withSender(event.sender.id, () => notes().setAiExcluded(noteId, excluded)))
+  ipcMain.handle('folders:setAiExcluded', (event, id: string, excluded: boolean) =>
+    withSender(event.sender.id, () => notes().folderSetAiExcluded(id, excluded)))
+
   ipcMain.handle('notes:deleteAll', (event) =>
     withSender(event.sender.id, () => notes().deleteAll()))
 

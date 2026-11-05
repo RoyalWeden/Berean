@@ -1,3 +1,14 @@
+import type { ResearchPayload } from '../lib/research/payload'
+import type { ResearchErrorCode } from '../lib/research/errors'
+import type { PremiseCheck } from '../lib/research/premise'
+import type { ExternalSource } from '../lib/research/webResearch'
+
+export interface AiCloudSettings {
+  cloudEnabled: boolean
+  cloudPrivateContext: boolean
+  cloudModel: string
+  web: 'off' | 'ask' | 'auto'
+}
 import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight, PdfBookmark,
   VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult,
   TagGraphData, TagEdge, TagEdgeArrows } from './index'
@@ -48,6 +59,10 @@ interface NotesAPI {
   searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') => Promise<Note[]>
   setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
   setNotePinned: (noteId: string, pinned: boolean) => Promise<{ success: boolean }>
+  /** Exclude a note from AI (spec §4.4). */
+  setNoteAiExcluded: (noteId: string, excluded: boolean) => Promise<{ success: boolean }>
+  /** Exclude a folder (and everything in it) from AI. */
+  setFolderAiExcluded: (id: string, excluded: boolean) => Promise<{ success: boolean }>
   createNoteVersion: (noteId: string, title: string, content: string, kind?: string) => Promise<{ success: boolean; id?: string; skipped?: boolean }>
   getNoteVersions: (noteId: string) => Promise<NoteVersion[]>
   restoreNoteVersion: (noteId: string, versionId: string) => Promise<{ success: boolean; content?: string; error?: string }>
@@ -639,7 +654,7 @@ interface BgImportAPI {
   onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
-export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source' | 'tske' | 'cross-ref-seed'
+export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source' | 'tske' | 'cross-ref-seed' | 'semantic' | 'named'
 
 export interface AiLookupResult {
   textId: string
@@ -656,6 +671,9 @@ export interface AiLookupResult {
   /** Only set on `source: 'cross-ref'` results — which primary result they were expanded
    *  from, so the UI can nest them under it instead of listing them as flat entries. */
   crossRefOf?: { bookId: string; chapter: number; verse: number }
+  /** Where a nested link comes from (spec §6.1 #9) — an established dataset, TSKe, or the verse
+   *  quoting / being quoted. Never a model's suggestion. */
+  linkType?: 'dataset' | 'tske' | 'quotation' | 'note'
 }
 
 export interface AiLookupNoteResult {
@@ -715,6 +733,21 @@ export interface AiLookupResponse {
   notesAreThePrimaryAnswer?: boolean
   /** Set when the question was an explicit video request — see AiLookupVideoResult. */
   videos?: AiLookupVideoResult[]
+  /** Verified, model-free word-study data (Strong's candidates, word tables, occurrence counts). */
+  research?: ResearchPayload
+  /** Typed outcome (spec §9.1). A model failure is never reported as NO_MATCHES. */
+  errorCode?: ResearchErrorCode
+  /** A model step failed but model-free results are included. */
+  partial?: boolean
+  /** Commentary was off and the question asked for interpretation (offer, never auto-switch). */
+  interpretationOffered?: boolean
+  /** How a follow-up was read — shown so the user can correct it. */
+  followUpReason?: string
+  /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
+  premise?: PremiseCheck
+  providerNotice?: string
+  external?: ExternalSource[]
+  webOffered?: boolean
 }
 
 export interface AiLookupChatSummary {
@@ -776,6 +809,16 @@ export interface AiLookupChatMessage {
   notes?: AiLookupNoteResult[]
   notesAreThePrimaryAnswer?: boolean
   videos?: AiLookupVideoResult[]
+  research?: ResearchPayload
+  errorCode?: ResearchErrorCode
+  partial?: boolean
+  interpretationOffered?: boolean
+  followUpReason?: string
+  /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
+  premise?: PremiseCheck
+  providerNotice?: string
+  external?: ExternalSource[]
+  webOffered?: boolean
   createdAt: string
   /** Berean Chat redesign — all optional/additive so older clients still read the JSON. */
   id?: string
@@ -822,7 +865,10 @@ interface AiLookupAPI {
    *  Redundant with the main process's own idle-unload timer (which fires a couple minutes
    *  after the last question regardless of panel state); this just makes closing feel instant. */
   unloadModel: () => Promise<{ success: boolean }>
+  cancel?: (requestId: string) => Promise<{ success: boolean }>
   query: (question: string, opts: {
+    requestId?: string
+    webApproved?: boolean
     commentary: boolean
     /** "Deep search" — an extra verification pass that checks whether the initial results
      *  actually answer the question and, if not, retries once with different search terms.
@@ -840,6 +886,12 @@ interface AiLookupAPI {
     /** Sent when the "use current tab as context" toggle is on, or an inline mention like "this
      *  chapter" was detected — see AiLookupTabContextRef. */
     tabContext?: AiLookupTabContextRef
+    /** Collections searched by default (decision 9); a scope stated in the question wins. */
+    collections?: import('../lib/research/collections').CollectionId[]
+    /** Active study profile id (resolved in the main process; Default when absent). */
+    profileId?: string
+    /** A saved research context to reuse for this request. */
+    savedContextId?: string
   }) => Promise<AiLookupResponse>
   listChats: () => Promise<AiLookupChatSummary[]>
   getChat: (id: string) => Promise<AiLookupChat | null>
@@ -856,6 +908,29 @@ interface AiLookupAPI {
   /** A page of messages across conversations (All Messages / one day / search), oldest → newest. */
   queryMessages: (q: { chatId?: string; dayKey?: string; search?: string; before?: string; limit?: number }) => Promise<AiLookupChatMessagePage>
   listDays: () => Promise<AiLookupChatDaySummary[]>
+  /** Study profiles (spec §7.1). */
+  listProfiles: () => Promise<import('../lib/research/studyProfile').StudyProfile[]>
+  createProfile: (name: string, config?: Partial<import('../lib/research/studyProfile').StudyProfileConfig>) => Promise<import('../lib/research/studyProfile').StudyProfile>
+  updateProfile: (id: string, patch: { name?: string; config?: Partial<import('../lib/research/studyProfile').StudyProfileConfig> }) => Promise<import('../lib/research/studyProfile').StudyProfile | null>
+  duplicateProfile: (id: string) => Promise<import('../lib/research/studyProfile').StudyProfile | null>
+  deleteProfile: (id: string) => Promise<{ success: boolean }>
+  /** Explicitly saved research context (spec §7.2). */
+  listSavedContexts: () => Promise<import('../platform/services/savedContextsService').SavedResearchContext[]>
+  saveContext: (title: string, content: Partial<import('../platform/services/savedContextsService').SavedResearchContent>) => Promise<import('../platform/services/savedContextsService').SavedResearchContext>
+  deleteSavedContext: (id: string) => Promise<{ success: boolean }>
+  /** BYO cloud API keys (spec §7.4) — desktop only (Keychain via safeStorage); never readable back. */
+  saveProviderKey?: (providerId: string, key: string) => Promise<{ ok: true } | { ok: false; reason: string }>
+  hasProviderKey?: (providerId: string) => Promise<boolean>
+  removeProviderKey?: (providerId: string) => Promise<{ success: boolean }>
+  checkProviderKey?: () => Promise<{ ok: true } | { ok: false; reason: string }>
+  getCloudSettings?: () => Promise<AiCloudSettings>
+  setCloudSettings?: (patch: Partial<AiCloudSettings>) => Promise<AiCloudSettings>
+  /** Local model management through Ollama — desktop only. */
+  listLocalModels?: () => Promise<{ available: boolean; installed: Array<{ name: string; size: number }> }>
+  downloadModel?: (id: string) => Promise<{ ok: true } | { ok: false; reason: string; cancelled?: boolean }>
+  cancelModelDownload?: (id: string) => Promise<boolean>
+  removeModel?: (id: string) => Promise<{ ok: true } | { ok: false; reason: string }>
+  onModelProgress?: (cb: (e: { id: string; status: string; percent: number | null; completed: number; total: number }) => void) => () => void
   /** A conversation was written by ANOTHER window (desktop) / anywhere (iPhone). Returns an unsubscribe. */
   onChatsChanged?: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => () => void
   /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,

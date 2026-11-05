@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useRef, useState } from 'react'
-import { Copy, Check, Pencil, Sparkles, AlertCircle, CornerUpLeft, MoreHorizontal } from 'lucide-react'
+import { Copy, Check, Pencil, Sparkles, AlertCircle, CornerUpLeft, MoreHorizontal, Bookmark, Globe } from 'lucide-react'
 import { IconButton, cx } from '@/components/ui'
 import { aiModeCaption, formatTime, messageTime, UNFILED_CHAT_ID, UNFILED_CHAT_TITLE, type ChatMsg } from './chatModel'
 import { AiReplyBody } from './AiReplyBody'
@@ -19,6 +19,12 @@ export interface ChatRowActions {
   startEdit?: (message: ChatMsg, chatId: string | null) => void
   /** Ask Berean about a plain message (puts it in the composer with Ask Berean armed). */
   askAbout?: (message: ChatMsg) => void
+  /** Re-ask a question once with Commentary on (the "Explore interpretations" offer on a
+   *  Commentary-off reply). Does not change the composer's mode. */
+  askWithCommentary?: (question: string) => void
+  askOnline?: (question: string) => void
+  /** Desktop: opens model management from a reply that had no usable local model. */
+  openModelSettings?: () => void
   /** Reply to a message (the composer shows "Replying to …"; the sent message quotes it). */
   startReply?: (message: ChatMsg, chatId: string | null) => void
   /** Scroll to and flash a message (a reply's quote was clicked). */
@@ -35,6 +41,33 @@ const DOC_LIKE_RE = /^[ \t]*(?:#{1,6}[ \t]+\S|```|~~~|\|.*\|[ \t]*$)/m
 export const ChatEditingIdContext = createContext<string | null>(null)
 /** The message whose action menu is open (its hover buttons stay visible meanwhile). */
 export const ChatMenuOpenIdContext = createContext<string | null>(null)
+
+/** A reply with verified passages or Strong's entries can be saved for reuse (spec §7.2). */
+function canSaveResearch(m: ChatMsg): boolean {
+  return m.kind === 'ai-reply' && (!!m.results?.some((r) => r.source !== 'cross-ref') || !!m.research?.candidates.length || !!m.strongsCard)
+}
+
+/** "Save research": keeps this reply's verified references and Strong's ids — explicitly, visibly
+ *  (listed and deletable in Settings → Ask Berean). Never saves notes or the model's prose. */
+function SaveResearchButton({ message: m, question, chatId }: { message: ChatMsg; question: string; chatId: string | null }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  if (!window.aiLookup?.saveContext) return null
+  const save = async () => {
+    setState('saving')
+    const refs = (m.results ?? []).filter((r) => r.source !== 'cross-ref').slice(0, 20)
+      .map((r) => `${r.bookId} ${r.chapter}:${r.verse}${r.endVerse ? `-${r.endVerse}` : ''}`)
+    const strongs = [...new Set([...(m.research?.candidates.slice(0, 8).map((c) => c.id) ?? []), ...(m.strongsCard ? [m.strongsCard.strongsNum] : [])])]
+    try {
+      await window.aiLookup.saveContext(question.slice(0, 80), { topic: question, refs, strongs, summary: question, ...(chatId ? { sourceChatId: chatId } : {}) })
+      setState('saved')
+    } catch { setState('idle') }
+  }
+  return (
+    <button type="button" className="chat-explore-action text-caption2" disabled={state !== 'idle'} onClick={() => void save()}>
+      {state === 'saved' ? <Check size={11} aria-hidden /> : <Bookmark size={11} aria-hidden />} {state === 'saved' ? 'Saved' : 'Save research'}
+    </button>
+  )
+}
 
 /** An AI reply with nothing in it yet (or an error line only) is not worth quoting. */
 function isEmptyReply(m: ChatMsg): boolean {
@@ -208,6 +241,22 @@ export const ChatMessageRow = memo(function ChatMessageRow(p: ChatMessageRowProp
                 need the room) — under the small "Berean" label, like a modern assistant reply. */}
             <div data-find-body title={fullTime} className="chat-ai-column flex-1 min-w-0 max-w-[680px] pl-1 pr-1 py-0.5 text-text-primary select-text">
               <AiReplyBody message={m} question={p.question} />
+              {!m.pending && p.question && canSaveResearch(m) && <SaveResearchButton message={m} question={p.question} chatId={p.chatId} />}
+              {m.interpretationOffered && p.question && actions?.canAsk && actions.askWithCommentary && (
+                <button type="button" className="chat-explore-action text-caption2" onClick={() => actions.askWithCommentary!(p.question!)}>
+                  <Sparkles size={11} aria-hidden /> Explore interpretations
+                </button>
+              )}
+              {m.webOffered && p.question && actions?.canAsk && actions.askOnline && (
+                <button type="button" className="chat-explore-action text-caption2" onClick={() => actions.askOnline!(p.question!)}>
+                  <Globe size={11} aria-hidden /> Search Wikipedia and Sefaria
+                </button>
+              )}
+              {(m.errorCode === 'NO_MODEL_INSTALLED' || m.errorCode === 'RUNTIME_UNAVAILABLE') && actions?.openModelSettings && (
+                <button type="button" className="chat-explore-action text-caption2" onClick={actions.openModelSettings}>
+                  <Sparkles size={11} aria-hidden /> Set up a local model
+                </button>
+              )}
             </div>
             {hoverActions}
           </>

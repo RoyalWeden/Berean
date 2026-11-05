@@ -1,4 +1,5 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { aliasSegments, type DisplayAlias } from '@/lib/research/studyProfile'
 import { Check, Copy } from 'lucide-react'
 import { cx } from '@/components/ui'
 import { useChatNavigate, type ChatNavigate } from './chatNav'
@@ -19,7 +20,18 @@ import './chatContent.css'
 
 export type ChatTone = 'accent' | 'plain'
 
-interface Ctx { tone: ChatTone; nav: ChatNavigate }
+interface Ctx { tone: ChatTone; nav: ChatNavigate; aliases?: DisplayAlias[]; inQuote?: boolean }
+
+/** A plain-text run with the study profile's display names applied — Berean's own prose only;
+ *  never inside a blockquote, and each substitution is marked with what the text said. */
+function aliased(text: string, key: string, c: Ctx): ReactNode {
+  if (!c.aliases?.length || c.inQuote) return text
+  const segs = aliasSegments(text, c.aliases)
+  if (segs.length === 1 && !segs[0].original) return text
+  return segs.map((s, i) => s.original
+    ? <span key={`${key}a${i}`} className="chat-alias" title={`Shown as “${s.text}” by your study profile — written “${s.original}”`}>{s.text}</span>
+    : <Fragment key={`${key}a${i}`}>{s.text}</Fragment>)
+}
 
 function CodeBlock({ code: raw, lang }: { code: string; lang: string }) {
   const code = raw.replace(/\n$/, '')
@@ -49,11 +61,11 @@ function linkClass(tone: ChatTone, extra?: string) {
 }
 
 function renderText(n: MdNode, key: string, c: Ctx): ReactNode {
-  if (!n.segs) return n.content
-  if (n.segs.length === 1 && n.segs[0].kind === 'text') return n.segs[0].text
+  if (!n.segs) return aliased(n.content, key, c)
+  if (n.segs.length === 1 && n.segs[0].kind === 'text') return aliased(n.segs[0].text, key, c)
   return n.segs.map((s, i) => {
     const k = `${key}s${i}`
-    if (s.kind === 'text') return s.text
+    if (s.kind === 'text') return <Fragment key={k}>{aliased(s.text, k, c)}</Fragment>
     if (s.kind === 'verse') {
       const result = s.result
       return (
@@ -109,7 +121,7 @@ function renderNode(n: MdNode, k: string, c: Ctx): ReactNode {
         )
       }
       return <li key={k}>{kids()}</li>
-    case 'blockquote': return <blockquote key={k} className="chat-quote">{kids()}</blockquote>
+    case 'blockquote': return <blockquote key={k} className="chat-quote">{renderNodes(n.children, k, { ...c, inQuote: true })}</blockquote>
     case 'fence':
     case 'code_block': return <CodeBlock key={k} code={n.content} lang={(n.info ?? '').trim().split(/\s+/)[0] ?? ''} />
     case 'hr': return <hr key={k} className="chat-hr" />
@@ -159,11 +171,13 @@ function renderNode(n: MdNode, k: string, c: Ctx): ReactNode {
 }
 
 export const ChatMarkdown = memo(function ChatMarkdown(
-  { text, tone = 'plain', streaming = false, className }: { text: string; tone?: ChatTone; streaming?: boolean; className?: string },
+  { text, tone = 'plain', streaming = false, className, aliases }: { text: string; tone?: ChatTone; streaming?: boolean; className?: string
+    /** Study-profile display names for Berean's own prose (never for quoted Scripture). */
+    aliases?: DisplayAlias[] },
 ) {
   const nav = useChatNavigate()
   const tree = useMemo(() => parseChatMarkdown(text, streaming), [text, streaming])
-  const body = useMemo(() => renderNodes(tree, 'm', { tone, nav }), [tree, tone, nav])
+  const body = useMemo(() => renderNodes(tree, 'm', { tone, nav, aliases }), [tree, tone, nav, aliases])
   return <div className={cx('chat-rich chat-md', tone === 'accent' && 'is-accent', className)}>{body}</div>
 })
 

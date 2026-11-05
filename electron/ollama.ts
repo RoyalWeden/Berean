@@ -1,4 +1,5 @@
 import { net } from 'electron'
+import { ModelCallError } from '../src/lib/research/errors'
 
 // Thin bridge to a locally-running Ollama instance (https://ollama.com) — free,
 // offline, no API key. Runs entirely in the main process via Electron's `net.fetch`
@@ -29,11 +30,11 @@ export const DEFAULT_OLLAMA_MODEL = 'llama3.1:latest'
 // the real context window instead of only ad hoc character/row caps — see electron/tokenBudget.ts.
 export const NUM_CTX = 16384
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, cancel?: AbortSignal): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await net.fetch(url, { ...init, signal: controller.signal })
+    return await net.fetch(url, { ...init, signal: cancel ? AbortSignal.any([controller.signal, cancel]) : controller.signal })
   } finally {
     clearTimeout(timer)
   }
@@ -133,21 +134,51 @@ export const NUM_PREDICT_JSON = 512
 // phrasing is fine (even welcome) rather than something to suppress.
 const EXTRACTION_TEMPERATURE = 0.3
 
+// Thinking-capable families spend their whole output budget "thinking" before any JSON when left
+// on — measured in the 2026-10-28 benchmark: qwen3.5 4B and gemma4 e2b returned 0/15 valid replies
+// at production settings, 98.8–99.5% with thinking off. Berean never wants the hidden reasoning.
+const THINKING_MODEL_RE = /^(qwen3|gemma4|deepseek-r1|gpt-oss|magistral)/i
+function thinkOption(model: string): { think?: false } {
+  return THINKING_MODEL_RE.test(model) ? { think: false } : {}
+}
+
+/** Turns a non-2xx Ollama reply into a typed error (missing model, out of memory, runtime down). */
+async function httpError(res: Response): Promise<ModelCallError> {
+  let body = ''
+  try { body = (await res.text()).slice(0, 300) } catch { /* ignore */ }
+  const code = res.status === 404 || /not found|pull/i.test(body) ? 'NO_MODEL_INSTALLED'
+    : /memory/i.test(body) ? 'OUT_OF_MEMORY'
+    : 'RUNTIME_UNAVAILABLE'
+  return new ModelCallError(code, `Ollama request failed: ${res.status} ${body}`.trim(), res.status)
+}
+
 /** Runs a single prompt against a local Ollama model, forcing JSON output.
  *  Throws on any failure (network, non-2xx, timeout) — callers must catch. */
-export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000): Promise<T> {
+export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000, opts: { numPredict?: number; signal?: AbortSignal } = {}): Promise<T> {
   noteOllamaActivity(model)
-  const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE,
-      options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
-    }),
-  }, timeoutMs)
-  if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)
-  const data = await res.json() as { response: string }
-  return JSON.parse(data.response) as T
+  const generate = async (think: { think?: false }) => {
+    const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE, ...think,
+        options: { num_ctx: NUM_CTX, num_predict: opts.numPredict ?? NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
+      }),
+    }, timeoutMs, opts.signal)
+    if (!res.ok) throw await httpError(res)
+    return await res.json() as { response: string; thinking?: string; done_reason?: string }
+  }
+  const first = thinkOption(model)
+  let data = await generate(first)
+  // A thinking family THINKING_MODEL_RE doesn't know yet spends the whole budget on hidden
+  // reasoning and returns an empty reply. Reasoning was on, so think:false is valid: one retry.
+  if (!data.response && data.thinking && first.think === undefined) data = await generate({ think: false })
+  if (!data.response) throw new ModelCallError('INVALID_STRUCTURED_OUTPUT', `Model reply was empty (${data.done_reason === 'length' ? 'output budget used up' : data.done_reason ?? 'no reason given'}).`)
+  try {
+    return JSON.parse(data.response) as T
+  } catch (e) {
+    throw new ModelCallError('INVALID_STRUCTURED_OUTPUT', `Model reply was not valid JSON: ${(e as Error).message}`)
+  }
 }
 
 /** Runs a single prompt and returns plain text (no forced JSON) — used for
@@ -157,9 +188,89 @@ export async function runOllamaText(prompt: string, model = DEFAULT_OLLAMA_MODEL
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: false, keep_alive: KEEP_ALIVE, options: { num_ctx: NUM_CTX } }),
+    body: JSON.stringify({ model, prompt, stream: false, keep_alive: KEEP_ALIVE, ...thinkOption(model), options: { num_ctx: NUM_CTX } }),
   }, timeoutMs)
-  if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)
+  if (!res.ok) throw await httpError(res)
   const data = await res.json() as { response: string }
   return data.response.trim()
+}
+
+// --- Local model management (spec §8.3) -----------------------------------------------------
+// The user drives every download and delete from Settings → Ask Berean; nothing here runs on its
+// own. Ollama resumes a partly-pulled model by itself, so a cancelled pull simply continues from
+// the same layers next time.
+
+export interface OllamaModelInfo { name: string; size: number }
+export interface OllamaPullProgress { status: string; total?: number; completed?: number }
+
+/** Installed models with their size on disk. Throws ModelCallError('RUNTIME_UNAVAILABLE') if Ollama doesn't answer. */
+export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${OLLAMA_BASE}/api/tags`, {}, 4000)
+  } catch (e) {
+    throw new ModelCallError('RUNTIME_UNAVAILABLE', `Ollama is not reachable: ${(e as Error).message}`)
+  }
+  if (!res.ok) throw await httpError(res)
+  const data = await res.json() as { models?: Array<{ name: string; size?: number }> }
+  return (data.models ?? []).map((m) => ({ name: m.name, size: m.size ?? 0 }))
+}
+
+/** One line of Ollama's newline-delimited pull stream → progress, or a typed error for `{error}`. */
+export function parsePullLine(line: string): OllamaPullProgress | null {
+  const trimmed = line.trim()
+  if (!trimmed) return null
+  let msg: { status?: string; error?: string; total?: number; completed?: number }
+  try { msg = JSON.parse(trimmed) } catch { return null }
+  if (msg.error) {
+    throw new ModelCallError(/not found|file does not exist/i.test(msg.error) ? 'NO_MODEL_INSTALLED' : 'RUNTIME_UNAVAILABLE', `Ollama pull failed: ${msg.error}`)
+  }
+  return { status: msg.status ?? '', ...(msg.total !== undefined ? { total: msg.total } : {}), ...(msg.completed !== undefined ? { completed: msg.completed } : {}) }
+}
+
+/** Pulls a model, reporting progress as Ollama streams it. Resolves when the stream ends cleanly;
+ *  aborting `signal` rejects with an AbortError (partial layers stay for a later resume). */
+export async function pullOllamaModel(name: string, onProgress: (p: OllamaPullProgress) => void, signal?: AbortSignal): Promise<void> {
+  let res: Response
+  try {
+    res = await net.fetch(`${OLLAMA_BASE}/api/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name, stream: true }),
+      signal,
+    })
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e
+    throw new ModelCallError('RUNTIME_UNAVAILABLE', `Ollama is not reachable: ${(e as Error).message}`)
+  }
+  if (!res.ok) throw await httpError(res)
+  if (!res.body) throw new ModelCallError('RUNTIME_UNAVAILABLE', 'Ollama sent no download stream.')
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const flush = (line: string) => { const p = parsePullLine(line); if (p) onProgress(p) }
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    lines.forEach(flush)
+  }
+  flush(buffer + decoder.decode())
+}
+
+/** Removes a model from Ollama's store. */
+export async function deleteOllamaModel(name: string): Promise<void> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${OLLAMA_BASE}/api/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name }),
+    }, 15_000)
+  } catch (e) {
+    throw new ModelCallError('RUNTIME_UNAVAILABLE', `Ollama is not reachable: ${(e as Error).message}`)
+  }
+  if (!res.ok) throw await httpError(res)
 }

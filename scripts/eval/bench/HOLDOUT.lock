@@ -1,0 +1,39 @@
+holdout.jsonl
+sha256: 100ee1ca1db4a0a91f23fc454e69dfdee6507b5f7db815c1eb1f30b716c6c50e
+frozen: 2026-10-28
+cases: 105 (97 Commentary OFF)
+written after Phase 1–2 rules, before any Phase 3 tuning.
+Rule: do not change router/follow-up/lexical rules, prompts or ranking based on holdout results
+without recording it here; if that happens, a second holdout is required for the final claim.
+Gold answers are never edited to improve scores; disagreements go to the human-review record.
+
+## Tuning record
+2026-10-28 (after the first llama3.1 holdout run, 99/105):
+- lexicalIntent: word-study pattern accepts "word is/was translated …" (X076).
+- conversationState: follow-ups starting "I meant", "and the Greek/Hebrew one", "where does that word appear in <book>" (X100, X104, X106).
+→ holdout.jsonl results after this date are no longer an independent measure for these categories;
+  a second holdout (holdout2.jsonl) is required for the final follow-up/lexical claim.
+- X102 (answer key too narrow) and X094 (no note summarization) left as found; X102 goes to human review.
+
+## Second holdout
+holdout2.jsonl sha256: 46f287d0a8b35b3f79a2f8045c79086bae233b43ecf346a204010f3bf2ac6100
+frozen: 2026-10-28, after the tuning recorded above; 40 cases (all Commentary OFF; follow-ups, word studies, refs, scope).
+Same rules apply.
+
+## Tuning record (holdout2)
+2026-10-28: first llama3.1 holdout2 run 28/40; the model copied the template default `{"kind":"none"}`.
+Changed the extraction template to list the kinds without a default and to describe them (with
+generic examples not taken from holdout2). → holdout2 is now consumed for routing claims; a third
+set is required for the final claim.
+2026-10-28 (holdout2 run 2, 34/40): blank model terms filled from a quoted word or the conversation's studied term/ids;
+follow-up phrasings "switch to the Hebrew", "contrast the first two", "every verse with it". holdout2 consumed.
+
+## Third holdout
+holdout3.jsonl sha256: 32f0c738ce6b252b17644fee16379e886cfd020d087f0dd0b48b3b547ef682c5
+frozen: 2026-10-28 after all tuning above; 30 cases, all OFF. Not to be run until the code under test is final for this phase.
+
+2026-10-28 holdout3 run ONCE on final Phase 3 code (A 12/30, F llama3.1 23/30, 0 critical) — the
+independent claim. It is now CONSUMED: the following fixes were informed by its failures
+(Z002 "Hebrew noun for", Z004 "what is <transliteration>", Z008 "Strong's breakdown of",
+Z020 "now the Greek", Z023 "any in <Book>?", Z024 "do <word> next", Z028 "have there").
+Post-fix scores (A 19/30, F 30/30) are tuning results, not generalisation evidence.

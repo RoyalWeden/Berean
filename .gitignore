@@ -50,3 +50,6 @@ xcuserdata/
 
 # Mac App Store native helper (scripts/mac/build-native.mjs output)
 build/native/
+
+# Generated retrieval indexes (large binaries; spec §1.3 keeps them out of Git)
+electron/db-generated/

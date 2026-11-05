@@ -88,6 +88,8 @@ import { registerTagGraphHandlers } from './ipc/tagGraph'
 import { registerYouTubeHandlers } from './ipc/youtube'
 import { registerCrossRefsHandlers } from './ipc/crossrefs'
 import { registerAiLookupHandlers } from './ipc/aiLookup'
+import { registerAiProviderHandlers } from './ipc/aiProviders'
+import { registerAiModelHandlers } from './ipc/aiModels'
 import { registerBgImportHandlers } from './ipc/bgImport'
 import { registerESwordImportHandlers } from './ipc/eSwordImport'
 import { registerHistoryHandlers } from './ipc/history'
@@ -1525,6 +1527,8 @@ app.whenReady().then(async () => {
   registerYouTubeHandlers(ipcMain)
   registerCrossRefsHandlers(ipcMain)
   registerAiLookupHandlers(ipcMain)
+  registerAiProviderHandlers(ipcMain)
+  registerAiModelHandlers(ipcMain)
   registerBgImportHandlers(ipcMain, () => mainWindow)
   registerESwordImportHandlers(ipcMain, () => mainWindow)
   registerHistoryHandlers(ipcMain)

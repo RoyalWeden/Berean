@@ -54,7 +54,7 @@ export interface TranscriptFind {
 }
 
 export function ChatTranscript({
-  items, resetKey, crossConversation, hasOlder, loadingOlder, onLoadOlder, typing, failedIds,
+  items, resetKey, crossConversation, hasOlder, loadingOlder, onLoadOlder, typing, onStop, failedIds,
   focusMessageId, onFocusHandled, stickToken, empty, bottomInset = 0, find, onRevealLock,
 }: {
   items: TranscriptItem[]
@@ -66,6 +66,8 @@ export function ChatTranscript({
   onLoadOlder: () => void
   /** Progress text while an AI reply is being prepared for this transcript, else null. */
   typing: string | null
+  /** Stops the running Ask Berean request. Absent where requests can't be cancelled. */
+  onStop?: () => void
   failedIds: ReadonlySet<string>
   focusMessageId: string | null
   onFocusHandled: () => void
@@ -291,6 +293,7 @@ export function ChatTranscript({
               <div className="inline-flex items-center gap-[var(--chat-space-2)] rounded-[var(--chat-bubble-radius)] bg-surface-2 px-[var(--chat-space-3)] py-[var(--chat-space-2)] text-caption text-text-muted">
                 <span className="chat-typing" aria-hidden><i /><i /><i /></span>
                 <span>{typing}</span>
+                {onStop && <button type="button" className="text-accent hover:underline focus-ring rounded-chip" onClick={onStop}>Stop</button>}
               </div>
             </div>
           )}

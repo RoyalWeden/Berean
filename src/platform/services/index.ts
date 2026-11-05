@@ -15,6 +15,9 @@ import { createPdfService, type PdfService } from './pdfService'
 import { createYoutubeService, type YoutubeService } from './youtubeService'
 import { createAiChatsService, type AiChatsService } from './aiChatsService'
 import { createSessionsService, type SessionsService } from './sessionsService'
+import { createResearchService, type ResearchService } from './researchService'
+import { createStudyProfilesService, type StudyProfilesService } from './studyProfilesService'
+import { createSavedContextsService, type SavedContextsService } from './savedContextsService'
 
 /**
  * The shared-service registry. One instance per process (desktop main process, iOS WebView).
@@ -40,6 +43,9 @@ export interface Services {
   readonly youtube: YoutubeService
   readonly aiChats: AiChatsService
   readonly sessions: SessionsService
+  readonly research: ResearchService
+  readonly studyProfiles: StudyProfilesService
+  readonly savedContexts: SavedContextsService
 }
 
 export function createServices(ctx: ServiceContext): Services {
@@ -66,6 +72,9 @@ export function createServices(ctx: ServiceContext): Services {
     get youtube() { return lazy('youtube', () => createYoutubeService(ctx)) },
     get aiChats() { return lazy('aiChats', () => createAiChatsService(ctx)) },
     get sessions() { return lazy('sessions', () => createSessionsService(ctx)) },
+    get research() { return lazy('research', () => createResearchService(ctx, { lexicon: registry.lexicon })) },
+    get studyProfiles() { return lazy('studyProfiles', () => createStudyProfilesService(ctx)) },
+    get savedContexts() { return lazy('savedContexts', () => createSavedContextsService(ctx)) },
   }
   return registry
 }

@@ -1,13 +1,14 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Sparkles, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import { Sparkles, Maximize2, Minimize2, Pencil, X, Bookmark } from 'lucide-react'
 import type { EditorState } from 'prosemirror-state'
 import { useAppStore } from '@/store'
 import { IconButton, cx } from '@/components/ui'
 import { mentionsCurrentTab, type ChatMsg } from './chatModel'
 import { ChatReplyBar } from './ChatReplyQuote'
 import { ChatModeMenu, ChatContextToggle, ComposerPopoverContext } from './ChatComposerControls'
-import { chatModeFlags, chatModeOf } from './chatModes'
 import type { ChatSendOptions } from './useChatController'
+import type { StudyProfile } from '@/lib/research/studyProfile'
+import { activateProfile } from './profileActivation'
 import { ChatEditor, type ChatEditorHandle } from './composer/ChatEditor'
 import { FormatToolbar } from './composer/FormatToolbar'
 import { activeFormats, NO_FORMATS, sameFormats, type ActiveFormats } from './composer/chatEditorState'
@@ -159,20 +160,36 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   const setCommentaryOn = useAppStore((s) => s.setAiLookupCommentaryOn)
   const deepOn = useAppStore((s) => s.aiLookupAgenticOn)
   const setDeepOn = useAppStore((s) => s.setAiLookupAgenticOn)
+  const modeNotice = useAppStore((s) => s.aiLookupModeNotice)
+  const collections = useAppStore((s) => s.aiLookupCollections)
+  const setCollections = useAppStore((s) => s.setAiLookupCollections)
+  const setModeNotice = useAppStore((s) => s.setAiLookupModeNotice)
   const tabOn = useAppStore((s) => s.aiLookupUseTabContext)
   const setTabOn = useAppStore((s) => s.setAiLookupUseTabContext)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
 
   const ai = askArmed && aiAvailable
-  const mode = chatModeOf(commentaryOn, deepOn)
-  const setMode = (m: ReturnType<typeof chatModeOf>) => { const f = chatModeFlags(m); setCommentaryOn(f.commentary); setDeepOn(f.deepSearch) }
+  const setModeFlags = (f: { commentary: boolean; deepSearch: boolean }) => { setCommentaryOn(f.commentary); setDeepOn(f.deepSearch) }
   const mentioned = mentionsCurrentTab(plain)
+  // "this chapter" attaches the open tab automatically; the chip can dismiss that for this send.
+  const [mentionDismissed, setMentionDismissed] = useState(false)
+  useEffect(() => { if (!mentioned) setMentionDismissed(false) }, [mentioned])
   // Re-read the active tab whenever Ask Berean is armed (it may have changed since).
   useEffect(() => { if (askArmed) onRefreshTabContext?.() }, [askArmed]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Study profiles and saved research for the mode menu, refreshed each time Ask Berean is armed.
+  const profileId = useAppStore((s) => s.aiLookupProfileId)
+  const [profiles, setProfiles] = useState<StudyProfile[]>([])
+  const [savedContexts, setSavedContexts] = useState<Array<{ id: string; title: string }>>([])
+  const [savedContextId, setSavedContextId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!askArmed || !window.aiLookup?.listProfiles) return
+    void window.aiLookup.listProfiles().then(setProfiles).catch(() => {})
+    void window.aiLookup.listSavedContexts().then((l) => setSavedContexts(l.map((c) => ({ id: c.id, title: c.title })))).catch(() => {})
+  }, [askArmed])
 
   // The editor's key handlers outlive any one render: they read the latest values here.
-  const live = { askArmed, aiAvailable, aiBusy, commentaryOn, deepOn, tabOn, wordReplacerEnabled, wordReplacerRules, onSend, onEditSubmit, linkOpen, expanded, replying: !!replyingTo, onCancelReply }
+  const live = { askArmed, aiAvailable, aiBusy, commentaryOn, deepOn, tabOn, mentionDismissed, savedContextId, wordReplacerEnabled, wordReplacerRules, onSend, onEditSubmit, linkOpen, expanded, replying: !!replyingTo, onCancelReply }
   const liveRef = useRef(live)
   liveRef.current = live
 
@@ -193,13 +210,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     try {
       const rules = l.wordReplacerEnabled ? l.wordReplacerRules.filter((r) => r.enabled && !r.strongsNum).map((r) => ({ queries: r.queries, replacement: r.replacement })) : []
       const opts: ChatSendOptions = asAi
-        ? { ai: { commentary: l.commentaryOn, deepSearch: l.deepOn, tabContext: l.tabOn }, wordReplacerRules: rules }
+        ? { ai: { commentary: l.commentaryOn, deepSearch: l.deepOn, tabContext: l.tabOn, ...(l.mentionDismissed ? { tabMentionDismissed: true } : {}), ...(l.savedContextId ? { savedContextId: l.savedContextId } : {}) }, wordReplacerRules: rules }
         : {}
       load('')
       drafts.sent()
       setExpandedHeight(null)
       setLinkOpen(false)
-      if (asAi) setAskArmed(false) // one send per arming — messaging is the default again
+      if (asAi) { setAskArmed(false); setSavedContextId(null) } // one send per arming — messaging is the default again
       const ok = await l.onSend(value, opts)
       if (!ok && editorRef.current?.isEmpty()) { load(value); drafts.changed() }
     } finally {
@@ -309,11 +326,34 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
         </div>
         {showAccessory && (
           <div className="chat-composer-accessory">
-            <ChatModeMenu mode={mode} onChange={setMode} disabled={aiBusy} />
+            <ChatModeMenu flags={{ commentary: commentaryOn, deepSearch: deepOn }} onChange={(f) => { setModeFlags(f); if (modeNotice) setModeNotice(false) }} disabled={aiBusy}
+              collections={collections} onCollectionsChange={setCollections}
+              profiles={profiles} activeProfileId={profileId}
+              onProfileChange={(id) => { const p = profiles.find((x) => x.id === id); if (p) activateProfile(p) }}
+              savedContexts={savedContexts} activeSavedContextId={savedContextId} onSavedContextChange={setSavedContextId} />
+            {savedContextId && (
+              <button type="button" className="chat-acc-chip is-on no-drag focus-ring" onMouseDown={(e) => e.preventDefault()}
+                aria-label={`Using saved research: ${savedContexts.find((c) => c.id === savedContextId)?.title ?? ''} — click to stop`}
+                onClick={() => setSavedContextId(null)}>
+                <Bookmark size={12} strokeWidth={2} aria-hidden />
+                <span className="truncate max-w-[140px]">{savedContexts.find((c) => c.id === savedContextId)?.title ?? 'Saved research'}</span>
+              </button>
+            )}
             <ChatContextToggle
-              state={{ label: tabContextLabel ?? null, on: tabOn, mentioned }}
+              state={{ label: tabContextLabel ?? null, on: tabOn, mentioned: mentioned && !mentionDismissed, dismissible: mentioned }}
+              onDismissMention={() => setMentionDismissed((v) => !v)}
               onToggle={() => setTabOn(!tabOn)}
             />
+          </div>
+        )}
+        {showAccessory && modeNotice && !commentaryOn && (
+          // One-time, after the v9 migration moved Commentary off by default (store/aiModeMigration.ts).
+          <div className="chat-mode-notice text-caption2 text-text-muted" role="status">
+            <span>Chats now start with Commentary off.</span>
+            <button type="button" className="chat-mode-notice-action" onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setCommentaryOn(true); setModeNotice(false) }}>Turn on</button>
+            <button type="button" className="chat-mode-notice-action" aria-label="Dismiss" onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setModeNotice(false)}>Dismiss</button>
           </div>
         )}
       </div>

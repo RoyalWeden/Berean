@@ -1,5 +1,6 @@
 import { createContext, Fragment, memo, useContext, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, BookMarked, Link2, NotepadText, BookOpenText, Quote, Youtube } from 'lucide-react'
+import { ChevronDown, ChevronRight, BookMarked, Link2, NotepadText, BookOpenText, Quote, Youtube, AlertTriangle } from 'lucide-react'
+import { researchErrorCopy, type ResearchErrorCode } from '@/lib/research/errors'
 import { useAppStore } from '@/store'
 import { Button, SectionLabel } from '@/components/ui'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -7,6 +8,11 @@ import type { AiLookupNoteResult, AiLookupResult, AiLookupStrongsCard, AiLookupV
 import type { ChatMsg } from './chatModel'
 import { ChatMarkdown } from './ChatMarkdown'
 import { useChatNavigate } from './chatNav'
+import { ResearchResults } from './ResearchResults'
+import { collectionInfo, collectionOf } from '@/lib/research/collections'
+import { premiseNoticeText, type PremiseCheck } from '@/lib/research/premise'
+import { safeSourceUrl, type ExternalSource } from '@/lib/research/webResearch'
+import { bookName } from '@/lib/parseRef'
 
 /**
  * The body of a Berean (AI) reply — prose (markdown), a passage list (reference, the verse in a
@@ -53,7 +59,7 @@ function StrongsCard({ card }: { card: AiLookupStrongsCard }) {
         {card.gloss && <p className="text-caption text-text-primary leading-snug mt-0.5">{card.gloss}</p>}
         {card.derivation && <p className="text-caption2 text-text-muted leading-snug mt-0.5 line-clamp-2">{card.derivation}</p>}
         <p className="text-caption2 text-text-muted mt-1">
-          {card.occurrenceCount} occurrence{card.occurrenceCount === 1 ? '' : 's'} in Scripture · Open in Lexicon
+          {card.occurrenceCount} per Strong's lexicon · Open in Lexicon
         </p>
       </div>
       <ChevronRight size={13} className="flex-shrink-0 self-center text-text-muted" />
@@ -111,7 +117,57 @@ function VideoCard({ video }: { video: AiLookupVideoResult }) {
   )
 }
 
+/** A typed research outcome (spec §6.1 #15, §9.1): what failed, in plain words, and whether the
+ *  results below were found without the AI model. Never shown as "no matching verses". */
+function ResearchNotice({ code, partial, fallback }: { code: ResearchErrorCode; partial: boolean; fallback?: string }) {
+  const copy = researchErrorCopy(code, { partial })
+  return (
+    <div className="chat-notice" role="status">
+      <AlertTriangle size={13} className="flex-shrink-0 mt-[2px] text-text-muted" aria-hidden />
+      <div className="min-w-0">
+        <p className="text-caption font-semibold text-text-primary">{copy.title}</p>
+        <p className="text-caption2 text-text-secondary">{fallback && /isn't running/.test(fallback) ? fallback : copy.detail}</p>
+      </div>
+    </div>
+  )
+}
+
 /** A deterministic (non-AI-prose) summary line, shown as a quiet label rather than a sentence. */
+/** Premise check (spec §6.1 #11): "not verified" vs "contradicted by these sources", the cited
+ *  verses, a missing-source caveat and a neutral search — fixed wording, never model prose. */
+/** Online sources sit in their own labelled block after the Scripture results, never among them. */
+function ExternalSources({ sources }: { sources: ExternalSource[] }) {
+  return (
+    <section aria-label="Online sources" className="space-y-1">
+      <p className="text-caption2 font-medium text-text-muted">Online sources (not Scripture)</p>
+      {sources.map((s) => (
+        // Checked again here: a saved chat can arrive by sync, so the stored link isn't trusted.
+        <button key={s.url} type="button" className="chat-ai-row block w-full text-left" disabled={!safeSourceUrl(s.url)}
+          onClick={() => { const url = safeSourceUrl(s.url); if (url) void window.app.openExternal(url) }}>
+          <span className="text-caption font-semibold text-text-primary">{s.title}</span>
+          <span className="text-caption2 text-text-muted"> · {s.site} · retrieved {s.retrievedAt.slice(0, 10)}</span>
+          {s.excerpt && <p className="text-caption2 text-text-secondary leading-snug mt-0.5">{s.excerpt}</p>}
+          <p className="text-caption2 text-text-muted mt-0.5">{s.limitation}</p>
+        </button>
+      ))}
+    </section>
+  )
+}
+
+function PremiseNotice({ premise: p }: { premise: PremiseCheck }) {
+  const cite = (key: string) => { const [b, cv] = key.split(' '); return `${bookName(b)} ${cv}` }
+  return (
+    <div className="chat-notice" role="note" aria-label="Premise check">
+      <AlertTriangle size={13} className="flex-shrink-0 mt-[2px] text-text-muted" aria-hidden />
+      <div className="min-w-0">
+        <p className="text-caption font-semibold text-text-primary">{p.status === 'contradicted' ? 'Contradicted by these passages' : 'Not verified'}</p>
+        <p className="text-caption2 text-text-secondary">{premiseNoticeText(p)}</p>
+        {p.evidence.length > 0 && <p className="text-caption2 text-text-secondary">Cited: {p.evidence.map(cite).join('; ')}</p>}
+      </div>
+    </div>
+  )
+}
+
 function SourceBadge({ text }: { text: string }) {
   return (
     <div className="chat-source-badge flex items-start gap-1.5 max-w-full text-caption2 text-text-muted">
@@ -130,6 +186,16 @@ function useActiveWordReplacerRules() {
   return useMemo(() => (enabled ? rules.filter((r) => r.enabled && !r.strongsNum) : []), [enabled, rules])
 }
 
+// Cross-reference provenance (spec §6.1 #9, §4.4): which source asserts the link — never implied
+// to be authoritative or interpretive.
+const LINK_TYPE_LABEL = { dataset: 'Cross-ref', tske: 'TSKe', quotation: 'Quotation', note: 'Your note' } as const
+const LINK_TYPE_TITLE = {
+  dataset: 'Linked in the cross-reference dataset (crowd-voted)',
+  tske: 'Linked in the Treasury of Scripture Knowledge',
+  quotation: 'One verse quotes or is quoted by the other',
+  note: 'You linked this in a verse note. This is your connection, not a textual cross-reference',
+} as const
+
 /** `question` = the ai-request this reply answers (threaded into Study Trail as the reason). */
 export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: { message: ChatMsg; question?: string }) {
   const nav = useChatNavigate()
@@ -138,6 +204,7 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
   const [shownOverride, setShownOverride] = useState<number | null>(null)
   const [crossRefsOpen, setCrossRefsOpen] = useState<Record<number, boolean>>({})
   const display = (t: string) => (rules.length > 0 ? applyWordReplacer(t, rules) : t)
+  const aliases = useAppStore((s) => s.aiLookupDisplayAliases)
 
   const keywords = m.keywords ?? []
   const displayKeywords = rules.length > 0 ? keywords.map((k) => applyWordReplacer(k, rules)) : keywords
@@ -158,19 +225,27 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
 
   return (
     <div className="chat-ai text-footnote">
-      {m.content && <ChatMarkdown text={m.content} streaming={!!m.pending} className="text-text-primary" />}
+      {m.followUpReason && <SourceBadge text={`Interpreted as: ${m.followUpReason}`} />}
+      {m.errorCode && m.errorCode !== 'NO_MATCHES'
+        ? <ResearchNotice code={m.errorCode} partial={!!m.partial} fallback={m.content} />
+        : m.content && <ChatMarkdown text={m.content} streaming={!!m.pending} className="text-text-primary" />}
+      {m.providerNotice && <p className="text-caption2 text-text-muted" aria-label="Model used">{m.providerNotice}</p>}
+      {m.premise && <PremiseNotice premise={m.premise} />}
       {m.summary && (
         // Deterministic branches (quote-lookup, notes-only) return `keywords: []` — a quiet
         // label for those vs the model's narrated summary, which reads as prose.
         keywords.length === 0
           ? <SourceBadge text={m.summary} />
-          : <ChatMarkdown text={m.summary} streaming={!!m.pending} className="chat-ai-summary text-text-primary" />
+          : <ChatMarkdown text={m.summary} streaming={!!m.pending} className="chat-ai-summary text-text-primary" aliases={aliases} />
       )}
-      {m.strongsCard && <StrongsCard card={m.strongsCard} />}
+      {m.research
+        ? <ResearchResults research={m.research} />
+        : m.strongsCard && <StrongsCard card={m.strongsCard} />}
       {(m.notes ?? []).length > 0 && <div className="chat-ai-rows">{m.notes!.map((n) => <NoteCard key={n.id} note={n} />)}</div>}
       {(m.videos ?? []).length > 0 && <div className="chat-ai-rows">{m.videos!.map((v) => <VideoCard key={v.videoId} video={v} />)}</div>}
+      {(m.external ?? []).length > 0 && <ExternalSources sources={m.external!} />}
 
-      {visiblePrimary.length > 0 && (
+      {visiblePrimary.length > 0 && !m.research?.passageComparison && (
         <ul className="chat-passages" aria-label="Passages">
           {visiblePrimary.map((r, ri) => {
             const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []
@@ -184,12 +259,16 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
                 >
                   <div className="chat-passage-ref text-caption">
                     <span>{refLabel(r)}</span>
+                    {collectionOf(r.textId, r.bookId) !== 'canon' && (
+                      // Decision 9: a non-canonical source is always visibly labelled.
+                      <span className="chat-collection-badge text-micro">{collectionInfo(collectionOf(r.textId, r.bookId)).badge}</span>
+                    )}
                     {r.noted && <BookMarked size={11} className="text-accent" aria-label="You have a note here" />}
                   </div>
                   <blockquote className="chat-scripture berean-scripture-text m-0">
                     <HighlightedText text={display(r.text)} keywords={displayKeywords} />
                   </blockquote>
-                  {r.commentary && <ChatMarkdown text={r.commentary} streaming={!!m.pending} className="chat-commentary" />}
+                  {r.commentary && <ChatMarkdown text={r.commentary} streaming={!!m.pending} className="chat-commentary" aliases={aliases} />}
                 </div>
                 {nested.length > 0 && (
                   <div className="chat-crossrefs">
@@ -207,6 +286,7 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
                             <button type="button" className="chat-crossref text-caption2" title={`Open ${refLabel(cr)}`}
                               onClick={() => openVerse(cr)} onContextMenu={(e) => menu(e, cr)}>
                               <span className="chat-crossref-ref">{cr.bookName} {cr.chapter}:{cr.verse}</span>
+                              {cr.linkType && <span className="chat-link-badge text-micro" title={LINK_TYPE_TITLE[cr.linkType]}>{LINK_TYPE_LABEL[cr.linkType]}</span>}
                               <span className="chat-crossref-text">{display(cr.text)}</span>
                             </button>
                           </li>

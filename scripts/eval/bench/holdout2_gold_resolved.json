@@ -1,0 +1,462 @@
+{
+ "G225": {
+  "id": "G225",
+  "lemma": "ἀλήθεια",
+  "translit": "alḗtheia",
+  "pron": null,
+  "gloss": "true, X truly, truth, verity",
+  "derivation": "from G227 (ἀληθής);",
+  "occurrence_count": 252,
+  "occurrence_rows": 252
+ },
+ "G4991": {
+  "id": "G4991",
+  "lemma": "σωτηρία",
+  "translit": "sōtēría",
+  "pron": null,
+  "gloss": "deliver, health, salvation, save, saving",
+  "derivation": "feminine of a derivative of G4990 (σωτήρ) as (properly, abstract) noun;",
+  "occurrence_count": 163,
+  "occurrence_rows": 163
+ },
+ "H6944": {
+  "id": "H6944",
+  "lemma": "קֹדֶשׁ",
+  "translit": "qôdesh",
+  "pron": "ko'-desh",
+  "gloss": "consecrated (thing), dedicated (thing), hallowed (thing), holiness, (× most) holy (× day, portion, thing), saint, sanctuary.",
+  "derivation": "from 6942 ;",
+  "occurrence_count": 259,
+  "occurrence_rows": 259
+ },
+ "H6918": {
+  "id": "H6918",
+  "lemma": "קָדוֹשׁ",
+  "translit": "qâdôwsh",
+  "pron": "kaw-doshe'",
+  "gloss": "holy (One), saint.",
+  "derivation": "or קָדֹשׁ ; from 6942 ;",
+  "occurrence_count": 87,
+  "occurrence_rows": 87
+ },
+ "G1577": {
+  "id": "G1577",
+  "lemma": "ἐκκλησία",
+  "translit": "ekklēsía",
+  "pron": null,
+  "gloss": "assembly, church",
+  "derivation": "from a compound of G1537 (ἐκ) and a derivative of G2564 (καλέω);",
+  "occurrence_count": 189,
+  "occurrence_rows": 189
+ },
+ "H7676": {
+  "id": "H7676",
+  "lemma": "שַׁבָּת",
+  "translit": "shabbâth",
+  "pron": "shab-bawth'",
+  "gloss": "( every) sabbath.",
+  "derivation": "intensive from 7673 ;",
+  "occurrence_count": 57,
+  "occurrence_rows": 57
+ },
+ "H4941": {
+  "id": "H4941",
+  "lemma": "מִשְׁפָּט",
+  "translit": "mishpâṭ",
+  "pron": "mish-pawt'",
+  "gloss": "adversary, ceremony, charge, × crime, custom, desert, determination, discretion, disposing, due, fashion, form, to be judged, judgment, just(-ice, -ly), (manner of) law(-ful), manner, measure, (due) order, ordinance, right, sentence, usest, × worthy, wrong.",
+  "derivation": "from 8199 ;",
+  "occurrence_count": 290,
+  "occurrence_rows": 290
+ },
+ "H6664": {
+  "id": "H6664",
+  "lemma": "צֶדֶק",
+  "translit": "tsedeq",
+  "pron": "tseh'-dek",
+  "gloss": "× even, (× that which is altogether) just(-ice), (un-)right(-eous) (cause, -ly, -ness).",
+  "derivation": "from 6663 ;",
+  "occurrence_count": 87,
+  "occurrence_rows": 87
+ },
+ "JAS 1:4": {
+  "text": "But let patience have her perfect work, that ye may be perfect and entire, wanting nothing.",
+  "tagged": "But{G1161} let{} patience{G5281} have{G2192} *her{} perfect{G5046} work,{G2041} that{G2443} ye{} may{} be{G5600} perfect{G5046} and{G2532} entire,{G3648} wanting{G3007} nothing.{G3367}"
+ },
+ "ROM 5:3": {
+  "text": "And not only so, but we glory in tribulations also: knowing that tribulation worketh patience;",
+  "tagged": "And{G1161} not{G3756} only{G3440} *so,{} but{G235} we{} glory{G2744} in{G1722} tribulations{G2347} also:{G2532} knowing{G1492} that{G3754} tribulation{G2347} worketh{G2716} patience;{G5281}"
+ },
+ "GAL 5:22": {
+  "text": "But the fruit of the Spirit is love, joy, peace, longsuffering, gentleness, goodness, faith,",
+  "tagged": "But{G1161} the{G3588} fruit{G2590} of{} the{G3588} Spirit{G4151} is{G2076} love,{G26} joy,{G5479} peace,{G1515} longsuffering,{G3115} gentleness,{G5544} goodness,{G19} faith,{G4102}"
+ },
+ "JAS 5:7": {
+  "text": "Be patient therefore, brethren, unto the coming of the Lord. Behold, the husbandman waiteth for the precious fruit of the earth, and hath long patience for it, until he receive the early and latter rain.",
+  "tagged": "Be{} patient{G3114} therefore,{G3767} brethren,{G80} unto{G2193} the{G3588} coming{G3952} of{} the{G3588} Lord.{G2962} Behold,{G2400} the{G3588} husbandman{G1092} waiteth{} for{G1551} the{G3588} precious{G5093} fruit{G2590} of{} the{G3588} earth,{G1093} and{G2532} hath{} long{} patience{G3114} for{G1909} it,{G846} until{G2193|G302} he{} receive{G2983} the{} early{G4406} and{G2532} latter{G3797} rain.{G5205}"
+ },
+ "HEB 10:36": {
+  "text": "For ye have need of patience, that, after ye have done the will of God, ye might receive the promise.",
+  "tagged": "For{G1063} ye{} have{G2192} need{G5532} of{} patience,{G5281} that,{G2443} after{} ye{} have{} done{G4160} the{G3588} will{G2307} of{} God,{G2316} ye{} might{} receive{G2865} the{G3588} promise.{G1860}"
+ },
+ "DAN 12:2": {
+  "text": "And many of them that sleep in the dust of the earth shall awake, some to everlasting life, and some to shame and everlasting contempt.",
+  "tagged": "And{} many{H7227} of{} them{} that{} sleep{H3463} in{} the{} dust{H6083} of{} the{} earth{H127} shall{} awake,{H6974} some{H428} to{} everlasting{H5769} life,{H2416} and{} some{H428} to{} shame{H2781} *and{} everlasting{H5769} contempt.{H1860}"
+ },
+ "JHN 5:29": {
+  "text": "And shall come forth; they that have done good, unto the resurrection of life; and they that have done evil, unto the resurrection of damnation.",
+  "tagged": "!And{G2532} !shall{} !come{G1607} !forth;{G1607} !they{G3588} !that{} !have{} !done{G4160} !good,{G18} !unto{G1519} !the{} !resurrection{G386} !of{} !life;{G2222} !and{G1161} !they{} !that{} !have{} !done{G4238} !evil,{G5337} !unto{G1519} !the{} !resurrection{G386} !of{} !damnation.{G2920}"
+ },
+ "1TH 4:16": {
+  "text": "For the Lord himself shall descend from heaven with a shout, with the voice of the archangel, and with the trump of God: and the dead in Christ shall rise first:",
+  "tagged": "For{G3754} the{G3588} Lord{G2962} himself{G846} shall{} descend{G2597} from{G575} heaven{G3772} with{G1722} a{} shout,{G2752} with{G1722} the{} voice{G5456} of{} the{} archangel,{G743} and{G2532} with{G1722} the{} trump{G4536} of{} God:{G2316} and{G2532} the{G3588} dead{G3498} in{G1722} Christ{G5547} shall{} rise{G450} first:{G4412}"
+ },
+ "ACT 24:15": {
+  "text": "And have hope toward God, which they themselves also allow, that there shall be a resurrection of the dead, both of the just and unjust.",
+  "tagged": "And{} have{G2192} hope{G1680} toward{G1519} God,{G2316} which{G3739} they{G3778} themselves{G846} also{G2532} allow,{G4327} that{} there{} shall{G3195} be{G1510} a{} resurrection{G386} of{} the{} dead,{G3498} both{G5037} of{} the{} just{G1342} and{G2532} unjust.{G94}"
+ },
+ "REV 20:12": {
+  "text": "And I saw the dead, small and great, stand before God; and the books were opened: and another book was opened, which is the book of life: and the dead were judged out of those things which were written in the books, according to their works.",
+  "tagged": "And{G2532} I{} saw{G1492} the{G3588} dead,{G3498} small{G3398} and{G2532} great,{G3173} stand{G2476} before{G1799} God;{G2316} and{G2532} the{G3588} books{G975} were{G455} opened:{G455} and{G2532} another{G243} book{G975} was{G455} opened,{G455} which{} is{G3603} *the{} *book{} of{} life:{G2222} and{G2532} the{G3588} dead{G3498} were{G2919} judged{G2919} out{G1537} of{G1537} those{} things{} which{} were{} written{G1125} in{G1722} the{G3588} books,{G975} according{G2596} to{} their{G848} works.{G2041}"
+ },
+ "1CO 15:42": {
+  "text": "So also is the resurrection of the dead. It is sown in corruption; it is raised in incorruption:",
+  "tagged": "So{G3779} also{G2532} *is{} the{G3588} resurrection{G386} of{} the{G3588} dead.{G3498} It{} is{} sown{G4687} in{G1722} corruption;{G5356} it{} is{} raised{G1453} in{G1722} incorruption:{G861}"
+ },
+ "JHN 11:25": {
+  "text": "Jesus said unto her, I am the resurrection, and the life: he that believeth in me, though he were dead, yet shall he live:",
+  "tagged": "Jesus{G2424} said{G2036} unto{} her,{G846} !I{G1473} !am{G1510} !the{G3588} !resurrection,{G386} !and{G2532} !the{G3588} !life:{G2222} !he{} !that{} !believeth{G4100} !in{G1519} !me,{G1691} !though{G2579} !he{} !were{} !dead,{G599} !yet{} !shall{G599} !he{} !live:{G2198}"
+ },
+ "GEN 9:13": {
+  "text": "I do set my bow in the cloud, and it shall be for a token of a covenant between me and the earth.",
+  "tagged": "I{} do{} set{H5414} ~{H853} my{} bow{H7198} in{} the{} cloud,{H6051} and{} it{} shall{} be{H1961} for{} a{} token{H226} of{} a{} covenant{H1285} between{H996} me{} and{} the{} earth.{H776}"
+ },
+ "GEN 9:16": {
+  "text": "And the bow shall be in the cloud; and I will look upon it, that I may remember the everlasting covenant between God and every living creature of all flesh that is upon the earth.",
+  "tagged": "And{} the{} bow{H7198} shall{} be{H1961} in{} the{} cloud;{H6051} and{} I{} will{} look{} upon{H7200} it,{} that{} I{} may{} remember{H2142} the{} everlasting{H5769} covenant{H1285} between{H996} God{H430} and{} every{H3605} living{H2416} creature{H5315} of{} all{H3605} flesh{H1320} that{H834} *is{} upon{H5921} the{} earth.{H776}"
+ },
+ "GEN 9:12": {
+  "text": "And God said, This is the token of the covenant which I make between me and you and every living creature that is with you, for perpetual generations:",
+  "tagged": "And{} God{H430} said,{H559} This{H2063} *is{} the{} token{H226} of{} the{} covenant{H1285} which{H834} I{H589} make{H5414} between{H996} me{} and{} you{} and{} every{H3605} living{H2416} creature{H5315} that{H834} *is{} with{H854} you,{} for{} perpetual{H5769} generations:{H1755}"
+ },
+ "DEU 11:13": {
+  "text": "And it shall come to pass, if ye shall hearken diligently unto my commandments which I command you this day, to love the Lord your God, and to serve him with all your heart and with all your soul,",
+  "tagged": "And{} it{} shall{} come{} to{} pass,{H1961} if{H518} ye{} shall{} hearken{} diligently{H8085|H8085} unto{H413} my{} commandments{H4687} which{H834} I{H595} command{H6680} you{} this{} day,{H3117} to{} love{H157} ~{H853} the{} LORD{H3068} your{} God,{H430} and{} to{} serve{H5647} him{} with{} all{H3605} your{} heart{H3824} and{} with{} all{H3605} your{} soul,{H5315}"
+ },
+ "ROM 10:17": {
+  "text": "So then faith cometh by hearing, and hearing by the word of God.",
+  "tagged": "So{} then{G686} faith{G4102} *cometh{} by{G1537} hearing,{G189} and{G1161} hearing{G189} by{G1223} the{} word{G4487} of{} God.{G2316}"
+ },
+ "enoch:ENO 10:2": {
+  "text": "〈’Go to Noah and〉 tell him in my name “Hide thyself!” and reveal to him the end that is approaching: that the whole earth will be destroyed, and a deluge is about to come upon the whole earth, and will destroy all that is on it.",
+  "tagged": null
+ },
+ "enoch:ENO 89:3": {
+  "text": "And I saw again, and behold fountains were opened on the surface of that great enclosure, and that water began to swell and rise upon the surface, and I saw that enclosure till all its surface was covered with water.",
+  "tagged": null
+ },
+ "enoch:ENO 65:1": {
+  "text": "And in those days Noah saw the earth that it had sunk down and its destruction was nigh.",
+  "tagged": null
+ },
+ "lxx:ISA 7:14": {
+  "text": "Therefore the Lord himself shall give you a sign; behold, a virgin shall conceive in the womb, and shall bring forth a son, and thou shalt call his name Emmanuel.",
+  "tagged": "Therefore{G1223} the{G3778} Lord{G2962} himself{} shall{} give{G1325} you{G5213} a{G846} sign;{G4592} behold,{G2400} a{G3588} virgin{G3933} shall{} conceive{} in{G1722} the{} womb,{G1064} and{G2532} shall{G1838} bring{G5088} forth{} a{} son,{G5207} and{G2532} thou{} shalt{} call{G2564} his{G3588} name{G3686} Emmanuel.{G1694}"
+ },
+ "PRO 4:7": {
+  "text": "Wisdom is the principal thing; therefore get wisdom: and with all thy getting get understanding.",
+  "tagged": "Wisdom{H2451} *is{} the{} principal{} thing;{H7225} *therefore{} get{H7069} wisdom:{H2451} and{} with{} all{H3605} thy{} getting{H7075} get{H7069} understanding.{H998}"
+ },
+ "JAS 1:5": {
+  "text": "If any of you lack wisdom, let him ask of God, that giveth to all men liberally, and upbraideth not; and it shall be given him.",
+  "tagged": "~{G1161} If{G1487} any{G5100} of{} you{G5216} lack{G3007} wisdom,{G4678} let{} him{} ask{G154} of{G3844} God,{G2316} that{} giveth{G1325} to{} all{G3956} *men{} liberally,{G574} and{G2532} upbraideth{G3679} not;{G3361} and{G2532} it{} shall{} be{} given{G1325} him.{G846}"
+ },
+ "PSA 111:10": {
+  "text": "The fear of the Lord is the beginning of wisdom: a good understanding have all they that do his commandments: his praise endureth for ever. ",
+  "tagged": "The{} fear{H3374} of{} the{} LORD{H3068} *is{} the{} beginning{H7225} of{} wisdom:{H2451} a{} good{H2896} understanding{H7922} have{} all{H3605} they{} that{} do{H6213} *his{} *commandments:{} his{} praise{H8416} endureth{H5975} for{} ever.{H5703}"
+ },
+ "JOB 28:28": {
+  "text": "And unto man he said, Behold, the fear of the Lord, that is wisdom; and to depart from evil is understanding. ",
+  "tagged": "And{} unto{} man{H120} he{} said,{H559} Behold,{H2005} the{} fear{H3374} of{} the{} Lord,{H136} that{H1931} *is{} wisdom;{H2451} and{} to{} depart{H5493} from{} evil{H7451} *is{} understanding.{H998}"
+ },
+ "H157": {
+  "id": "H157",
+  "lemma": "אָהַב",
+  "translit": "ʼâhab",
+  "pron": "aw-hab'",
+  "gloss": "(be-) love(-d, -ly, -r), like, friend.",
+  "derivation": "or אָהֵב ; a primitive root;",
+  "occurrence_count": 145,
+  "occurrence_rows": 145
+ },
+ "G25": {
+  "id": "G25",
+  "lemma": "ἀγαπάω",
+  "translit": "agapáō",
+  "pron": null,
+  "gloss": "(be-)love(-ed)",
+  "derivation": "perhaps from (much) (or compare G5689);",
+  "occurrence_count": 339,
+  "occurrence_rows": 339
+ },
+ "PSA 23:1": {
+  "text": "The Lord is my shepherd; I shall not want.",
+  "tagged": "A{} Psalm{H4210} of{} David.{H1732} The{} LORD{H3068} *is{} my{} shepherd;{H7462} I{} shall{} not{H3808} want.{H2637}"
+ },
+ "G1680": {
+  "id": "G1680",
+  "lemma": "ἐλπίς",
+  "translit": "elpís",
+  "pron": null,
+  "gloss": "faith, hope",
+  "derivation": "from a primary (to anticipate, usually with pleasure);",
+  "occurrence_count": 143,
+  "occurrence_rows": 143
+ },
+ "DEU 15:9": {
+  "text": "Beware that there be not a thought in thy wicked heart, saying, The seventh year, the year of release, is at hand; and thine eye be evil against thy poor brother, and thou givest him nought; and he cry unto the Lord against thee, and it be sin unto thee.",
+  "tagged": "Beware{H8104} that{H6435} there{} be{H1961} not{} a{} thought{H1697} in{H5973} thy{} wicked{H1100} heart,{H3824} saying,{H559} The{} seventh{H7651} year,{H8141} the{} year{H8141} of{} release,{H8059} is{} at{} hand;{H7126} and{} thine{} eye{H5869} be{} evil{H7489} against{} thy{} poor{H34} brother,{H251} and{} thou{} givest{H5414} him{} nought;{H3808} and{} he{} cry{H7121} unto{H413} the{} LORD{H3068} against{H5921} thee,{} and{} it{} be{H1961} sin{H2399} unto{} thee.{}"
+ },
+ "DEU 15:1": {
+  "text": "At the end of every seven years thou shalt make a release.",
+  "tagged": "At{} the{} end{H7093} of{} *every{} seven{H7651} years{H8141} thou{} shalt{} make{H6213} a{} release.{H8059}"
+ },
+ "DEU 31:10": {
+  "text": "And Moses commanded them, saying, At the end of every seven years, in the solemnity of the year of release, in the feast of tabernacles,",
+  "tagged": "And{} Moses{H4872} commanded{H6680} them,{} saying,{H559} At{} the{} end{H7093} of{} *every{} seven{H7651} years,{H8141} in{} the{} solemnity{H4150} of{} the{} year{H8141} of{} release,{H8059} in{} the{} feast{H2282} of{} tabernacles,{H5521}"
+ },
+ "HEB 13:15": {
+  "text": "By him therefore let us offer the sacrifice of praise to God continually, that is, the fruit of our lips giving thanks to his name.",
+  "tagged": "By{G1223} him{G846} therefore{G3767} let{} us{} offer{G399} the{} sacrifice{G2378} of{} praise{G133} to{} God{G2316} continually,{G1275} that{} is,{G5123} the{} fruit{G2590} of{} *our{} lips{G5491} giving{} thanks{G3670} to{} his{G846} name.{G3686}"
+ },
+ "EPH 5:19": {
+  "text": "Speaking to yourselves in psalms and hymns and spiritual songs, singing and making melody in your heart to the Lord;",
+  "tagged": "Speaking{G2980} to{} yourselves{G1438} in{} psalms{G5568} and{G2532} hymns{G5215} and{G2532} spiritual{G4152} songs,{G5603} singing{G103} and{G2532} making{G5567} melody{G5567} in{G1722} your{G5216} heart{G2588} to{} the{G3588} Lord;{G2962}"
+ },
+ "REV 19:5": {
+  "text": "And a voice came out of the throne, saying, Praise our God, all ye his servants, and ye that fear him, both small and great.",
+  "tagged": "And{G2532} a{} voice{G5456} came{G1831} out{} of{G1537} the{G3588} throne,{G2362} saying,{G3004} Praise{G134} our{G2257} God,{G2316} all{G3956} ye{} his{G848} servants,{G1401} and{G2532} ye{} that{} fear{G5399} him,{G846} both{G2532} small{G3398} and{G2532} great.{G3173}"
+ },
+ "1PE 2:9": {
+  "text": "But ye are a chosen generation, a royal priesthood, an holy nation, a peculiar people; that ye should shew forth the praises of him who hath called you out of darkness into his marvellous light:",
+  "tagged": "But{G1161} ye{G5210} *are{} a{} chosen{G1588} generation,{G1085} a{} royal{G934} priesthood,{G2406} an{} holy{G40} nation,{G1484} a{} peculiar{G1519|G4047} people;{G2992} that{G3704} ye{} should{} shew{} forth{G1804} the{G3588} praises{G703} of{} him{G3588} who{} hath{} called{G2564} you{G5209} out{} of{G1537} darkness{G4655} into{G1519} his{G846} marvellous{G2298} light:{G5457}"
+ },
+ "PSA 150:6": {
+  "text": "Let every thing that hath breath praise the Lord. Praise ye the Lord.  ",
+  "tagged": "Let{} every{H3605} thing{} that{} hath{} breath{H5397} praise{H1984} the{} LORD.{H3050} Praise{H1984} ye{} the{} LORD.{H3050}"
+ },
+ "PSA 100:4": {
+  "text": "Enter into his gates with thanksgiving, and into his courts with praise: be thankful unto him, and bless his name.",
+  "tagged": "Enter{H935} into{} his{} gates{H8179} with{} thanksgiving,{H8426} *and{} into{} his{} courts{H2691} with{} praise:{H8416} be{} thankful{H3034} unto{} him,{} *and{} bless{H1288} his{} name.{H8034}"
+ },
+ "1CO 5:7": {
+  "text": "Purge out therefore the old leaven, that ye may be a new lump, as ye are unleavened. For even Christ our passover is sacrificed for us:",
+  "tagged": "Purge{} out{G1571} therefore{G3767} the{G3588} old{G3820} leaven,{G2219} that{G2443} ye{} may{} be{G5600} a{} new{G3501} lump,{G5445} as{G2531} ye{} are{G2075} unleavened.{G106} For{G1063} even{G2532} Christ{G5547} our{G2257} passover{} ~{G3957} is{} sacrificed{G2380} for{G5228} us:{G2257}"
+ },
+ "LUK 22:15": {
+  "text": "And he said unto them, With desire I have desired to eat this passover with you before I suffer:",
+  "tagged": "And{G2532} he{} said{G2036} unto{G4314} them,{G846} !With{G1939} !desire{G1939} !I{} !have{G1937} !desired{G1937} !to{} !eat{G5315} !this{G5124} !passover{G3957} !with{G3326} !you{G5216} !before{G4253} !I{G3165} !suffer:{G3958}"
+ },
+ "JHN 19:14": {
+  "text": "And it was the preparation of the passover, and about the sixth hour: and he saith unto the Jews, Behold your King!",
+  "tagged": "And{G1161} it{} was{G2258} the{} preparation{G3904} of{} the{G3588} passover,{G3957} and{G1161} about{G5616} the{} sixth{G1623} hour:{G5610} and{G2532} he{} saith{G3004} unto{} the{G3588} Jews,{G2453} Behold{G2396} your{G5216} King!{G935}"
+ },
+ "MAT 26:17": {
+  "text": "Now the first day of the feast of unleavened bread the disciples came to Jesus, saying unto him, Where wilt thou that we prepare for thee to eat the passover?",
+  "tagged": "Now{G1161} the{G3588} first{G4413} *day{} of{} the{G3588} *feast{} *of{} unleavened{G106} bread{G106} the{G3588} disciples{G3101} came{G4334} to{} Jesus,{G2424} saying{G3004} unto{} him,{G846} Where{G4226} wilt{G2309} thou{} that{} we{} prepare{G2090} for{} thee{G4671} to{} eat{G5315} the{G3588} passover?{G3957}"
+ },
+ "G1515": {
+  "id": "G1515",
+  "lemma": "εἰρήνη",
+  "translit": "eirḗnē",
+  "pron": null,
+  "gloss": "one, peace, quietness, rest, + set at one again",
+  "derivation": "probably from a primary verb (to join);",
+  "occurrence_count": 312,
+  "occurrence_rows": 312
+ },
+ "H1285": {
+  "id": "H1285",
+  "lemma": "בְּרִית",
+  "translit": "bᵉrîyth",
+  "pron": "ber-eeth'",
+  "gloss": "confederacy, (con-) feder(-ate), covenant, league.",
+  "derivation": "from 1262 (in the sense of cutting [like 1254 ]);",
+  "occurrence_count": 169,
+  "occurrence_rows": 169
+ },
+ "G5485": {
+  "id": "G5485",
+  "lemma": "χάρις",
+  "translit": "cháris",
+  "pron": null,
+  "gloss": "acceptable, benefit, favour, gift, grace(- ious), joy, liberality, pleasure, thank(-s, -worthy)",
+  "derivation": "from G5463 (χαίρω);",
+  "occurrence_count": 284,
+  "occurrence_rows": 284
+ },
+ "G3340": {
+  "id": "G3340",
+  "lemma": "μετανοέω",
+  "translit": "metanoéō",
+  "pron": null,
+  "gloss": "repent",
+  "derivation": "from G3326 (μετά) and G3539 (νοιέω);",
+  "occurrence_count": 51,
+  "occurrence_rows": 51
+ },
+ "G5479": {
+  "id": "G5479",
+  "lemma": "χαρά",
+  "translit": "chará",
+  "pron": null,
+  "gloss": "gladness, X greatly, (X be exceeding) joy(-ful, -fully, -fulness, -ous)",
+  "derivation": "from G5463 (χαίρω);",
+  "occurrence_count": 88,
+  "occurrence_rows": 88
+ },
+ "H8057": {
+  "id": "H8057",
+  "lemma": "שִׂמְחָה",
+  "translit": "simchâh",
+  "pron": "sim-khaw'",
+  "gloss": "× exceeding(-ly), gladness, joy(-fulness), mirth, pleasure, rejoice(-ing).",
+  "derivation": "from 8056 ;",
+  "occurrence_count": 63,
+  "occurrence_rows": 63
+ },
+ "H2580": {
+  "id": "H2580",
+  "lemma": "חֵן",
+  "translit": "chên",
+  "pron": "khane",
+  "gloss": "favour, grace(-ious), pleasant, precious, (well-) favoured.",
+  "derivation": "from 2603 ;",
+  "occurrence_count": 53,
+  "occurrence_rows": 53
+ },
+ "G4151": {
+  "id": "G4151",
+  "lemma": "πνεῦμα",
+  "translit": "pneûma",
+  "pron": null,
+  "gloss": "ghost, life, spirit(-ual, -ually), mind",
+  "derivation": "from G4154 (πνέω);",
+  "occurrence_count": 647,
+  "occurrence_rows": 647
+ },
+ "H3444": {
+  "id": "H3444",
+  "lemma": "יְשׁוּעָה",
+  "translit": "yᵉshûwʻâh",
+  "pron": "yesh-oo'-aw",
+  "gloss": "deliverance, health, help(-ing), salvation, save, saving (health), welfare.",
+  "derivation": "feminine passive participle of 3467 ;",
+  "occurrence_count": 46,
+  "occurrence_rows": 46
+ },
+ "H3442": {
+  "id": "H3442",
+  "lemma": "יֵשׁוּעַ",
+  "translit": "Yêshûwaʻ",
+  "pron": "yay-shoo'-ah",
+  "gloss": "Jeshua.",
+  "derivation": "for 3091 ; he will save ;",
+  "occurrence_count": 26,
+  "occurrence_rows": 26
+ },
+ "G26": {
+  "id": "G26",
+  "lemma": "ἀγάπη",
+  "translit": "agápē",
+  "pron": null,
+  "gloss": "(feast of) charity(-ably), dear, love",
+  "derivation": "from G25 (ἀγαπάω);",
+  "occurrence_count": 117,
+  "occurrence_rows": 117
+ },
+ "GEN 1:3": {
+  "text": "And God said, Let there be light: and there was light.",
+  "tagged": "And{} God{H430} said,{H559} Let{} there{} be{H1961} light:{H216} and{} there{} was{H1961} light.{H216}"
+ },
+ "ROM 6:23": {
+  "text": "For the wages of sin is death; but the gift of God is eternal life through Jesus Christ our Lord. ",
+  "tagged": "For{G1063} the{G3588} wages{G3800} of{} sin{G266} *is{} death;{G2288} but{G1161} the{G3588} gift{G5486} of{} God{G2316} *is{} eternal{G166} life{G2222} through{G1722} Jesus{G2424} Christ{G5547} our{G2257} Lord.{G2962}"
+ },
+ "H7307": {
+  "id": "H7307",
+  "lemma": "רוּחַ",
+  "translit": "rûwach",
+  "pron": "roo'-akh",
+  "gloss": "air, anger, blast, breath, × cool, courage, mind, × quarter, × side, spirit(-ual), tempest, × vain, (whirl-) wind(-y).",
+  "derivation": "from 7306 ;",
+  "occurrence_count": 236,
+  "occurrence_rows": 236
+ },
+ "H5315": {
+  "id": "H5315",
+  "lemma": "נֶפֶשׁ",
+  "translit": "nephesh",
+  "pron": "neh'-fesh",
+  "gloss": "any, appetite, beast, body, breath, creature, × dead(-ly), desire, × (dis-) contented, × fish, ghost, greedy, he, heart(-y), (hath, × jeopardy of) life (× in jeopardy), lust, man, me, mind, mortally, one, own, person, pleasure, (her-, him-, my-, thy-) self, them (your) -selves, slay, soul, tablet, they, thing, (× she) will, × would have it.",
+  "derivation": "from 5314 ;",
+  "occurrence_count": 486,
+  "occurrence_rows": 486
+ },
+ "JAS 1:27": {
+  "text": "Pure religion and undefiled before God and the Father is this, To visit the fatherless and widows in their affliction, and to keep himself unspotted from the world. ",
+  "tagged": "Pure{G2513} religion{G2356} and{G2532} undefiled{G283} before{G3844} God{G2316} and{G2532} the{} Father{G3962} is{G2076} this,{G3778} To{} visit{G1980} the{} fatherless{G3737} and{G2532} widows{G5503} in{G1722} their{G846} affliction,{G2347} *and{} to{} keep{G5083} himself{G1438} unspotted{G784} from{G575} the{G3588} world.{G2889}"
+ },
+ "RUT 1:16": {
+  "text": "And Ruth said, Intreat me not to leave thee, or to return from following after thee: for whither thou goest, I will go; and where thou lodgest, I will lodge: thy people shall be my people, and thy God my God:",
+  "tagged": "And{} Ruth{H7327} said,{H559} Intreat{H6293} me{} not{H408} to{} leave{H5800} thee,{} *or{} to{} return{H7725} from{} following{} after{H310} thee:{} for{H3588} whither{H413|H834} thou{} goest,{H1980} I{} will{} go;{H1980} and{} where{H834} thou{} lodgest,{H3885} I{} will{} lodge:{H3885} thy{} people{H5971} *shall{} *be{} my{} people,{H5971} and{} thy{} God{H430} my{} God:{H430}"
+ },
+ "TOB 4:7": {
+  "text": "Give alms of thy substance; and when thou givest alms, let not thine eye be envious, neither turn thy face from any poor, and the face of God shall not be turned away from thee.",
+  "tagged": null
+ },
+ "TOB 12:8": {
+  "text": "Prayer is good with fasting and alms and righteousness. A little with righteousness is better than much with unrighteousness. It is better to give alms than to lay up gold:",
+  "tagged": null
+ },
+ "TOB 4:10": {
+  "text": "Because that alms do deliver from death, and suffereth not to come into darkness.",
+  "tagged": null
+ },
+ "TOB 12:9": {
+  "text": "For alms doth deliver from death, and shall purge away all sin. Those that exercise alms and righteousness shall be filled with life:",
+  "tagged": null
+ },
+ "ISA 41:10": {
+  "text": "Fear thou not; for I am with thee: be not dismayed; for I am thy God: I will strengthen thee; yea, I will help thee; yea, I will uphold thee with the right hand of my righteousness.",
+  "tagged": "Fear{H3372} thou{} not;{H408} for{H3588} I{H589} *am{} with{H5973} thee:{} be{} not{H408} dismayed;{H8159} for{H3588} I{H589} *am{} thy{} God:{H430} I{} will{} strengthen{H553} thee;{} yea,{H637} I{} will{} help{H5826} thee;{} yea,{H637} I{} will{} uphold{H8551} thee{} with{} the{} right{} hand{H3225} of{} my{} righteousness.{H6664}"
+ },
+ "2TI 1:7": {
+  "text": "For God hath not given us the spirit of fear; but of power, and of love, and of a sound mind.",
+  "tagged": "For{G1063} God{G2316} hath{} not{G3756} given{G1325} us{G2254} the{} spirit{G4151} of{} fear;{G1167} but{G235} of{} power,{G1411} and{G2532} of{} love,{G26} and{G2532} of{} a{} sound{} mind.{G4995}"
+ },
+ "JOS 1:9": {
+  "text": "Have not I commanded thee? Be strong and of a good courage; be not afraid, neither be thou dismayed: for the Lord thy God is with thee whithersoever thou goest.",
+  "tagged": "Have{} not{H3808} I{} commanded{H6680} thee?{} Be{} strong{H2388} and{} of{} a{} good{} courage;{H553} be{} not{} afraid,{H6206|H408} neither{H408} be{} thou{} dismayed:{H2865} for{H3588} the{} LORD{H3068} thy{} God{H430} *is{} with{H5973} thee{} whithersoever{H3605|H834} thou{} goest.{H1980}"
+ },
+ "PSA 23:4": {
+  "text": "Yea, though I walk through the valley of the shadow of death, I will fear no evil: for thou art with me; thy rod and thy staff they comfort me.",
+  "tagged": "Yea,{H1571} though{H3588} I{} walk{H1980} through{} the{} valley{H1516} of{} the{} shadow{} of{} death,{H6757} I{} will{} fear{H3372} no{H3808} evil:{H7451} for{H3588} thou{H859} *art{} with{H5978} me;{} thy{} rod{H7626} and{} thy{} staff{H4938} they{H1992} comfort{H5162} me.{}"
+ },
+ "1JN 4:18": {
+  "text": "There is no fear in love; but perfect love casteth out fear: because fear hath torment. He that feareth is not made perfect in love.",
+  "tagged": "There{} is{G2076} no{G3756} fear{G5401} in{G1722} love;{G26} but{G235} perfect{G5046} love{G26} casteth{G906} out{G1854} fear:{G5401} because{G3754} fear{G5401} hath{G2192} torment.{G2851} ~{G1161} He{} that{} feareth{G5399} is{} not{G3756} made{} perfect{G5048} in{G1722} love.{G26}"
+ },
+ "PRO 9:10": {
+  "text": "The fear of the Lord is the beginning of wisdom: and the knowledge of the holy is understanding.",
+  "tagged": "The{} fear{H3374} of{} the{} LORD{H3068} *is{} the{} beginning{H8462} of{} wisdom:{H2451} and{} the{} knowledge{H1847} of{} the{} holy{H6918} *is{} understanding.{H998}"
+ },
+ "PRO 1:7": {
+  "text": "The fear of the Lord is the beginning of knowledge: but fools despise wisdom and instruction.",
+  "tagged": "The{} fear{H3374} of{} the{} LORD{H3068} *is{} the{} beginning{H7225} of{} knowledge:{H1847} *but{} fools{H191} despise{H936} wisdom{H2451} and{} instruction.{H4148}"
+ },
+ "ECC 12:13": {
+  "text": "Let us hear the conclusion of the whole matter: Fear God, and keep his commandments: for this is the whole duty of man.",
+  "tagged": "Let{} us{} hear{H8085} the{} conclusion{H5490} of{} the{} whole{H3605} matter:{H1697} Fear{H3372} ~{H853} God,{H430} and{} keep{H8104} his{} commandments:{H4687} for{H3588} this{H2088} *is{} the{} whole{H3605} *duty{} of{} man.{H120}"
+ }
+}

@@ -5,6 +5,9 @@ import { BereanPrint, BereanPower } from './plugins'
 import type { Services } from '../services'
 import { iosServiceContext } from './services'
 import type { UpdateStatus } from '../../types/electron'
+import { modelFreeLookup } from '../services/modelFreeLookup'
+import { savedContextTurn } from '../services/savedContextsService'
+import type { CollectionId } from '../../lib/research/collections'
 
 /**
  * The remaining `window.*` namespaces for the phone (installed next to bridge.ts's):
@@ -233,9 +236,16 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
     if (c.entity === 'ai_chat' && c.remote) for (const cb of chatListeners) cb({ id: c.id, op: c.op === 'delete' ? 'delete' : 'upsert' })
   })
   const aiLookup: Window['aiLookup'] = {
-    checkAvailable: async () => ({ available: false, models: [] }),   // local Ollama model is desktop-only
+    // No local AI model on the phone yet (Phase 7): Ask Berean runs model-free research here —
+    // the same shared services the Mac uses, answered from the bundled databases.
+    checkAvailable: async () => ({ available: true, models: [] }),
     unloadModel: async () => ({ success: true }),
-    query: async () => unavailable('aiLookup.query', 'AI lookup runs a local model on the Mac'),
+    query: async (question: string, opts: { commentary?: boolean; history?: Array<{ role: 'user' | 'assistant'; content: string }>; collections?: CollectionId[]; profileId?: string; savedContextId?: string } = {}) => {
+      const profile = await s.studyProfiles.resolve(opts.profileId).catch(() => null)
+      const saved = opts.savedContextId ? await s.savedContexts.get(opts.savedContextId).catch(() => null) : null
+      const history = saved ? [savedContextTurn(saved), ...(opts.history ?? [])] : opts.history
+      return modelFreeLookup(s, question, { history, collections: opts.collections ?? profile?.config.collections, commentary: opts.commentary })
+    },
     commentary: async () => unavailable('aiLookup.commentary', 'AI lookup runs a local model on the Mac'),
     listChats: () => chats.listChats(),
     getChat: (id: string) => chats.getChat(id),
@@ -247,6 +257,14 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
     renameFolder: (from: string, to: string | null) => chats.renameFolder(from, to),
     queryMessages: (q: Parameters<typeof chats.queryMessages>[0]) => chats.queryMessages(q),
     listDays: () => chats.listDays(),
+    listProfiles: () => s.studyProfiles.list(),
+    createProfile: (name: string, config?: Parameters<typeof s.studyProfiles.create>[1]) => s.studyProfiles.create(name, config),
+    updateProfile: (id: string, patch: Parameters<typeof s.studyProfiles.update>[1]) => s.studyProfiles.update(id, patch),
+    duplicateProfile: (id: string) => s.studyProfiles.duplicate(id),
+    deleteProfile: (id: string) => s.studyProfiles.remove(id),
+    listSavedContexts: () => s.savedContexts.list(),
+    saveContext: (title: string, content: Parameters<typeof s.savedContexts.save>[1]) => s.savedContexts.save(title, content),
+    deleteSavedContext: (id: string) => s.savedContexts.remove(id),
     onChatsChanged: (cb: (c: { id?: string; op: 'upsert' | 'delete' }) => void) => { chatListeners.add(cb); return () => { chatListeners.delete(cb) } },
     onProgress: () => {},
     onPartial: () => {},

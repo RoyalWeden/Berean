@@ -370,6 +370,9 @@ export interface Note {
   deletedAt?: number
   /** Pinned notes sort to the top of NotesList.tsx. */
   pinned?: boolean
+  /** Excluded from AI (spec §4.4): never used by AI search, prompts or ranking. A note in an
+   *  excluded folder is excluded too (see NoteFolder.aiExcluded). */
+  aiExcluded?: boolean
 }
 
 /** Structured idiom fields for the reference-book editor + export. */
@@ -395,6 +398,8 @@ export interface NoteFolder {
   name: string
   parentId: string | null
   createdAt: number
+  /** Excluded from AI, inherited by every note and folder inside it. */
+  aiExcluded?: boolean
 }
 
 export interface Book {

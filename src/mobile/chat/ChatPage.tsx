@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { SquarePen, MessagesSquare, MessageCircle, Search, X, ArrowUp, Sparkles, Copy, Trash2, Pencil, Check, CornerUpLeft, Pin, PinOff, Folder, FolderPlus, FolderMinus, FolderInput, ChevronDown, MoreHorizontal, Inbox, TextSearch } from 'lucide-react'
+import { SquarePen, MessagesSquare, MessageCircle, Search, X, ArrowUp, Sparkles, Copy, Trash2, Pencil, Check, CornerUpLeft, Pin, PinOff, Folder, FolderPlus, FolderMinus, FolderInput, ChevronDown, MoreHorizontal, Inbox, TextSearch, SlidersHorizontal } from 'lucide-react'
 import { Page, ListSection, Row, IconTap } from '../primitives/Page'
 import { useActionSheet } from '../primitives/ActionSheet'
 import type { EditorState } from 'prosemirror-state'
@@ -16,6 +16,9 @@ import { formatDayHeading, formatListTime, messagePreviewText } from '@/componen
 import { organizeConversations, highlightAll, type SearchFilter } from '@/components/ailookup/ChatHistoryList'
 import { filterConversations } from '@/components/ailookup/ChatComposerControls'
 import { PhoneFindBar } from './PhoneFindBar'
+import { AskOptionsPage, AskSavedContext, ASK_OPTIONS_KEY } from './AskOptionsPage'
+import { useAskModels, useStudyProfiles } from '@/components/ailookup/useStudyProfiles'
+import { useAppStore } from '@/store'
 import { UNFILED_CHAT_ID, UNFILED_CHAT_TITLE } from '@/components/ailookup/chatModel'
 import type { AiLookupChatSummary } from '@/types/electron'
 import { ChatReplyBar } from '@/components/ailookup/ChatReplyQuote'
@@ -27,7 +30,9 @@ import '@/components/ailookup/chat.css'
 import './chat.css'
 
 /** Shown when the (disabled) sparkle is tapped — the local model runs on the Mac only. */
-export const ASK_BEREAN_PHONE_HINT = 'Ask Berean is available on the Mac'
+/** Shown when Ask Berean is armed on the phone: research runs here, without an AI model (spec §2.1,
+ *  decision 6) — references, word studies, Strong's, word tables, follow-ups, keyword search. */
+export const ASK_BEREAN_PHONE_HINT = 'Ask Berean · research on this iPhone (AI commentary runs on the Mac)'
 
 export interface ChatPageProps {
   /** Leaves the page (back to wherever it was opened from). */
@@ -58,11 +63,14 @@ export interface ChatPageProps {
  *   <ChatPage onBack={pop} newMessageToken={n} /> // straight into "New Message"
  */
 export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: ChatPageProps) {
-  const c = useChatController({ aiSupported: false, startWithNewMessage: !!newMessageToken })
+  const c = useChatController({ aiSupported: true, startWithNewMessage: !!newMessageToken })
   const composerRef = useRef<ChatEditorHandle | null>(null)
   const firstToken = useRef(newMessageToken)
   const navigate = onNavigate ?? performChatNav
   const live = { c, composerRef, onBack, token: newMessageToken, firstToken: firstToken.current }
+  // Saved research chosen in the Ask Berean options, used by the next armed send only.
+  const [savedContextId, setSavedContextId] = useState<string | null>(null)
+  const savedCtx = useMemo(() => ({ id: savedContextId, set: setSavedContextId }), [savedContextId])
 
   // The list is the root and a conversation is PUSHED on the app's own NavigationStack (TEST
   // 2026-10-18 "allow the user to backwards navigate by swiping when in the berean chat"): the same
@@ -71,6 +79,7 @@ export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: C
   return (
     <ChatNavContext.Provider value={navigate}>
       <ChatLiveContext.Provider value={live}>
+      <AskSavedContext.Provider value={savedCtx}>
         <NavigationStack
           rootKey="chat-list"
           root={<ChatListRoot />}
@@ -78,6 +87,7 @@ export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: C
           canEdgeBack={() => !!onBack}
           initialStack={newMessageToken ? [{ key: THREAD_KEY, element: <ChatThreadEntry /> }] : undefined}
         />
+      </AskSavedContext.Provider>
       </ChatLiveContext.Provider>
     </ChatNavContext.Provider>
   )
@@ -278,6 +288,10 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
   const [focused, setFocused] = useState(false)
   const [linkOpen, setLinkOpen] = useState(false)
   const [hint, setHint] = useState(false)
+  // ✦ arms Ask Berean for one send (same rule as the Mac composer); research only on the phone.
+  const [askArmed, setAskArmed] = useState(false)
+  const askSaved = React.useContext(AskSavedContext)
+  const hasModel = useAskModels().models.length > 0
   const [stickToken, setStickToken] = useState(0)
   // Find in this conversation (… → Find in Conversation): the bar takes the composer's place.
   const [find, setFind] = useState<{ open: boolean; query: string; index: number; count: number; target: string | null }>({ open: false, query: '', index: 0, count: 0, target: null })
@@ -380,6 +394,18 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
     setLinkOpen(false)
     setStickToken((t) => t + 1)
     void haptic.light()
+    if (askArmed) {
+      setAskArmed(false)
+      setHint(false)
+      // Commentary and Deep Search need a model: without one the send is research only, whatever
+      // the profile's defaults say (the options page shows them disabled), so the reply never
+      // claims work it didn't do.
+      const st = useAppStore.getState()
+      const modes = hasModel ? { commentary: st.aiLookupCommentaryOn, deepSearch: st.aiLookupAgenticOn } : { commentary: false, deepSearch: false }
+      void c.send(v, { ai: { ...modes, tabContext: false, ...(askSaved.id ? { savedContextId: askSaved.id } : {}) } })
+      askSaved.set(null)
+      return
+    }
     void c.send(v)
   }
   const onChange = (state: EditorState, docChanged: boolean) => {
@@ -477,6 +503,7 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
           </button>
         )}
         {hint && <div className="m-chat-hint" role="status">{ASK_BEREAN_PHONE_HINT}</div>}
+        {askArmed && !editing && <AskOptionsChip onOpen={() => nav.push(ASK_OPTIONS_KEY, <AskOptionsPage />)} savedActive={!!askSaved.id} />}
         <div className="m-chat-composer" data-toolbar={focused || linkOpen ? 'true' : 'false'}>
           {(focused || linkOpen) && (
             <div className="m-chat-format">
@@ -484,7 +511,8 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
             </div>
           )}
           <div className="m-chat-composer-row">
-            <button type="button" className="m-chat-ask" aria-disabled="true" aria-label={`Ask Berean — ${ASK_BEREAN_PHONE_HINT}`} onClick={showHint}
+            <button type="button" className="m-chat-ask" aria-pressed={askArmed} data-armed={askArmed ? 'true' : undefined} aria-label="Ask Berean"
+              onClick={() => { const next = !askArmed; setAskArmed(next); void haptic.light(); if (next) showHint(); else setHint(false) }}
               onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}>
               <Sparkles size={18} aria-hidden />
             </button>
@@ -519,6 +547,20 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
 }
 
 const PICKER_KEY = 'chat-picker'
+
+/** Shown while Ask Berean is armed: the active study profile and scope, opening the options page. */
+function AskOptionsChip({ onOpen, savedActive }: { onOpen: () => void; savedActive: boolean }) {
+  const { profile } = useStudyProfiles()
+  const collections = useAppStore((s) => s.aiLookupCollections)
+  return (
+    <button type="button" className="m-chat-ask-options" aria-label={`Ask Berean options: ${profile?.name ?? 'Default'}`}
+      onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={onOpen}>
+      <SlidersHorizontal size={12} aria-hidden />
+      <span>{profile?.name ?? 'Default'} · {collections.length} {collections.length === 1 ? 'collection' : 'collections'}{savedActive ? ' · Saved research' : ''}</span>
+      <ChevronDown size={11} aria-hidden />
+    </button>
+  )
+}
 
 /** All Messages / a day: choose which conversation new messages go to — a full page (iPhone),
  *  never a squeezed popover: search, New Conversation, Unfiled, recent conversations. */

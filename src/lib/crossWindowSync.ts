@@ -42,7 +42,7 @@ const SHARED_PREFERENCE_KEYS = [
   'idiomHighlightEnabled', 'idiomHoverPreviewEnabled',
   'backgroundAnimationEnabled', 'backgroundAnimationStyle', 'backgroundAnimationIntensity',
   'swipePanelGestureEnabled',
-  'aiLookupCommentaryOn', 'aiLookupAgenticOn', 'aiLookupUseTabContext',
+  'aiLookupCommentaryOn', 'aiLookupAgenticOn', 'aiLookupUseTabContext', 'aiLookupModeNotice', 'aiLookupCollections', 'aiLookupProfileId', 'aiLookupDisplayAliases',
   'pdfFeatureEnabled', 'pdfDownloadLocation', 'dailyNoteLocation',
   'printMarginPreset', 'printCustomMargins', 'printPaperSize', 'printFontSizePt',
   'printFontFamily', 'printIncludeTitle', 'printColorMode', 'printTheme',

@@ -47,6 +47,10 @@ contextBridge.exposeInMainWorld('notes', {
     ipcRenderer.invoke('notes:setFolder', noteId, folderId),
   setNotePinned: (noteId: string, pinned: boolean) =>
     ipcRenderer.invoke('notes:setPinned', noteId, pinned),
+  setNoteAiExcluded: (noteId: string, excluded: boolean) =>
+    ipcRenderer.invoke('notes:setAiExcluded', noteId, excluded),
+  setFolderAiExcluded: (id: string, excluded: boolean) =>
+    ipcRenderer.invoke('folders:setAiExcluded', id, excluded),
   // Folders
   getFolders: () => ipcRenderer.invoke('folders:getAll'),
   createFolder: (name: string, parentId?: string | null) =>
@@ -421,8 +425,9 @@ contextBridge.exposeInMainWorld('crossrefs', {
 contextBridge.exposeInMainWorld('aiLookup', {
   checkAvailable: () => ipcRenderer.invoke('ailookup:checkAvailable'),
   unloadModel: () => ipcRenderer.invoke('ailookup:unloadModel'),
-  query: (question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }>; tabContext?: { type: 'bible' | 'note' | 'lexicon' | 'youtube'; bookId?: string; chapter?: number; translation?: string; noteId?: string; strongsNum?: string; videoId?: string } }) =>
+  query: (question: string, opts: { requestId?: string; webApproved?: boolean; commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }>; tabContext?: { type: 'bible' | 'note' | 'lexicon' | 'youtube'; bookId?: string; chapter?: number; translation?: string; noteId?: string; strongsNum?: string; videoId?: string } }) =>
     ipcRenderer.invoke('ailookup:query', question, opts),
+  cancel: (requestId: string) => ipcRenderer.invoke('ailookup:cancel', requestId),
   listChats: () => ipcRenderer.invoke('ailookup:listChats'),
   getChat: (id: string) => ipcRenderer.invoke('ailookup:getChat', id),
   saveChat: (chat: unknown) => ipcRenderer.invoke('ailookup:saveChat', chat),
@@ -433,6 +438,31 @@ contextBridge.exposeInMainWorld('aiLookup', {
   renameFolder: (from: string, to: string | null) => ipcRenderer.invoke('ailookup:renameFolder', from, to),
   queryMessages: (q: unknown) => ipcRenderer.invoke('ailookup:queryMessages', q),
   listDays: () => ipcRenderer.invoke('ailookup:listDays'),
+  listProfiles: () => ipcRenderer.invoke('ailookup:listProfiles'),
+  createProfile: (name: string, config?: unknown) => ipcRenderer.invoke('ailookup:createProfile', name, config),
+  updateProfile: (id: string, patch: unknown) => ipcRenderer.invoke('ailookup:updateProfile', id, patch),
+  duplicateProfile: (id: string) => ipcRenderer.invoke('ailookup:duplicateProfile', id),
+  deleteProfile: (id: string) => ipcRenderer.invoke('ailookup:deleteProfile', id),
+  listSavedContexts: () => ipcRenderer.invoke('ailookup:listSavedContexts'),
+  saveContext: (title: string, content: unknown) => ipcRenderer.invoke('ailookup:saveContext', title, content),
+  deleteSavedContext: (id: string) => ipcRenderer.invoke('ailookup:deleteSavedContext', id),
+  // BYO cloud keys — write/check/remove only; a key is never returned to the renderer.
+  saveProviderKey: (providerId: string, key: string) => ipcRenderer.invoke('aiProviders:saveKey', providerId, key),
+  hasProviderKey: (providerId: string) => ipcRenderer.invoke('aiProviders:hasKey', providerId),
+  removeProviderKey: (providerId: string) => ipcRenderer.invoke('aiProviders:removeKey', providerId),
+  checkProviderKey: () => ipcRenderer.invoke('aiProviders:checkKey'),
+  getCloudSettings: () => ipcRenderer.invoke('aiProviders:getSettings'),
+  setCloudSettings: (patch: { cloudEnabled?: boolean; cloudPrivateContext?: boolean; cloudModel?: string; web?: 'off' | 'ask' | 'auto' }) => ipcRenderer.invoke('aiProviders:setSettings', patch),
+  // Local model management (Ollama) — every call starts from a button the user pressed.
+  listLocalModels: () => ipcRenderer.invoke('aimodels:list'),
+  downloadModel: (id: string) => ipcRenderer.invoke('aimodels:download', id),
+  cancelModelDownload: (id: string) => ipcRenderer.invoke('aimodels:cancel', id),
+  removeModel: (id: string) => ipcRenderer.invoke('aimodels:remove', id),
+  onModelProgress: (cb: (e: { id: string; status: string; percent: number | null; completed: number; total: number }) => void) => {
+    const handler = (_: unknown, e: { id: string; status: string; percent: number | null; completed: number; total: number }) => cb(e)
+    ipcRenderer.on('aimodels:progress', handler)
+    return () => { ipcRenderer.removeListener('aimodels:progress', handler) }
+  },
   // Another window wrote a conversation (the main process skips the writing window itself).
   // Returns an unsubscribe — unlike onProgress/onPartial, several chat surfaces can listen at once.
   onChatsChanged: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => {

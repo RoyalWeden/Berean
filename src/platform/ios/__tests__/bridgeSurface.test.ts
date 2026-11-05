@@ -49,6 +49,10 @@ describe('iOS bridge surface', () => {
     expect((await services.studyTrail.getSession(s.id))?.session.name).toBe('Bridge test')
     // unavailable network/desktop-only calls reject with a clear message rather than hanging
     expect(typeof (w.youtube as Record<string, unknown>).refresh).toBe('function')
-    await expect((w.aiLookup as { query: () => Promise<unknown> }).query()).rejects.toThrow(/Mac/)
+    // Ask Berean on the phone answers model-free (spec §2.1 / decision 6, superseding D-009) and
+    // says so: a typed NO_MODEL_INSTALLED outcome, never a claim of AI work.
+    const res = await (w.aiLookup as { query: (q: string, o?: object) => Promise<{ errorCode?: string; results: unknown[] }> }).query('', {})
+    expect(res.errorCode).toBe('NO_MODEL_INSTALLED')
+    expect(res.results).toEqual([])
   })
 })

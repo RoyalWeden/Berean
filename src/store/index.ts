@@ -15,6 +15,8 @@ import { lexiconTitleFor } from '@/lib/lexiconTitle'
 import { recordLexiconConnection, recordSideStop } from '@/store/studyTrailSlice'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
+import { migrateAiModeState, AI_MODE_STORE_VERSION } from './aiModeMigration'
+import { DEFAULT_COLLECTIONS } from '@/lib/research/collections'
 
 // Dedicated, NON-debounced localStorage key for the presenter window's text zoom.
 // See setViewerFontScale + the storage-event listener at the bottom of this file: the
@@ -601,6 +603,18 @@ export interface AppState {
    *  off by default; see electron/ipc/aiLookup.ts's agentic verification step. */
   aiLookupAgenticOn: boolean
   setAiLookupAgenticOn: (v: boolean) => void
+  /** One-time composer notice after the v9 migration moved Commentary off by default. */
+  aiLookupModeNotice: boolean
+  setAiLookupModeNotice: (v: boolean) => void
+  /** Collections Ask Berean searches by default (decision 9); a scope in the question wins. */
+  aiLookupCollections: import('@/lib/research/collections').CollectionId[]
+  setAiLookupCollections: (v: import('@/lib/research/collections').CollectionId[]) => void
+  /** Active study profile on this device (spec §7.1) — device-local; the profiles themselves sync. */
+  aiLookupProfileId: string
+  setAiLookupProfileId: (id: string) => void
+  /** The active profile's display names, cached for rendering replies (the profile is the source). */
+  aiLookupDisplayAliases: Array<{ from: string; to: string }>
+  setAiLookupDisplayAliases: (v: Array<{ from: string; to: string }>) => void
   /** "Use current tab as context" toggle — when on, every question also sends whatever's in the
    *  currently active tab (chapter text, note content, lexicon entry, video title) as extra
    *  context. Independent of, and additive with, inline mentions like "this chapter" in the
@@ -984,6 +998,7 @@ export interface AppState {
   openSettingsToSessions: () => void
   openSettingsToAbout: () => void
   openSettingsToAudio: () => void
+  openSettingsToAskBerean: () => void
   closeSettings: () => void
   toggleSettings: () => void
   setTheme: (theme: 'dark' | 'light' | 'system') => void
@@ -2069,8 +2084,12 @@ export const useAppStore = create<AppState>()(
       autoPiP: true,
       youtubeIsPlaying: false,
       aiLookupPanelOpen: false,
-      aiLookupCommentaryOn: true, // Commentary is the everyday mode (chatModes.ts)
+      aiLookupCommentaryOn: false, // new chats are research only (spec §2.1; chatModes.ts)
       aiLookupAgenticOn: false,
+      aiLookupModeNotice: false,
+      aiLookupCollections: [...DEFAULT_COLLECTIONS],
+      aiLookupProfileId: 'default',
+      aiLookupDisplayAliases: [],
       aiLookupUseTabContext: false,
       aiLookupPanelPos: null,
       aiLookupPanelSize: null,
@@ -2987,6 +3006,7 @@ export const useAppStore = create<AppState>()(
       // AudioPlayer.tsx's "Get more natural voices…" link — jumps straight to the Audio
       // section instead of the default Appearance tab.
       openSettingsToAudio: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'audio' }) },
+      openSettingsToAskBerean: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'askBerean' }) },
       closeSettings: () => set({ settingsOpen: false }),
       toggleSettings: () => set((s) => {
         const opening = !s.settingsOpen
@@ -3153,6 +3173,10 @@ export const useAppStore = create<AppState>()(
       setAiLookupPanelOpen: (v) => set({ aiLookupPanelOpen: v }),
       setAiLookupCommentaryOn: (v) => set({ aiLookupCommentaryOn: v }),
       setAiLookupAgenticOn: (v) => set({ aiLookupAgenticOn: v }),
+      setAiLookupModeNotice: (v) => set({ aiLookupModeNotice: v }),
+      setAiLookupCollections: (v) => set({ aiLookupCollections: v.length ? v : ['canon'] }),
+      setAiLookupProfileId: (id) => set({ aiLookupProfileId: id || 'default' }),
+      setAiLookupDisplayAliases: (v) => set({ aiLookupDisplayAliases: v }),
       setAiLookupUseTabContext: (v) => set({ aiLookupUseTabContext: v }),
       setAiLookupPanelPos: (pos) => set({ aiLookupPanelPos: pos }),
       setAiLookupPanelSize: (size) => set({ aiLookupPanelSize: size }),
@@ -3409,7 +3433,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'berean-app-state',
-      version: 8,
+      version: AI_MODE_STORE_VERSION,
       // Without this, bumping `version` (as every schema change here has) makes zustand's persist
       // middleware discard ALL persisted state on the next load instead of carrying it forward —
       // it only calls migrate() when the on-disk version differs from `version` above, and with
@@ -3421,7 +3445,7 @@ export const useAppStore = create<AppState>()(
       // breaking shape changes that need a real transform — this default just prevents an
       // accidental wipe on ordinary additive changes (new fields, as most of this store's history
       // has been).
-      migrate: (persistedState) => persistedState as Partial<AppState>,
+      migrate: (persistedState, fromVersion) => migrateAiModeState((persistedState ?? {}) as Partial<AppState>, fromVersion),
       // Not `createJSONStorage(...)` — that helper stringifies the whole store
       // synchronously on every `set()`, before our adapter runs. These adapters
       // implement `PersistStorage` (object in/out) and defer BOTH the
@@ -3548,6 +3572,10 @@ export const useAppStore = create<AppState>()(
         autoPiP: state.autoPiP,
         aiLookupCommentaryOn: state.aiLookupCommentaryOn,
         aiLookupAgenticOn: state.aiLookupAgenticOn,
+        aiLookupModeNotice: state.aiLookupModeNotice,
+        aiLookupCollections: state.aiLookupCollections,
+        aiLookupProfileId: state.aiLookupProfileId,
+        aiLookupDisplayAliases: state.aiLookupDisplayAliases,
         aiLookupUseTabContext: state.aiLookupUseTabContext,
         // The conversation the panel last showed — reopened on relaunch (deleted → newest). Device-
         // local on purpose: syncing it would switch conversations under another device.

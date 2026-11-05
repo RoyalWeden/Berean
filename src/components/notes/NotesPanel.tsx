@@ -647,6 +647,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const handleSetFolderParent = useCallback(async (id: string, parentId: string | null) => {
     await window.notes.setFolderParent(id, parentId); loadFolders()
   }, [loadFolders])
+  const handleSetFolderAiExcluded = useCallback(async (id: string, excluded: boolean) => {
+    await window.notes.setFolderAiExcluded(id, excluded); loadFolders()
+  }, [loadFolders])
   const handleSetNoteFolder = useCallback(async (noteId: string, folderId: string | null) => {
     await window.notes.setNoteFolder(noteId, folderId)
     setNotes((prev) => prev.map((n) => n.id === noteId ? { ...n, folderId } : n))
@@ -2181,6 +2184,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onDeleteFolder={handleDeleteFolder}
                   onDeleteFolderDeep={handleDeleteFolderDeep}
                   onSetFolderParent={handleSetFolderParent}
+                  onSetFolderAiExcluded={handleSetFolderAiExcluded}
                   onRenameNote={renameNoteCommit}
                   onOpenNewTab={openNoteInNewTab}
                   onOpenInFloatingTab={openNoteInFloatingTab}

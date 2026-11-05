@@ -37,6 +37,13 @@ export interface EntityAdapter {
 }
 
 const columnCache = new Map<string, string[]>()
+/** A table this build's registry knows but the database doesn't have yet (a newer entity read
+ *  before its migration ran) reads as empty instead of failing the whole sync pass. Not cached:
+ *  the table appears once its migration runs. */
+async function tableExists(db: DatabaseAdapter, table: string): Promise<boolean> {
+  return !!(await db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [table]))
+}
+
 async function tableColumns(db: DatabaseAdapter, table: string): Promise<string[]> {
   const cacheKey = `${db.label}|${table}`
   let cols = columnCache.get(cacheKey)
@@ -64,6 +71,8 @@ interface TableEntityOptions {
   /** Soft-delete column: rows with it set are tombstones (sessions/tabs/archived_groups). Notes'
    *  `deleted_at` is *trash*, which syncs as a normal field, so notes do NOT use this. */
   tombstoneColumn?: string
+  /** The table was added by a recent migration: before it exists, reads return nothing. */
+  optional?: boolean
   /** Hook after a remote upsert/delete (e.g. rebuild derived rows). */
   afterUpsert?: (db: DatabaseAdapter, key: string, fields: Record<string, unknown>) => Promise<void>
   beforeDelete?: (db: DatabaseAdapter, key: string) => Promise<void>
@@ -85,13 +94,16 @@ export function tableEntity(o: TableEntityOptions): EntityAdapter {
     kind: o.kind,
     dependents: o.dependents,
     async read(db, key) {
+      if (o.optional && !(await tableExists(db, table))) return undefined
       const row = await db.get<Record<string, unknown>>(`SELECT * FROM ${table} WHERE ${idCol} = ?`, [key])
       return row ? toRecord(row) : undefined
     },
     async readAll(db) {
+      if (o.optional && !(await tableExists(db, table))) return []
       return (await db.all<Record<string, unknown>>(`SELECT * FROM ${table}`)).map((r) => [String(r[idCol]), toRecord(r)] as [string, EntityRecord])
     },
     async changedSince(db, ms) {
+      if (o.optional && !(await tableExists(db, table))) return []
       const cols = await tableColumns(db, table)
       // Only a column every write touches dates a change: updated_at, or created_at for tables
       // whose rows are never modified. Stored as epoch ms or as ISO text depending on the table.
@@ -104,6 +116,7 @@ export function tableEntity(o: TableEntityOptions): EntityAdapter {
       return rows.map((r) => r.k)
     },
     async listKeys(db) {
+      if (o.optional && !(await tableExists(db, table))) return []
       const where = o.tombstoneColumn ? ` WHERE ${assertIdent(o.tombstoneColumn)} IS NULL` : ''
       return (await db.all<{ k: string }>(`SELECT ${idCol} AS k FROM ${table}${where}`)).map((r) => r.k)
     },
@@ -319,6 +332,9 @@ export function createEntityRegistry(): Map<string, EntityAdapter> {
     playlistEntity(),
     // Phase 9 extras (docs/mobile/icloud.md §5)
     tableEntity({ kind: 'ai_chat', table: 'ai_chats' }),
+    // Berean AI upgrade (v49): study profiles and explicitly saved research contexts.
+    tableEntity({ kind: 'study_profile', table: 'study_profiles', tombstoneColumn: 'deleted_at', optional: true }),
+    tableEntity({ kind: 'ai_saved_context', table: 'ai_saved_contexts', tombstoneColumn: 'deleted_at', optional: true }),
     // PDF metadata only — the bytes never enter the journal; `filename` is `<id>.pdf` on every
     // device and the platform's list/get reports whether the file is present locally.
     tableEntity({ kind: 'pdf', table: 'pdfs', dependents: ['pdf_highlight', 'pdf_bookmark'] }),

@@ -75,3 +75,10 @@
 .get-voices-progress-track { height: 6px; border-radius: 3px; background: rgb(var(--color-text-primary) / 0.1); overflow: hidden; }
 .get-voices-progress-fill { height: 100%; border-radius: 3px; background: rgb(var(--color-accent)); transition: width 0.3s ease; }
 .get-voices-destructive { color: rgb(220 70 70); }
+
+/* Ask Berean (settings + chat options): a row that needs an AI model reads as unavailable. */
+.m-ask-unavailable { opacity: 0.55; pointer-events: none; }
+.m-ask-alias { display: flex; flex-direction: column; gap: 8px; }
+.m-ask-alias .mobile-chip { align-self: flex-start; }
+.m-ask-alias .mobile-chip:disabled { opacity: 0.4; }
+.m-ask-text { min-height: 72px; padding: 10px 14px; resize: none; line-height: 1.35; }

@@ -101,6 +101,49 @@ describe('AiReplyBody', () => {
     expect([...el.querySelectorAll('button')].some((b) => b.textContent?.includes('more'))).toBe(false)
   })
 
+  it('labels each nested link with the source that asserts it (spec §6.1 #9)', () => {
+    const tske = verse('JHN', 'John', 1, 17, 'For the law was given by Moses', { source: 'cross-ref', linkType: 'tske', crossRefOf: { bookId: 'TIT', chapter: 2, verse: 11 } } as Partial<AiLookupResult>)
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus, tske] })} />)
+    act(() => el.querySelector<HTMLButtonElement>('.chat-crossrefs-toggle')!.click())
+    const badge = el.querySelector('.chat-crossref-list .chat-link-badge')!
+    expect(badge.textContent).toBe('TSKe')
+    expect(badge.getAttribute('title')).toMatch(/Treasury of Scripture Knowledge/)
+  })
+
+  it('marks a link from the user\'s own note as theirs, not a textual cross-reference (decision 16)', () => {
+    const linked = verse('ACT', 'Acts', 5, 29, 'We ought to obey God rather than men', { source: 'cross-ref', linkType: 'note', crossRefOf: { bookId: 'TIT', chapter: 2, verse: 11 } } as Partial<AiLookupResult>)
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus, linked] })} />)
+    act(() => el.querySelector<HTMLButtonElement>('.chat-crossrefs-toggle')!.click())
+    const badge = el.querySelector('.chat-crossref-list .chat-link-badge')!
+    expect(badge.textContent).toBe('Your note')
+    expect(badge.getAttribute('title')).toMatch(/not a textual cross-reference/)
+  })
+
+  it('keeps online sources in their own labelled block, and shows no excerpt when there is none', () => {
+    const external = [{ provider: 'wikipedia' as const, site: 'Wikipedia', title: 'Qumran', url: 'https://en.wikipedia.org/?curid=1', excerpt: '', retrievedAt: '2026-11-04T00:00:00.000Z', limitation: 'Secondary source.' }]
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus], external })} />)
+    const block = el.querySelector('[aria-label="Online sources"]')!
+    expect(block.textContent).toContain('not Scripture')
+    expect(block.textContent).toContain('retrieved 2026-11-04')
+    const openExternal = vi.fn(async () => {})
+    ;(window as unknown as { app: unknown }).app = { openExternal }
+    act(() => block.querySelector('button')!.click())
+    expect(openExternal).toHaveBeenCalledWith('https://en.wikipedia.org/?curid=1')
+  })
+
+  it('says where a cloud answer went', () => {
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus], providerNotice: 'Anthropic (your API key), test-model.' })} />)
+    expect(el.querySelector('[aria-label="Model used"]')!.textContent).toContain('your API key')
+  })
+
+  it('shows a premise check in fixed wording with the cited passages (spec §6.1 #11)', () => {
+    const { el } = mount(<AiReplyBody message={reply({ premise: { status: 'contradicted', evidence: ['DEU 34:4'] } })} />)
+    const n = el.querySelector('[aria-label="Premise check"]')!
+    expect(n.textContent).toContain('Contradicted by these passages')
+    expect(n.textContent).toContain('What this question assumes is contradicted by the passages cited below.')
+    expect(n.textContent).toContain('Cited: Deuteronomy 34:4')
+  })
+
   it('lists related passages under a section label', () => {
     const { el } = mount(<AiReplyBody message={reply()} />)
     const section = el.querySelector('section[aria-label="Related Passages"]')!
@@ -114,7 +157,7 @@ describe('AiReplyBody', () => {
     const card = el.querySelector<HTMLButtonElement>('button.chat-strongs')!
     expect(card.textContent).toContain('χάρις')
     expect(card.textContent).toContain('charis')
-    expect(card.textContent).toContain('156 occurrences')
+    expect(card.textContent).toContain("156 per Strong's lexicon")
     act(() => card.click())
     expect(nav).toHaveBeenLastCalledWith({ kind: 'lexicon', strongsNum: 'G5485' })
   })

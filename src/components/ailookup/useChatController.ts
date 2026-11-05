@@ -2,6 +2,8 @@ import { readDraft } from './composer/chatDrafts'
 import { readReplyTarget, writeReplyTarget, onReplyTargetsChanged } from './composer/chatReplies'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AiLookupChat, AiLookupChatDaySummary, AiLookupChatSummary, AiLookupResponse, AiLookupTabContextRef, AiLookupChatAiMode } from '@/types/electron'
+import { replyTextFor } from '@/lib/research/replyText'
+import { useAppStore } from '@/store'
 import {
   type ChatMsg, type TranscriptItem, UNFILED_CHAT_ID, UNFILED_CHAT_TITLE, cleanFolder, newMessageId, normalizeForUi, aiHistoryFor, mergeServerMessages,
   mergeStreamItems, mentionsCurrentTab, deriveChatTitle, pickNewMessageTarget,
@@ -29,7 +31,13 @@ import {
 export type ChatView = { kind: 'conversation' } | { kind: 'all' } | { kind: 'day'; dayKey: string }
 
 export interface ChatSendOptions {
-  ai?: { commentary: boolean; deepSearch: boolean; tabContext: boolean }
+  ai?: { commentary: boolean; deepSearch: boolean; tabContext: boolean
+    /** The user dismissed the "this chapter" auto-attach chip for this send (spec §5.4). */
+    tabMentionDismissed?: boolean
+    /** The user tapped "Search online" for this one question. */
+    webApproved?: boolean
+    /** Saved research the user chose to reuse for this send (spec §7.2). */
+    savedContextId?: string }
   /** Reply to this message (defaults to the conversation's current reply target; null = none). */
   inReplyTo?: string | null
   wordReplacerRules?: Array<{ queries: string[]; replacement: string }>
@@ -44,6 +52,14 @@ function messageFieldsFrom(res: AiLookupResponse): Partial<ChatMsg> {
     results: res.results, visibleCount: res.visibleCount, keywords: res.keywords, related: res.related,
     relatedNote: res.relatedNote, summary: res.summary, strongsCard: res.strongsCard, notes: res.notes,
     notesAreThePrimaryAnswer: res.notesAreThePrimaryAnswer, videos: res.videos,
+    ...(res.research ? { research: res.research } : {}),
+    ...(res.errorCode && res.errorCode !== 'NO_MATCHES' ? { errorCode: res.errorCode, partial: res.partial } : {}),
+    ...(res.interpretationOffered ? { interpretationOffered: true } : {}),
+    ...(res.followUpReason ? { followUpReason: res.followUpReason } : {}),
+    ...(res.premise ? { premise: res.premise } : {}),
+    ...(res.providerNotice ? { providerNotice: res.providerNotice } : {}),
+    ...(res.external ? { external: res.external } : {}),
+    ...(res.webOffered ? { webOffered: true } : {}),
   }
 }
 
@@ -328,7 +344,7 @@ export function useChatController(opts: {
     const aiMode: AiLookupChatAiMode = {
       commentary: sendOpts.ai.commentary,
       deepSearch: sendOpts.ai.deepSearch,
-      tabContext: sendOpts.ai.tabContext || mentionsCurrentTab(content),
+      tabContext: sendOpts.ai.tabContext || (!sendOpts.ai.tabMentionDismissed && mentionsCurrentTab(content)),
     }
     const request: ChatMsg = { id: newMessageId(), role: 'user', kind: 'ai-request', content, createdAt: now, aiMode, ...(inReplyTo ? { inReplyTo } : {}) }
     clearReply()
@@ -345,25 +361,30 @@ export function useChatController(opts: {
     try {
       const tabContext = aiMode.tabContext ? await optsRef.current.getTabContext?.() : undefined
       const res = await api.query(content, {
+        requestId: replyId,
+        ...(sendOpts.ai.webApproved ? { webApproved: true } : {}),
         commentary: aiMode.commentary,
         agentic: aiMode.deepSearch,
         wordReplacerRules: sendOpts.wordReplacerRules?.length ? sendOpts.wordReplacerRules : undefined,
         history,
         tabContext,
+        collections: useAppStore.getState().aiLookupCollections,
+        profileId: useAppStore.getState().aiLookupProfileId,
+        ...(sendOpts.ai.savedContextId ? { savedContextId: sendOpts.ai.savedContextId } : {}),
       })
       // "Nothing found" only when NOTHING came back — a Strong's card, notes, videos or a summary
       // line are complete answers on their own even with no verse chips.
       const hasAnyAnswer = res.results.length > 0 || !!res.strongsCard || (res.notes?.length ?? 0) > 0 || (res.videos?.length ?? 0) > 0 || !!res.summary
+        || (res.research?.candidates.length ?? 0) > 0 || (res.research?.wordTables.length ?? 0) > 0
       reply = {
         id: replyId, role: 'assistant', kind: 'ai-reply', replyTo: request.id,
-        content: res.error === 'ollama-unavailable'
-          ? "Ollama isn't running — start it on this Mac to use Ask Berean."
-          : !hasAnyAnswer ? 'No matching verses found — try rephrasing.' : '',
+        // Typed outcome (spec §9.1): a model failure is named as itself, never "no verses".
+        content: replyTextFor({ errorCode: res.errorCode, partial: res.partial, error: res.error, hasAnswer: hasAnyAnswer }, { runtimeName: 'Ollama' }),
         ...messageFieldsFrom(res),
         createdAt: new Date().toISOString(),
       }
     } catch {
-      reply = { id: replyId, role: 'assistant', kind: 'ai-reply', replyTo: request.id, content: 'Something went wrong reaching Ask Berean.', createdAt: new Date().toISOString() }
+      reply = { id: replyId, role: 'assistant', kind: 'ai-reply', replyTo: request.id, content: "Berean couldn't finish this request. Nothing was changed — try again.", createdAt: new Date().toISOString() }
     }
     if (inflightRef.current?.replyId === replyId) inflightRef.current = null
     unsavedRef.current.add(replyId)
@@ -373,6 +394,14 @@ export function useChatController(opts: {
     if (mountedRef.current) { setAiBusy(false); setProgress('') }
     return true
   }, [api, enqueue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Stops the running request; whatever it already found is kept and shown. */
+  const cancelAi = useCallback(() => {
+    const f = inflightRef.current
+    if (!f) return
+    setProgress('Stopping…')
+    void api.cancel?.(f.replyId)
+  }, [api])
 
   /** Edit a note in place — in the open conversation, or (All Messages / a day) in its own. */
   const editNote = useCallback((id: string, text: string, chatId?: string | null) => {
@@ -607,7 +636,7 @@ export function useChatController(opts: {
     // data
     summaries, summariesLoaded, days, activeChatId, activeTitle, messages, transcript, view, loadingChat,
     stream: { hasMore: view.kind !== 'conversation' && stream.hasMore, loading: stream.loading },
-    search, searchResults, ai, aiBusy, progress, failedIds, focusMessageId, replyingTo,
+    search, searchResults, ai, aiBusy, progress, cancelAi: api.cancel ? cancelAi : undefined, failedIds, focusMessageId, replyingTo,
     // actions
     startReply, cancelReply, jumpToMessage, findRequest, openSearchResult,
     folders, pinChat, moveToFolder, renameFolder, setCrossDestination,

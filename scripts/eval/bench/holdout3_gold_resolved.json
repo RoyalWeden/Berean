@@ -1,0 +1,346 @@
+{
+ "G5457": {
+  "id": "G5457",
+  "lemma": "φῶς",
+  "translit": "phōs",
+  "pron": null,
+  "gloss": "fire, light",
+  "derivation": "from an obsolete (to shine or make manifest, especially by rays;",
+  "occurrence_count": 197,
+  "occurrence_rows": 197
+ },
+ "H3820": {
+  "id": "H3820",
+  "lemma": "לֵב",
+  "translit": "lêb",
+  "pron": "labe",
+  "gloss": "care for, comfortably, consent, × considered, courag(-eous), friend(-ly), ((broken-), (hard-), (merry-), (stiff-), (stout-), double) heart(-ed), × heed, × I, kindly, midst, mind(-ed), × regard(-ed), × themselves, × unawares, understanding, × well, willingly, wisdom.",
+  "derivation": "a form of 3824 ;",
+  "occurrence_count": 386,
+  "occurrence_rows": 386
+ },
+ "H3824": {
+  "id": "H3824",
+  "lemma": "לֵבָב",
+  "translit": "lêbâb",
+  "pron": "lay-bawb'",
+  "gloss": "bethink themselves, breast, comfortably, courage, ((faint), (tender-) heart(-ed), midst, mind, × unawares, understanding.",
+  "derivation": "from 3823 ; used also like 3820",
+  "occurrence_count": 133,
+  "occurrence_rows": 133
+ },
+ "H530": {
+  "id": "H530",
+  "lemma": "אֱמוּנָה",
+  "translit": "ʼĕmûwnâh",
+  "pron": "em-oo-naw'",
+  "gloss": "faith(-ful, -ly, -ness, (man)), set office, stability, steady, truly, truth, verily.",
+  "derivation": "or (shortened) אֱמֻנָה ; feminine of 529 ;",
+  "occurrence_count": 25,
+  "occurrence_rows": 25
+ },
+ "G2842": {
+  "id": "G2842",
+  "lemma": "κοινωνία",
+  "translit": "koinōnía",
+  "pron": null,
+  "gloss": "(to) communicate(-ation), communion, (contri-)distribution, fellowship",
+  "derivation": "from G2844 (κοινωνός);",
+  "occurrence_count": 18,
+  "occurrence_rows": 18
+ },
+ "H571": {
+  "id": "H571",
+  "lemma": "אֶמֶת",
+  "translit": "ʼemeth",
+  "pron": "eh'-meth",
+  "gloss": "assured(-ly), establishment, faithful, right, sure, true (-ly, -th), verity.",
+  "derivation": "contracted from 539 ;",
+  "occurrence_count": 88,
+  "occurrence_rows": 88
+ },
+ "G4102": {
+  "id": "G4102",
+  "lemma": "πίστις",
+  "translit": "pístis",
+  "pron": null,
+  "gloss": "assurance, belief, believe, faith, fidelity",
+  "derivation": "from G3982 (πείθω);",
+  "occurrence_count": 260,
+  "occurrence_rows": 260
+ },
+ "G4151": {
+  "id": "G4151",
+  "lemma": "πνεῦμα",
+  "translit": "pneûma",
+  "pron": null,
+  "gloss": "ghost, life, spirit(-ual, -ually), mind",
+  "derivation": "from G4154 (πνέω);",
+  "occurrence_count": 647,
+  "occurrence_rows": 647
+ },
+ "EXO 20:8": {
+  "text": "Remember the sabbath day, to keep it holy.",
+  "tagged": "Remember{H2142} the{} ~{H853} sabbath{H7676} day,{H3117} to{} keep{} it{} holy.{H6942}"
+ },
+ "G26": {
+  "id": "G26",
+  "lemma": "ἀγάπη",
+  "translit": "agápē",
+  "pron": null,
+  "gloss": "(feast of) charity(-ably), dear, love",
+  "derivation": "from G25 (ἀγαπάω);",
+  "occurrence_count": 117,
+  "occurrence_rows": 117
+ },
+ "G5368": {
+  "id": "G5368",
+  "lemma": "φιλέω",
+  "translit": "philéō",
+  "pron": null,
+  "gloss": "kiss, love",
+  "derivation": "from G5384 (φίλος);",
+  "occurrence_count": 48,
+  "occurrence_rows": 48
+ },
+ "H2142": {
+  "id": "H2142",
+  "lemma": "זָכַר",
+  "translit": "zâkar",
+  "pron": "zaw-kar'",
+  "gloss": "× burn (incense), × earnestly, be male, (make) mention (of), be mindful, recount, record(-er), remember, make to be remembered, bring (call, come, keep, put) to (in) remembrance, × still, think on, × well.",
+  "derivation": "a primitive root; also as denominative from 2145",
+  "occurrence_count": 154,
+  "occurrence_rows": 154
+ },
+ "G225": {
+  "id": "G225",
+  "lemma": "ἀλήθεια",
+  "translit": "alḗtheia",
+  "pron": null,
+  "gloss": "true, X truly, truth, verity",
+  "derivation": "from G227 (ἀληθής);",
+  "occurrence_count": 252,
+  "occurrence_rows": 252
+ },
+ "H7307": {
+  "id": "H7307",
+  "lemma": "רוּחַ",
+  "translit": "rûwach",
+  "pron": "roo'-akh",
+  "gloss": "air, anger, blast, breath, × cool, courage, mind, × quarter, × side, spirit(-ual), tempest, × vain, (whirl-) wind(-y).",
+  "derivation": "from 7306 ;",
+  "occurrence_count": 236,
+  "occurrence_rows": 236
+ },
+ "H2617": {
+  "id": "H2617",
+  "lemma": "חֶסֶד",
+  "translit": "cheçed",
+  "pron": "kheh'-sed",
+  "gloss": "favour, good deed(-liness, -ness), kindly, (loving-) kindness, merciful (kindness), mercy, pity, reproach, wicked thing.",
+  "derivation": "from 2616 ;",
+  "occurrence_count": 160,
+  "occurrence_rows": 160
+ },
+ "H2451": {
+  "id": "H2451",
+  "lemma": "חׇכְמָה",
+  "translit": "chokmâh",
+  "pron": "khok-maw'",
+  "gloss": "skilful, wisdom, wisely, wit.",
+  "derivation": "from 2449 ;",
+  "occurrence_count": 111,
+  "occurrence_rows": 111
+ },
+ "G5485": {
+  "id": "G5485",
+  "lemma": "χάρις",
+  "translit": "cháris",
+  "pron": null,
+  "gloss": "acceptable, benefit, favour, gift, grace(- ious), joy, liberality, pleasure, thank(-s, -worthy)",
+  "derivation": "from G5463 (χαίρω);",
+  "occurrence_count": 284,
+  "occurrence_rows": 284
+ },
+ "EZK 34:12": {
+  "text": "As a shepherd seeketh out his flock in the day that he is among his sheep that are scattered; so will I seek out my sheep, and will deliver them out of all places where they have been scattered in the cloudy and dark day.",
+  "tagged": "As{} a{} shepherd{H7462} seeketh{} out{H1243} his{} flock{H5739} in{} the{} day{H3117} that{} he{} is{H1961} among{H8432} his{} sheep{H6629} *that{} *are{} scattered;{H6566} so{H3651} will{} I{} seek{} out{H1239} ~{H853} my{} sheep,{H6629} and{} will{} deliver{H5337} them{} out{} of{} all{H3605} places{H4725} where{H834|H8033} they{} have{} been{} scattered{H6327} in{} the{} cloudy{H6051} and{} dark{H6205} day.{H3117}"
+ },
+ "ISA 40:11": {
+  "text": "He shall feed his flock like a shepherd: he shall gather the lambs with his arm, and carry them in his bosom, and shall gently lead those that are with young.",
+  "tagged": "He{} shall{} feed{H7462} his{} flock{H5739} like{} a{} shepherd:{H7462} he{} shall{} gather{H6908} the{} lambs{H2922} with{} his{} arm,{H2220} and{} carry{H5375} *them{} in{} his{} bosom,{H2436} *and{} shall{} gently{} lead{H5095} those{} that{} are{} with{} young.{H5763}"
+ },
+ "JHN 10:14": {
+  "text": "I am the good shepherd, and know my sheep, and am known of mine.",
+  "tagged": "!I{G1473} !am{G1510} !the{G3588} !good{G2570} !shepherd,{G4166} !and{G2532} !know{G1097} !my{G1699} *sheep,{} !and{G2532} !am{} !known{G1097} !of{G5259} !mine.{G1699}"
+ },
+ "1PE 5:4": {
+  "text": "And when the chief Shepherd shall appear, ye shall receive a crown of glory that fadeth not away.",
+  "tagged": "And{G2532} when{} the{G3588} chief{} Shepherd{G750} shall{} appear,{G5319} ye{} shall{} receive{G2865} a{} crown{G4735} of{} glory{G1391} that{} fadeth{} not{} away.{G262}"
+ },
+ "HEB 13:20": {
+  "text": "Now the God of peace, that brought again from the dead our Lord Jesus, that great shepherd of the sheep, through the blood of the everlasting covenant,",
+  "tagged": "Now{G1161} the{G3588} God{G2316} of{} peace,{G1515} that{} brought{G321} again{G321} from{G1537} the{} dead{G3498} our{G2257} Lord{G2962} Jesus,{G2424} that{} great{G3173} shepherd{G4166} of{} the{G3588} sheep,{G4263} through{G1722} the{} blood{G129} of{} the{} everlasting{G166} covenant,{G1242}"
+ },
+ "PSA 23:1": {
+  "text": "The Lord is my shepherd; I shall not want.",
+  "tagged": "A{} Psalm{H4210} of{} David.{H1732} The{} LORD{H3068} *is{} my{} shepherd;{H7462} I{} shall{} not{H3808} want.{H2637}"
+ },
+ "JHN 10:11": {
+  "text": "I am the good shepherd: the good shepherd giveth his life for the sheep.",
+  "tagged": "!I{G1473} !am{G1510} !the{G3588} !good{G2570} !shepherd:{G4166} !the{G3588} !good{G2570} !shepherd{G4166} !giveth{G5087} !his{G846} !life{G5590} !for{G5228} !the{G3588} !sheep.{G4263}"
+ },
+ "LEV 25:10": {
+  "text": "And ye shall hallow the fiftieth year, and proclaim liberty throughout all the land unto all the inhabitants thereof: it shall be a jubile unto you; and ye shall return every man unto his possession, and ye shall return every man unto his family.",
+  "tagged": "And{} ye{} shall{} hallow{H6942} ~{H853} the{} fiftieth{H2572} year,{H8141} and{} proclaim{H7121} liberty{H1865} throughout{} *all{} the{} land{H776} unto{} all{H3605} the{} inhabitants{H3427} thereof:{} it{H1931} shall{} be{H1961} a{} jubile{H3104} unto{} you;{} and{} ye{} shall{} return{H7725} every{} man{H376} unto{H413} his{} possession,{H272} and{} ye{} shall{} return{H7725} every{} man{H376} unto{H413} his{} family.{H4940}"
+ },
+ "LEV 25:11": {
+  "text": "A jubile shall that fiftieth year be unto you: ye shall not sow, neither reap that which groweth of itself in it, nor gather the grapes in it of thy vine undressed.",
+  "tagged": "A{} jubile{H3104} shall{} that{H1931} fiftieth{H2572} year{H8141} be{H1961} unto{} you:{} ye{} shall{} not{H3808} sow,{H2232} neither{H3808} reap{H7114} ~{H853} that{} which{} groweth{} of{} itself{H5599} in{} it,{} nor{H3808} gather{H1219} *the{} *grapes{} in{} it{} ~{H853} of{} thy{} vine{} undressed.{H5139}"
+ },
+ "JHN 11:35": {
+  "text": "Jesus wept.",
+  "tagged": "Jesus{G2424} wept.{G1145}"
+ },
+ "lxx:GEN 1:2": {
+  "text": "But the earth was unsightly and unfurnished, and darkness was over the deep, and the Spirit of God moved over the water.",
+  "tagged": "But{G1161} the{G3588} earth{G1093} was{G1510} unsightly{G517} and{G2532} unfurnished,{} and{G2532} darkness{G4655} was{} over{G1883} the{G3588} deep,{G12} and{G2532} the{} Spirit{G4151} of{} God{G2316} moved{G2018} over{G1883} the{G3588} water.{G5204}"
+ },
+ "jubilees:JUB 2:17": {
+  "text": "And He gave us a great sign, the Sabbath day, that we should work six days, but keep Sabbath on the seventh day from all work.",
+  "tagged": null
+ },
+ "jubilees:JUB 2:18": {
+  "text": "And all the angels of the presence, and all the angels of sanctification, these two great classes -He hath bidden us to keep the Sabbath with Him in heaven and on earth.",
+  "tagged": null
+ },
+ "jubilees:JUB 50:6": {
+  "text": "And behold the commandment regarding the Sabbaths -I have written (them) down for thee- and all the judgments of its laws.",
+  "tagged": null
+ },
+ "jubilees:JUB 2:21": {
+  "text": "And thus He created therein a sign in accordance with which they should keep Sabbath with us on the seventh day, to eat and to drink, and to bless Him who has created all things as He has blessed and sanctified unto Himself a peculiar people above all peoples, and that they should keep Sabbath together with us.",
+  "tagged": null
+ },
+ "PSA 34:18": {
+  "text": "The Lord is nigh unto them that are of a broken heart; and saveth such as be of a contrite spirit.",
+  "tagged": "The{} LORD{H3068} *is{} nigh{H7138} unto{} them{} that{} are{} of{} a{} broken{H7665} heart;{H3820} and{} saveth{H3467} such{} as{} be{} of{} a{} contrite{H1793} spirit.{H7307}"
+ },
+ "PSA 147:3": {
+  "text": "He healeth the broken in heart, and bindeth up their wounds.",
+  "tagged": "He{} healeth{H7495} the{} broken{H7665} in{} heart,{H3820} and{} bindeth{} up{H2280} their{} wounds.{H6094}"
+ },
+ "ISA 61:1": {
+  "text": "The Spirit of the Lord God is upon me; because the Lord hath anointed me to preach good tidings unto the meek; he hath sent me to bind up the brokenhearted, to proclaim liberty to the captives, and the opening of the prison to them that are bound;",
+  "tagged": "The{} Spirit{H7307} of{} the{} Lord{H136} GOD{H3069} *is{} upon{H5921} me;{} because{H3282} the{} LORD{H3068} hath{} anointed{H4886} me{} to{} preach{} good{} tidings{H1319} unto{} the{} meek;{H6035} he{} hath{} sent{H7971} me{} to{} bind{} up{H2280} the{} brokenhearted,{H7665|H3820} to{} proclaim{H7121} liberty{H1865} to{} the{} captives,{H7617} and{} the{} opening{} of{} the{} prison{H6495} to{} *them{} *that{} *are{} bound;{H631}"
+ },
+ "2CO 6:14": {
+  "text": "Be ye not unequally yoked together with unbelievers: for what fellowship hath righteousness with unrighteousness? and what communion hath light with darkness?",
+  "tagged": "Be{G1096} ye{} not{G3361} unequally{} yoked{} together{G2086} with{} unbelievers:{G571} for{G1063} what{G5101} fellowship{G3352} hath{} righteousness{G1343} with{G2532} unrighteousness?{G458} and{G1161} what{G5101} communion{G2842} hath{} light{G5457} with{G4314} darkness?{G4655}"
+ },
+ "JAS 2:17": {
+  "text": "Even so faith, if it hath not works, is dead, being alone.",
+  "tagged": "Even{G2532} so{G3779} faith,{G4102} if{G1437} it{} hath{G2192} not{G3361} works,{G2041} is{G2076} dead,{G3498} being{} alone.{G2596|G1438}"
+ },
+ "JAS 2:26": {
+  "text": "For as the body without the spirit is dead, so faith without works is dead also. ",
+  "tagged": "For{G1063} as{G5618} the{G3588} body{G4983} without{G5565} the{} spirit{G4151} is{G2076} dead,{G3498} so{G3779} faith{G4102} without{G5565} works{G2041} is{G2076} dead{G3498} also.{G2532}"
+ },
+ "JAS 2:20": {
+  "text": "But wilt thou know, O vain man, that faith without works is dead?",
+  "tagged": "But{G1161} wilt{G2309} thou{} know,{G1097} O{G5599} vain{G2756} man,{G444} that{G3754} faith{G4102} without{G5565} works{G2041} is{G2076} dead?{G3498}"
+ },
+ "EXO 22:25": {
+  "text": "If thou lend money to any of my people that is poor by thee, thou shalt not be to him as an usurer, neither shalt thou lay upon him usury.",
+  "tagged": "If{H518} thou{} lend{H3867} money{H3701} to{} *any{} *of{} ~{H853} my{} people{H5971} *that{} *is{} ~{H853} poor{H6041} by{H5973} thee,{} thou{} shalt{} not{H3808} be{H1961} to{} him{} as{} an{} usurer,{H5383} neither{H3808} shalt{} thou{} lay{H7760} upon{H5921} him{} usury.{H5392}"
+ },
+ "LEV 25:36": {
+  "text": "Take thou no usury of him, or increase: but fear thy God; that thy brother may live with thee.",
+  "tagged": "Take{H3947} thou{} no{H408} usury{H5392} of{H854} him,{} or{} increase:{H8636} but{} fear{} thy{} God;{H3372|H4480} that{} thy{} brother{H251} may{} live{H2421} with{H5973} thee.{}"
+ },
+ "DEU 23:19": {
+  "text": "Thou shalt not lend upon usury to thy brother; usury of money, usury of victuals, usury of any thing that is lent upon usury:",
+  "tagged": "Thou{} shalt{} not{H3808} lend{} upon{} usury{H5391} to{} thy{} brother;{H251} usury{H5392} of{} money,{H3701} usury{H5392} of{} victuals,{H400} usury{H5392} of{} any{H3605} thing{H1697} that{H834} is{} lent{} upon{} usury:{H5391}"
+ },
+ "JOS 6:20": {
+  "text": "So the people shouted when the priests blew with the trumpets: and it came to pass, when the people heard the sound of the trumpet, and the people shouted with a great shout, that the wall fell down flat, so that the people went up into the city, every man straight before him, and they took the city.",
+  "tagged": "So{} the{} people{H5971} shouted{H7321} when{} *the{} *priests{} blew{H8628} with{} the{} trumpets:{H7782} and{} it{} came{} to{} pass,{H1961} when{} the{} people{H5971} heard{H8085} ~{H853} the{} sound{H6963} of{} the{} trumpet,{H7782} and{} the{} people{H5971} shouted{H7321} with{} a{} great{H1419} shout,{H8643} that{} the{} wall{H2346} fell{} down{H5307} flat,{H8478} so{} that{} the{} people{H5971} went{} up{H5927} into{} the{} city,{H5892} every{} man{H376} straight{} before{H5048} him,{} and{} they{} took{H3920} ~{H853} the{} city.{H5892}"
+ },
+ "RUT 2:3": {
+  "text": "And she went, and came, and gleaned in the field after the reapers: and her hap was to light on a part of the field belonging unto Boaz, who was of the kindred of Elimelech.",
+  "tagged": "And{} she{} went,{H1980} and{} came,{H935} and{} gleaned{H3950} in{} the{} field{H7704} after{H310} the{} reapers:{H7114} and{} her{} hap{H4745} was{} to{} light{H7136} on{} a{} part{H2513} of{} the{} field{H7704} *belonging{} unto{} Boaz,{H1162} who{H834} *was{} of{} the{} kindred{H4940} of{} Elimelech.{H458}"
+ },
+ "RUT 2:2": {
+  "text": "And Ruth the Moabitess said unto Naomi, Let me now go to the field, and glean ears of corn after him in whose sight I shall find grace. And she said unto her, Go, my daughter.",
+  "tagged": "And{} Ruth{H7327} the{} Moabitess{H4125} said{H559} unto{H413} Naomi,{H5281} Let{} me{} now{H4994} go{H1980} to{} the{} field,{H7704} and{} glean{H3950} ears{} of{} corn{H7641} after{H310|H834} *him{} in{} whose{} sight{H5869} I{} shall{} find{H4672} grace.{H2580} And{} she{} said{H559} unto{} her,{} Go,{H1980} my{} daughter.{H1323}"
+ },
+ "RUT 2:8": {
+  "text": "Then said Boaz unto Ruth, Hearest thou not, my daughter? Go not to glean in another field, neither go from hence, but abide here fast by my maidens:",
+  "tagged": "Then{} said{H559} Boaz{H1162} unto{H413} Ruth,{H7327} Hearest{H8085} thou{} not,{H3808} my{} daughter?{H1323} Go{H1980} not{H408} to{} glean{H3950} in{} another{H312} field,{H7704} neither{H1571|H3808} go{H5674} from{} hence,{H2088} but{H3541} abide{H1692} here{} fast{} by{H5973} my{} maidens:{H5291}"
+ },
+ "2SA 12:23": {
+  "text": "But now he is dead, wherefore should I fast? can I bring him back again? I shall go to him, but he shall not return to me.",
+  "tagged": "But{} now{H6258} he{} is{} dead,{H4191} wherefore{H4100|H2088} should{} I{H589} fast?{H6684} can{H3201} I{} bring{} him{} back{H7725} again?{H5750} I{H589} shall{} go{H1980} to{H413} him,{} but{} he{H1931} shall{} not{H3808} return{H7725} to{H413} me.{}"
+ },
+ "MAT 5:4": {
+  "text": "Blessed are they that mourn: for they shall be comforted.",
+  "tagged": "!Blessed{G3107} *are{} !they{G3588} !that{} !mourn:{G3996} !for{G3754} !they{G846} !shall{} !be{} !comforted.{G3870}"
+ },
+ "REV 21:4": {
+  "text": "And God shall wipe away all tears from their eyes; and there shall be no more death, neither sorrow, nor crying, neither shall there be any more pain: for the former things are passed away.",
+  "tagged": "And{G2532} God{G2316} shall{} wipe{G1813} away{G1813} all{G3956} tears{G1144} from{G575} their{G848} eyes;{G3788} and{G2532} there{} shall{} be{G2071} no{G3756} more{G2089} death,{G2288} neither{G3777} sorrow,{G3997} nor{G3777} crying,{G2906} neither{G3777} shall{} there{} be{G2071} ~{G3756} any{G2089} more{G2089} pain:{G4192} for{G3754} the{G3588} former{G4413} things{G4413} are{} passed{G565} away.{G565}"
+ },
+ "JER 31:15": {
+  "text": "Thus saith the Lord; A voice was heard in Ramah, lamentation, and bitter weeping; Rahel weeping for her children refused to be comforted for her children, because they were not.",
+  "tagged": "Thus{H3541} saith{H559} the{} LORD;{H3068} A{} voice{H6963} was{} heard{H8085} in{} Ramah,{H7414} lamentation,{H5092} *and{} bitter{H8563} weeping;{H1065} Rahel{H7354} weeping{H1058} for{H5921} her{} children{H1121} refused{H3985} to{} be{} comforted{H5162} for{H5921} her{} children,{H1121} because{H3588} they{} *were{} not.{H369}"
+ },
+ "MAT 11:28": {
+  "text": "Come unto me, all ye that labour and are heavy laden, and I will give you rest.",
+  "tagged": "!Come{G1205} !unto{G4314} !me,{G3165} !all{G3956} *ye{} !that{} !labour{G2872} !and{G2532} !are{} !heavy{} !laden,{G5412} !and{} !I{G2504} !will{} !give{} !you{} !rest.{G373|G5209}"
+ },
+ "PSA 23:2": {
+  "text": "He maketh me to lie down in green pastures: he leadeth me beside the still waters.",
+  "tagged": "He{} maketh{} me{} to{} lie{} down{H7257} in{} green{H1877} pastures:{H4999} he{} leadeth{H5095} me{} beside{H5921} the{} still{H4496} waters.{H4325}"
+ },
+ "HEB 4:9": {
+  "text": "There remaineth therefore a rest to the people of God.",
+  "tagged": "There{G620} remaineth{G620} therefore{G686} a{} rest{G4520} to{} the{G3588} people{G2992} of{} God.{G2316}"
+ },
+ "PSA 62:1": {
+  "text": "Truly my soul waiteth upon God: from him cometh my salvation.",
+  "tagged": "To{} the{} chief{} Musician,{H5329} to{H5921} Jeduthun,{H3038} A{} Psalm{H4210} of{} David.{H1732} Truly{H389} my{} soul{H5315} waiteth{H1747} upon{H413} God:{H430} from{H4480} him{} *cometh{} my{} salvation.{H3444}"
+ },
+ "EXO 33:14": {
+  "text": "And he said, My presence shall go with thee, and I will give thee rest.",
+  "tagged": "And{} he{} said,{H559} My{} presence{H6440} shall{} go{H1980} *with{} *thee,{} and{} I{} will{} give{} thee{} rest.{H5117}"
+ },
+ "EXO 31:16": {
+  "text": "Wherefore the children of Israel shall keep the sabbath, to observe the sabbath throughout their generations, for a perpetual covenant.",
+  "tagged": "Wherefore{} the{} children{H1121} of{} Israel{H3478} shall{} keep{H8104} ~{H853} the{} sabbath,{H7676} to{} observe{H6213} ~{H853} the{} sabbath{H7676} throughout{} their{} generations,{H1755} *for{} a{} perpetual{H5769} covenant.{H1285}"
+ },
+ "PRO 6:6": {
+  "text": "Go to the ant, thou sluggard; consider her ways, and be wise:",
+  "tagged": "Go{H1980} to{H413} the{} ant,{H5244} thou{} sluggard;{H6102} consider{H7200} her{} ways,{H1870} and{} be{} wise:{H2449}"
+ },
+ "PRO 24:30": {
+  "text": "I went by the field of the slothful, and by the vineyard of the man void of understanding;",
+  "tagged": "I{} went{H5674} by{H5921} the{} field{H7704} of{} the{} slothful,{H6102|H376} and{} by{H5921} the{} vineyard{H3754} of{} the{} man{H120} void{H2638} of{} understanding;{H3820}"
+ },
+ "PRO 26:14": {
+  "text": "As the door turneth upon his hinges, so doth the slothful upon his bed.",
+  "tagged": "*As{} the{} door{H1817} turneth{H5437} upon{H5921} his{} hinges,{H6735} so{} *doth{} the{} slothful{H6102} upon{H5921} his{} bed.{H4296}"
+ },
+ "PRO 19:15": {
+  "text": "Slothfulness casteth into a deep sleep; and an idle soul shall suffer hunger.",
+  "tagged": "Slothfulness{H6103} casteth{H5307} into{} a{} deep{} sleep;{H8639} and{} an{} idle{H7423} soul{H5315} shall{} suffer{} hunger.{H7456}"
+ },
+ "PRO 13:4": {
+  "text": "The soul of the sluggard desireth, and hath nothing: but the soul of the diligent shall be made fat.",
+  "tagged": "The{} soul{H5315} of{} the{} sluggard{H6102} desireth,{H183} and{} *hath{} nothing:{H369} but{} the{} soul{H5315} of{} the{} diligent{H2742} shall{} be{} made{} fat.{H1878}"
+ },
+ "1TI 6:10": {
+  "text": "For the love of money is the root of all evil: which while some coveted after, they have erred from the faith, and pierced themselves through with many sorrows.",
+  "tagged": "For{G1063} the{G3588} love{} of{} money{G5365} is{G2076} the{} root{G4491} of{} all{G3956} evil:{G2556} which{G3739} while{} some{G5100} coveted{} after,{G3713} they{} have{} erred{G635} from{G575} the{G3588} faith,{G4102} and{G2532} pierced{} themselves{} through{G4044|G1438} with{} many{G4183} sorrows.{G3601}"
+ }
+}
