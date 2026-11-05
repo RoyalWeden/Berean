@@ -2,6 +2,7 @@
 // in-WebView service → UI). Everything here is verified local data — no model output.
 
 import type { LexicalIntentKind } from './lexicalIntent'
+import type { CompareIntentKind } from './compareIntent'
 import type { LexicalMatchKind, LexicalResolution } from './lexicon'
 import type { TaggedToken, TagCoverage } from './taggedText'
 import type { StrongsLang } from './strongsId'
@@ -50,8 +51,36 @@ export interface OccurrenceSummary {
   bookId?: string
 }
 
+/** One passage in one text, as a pane of a comparison (spec §6.1 #7, #8). */
+export interface ComparisonPane {
+  /** Translation label ("KJV", "LXX (Brenton)"). */
+  label: string
+  textId: string
+  /** Collection the text belongs to ("Bible", "LXX", "Pseudepigrapha"). */
+  corpus: string
+  /** Reference as the user asked for it, in this text's own book naming. */
+  reference: string
+  bookId: string
+  chapter: number
+  verse?: number
+  endVerse?: number
+  /** Each verse under this text's own chapter and verse numbering. */
+  verses: Array<{ chapter: number; verse: number; text: string }>
+  /** Set when the passage is not in this text — shown as an explicit pane, never left blank. */
+  missing?: string
+  /** More verses exist than are shown. */
+  truncated?: boolean
+  /** Translation parallel only: lowercased words in this pane and not in the other ("Different wording"). */
+  differing?: string[]
+}
+
+export interface PassageComparison {
+  kind: CompareIntentKind
+  panes: ComparisonPane[]
+}
+
 export interface ResearchPayload {
-  kind: LexicalIntentKind
+  kind: LexicalIntentKind | CompareIntentKind
   /** The word, transliteration or script the user studied, when it wasn't an id. */
   term?: string
   candidates: ResearchStrongsCandidate[]
@@ -63,6 +92,8 @@ export interface ResearchPayload {
   /** For a Strong's comparison: KJV renderings the entries share, and each one's own (from the
    *  lexicon's rendering lists — attested wording, not an interpretation). */
   comparison?: { shared: string[]; only: Record<string, string[]> }
+  /** Translation parallel or passage comparison panes (spec §6.1 #7, #8). */
+  passageComparison?: PassageComparison
   method: 'deterministic'
 }
 

@@ -7,7 +7,12 @@ import {
 } from '../../lib/research/lexicon'
 import { detectLexicalIntent, type LexicalIntent } from '../../lib/research/lexicalIntent'
 import { parseTaggedText, tagCoverage } from '../../lib/research/taggedText'
-import { candidatesFromResolution, type OccurrenceSummary, type ResearchPayload, type WordTable, type WordTableVerse } from '../../lib/research/payload'
+import { candidatesFromResolution, type ComparisonPane, type OccurrenceSummary, type ResearchPayload, type WordTable, type WordTableVerse } from '../../lib/research/payload'
+import { detectCompareIntent, MAX_COMPARE_REFS, type CompareIntent } from '../../lib/research/compareIntent'
+import { wordsOnlyIn } from '../../lib/research/compareWords'
+import { findReferencesInText } from '../../lib/research/references'
+import { collectionInfo, collectionOf } from '../../lib/research/collections'
+import { bookChapterVerseLabel, bookName, getTranslationForBook, type ParsedRef } from '../../lib/parseRef'
 import type { StrongsLang } from '../../lib/research/strongsId'
 
 /**
@@ -26,6 +31,21 @@ export interface LexicalAnswer {
   /** Factual limitations to show the user (missing data, partial coverage). */
   limitations: string[]
 }
+
+export interface ComparisonAnswer {
+  intent: CompareIntent
+  panes: ComparisonPane[]
+  /** Factual notes to show with the panes (numbering differences, truncation). */
+  limitations: string[]
+}
+
+/** Verses shown per pane; a longer passage is cut and says so. */
+const MAX_PANE_VERSES = 12
+
+const TEXT_LABEL: Record<string, string> = { kjva: 'KJV', kjv: 'KJV', lxx: 'LXX (Brenton)' }
+
+/** Books whose chapter and verse numbering is known to differ between the KJV and Brenton's LXX. */
+const NUMBERING_DIFFERS = new Set(['PSA'])
 
 /** Texts whose `text_tagged` carry Strong's numbers, by language. `lxx` is Brenton's English with Greek tags. */
 const TAGGED_TEXTS: Record<StrongsLang, string[]> = { H: ['kjva'], G: ['kjva', 'lxx'] }
@@ -204,7 +224,63 @@ export function createResearchService(ctx: ServiceContext, deps: { lexicon: Lexi
     return null
   }
 
-  return { entries, renderingIndex, resolveTerm, wordTable, occurrenceSummary, answerLexical, getEntry: deps.lexicon.getEntry }
+  /** One passage in one text, under that text's own numbering; absent passages become an explicit pane. */
+  async function comparisonPane(ref: ParsedRef, textId: string): Promise<ComparisonPane> {
+    const corpus = collectionInfo(collectionOf(textId, ref.bookId)).badge
+    const label = TEXT_LABEL[textId] ?? corpus
+    const lastChapter = ref.endChapter ?? ref.chapter
+    const reference = `${bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)}${ref.endVerse ? `-${ref.endVerse}` : ''}${lastChapter !== ref.chapter ? `–${lastChapter}` : ''}`
+    const pane: ComparisonPane = { label, textId, corpus, reference, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse, verses: [] }
+    const db = await ctx.textDb(textId)
+    if (!db) return { ...pane, missing: `${label} isn't installed.` }
+    const from = ref.verse ?? 1
+    const to = ref.endVerse ?? ref.verse ?? 999
+    const rows = await db.all<{ chapter: number; verse_num: number; text: string }>(
+      `SELECT chapter, verse_num, text FROM verses WHERE book_id = ? AND chapter BETWEEN ? AND ?
+         AND (chapter > ? OR verse_num >= ?) AND (chapter < ? OR verse_num <= ?) ORDER BY chapter, verse_num LIMIT ?`,
+      [ref.bookId, ref.chapter, lastChapter, ref.chapter, from, lastChapter, lastChapter === ref.chapter ? to : 999, MAX_PANE_VERSES + 1],
+    )
+    if (rows.length === 0) {
+      const book = await db.get<{ n: number }>('SELECT COUNT(*) AS n FROM verses WHERE book_id = ?', [ref.bookId])
+      return { ...pane, missing: Number(book?.n ?? 0) === 0 ? `${bookName(ref.bookId)} is not in ${label}.` : `${reference} is not in ${label}.` }
+    }
+    return {
+      ...pane,
+      verses: rows.slice(0, MAX_PANE_VERSES).map((r) => ({ chapter: r.chapter, verse: r.verse_num, text: r.text })),
+      ...(rows.length > MAX_PANE_VERSES ? { truncated: true } : {}),
+    }
+  }
+
+  /** Translation parallels and passage comparisons, answered entirely from the bundled texts.
+   *  Text only — no wording is added, and nothing is aligned or called a variant. */
+  async function answerComparison(question: string): Promise<ComparisonAnswer | null> {
+    const intent = detectCompareIntent(question)
+    if (!intent) return null
+    const limitations: string[] = []
+    let panes: ComparisonPane[]
+    if (intent.kind === 'translation-parallel') {
+      panes = await Promise.all(intent.textIds.map((t) => comparisonPane(intent.refs[0], t)))
+      const [kjv, lxx] = panes
+      const ref = intent.refs[0]
+      const numbered = NUMBERING_DIFFERS.has(ref.bookId)
+        || (kjv.verses.length > 0 && lxx.verses.length > 0 && kjv.verses.map((v) => `${v.chapter}:${v.verse}`).join() !== lxx.verses.map((v) => `${v.chapter}:${v.verse}`).join())
+      if (numbered) {
+        limitations.push('These texts number some chapters and verses differently, so each is shown under its own numbering and is not aligned verse for verse.')
+      } else if (kjv.verses.length > 0 && lxx.verses.length > 0) {
+        // Same verses, same numbering: mark only words present in one rendering and absent from the other.
+        const a = wordsOnlyIn(kjv.verses.map((v) => v.text), lxx.verses.map((v) => v.text))
+        const b = wordsOnlyIn(lxx.verses.map((v) => v.text), kjv.verses.map((v) => v.text))
+        panes = [{ ...kjv, differing: a }, { ...lxx, differing: b }]
+      }
+    } else {
+      panes = await Promise.all(intent.refs.map((r) => comparisonPane(r, r.forcedTranslation === 'LXX' ? 'lxx' : getTranslationForBook(r.bookId) ?? 'kjva')))
+      if (findReferencesInText(question).length > MAX_COMPARE_REFS) limitations.push(`Showing the first ${MAX_COMPARE_REFS} passages.`)
+    }
+    if (panes.some((p) => p.truncated)) limitations.push(`Showing the first ${MAX_PANE_VERSES} verses of a longer passage; open it for the rest.`)
+    return { intent, panes, limitations }
+  }
+
+  return { entries, renderingIndex, resolveTerm, wordTable, occurrenceSummary, answerLexical, answerComparison, getEntry: deps.lexicon.getEntry }
 }
 
 /** The serializable form of a lexical answer, for the response payload. */
@@ -229,6 +305,22 @@ export function lexicalPayload(answer: LexicalAnswer): ResearchPayload {
     limitations: answer.limitations,
     method: 'deterministic',
   }
+}
+
+/** The serializable form of a comparison, for the response payload. */
+export function comparisonPayload(answer: ComparisonAnswer): ResearchPayload {
+  return {
+    kind: answer.intent.kind, candidates: [], ambiguous: false, wordTables: [], occurrences: [],
+    limitations: answer.limitations, passageComparison: { kind: answer.intent.kind, panes: answer.panes }, method: 'deterministic',
+  }
+}
+
+/** A deterministic label for the reply (no prose): "Genesis 1:1 in KJV and LXX (Brenton)". */
+export function comparisonLabel(answer: ComparisonAnswer): string {
+  const { panes } = answer
+  return answer.intent.kind === 'translation-parallel'
+    ? `${panes[0].reference} in ${panes.map((p) => p.label).join(' and ')}`
+    : `Comparing ${panes.map((p) => p.reference).join(' and ')}`
 }
 
 export type ResearchService = ReturnType<typeof createResearchService>

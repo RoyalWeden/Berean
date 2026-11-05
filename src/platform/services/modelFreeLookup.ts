@@ -2,7 +2,7 @@ import type { Services } from './index'
 import type { AiLookupResponse, AiLookupResult } from '../../types/electron'
 import { parseRef, bookName, getTranslationForBook } from '../../lib/parseRef'
 import { mentionsExcluded, parseExclusions } from '../../lib/research/exclusions'
-import { lexicalPayload } from './researchService'
+import { comparisonLabel, comparisonPayload, lexicalPayload } from './researchService'
 import { resolveFollowUp, stateFromTurns, type Turn } from '../../lib/research/conversationState'
 import { activeCollections, collectionOf, detectQuestionScope, type CollectionId } from '../../lib/research/collections'
 import { asksForInterpretation } from '../../lib/research/modePolicy'
@@ -44,7 +44,7 @@ export async function modelFreeLookup(services: Services, question: string, opts
     const excluded = new Set(followUp?.excludeRefs ?? [])
     let results = r.results.filter((x) => !excluded.has(`${x.bookId} ${x.chapter}:${x.verse}`))
     if (followUp?.limit) results = results.slice(0, followUp.limit)
-    const found = results.length > 0 || !!r.strongsCard || (r.research?.candidates.length ?? 0) > 0 || (r.research?.wordTables.length ?? 0) > 0
+    const found = results.length > 0 || !!r.strongsCard || (r.research?.candidates.length ?? 0) > 0 || (r.research?.wordTables.length ?? 0) > 0 || !!r.research?.passageComparison
     return { ...r, results, visibleCount: Math.min(results.length, SHOWN), partial: found }
   }
 
@@ -63,6 +63,10 @@ export async function modelFreeLookup(services: Services, question: string, opts
       ...(top ? { strongsCard: { strongsNum: top.id, lemma: top.lemma, transliteration: top.transliteration, gloss: top.gloss, definition: top.definition, derivation: top.derivation, occurrenceCount: top.lexiconCount } } : {}),
     })
   }
+
+  // 1b. Translation parallels and passage comparisons: the texts themselves, side by side.
+  const compared = await services.research.answerComparison(q).catch(() => null)
+  if (compared) return done({ ...base, research: comparisonPayload(compared), summary: comparisonLabel(compared) })
 
   // 2. A bare reference ("John 3:16", "Psalm 23", "Genesis 1:1 LXX").
   const ref = parseRef(q.trim())

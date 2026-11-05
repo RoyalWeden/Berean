@@ -4,6 +4,7 @@ import { SectionLabel } from '@/components/ui'
 import { bookName, bookOrder } from '@/lib/parseRef'
 import type { OccurrenceSummary, ResearchPayload, ResearchStrongsCandidate, WordTable } from '@/lib/research/payload'
 import { useChatNavigate } from './chatNav'
+import { ComparisonView } from './ComparisonView'
 
 /**
  * Verified, model-free research results (spec §6.1 #3, #4, #6): grouped Strong's candidates, a
@@ -220,6 +221,18 @@ function StrongsComparison({ research }: { research: ResearchPayload }) {
 
 export const ResearchResults = memo(function ResearchResults({ research }: { research: ResearchPayload }) {
   const occFor = (id: string) => research.occurrences.find((o) => o.id === id)
+  if (research.passageComparison) {
+    return (
+      <>
+        <ComparisonView comparison={research.passageComparison} />
+        {research.limitations.length > 0 && (
+          <ul className="chat-limitations" aria-label="Limitations">
+            {research.limitations.map((l, i) => <li key={i} className="text-caption2 text-text-muted flex items-start gap-1.5"><Info size={11} className="flex-shrink-0 mt-[2px]" />{l}</li>)}
+          </ul>
+        )}
+      </>
+    )
+  }
   if (research.kind === 'strongs-compare' && research.candidates.length >= 2) {
     return (
       <>
