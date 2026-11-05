@@ -125,7 +125,10 @@ describe('AiReplyBody', () => {
     const block = el.querySelector('[aria-label="Online sources"]')!
     expect(block.textContent).toContain('not Scripture')
     expect(block.textContent).toContain('retrieved 2026-11-04')
-    expect(block.querySelector('a')!.getAttribute('rel')).toContain('noopener')
+    const openExternal = vi.fn(async () => {})
+    ;(window as unknown as { app: unknown }).app = { openExternal }
+    act(() => block.querySelector('button')!.click())
+    expect(openExternal).toHaveBeenCalledWith('https://en.wikipedia.org/?curid=1')
   })
 
   it('says where a cloud answer went', () => {

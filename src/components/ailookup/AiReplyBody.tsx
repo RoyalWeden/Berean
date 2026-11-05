@@ -11,7 +11,7 @@ import { useChatNavigate } from './chatNav'
 import { ResearchResults } from './ResearchResults'
 import { collectionInfo, collectionOf } from '@/lib/research/collections'
 import { premiseNoticeText, type PremiseCheck } from '@/lib/research/premise'
-import type { ExternalSource } from '@/lib/research/webResearch'
+import { safeSourceUrl, type ExternalSource } from '@/lib/research/webResearch'
 import { bookName } from '@/lib/parseRef'
 
 /**
@@ -141,12 +141,14 @@ function ExternalSources({ sources }: { sources: ExternalSource[] }) {
     <section aria-label="Online sources" className="space-y-1">
       <p className="text-caption2 font-medium text-text-muted">Online sources (not Scripture)</p>
       {sources.map((s) => (
-        <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="chat-ai-row block">
+        // Checked again here: a saved chat can arrive by sync, so the stored link isn't trusted.
+        <button key={s.url} type="button" className="chat-ai-row block w-full text-left" disabled={!safeSourceUrl(s.url)}
+          onClick={() => { const url = safeSourceUrl(s.url); if (url) void window.app.openExternal(url) }}>
           <span className="text-caption font-semibold text-text-primary">{s.title}</span>
           <span className="text-caption2 text-text-muted"> · {s.site} · retrieved {s.retrievedAt.slice(0, 10)}</span>
           {s.excerpt && <p className="text-caption2 text-text-secondary leading-snug mt-0.5">{s.excerpt}</p>}
           <p className="text-caption2 text-text-muted mt-0.5">{s.limitation}</p>
-        </a>
+        </button>
       ))}
     </section>
   )

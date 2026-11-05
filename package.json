@@ -11,7 +11,7 @@
     "build": "electron-vite build && node scripts/mac/build-native.mjs glass",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
     "test": "vitest",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build:local": "npm run build && electron-builder --mac --publish never",
@@ -117,6 +117,7 @@
     "react-mosaic-component": "^6.2.0",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.72.1",
     "vite": "^5.2.11",
     "vitest": "^1.5.3"
   },
