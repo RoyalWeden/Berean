@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpenText, ChevronDown, ChevronRight, Info } from 'lucide-react'
 import { SectionLabel } from '@/components/ui'
 import { bookName, bookOrder } from '@/lib/parseRef'
@@ -61,12 +61,83 @@ function CandidateRow({ c, term, occ }: { c: ResearchStrongsCandidate; term?: st
   )
 }
 
+const OCC_PAGE = 20
+
+interface OccVerse { chapter: number; verse: number; text: string }
+
+/** The tagged verses of one book, a page at a time from the database (never the whole set). The
+ *  filter narrows the verses listed so far; the count line states how many of the exact total are
+ *  loaded, so a filtered view is never mistaken for the full count. */
+function OccurrenceVerses({ id, textId, bookId, total }: { id: string; textId: string; bookId: string; total: number }) {
+  const nav = useChatNavigate()
+  const [verses, setVerses] = useState<OccVerse[]>([])
+  const [hasMore, setHasMore] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [filter, setFilter] = useState('')
+  const alive = useRef(true)
+  const busy = useRef(false)
+  const offset = useRef(0)
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+
+  const more = useCallback(async () => {
+    if (busy.current) return
+    busy.current = true; setLoading(true); setFailed(false)
+    try {
+      const page = await window.lexicon.getOccurrencePage(id, { textId, bookId, offset: offset.current, limit: OCC_PAGE })
+      if (!alive.current) return
+      offset.current += page.rows.length
+      setVerses((prev) => [...prev, ...page.rows.map((r) => ({ chapter: r.chapter, verse: r.verse_num, text: r.text }))])
+      setHasMore(page.hasMore)
+    } catch {
+      if (alive.current) setFailed(true)
+    } finally {
+      busy.current = false
+      if (alive.current) setLoading(false)
+    }
+  }, [id, textId, bookId])
+  useEffect(() => { void more() }, [more])
+
+  const q = filter.trim().toLowerCase()
+  const name = bookName(bookId)
+  const shown = q ? verses.filter((v) => v.text.toLowerCase().includes(q) || `${name} ${v.chapter}:${v.verse}`.toLowerCase().includes(q)) : verses
+  const open = (v: OccVerse) => nav({ kind: 'verse', result: { textId, bookId, bookName: name, chapter: v.chapter, verse: v.verse, text: v.text, source: 'strongs' } })
+  return (
+    <div className="chat-occ-verses" role="group" aria-label={`${id} verses in ${name}`}>
+      <input
+        type="search" className="chat-occ-filter text-caption2" value={filter} onChange={(e) => setFilter(e.target.value)}
+        placeholder={`Filter ${name} verses`} aria-label={`Filter listed ${name} verses`}
+      />
+      <p className="text-caption2 text-text-muted" aria-live="polite">
+        {q ? `${shown.length} of ${verses.length} listed match` : `Showing ${verses.length} of ${total}`}{q && hasMore ? ' (more not yet listed)' : ''}
+      </p>
+      <ul className="chat-occ-vlist" aria-label={`${name} verses tagged ${id}`}>
+        {shown.map((v) => (
+          <li key={`${v.chapter}:${v.verse}`}>
+            <button type="button" className="chat-occ-verse text-caption2" title={`Open ${name} ${v.chapter}:${v.verse}`} aria-label={`Open ${name} ${v.chapter}:${v.verse}`} onClick={() => open(v)}>
+              <span className="chat-occ-ref">{v.chapter}:{v.verse}</span>
+              <span className="chat-occ-text">{v.text}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {failed && <p className="text-caption2 text-text-muted" role="status">Could not load these verses.</p>}
+      {hasMore && (
+        <button type="button" className="chat-crossrefs-toggle text-caption2 self-start" disabled={loading} onClick={() => void more()}>
+          {loading ? 'Loading…' : 'Show more'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** Where a Strong's id is tagged, book by book (Phase 5 occurrences explorer). Counts come from the
- *  same exact SQL count as the total; a row opens the lexicon entry, whose occurrence list has the
- *  verses themselves. */
+ *  same exact SQL count as the total; a row opens that book's tagged verses, paged from the
+ *  database, and the expanded view links on to the lexicon entry. */
 export function OccurrencesByBook({ occ }: { occ: OccurrenceSummary }) {
   const nav = useChatNavigate()
   const [open, setOpen] = useState(false)
+  const [book, setBook] = useState<string | null>(null)
   const rows = [...occ.byBook].filter((b) => b.verses > 0).sort((a, b) => a.textId.localeCompare(b.textId) || bookOrder(a.bookId) - bookOrder(b.bookId))
   if (rows.length < 2 || occ.bookId) return null
   const max = Math.max(...rows.map((r) => r.verses))
@@ -81,16 +152,23 @@ export function OccurrencesByBook({ occ }: { occ: OccurrenceSummary }) {
         <ul className="chat-occ-list" aria-label={`${occ.id} tagged verses by book`}>
           {rows.map((r) => (
             <li key={`${r.textId}-${r.bookId}`}>
-              <button type="button" className="chat-occ-row text-caption2" title={`Open Strong's ${occ.id}`}
+              <button type="button" className="chat-occ-row text-caption2" title={`Show ${bookName(r.bookId)} verses`}
+                aria-expanded={book === `${r.textId}-${r.bookId}`}
                 aria-label={`${bookName(r.bookId)}${multiText ? ` (${textLabel(r.textId)})` : ''}: ${r.verses} verse${r.verses === 1 ? '' : 's'}`}
-                onClick={() => nav({ kind: 'lexicon', strongsNum: occ.id })}>
+                onClick={() => setBook((b) => (b === `${r.textId}-${r.bookId}` ? null : `${r.textId}-${r.bookId}`))}>
                 <span className="chat-occ-book">{bookName(r.bookId)}{multiText && <span className="text-text-muted"> · {textLabel(r.textId)}</span>}</span>
                 <span className="chat-occ-bar" aria-hidden="true"><span style={{ width: `${Math.max(4, Math.round((r.verses / max) * 100))}%` }} /></span>
                 <span className="chat-occ-n">{r.verses}</span>
               </button>
+              {book === `${r.textId}-${r.bookId}` && <OccurrenceVerses id={occ.id} textId={r.textId} bookId={r.bookId} total={r.verses} />}
             </li>
           ))}
         </ul>
+      )}
+      {open && (
+        <button type="button" className="chat-crossrefs-toggle text-caption2 self-start" onClick={() => nav({ kind: 'lexicon', strongsNum: occ.id })}>
+          Open Strong's {occ.id}
+        </button>
       )}
     </div>
   )

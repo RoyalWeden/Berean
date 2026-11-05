@@ -174,4 +174,21 @@ describe('lexiconService (real strongs_hebrew.db/strongs_greek.db/kjva.db, skipp
     expect(hit).toEqual({ strongsId: 'G3056', transliteration: 'lógos' })
     expect(await svc!.findByNormalizedTransliteration('nonexistentword', 'all', normalize)).toBeNull()
   })
+
+  describe('getOccurrencePage', () => {
+    it('pages one book from SQL, reports hasMore, and rejects texts that carry no tags', async () => {
+      const verses = Array.from({ length: 7 }, (_, i) => ({ book: 'ROM', ch: 1, v: i + 1, text: `v${i + 1}`, tagged: `v${i + 1}{G5485}` }))
+        .concat([{ book: 'ROM', ch: 2, v: 1, text: 'other', tagged: 'other{G0001}' }, { book: 'LUK', ch: 1, v: 1, text: 'luke', tagged: 'luke{G5485}' }])
+      const text = await fixtureTextDb(verses, { books: [{ id: 'ROM', name: 'Romans', short: 'Rom', testament: 'NT', chapters: 16 }, { id: 'LUK', name: 'Luke', short: 'Luk', testament: 'NT', chapters: 24 }] })
+      const svc = createLexiconService(makeContext({ texts: { kjva: text }, lexiconDb: async () => fakeLexiconDb([{ strongs_id: 'G5485' }]) }))
+      const first = await svc.getOccurrencePage('g5485', { textId: 'kjva', bookId: 'ROM', offset: 0, limit: 5 })
+      expect(first.rows.map((r) => r.verse_num)).toEqual([1, 2, 3, 4, 5])
+      expect(first.hasMore).toBe(true)
+      const second = await svc.getOccurrencePage('G5485', { textId: 'kjva', bookId: 'ROM', offset: 5, limit: 5 })
+      expect(second.rows.map((r) => r.verse_num)).toEqual([6, 7])
+      expect(second.hasMore).toBe(false)
+      expect((await svc.getOccurrencePage('G5485', { textId: 'enoch', bookId: 'ROM' })).rows).toEqual([])
+      expect((await svc.getOccurrencePage('H7225', { textId: 'lxx', bookId: 'ROM' })).rows).toEqual([])
+    })
+  })
 })
