@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# The data-v1 release that holds the databases is a draft, and reading a draft needs write access.
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test, build
+    # macOS: the build compiles the native Liquid Glass bridge. Repo is public, so these minutes are free.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download Bible/lexicon databases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download data-v1 --dir data --pattern "*.db" --clobber
+
+      # Gitignored and never needed by these checks, so an empty key is enough to compile.
+      - name: Create YouTube API key stub
+        run: echo "export const YOUTUBE_API_KEY = ''" > electron/youtube-key.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npx vitest run
+
+      - name: Build desktop
+        run: npm run build
+
+      - name: Build iPhone web bundle
+        run: npm run ios:build:web

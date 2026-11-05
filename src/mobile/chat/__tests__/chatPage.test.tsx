@@ -191,6 +191,50 @@ describe('ChatPage (iPhone)', () => {
     expect(valueOf(field(h))).toBe('draft')
   })
 
+  it('rename: long-press a conversation → Rename…, and tap the name inside it (Unfiled can’t be renamed)', async () => {
+    await svc.upsertMessages({ messages: [{ id: 'r1', role: 'user', kind: 'note', content: 'Isaiah 58 notes', createdAt: new Date().toISOString() }] })
+    const id = (await svc.listChats())[0].id
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValueOnce('The true fast')
+    const h = await mount(<ChatPage />)
+    const row = h.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!
+    vi.useFakeTimers()
+    act(() => { row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 })) })
+    act(() => { vi.advanceTimersByTime(500) })
+    vi.useRealTimers()
+    act(() => { row.click() }) // the finger lifting: the click a long press swallows
+    await settle()
+    const rows = [...document.querySelectorAll<HTMLButtonElement>('.m-popover-row')]
+    expect(rows.map((b) => b.textContent)).toEqual(['Pin', 'Rename…', 'Move to Folder…', 'Delete Conversation'])
+    act(() => rows[1].click())
+    await settle()
+    expect(prompt).toHaveBeenCalledWith('Rename Conversation', 'Isaiah 58 notes')
+    expect((await svc.listChats())[0].title).toBe('The true fast')
+    expect(h.textContent).toContain('The true fast')
+
+    // Inside the conversation the title pill is the rename button.
+    act(() => { h.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!.click() })
+    await settle()
+    const titleBtn = h.querySelector<HTMLButtonElement>('.m-chat-title-btn')!
+    expect(titleBtn.textContent).toBe('The true fast')
+    prompt.mockReturnValueOnce('  ')
+    act(() => titleBtn.click())
+    await settle()
+    expect((await svc.listChats())[0].title).toBe('The true fast') // blank / cancel changes nothing
+    prompt.mockReturnValueOnce('Isaiah 58 — the true fast')
+    act(() => titleBtn.click())
+    await settle()
+    expect(prompt).toHaveBeenLastCalledWith('Rename Conversation', 'The true fast')
+    expect((await svc.listChats())[0].title).toBe('Isaiah 58 — the true fast')
+    expect(h.querySelector('.m-chat-title-btn')!.textContent).toBe('Isaiah 58 — the true fast')
+    prompt.mockRestore()
+  })
+
+  it('the title is not a rename button for Unfiled, All Messages or an unsaved new message', async () => {
+    const h = await mount(<ChatPage newMessageToken={1} />)
+    expect(h.querySelector('.m-chat-title-btn')).toBeNull()
+    expect(h.querySelector('.m-chat-title-pill')!.textContent).toBe('New Conversation')
+  })
+
   it('swipe left past the lock point keeps the times open; a rightward swipe then closes them instead of replying', async () => {
     await svc.upsertMessages({ messages: [{ id: 'q1', role: 'user', kind: 'note', content: 'Read Titus 2:11-14', createdAt: new Date().toISOString() }] })
     const h = await mount(<ChatPage newMessageToken={1} />)
