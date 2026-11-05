@@ -154,6 +154,16 @@ describe('markdown round-trip (parseMarkdown -> serializeToMarkdown)', () => {
     expect(roundtrips(md)).toBe(md)
   })
 
+  it('table cells keep their formatting across saves', () => {
+    const md = '| **Bold** | *Italic* | [Link](https://example.com) |\n| --- | --- | --- |\n| `code` | plain | a \\| b |'
+    const once = serializeToMarkdown(parseMarkdown(md))
+    expect(once).toBe(md)
+    expect(serializeToMarkdown(parseMarkdown(once))).toBe(once)
+    const marks: string[] = []
+    parseMarkdown(once).descendants((n) => { n.marks.forEach((m) => marks.push(m.type.name)) })
+    expect(marks).toEqual(expect.arrayContaining(['strong', 'em', 'link', 'code']))
+  })
+
   it('GFM pipe table with alignment', () => {
     const md = '| Left | Center | Right |\n| --- | :---: | ---: |\n| a | b | c |\n| d | e | f |'
     expect(roundtrips(md)).toBe(md)
