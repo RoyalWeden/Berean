@@ -11,7 +11,7 @@ import { asksForInterpretation } from '../../lib/research/modePolicy'
  * Ask Berean without any AI model (spec §2.1, decision 6, scenarios 1 and 27): references, word
  * studies, Strong's ids, word tables, occurrence counts, follow-ups and a plain keyword search,
  * all from the bundled databases through the shared services — so it runs the same on an iPhone
- * with no local model as on a Mac without one. The response says it ran model-free
+ * with no local model as on a Mac without one. A keyword search says it ran model-free
  * (`errorCode: NO_MODEL_INSTALLED`, `partial`) so the reply never claims AI work it didn't do.
  */
 
@@ -40,6 +40,12 @@ export async function modelFreeLookup(services: Services, question: string, opts
     ...(followUp ? { followUpReason: followUp.reason } : {}),
     ...(opts.commentary === false && asksForInterpretation(question) ? { interpretationOffered: true } : {}),
   }
+  // A verse, word study or comparison IS the whole answer: no model was missing, so nothing warns.
+  // Only the keyword fallback stands in for what a model would have done, and says so.
+  const complete = (r: AiLookupResponse): AiLookupResponse => {
+    const { errorCode: _code, partial: _partial, ...answer } = done(r)
+    return answer
+  }
   const done = (r: AiLookupResponse): AiLookupResponse => {
     const excluded = new Set(followUp?.excludeRefs ?? [])
     let results = r.results.filter((x) => !excluded.has(`${x.bookId} ${x.chapter}:${x.verse}`))
@@ -58,7 +64,7 @@ export async function modelFreeLookup(services: Services, question: string, opts
       const occ = await services.lexicon.getOccurrences(top.id, lexical.occurrences[0].bookId ?? undefined).catch(() => [])
       results = occ.slice(0, SHOWN).map((o) => result(o.text_id, o.book_id, o.chapter, o.verse_num, o.text, 'strongs'))
     }
-    return done({
+    return complete({
       ...base, research, results,
       ...(top ? { strongsCard: { strongsNum: top.id, lemma: top.lemma, transliteration: top.transliteration, gloss: top.gloss, definition: top.definition, derivation: top.derivation, occurrenceCount: top.lexiconCount } } : {}),
     })
@@ -66,7 +72,7 @@ export async function modelFreeLookup(services: Services, question: string, opts
 
   // 1b. Translation parallels and passage comparisons: the texts themselves, side by side.
   const compared = await services.research.answerComparison(q).catch(() => null)
-  if (compared) return done({ ...base, research: comparisonPayload(compared), summary: comparisonLabel(compared) })
+  if (compared) return complete({ ...base, research: comparisonPayload(compared), summary: comparisonLabel(compared) })
 
   // 2. A bare reference ("John 3:16", "Psalm 23", "Genesis 1:1 LXX").
   const ref = parseRef(q.trim())
@@ -77,7 +83,7 @@ export async function modelFreeLookup(services: Services, question: string, opts
     const to = ref.endVerse ?? ref.verse ?? Number.MAX_SAFE_INTEGER
     const results = rows.filter((v) => v.verse_num >= from && v.verse_num <= to).slice(0, 60)
       .map((v) => result(textId, ref.bookId, ref.chapter, v.verse_num, v.text, 'named'))
-    if (results.length) return { ...done({ ...base, results }), visibleCount: results.length }
+    if (results.length) return { ...complete({ ...base, results }), visibleCount: results.length }
   }
 
   // 3. Keyword search over the active collections (canonical KJV first).

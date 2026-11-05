@@ -58,7 +58,6 @@ describe.skipIf(!(kjva && lxx && heb && grk))('answerComparison (real data)', ()
     expect(r.research?.passageComparison?.panes).toHaveLength(2)
     expect(r.summary).toBe('Isaiah 7:14 in KJV and LXX (Brenton)')
     expect(r.results).toEqual([])
-    expect(r.partial).toBe(true)
     expect(r.research).toEqual(comparisonPayload((await s.research.answerComparison('how does the LXX read Isaiah 7:14'))!))
   })
 

@@ -16,13 +16,19 @@ describe.skipIf(!(kjva && lxx && heb && grk))('modelFreeLookup (real data, no mo
     expect(r.results).toHaveLength(1)
     expect(r.results[0]).toMatchObject({ bookId: 'JHN', chapter: 3, verse: 16, textId: 'kjva', source: 'named' })
     expect(r.results[0].text).toMatch(/^For God so loved the world/)
-    expect(r).toMatchObject({ errorCode: 'NO_MODEL_INSTALLED', partial: true })
+    expect(r.errorCode).toBeUndefined()
   })
 
   it('Strong\'s and word studies resolve without a model (scenario 2, 3)', async () => {
     expect((await modelFreeLookup(s, 'G-5485')).strongsCard?.strongsNum).toBe('G5485')
     const mercy = await modelFreeLookup(s, 'the word for mercy')
     expect(mercy.research?.candidates.map((c) => c.id)).toEqual(expect.arrayContaining(['H2617', 'G1656']))
+  })
+
+  it('only the keyword fallback says a model is missing', async () => {
+    expect((await modelFreeLookup(s, 'the word for mercy')).errorCode).toBeUndefined()
+    expect((await modelFreeLookup(s, 'Genesis 1:1 in the KJV and LXX')).errorCode).toBeUndefined()
+    expect(await modelFreeLookup(s, 'verses about the sabbath')).toMatchObject({ errorCode: 'NO_MODEL_INSTALLED', partial: true })
   })
 
   it('a topical question falls back to keyword search over the canon', async () => {
