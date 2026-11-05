@@ -168,7 +168,7 @@
 .chat-mode-notice-action:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 1px; border-radius: 4px; }
 
 /* "Explore interpretations" under a Commentary-off reply that was asked for interpretation. */
-.chat-explore-action { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; padding: 2px 8px; border: 0; border-radius: 999px; font: inherit; color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.1); cursor: pointer; }
+.chat-explore-action { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; padding: 2px 8px; border: 0; border-radius: 999px; font-family: inherit; color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.1); cursor: pointer; }
 @media (hover: hover) { .chat-explore-action:hover { background: rgb(var(--color-accent) / 0.16); } }
 .chat-explore-action:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 1px; }
 
@@ -226,6 +226,7 @@
   .chat-parallel-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 }
 .chat-parallel-pane { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--color-separator); }
+.chat-parallel-head > span:last-child { white-space: nowrap; }
 .chat-parallel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; }
 .chat-parallel-num { margin-right: 2px; }
 .chat-diff-word { background: none; color: inherit; text-decoration: underline dotted rgb(var(--color-accent)); text-underline-offset: 3px; }
