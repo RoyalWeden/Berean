@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSy
 import { join, extname, basename, relative, sep, dirname } from 'path'
 import { createHash, randomUUID } from 'crypto'
 import chokidar from 'chokidar'
+import { writeFileAtomicSync } from '../atomicWrite'
 import { getBereanDb } from '../db/berean'
 import { getTextDb } from '../db/bible'
 import { getResourceMode } from '../powerAwareness'
@@ -733,7 +734,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
       const filePath = join(dir, filename)
       markSelfWrite(filePath)
       const content = extractInlineImages(noteToMarkdown(row, overrideColor, highlightedVerseText), vaultPath, dir)
-      writeFileSync(filePath, content, 'utf-8')
+      writeFileAtomicSync(filePath, content)
       return { success: true }
     } catch (err) {
       return { success: false, reason: String(err) }
@@ -1085,7 +1086,7 @@ export function runExportAll(opts?: { tabState?: string; force?: boolean }): { s
 
       markSelfWrite(exportFilePath)
       const content = extractInlineImages(noteToMarkdown(note, overrideColor, highlightedVerseText), vaultPath, dir)
-      writeFileSync(exportFilePath, content, 'utf-8')
+      writeFileAtomicSync(exportFilePath, content)
       noteCount++
     }
 
@@ -1116,20 +1117,20 @@ export function runExportAll(opts?: { tabState?: string; force?: boolean }): { s
         `color: ${toOctarineEmoji(spans[0]?.color)}`,
         '---',
       ].join('\n')
-      writeFileSync(join(hlDir, filename), frontmatter + '\n\n> ' + highlighted + '\n', 'utf-8')
+      writeFileAtomicSync(join(hlDir, filename), frontmatter + '\n\n> ' + highlighted + '\n')
     }
 
     // Lightweight sidecar: id → folder_id mapping (not in .md for Octarine compat)
     const notesMeta = noteRows.map((n) => ({ id: n.id, folder_id: n.folder_id ?? null }))
-    writeFileSync(join(vaultPath, 'berean-notes-meta.json'), JSON.stringify(notesMeta, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-notes-meta.json'), JSON.stringify(notesMeta, null, 2))
 
     // ── 2. Highlights ─────────────────────────────────────────────────────────
     const highlights = db.prepare('SELECT * FROM highlights').all()
-    writeFileSync(join(vaultPath, 'berean-highlights.json'), JSON.stringify(highlights, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-highlights.json'), JSON.stringify(highlights, null, 2))
 
     // ── 3. App history ────────────────────────────────────────────────────────
     const history = db.prepare('SELECT * FROM history ORDER BY timestamp DESC').all()
-    writeFileSync(join(vaultPath, 'berean-history.json'), JSON.stringify(history, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-history.json'), JSON.stringify(history, null, 2))
 
     // ── 4. Settings ───────────────────────────────────────────────────────────
     const settingsRows = db.prepare('SELECT key, value FROM settings').all() as Array<{ key: string; value: string }>
@@ -1137,7 +1138,7 @@ export function runExportAll(opts?: { tabState?: string; force?: boolean }): { s
     for (const row of settingsRows) {
       try { settingsObj[row.key] = JSON.parse(row.value) } catch { settingsObj[row.key] = row.value }
     }
-    writeFileSync(join(vaultPath, 'berean-settings.json'), JSON.stringify(settingsObj, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-settings.json'), JSON.stringify(settingsObj, null, 2))
 
     // ── 5. PDFs (exported to .attachments/ per Octarine convention) ──────────
     const pdfRows = db.prepare('SELECT * FROM pdfs').all() as Array<{ id: string; title: string; filename: string; page_count: number; file_size: number; imported_at: number }>
@@ -1157,32 +1158,32 @@ export function runExportAll(opts?: { tabState?: string; force?: boolean }): { s
         pdfCount++
       } catch { /* skip unreadable file */ }
     }
-    writeFileSync(join(vaultPath, 'berean-pdfs-meta.json'), JSON.stringify(pdfMeta, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-pdfs-meta.json'), JSON.stringify(pdfMeta, null, 2))
 
     // ── 6. Note version history ───────────────────────────────────────────────
     const noteVersions = db.prepare('SELECT * FROM note_versions ORDER BY note_id, created_at').all()
-    writeFileSync(join(vaultPath, 'berean-note-versions.json'), JSON.stringify(noteVersions, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-note-versions.json'), JSON.stringify(noteVersions, null, 2))
 
     // ── 7. Note folders ───────────────────────────────────────────────────────
     const noteFolders = db.prepare('SELECT * FROM note_folders').all()
-    writeFileSync(join(vaultPath, 'berean-note-folders.json'), JSON.stringify(noteFolders, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-note-folders.json'), JSON.stringify(noteFolders, null, 2))
 
     // ── 8. PDF highlights ─────────────────────────────────────────────────────
     const pdfHighlights = db.prepare('SELECT * FROM pdf_highlights').all()
-    writeFileSync(join(vaultPath, 'berean-pdf-highlights.json'), JSON.stringify(pdfHighlights, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-pdf-highlights.json'), JSON.stringify(pdfHighlights, null, 2))
 
     // ── 9. YouTube starred videos ──────────────────────────────────────────────
     const starred = db.prepare('SELECT * FROM youtube_videos WHERE is_starred = 1').all()
-    writeFileSync(join(vaultPath, 'berean-youtube-starred.json'), JSON.stringify(starred, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-youtube-starred.json'), JSON.stringify(starred, null, 2))
 
     // ── 10. Workspaces ────────────────────────────────────────────────────────
     const workspaces = db.prepare('SELECT * FROM workspaces').all()
-    writeFileSync(join(vaultPath, 'berean-workspaces.json'), JSON.stringify(workspaces, null, 2), 'utf-8')
+    writeFileAtomicSync(join(vaultPath, 'berean-workspaces.json'), JSON.stringify(workspaces, null, 2))
 
     // ── 11. Tab state (from renderer localStorage, passed or cached) ──────────
     const tabState = opts?.tabState ?? cachedTabState
     if (tabState) {
-      writeFileSync(join(vaultPath, 'berean-tab-state.json'), tabState, 'utf-8')
+      writeFileAtomicSync(join(vaultPath, 'berean-tab-state.json'), tabState)
     }
 
     // Advance the dirty-tracking watermark only after a fully successful pass.

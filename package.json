@@ -49,7 +49,6 @@
     "native:build": "node scripts/mac/build-native.mjs"
   },
   "dependencies": {
-    "@lezer/highlight": "^1.2.3",
     "@radix-ui/react-popover": "^1.1.15",
     "@tanstack/react-virtual": "^3.14.2",
     "better-sqlite3": "^12.10.0",
@@ -93,7 +92,6 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
-    "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^3.1.1",
     "@electron/rebuild": "^3.6.0",
@@ -106,7 +104,6 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
-    "clsx": "^2.1.1",
     "electron": "^32.3.3",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.1.0",

@@ -89,6 +89,7 @@ import { registerYouTubeHandlers } from './ipc/youtube'
 import { registerCrossRefsHandlers } from './ipc/crossrefs'
 import { registerAiLookupHandlers } from './ipc/aiLookup'
 import { registerAiProviderHandlers } from './ipc/aiProviders'
+import { keepLinksOutOfApp, openExternalSafely } from './externalLinks'
 import { registerAiModelHandlers } from './ipc/aiModels'
 import { registerBgImportHandlers } from './ipc/bgImport'
 import { registerESwordImportHandlers } from './ipc/eSwordImport'
@@ -183,6 +184,7 @@ if (app.isPackaged && process.mas) {
 // BrowserWindow(...)`, before that window's own `__isViewer`/`__isFloat` tag gets assigned right
 // after the constructor returns — by the next tick every window created so far has its tag set.
 app.on('web-contents-created', (_event, contents) => {
+  if (contents.getType() !== 'webview') keepLinksOutOfApp(contents)
   setImmediate(() => {
     if (contents.isDestroyed()) return
     if (contents.getType() === 'webview') return // YouTube embeds — never the swipe consumer
@@ -1551,7 +1553,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:isDev', () => is.dev)
   // Developer tooling (YouTube transcript fetch, Full Sync, …): dev build OR Berean Dev identity.
   ipcMain.handle('app:devTools', () => devToolsEnabled({ isDev: is.dev, identity: APP_IDENTITY.name }))
-  ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url))
+  ipcMain.handle('app:openExternal', (_e, url: unknown) => openExternalSafely(url))
   ipcMain.handle('app:youTubeSignOut', async () => {
     await session.fromPartition('persist:youtube').clearStorageData()
     return { success: true }

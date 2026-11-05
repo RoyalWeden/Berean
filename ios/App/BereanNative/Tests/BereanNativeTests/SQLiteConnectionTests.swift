@@ -15,8 +15,9 @@ final class SQLiteConnectionTests: XCTestCase {
         XCTAssertEqual(rows[0]["n"] as? Double, 1.5)
         XCTAssertEqual(rows[0]["id"] as? Int64, 1)
         XCTAssertEqual((rows[0]["b"] as? [String: String])?["__blob"], Data([1, 2, 3]).base64EncodedString())
-        // integral doubles bind as INTEGER so `n = 2` matches
-        XCTAssertEqual(rows[1]["n"] as? Int64, 2)
+        // The column is REAL, so SQLite stores 2.0; what matters is that `n = 2` still matches.
+        XCTAssertEqual(rows[1]["n"] as? Double, 2)
+        XCTAssertEqual(try db.query("SELECT name FROM t WHERE n = ?", params: [2]).count, 1)
         XCTAssertTrue(rows[1]["b"] is NSNull)
         let missing = try db.query("SELECT * FROM t WHERE name = ?", params: ["zz"], )
         XCTAssertEqual(missing.count, 0)

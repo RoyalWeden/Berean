@@ -960,8 +960,7 @@ In the beginning Yehovah created the heavens and the earth...
 
 These are explicitly out of scope for initial build. Do not implement until instructed:
 
-- **Mobile companion** — iOS/Android app or PWA
-- **Windows build** — add after Mac version is stable
+- **Android or PWA companion** — the iPhone app exists (§2)
 - **BibleGateway notes sync** — requires login session scraping, deferred
 - **Testament of the Twelve Patriarchs** and additional pseudepigrapha — add as separate `.db` files later
 - **Hebrew interlinear** (Leningrad Codex / MT) — complex rendering, deferred

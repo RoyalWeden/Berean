@@ -39,7 +39,7 @@ ios/App/IdentityDevelopment.xcconfig
 ios/App/App/public/
 ios/App/App/capacitor.config.json
 ios/App/App/config.xml
-ios/App/DerivedData/
+ios/App/DerivedData*/
 ios/App/build/
 ios/App/BereanNative/.build/
 data/youtube_transcripts/
@@ -53,3 +53,7 @@ build/native/
 
 # Generated retrieval indexes (large binaries; spec §1.3 keeps them out of Git)
 electron/db-generated/
+
+# Database backups, whatever the suffix
+*.db.bak*
+scratch/
