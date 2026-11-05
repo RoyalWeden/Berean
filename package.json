@@ -7,11 +7,13 @@
   "private": true,
   "scripts": {
     "setup:worktree": "bash scripts/setup-worktree.sh",
+    "predev": "node scripts/check-electron.mjs",
     "dev": "node scripts/mac/build-native.mjs glass && electron-vite dev",
     "build": "electron-vite build && node scripts/mac/build-native.mjs glass",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
+    "smoke:electron": "node scripts/smoke-electron.mjs",
     "test": "vitest",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build:local": "npm run build && electron-builder --mac --publish never",

@@ -1048,18 +1048,15 @@ git push origin feature/sidebar
   push, and delete the worktree. Use the `cleanup-merge` skill
   (`.claude/skills/cleanup-merge/SKILL.md`) to do this — don't improvise the
   merge/push/cleanup steps ad hoc.
-- **End every development turn with the Manual Testing Guide.** After automated
-  verification, the normal completion report and the Running Feature Log, append
-  a short `# Manual Testing Guide` (separated by `---`). **Invoke the
-  `berean-testing-guide` skill (Skill tool) before writing it and use its exact
-  section format** (`## Must Test` with `### N.` / **Platform:** / **Steps** /
-  **Expected** / **Why**, `## Automated Verification`, `## Test Result`,
-  `## Quick Result`; omit Regression / Physical Device when empty):
-  only what Michael should test by hand for *this* task, each test labelled
-  macOS / iPhone / macOS + iPhone, physical-iPhone gaps called out, automated
-  results stated exactly as run. It never replaces or repeats the report, the
-  feature log or the testing backlog, and never claims manual testing happened.
-  A global Stop hook sends Claude back once if a turn edited app source without it.
+- **End every development turn with the Manual Testing Guide.** After the report and the
+  Running Feature Log, append `# Manual Testing Guide` (separated by `---`): one numbered list of
+  only what Michael must do by hand, in the order to do it. **Invoke the `berean-testing-guide`
+  skill and use its format.** Each test is `### Test N — Name`, numbered actions with the exact
+  words to type and buttons to press, then `**You should see:**`. Nothing else: no Platform,
+  Why, Notes, Regression, Quick Result or PASS/FAIL sections, and no tables of tests. Automate
+  anything that can be automated. Never ask him to delete a model, remove data or make a paid call
+  to complete a test, and label any optional action. Detailed evidence stays in the repo, not the
+  guide. A global Stop hook sends Claude back once if a turn edited app source without it.
 - **Native-Mac feel/polish requests use the `native-mac-audit` skill.** Its
   checklist lives at `docs/native-mac-checklist.md` (living status doc, update
   as items land) — don't maintain a separate list. See

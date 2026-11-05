@@ -108,6 +108,14 @@ describe('lookup routing', () => {
     expect(res.results.some((r) => r.bookId === 'PSA' && r.chapter === 1)).toBe(true)
   })
 
+  it('leads with a verse the question names, even when search found it among other matches', async () => {
+    local.mockResolvedValue({ keywords: ['grace', 'salvation'], guesses: [{ book: 'Titus', chapter: 2, verse: 11 }] })
+    const res = await runLookup('explain the historical setting of Titus 2:11', { commentary: false })
+    const first = res.results[0]
+    expect(first).toMatchObject({ bookId: 'TIT', chapter: 2 })
+    expect(first.verse <= 11 && (first.endVerse ?? first.verse) >= 11).toBe(true)
+  })
+
   it('keeps what it found when cancelled mid-request, and makes no further model calls', async () => {
     const ctrl = new AbortController()
     local.mockImplementationOnce(async () => { ctrl.abort(); throw new Error('This operation was aborted') })
