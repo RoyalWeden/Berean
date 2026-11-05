@@ -217,6 +217,7 @@ describe(`Berean AI benchmark layer ${LAYER} (${MODEL})`, () => {
         strongsList: (res?.research?.candidates ?? []).map((c) => c.id),
         wordTables: (res?.research?.wordTables ?? []).map((t) => ({ textId: t.textId, bookId: t.bookId, chapter: t.chapter, verseNums: t.verses.map((v) => v.verse), tagged: t.verses.reduce((n, v) => n + v.coverage.tagged, 0) })),
         occurrenceTotals: (res?.research?.occurrences ?? []).map((o) => ({ id: o.id, totals: o.totals })),
+        premise: res?.premise ?? null,
         limitations: res?.research?.limitations ?? [],
         notes: (res?.notes ?? []).map((n) => n.id), notesLead: res?.notesAreThePrimaryAnswer ?? null,
         videos: (res?.videos ?? []).map((v) => v.videoId),

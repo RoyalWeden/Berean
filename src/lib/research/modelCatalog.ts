@@ -24,16 +24,16 @@ const UNKNOWN_LICENSE = "See the model's license"
 
 /** The one list to edit when the benchmark settles which models to recommend. */
 export const RECOMMENDED_MODELS: readonly CatalogModel[] = [
-  { id: 'llama3.2:3b', label: 'Llama 3.2 3B', tier: 'compact', sizeBytes: 2.0 * GB, estimatedMemoryBytes: 3.5 * GB,
-    license: 'Llama 3.2 Community License', purpose: 'Smallest option. Fast, for Macs with limited memory.' },
-  { id: 'ministral-3:3b', label: 'Ministral 3 3B', tier: 'compact', sizeBytes: 3.0 * GB, estimatedMemoryBytes: 4.5 * GB,
-    license: UNKNOWN_LICENSE, purpose: 'Small and quick, a little more capable than the smallest option.' },
+  { id: 'qwen3.5:2b-q4_K_M', label: 'Qwen 3.5 2B', tier: 'compact', sizeBytes: 1.9 * GB, estimatedMemoryBytes: 3 * GB,
+    license: 'Apache-2.0', purpose: 'Recommended. Fast and accurate, and suits most Macs.' },
+  { id: 'gemma4:12b-it-qat', label: 'Gemma 4 12B', tier: 'large', sizeBytes: 7.2 * GB, estimatedMemoryBytes: 8.4 * GB,
+    license: 'Apache-2.0', purpose: 'Most accurate, but slower. Deep Search uses it automatically when it fits.' },
   { id: 'llama3.1:latest', label: 'Llama 3.1 8B', tier: 'standard', sizeBytes: 4.9 * GB, estimatedMemoryBytes: 7 * GB,
-    license: 'Llama 3.1 Community License', purpose: 'The model Ask Berean has been tuned on.' },
-  { id: 'qwen3.5:9b-q4_K_M', label: 'Qwen 3.5 9B', tier: 'standard', sizeBytes: 6.6 * GB, estimatedMemoryBytes: 8.5 * GB,
-    license: 'Apache-2.0', purpose: 'Larger and more accurate, slower to answer.' },
-  { id: 'gemma4:12b-it-qat', label: 'Gemma 4 12B', tier: 'large', sizeBytes: 7.2 * GB, estimatedMemoryBytes: 9.5 * GB,
-    license: 'Apache-2.0', purpose: 'The largest option. Best for Macs with plenty of memory.' },
+    license: 'Llama 3.1 Community License', purpose: 'The earlier default. A reliable alternative.' },
+  { id: 'llama3.2:3b', label: 'Llama 3.2 3B', tier: 'compact', sizeBytes: 2.0 * GB, estimatedMemoryBytes: 3.5 * GB,
+    license: 'Llama 3.2 Community License', purpose: 'A small alternative.' },
+  { id: 'ministral-3:3b', label: 'Ministral 3 3B', tier: 'compact', sizeBytes: 3.0 * GB, estimatedMemoryBytes: 4.5 * GB,
+    license: UNKNOWN_LICENSE, purpose: 'A small alternative.' },
 ]
 
 export const TIER_LABEL: Record<ModelTier, string> = { compact: 'Compact', standard: 'Standard', large: 'Large' }

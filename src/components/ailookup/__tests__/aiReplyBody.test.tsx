@@ -137,12 +137,11 @@ describe('AiReplyBody', () => {
   })
 
   it('shows a premise check in fixed wording with the cited passages (spec §6.1 #11)', () => {
-    const { el } = mount(<AiReplyBody message={reply({ premise: { premise: 'Moses entered Canaan', status: 'contradicted', evidence: ['DEU 34:4'], reformulated: 'Moses not entering Canaan' } })} />)
+    const { el } = mount(<AiReplyBody message={reply({ premise: { status: 'contradicted', evidence: ['DEU 34:4'] } })} />)
     const n = el.querySelector('[aria-label="Premise check"]')!
     expect(n.textContent).toContain('Contradicted by these passages')
-    expect(n.textContent).toContain('The premise “Moses entered Canaan” is contradicted by the passages cited below.')
+    expect(n.textContent).toContain('What this question assumes is contradicted by the passages cited below.')
     expect(n.textContent).toContain('Cited: Deuteronomy 34:4')
-    expect(n.textContent).toContain('A neutral search: Moses not entering Canaan')
   })
 
   it('lists related passages under a section label', () => {

@@ -27,8 +27,9 @@ import { resolveFollowUp, stateFromTurns, describeFollowUp } from '../../src/lib
 import { commentaryDepth, commentaryDepthRules } from '../../src/lib/research/commentaryDepth'
 import { aiVisibleNotesSql, EXCLUDED_FOLDERS_CTE, needsExcludedFoldersCte } from '../../src/lib/research/noteExclusion'
 import { lexicalQuestionFromModel } from '../../src/lib/research/modelRouting'
-import { checkedPremise, isPremiseShaped, premisePrompt, type PremiseCheck } from '../../src/lib/research/premise'
+import { checkedPremise, isPremiseShaped, premiseFoundInText, premisePrompt, type PremiseCheck } from '../../src/lib/research/premise'
 import { modelJson, usingCloud, withModelRequest } from '../modelGateway'
+import { totalmem } from 'node:os'
 import { chooseLocalModel } from '../../src/lib/research/modelChoice'
 import { mentionsExcluded, parseExclusions, type QuestionExclusions } from '../../src/lib/research/exclusions'
 import { routeForLookup, webResearchFor } from './aiProviders'
@@ -2687,7 +2688,7 @@ async function runRoutedLookup(
   opts = { ...opts, profile, collections: opts.collections ?? profile.collections }
   let modelNotice: string | undefined
   if (!usingCloud()) {
-    const choice = chooseLocalModel(opts.model ?? profile.model, (await checkOllamaAvailable()).models, DEFAULT_OLLAMA_MODEL)
+    const choice = chooseLocalModel(opts.model ?? profile.model, (await checkOllamaAvailable()).models, DEFAULT_OLLAMA_MODEL, { deepSearch: !!opts.agentic, totalMemoryBytes: totalmem() })
     opts = { ...opts, model: choice.model }
     modelNotice = choice.notice
   }
@@ -2736,7 +2737,7 @@ async function withPremiseCheck(response: AiLookupResponse, question: string, op
   if (state.modelError || !isPremiseShaped(question) || response.research) return response
   const verses = response.results.filter((r) => r.source !== 'cross-ref').slice(0, 12)
     .map((r) => ({ key: `${r.bookId} ${r.chapter}:${r.verse}`, text: r.text }))
-  if (verses.length === 0) return response
+  if (verses.length === 0 || premiseFoundInText(question, verses) || response.results.some((r) => r.source === 'named')) return response
   emitPartial(response)
   emit('Checking what the question assumes…')
   try {
@@ -2745,6 +2746,21 @@ async function withPremiseCheck(response: AiLookupResponse, question: string, op
     return premise ? { ...response, premise } : response
   } catch {
     return response
+  }
+}
+
+/** A model's JSON is parseable, not trustworthy: any field can be the wrong shape, and small models
+ *  do this (bench: `ids` as a string crashed a lookup). Wrong shapes read as empty, so the question
+ *  falls through to the deterministic search. */
+export function normalizeExtraction(raw: unknown): AiExtraction {
+  const r = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>
+  const keywords = typeof r.keywords === 'string' ? [r.keywords] : Array.isArray(r.keywords) ? r.keywords.filter((k): k is string => typeof k === 'string') : []
+  const guesses = Array.isArray(r.guesses) ? r.guesses.filter((g): g is AiExtraction['guesses'][number] => !!g && typeof g === 'object' && typeof (g as { book?: unknown }).book === 'string') : []
+  return {
+    ...r, keywords, guesses,
+    strongsNum: typeof r.strongsNum === 'string' ? r.strongsNum : null,
+    answerKind: typeof r.answerKind === 'string' ? r.answerKind as AnswerKind : null,
+    lexical: r.lexical && typeof r.lexical === 'object' && !Array.isArray(r.lexical) ? r.lexical as AiExtraction['lexical'] : undefined,
   }
 }
 
@@ -2997,12 +3013,12 @@ async function runLookupInner(
   if (!state.modelError) {
     const prompt = extractionPrompt(opts.withholdPrivate ? question : effectiveQuestion, focusWorkName, history, tabContextBlock)
     try {
-      extraction = await modelJson<AiExtraction>(prompt, model)
+      extraction = normalizeExtraction(await modelJson<unknown>(prompt, model))
     } catch (e) {
       let code: ResearchErrorCode | undefined = classifyModelError(e)
       if (isRetryable(code)) {
         try {
-          extraction = await modelJson<AiExtraction>(prompt, model)
+          extraction = normalizeExtraction(await modelJson<unknown>(prompt, model))
           code = undefined
         } catch (e2) {
           code = classifyModelError(e2)

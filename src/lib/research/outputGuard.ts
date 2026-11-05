@@ -84,5 +84,6 @@ export function removeNonexistentReferences(text: string, exists: (ref: TextRefM
 
 export function nonexistentReferenceNote(removed: string[]): string | null {
   if (removed.length === 0) return null
-  return `(Removed ${removed.length === 1 ? 'a reference' : `${removed.length} references`} that doesn't exist in Berean's texts: ${removed.join(', ')}.)`
+  // Doesn't name them: repeating a made-up or injected citation would put it in front of the user.
+  return removed.length === 1 ? "(Removed a reference that doesn't exist in Berean's texts.)" : `(Removed ${removed.length} references that don't exist in Berean's texts.)`
 }

@@ -1,25 +1,22 @@
 // Premise check (spec §6.1 #11, decision 18, scenario 9). A question can carry an assumption the
-// text doesn't support ("Why did Moses enter Canaan?"). The model only proposes which assumption
-// to test and which of the ALREADY-RETRIEVED verses bear on it; everything shown is then checked
-// here: the premise must restate the question's own words, cited verses must be ones Berean
-// retrieved, and the wording is a fixed factual template — never the model's prose — so it is
-// safe with Commentary OFF. Pure; shared by desktop and iPhone.
+// text doesn't support ("Why did Moses enter Canaan?"). The model only reports a status and which
+// of the ALREADY-RETRIEVED verses bear on it. Nothing it writes is shown: the notice is fixed
+// wording, because on real models the restated premise came back inverted or with invented
+// reasons, which would put model prose in front of a Commentary OFF reader. Pure; shared by desktop
+// and iPhone.
 
 export type PremiseStatus = 'supported' | 'not-verified' | 'contradicted'
 
 export interface PremiseCheck {
-  /** The assumption, restated in the question's own words. */
-  premise: string
   status: PremiseStatus
   /** Retrieved verses ("DEU 34:4") that bear on it. Empty for not-verified. */
   evidence: string[]
-  /** A neutral search that tests the premise, offered as a follow-up. */
-  reformulated?: string
 }
 
-/** Questions that presuppose an event or claim: "why did…", "when did…", "where did…",
- *  "which verses prove…", "how did… after…". Ordinary topical or lexical questions are not. */
-const PREMISE_SHAPED_RE = /^\s*(?:why|when|where|how)\s+(?:did|does|do|was|were|is|are|had|has)\s+\S+|\b(?:which|what)\s+(?:verses?|passages?|scriptures?)\s+(?:prove|show|teach|confirm)\s+(?:that\s+)?\S+|\bprove\s+that\b/i
+/** Questions that presuppose an event or a statement: "why did…", "when was…", "where did…",
+ *  "where does Paul say…", "which verses prove…". Present-tense and locating questions ("why do
+ *  people…", "where is Bethel named") assume nothing the text could fail to confirm. */
+const PREMISE_SHAPED_RE = /^\s*(?:why|when|where|how)\s+(?:did|was|were|had)\s+\S+|^\s*where\s+(?:does|do)\s+.+?\s+(?:say|teach|command|state|mention|write)\b|\b(?:which|what)\s+(?:verses?|passages?|scriptures?)\s+(?:prove|show|teach|confirm)\s+(?:that\s+)?\S+|\bprove\s+that\b/i
 
 export function isPremiseShaped(question: string): boolean {
   return PREMISE_SHAPED_RE.test(question)
@@ -29,6 +26,20 @@ const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'in', 'on', 'and', 'or', 'th
 const contentWords = (s: string) => s.toLowerCase().match(/[\p{L}']+/gu)?.filter((w) => w.length > 2 && !STOP.has(w)) ?? []
 
 const NEGATION_RE = /\b(?:not|no|never|neither|nor|none|cannot|without)\b/i
+
+const stem = (w: string) => w.replace(/(?:ing|eth|ed|es|s)$/, '')
+
+/** The text plainly says it: one retrieved verse holds at least three quarters of the question's
+ *  content words. "Where does it say do not add to the word" needs no notice beside Deuteronomy
+ *  4:2, and asking a model would only risk a false alarm. */
+export function premiseFoundInText(question: string, verses: ReadonlyArray<{ text: string }>): boolean {
+  const wanted = [...new Set(contentWords(question).map(stem))]
+  if (wanted.length === 0) return false
+  return verses.some((v) => {
+    const words = new Set(v.text.toLowerCase().match(/[\p{L}']+/gu)?.map(stem) ?? [])
+    return wanted.filter((w) => words.has(w)).length / wanted.length >= 0.75
+  })
+}
 
 export function premisePrompt(question: string, verses: Array<{ key: string; text: string }>): string {
   const list = verses.slice(0, 12).map((v) => `${v.key}: ${v.text.slice(0, 300)}`).join('\n')
@@ -44,8 +55,7 @@ ${list}
 Return JSON only:
 {"premise": "<the assumption, in the question's own words, under 15 words>",
  "status": "<supported | not-verified | contradicted>",
- "evidence": ["<keys from the list above that state or contradict it>"],
- "reformulated": "<a neutral search that would test it, under 10 words>"}
+ "evidence": ["<keys from the list above that state or contradict it>"]}
 Use "supported" or "contradicted" only when a listed verse says so explicitly; otherwise "not-verified".`
 }
 
@@ -57,7 +67,7 @@ export function checkedPremise(raw: unknown, question: string, retrievedKeys: Re
   if (status !== 'supported' && status !== 'not-verified' && status !== 'contradicted') return null
   const premise = typeof r.premise === 'string' ? r.premise.trim().replace(/^["“]|["”]$/g, '').replace(/[.?!]+$/, '') : ''
   if (!premise || premise.startsWith('<') || premise.split(/\s+/).length > 15) return null
-  // The premise must restate the question — at least two of its content words, or all of a short one.
+  // A premise unrelated to the question means the model didn't follow it: no notice. At least two of its content words, or all of a short one.
   const q = new Set(contentWords(question))
   const shared = contentWords(premise).filter((w) => q.has(w))
   if (shared.length < Math.min(2, q.size)) return null
@@ -68,15 +78,14 @@ export function checkedPremise(raw: unknown, question: string, retrievedKeys: Re
   // "Contradicted" is reserved for direct text: a cited verse must itself deny something. A model
   // saying a passage disagrees, when no cited verse does, is an inconclusive search.
   if (finalStatus === 'contradicted' && !evidence.some((k) => NEGATION_RE.test(verseText[k] ?? ''))) finalStatus = 'not-verified'
-  const reformulated = typeof r.reformulated === 'string' && !r.reformulated.trim().startsWith('<') ? r.reformulated.trim().slice(0, 80) : undefined
   // A supported premise needs no notice.
   if (finalStatus === 'supported') return null
-  return { premise, status: finalStatus, evidence: finalStatus === 'not-verified' ? [] : evidence, ...(reformulated ? { reformulated } : {}) }
+  return { status: finalStatus, evidence: finalStatus === 'not-verified' ? [] : evidence }
 }
 
-/** Fixed factual wording (spec §5: "The premise that … is not supported by the cited passage"). */
+/** Fixed factual wording (spec §5). */
 export function premiseNoticeText(p: PremiseCheck): string {
   return p.status === 'contradicted'
-    ? `The premise “${p.premise}” is contradicted by the passages cited below.`
-    : `The premise “${p.premise}” is not verified by the passages found. Berean could not confirm it from these sources; other sources may exist.`
+    ? 'What this question assumes is contradicted by the passages cited below.'
+    : 'Berean could not confirm what this question assumes from the passages found. Other sources may exist.'
 }

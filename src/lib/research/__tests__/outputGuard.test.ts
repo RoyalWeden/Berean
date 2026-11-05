@@ -23,7 +23,7 @@ describe('removeNonexistentReferences', () => {
     const g = removeNonexistentReferences('Genesis 99:1 says so; John 3:16 is real; Job 6:48 too.', exists)
     expect(g.removed).toEqual(['Genesis 99:1', 'Job 6:48'])
     expect(g.text).toBe('[reference not found] says so; John 3:16 is real; [reference not found] too.')
-    expect(nonexistentReferenceNote(g.removed)).toMatch(/Removed 2 references/)
+    expect(nonexistentReferenceNote(g.removed)).toBe("(Removed 2 references that don't exist in Berean's texts.)")
   })
 
   it('checks both ends of a range', () => {

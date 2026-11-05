@@ -32,9 +32,11 @@ export function looksLikeWordQuestion(question: string, term: string | null | un
 
 export function lexicalQuestionFromModel(lex: ModelLexicalReading, question: string, history: Array<{ content: string }>): string | null {
   const known = new Set(parseStrongsIds([question, ...history.map((h) => h.content)].join(' ')).map((m) => m.id))
-  const ids = (lex.ids ?? []).flatMap((x) => parseStrongsIds(String(x)).map((m) => m.id)).filter((id) => known.has(id))
+  // Models return all sorts here (gemma3 sent a bare string for `ids`): only a list counts.
+  const listed = Array.isArray(lex.ids) ? lex.ids : []
+  const ids = listed.flatMap((x) => parseStrongsIds(String(x)).map((m) => m.id)).filter((id) => known.has(id))
   // A value still holding the template's placeholder text ("<…>") was copied, not answered.
-  const clean = (v: string | null | undefined) => (v && !/^\s*</.test(v) ? v : '')
+  const clean = (v: unknown) => (typeof v === 'string' && v && !/^\s*</.test(v) ? v : '')
   lex = { ...lex, kind: clean(lex.kind), term: clean(lex.term), lang: clean(lex.lang), ref: clean(lex.ref), book: clean(lex.book) }
   const lang = /^heb/i.test(lex.lang ?? '') ? 'Hebrew ' : /^gre/i.test(lex.lang ?? '') ? 'Greek ' : ''
   // A blank term is filled deterministically: a quoted word in the question, else the word the
@@ -43,7 +45,7 @@ export function lexicalQuestionFromModel(lex: ModelLexicalReading, question: str
   const conv = stateFromTurns(history.map((h) => ({ role: (h as { role?: string }).role === 'assistant' ? 'assistant' : 'user', content: h.content })))
   if (!looksLikeWordQuestion(question, lex.term, Boolean(conv.term) || conv.strongs.length > 0)) return null
   const term = ((lex.term ?? '') || quoted || conv.term || '').replace(/["“”']/g, '').trim().slice(0, 40)
-  if (!lex.ids?.length && conv.strongs.length && (lex.kind === 'occurrences' || lex.kind === 'compare')) lex = { ...lex, ids: conv.strongs }
+  if (!listed.length && conv.strongs.length && (lex.kind === 'occurrences' || lex.kind === 'compare')) lex = { ...lex, ids: conv.strongs }
   const ref = (lex.ref ?? '').trim().slice(0, 40)
   const book = (lex.book ?? '').trim().slice(0, 30)
   switch (lex.kind) {

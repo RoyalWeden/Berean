@@ -163,7 +163,6 @@ function PremiseNotice({ premise: p }: { premise: PremiseCheck }) {
         <p className="text-caption font-semibold text-text-primary">{p.status === 'contradicted' ? 'Contradicted by these passages' : 'Not verified'}</p>
         <p className="text-caption2 text-text-secondary">{premiseNoticeText(p)}</p>
         {p.evidence.length > 0 && <p className="text-caption2 text-text-secondary">Cited: {p.evidence.map(cite).join('; ')}</p>}
-        {p.reformulated && <p className="text-caption2 text-text-muted">A neutral search: {p.reformulated}</p>}
       </div>
     </div>
   )

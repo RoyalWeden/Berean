@@ -92,6 +92,16 @@ describe('lookup routing', () => {
     expect(local).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['a string where a list belongs', { keywords: 'sabbath', guesses: 'none', lexical: { kind: 'word-study', ids: 'G5485' } }],
+    ['the wrong types throughout', { keywords: [1, null], guesses: [null, 3], strongsNum: 7, answerKind: {}, lexical: [] }],
+    ['not an object at all', ['sabbath']],
+  ])('survives a reply with %s, and still searches', async (_, reply) => {
+    local.mockResolvedValue(reply)
+    const res = await runLookup('verses about the sabbath', { commentary: false })
+    expect(res.results.length).toBeGreaterThan(0)
+  })
+
   it('keeps what it found when cancelled mid-request, and makes no further model calls', async () => {
     const ctrl = new AbortController()
     local.mockImplementationOnce(async () => { ctrl.abort(); throw new Error('This operation was aborted') })
@@ -140,7 +150,7 @@ describe('lookup routing', () => {
     const q = 'Where did Moses enter Canaan?'
 
     it.each([false, true])('shows a contradicted premise with its cited verse (Commentary %s)', async (commentary) => {
-      answers({ premise: 'Moses entered Canaan', status: 'contradicted', evidence: ['DEU 34:4', 'GEN 1:1'], reformulated: 'Moses and the promised land' })
+      answers({ premise: 'Moses entered Canaan', status: 'contradicted', evidence: ['DEU 34:4', 'GEN 1:1'] })
       const res = await runLookup(q, { commentary })
       expect(res.premise).toMatchObject({ status: 'contradicted', evidence: ['DEU 34:4'] })
     })
