@@ -283,3 +283,54 @@ Post-fix (tuning results, **not** independent): holdout3 A 12 → 19, F 23 → 3
 - `electron/secrets/providerKeys.ts`: keys encrypted with `safeStorage` (Keychain-backed), file `provider-keys.json` written atomically with mode 0600, refuses to save when OS encryption is unavailable (no plaintext fallback), validates ids/keys, deletes the file when empty. 3 tests (plaintext never on disk, permissions, refusal, removal).
 - IPC `aiProviders:saveKey|hasKey|removeKey` (preload: `saveProviderKey`/`hasProviderKey`/`removeProviderKey`, optional in the type — desktop only). There is deliberately no read channel.
 - Not done yet: settings UI, wiring the provider into the lookup, web search provider — they land together after the model sweep so no option appears in the UI before it works. iPhone key storage (Keychain plugin) is Phase 7.
+
+## Session of 2026-11-04/05 — sweep resumed, remaining features, integration
+
+Status words here: **integrated** = in the branch going to main; **tested** = automated or simulator check seen to pass; **untested** = not exercised; **blocked** = needs an approval, hardware or a decision; **deferred** = deliberately left.
+
+### Correction to earlier reporting
+The 218/338 scores for qwen3.5 2B/4B and gemma4 e2b (2026-10-28 `p3m`), and the "compatibility gap" reported from them, were a harness error by Claude. The sweep script omitted `BENCH_THINK=false`, which `run_all.sh` set and `electron/ollama.ts` always sends for these families. Raw Ollama calls reproduced it: without `think:false`, `response` is empty and `done_reason` is `length`; with it, valid JSON in 1–3 s. The qwen3.5 0.8B original-config control scored 218 with 97.9% empty replies, confirming it. 218 vs the no-model 234 is the scorer's `intent` dimension: the same verses are returned, and the deterministic fallback worked. `runBench.ts` now applies the production rule itself. The `p3m` thinking-on runs are preserved and labelled invalid for comparison; qwen3.5 9B thinking-on stopped at 204/338 and was not completed (about 8 h per model for a request the app never sends; gemma4 12B thinking-on not run).
+
+### Sweep (measured, M5 32 GB, Ollama 0.40.14, embeddings off, 338 cases, each file verified 338 unique ids)
+Source: frozen `refs/recovery/2026-11-04/ai-upgrade`, tag `p3r`, production think settings. llama3.2 3B and ministral-3 3B are `p3m` on the same code (no thinking involved, so valid). llama3.1 and gemma3 latency overlapped test runs.
+
+| Model | Pass | Critical | p50 | p95 | Bad JSON |
+|---|---|---|---|---|---|
+| gemma4 12B | 333 | 0 | 15.9 s | 55.5 s | 2.5% |
+| ministral-3 3B | 331 | 0 | 8.7 s | 42.0 s | 4.8% |
+| llama3.1 8B (control) | 328 | 0 | 7.7 s | 43.1 s | 3.3% |
+| qwen3.5 2B | 327 | 0 | 2.2 s | 9.5 s | 1.7% |
+| qwen3.5 9B | 326 | 1 | 9.2 s | 38.4 s | 1.7% |
+| llama3.2 3B | 325 | 0 | 6.4 s | 35.9 s | 2.7% |
+| qwen3.5 4B | 324 | 0 | 4.3 s | 20.9 s | 2.3% |
+| gemma4 e2b | 321 | 0 | 2.9 s | 10.9 s | 2.3% |
+| gemma3 4B | 319 | 2 | 5.9 s | 31.7 s | 6.6% |
+| qwen3.5 0.8B | 313 | 1 | 1.1 s | 5.7 s | 2.3% |
+
+Same-code llama3.1 reruns differ by 2 cases (326, 328): differences that small are noise. Memory: gemma4 12B about 8.4 GB resident while generating (process RSS; Ollama's `ps` reports 1.0 GB because weights are mapped). llama3.1 7.0 GB and qwen3.5 9B 5.3 GB are Ollama's figures, not comparable to that. Only a 32 GB Mac was measured.
+
+Critical failures, traced: gemma3 `lex.ids.flatMap is not a function` was a real crash on malformed model output (fixed, all fields now normalized). qwen3.5 0.8B/9B flags were the removal note repeating a fake reference it had already removed (fixed: the note no longer names it). Gold labels and the scorer were not changed.
+
+### Final gate: candidate `30ed01e`
+See the table at the end of this section. holdout, holdout2 and holdout3 are all consumed: these are regression checks, not independent claims. No fresh frozen set was built, so **no new independent claim is made**.
+
+The first candidate (`58a9521`) failed this gate: main set fell about 6 cases on every model. Cause: comparison answers carried no `results`, so Save Research, follow-ups and Commentary missed them, and "thematic parallel to" triggered a comparison. Fixed, and that run is kept as evidence (`c1`).
+
+### Integrated and tested in this session
+- Premise check wired in after retrieval, both Commentary modes. A real-model probe found model prose in the notice, inverted premises and false alarms, so the notice is now fixed text, the trigger is limited to event and statement presuppositions, and it is skipped when one retrieved verse holds 75% of the question's content words. Probe result: flags only the fake saying, "apostles abolished the feasts" and Moses entering Canaan.
+- BYO Anthropic provider, end to end: request-scoped gateway (`electron/modelGateway.ts`), consent in main-process settings, key in Keychain-backed storage, free key check, privacy withholding. Mocks only: **no real cloud call has been made** (untested against the real API).
+- Online research: Wikipedia and Sefaria, keyless, own permission (off/ask/automatic with Deep Search), default off, never in prompts, no excerpt with Commentary off. Two free live calls verified the response shapes only. Sefaria's terms of use could not be read and are unverified.
+- Deep Search cancellation, `but not X` exclusions (Mac and iPhone), note-linked references labelled "Your note", model picker, Automatic order, Deep Search escalation, Ollama model manager, comparison views, iPhone profile/scope/mode parity, deterministic word phrasings, no-logging guard.
+- Fixed by this session's testing: `Switch` prop misuse (no accessible name), online links opening inside the app, chapter references not guaranteed in results, a misleading missing-model warning on complete iPhone answers.
+
+### Tested
+Typecheck, ESLint (first real runs), full vitest, desktop build, iPhone web bundle in CI. iPhone simulator (Berean Dev, iPhone 17 Pro, candidate `58a9521`): build succeeded; fresh database migrated; real lookups for John 3:16, G5485, mercy, KJV/LXX parallel, NT verse missing from LXX, passage comparison and exclusion; comparison and options screens inspected. Migration tests pass in the suite.
+
+### Untested
+Macintosh UI by hand (`npm run dev` is reserved for Michael), physical iPhone, real cloud API, a real model download or delete, Mac memory below 32 GB (escalation threshold is 2× measured, not tested on 16 GB), VoiceOver, Commentary ON prose quality (human review pending).
+
+### Blocked
+MAS sandbox runtime and Ollama-free local inference (provisioning profile, approval for a model download); iPhone local inference (needs the above plus physical devices); human gold review (the review page's rows).
+
+### Deferred
+General web search (every provider needs credentials or billing: Michael's decision), paginated occurrences explorer, research-findings view, iPhone online research and cloud, a fresh independent holdout.

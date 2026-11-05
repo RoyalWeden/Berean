@@ -122,6 +122,30 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.8.2] - Unreleased
+
+### Ask Berean
+- Commentary is off by default and adds no interpretation. Deep Search works on its own.
+- Word studies, Strong's lookups, comparisons and direct references no longer need a model.
+- New comparison views: one passage in the KJV and LXX, or several passages side by side.
+- Questions with an unsupported assumption get a plain "could not confirm" or "contradicted" notice.
+- "But not…" and "not from Romans" now exclude those results.
+- Stop button for a running request.
+- Study profiles, search scope, saved research, and a choice of local model.
+- Manage local models in Settings: see what is installed, download, or remove.
+- Optional: use a cloud model with your own Anthropic API key. Off unless you turn it on.
+- Optional: search Wikipedia and Sefaria. Off unless you turn it on, and clearly marked as not Scripture.
+- Verses you link in a verse note appear as "Your note", separate from cross-references.
+- Cross-references show where each link comes from.
+
+### iPhone
+- Ask Berean gains study profiles, search scope and saved research.
+- Rename a conversation.
+- Quick Open reuses open tabs, with a compact tab list.
+
+### Development
+- Pull requests and main now run typecheck, lint, tests and builds. Lint works for the first time.
+
 ## [0.8.1] - 2026-10-20
 
 ### Scripture
