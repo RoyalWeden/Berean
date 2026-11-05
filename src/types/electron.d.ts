@@ -925,6 +925,12 @@ interface AiLookupAPI {
   checkProviderKey?: () => Promise<{ ok: true } | { ok: false; reason: string }>
   getCloudSettings?: () => Promise<AiCloudSettings>
   setCloudSettings?: (patch: Partial<AiCloudSettings>) => Promise<AiCloudSettings>
+  /** Local model management through Ollama — desktop only. */
+  listLocalModels?: () => Promise<{ available: boolean; installed: Array<{ name: string; size: number }> }>
+  downloadModel?: (id: string) => Promise<{ ok: true } | { ok: false; reason: string; cancelled?: boolean }>
+  cancelModelDownload?: (id: string) => Promise<boolean>
+  removeModel?: (id: string) => Promise<{ ok: true } | { ok: false; reason: string }>
+  onModelProgress?: (cb: (e: { id: string; status: string; percent: number | null; completed: number; total: number }) => void) => () => void
   /** A conversation was written by ANOTHER window (desktop) / anywhere (iPhone). Returns an unsubscribe. */
   onChatsChanged?: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => () => void
   /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,

@@ -8,6 +8,7 @@ import { DEFAULT_PROFILE_ID, type StudyProfile, type StudyProfileConfig } from '
 import type { SavedResearchContext } from '@/platform/services/savedContextsService'
 import { activateProfile } from '@/components/ailookup/profileActivation'
 import type { AiCloudSettings } from '@/types/electron'
+import LocalModelsSettings from './LocalModelsSettings'
 
 /**
  * Optional bring-your-own-key cloud model (spec §7.3, §8.5). Desktop only: the key goes to the main
@@ -216,6 +217,8 @@ export default function AskBereanSection() {
             options={[{ value: 'auto', label: 'Automatic' }, ...models.map((m) => ({ value: m, label: m }))]} className="min-w-[200px]" />
         </div>
       )}
+
+      <LocalModelsSettings />
 
       <div className="space-y-2">
         <SectionLabel>Search in</SectionLabel>

@@ -194,3 +194,83 @@ export async function runOllamaText(prompt: string, model = DEFAULT_OLLAMA_MODEL
   const data = await res.json() as { response: string }
   return data.response.trim()
 }
+
+// --- Local model management (spec §8.3) -----------------------------------------------------
+// The user drives every download and delete from Settings → Ask Berean; nothing here runs on its
+// own. Ollama resumes a partly-pulled model by itself, so a cancelled pull simply continues from
+// the same layers next time.
+
+export interface OllamaModelInfo { name: string; size: number }
+export interface OllamaPullProgress { status: string; total?: number; completed?: number }
+
+/** Installed models with their size on disk. Throws ModelCallError('RUNTIME_UNAVAILABLE') if Ollama doesn't answer. */
+export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${OLLAMA_BASE}/api/tags`, {}, 4000)
+  } catch (e) {
+    throw new ModelCallError('RUNTIME_UNAVAILABLE', `Ollama is not reachable: ${(e as Error).message}`)
+  }
+  if (!res.ok) throw await httpError(res)
+  const data = await res.json() as { models?: Array<{ name: string; size?: number }> }
+  return (data.models ?? []).map((m) => ({ name: m.name, size: m.size ?? 0 }))
+}
+
+/** One line of Ollama's newline-delimited pull stream → progress, or a typed error for `{error}`. */
+export function parsePullLine(line: string): OllamaPullProgress | null {
+  const trimmed = line.trim()
+  if (!trimmed) return null
+  let msg: { status?: string; error?: string; total?: number; completed?: number }
+  try { msg = JSON.parse(trimmed) } catch { return null }
+  if (msg.error) {
+    throw new ModelCallError(/not found|file does not exist/i.test(msg.error) ? 'NO_MODEL_INSTALLED' : 'RUNTIME_UNAVAILABLE', `Ollama pull failed: ${msg.error}`)
+  }
+  return { status: msg.status ?? '', ...(msg.total !== undefined ? { total: msg.total } : {}), ...(msg.completed !== undefined ? { completed: msg.completed } : {}) }
+}
+
+/** Pulls a model, reporting progress as Ollama streams it. Resolves when the stream ends cleanly;
+ *  aborting `signal` rejects with an AbortError (partial layers stay for a later resume). */
+export async function pullOllamaModel(name: string, onProgress: (p: OllamaPullProgress) => void, signal?: AbortSignal): Promise<void> {
+  let res: Response
+  try {
+    res = await net.fetch(`${OLLAMA_BASE}/api/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name, stream: true }),
+      signal,
+    })
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e
+    throw new ModelCallError('RUNTIME_UNAVAILABLE', `Ollama is not reachable: ${(e as Error).message}`)
+  }
+  if (!res.ok) throw await httpError(res)
+  if (!res.body) throw new ModelCallError('RUNTIME_UNAVAILABLE', 'Ollama sent no download stream.')
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const flush = (line: string) => { const p = parsePullLine(line); if (p) onProgress(p) }
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    lines.forEach(flush)
+  }
+  flush(buffer + decoder.decode())
+}
+
+/** Removes a model from Ollama's store. */
+export async function deleteOllamaModel(name: string): Promise<void> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${OLLAMA_BASE}/api/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name }),
+    }, 15_000)
+  } catch (e) {
+    throw new ModelCallError('RUNTIME_UNAVAILABLE', `Ollama is not reachable: ${(e as Error).message}`)
+  }
+  if (!res.ok) throw await httpError(res)
+}
