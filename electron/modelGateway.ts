@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { runOllamaJson } from './ollama'
 import { generateJson, type ModelProvider } from '../src/lib/research/providers'
 import { ModelCallError } from '../src/lib/research/errors'
+import { catalogModel } from '../src/lib/research/modelCatalog'
 
 // The one place a lookup's model calls go through (spec §8.5). With no route they are the local
 // Ollama calls, unchanged. A cloud route exists only for a request `chooseProvider` allowed, and
@@ -22,6 +23,10 @@ export function usingCloud(): boolean {
   return !!requests.getStore()?.route
 }
 
+// A 12B model can take a minute to load and answer; the small models' limit would fail it.
+const LARGE_MODEL_TIMEOUT_MS = 120_000
+const limitFor = (model: string, timeoutMs?: number) => timeoutMs ?? (catalogModel(model)?.tier === 'large' ? LARGE_MODEL_TIMEOUT_MS : undefined)
+
 async function cancellable<T>(call: (signal?: AbortSignal) => Promise<T>): Promise<T> {
   const signal = requests.getStore()?.signal
   const cancelled = () => new ModelCallError('CANCELLED', 'Research was cancelled.')
@@ -37,5 +42,5 @@ export function modelJson<T>(prompt: string, model: string, timeoutMs?: number, 
   const route = requests.getStore()?.route
   return cancellable((signal) => (route
     ? generateJson<T>(route.provider, prompt, route.model, { system: 'Reply with one valid JSON object and nothing else.', maxTokens: opts.numPredict, timeoutMs, signal })
-    : runOllamaJson<T>(prompt, model, timeoutMs, { ...opts, ...(signal ? { signal } : {}) })))
+    : runOllamaJson<T>(prompt, model, limitFor(model, timeoutMs), { ...opts, ...(signal ? { signal } : {}) })))
 }

@@ -401,6 +401,8 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => services().lexicon.getEntry(strongsNum))
   ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string, quickLimit?: number) =>
     services().lexicon.getOccurrences(strongsNum, undefined, quickLimit))
+  ipcMain.handle('lexicon:getOccurrencePage', (_e, strongsNum: string, opts: { textId: string; bookId: string; offset?: number; limit?: number }) =>
+    services().lexicon.getOccurrencePage(strongsNum, opts))
   ipcMain.handle('lexicon:getRelated', (_e, strongsNum: string) => services().lexicon.getRelated(strongsNum))
   ipcMain.handle('lexicon:search', (_e, query: string, lang: 'H' | 'G' | 'all') => services().lexicon.search(query, lang))
 }

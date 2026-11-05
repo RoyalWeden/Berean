@@ -17,6 +17,15 @@ describe('modelGateway', () => {
     expect(runOllamaJson).toHaveBeenCalledWith('p', 'm', 5, { numPredict: 9 })
   })
 
+  it('gives a large model longer, and leaves other limits alone', async () => {
+    await modelJson('p', 'gemma4:12b-it-qat')
+    expect(runOllamaJson.mock.calls[0][2]).toBe(120_000)
+    await modelJson('p', 'llama3.2:3b')
+    expect(runOllamaJson.mock.calls[1][2]).toBeUndefined()
+    await modelJson('p', 'gemma4:12b-it-qat', 5)
+    expect(runOllamaJson.mock.calls[2][2]).toBe(5)
+  })
+
   it('scopes a cloud route to its own request, even when another runs concurrently', async () => {
     const route = { provider: provider('{"from":"cloud"}'), model: 'x' }
     const [a, b] = await Promise.all([withModelRequest(route, undefined, () => modelJson('p', 'm')), modelJson('p', 'm')])

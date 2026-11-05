@@ -9,6 +9,7 @@ import type { ChatMsg } from './chatModel'
 import { ChatMarkdown } from './ChatMarkdown'
 import { useChatNavigate } from './chatNav'
 import { ResearchResults } from './ResearchResults'
+import { ResearchFindings } from './ResearchFindings'
 import { collectionInfo, collectionOf } from '@/lib/research/collections'
 import { premiseNoticeText, type PremiseCheck } from '@/lib/research/premise'
 import { safeSourceUrl, type ExternalSource } from '@/lib/research/webResearch'
@@ -197,7 +198,7 @@ const LINK_TYPE_TITLE = {
 } as const
 
 /** `question` = the ai-request this reply answers (threaded into Study Trail as the reason). */
-export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: { message: ChatMsg; question?: string }) {
+export const AiReplyBody = memo(function AiReplyBody({ message: m, question, deepSearch }: { message: ChatMsg; question?: string; /** The request this answers ran with Deep Search on. */ deepSearch?: boolean }) {
   const nav = useChatNavigate()
   const openVerseMenu = useContext(VerseMenuContext)
   const rules = useActiveWordReplacerRules()
@@ -244,6 +245,8 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
       {(m.notes ?? []).length > 0 && <div className="chat-ai-rows">{m.notes!.map((n) => <NoteCard key={n.id} note={n} />)}</div>}
       {(m.videos ?? []).length > 0 && <div className="chat-ai-rows">{m.videos!.map((v) => <VideoCard key={v.videoId} video={v} />)}</div>}
       {(m.external ?? []).length > 0 && <ExternalSources sources={m.external!} />}
+
+      {deepSearch && !m.pending && primary.length > 0 && !m.research?.passageComparison && <ResearchFindings results={primary} terms={displayKeywords} />}
 
       {visiblePrimary.length > 0 && !m.research?.passageComparison && (
         <ul className="chat-passages" aria-label="Passages">

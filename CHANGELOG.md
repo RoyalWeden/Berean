@@ -137,14 +137,19 @@ SCENARIO 5 — Abandon a beta series and restart
 - Optional: search Wikipedia and Sefaria. Off unless you turn it on, and clearly marked as not Scripture.
 - Verses you link in a verse note appear as "Your note", separate from cross-references.
 - Cross-references show where each link comes from.
+- Browse every occurrence of a Strong's number by book, with filtering.
+- Deep Search groups results by collection.
+- First launch offers a recommended model. You can skip it.
+- The verse you name always comes first.
 
 ### iPhone
-- Ask Berean gains study profiles, search scope and saved research.
+- Ask Berean gains study profiles, search scope, saved research and optional online research.
 - Rename a conversation.
 - Quick Open reuses open tabs, with a compact tab list.
 
 ### Development
-- Pull requests and main now run typecheck, lint, tests and builds. Lint works for the first time.
+- Pull requests and main now run typecheck, lint, tests, builds and a real app launch. Lint works for the first time.
+- `npm run dev` repairs a missing Electron install.
 
 ## [0.8.1] - 2026-10-20
 

@@ -126,6 +126,7 @@ export function installIosBridge(s: Services): void {
   const lexicon: Window['lexicon'] = {
     getEntry: (num) => s.lexicon.getEntry(num) as ReturnType<Window['lexicon']['getEntry']>,
     getOccurrences: (num, quickLimit) => s.lexicon.getOccurrences(num, undefined, quickLimit) as ReturnType<Window['lexicon']['getOccurrences']>,
+    getOccurrencePage: (num, opts) => s.lexicon.getOccurrencePage(num, opts),
     getRelated: (num) => s.lexicon.getRelated(num),
     search: (query, lang) => s.lexicon.search(query, lang) as ReturnType<Window['lexicon']['search']>,
   }

@@ -72,6 +72,14 @@ describe('model manager', () => {
     expect(deps.remove).toHaveBeenCalledWith('llama3.1:latest')
   })
 
+  it('refuses to remove an embedding model, with a reason', async () => {
+    const { deps, mgr } = await make({ list: vi.fn(async () => [{ name: 'nomic-embed-text:latest', size: 3e8 }]) })
+    const res = await mgr.remove('nomic-embed-text:latest')
+    expect(res).toMatchObject({ ok: false })
+    expect((res as { reason: string }).reason).toContain('used for search')
+    expect(deps.remove).not.toHaveBeenCalled()
+  })
+
   it('refuses before pulling when free disk is too small', async () => {
     const { deps, mgr } = await make({ freeBytes: vi.fn(async () => 3e9) })
     const res = await mgr.download('gemma4:12b-it-qat', () => {})

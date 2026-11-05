@@ -345,3 +345,14 @@ MAS sandbox runtime and Ollama-free local inference (provisioning profile, appro
 
 ### Deferred
 General web search (every provider needs credentials or billing: Michael's decision), paginated occurrences explorer, research-findings view, iPhone online research and cloud, a fresh independent holdout.
+
+## 2026-11-05 — Desktop startup, subscriptions, remaining safe work
+
+**Startup.** `npm run dev` failed with `spawn … Electron ENOENT`. `node_modules/electron/dist/Electron.app` and Electron's download cache were gone; the folder last changed 2026-10-25 16:40, after a working launch on 2026-10-19. No session history shows the removal, so the cause is outside the repo and unproven; the disk was 96% full, so a cleanup tool is a suspect. `npm install` doesn't re-run the postinstall when the package exists. Repaired with `node node_modules/electron/install.js` (32.3.3, lockfile untouched). `npm run dev` now runs `scripts/check-electron.mjs`, and CI runs `scripts/smoke-electron.mjs`, a real launch.
+
+**Real app testing.** First real Mac run of this work. It migrated the dev database v48→v49 with a backup. Found and fixed: named verses not leading (Titus 2:11 behind Jubilees), Remove offered on embedding models, a timeout too short for the 12B, an oversized Save research label, wrapping labels in comparison panes. Live checks in `SPEC_STATUS.md`.
+
+**Subscriptions.** `SUBSCRIPTIONS.md`. No connection option added.
+
+**Added.** Occurrences explorer, research findings, first-launch model step, iPhone online research.
+

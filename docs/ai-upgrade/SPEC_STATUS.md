@@ -1,11 +1,32 @@
 # Berean AI — requirement status against the master spec
 
-As of the final gate on 2026-11-05. Supersedes the statuses in `SPEC_AUDIT.md`, which recorded the state before this session's work.
+As of 2026-11-05 (second update). Supersedes `SPEC_AUDIT.md`. The upgrade is **not fully finished**: see Blocked and Not implemented.
 
-- **Done**: built, reached by the live path, automated or simulator test passed.
-- **Done, unverified by hand**: built and auto-tested; needs Michael's eyes or a real service.
-- **Partial**: part works; the gap is stated.
-- **Blocked**: needs an approval, hardware or a decision.
+## Where everything stands
+
+**Complete** (built, automated tests pass, and exercised in the real running app):
+Direct references and Strong's without a model; comparison views; premise check and its fixed wording; Commentary OFF prose stripping; Stop; exclusions; named verses leading; model picker and Automatic order; Deep Search escalation; occurrences explorer; Mac Settings screens; desktop startup guard; local model list, re-pull progress and removal (tested by re-pulling an installed model and removing a tiny test model).
+
+**Implemented, not manually verified by Michael:**
+Research findings view; "Your note" links; first-launch model step; cloud settings; online research on Mac (permission tests only; live API shape checked); iPhone profile, scope and mode screens (simulator only); iPhone online research (real search in simulator, not on a device); iPhone rename and Quick Open.
+
+**Partially implemented:**
+- Commentary ON quality. Sample of 6 questions on 3 models (Claude's review, not a human one, 2026-11-05): grounded and no invented references seen, but "historical setting" tends to paraphrase the verse, "compare the main interpretations" names no perspectives, and qwen3.5 2B wrongly said the Sabbath verses give no instructions. gemma4 12B was more accurate but far slower and still named no perspectives. Scenarios 17 and 18 are not met to the spec's standard.
+- Verse-note influence: fixed boost plus linked references, not context-tuned, Mac only.
+- Time budgets: per-call limits only.
+- Result ranking on the full library: with all collections on, keyword matches from other texts can rank above canonical verses for some questions. The benchmark doesn't score order.
+- Model downloads: real re-pull and removal tested; a full new download and a cancel of one were not, to avoid a large download.
+
+**Blocked:**
+- Physical iPhone testing and low-memory behaviour: needs Michael's device.
+- Local AI on iPhone: needs a device, approval for a model download, and Mac App Store runtime work first.
+- Bundled runtime and sandbox (scenarios 28, 29): provisioning profile, installer certificate, approval for the 1.9 GB model path.
+- Human review of answers: the review page has no entries.
+- ChatGPT plan connection: eligibility decision (`SUBSCRIPTIONS.md`).
+- General web search: provider decision.
+
+**Not implemented:**
+Cloud model on iPhone (needs native Keychain storage). Per-device model selection. Automatic cross-chat memory (later by design). A fresh independent holdout, so no new independent quality claim exists.
 
 ## The 25 decisions
 
@@ -22,14 +43,14 @@ As of the final gate on 2026-11-05. Supersedes the statuses in `SPEC_AUDIT.md`, 
 | 9 | Collections | Done | Mac and iPhone UI |
 | 10 | Study profiles | Done | Mac and iPhone UI. A profile edited on the other device may need re-selecting |
 | 11 | Semantic search study | Done | Kept current index after measurement |
-| 12 | Downloads | Partial | Ollama manager, first-use link, skip. No onboarding step; bundled runtime blocked; no real download tested |
+| 12 | Downloads | Partial | Ollama manager, first-use link and onboarding step. Bundled runtime blocked; no full new download tested |
 | 13 | Independent modes | Done | |
 | 14 | Automatic depth and budgets | Partial | One refine pass; per-call timeouts, no per-question budget |
-| 15 | Adaptive result UX | Done, unverified by hand | Mac not reviewed visually; iPhone comparison and options seen in simulator |
+| 15 | Adaptive result UX | Done | Reviewed in the real Mac app and iPhone simulator |
 | 16 | Verse notes aid discovery | Done (Mac) | Boost plus references from the note. Unused on iPhone |
 | 17 | Cross-chat memory | Done | Explicit saving; automatic memory is later by design |
 | 18 | False premises | Done (Mac) | Needs a model, so not on iPhone |
-| 19 | Online research hybrid | Partial | Wikipedia and Sefaria, Mac only. General web search awaits a decision |
+| 19 | Online research hybrid | Partial | Wikipedia and Sefaria, Mac and iPhone. General web search awaits a decision |
 | 20 | Cross-device models | Partial | Same settings model; per-device selection needs iPhone inference |
 | 21 | Layout controls | Done | Automatic |
 | 22 | Note relevance weight | Partial | Fixed boost; never outranks text. Not tuned by context |
@@ -70,8 +91,8 @@ As of the final gate on 2026-11-05. Supersedes the statuses in `SPEC_AUDIT.md`, 
 | 27 | iPhone low memory | Partial: no model to exhaust memory; physical device needed |
 | 28 | Mac App Store sandbox runtime | Blocked: profile and installer certificate |
 | 29 | Offline without Ollama | Blocked: bundled runtime and model download approval |
-| 30 | UI selection, accessibility | Partial: no VoiceOver pass, Mac not reviewed |
+| 30 | UI selection, accessibility | Partial: no VoiceOver pass |
 
 ## Result components (§6.1)
 
-Direct passage, topical, Strong's, word table, Strong's comparison, translation parallel, passage comparison, cross-reference badges, premise check, note association, video evidence and external source cards are live. Occurrences has a by-book breakdown but no paginated explorer. Research findings has no dedicated view.
+All 14 components are live, including the paginated occurrences explorer and a research findings view for Deep Search.

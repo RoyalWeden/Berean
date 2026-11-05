@@ -2,7 +2,7 @@ import { homedir } from 'node:os'
 import { statfs } from 'node:fs/promises'
 import type { IpcMain, WebContents } from 'electron'
 import { deleteOllamaModel, listOllamaModels, pullOllamaModel, type OllamaModelInfo, type OllamaPullProgress } from '../ollama'
-import { catalogModel, formatBytes, isAllowedModelId } from '../../src/lib/research/modelCatalog'
+import { catalogModel, formatBytes, isAllowedModelId, isEmbeddingModel } from '../../src/lib/research/modelCatalog'
 import { classifyModelError } from '../../src/lib/research/errors'
 
 // Local model management (spec §8.3). Every download and delete starts from a button the user
@@ -84,6 +84,8 @@ export function createModelManager(deps: ModelDeps = defaultDeps) {
       const installed = await installedNames()
       if (!installed) return { ok: false, reason: "Ollama isn't running. Start it, then try again." }
       if (!isAllowedModelId(id, installed) || !installed.includes(id)) return { ok: false, reason: 'That model is not installed.' }
+      // An embedding model powers semantic search; removing it would silently break search.
+      if (isEmbeddingModel(id)) return { ok: false, reason: `${id} is used for search, so Berean keeps it. Remove it with Ollama if you are sure.` }
       try {
         await deps.remove(id)
         return { ok: true }

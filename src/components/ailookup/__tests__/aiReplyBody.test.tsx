@@ -203,3 +203,34 @@ describe('ChatMessageRow presentation', () => {
     expect(card.querySelector('button.chat-link:not(.is-on-accent)')!.textContent).toBe('Titus 2:11')
   })
 })
+
+describe('Deep Search research findings (spec §6.1 #10)', () => {
+  const enoch = verse('1EN', '1 Enoch', 1, 9, 'Behold, he cometh with ten thousands of his holy ones', { textId: 'enoch', source: 'keyword' } as Partial<AiLookupResult>)
+  const kw = (r: AiLookupResult) => ({ ...r, source: 'keyword' } as AiLookupResult)
+  const multi = (over: Partial<ChatMsg> = {}) => reply({ results: [kw(titus), kw(verse('EPH', 'Ephesians', 2, 8, 'For by grace')), enoch], keywords: ['grace', 'mercy'], visibleCount: 3, ...over })
+  const findings = (el: HTMLElement) => el.querySelector('section[aria-label="Research findings"]')
+
+  it('groups results by collection with counts, search terms and plain provenance, above the Passages list', () => {
+    const { el } = mount(<AiReplyBody message={multi()} deepSearch />)
+    const f = findings(el)!
+    expect([...f.querySelectorAll('li')].map((li) => li.getAttribute('aria-label'))).toEqual(['Bible: 2 passages', 'Pseudepigrapha: 1 passage'])
+    expect(f.textContent).toContain('Search terms: grace, mercy')
+    expect(f.textContent).toContain('Found by keyword match')
+    expect(f.compareDocumentPosition(el.querySelector('ul.chat-passages')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(f.textContent).not.toMatch(/checked/i)
+  })
+
+  it('stays hidden without Deep Search, with one collection, or while still streaming', () => {
+    expect(findings(mount(<AiReplyBody message={multi()} />).el)).toBeNull()
+    act(() => root!.unmount()); host!.remove()
+    expect(findings(mount(<AiReplyBody message={reply({ results: [kw(titus), kw(verse('EPH', 'Ephesians', 2, 8, 'x'))] })} deepSearch />).el)).toBeNull()
+    act(() => root!.unmount()); host!.remove()
+    expect(findings(mount(<AiReplyBody message={multi({ pending: true })} deepSearch />).el)).toBeNull()
+  })
+
+  it('does not count cross-reference results as a collection', () => {
+    const xref = verse('ENO', 'Enoch', 1, 1, 'x', { textId: 'enoch', source: 'cross-ref', crossRefOf: { bookId: 'TIT', chapter: 2, verse: 11 } } as Partial<AiLookupResult>)
+    const { el } = mount(<AiReplyBody message={reply({ results: [kw(titus), xref] })} deepSearch />)
+    expect(findings(el)).toBeNull()
+  })
+})

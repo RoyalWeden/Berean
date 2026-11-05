@@ -6,6 +6,8 @@
 //    can't inject instructions;
 //  - with Commentary off a card shows its title and link only, because an excerpt may interpret.
 
+import { decide, DEFAULT_PERMISSIONS, type PermissionSettings } from './policy'
+
 export interface ExternalSource {
   provider: 'wikipedia' | 'sefaria'
   site: string
@@ -92,4 +94,47 @@ export function parseSefaria(raw: unknown, retrievedAt: string): ExternalSource[
 /** With Commentary off a source is a pointer, not text: excerpts may carry interpretation. */
 export function forCommentaryOff(sources: readonly ExternalSource[]): ExternalSource[] {
   return sources.map((s) => ({ ...s, excerpt: '' }))
+}
+
+export type WebOutcome = { sources: ExternalSource[]; notice?: string; offered?: boolean }
+
+/** The one network primitive online research gets; the platform adds its own headers. */
+export type WebRequest = (url: string, init: { method: 'GET' | 'POST'; body?: string; timeoutMs: number; signal?: AbortSignal }) => Promise<{ status: number; json: () => Promise<unknown> }>
+
+/** Decides and runs online research for one lookup, identically on Mac and iPhone. No network
+ *  unless `decide` allows it: never from a model's suggestion, only from the user's setting, typed
+ *  request or tap (scenario 21). `broad` is true when Deep Search ran, or on the phone when the
+ *  keyword fallback answered: the cases where an offer or the Automatic setting applies. */
+export async function researchWeb(
+  question: string,
+  opts: { web: PermissionSettings['web']; approved: boolean; broad: boolean; online: boolean; request: WebRequest; signal?: AbortSignal },
+): Promise<WebOutcome> {
+  const { web } = opts
+  const asked = wantsWeb(question)
+  if (web === 'off' && !asked) return { sources: [] }
+  // Automatic means with Deep Search; ordinary lookups stay on the device unless asked.
+  const wanted = asked || opts.approved || opts.broad
+  if (!wanted) return { sources: [] }
+  const decision = decide('web-search', { ...DEFAULT_PERMISSIONS, web }, { offline: !opts.online, explicitRequest: asked || opts.approved })
+  if (!decision.allowed) {
+    if (decision.needsConsent) return { sources: [], offered: true }
+    return asked ? { sources: [], notice: `${decision.reason} ${web === 'off' ? 'You can turn it on in Settings → Ask Berean.' : ''}`.trim() } : { sources: [] }
+  }
+  const query = webQuery(question)
+  if (!query) return { sources: [] }
+  const at = new Date().toISOString()
+  const read = async (url: string, init: { method?: 'POST'; body?: string }, parse: (raw: unknown, at: string) => ExternalSource[]) => {
+    try {
+      const res = await opts.request(url, { ...init, method: init.method ?? 'GET', timeoutMs: 8_000, signal: opts.signal })
+      return res.status === 200 ? parse(await res.json(), at) : []
+    } catch {
+      return []
+    }
+  }
+  const [wiki, sefaria] = await Promise.all([
+    read(wikipediaSearchUrl(query), {}, parseWikipedia),
+    read(SEFARIA_SEARCH_URL, { method: 'POST', body: sefariaSearchBody(query) }, parseSefaria),
+  ])
+  const sources = [...wiki, ...sefaria]
+  return { sources, notice: sources.length > 0 ? `Searched Wikipedia and Sefaria for “${query}”. ${decision.disclose}` : `Searched Wikipedia and Sefaria for “${query}” and found nothing to show.` }
 }

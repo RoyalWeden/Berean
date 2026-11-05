@@ -113,6 +113,8 @@ interface VerseTagsAPI {
 interface LexiconAPI {
   getEntry: (strongsNum: string) => Promise<LexiconEntry | null>
   getOccurrences: (strongsNum: string, quickLimit?: number) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; text_tagged?: string | null; matchWordIndices: number[] }[]>
+  /** One page of verses tagged with the id in one text and book (LIMIT/OFFSET in SQL; limit caps at 50). */
+  getOccurrencePage: (strongsNum: string, opts: { textId: string; bookId: string; offset?: number; limit?: number }) => Promise<{ rows: { book_id: string; chapter: number; verse_num: number; text: string }[]; hasMore: boolean }>
   getRelated: (strongsNum: string) => Promise<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>
   search: (query: string, lang: 'H' | 'G' | 'all') => Promise<LexiconEntry[]>
 }

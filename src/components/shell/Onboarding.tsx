@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, FolderOpen, Folder, NotepadText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree } from 'lucide-react'
+import { BookOpen, FolderOpen, Folder, NotepadText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/store'
 import BibleGatewayImporter from '@/components/settings/BibleGatewayImporter'
 import ESwordImporter from '@/components/settings/ESwordImporter'
 import ShortcutKeys from './ShortcutKeys'
+import StepAskBerean, { hasModelSetup } from './OnboardingModelStep'
 import { Switch, Button, IconButton, SectionLabel, Sheet, OptionCard } from '@/components/ui'
 
 // ── Step definitions ──────────────────────────────────────────────────────────
@@ -14,6 +15,7 @@ const STEPS = [
   { id: 'vault',        label: 'Vault',        icon: FolderOpen },
   { id: 'import',       label: 'Import',       icon: Download   },
   { id: 'notesView',    label: 'Notes view',   icon: List       },
+  { id: 'askBerean',    label: 'Ask Berean',   icon: Sparkles   },
   { id: 'shortcuts',    label: 'Shortcuts',    icon: Keyboard   },
   { id: 'done',         label: 'Done',         icon: CheckCircle },
 ] as const
@@ -1260,8 +1262,10 @@ export default function Onboarding() {
 
   if (!onboardingOpen) return null
 
-  const currentStep = STEPS[stepIdx]
-  const isLast = stepIdx === STEPS.length - 1
+  // The Ask Berean step needs the local-model API, which the iPhone doesn't have.
+  const steps = STEPS.filter((s) => s.id !== 'askBerean' || hasModelSetup())
+  const currentStep = steps[stepIdx]
+  const isLast = stepIdx === steps.length - 1
   const isFirst = stepIdx === 0
 
   async function handleNext() {
@@ -1297,7 +1301,7 @@ export default function Onboarding() {
 
       {/* Step progress bar */}
       <div className="flex gap-1.5 px-6 pt-6 pb-0">
-        {STEPS.map((step, i) => (
+        {steps.map((step, i) => (
           <div
             key={step.id}
             className={`h-1 flex-1 rounded-control transition-[background-color] duration-300 ${
@@ -1312,7 +1316,7 @@ export default function Onboarding() {
       {/* Step label */}
       <div className="px-6 pt-3 pb-0">
         <SectionLabel>
-          Step {stepIdx + 1} of {STEPS.length} — {currentStep.label}
+          Step {stepIdx + 1} of {steps.length} — {currentStep.label}
         </SectionLabel>
       </div>
 
@@ -1323,6 +1327,7 @@ export default function Onboarding() {
         {currentStep.id === 'vault'       && <StepVault />}
         {currentStep.id === 'import'      && <StepImport />}
         {currentStep.id === 'notesView'   && <StepNotesView choice={notesViewChoice} onChoose={setNotesViewChoice} />}
+        {currentStep.id === 'askBerean'   && <StepAskBerean />}
         {currentStep.id === 'shortcuts'   && <StepShortcuts />}
         {currentStep.id === 'done'        && <StepDone />}
       </div>

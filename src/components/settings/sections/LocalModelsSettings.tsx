@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Download, Trash2 } from 'lucide-react'
 import { AlertSheet, Button, SectionLabel } from '@/components/ui'
-import { RECOMMENDED_MODELS, TIER_LABEL, formatBytes } from '@/lib/research/modelCatalog'
+import { RECOMMENDED_MODELS, TIER_LABEL, formatBytes, isEmbeddingModel } from '@/lib/research/modelCatalog'
 
 type Installed = Array<{ name: string; size: number }>
 interface Progress { percent: number | null; status: string }
@@ -11,7 +11,11 @@ interface Progress { percent: number | null; status: string }
  * every download and removal here starts from a button the user pressed. Berean removes a model
  * from Ollama only — it never touches anything else on disk.
  */
-export default function LocalModelsSettings() {
+export default function LocalModelsSettings({ chosenModel, onSwitchToAuto }: {
+  /** The model the active profile uses, or 'auto'. Removing it switches the profile to Automatic. */
+  chosenModel?: string
+  onSwitchToAuto?: () => void | Promise<void>
+}) {
   const api = window.aiLookup
   const [state, setState] = useState<{ available: boolean; installed: Installed } | null>(null)
   const [progress, setProgress] = useState<Record<string, Progress>>({})
@@ -33,6 +37,7 @@ export default function LocalModelsSettings() {
     await reload()
   }
   const remove = async (name: string) => {
+    if (name === chosenModel) await onSwitchToAuto?.()
     const res = await api.removeModel?.(name)
     if (res && !res.ok) note(name, res.reason)
     await reload()
@@ -62,7 +67,10 @@ export default function LocalModelsSettings() {
                   <p className="text-caption2 text-text-muted">{formatBytes(m.size)}</p>
                   {notes[m.name] && <p role="status" className="text-caption2 text-text-muted">{notes[m.name]}</p>}
                 </div>
-                <Button size="sm" variant="ghost" icon={Trash2} aria-label={`Remove ${m.name}`} onClick={() => setConfirmRemove(m)}>Remove</Button>
+                {isEmbeddingModel(m.name)
+                  ? <span className="text-caption2 text-text-muted shrink-0">Used for search</span>
+                  : m.name === chosenModel && !onSwitchToAuto ? null
+                  : <Button size="sm" variant="ghost" icon={Trash2} aria-label={`Remove ${m.name}`} onClick={() => setConfirmRemove(m)}>Remove</Button>}
               </div>
             ))}
           {available.length > 0 && <p className="text-subhead font-medium text-text-primary pt-1">Recommended</p>}
@@ -99,7 +107,7 @@ export default function LocalModelsSettings() {
       )}
       <AlertSheet open={!!confirmRemove} onOpenChange={(o) => { if (!o) setConfirmRemove(null) }}
         title={`Remove ${confirmRemove?.name ?? ''}?`}
-        message={`This frees ${confirmRemove ? formatBytes(confirmRemove.size) : ''}. Berean only removes it from Ollama; you can download it again later.`}
+        message={`This frees ${confirmRemove ? formatBytes(confirmRemove.size) : ''}. Berean only removes it from Ollama; you can download it again later.${confirmRemove?.name === chosenModel ? ' Ask Berean is using this model, so it will switch to Automatic.' : ''}`}
         confirmLabel="Remove" destructive defaultIsCancel
         onConfirm={() => { const m = confirmRemove; setConfirmRemove(null); if (m) void remove(m.name) }} />
     </div>

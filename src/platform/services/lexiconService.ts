@@ -45,6 +45,16 @@ export interface LexiconOccurrence {
   matchWordIndices: number[]
 }
 
+/** One page of the verses tagged with a Strong's id in one text (occurrences explorer). */
+export interface LexiconOccurrencePage {
+  rows: Array<{ book_id: string; chapter: number; verse_num: number; text: string }>
+  hasMore: boolean
+}
+
+/** Texts that carry each language's tags — the same set the occurrence counts are taken over. */
+const OCCURRENCE_TEXTS: Record<'H' | 'G', string[]> = { H: ['kjva'], G: ['kjva', 'lxx'] }
+const OCCURRENCE_PAGE_MAX = 50
+
 export function createLexiconService(ctx: ServiceContext) {
   /** Looks up a single Strong's entry (word/gloss/definition/etc). */
   async function getEntry(strongsNum: string): Promise<LexiconEntry | null> {
@@ -292,6 +302,31 @@ export function createLexiconService(ctx: ServiceContext) {
   // Hebrew lookup matches the bare number and then re-checks it as a whole token in JS (a plain
   // LIKE '%6%' would also hit 16, 60, 1600…). Before this the Hebrew branch searched for the
   // prefixed form and always came back empty (docs/mobile/implementation-progress.md K7).
+  /** One page of verse text for a Strong's id in one text, scoped to a book, straight from SQL
+   *  (LIMIT/OFFSET) so a word with thousands of occurrences never loads them all. Same LIKE
+   *  variants and verse ordering as `getOccurrences`, so the page total matches the exact count. */
+  async function getOccurrencePage(strongsNum: string, opts: { textId: string; bookId: string; offset?: number; limit?: number }): Promise<LexiconOccurrencePage> {
+    const num = strongsNum.trim().toUpperCase()
+    const lang = num[0] as 'H' | 'G'
+    const empty: LexiconOccurrencePage = { rows: [], hasMore: false }
+    if (!OCCURRENCE_TEXTS[lang]?.includes(opts.textId)) return empty
+    try {
+      const db = await ctx.textDb(opts.textId)
+      if (!db) return empty
+      const limit = Math.min(Math.max(Math.floor(opts.limit ?? 20), 1), OCCURRENCE_PAGE_MAX)
+      const offset = Math.max(Math.floor(opts.offset ?? 0), 0)
+      const rows = await db.all<{ book_id: string; chapter: number; verse_num: number; text: string }>(
+        `SELECT book_id, chapter, verse_num, text FROM verses
+         WHERE (text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?) AND book_id = ?
+         ORDER BY chapter, verse_num LIMIT ? OFFSET ?`,
+        [`%{${num}}%`, `%{${num}|%`, `%|${num}}%`, `%|${num}|%`, opts.bookId.toUpperCase(), limit + 1, offset],
+      )
+      return { rows: rows.slice(0, limit), hasMore: rows.length > limit }
+    } catch {
+      return empty
+    }
+  }
+
   async function getRelated(strongsNum: string) {
     const num = strongsNum.trim().toUpperCase()
     const sql = `SELECT strongs_id, word, transliteration, short_def, derivation FROM entries WHERE derivation LIKE ? AND strongs_id != ? LIMIT ?`
@@ -382,6 +417,7 @@ export function createLexiconService(ctx: ServiceContext) {
   return {
     getEntry,
     getOccurrences,
+    getOccurrencePage,
     getRelated,
     search,
     // Aliases matching the desktop-only sync helper names in electron/ipc/lexicon.ts, so a
