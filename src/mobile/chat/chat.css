@@ -196,3 +196,7 @@
 .m-chat-body .chat-table-wrap *,
 .m-chat-body pre,
 .m-chat-body pre * { touch-action: pan-x pan-y; }
+/* Armed Ask Berean: the active study profile and scope, one tap from the options page. */
+.m-chat-ask-options { display: flex; align-items: center; gap: 4px; border: 0; background: none; font: inherit; font-size: calc(12px * var(--m-type-scale, 1)); color: rgb(var(--color-text-muted)); padding: 0 8px 4px; text-align: left; -webkit-tap-highlight-color: transparent; }
+.m-chat-ask-options svg { flex: none; }
+.m-chat-ask-options span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
