@@ -316,6 +316,17 @@ See the table at the end of this section. holdout, holdout2 and holdout3 are all
 
 The first candidate (`58a9521`) failed this gate: main set fell about 6 cases on every model. Cause: comparison answers carried no `results`, so Save Research, follow-ups and Commentary missed them, and "thematic parallel to" triggered a comparison. Fixed, and that run is kept as evidence (`c1`).
 
+| Model | Main /338 | Holdout /105 | Holdout2 /40 | Holdout3 /30 | Total /513 | Critical | p50 main | p95 main | Bad JSON |
+|---|---|---|---|---|---|---|---|---|---|
+| gemma4 12B | 331 | 105 | 40 | 30 | 506 | 0 | 13.7 s | 51.9 s | 2.0% |
+| llama3.1 8B | 329 | 105 | 40 | 30 | 504 | 0 | 7.2 s | 35.3 s | 3.0% |
+| qwen3.5 2B | 326 | 103 | 37 | 29 | 495 | 0 | 2.0 s | 8.3 s | 2.0% |
+| No model | 242 | 69 | 29 | 22 | 362 | 0 | under 0.1 s | 0.1 s | n/a |
+
+No model was 234 before this work's final fixes, so the iPhone path gained on the same set. gemma4 12B's main run was interrupted by a requested pause at case 36 and rerun from case 1; the partial is kept in the backup folder.
+
+**Model selection** (provisional until target-device tests and license sign-off): compact default qwen3.5 2B, Apache-2.0, 1.9 GB, about 3.6× faster than llama3.1 with a 9-case total deficit. Optional larger model gemma4 12B, Apache-2.0, 7.2 GB, used by Deep Search under Automatic when installed and the Mac has 16.8 GB or more. Fallbacks in order: llama3.1 8B, ministral-3 3B (license unverified), llama3.2 3B. Rejected as defaults: gemma3 4B and qwen3.5 0.8B (lowest scores).
+
 ### Integrated and tested in this session
 - Premise check wired in after retrieval, both Commentary modes. A real-model probe found model prose in the notice, inverted premises and false alarms, so the notice is now fixed text, the trigger is limited to event and statement presuppositions, and it is skipped when one retrieved verse holds 75% of the question's content words. Probe result: flags only the fake saying, "apostles abolished the feasts" and Moses entering Canaan.
 - BYO Anthropic provider, end to end: request-scoped gateway (`electron/modelGateway.ts`), consent in main-process settings, key in Keychain-backed storage, free key check, privacy withholding. Mocks only: **no real cloud call has been made** (untested against the real API).
