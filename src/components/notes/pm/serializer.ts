@@ -28,13 +28,20 @@ function listItem(state: MarkdownSerializerState, node: PMNode) {
 // single-space cell padding, alignment row derived from cell `alignment`
 // attrs — this is a deliberate, pre-existing lossy-but-consistent round-trip
 // (hand-aligned table spacing is not preserved), Phase 0's confirmed decision.
+// A cell keeps its marks: bold, links and highlights are written as Markdown like anywhere else,
+// the same recursive way as columnList below. Plain text here dropped them on every save.
+function cellMarkdown(cell: PMNode): string {
+  const doc = schema.nodes.doc.create(null, schema.nodes.paragraph.create(null, cell.content))
+  return serializeToMarkdown(doc).trim().replace(/\\?\n+/g, ' ').replace(/(?<!\\)\|/g, '\\|')
+}
+
 function table(state: MarkdownSerializerState, node: PMNode) {
   const rows: string[][] = []
   let alignments: string[] = []
   node.forEach((row) => {
     const cells: string[] = []
     row.forEach((cell) => {
-      cells.push(cell.textContent.trim().replace(/\|/g, '\\|').replace(/\n+/g, ' '))
+      cells.push(cellMarkdown(cell))
       if (alignments.length < row.childCount) alignments.push(cell.attrs.alignment || 'left')
     })
     rows.push(cells)
