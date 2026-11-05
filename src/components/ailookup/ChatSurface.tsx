@@ -123,6 +123,7 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, {
       setStickToken((t) => t + 1)
       void cRef.current.send(question, { ai: { commentary: st.aiLookupCommentaryOn, deepSearch: st.aiLookupAgenticOn, tabContext: false, webApproved: true }, wordReplacerRules: [] })
     },
+    openModelSettings: window.aiLookup?.listLocalModels ? () => useAppStore.getState().openSettingsToAskBerean() : undefined,
     startReply: (m, chatId) => { cRef.current.startReply(m.id, chatId); requestAnimationFrame(() => inner.current?.focus()) },
     jumpTo: (id) => cRef.current.jumpToMessage(id),
     openMenu: (m, chatId, at, o) => msgMenu.openAt(at, { m, chatId, more: o?.more }),

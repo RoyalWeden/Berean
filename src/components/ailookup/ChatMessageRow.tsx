@@ -23,6 +23,8 @@ export interface ChatRowActions {
    *  Commentary-off reply). Does not change the composer's mode. */
   askWithCommentary?: (question: string) => void
   askOnline?: (question: string) => void
+  /** Desktop: opens model management from a reply that had no usable local model. */
+  openModelSettings?: () => void
   /** Reply to a message (the composer shows "Replying to …"; the sent message quotes it). */
   startReply?: (message: ChatMsg, chatId: string | null) => void
   /** Scroll to and flash a message (a reply's quote was clicked). */
@@ -248,6 +250,11 @@ export const ChatMessageRow = memo(function ChatMessageRow(p: ChatMessageRowProp
               {m.webOffered && p.question && actions?.canAsk && actions.askOnline && (
                 <button type="button" className="chat-explore-action text-caption2" onClick={() => actions.askOnline!(p.question!)}>
                   <Globe size={11} aria-hidden /> Search Wikipedia and Sefaria
+                </button>
+              )}
+              {(m.errorCode === 'NO_MODEL_INSTALLED' || m.errorCode === 'RUNTIME_UNAVAILABLE') && actions?.openModelSettings && (
+                <button type="button" className="chat-explore-action text-caption2" onClick={actions.openModelSettings}>
+                  <Sparkles size={11} aria-hidden /> Set up a local model
                 </button>
               )}
             </div>

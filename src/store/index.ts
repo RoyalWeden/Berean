@@ -995,6 +995,7 @@ export interface AppState {
   openSettingsToSessions: () => void
   openSettingsToAbout: () => void
   openSettingsToAudio: () => void
+  openSettingsToAskBerean: () => void
   closeSettings: () => void
   toggleSettings: () => void
   setTheme: (theme: 'dark' | 'light' | 'system') => void
@@ -3000,6 +3001,7 @@ export const useAppStore = create<AppState>()(
       // AudioPlayer.tsx's "Get more natural voices…" link — jumps straight to the Audio
       // section instead of the default Appearance tab.
       openSettingsToAudio: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'audio' }) },
+      openSettingsToAskBerean: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'askBerean' }) },
       closeSettings: () => set({ settingsOpen: false }),
       toggleSettings: () => set((s) => {
         const opening = !s.settingsOpen
