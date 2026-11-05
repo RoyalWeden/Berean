@@ -95,6 +95,11 @@ export function ChatTranscript({
     for (const it of items) if (it.message.kind === 'ai-request') map.set(it.message.id, it.message.content)
     return map
   }, [items])
+  const deepById = useMemo(() => {
+    const set = new Set<string>()
+    for (const it of items) if (it.message.kind === 'ai-request' && it.message.aiMode?.deepSearch) set.add(it.message.id)
+    return set
+  }, [items])
   // Replies show the message they answer (same object while it is unchanged — rows stay memoized).
   const messageById = useMemo(() => {
     const map = new Map<string, TranscriptItem['message']>()
@@ -282,6 +287,7 @@ export function ChatTranscript({
               timeLabel={r.timeLabel}
               showConversation={r.showConversation}
               question={r.item.message.replyTo ? questionById.get(r.item.message.replyTo) : undefined}
+              deepSearch={!!r.item.message.replyTo && deepById.has(r.item.message.replyTo)}
               quoted={r.item.message.inReplyTo ? messageById.get(r.item.message.inReplyTo) ?? null : undefined}
               failed={failedIds.has(r.item.message.id)}
               focused={flashId === r.item.message.id}

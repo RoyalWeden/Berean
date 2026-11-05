@@ -105,7 +105,9 @@ describe('occurrences explorer', () => {
     act(() => toggle.click())
     const rows = [...el.querySelectorAll<HTMLButtonElement>('[aria-label="G5485 tagged verses by book"] button')]
     expect(rows.map((b) => b.getAttribute('aria-label'))).toEqual(['Luke: 3 verses', 'Romans: 6 verses'])
-    act(() => rows[0].click())
+    expect(rows[0].getAttribute('aria-expanded')).toBe('false')
+    const entry = [...el.querySelectorAll('button')].find((b) => b.textContent === "Open Strong's G5485")!
+    act(() => entry.click())
     expect(nav).toHaveBeenLastCalledWith({ kind: 'lexicon', strongsNum: 'G5485' })
   })
 
@@ -113,6 +115,73 @@ describe('occurrences explorer', () => {
     const r = research({ kind: 'occurrences', candidates: [cand('G5485', 'χάρις', 0, { match: 'id' })], occurrences: [{ id: 'G5485', bookId: 'TIT', totals: [{ textId: 'kjva', verses: 4 }], byBook: [{ textId: 'kjva', bookId: 'TIT', verses: 4 }] }] })
     const { el } = mount(<AiReplyBody message={reply(r)} />)
     expect(el.textContent).not.toMatch(/by book/)
+  })
+})
+
+describe('occurrences explorer verse list', () => {
+  const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve() }) }
+  const ROM = Array.from({ length: 25 }, (_, i) => ({ book_id: 'ROM', chapter: 1 + Math.floor(i / 10), verse_num: (i % 10) + 1, text: i === 3 ? 'grace and apostleship' : `verse body ${i}` }))
+  const page = vi.fn(async (_id: string, o: { offset?: number; limit?: number }) => {
+    const rows = ROM.slice(o.offset ?? 0, (o.offset ?? 0) + (o.limit ?? 20))
+    return { rows, hasMore: (o.offset ?? 0) + rows.length < ROM.length }
+  })
+  const occRes = () => research({ kind: 'occurrences', candidates: [cand('G5485', 'χάρις', 0, { match: 'id' })], occurrences: [{ id: 'G5485', totals: [{ textId: 'kjva', verses: 28 }], byBook: [
+    { textId: 'kjva', bookId: 'ROM', verses: 25 }, { textId: 'kjva', bookId: 'LUK', verses: 3 },
+  ] }] })
+  const open = async () => {
+    page.mockClear()
+    ;(window as unknown as { lexicon: unknown }).lexicon = { getOccurrencePage: page }
+    const m = mount(<AiReplyBody message={reply(occRes())} />)
+    act(() => [...m.el.querySelectorAll('button')].find((b) => /by book/.test(b.textContent ?? ''))!.click())
+    act(() => m.el.querySelector<HTMLButtonElement>('[aria-label="Romans: 25 verses"]')!.click())
+    await flush()
+    return m
+  }
+  const listed = (el: HTMLElement) => [...el.querySelectorAll<HTMLButtonElement>('.chat-occ-verse')]
+
+  it('loads only one page for a tapped book and pages on Show more with an accurate count', async () => {
+    const { el } = await open()
+    expect(page).toHaveBeenCalledTimes(1)
+    expect(page).toHaveBeenLastCalledWith('G5485', { textId: 'kjva', bookId: 'ROM', offset: 0, limit: 20 })
+    expect(listed(el)).toHaveLength(20)
+    expect(el.textContent).toContain('Showing 20 of 25')
+    const more = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Show more')!
+    act(() => more.click()); await flush()
+    expect(page).toHaveBeenLastCalledWith('G5485', { textId: 'kjva', bookId: 'ROM', offset: 20, limit: 20 })
+    expect(listed(el)).toHaveLength(25)
+    expect(el.textContent).toContain('Showing 25 of 25')
+    expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Show more')).toBe(false)
+  })
+
+  it('filters the listed verses by text or reference and says how many match', async () => {
+    const { el } = await open()
+    const input = el.querySelector<HTMLInputElement>('input[aria-label="Filter listed Romans verses"]')!
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    act(() => { setValue.call(input, 'apostleship'); input.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(listed(el)).toHaveLength(1)
+    expect(el.textContent).toContain('1 of 20 listed match (more not yet listed)')
+    act(() => { setValue.call(input, 'romans 2:'); input.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(listed(el)).toHaveLength(10)
+    expect(page).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the verse in the passage reader', async () => {
+    const { el, nav } = await open()
+    act(() => listed(el)[3].click())
+    expect(nav).toHaveBeenLastCalledWith({ kind: 'verse', result: { textId: 'kjva', bookId: 'ROM', bookName: 'Romans', chapter: 1, verse: 4, text: 'grace and apostleship', source: 'strongs' } })
+    expect(listed(el)[3].getAttribute('aria-label')).toBe('Open Romans 1:4')
+  })
+
+  it('collapses on a second tap and shows a status when the page fails to load', async () => {
+    page.mockRejectedValueOnce(new Error('db'))
+    ;(window as unknown as { lexicon: unknown }).lexicon = { getOccurrencePage: page }
+    const m = mount(<AiReplyBody message={reply(occRes())} />)
+    act(() => [...m.el.querySelectorAll('button')].find((b) => /by book/.test(b.textContent ?? ''))!.click())
+    const row = m.el.querySelector<HTMLButtonElement>('[aria-label="Luke: 3 verses"]')!
+    act(() => row.click()); await flush()
+    expect(m.el.querySelector('[role="status"]')!.textContent).toContain('Could not load')
+    act(() => row.click())
+    expect(m.el.querySelector('.chat-occ-verses')).toBeNull()
   })
 })
 

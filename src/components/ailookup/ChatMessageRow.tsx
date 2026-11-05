@@ -85,6 +85,8 @@ export interface ChatMessageRowProps {
   showConversation: boolean
   /** The question an AI reply answers (Study Trail reason text). */
   question?: string
+  /** The request an AI reply answers was sent with Deep Search on. */
+  deepSearch?: boolean
   failed: boolean
   focused: boolean
   /** On a reply: the message it answers (null = deleted since); undefined = not a reply. */
@@ -240,7 +242,7 @@ export const ChatMessageRow = memo(function ChatMessageRow(p: ChatMessageRowProp
             {/* Berean's answer is a content column, not a bubble (long answers, lists and tables
                 need the room) — under the small "Berean" label, like a modern assistant reply. */}
             <div data-find-body title={fullTime} className="chat-ai-column flex-1 min-w-0 max-w-[680px] pl-1 pr-1 py-0.5 text-text-primary select-text">
-              <AiReplyBody message={m} question={p.question} />
+              <AiReplyBody message={m} question={p.question} deepSearch={p.deepSearch} />
               {!m.pending && p.question && canSaveResearch(m) && <SaveResearchButton message={m} question={p.question} chatId={p.chatId} />}
               {m.interpretationOffered && p.question && actions?.canAsk && actions.askWithCommentary && (
                 <button type="button" className="chat-explore-action text-caption2" onClick={() => actions.askWithCommentary!(p.question!)}>

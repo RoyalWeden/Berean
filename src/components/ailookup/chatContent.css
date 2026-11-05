@@ -173,7 +173,21 @@
 .chat-explore-action:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 1px; }
 
 /* Collection label on a non-canonical passage (decision 9). A badge, never clickable. */
-.chat-collection-badge, .chat-link-badge { padding: 0 6px; border-radius: 999px; color: rgb(var(--color-text-secondary)); background: rgb(var(--color-text-primary) / 0.07); line-height: 16px; }
+.chat-collection-badge, .chat-occ-verses { display: flex; flex-direction: column; gap: 4px; padding: 4px 6px 6px; }
+.chat-occ-filter { width: 100%; padding: 3px 8px; border-radius: 6px; background: rgb(var(--color-text-primary) / 0.05); color: rgb(var(--color-text-primary)); }
+.chat-occ-filter:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); }
+.chat-occ-vlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.chat-occ-verse { display: grid; grid-template-columns: 3.25rem 1fr; gap: 8px; width: 100%; padding: 3px 6px; border-radius: 6px; text-align: left; color: rgb(var(--color-text-primary)); }
+.chat-occ-verse:hover { background: rgb(var(--color-text-primary) / 0.05); }
+.chat-occ-verse:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); }
+.chat-occ-ref { font-variant-numeric: tabular-nums; color: rgb(var(--color-text-secondary)); }
+/* Deep Search findings (ResearchFindings.tsx): one quiet line per collection. */
+.chat-findings { display: flex; flex-direction: column; gap: 3px; }
+.chat-findings-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-findings-list > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.chat-findings-name { font-weight: 600; }
+.chat-findings-n { font-variant-numeric: tabular-nums; color: rgb(var(--color-text-secondary)); }
+.chat-link-badge { padding: 0 6px; border-radius: 999px; color: rgb(var(--color-text-secondary)); background: rgb(var(--color-text-primary) / 0.07); line-height: 16px; }
 
 /* A study-profile display name in Berean's own prose (studyProfile.ts aliasSegments) — marked so
    it is never mistaken for source text; the tooltip gives the original wording. */
