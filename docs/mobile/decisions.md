@@ -234,6 +234,13 @@ Format: **decision · date · reason · alternatives considered · consequences 
 
 ## D-009 — AI Lookup (Berean Chat) stays desktop-only in v1; the port is specified, not started
 
+> **Superseded in part (2026-10-28, Berean AI upgrade, spec decision 6).** Ask Berean now runs on the
+> iPhone *without* an AI model: references, word studies, Strong's, word tables, occurrence counts,
+> follow-ups and keyword search come from the shared services (`src/platform/services/modelFreeLookup.ts`,
+> `researchService.ts`). The reply says it ran without a model (`NO_MODEL_INSTALLED`). This is not
+> an Ollama forwarder — it is the deterministic part of the pipeline, ported. On-device model
+> inference remains Phase 7 (see `docs/ai-upgrade/PLAN.md`).
+
 - **Date:** 2026-09-21
 - **Decision:** `window.aiLookup` reports unavailable on the iPhone and the chat UI is not
   offered there. The requirement (R046) allows "connect to an Ollama host on your network", but

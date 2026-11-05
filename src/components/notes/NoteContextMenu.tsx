@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Trash2, ExternalLink, PanelRightOpen, Pencil, Layers, ChevronRight,
-  Monitor, FolderInput, FolderMinus, BookOpen, Printer, CircleDashed,
+  Monitor, FolderInput, FolderMinus, BookOpen, Printer, CircleDashed, EyeOff,
 } from 'lucide-react'
 import type { Note, NoteFolder, NoteStatus } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
@@ -198,6 +198,12 @@ export default function NoteContextMenu({
           <MenuItem icon={BookOpen} label="Convert to idiom note" onClick={() => { onConvertToIdiom(note); onClose() }} />
         </>
       )}
+
+      {/* Spec §4.4: an excluded note never reaches AI search, ranking, tab context or prompts. */}
+      <MenuSeparator />
+      <MenuItem icon={EyeOff} label="Exclude from AI" active={!!note.aiExcluded}
+        description={note.aiExcluded ? 'Ask Berean never reads this note' : undefined}
+        onClick={() => { void window.notes.setNoteAiExcluded(note.id, !note.aiExcluded); onClose() }} />
 
       {onDelete && (
         <>

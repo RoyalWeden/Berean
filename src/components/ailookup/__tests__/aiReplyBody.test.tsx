@@ -101,6 +101,24 @@ describe('AiReplyBody', () => {
     expect([...el.querySelectorAll('button')].some((b) => b.textContent?.includes('more'))).toBe(false)
   })
 
+  it('labels each nested link with the source that asserts it (spec §6.1 #9)', () => {
+    const tske = verse('JHN', 'John', 1, 17, 'For the law was given by Moses', { source: 'cross-ref', linkType: 'tske', crossRefOf: { bookId: 'TIT', chapter: 2, verse: 11 } } as Partial<AiLookupResult>)
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus, tske] })} />)
+    act(() => el.querySelector<HTMLButtonElement>('.chat-crossrefs-toggle')!.click())
+    const badge = el.querySelector('.chat-crossref-list .chat-link-badge')!
+    expect(badge.textContent).toBe('TSKe')
+    expect(badge.getAttribute('title')).toMatch(/Treasury of Scripture Knowledge/)
+  })
+
+  it('shows a premise check in fixed wording with the cited passages (spec §6.1 #11)', () => {
+    const { el } = mount(<AiReplyBody message={reply({ premise: { premise: 'Moses entered Canaan', status: 'contradicted', evidence: ['DEU 34:4'], reformulated: 'Moses not entering Canaan' } })} />)
+    const n = el.querySelector('[aria-label="Premise check"]')!
+    expect(n.textContent).toContain('Contradicted by these passages')
+    expect(n.textContent).toContain('The premise “Moses entered Canaan” is contradicted by the passages cited below.')
+    expect(n.textContent).toContain('Cited: Deuteronomy 34:4')
+    expect(n.textContent).toContain('A neutral search: Moses not entering Canaan')
+  })
+
   it('lists related passages under a section label', () => {
     const { el } = mount(<AiReplyBody message={reply()} />)
     const section = el.querySelector('section[aria-label="Related Passages"]')!
@@ -114,7 +132,7 @@ describe('AiReplyBody', () => {
     const card = el.querySelector<HTMLButtonElement>('button.chat-strongs')!
     expect(card.textContent).toContain('χάρις')
     expect(card.textContent).toContain('charis')
-    expect(card.textContent).toContain('156 occurrences')
+    expect(card.textContent).toContain("156 per Strong's lexicon")
     act(() => card.click())
     expect(nav).toHaveBeenLastCalledWith({ kind: 'lexicon', strongsNum: 'G5485' })
   })

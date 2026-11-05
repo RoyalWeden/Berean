@@ -27,7 +27,9 @@ import '@/components/ailookup/chat.css'
 import './chat.css'
 
 /** Shown when the (disabled) sparkle is tapped — the local model runs on the Mac only. */
-export const ASK_BEREAN_PHONE_HINT = 'Ask Berean is available on the Mac'
+/** Shown when Ask Berean is armed on the phone: research runs here, without an AI model (spec §2.1,
+ *  decision 6) — references, word studies, Strong's, word tables, follow-ups, keyword search. */
+export const ASK_BEREAN_PHONE_HINT = 'Ask Berean · research on this iPhone (AI commentary runs on the Mac)'
 
 export interface ChatPageProps {
   /** Leaves the page (back to wherever it was opened from). */
@@ -58,7 +60,7 @@ export interface ChatPageProps {
  *   <ChatPage onBack={pop} newMessageToken={n} /> // straight into "New Message"
  */
 export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: ChatPageProps) {
-  const c = useChatController({ aiSupported: false, startWithNewMessage: !!newMessageToken })
+  const c = useChatController({ aiSupported: true, startWithNewMessage: !!newMessageToken })
   const composerRef = useRef<ChatEditorHandle | null>(null)
   const firstToken = useRef(newMessageToken)
   const navigate = onNavigate ?? performChatNav
@@ -269,6 +271,8 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
   const [focused, setFocused] = useState(false)
   const [linkOpen, setLinkOpen] = useState(false)
   const [hint, setHint] = useState(false)
+  // ✦ arms Ask Berean for one send (same rule as the Mac composer); research only on the phone.
+  const [askArmed, setAskArmed] = useState(false)
   const [stickToken, setStickToken] = useState(0)
   // Find in this conversation (… → Find in Conversation): the bar takes the composer's place.
   const [find, setFind] = useState<{ open: boolean; query: string; index: number; count: number; target: string | null }>({ open: false, query: '', index: 0, count: 0, target: null })
@@ -371,6 +375,12 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
     setLinkOpen(false)
     setStickToken((t) => t + 1)
     void haptic.light()
+    if (askArmed) {
+      setAskArmed(false)
+      setHint(false)
+      void c.send(v, { ai: { commentary: false, deepSearch: false, tabContext: false } })
+      return
+    }
     void c.send(v)
   }
   const onChange = (state: EditorState, docChanged: boolean) => {
@@ -471,7 +481,8 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
             </div>
           )}
           <div className="m-chat-composer-row">
-            <button type="button" className="m-chat-ask" aria-disabled="true" aria-label={`Ask Berean — ${ASK_BEREAN_PHONE_HINT}`} onClick={showHint}
+            <button type="button" className="m-chat-ask" aria-pressed={askArmed} data-armed={askArmed ? 'true' : undefined} aria-label="Ask Berean"
+              onClick={() => { const next = !askArmed; setAskArmed(next); void haptic.light(); if (next) showHint(); else setHint(false) }}
               onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}>
               <Sparkles size={18} aria-hidden />
             </button>

@@ -31,7 +31,8 @@
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 17px; border: 0; padding: 0;
 }
-.m-chat-ask { background: none; color: rgb(var(--color-text-muted)); opacity: 0.55; }
+.m-chat-ask { background: none; color: rgb(var(--color-text-muted)); }
+.m-chat-ask[data-armed='true'] { background: rgb(var(--color-accent) / 0.14); color: rgb(var(--color-accent)); }
 .m-chat-send { background: rgb(var(--color-accent)); color: #fff; }
 .m-chat-send:disabled { opacity: 0.35; }
 /* The shared rich-text field (composer/ChatEditor.tsx): 17pt like Messages, grows to ~5 lines. */

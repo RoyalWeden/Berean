@@ -1,4 +1,5 @@
 import { net } from 'electron'
+import { ModelCallError } from '../src/lib/research/errors'
 
 // Thin bridge to a locally-running Ollama instance (https://ollama.com) — free,
 // offline, no API key. Runs entirely in the main process via Electron's `net.fetch`
@@ -133,21 +134,43 @@ export const NUM_PREDICT_JSON = 512
 // phrasing is fine (even welcome) rather than something to suppress.
 const EXTRACTION_TEMPERATURE = 0.3
 
+// Thinking-capable families spend their whole output budget "thinking" before any JSON when left
+// on — measured in the 2026-10-28 benchmark: qwen3.5 4B and gemma4 e2b returned 0/15 valid replies
+// at production settings, 98.8–99.5% with thinking off. Berean never wants the hidden reasoning.
+const THINKING_MODEL_RE = /^(qwen3|gemma4|deepseek-r1|gpt-oss|magistral)/i
+function thinkOption(model: string): { think?: false } {
+  return THINKING_MODEL_RE.test(model) ? { think: false } : {}
+}
+
+/** Turns a non-2xx Ollama reply into a typed error (missing model, out of memory, runtime down). */
+async function httpError(res: Response): Promise<ModelCallError> {
+  let body = ''
+  try { body = (await res.text()).slice(0, 300) } catch { /* ignore */ }
+  const code = res.status === 404 || /not found|pull/i.test(body) ? 'NO_MODEL_INSTALLED'
+    : /memory/i.test(body) ? 'OUT_OF_MEMORY'
+    : 'RUNTIME_UNAVAILABLE'
+  return new ModelCallError(code, `Ollama request failed: ${res.status} ${body}`.trim(), res.status)
+}
+
 /** Runs a single prompt against a local Ollama model, forcing JSON output.
  *  Throws on any failure (network, non-2xx, timeout) — callers must catch. */
-export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000): Promise<T> {
+export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000, opts: { numPredict?: number } = {}): Promise<T> {
   noteOllamaActivity(model)
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE,
-      options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
+      model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE, ...thinkOption(model),
+      options: { num_ctx: NUM_CTX, num_predict: opts.numPredict ?? NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
     }),
   }, timeoutMs)
-  if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)
+  if (!res.ok) throw await httpError(res)
   const data = await res.json() as { response: string }
-  return JSON.parse(data.response) as T
+  try {
+    return JSON.parse(data.response) as T
+  } catch (e) {
+    throw new ModelCallError('INVALID_STRUCTURED_OUTPUT', `Model reply was not valid JSON: ${(e as Error).message}`)
+  }
 }
 
 /** Runs a single prompt and returns plain text (no forced JSON) — used for
@@ -157,9 +180,9 @@ export async function runOllamaText(prompt: string, model = DEFAULT_OLLAMA_MODEL
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: false, keep_alive: KEEP_ALIVE, options: { num_ctx: NUM_CTX } }),
+    body: JSON.stringify({ model, prompt, stream: false, keep_alive: KEEP_ALIVE, ...thinkOption(model), options: { num_ctx: NUM_CTX } }),
   }, timeoutMs)
-  if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)
+  if (!res.ok) throw await httpError(res)
   const data = await res.json() as { response: string }
   return data.response.trim()
 }

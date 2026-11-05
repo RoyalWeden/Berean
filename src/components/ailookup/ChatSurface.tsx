@@ -112,6 +112,12 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, {
       inner.current?.beginEdit({ id: m.id, chatId, text: m.content, isRequest: m.kind === 'ai-request' })
     },
     askAbout: (m) => inner.current?.askAbout(m.content),
+    askWithCommentary: (question) => {
+      const st = useAppStore.getState()
+      const rules = st.wordReplacerEnabled ? st.wordReplacerRules.filter((r) => r.enabled && !r.strongsNum).map((r) => ({ queries: r.queries, replacement: r.replacement })) : []
+      setStickToken((t) => t + 1)
+      void cRef.current.send(question, { ai: { commentary: true, deepSearch: st.aiLookupAgenticOn, tabContext: st.aiLookupUseTabContext }, wordReplacerRules: rules })
+    },
     startReply: (m, chatId) => { cRef.current.startReply(m.id, chatId); requestAnimationFrame(() => inner.current?.focus()) },
     jumpTo: (id) => cRef.current.jumpToMessage(id),
     openMenu: (m, chatId, at, o) => msgMenu.openAt(at, { m, chatId, more: o?.more }),

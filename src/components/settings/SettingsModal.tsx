@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { UNTITLED_NOTE_NAME_FORMATS, untitledNoteName, type UntitledNoteNameFormat } from '@/lib/notes/finalizeNote'
 import {
   Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag, Cloud } from 'lucide-react'
+  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag, Cloud, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import type { ScriptureLayout } from '@/types'
@@ -13,6 +13,7 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import SectionAnchorChips from './SectionAnchorChips'
 import YtLayoutSetting from './sections/YtLayoutSetting'
 import WordReplacerSection from './sections/WordReplacerSection'
+import AskBereanSection from './sections/AskBereanSection'
 import AudioSection from './sections/AudioSection'
 import ICloudSection from './sections/ICloudSection'
 import HistorySection from './sections/HistorySection'
@@ -168,7 +169,7 @@ const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
 
 
-type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'icloud' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
+type Section = 'appearance' | 'reading' | 'notes' | 'askBerean' | 'vault' | 'icloud' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -474,6 +475,7 @@ export default function SettingsModal() {
     { id: 'data',       label: 'Data',       icon: Database,  keywords: ['import', 'esword', 'biblegateway', 'migrate', 'history', 'workspace', 'saved', 'reset', 'clear', 'delete', 'wipe', 'factory', 'danger'] },
     { id: 'about',      label: 'About & Updates', icon: Info, keywords: ['about', 'version', 'license', 'update', 'beta', 'stable', 'auto-update'] },
     { id: 'viewer',     label: 'Viewer Window', icon: Cast,   keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
+    { id: 'askBerean', label: 'Ask Berean', icon: Sparkles, keywords: ['ai', 'ask berean', 'study profile', 'profile', 'commentary', 'deep search', 'collections', 'apocrypha', 'pseudepigrapha', 'names', 'yeshua', 'saved research', 'interpretation'] },
     { id: 'studyTrail', label: 'Study Trail', icon: GitBranch, keywords: ['study trail', 'trail', 'session', 'map', 'navigation history', 'jump', 'reason', 'why did you jump'] },
     { id: 'experimental', label: 'Experimental', icon: FlaskConical, keywords: ['experimental', 'beta', 'pdf', 'opt-in', 'feature flag', 'pull to change chapter', 'rubber band', 'overscroll', 'pull navigation'] },
   ]
@@ -1676,6 +1678,8 @@ export default function SettingsModal() {
                   </div>
                 </div>
               )}
+
+              {section === 'askBerean' && <AskBereanSection />}
 
               {section === 'studyTrail' && (
                 <div className="flex flex-col gap-6">

@@ -1,5 +1,8 @@
 import type { ServiceContext } from './context'
 import type { AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupVideoResult } from '../../types/electron'
+import type { ResearchPayload } from '../../lib/research/payload'
+import type { ResearchErrorCode } from '../../lib/research/errors'
+import type { PremiseCheck } from '../../lib/research/premise'
 
 /**
  * Berean Chat persistence — the `ai_chats` table (one row per conversation, messages as a JSON
@@ -56,6 +59,13 @@ export interface AiChatMessage {
   notes?: AiLookupNoteResult[]
   notesAreThePrimaryAnswer?: boolean
   videos?: AiLookupVideoResult[]
+  research?: ResearchPayload
+  errorCode?: ResearchErrorCode
+  partial?: boolean
+  interpretationOffered?: boolean
+  followUpReason?: string
+  /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
+  premise?: PremiseCheck
   createdAt: string
   id?: string
   kind?: AiChatMessageKind

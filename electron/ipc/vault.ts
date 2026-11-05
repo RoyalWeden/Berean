@@ -141,6 +141,8 @@ export type NoteRow = {
   id: string; type: string; title: string | null; content: string;
   verse_ref: string | null; color: string; icon?: string | null; status?: string | null; created_at: number; updated_at: number;
   tags: string; folder_id?: string | null
+  /** Excluded from AI (spec §4.4) — written as `ai_excluded: true` and read back on import. */
+  ai_excluded?: number | null
 }
 
 // overrideColor: verse highlight color (takes precedence over note.color for Octarine dot)
@@ -215,6 +217,7 @@ export function noteToMarkdown(note: NoteRow, overrideColor?: string, highlighte
     ...linksLines,
     `berean_id: ${note.id}`,
     note.folder_id ? `folder_id: ${note.folder_id}` : null,
+    note.ai_excluded ? 'ai_excluded: true' : null,
     '---',
   ].filter((l) => l !== null).join('\n')
 
@@ -660,6 +663,11 @@ export function importVaultFile(
         // Reconcile/watcher path keeps its historical "edited now" stamp; an explicit restore
         // keeps the file's own `updated:` so a restore doesn't mark every note edited today.
         existing && bereanIdPolicy === 'newer-wins' ? Date.now() : stampedUpdated, tags, folderId)
+    // Only ever SETS the exclusion: a file without the line (older export, or edited elsewhere)
+    // never silently re-includes a note the user excluded from AI.
+    if (fm('ai_excluded') === 'true') {
+      try { db.prepare('UPDATE notes SET ai_excluded = 1 WHERE id = ?').run(noteId) } catch { /* pre-v49 DB */ }
+    }
     return { outcome: existing ? 'updated' : 'created', noteId }
   }
 

@@ -28,7 +28,26 @@ function embeddingsDbPath(): string {
     // index has been built.
     return join(process.resourcesPath, 'data', 'verse_embeddings.db')
   }
+  // Dev/eval only: the Phase 3 retrieval study points this at alternative indexes.
+  if (process.env.BEREAN_EMBED_DB) return process.env.BEREAN_EMBED_DB
   return join(__dirname, '../../electron/db-generated', 'verse_embeddings.db')
+}
+
+/** The embedding model and query prefix the open index was built with (its `meta` table), so a
+ *  query is always embedded in the same vector space as the index. Null when absent. */
+export function embeddingsIndexMeta(): { model: string; queryPrefix: string } | null {
+  const db = getEmbeddingsDb()
+  if (!db) return null
+  try {
+    const rows = db.prepare('SELECT key, value FROM meta').all() as Array<{ key: string; value: string }>
+    const m = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+    if (!m.model) return null
+    // nomic's paired task prefixes: documents "search_document: ", queries "search_query: ".
+    const queryPrefix = m.doc_prefix === 'search_document: ' ? 'search_query: ' : (m.query_prefix ?? '')
+    return { model: m.model, queryPrefix }
+  } catch {
+    return null
+  }
 }
 
 /** Opens (and caches) the verse_embeddings.db connection, or returns null if the index hasn't

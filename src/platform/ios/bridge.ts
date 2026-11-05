@@ -74,6 +74,8 @@ export function installIosBridge(s: Services): void {
     searchNotes: (query, limit, mode) => s.notes.search(query, limit, mode) as ReturnType<Window['notes']['searchNotes']>,
     setNoteFolder: (noteId, folderId) => s.notes.setFolder(noteId, folderId),
     setNotePinned: (noteId, pinned) => s.notes.setPinned(noteId, pinned),
+    setNoteAiExcluded: (noteId, excluded) => s.notes.setAiExcluded(noteId, excluded),
+    setFolderAiExcluded: (id, excluded) => s.notes.folderSetAiExcluded(id, excluded),
     createNoteVersion: (noteId, title, content, kind) => s.notes.createVersion(noteId, title, content, kind),
     getNoteVersions: (noteId) => s.notes.getVersions(noteId) as ReturnType<Window['notes']['getNoteVersions']>,
     restoreNoteVersion: (noteId, versionId) => s.notes.restoreVersion(noteId, versionId) as ReturnType<Window['notes']['restoreNoteVersion']>,

@@ -40,6 +40,7 @@ export interface NoteRow {
   idiom_data: string | null
   deleted_at: number | null
   pinned: number | null
+  ai_excluded?: number | null
 }
 
 function rowToNote(row: NoteRow) {
@@ -74,6 +75,7 @@ function rowToNote(row: NoteRow) {
     idiomData:         row.idiom_data ? safeParse(row.idiom_data) : undefined,
     deletedAt:         row.deleted_at ?? undefined,
     pinned:            row.pinned === 1,
+    aiExcluded:        row.ai_excluded === 1,
   }
 }
 
@@ -313,9 +315,9 @@ export function createNotesService(ctx: ServiceContext) {
 
   // ── Note folders (user-created, nestable) ──────────────────────────────────
   async function folderList() {
-    const rows = await db().all<{ id: string; name: string; parent_id: string | null; created_at: number }>(
-      'SELECT id, name, parent_id, created_at FROM note_folders ORDER BY name COLLATE NOCASE')
-    return rows.map((r) => ({ id: r.id, name: r.name, parentId: r.parent_id ?? null, createdAt: r.created_at }))
+    const rows = await db().all<{ id: string; name: string; parent_id: string | null; created_at: number; ai_excluded: number | null }>(
+      'SELECT * FROM note_folders ORDER BY name COLLATE NOCASE')
+    return rows.map((r) => ({ id: r.id, name: r.name, parentId: r.parent_id ?? null, createdAt: r.created_at, aiExcluded: r.ai_excluded === 1 }))
   }
 
   async function folderCreate(name: string, parentId: string | null = null) {
@@ -403,6 +405,20 @@ export function createNotesService(ctx: ServiceContext) {
   }
 
   // Pin/unpin a note — pinned notes sort to the top of NotesList.tsx.
+  /** Excludes a note from AI (or includes it again). Synced like any other note field. */
+  async function setAiExcluded(noteId: string, excluded: boolean) {
+    await db().run('UPDATE notes SET ai_excluded = ? WHERE id = ?', [excluded ? 1 : 0, noteId])
+    ctx.events.emit('data:changed', { entity: 'note', id: noteId, op: 'upsert' })
+    return { success: true }
+  }
+
+  /** Excludes a folder — and everything inside it — from AI. */
+  async function folderSetAiExcluded(folderId: string, excluded: boolean) {
+    await db().run('UPDATE note_folders SET ai_excluded = ? WHERE id = ?', [excluded ? 1 : 0, folderId])
+    ctx.events.emit('data:changed', { entity: 'note_folder', id: folderId, op: 'upsert' })
+    return { success: true }
+  }
+
   async function setPinned(noteId: string, pinned: boolean) {
     await db().run('UPDATE notes SET pinned = ? WHERE id = ?', [pinned ? 1 : 0, noteId])
     ctx.events.emit('data:changed', { entity: 'note', id: noteId, op: 'upsert' })
@@ -743,7 +759,7 @@ export function createNotesService(ctx: ServiceContext) {
   return {
     create, update, listIdioms, delete: del, restore, listTrash, purgeTrashItem, emptyTrash,
     folderList, folderCreate, folderRename, folderDelete, folderDeleteDeep, folderSetParent,
-    setFolder, setPinned, deleteAll, getAll, getByVerse, getOne, search, deleteByTag, countTagRefs,
+    setFolder, setPinned, setAiExcluded, folderSetAiExcluded, deleteAll, getAll, getByVerse, getOne, search, deleteByTag, countTagRefs,
     getByChapter, getChapterCounts, getDailyDates,
     createVersion, getVersions, restoreVersion,
     getCollapsedHeadings, setHeadingCollapsed, getCollapsedThreads, setThreadCollapsed,

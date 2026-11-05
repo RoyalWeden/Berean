@@ -143,3 +143,63 @@
 .chat-ai-row:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: -2px; }
 .chat-ai-rows { display: flex; flex-direction: column; gap: 4px; }
 .chat-strongs-lemma { font-family: var(--font-lemma, serif); font-size: 1.15em; line-height: 1.1; }
+
+/* Word-by-word Strong's table (ResearchResults.tsx). A real <table> on wide surfaces; each row
+   stacks into a labelled block on narrow ones (iPhone, a slim panel) so nothing scrolls sideways. */
+.chat-wordtables { display: flex; flex-direction: column; gap: 10px; container-type: inline-size; }
+.chat-wordtable-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; margin-bottom: 4px; }
+.chat-wordtable-grid { width: 100%; border-collapse: collapse; }
+.chat-wordtable-grid th { text-align: left; font-weight: 600; color: rgb(var(--color-text-muted)); padding: 3px 6px; border-bottom: 1px solid var(--color-separator); }
+.chat-wordtable-grid td { padding: 3px 6px; vertical-align: top; border-bottom: 1px solid var(--color-separator); }
+.chat-wordtable-grid tr.is-untagged td { color: rgb(var(--color-text-muted)); }
+.chat-wordtable-id { border: 0; background: none; padding: 0; margin-right: 4px; font: inherit; font-weight: 600; color: rgb(var(--color-accent)); cursor: pointer; }
+.chat-wordtable-id:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 1px; border-radius: 4px; }
+@container (max-width: 420px) {
+  .chat-wordtable-grid thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .chat-wordtable-grid tr { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; padding: 4px 0; border-bottom: 1px solid var(--color-separator); }
+  .chat-wordtable-grid td { display: contents; border: 0; }
+  .chat-wordtable-grid td::before { content: attr(data-label); color: rgb(var(--color-text-muted)); }
+}
+.chat-limitations { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
+
+/* One-time mode notice under the composer accessory row (ChatComposer). */
+.chat-mode-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 2px 4px 0; }
+.chat-mode-notice-action { border: 0; background: none; padding: 0; font: inherit; color: rgb(var(--color-accent)); cursor: pointer; }
+.chat-mode-notice-action:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 1px; border-radius: 4px; }
+
+/* "Explore interpretations" under a Commentary-off reply that was asked for interpretation. */
+.chat-explore-action { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; padding: 2px 8px; border: 0; border-radius: 999px; font: inherit; color: rgb(var(--color-accent)); background: rgb(var(--color-accent) / 0.1); cursor: pointer; }
+@media (hover: hover) { .chat-explore-action:hover { background: rgb(var(--color-accent) / 0.16); } }
+.chat-explore-action:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 1px; }
+
+/* Collection label on a non-canonical passage (decision 9). A badge, never clickable. */
+.chat-collection-badge, .chat-link-badge { padding: 0 6px; border-radius: 999px; color: rgb(var(--color-text-secondary)); background: rgb(var(--color-text-primary) / 0.07); line-height: 16px; }
+
+/* A study-profile display name in Berean's own prose (studyProfile.ts aliasSegments) — marked so
+   it is never mistaken for source text; the tooltip gives the original wording. */
+.chat-alias { text-decoration: underline dotted rgb(var(--color-text-muted)); text-underline-offset: 2px; }
+
+/* Strong's comparison (ResearchResults.tsx): columns side by side when there is room, stacked on
+   a phone or slim panel. Flat content, separated by hairlines — no nested cards. */
+.chat-compare { display: flex; flex-direction: column; gap: 6px; container-type: inline-size; }
+.chat-compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; }
+.chat-compare-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--color-separator); }
+.chat-compare-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; border: 0; background: none; padding: 0; font: inherit; text-align: left; cursor: pointer; }
+.chat-compare-head:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); outline-offset: 2px; border-radius: 4px; }
+
+/* Typed research outcome (AiReplyBody ResearchNotice): a quiet status block, not an error toast. */
+.chat-notice { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; background: rgb(var(--color-text-primary) / 0.04); }
+
+/* Occurrences explorer — per-book tagged-verse counts under a Strong's row. */
+.chat-occ { display: flex; flex-direction: column; gap: 4px; }
+.chat-occ-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; max-height: 240px; overflow-y: auto; }
+.chat-occ-row {
+  display: grid; grid-template-columns: minmax(7rem, auto) 1fr 2.5rem; align-items: center; gap: 8px;
+  width: 100%; padding: 3px 6px; border-radius: 6px; text-align: left; color: rgb(var(--color-text-primary));
+}
+.chat-occ-row:hover { background: rgb(var(--color-text-primary) / 0.05); }
+.chat-occ-row:focus-visible { outline: 2px solid rgb(var(--color-accent) / 0.6); }
+.chat-occ-bar { height: 4px; border-radius: 2px; background: rgb(var(--color-text-primary) / 0.08); overflow: hidden; }
+.chat-occ-bar > span { display: block; height: 100%; background: rgb(var(--color-accent) / 0.7); }
+.chat-occ-n { text-align: right; font-variant-numeric: tabular-nums; color: rgb(var(--color-text-secondary)); }
+.chat-link-badge { flex-shrink: 0; margin-right: 2px; }

@@ -25,7 +25,7 @@ describe('bereanMigrations (shared runner)', () => {
     const versions = BEREAN_MIGRATIONS.map((m) => m.version)
     expect(versions[0]).toBe(1)
     expect(versions).not.toContain(18)
-    expect(BEREAN_SCHEMA_VERSION).toBe(48)
+    expect(BEREAN_SCHEMA_VERSION).toBe(49)
     // strictly increasing
     for (let i = 1; i < versions.length; i++) expect(versions[i]).toBeGreaterThan(versions[i - 1])
   })
@@ -34,7 +34,7 @@ describe('bereanMigrations (shared runner)', () => {
     const db = memoryDb()
     const applied = await runMigrations(db)
     expect(applied.length).toBe(BEREAN_MIGRATIONS.length)
-    expect(await currentSchemaVersion(db)).toBe(48)
+    expect(await currentSchemaVersion(db)).toBe(49)
     const names = await tableNames(db)
     for (const t of EXPECTED_TABLES) expect(names, `missing table ${t}`).toContain(t)
     // v1 seeded defaults are present and JSON-encoded
@@ -67,11 +67,23 @@ describe('bereanMigrations (shared runner)', () => {
     expect((await db.all<{ name: string }>('PRAGMA table_info(pdf_bookmarks)')).map((c) => c.name)).toEqual(['id', 'pdf_id', 'page', 'label', 'created_at', 'updated_at'])
   })
 
+  it('v49 adds AI exclusion flags (default 0, existing notes kept) and the study-profile / saved-context tables', async () => {
+    const db = memoryDb()
+    await runMigrations(db, BEREAN_MIGRATIONS.filter((m) => m.version <= 48))
+    await db.run("INSERT INTO notes (id, title, content, created_at, updated_at) VALUES ('n1', 'Kept', 'body', 1, 1)")
+    await db.run("INSERT INTO note_folders (id, name, parent_id, created_at) VALUES ('f1', 'Private', NULL, 1)")
+    await runMigrations(db)
+    expect(await db.get('SELECT title, ai_excluded FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Kept', ai_excluded: 0 })
+    expect(await db.get('SELECT ai_excluded FROM note_folders WHERE id = ?', ['f1'])).toEqual({ ai_excluded: 0 })
+    expect((await db.all<{ name: string }>('PRAGMA table_info(study_profiles)')).map((c) => c.name)).toEqual(['id', 'name', 'config', 'created_at', 'updated_at', 'deleted_at'])
+    expect((await db.all<{ name: string }>('PRAGMA table_info(ai_saved_contexts)')).map((c) => c.name)).toEqual(['id', 'title', 'content', 'created_at', 'updated_at', 'deleted_at'])
+  })
+
   it('is idempotent: a second run applies nothing', async () => {
     const db = memoryDb()
     await runMigrations(db)
     expect(await runMigrations(db)).toEqual([])
-    expect(await currentSchemaVersion(db)).toBe(48)
+    expect(await currentSchemaVersion(db)).toBe(49)
   })
 
   it('upgrades a database left at an intermediate version', async () => {
@@ -82,7 +94,7 @@ describe('bereanMigrations (shared runner)', () => {
     await db.run("INSERT INTO notes (id, title, content, created_at, updated_at, tags) VALUES ('n1', 'Old', 'kept', 1, 1, '[]')")
     const applied = await runMigrations(db)
     expect(applied[0]).toBe(21)
-    expect(await currentSchemaVersion(db)).toBe(48)
+    expect(await currentSchemaVersion(db)).toBe(49)
     expect(await db.get('SELECT title FROM notes WHERE id = ?', ['n1'])).toEqual({ title: 'Old' })
   })
 

@@ -1,5 +1,5 @@
 import { net } from 'electron'
-import { getEmbeddingsDb } from './db/embeddingsDb'
+import { getEmbeddingsDb, embeddingsIndexMeta } from './db/embeddingsDb'
 import { dequantizeEmbedding, cosineSimilarity } from './embeddingQuantize'
 
 // Query-time semantic (embedding) retrieval — the runtime counterpart to
@@ -33,11 +33,15 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
  *  running, model not pulled, network hiccup, timeout) — every caller in this file treats semantic
  *  search as best-effort and catches around it (see gatherSemanticCandidates in aiLookup.ts), the
  *  same trust model runOllamaJson/runOllamaText already use for the rest of AI Lookup. */
-export async function embedQuery(text: string, model = EMBEDDING_MODEL, timeoutMs = 10_000): Promise<Float32Array> {
+export async function embedQuery(text: string, model?: string, timeoutMs = 10_000): Promise<Float32Array> {
+  // The index decides the model (and query prefix) — a query embedded with any other model lives
+  // in an unrelated vector space.
+  const meta = embeddingsIndexMeta()
+  const useModel = model ?? meta?.model ?? EMBEDDING_MODEL
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/embed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: text }),
+    body: JSON.stringify({ model: useModel, input: `${meta?.queryPrefix ?? ''}${text}` }),
   }, timeoutMs)
   if (!res.ok) throw new Error(`Ollama embed request failed: ${res.status}`)
   const data = await res.json() as { embeddings: number[][] }

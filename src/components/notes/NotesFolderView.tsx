@@ -8,7 +8,7 @@ import {
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, FolderInput, FileType2, FolderTree,
   RotateCcw, AlertTriangle,
-  MoreHorizontal,
+  MoreHorizontal, EyeOff,
 } from 'lucide-react'
 import type { Note, NoteFolder, NoteStatus, PdfDoc } from '@/types'
 import NoteContextMenu, { orderedFolders, type SessionInfo } from './NoteContextMenu'
@@ -74,6 +74,8 @@ interface Props {
   onDeleteFolder: (id: string) => void
   onDeleteFolderDeep: (id: string) => void
   onSetFolderParent: (id: string, parentId: string | null) => void
+  /** Exclude a folder — and everything inside it — from AI (spec §4.4). */
+  onSetFolderAiExcluded?: (id: string, excluded: boolean) => void
   // Note actions — parity with list-view context menu
   onRenameNote?: (id: string, title: string) => void
   onOpenNewTab?: (note: Note) => void
@@ -118,7 +120,7 @@ function TreeSection({ children }: { children: React.ReactNode }) {
 export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onPreview, onFolderSelect, activeFolderId = null, onDelete, onSetNoteFolder,
-  onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, autoRenameFolderId, onAutoRenameHandled, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
+  onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, autoRenameFolderId, onAutoRenameHandled, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent, onSetFolderAiExcluded,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
@@ -1175,6 +1177,14 @@ export default function NotesFolderView({
                     <div className="px-3 py-1.5 text-caption text-text-muted italic">No other folders</div>
                   )}
                 </div>
+              )}
+              {onSetFolderAiExcluded && (
+                <>
+                  <MenuSeparator />
+                  <MenuItem icon={EyeOff} label="Exclude from AI" active={!!folderMenu.folder.aiExcluded}
+                    description="Applies to every note inside"
+                    onClick={() => { onSetFolderAiExcluded(folderMenu.folder.id, !folderMenu.folder.aiExcluded); setFolderMenu(null) }} />
+                </>
               )}
               <MenuSeparator />
               <MenuItem

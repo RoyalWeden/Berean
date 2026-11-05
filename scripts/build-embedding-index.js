@@ -59,11 +59,15 @@ const path = require('path')
 const fs = require('fs')
 
 const OLLAMA_BASE = 'http://localhost:11434'
-const MODEL = 'nomic-embed-text'
+// Overridable for the Phase 3 semantic-retrieval study (docs/ai-upgrade): BEREAN_EMBED_MODEL picks
+// the Ollama embedding model, BEREAN_EMBED_DB the output file, BEREAN_EMBED_DOC_PREFIX an optional
+// task prefix some models expect (nomic: "search_document: ").
+const MODEL = process.env.BEREAN_EMBED_MODEL || 'nomic-embed-text'
+const DOC_PREFIX = process.env.BEREAN_EMBED_DOC_PREFIX || ''
 const BATCH_SIZE = 64 // Ollama /api/embed accepts an array `input` — batching cuts round-trip overhead a lot vs one HTTP call per verse.
 const DATA_DIR = path.join(__dirname, '../data')
 const OUT_DIR = path.join(__dirname, '../electron/db-generated')
-const OUT_PATH = path.join(OUT_DIR, 'verse_embeddings.db')
+const OUT_PATH = process.env.BEREAN_EMBED_DB || path.join(OUT_DIR, 'verse_embeddings.db')
 
 // Mirrors electron/db/bible.ts's TEXT_FILES — deliberately duplicated rather than imported (this
 // script runs under plain Node with require(), not through electron-vite's TS/alias pipeline, and
@@ -93,7 +97,7 @@ async function embedBatch(texts) {
   const res = await fetch(`${OLLAMA_BASE}/api/embed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, input: texts }),
+    body: JSON.stringify({ model: MODEL, input: DOC_PREFIX ? texts.map((t) => DOC_PREFIX + t) : texts }),
   })
   if (!res.ok) throw new Error(`Ollama embed failed: ${res.status} ${await res.text()}`)
   const data = await res.json()
@@ -116,6 +120,8 @@ function openOutputDb() {
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
   `)
   db.exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('model', '${MODEL}')`)
+  db.exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('doc_prefix', '${DOC_PREFIX.replace(/'/g, "''")}')`)
+  db.exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('query_prefix', '${(process.env.BEREAN_EMBED_QUERY_PREFIX || '').replace(/'/g, "''")}')`)
   return db
 }
 

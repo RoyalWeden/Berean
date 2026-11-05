@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { ChevronDown, Eye, EyeOff, MessageCircle, Pin, SquarePen, Inbox } from 'lucide-react'
 import { Popover, PopoverTrigger, PopoverSurface, MenuItem, MenuSeparator, SearchField, cx } from '@/components/ui'
+import { COLLECTIONS, type CollectionId } from '@/lib/research/collections'
 import type { AiLookupChatSummary } from '@/types/electron'
-import { CHAT_AI_MODES, chatModeInfo, type ChatAiMode } from './chatModes'
+import { CHAT_MODE_TOGGLES, chatModeSummary, type ChatModeFlags } from './chatModes'
 import { formatHistoryTime } from './ChatHistoryList'
 import { UNFILED_CHAT_TITLE } from './chatModel'
 
@@ -30,12 +31,22 @@ function useReportedOpen(trigger: RefObject<HTMLElement | null>) {
 
 // ─── Mode ─────────────────────────────────────────────────────────────────────
 
-/** "Commentary ▾" in the composer's accessory row (Ask Berean armed): the mode for this send. */
-export function ChatModeMenu({ mode, onChange, disabled }: { mode: ChatAiMode; onChange: (m: ChatAiMode) => void; disabled?: boolean }) {
+/** The composer's mode chip (Ask Berean armed): Commentary and Deep Search as two independent
+ *  checkable items — every combination is valid (spec decision 13). The menu stays open while
+ *  toggling so both can be set in one visit. */
+export function ChatModeMenu({ flags, onChange, disabled, collections, onCollectionsChange, profiles, activeProfileId, onProfileChange, savedContexts, activeSavedContextId, onSavedContextChange }: {
+  flags: ChatModeFlags; onChange: (f: ChatModeFlags) => void; disabled?: boolean
+  /** Collections searched by default (decision 9) — a scope typed in the question still wins. */
+  collections?: CollectionId[]; onCollectionsChange?: (c: CollectionId[]) => void
+  /** Study profiles (spec §7.1) — switching applies the profile's scope and default modes. */
+  profiles?: Array<{ id: string; name: string }>; activeProfileId?: string; onProfileChange?: (id: string) => void
+  /** Saved research to reuse in the next request (spec §7.2). */
+  savedContexts?: Array<{ id: string; title: string }>; activeSavedContextId?: string | null; onSavedContextChange?: (id: string | null) => void
+}) {
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen, offset] = useReportedOpen(triggerRef)
-  const info = chatModeInfo(mode)
-  const Icon = info.icon
+  const summary = chatModeSummary(flags)
+  const Icon = summary.icon
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -43,23 +54,54 @@ export function ChatModeMenu({ mode, onChange, disabled }: { mode: ChatAiMode; o
           ref={triggerRef}
           type="button"
           disabled={disabled}
-          aria-label={`Ask Berean mode: ${info.label}`}
+          aria-label={`Ask Berean mode: ${summary.label}`}
           aria-haspopup="menu"
           onMouseDown={(e) => e.preventDefault()}
           className="chat-acc-chip is-accent no-drag focus-ring"
         >
           <Icon size={12} strokeWidth={2} aria-hidden />
-          <span>{info.label}</span>
+          <span>{summary.label}</span>
           <ChevronDown size={10} strokeWidth={2.25} aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverSurface side="top" sideOffset={offset} align="end" role="menu" aria-label="Ask Berean mode" innerClassName="p-1 w-[248px]" onEscapeKeyDown={(e) => e.stopPropagation()}>
-        {CHAT_AI_MODES.map((m, i) => (
-          <div key={m.id}>
-            {i === 2 && <MenuSeparator />}
-            <MenuItem icon={m.icon} label={m.label} description={m.hint} active={mode === m.id} onClick={() => { onChange(m.id); setOpen(false) }} />
-          </div>
+      <PopoverSurface side="top" sideOffset={offset} align="end" role="menu" aria-label="Ask Berean mode" innerClassName="p-1 w-[268px]" onEscapeKeyDown={(e) => e.stopPropagation()}>
+        {CHAT_MODE_TOGGLES.map((t) => (
+          <MenuItem key={t.key} role="menuitemcheckbox" icon={t.icon} label={t.label} description={t.hint} active={flags[t.key]}
+            onClick={() => onChange({ ...flags, [t.key]: !flags[t.key] })} />
         ))}
+        {collections && onCollectionsChange && (
+          <>
+            <MenuSeparator />
+            <div className="px-2 pt-1 pb-0.5 text-caption2 text-text-muted" role="presentation">Search in</div>
+            {COLLECTIONS.map((c) => {
+              const on = collections.includes(c.id)
+              return (
+                <MenuItem key={c.id} role="menuitemcheckbox" label={c.label} active={on}
+                  disabled={on && collections.length === 1}
+                  onClick={() => onCollectionsChange(on ? collections.filter((x) => x !== c.id) : [...collections, c.id])} />
+              )
+            })}
+          </>
+        )}
+        {profiles && profiles.length > 1 && onProfileChange && (
+          <>
+            <MenuSeparator />
+            <div className="px-2 pt-1 pb-0.5 text-caption2 text-text-muted" role="presentation">Study profile</div>
+            {profiles.map((p) => (
+              <MenuItem key={p.id} label={p.name} active={p.id === activeProfileId} onClick={() => { onProfileChange(p.id); setOpen(false) }} />
+            ))}
+          </>
+        )}
+        {savedContexts && savedContexts.length > 0 && onSavedContextChange && (
+          <>
+            <MenuSeparator />
+            <div className="px-2 pt-1 pb-0.5 text-caption2 text-text-muted" role="presentation">Use saved research</div>
+            {savedContexts.map((c) => (
+              <MenuItem key={c.id} role="menuitemcheckbox" label={c.title} active={c.id === activeSavedContextId}
+                onClick={() => { onSavedContextChange(c.id === activeSavedContextId ? null : c.id); setOpen(false) }} />
+            ))}
+          </>
+        )}
       </PopoverSurface>
     </Popover>
   )
@@ -72,32 +114,36 @@ export interface TabContextState {
   label: string | null
   /** The toggle is on. */
   on: boolean
-  /** The message itself mentions the tab ("this chapter") — it is included regardless. */
+  /** The message itself mentions the tab ("this chapter") — it is included unless dismissed. */
   mentioned: boolean
+  /** The message mentions the tab, so the chip can dismiss/restore that automatic inclusion. */
+  dismissible?: boolean
 }
 
 /** Include This Tab: a separate toggle (context, not a mode). Shows what it will send. */
-export function ChatContextToggle({ state, onToggle }: { state: TabContextState; onToggle: () => void }) {
+export function ChatContextToggle({ state, onToggle, onDismissMention }: { state: TabContextState; onToggle: () => void; onDismissMention?: () => void }) {
   const usable = !!state.label
   const included = usable && (state.on || state.mentioned)
+  const autoIncluded = state.mentioned && !state.on
+  const canDismiss = usable && !state.on && !!state.dismissible && !!onDismissMention
   const title = !usable
     ? 'This tab has nothing Ask Berean can read'
-    : state.mentioned && !state.on
-      ? `Included because your message mentions it: ${state.label}`
-      : included ? `Ask Berean will read ${state.label}` : `Include ${state.label} as context`
+    : autoIncluded
+      ? `Using this tab because your message mentions it: ${state.label} — click to not send it`
+      : canDismiss ? `Not sending ${state.label} — click to use it` : included ? `Ask Berean will read ${state.label}` : `Include ${state.label} as context`
   return (
     <button
       type="button"
       aria-pressed={included}
-      aria-disabled={!usable || (state.mentioned && !state.on) || undefined}
+      aria-disabled={!usable || undefined}
       title={title}
       aria-label={title}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => { if (usable && !(state.mentioned && !state.on)) onToggle() }}
+      onClick={() => { if (!usable) return; if (canDismiss) onDismissMention!(); else onToggle() }}
       className={cx('chat-acc-chip no-drag focus-ring', included ? 'is-on' : 'is-off', !usable && 'is-unavailable')}
     >
       {included ? <Eye size={12} strokeWidth={2} aria-hidden /> : <EyeOff size={12} strokeWidth={2} aria-hidden />}
-      <span className="truncate max-w-[140px]">{included ? state.label : 'This Tab'}</span>
+      <span className="truncate max-w-[140px]">{included ? (autoIncluded ? `Using ${state.label}` : state.label) : 'This Tab'}</span>
     </button>
   )
 }

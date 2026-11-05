@@ -1,7 +1,7 @@
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { MoreHorizontal, Undo2, Redo2, Check, Share, Pin, PinOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Undo2, Redo2, Check, Share, Pin, PinOff, Eye, EyeOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import { finalizeLeftNote } from '@/lib/notes/finalizeNote'
@@ -227,6 +227,7 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
     if (!n) return []
     return [
       { id: 'pin', label: n.pinned ? 'Unpin' : 'Pin', icon: n.pinned ? PinOff : Pin, onSelect: () => { window.notes.setNotePinned(n.id, !n.pinned).then(() => { replace({ ...n, pinned: !n.pinned }); bumpNoteToken() }) } },
+      { id: 'ai-exclude', label: n.aiExcluded ? 'Include in AI' : 'Exclude from AI', icon: n.aiExcluded ? Eye : EyeOff, onSelect: () => { window.notes.setNoteAiExcluded(n.id, !n.aiExcluded).then(() => { replace({ ...n, aiExcluded: !n.aiExcluded }); bumpNoteToken() }) } },
       // Status, icon and folder open INSIDE the caret ("‹ <note>") — T23-006.
       { id: 'status', label: 'Status', icon: CircleDot, value: n.status ? (NOTE_STATUSES.find((s) => s.id === n.status)?.label ?? n.status) : 'None', onSelect: () => {},
         view: () => ({ title: 'Status', render: (api: SheetApi) => <ChoiceList api={api} value={latest.current?.status ?? 'none'} options={[{ id: 'none', label: 'No status' }, ...NOTE_STATUSES.map((s) => ({ id: s.id, label: s.label }))]} onSelect={(id) => persist({ status: id === 'none' ? null : (id as NonNullable<Note['status']>) })} /> }) },

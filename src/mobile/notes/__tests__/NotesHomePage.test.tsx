@@ -92,7 +92,7 @@ describe('Folders home', () => {
     click(byText('button', 'Edit'))
     expect(container.querySelector('[aria-label="All Notes actions"]')).toBeNull()
     click(container.querySelector('[aria-label="Sermons actions"]'))
-    expect(actionSheet.mock.calls[0][2].map((a: { label: string }) => a.label)).toEqual(['Rename…', 'New Subfolder…', 'Move…', 'Delete Folder…'])
+    expect(actionSheet.mock.calls[0][2].map((a: { label: string }) => a.label)).toEqual(['Rename…', 'New Subfolder…', 'Move…', 'Exclude from AI', 'Delete Folder…'])
   })
 })
 

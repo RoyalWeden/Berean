@@ -48,6 +48,7 @@ export function noteToMarkdownFile(note: Note): string {
     ...(links.length ? ['links:', ...links.map((l) => `  - "[[${l}]]"`)] : []),
     `berean_id: ${note.id}`,
     note.folderId ? `folder_id: ${note.folderId}` : null,
+    note.aiExcluded ? 'ai_excluded: true' : null,
     '---',
   ].filter((l): l is string => l !== null)
   return lines.join('\n') + '\n\n' + (note.content ?? '')
@@ -64,6 +65,8 @@ export interface ParsedNoteFile {
   icon: string | null
   status: string | null
   folderId: string | null
+  /** The file says the note is excluded from AI (only ever set by import, never cleared). */
+  aiExcluded?: boolean
 }
 
 /** Parses a note file written by `noteToMarkdownFile` / the vault; plain Markdown (no
@@ -96,6 +99,7 @@ export function parseNoteMarkdownFile(text: string, fallbackTitle = 'Imported no
   out.icon = fm.icon || null
   out.status = fm.status || null
   out.folderId = fm.folder_id || null
+  if (fm.ai_excluded === 'true') out.aiExcluded = true
   return out
 }
 

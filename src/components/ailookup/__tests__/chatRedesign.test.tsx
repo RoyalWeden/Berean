@@ -9,7 +9,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { ChatComposer } from '../ChatComposer'
 import { filterConversations, ChatConversationPicker } from '../ChatComposerControls'
-import { chatModeFlags, chatModeOf } from '../chatModes'
+import { chatModeSummary, DEFAULT_CHAT_MODE } from '../chatModes'
 import { collectFindMatches } from '../chatFind'
 import { useAppStore } from '@/store'
 import type { AiLookupChatSummary } from '@/types/electron'
@@ -26,16 +26,13 @@ beforeEach(() => {
 afterEach(() => { if (root) act(() => root!.unmount()); host?.remove(); root = null; document.body.innerHTML = '' })
 const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)) })
 
-describe('Ask Berean modes (the request switches are preserved)', () => {
-  it('maps the two stored switches to a mode and back', () => {
-    expect(chatModeOf(true, false)).toBe('commentary')
-    expect(chatModeOf(true, true)).toBe('deep')
-    expect(chatModeOf(false, false)).toBe('passages')
-    expect(chatModeOf(false, true)).toBe('deep') // an old combination still reads as Deep Search
-    for (const m of ['commentary', 'deep', 'passages'] as const) {
-      const f = chatModeFlags(m)
-      expect(chatModeOf(f.commentary, f.deepSearch)).toBe(m)
-    }
+describe('Ask Berean modes: Commentary and Deep Search are independent (spec decision 13)', () => {
+  it('labels all four combinations and defaults to research only', () => {
+    expect(DEFAULT_CHAT_MODE).toEqual({ commentary: false, deepSearch: false })
+    expect(chatModeSummary({ commentary: false, deepSearch: false }).label).toBe('Research')
+    expect(chatModeSummary({ commentary: true, deepSearch: false }).label).toBe('Commentary')
+    expect(chatModeSummary({ commentary: false, deepSearch: true }).label).toBe('Deep Search')
+    expect(chatModeSummary({ commentary: true, deepSearch: true }).label).toBe('Deep Search · Commentary')
   })
 })
 
@@ -59,28 +56,36 @@ describe('composer: mode and This Tab are inline, the old options panel is gone'
     expect(h.textContent).not.toContain('Includes This Tab')
   })
 
-  it('arming shows the mode and This Tab; the mode menu switches what is sent', async () => {
+  it('arming shows the mode and This Tab; each switch toggles independently and is sent as set', async () => {
     const { onSend, field } = mountComposer()
     arm()
     expect(button(/^Ask Berean mode: Commentary$/)).toBeDefined()
     act(() => button(/^Ask Berean mode/)!.click())
-    const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitemradio"]')]
-    expect(items.map((i) => i.textContent?.split(/(?=[A-Z][a-z]+ [a-z])/)[0])).toHaveLength(3)
-    expect(items.find((i) => i.getAttribute('aria-checked') === 'true')!.textContent).toContain('Commentary')
-    act(() => items.find((i) => i.textContent?.startsWith('Deep Search'))!.click())
+    const items = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitemcheckbox"]')]
+    // the two mode switches, then the "Search in" collections (decision 9)
+    expect(items().map((i) => i.textContent?.split(/(?=[A-Z][a-z]+ ·)|(?=Explanations|Researches)/)[0])).toEqual(expect.arrayContaining(['Commentary', 'Deep Search']))
+    expect(items().some((i) => i.textContent?.startsWith('Apocrypha / Deuterocanon'))).toBe(true)
+    const item = (label: string) => items().find((i) => i.textContent?.startsWith(label))!
+    expect(item('Commentary').getAttribute('aria-checked')).toBe('true')
+    expect(item('Deep Search').getAttribute('aria-checked')).toBe('false')
+    act(() => item('Deep Search').click())
     expect(useAppStore.getState().aiLookupAgenticOn).toBe(true)
     expect(useAppStore.getState().aiLookupCommentaryOn).toBe(true)
+    // the menu stays open: Commentary can be switched off without Deep Search changing
+    act(() => item('Commentary').click())
+    expect(useAppStore.getState().aiLookupCommentaryOn).toBe(false)
+    expect(useAppStore.getState().aiLookupAgenticOn).toBe(true)
     typeText(field(), 'where is grace taught')
     press(field(), 'Enter')
     await settle()
-    expect(onSend).toHaveBeenLastCalledWith('where is grace taught', expect.objectContaining({ ai: { commentary: true, deepSearch: true, tabContext: false } }))
+    expect(onSend).toHaveBeenLastCalledWith('where is grace taught', expect.objectContaining({ ai: { commentary: false, deepSearch: true, tabContext: false } }))
   })
 
-  it('Passages Only sends commentary off (the old "Commentary unchecked" answer is still reachable)', async () => {
+  it('research only (both off) sends commentary off and Deep Search off', async () => {
+    useAppStore.setState({ aiLookupCommentaryOn: false, aiLookupAgenticOn: false })
     const { onSend, field } = mountComposer()
     arm()
-    act(() => button(/^Ask Berean mode/)!.click())
-    act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitemradio"]')].find((i) => i.textContent?.startsWith('Passages Only'))!.click())
+    expect(button(/^Ask Berean mode: Research$/)).toBeDefined()
     typeText(field(), 'sabbath')
     press(field(), 'Enter')
     await settle()
@@ -111,12 +116,18 @@ describe('composer: mode and This Tab are inline, the old options panel is gone'
     expect(useAppStore.getState().aiLookupUseTabContext).toBe(false)
   })
 
-  it('"this chapter" in the message shows the tab as included (the existing mention rule)', () => {
-    const { field } = mountComposer()
+  it('"this chapter" shows a visible "Using …" chip that can be dismissed for this send (spec §5.4)', async () => {
+    const { onSend, field } = mountComposer()
     arm()
     typeText(field(), 'summarize this chapter')
-    const t = button(/Included because your message mentions it/)!
-    expect(t.getAttribute('aria-pressed')).toBe('true')
+    const chip = () => button(/Using this tab because your message mentions it|Not sending John 3/)!
+    expect(chip().getAttribute('aria-pressed')).toBe('true')
+    expect(chip().textContent).toBe('Using John 3')
+    act(() => chip().click())
+    expect(chip().getAttribute('aria-pressed')).toBe('false')
+    press(field(), 'Enter')
+    await settle()
+    expect(onSend).toHaveBeenLastCalledWith('summarize this chapter', expect.objectContaining({ ai: expect.objectContaining({ tabContext: false, tabMentionDismissed: true }) }))
   })
 
   it('a plain message (not armed) never carries AI options', async () => {

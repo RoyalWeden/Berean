@@ -2,6 +2,8 @@ import { readDraft } from './composer/chatDrafts'
 import { readReplyTarget, writeReplyTarget, onReplyTargetsChanged } from './composer/chatReplies'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AiLookupChat, AiLookupChatDaySummary, AiLookupChatSummary, AiLookupResponse, AiLookupTabContextRef, AiLookupChatAiMode } from '@/types/electron'
+import { replyTextFor } from '@/lib/research/replyText'
+import { useAppStore } from '@/store'
 import {
   type ChatMsg, type TranscriptItem, UNFILED_CHAT_ID, UNFILED_CHAT_TITLE, cleanFolder, newMessageId, normalizeForUi, aiHistoryFor, mergeServerMessages,
   mergeStreamItems, mentionsCurrentTab, deriveChatTitle, pickNewMessageTarget,
@@ -29,7 +31,11 @@ import {
 export type ChatView = { kind: 'conversation' } | { kind: 'all' } | { kind: 'day'; dayKey: string }
 
 export interface ChatSendOptions {
-  ai?: { commentary: boolean; deepSearch: boolean; tabContext: boolean }
+  ai?: { commentary: boolean; deepSearch: boolean; tabContext: boolean
+    /** The user dismissed the "this chapter" auto-attach chip for this send (spec §5.4). */
+    tabMentionDismissed?: boolean
+    /** Saved research the user chose to reuse for this send (spec §7.2). */
+    savedContextId?: string }
   /** Reply to this message (defaults to the conversation's current reply target; null = none). */
   inReplyTo?: string | null
   wordReplacerRules?: Array<{ queries: string[]; replacement: string }>
@@ -44,6 +50,11 @@ function messageFieldsFrom(res: AiLookupResponse): Partial<ChatMsg> {
     results: res.results, visibleCount: res.visibleCount, keywords: res.keywords, related: res.related,
     relatedNote: res.relatedNote, summary: res.summary, strongsCard: res.strongsCard, notes: res.notes,
     notesAreThePrimaryAnswer: res.notesAreThePrimaryAnswer, videos: res.videos,
+    ...(res.research ? { research: res.research } : {}),
+    ...(res.errorCode && res.errorCode !== 'NO_MATCHES' ? { errorCode: res.errorCode, partial: res.partial } : {}),
+    ...(res.interpretationOffered ? { interpretationOffered: true } : {}),
+    ...(res.followUpReason ? { followUpReason: res.followUpReason } : {}),
+    ...(res.premise ? { premise: res.premise } : {}),
   }
 }
 
@@ -328,7 +339,7 @@ export function useChatController(opts: {
     const aiMode: AiLookupChatAiMode = {
       commentary: sendOpts.ai.commentary,
       deepSearch: sendOpts.ai.deepSearch,
-      tabContext: sendOpts.ai.tabContext || mentionsCurrentTab(content),
+      tabContext: sendOpts.ai.tabContext || (!sendOpts.ai.tabMentionDismissed && mentionsCurrentTab(content)),
     }
     const request: ChatMsg = { id: newMessageId(), role: 'user', kind: 'ai-request', content, createdAt: now, aiMode, ...(inReplyTo ? { inReplyTo } : {}) }
     clearReply()
@@ -350,20 +361,23 @@ export function useChatController(opts: {
         wordReplacerRules: sendOpts.wordReplacerRules?.length ? sendOpts.wordReplacerRules : undefined,
         history,
         tabContext,
+        collections: useAppStore.getState().aiLookupCollections,
+        profileId: useAppStore.getState().aiLookupProfileId,
+        ...(sendOpts.ai.savedContextId ? { savedContextId: sendOpts.ai.savedContextId } : {}),
       })
       // "Nothing found" only when NOTHING came back — a Strong's card, notes, videos or a summary
       // line are complete answers on their own even with no verse chips.
       const hasAnyAnswer = res.results.length > 0 || !!res.strongsCard || (res.notes?.length ?? 0) > 0 || (res.videos?.length ?? 0) > 0 || !!res.summary
+        || (res.research?.candidates.length ?? 0) > 0 || (res.research?.wordTables.length ?? 0) > 0
       reply = {
         id: replyId, role: 'assistant', kind: 'ai-reply', replyTo: request.id,
-        content: res.error === 'ollama-unavailable'
-          ? "Ollama isn't running — start it on this Mac to use Ask Berean."
-          : !hasAnyAnswer ? 'No matching verses found — try rephrasing.' : '',
+        // Typed outcome (spec §9.1): a model failure is named as itself, never "no verses".
+        content: replyTextFor({ errorCode: res.errorCode, partial: res.partial, error: res.error, hasAnswer: hasAnyAnswer }, { runtimeName: 'Ollama' }),
         ...messageFieldsFrom(res),
         createdAt: new Date().toISOString(),
       }
     } catch {
-      reply = { id: replyId, role: 'assistant', kind: 'ai-reply', replyTo: request.id, content: 'Something went wrong reaching Ask Berean.', createdAt: new Date().toISOString() }
+      reply = { id: replyId, role: 'assistant', kind: 'ai-reply', replyTo: request.id, content: "Berean couldn't finish this request. Nothing was changed — try again.", createdAt: new Date().toISOString() }
     }
     if (inflightRef.current?.replyId === replyId) inflightRef.current = null
     unsavedRef.current.add(replyId)
