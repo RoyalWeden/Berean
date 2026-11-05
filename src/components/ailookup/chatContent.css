@@ -203,3 +203,15 @@
 .chat-occ-bar > span { display: block; height: 100%; background: rgb(var(--color-accent) / 0.7); }
 .chat-occ-n { text-align: right; font-variant-numeric: tabular-nums; color: rgb(var(--color-text-secondary)); }
 .chat-link-badge { flex-shrink: 0; margin-right: 2px; }
+
+/* Translation parallel / passage comparison (ComparisonView.tsx): panes side by side when the
+   container has room, stacked on a phone or slim panel. Flat panes separated by hairlines. */
+.chat-parallel { display: flex; flex-direction: column; gap: 6px; container-type: inline-size; }
+.chat-parallel-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px 14px; }
+@container (min-width: 480px) {
+  .chat-parallel-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+}
+.chat-parallel-pane { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--color-separator); }
+.chat-parallel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; }
+.chat-parallel-num { margin-right: 2px; }
+.chat-diff-word { background: none; color: inherit; text-decoration: underline dotted rgb(var(--color-accent)); text-underline-offset: 3px; }

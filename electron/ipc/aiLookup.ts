@@ -18,7 +18,7 @@ import { budgetPromptMaterial } from '../tokenBudget'
 import { parseRef, isExactBookToken, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
 import { PSEUDEPIGRAPHA_ARCHAIC_VOCAB } from './archaicVocab'
 import { gatherSemanticCandidates } from './semanticCandidates'
-import { lexicalPayload } from '../../src/platform/services/researchService'
+import { comparisonLabel, comparisonPayload, lexicalPayload } from '../../src/platform/services/researchService'
 import { parseStrongsIds } from '../../src/lib/research/strongsId'
 import { classifyModelError, isRetryable, type ResearchErrorCode } from '../../src/lib/research/errors'
 import { removeNonexistentReferences, nonexistentReferenceNote } from '../../src/lib/research/outputGuard'
@@ -2753,6 +2753,7 @@ async function withPremiseCheck(response: AiLookupResponse, question: string, op
 export function withErrorCode(response: AiLookupResponse, state: LookupState): AiLookupResponse {
   const found = response.results.length > 0 || (response.notes?.length ?? 0) > 0 || (response.videos?.length ?? 0) > 0
     || !!response.strongsCard || (response.research?.candidates.length ?? 0) > 0 || (response.research?.wordTables.length ?? 0) > 0
+    || !!response.research?.passageComparison
   if (state.modelError) return { ...response, errorCode: state.modelError, partial: found, ...(state.runtimeUnreachable ? { error: 'ollama-unavailable' } : {}) }
   if (!found && !response.errorCode) return { ...response, errorCode: 'NO_MATCHES' }
   return response
@@ -2966,6 +2967,12 @@ async function runLookupInner(
       videos: explicitVideoResults.length > 0 ? explicitVideoResults : undefined,
     }
     return await maybeAddCommentary(withExtras, question, opts, emitPartial, state)
+  }
+
+  // Translation parallels / passage comparisons: texts only, labels only — no commentary pass.
+  const compared = await services().research.answerComparison(question).catch(() => null)
+  if (compared) {
+    return { results: [], visibleCount: 0, keywords: [], related: [], research: comparisonPayload(compared), summary: comparisonLabel(compared) }
   }
 
   emit(pick(READING_MESSAGES))
