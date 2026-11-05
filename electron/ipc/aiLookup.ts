@@ -2787,14 +2787,15 @@ function withNamedVerses(question: string, candidates: AiLookupResult[]): AiLook
   for (const ref of findAllReferencesInText(question).slice(0, 3)) {
     // A whole chapter ("commentary on Psalm 1") is covered by anything from it, else its first verse.
     const verse = ref.verse ?? 1
-    const covered = candidates.some((c) => c.bookId === ref.bookId && c.chapter === ref.chapter && (ref.verse == null || (c.verse <= verse && (c.endVerse ?? c.verse) >= verse)))
-    if (covered) continue
+    const found = candidates.find((c) => c.bookId === ref.bookId && c.chapter === ref.chapter && (ref.verse == null || (c.verse <= verse && (c.endVerse ?? c.verse) >= verse)))
+    // Already found by search: it still leads. The verse asked about never sits behind matches.
+    if (found) { named.push(found); continue }
     const textId = getTranslationForBook(ref.bookId) ?? DEFAULT_TEXT_ID
     const row = queryVerse(ref.bookId, ref.chapter, verse, textId)
     if (!row) continue
     named.push({ textId, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, textId), chapter: ref.chapter, verse, text: row.text, source: 'named' })
   }
-  return named.length > 0 ? [...named, ...candidates] : candidates
+  return named.length > 0 ? [...new Set(named), ...candidates.filter((c) => !named.includes(c))] : candidates
 }
 
 /** Content words of the question, used as search keywords when no model is available. */

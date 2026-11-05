@@ -52,5 +52,10 @@ jobs:
       - name: Build desktop
         run: npm run build
 
+      - name: Launch the app
+        run: |
+          npm run rebuild
+          npm run smoke:electron
+
       - name: Build iPhone web bundle
         run: npm run ios:build:web
