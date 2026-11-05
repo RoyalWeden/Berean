@@ -12,6 +12,7 @@ import { GetVoicesView } from '../audio/GetVoicesView'
 import { DataSettingsPage } from './DataSettingsPage'
 import { ExperimentalSettingsPage } from './ExperimentalSettingsPage'
 import { WordReplacerPage } from './WordReplacerPage'
+import { AskBereanSettingsPage } from './AskBereanSettingsPage'
 import { ThemePresetPage, themePresetLabel } from './ThemePresetPage'
 import { Page, ListSection, Row } from '../primitives/Page'
 import { useNavigation } from '../navigation/NavigationStack'
@@ -52,6 +53,7 @@ function routeElement(route: SettingsRoute, back: () => void): React.ReactNode {
     case 'font-ui': return <FontPickerPage label="UI chrome" field="uiFontFamily" onBack={back} />
     case 'word-replacer': return <WordReplacerPage onBack={back} />
     case 'notes': return <NotesSettingsPage onBack={back} />
+    case 'ask-berean': return <AskBereanSettingsPage onBack={back} />
     case 'audio': return <AudioSettingsPage onBack={back} />
     case 'voices': return <Page title="Berean Voices" onBack={back}><GetVoicesView /></Page>
     case 'youtube': return <YouTubeSettingsPage onBack={back} />
@@ -215,6 +217,10 @@ export function SettingsPage({ onBack, tab }: { onBack?: () => void; tab?: Tab }
 
       <ListSection title="Notes">
         <Row title="Notes" subtitle="Reference detection, editor, print & export" chevron onClick={() => routes.open('notes')} />
+      </ListSection>
+
+      <ListSection title="Ask Berean">
+        <Row title="Ask Berean" subtitle="Study profiles, search scope, names in replies" chevron onClick={() => routes.open('ask-berean')} />
       </ListSection>
 
       {/* Read Aloud's voice is on this root list (TEST 2026-10-11: "I don't see anywhere to get

@@ -27,3 +27,7 @@ export function chatModeSummary(f: ChatModeFlags): { label: string; icon: Lucide
   if (f.commentary) return { label: 'Commentary', icon: MessageSquareText }
   return { label: 'Research', icon: BookOpen }
 }
+
+/** Why Commentary and Deep Search can't be switched on where no AI model is installed (the
+ *  iPhone for now): both need a model to write or to research in several rounds. */
+export const NO_MODEL_REASON = "Needs an AI model, which this iPhone doesn't have yet."

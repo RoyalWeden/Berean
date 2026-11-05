@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { SquarePen, MessagesSquare, MessageCircle, Search, X, ArrowUp, Sparkles, Copy, Trash2, Pencil, Check, CornerUpLeft, Pin, PinOff, Folder, FolderPlus, FolderMinus, FolderInput, ChevronDown, MoreHorizontal, Inbox, TextSearch } from 'lucide-react'
+import { SquarePen, MessagesSquare, MessageCircle, Search, X, ArrowUp, Sparkles, Copy, Trash2, Pencil, Check, CornerUpLeft, Pin, PinOff, Folder, FolderPlus, FolderMinus, FolderInput, ChevronDown, MoreHorizontal, Inbox, TextSearch, SlidersHorizontal } from 'lucide-react'
 import { Page, ListSection, Row, IconTap } from '../primitives/Page'
 import { useActionSheet } from '../primitives/ActionSheet'
 import type { EditorState } from 'prosemirror-state'
@@ -16,6 +16,9 @@ import { formatDayHeading, formatListTime, messagePreviewText } from '@/componen
 import { organizeConversations, highlightAll, type SearchFilter } from '@/components/ailookup/ChatHistoryList'
 import { filterConversations } from '@/components/ailookup/ChatComposerControls'
 import { PhoneFindBar } from './PhoneFindBar'
+import { AskOptionsPage, AskSavedContext, ASK_OPTIONS_KEY } from './AskOptionsPage'
+import { useAskModels, useStudyProfiles } from '@/components/ailookup/useStudyProfiles'
+import { useAppStore } from '@/store'
 import { UNFILED_CHAT_ID, UNFILED_CHAT_TITLE } from '@/components/ailookup/chatModel'
 import type { AiLookupChatSummary } from '@/types/electron'
 import { ChatReplyBar } from '@/components/ailookup/ChatReplyQuote'
@@ -65,6 +68,9 @@ export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: C
   const firstToken = useRef(newMessageToken)
   const navigate = onNavigate ?? performChatNav
   const live = { c, composerRef, onBack, token: newMessageToken, firstToken: firstToken.current }
+  // Saved research chosen in the Ask Berean options, used by the next armed send only.
+  const [savedContextId, setSavedContextId] = useState<string | null>(null)
+  const savedCtx = useMemo(() => ({ id: savedContextId, set: setSavedContextId }), [savedContextId])
 
   // The list is the root and a conversation is PUSHED on the app's own NavigationStack (TEST
   // 2026-10-18 "allow the user to backwards navigate by swiping when in the berean chat"): the same
@@ -73,6 +79,7 @@ export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: C
   return (
     <ChatNavContext.Provider value={navigate}>
       <ChatLiveContext.Provider value={live}>
+      <AskSavedContext.Provider value={savedCtx}>
         <NavigationStack
           rootKey="chat-list"
           root={<ChatListRoot />}
@@ -80,6 +87,7 @@ export function ChatPage({ onBack, newMessageToken, onNavigate, onEdgeClose }: C
           canEdgeBack={() => !!onBack}
           initialStack={newMessageToken ? [{ key: THREAD_KEY, element: <ChatThreadEntry /> }] : undefined}
         />
+      </AskSavedContext.Provider>
       </ChatLiveContext.Provider>
     </ChatNavContext.Provider>
   )
@@ -273,6 +281,8 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
   const [hint, setHint] = useState(false)
   // ✦ arms Ask Berean for one send (same rule as the Mac composer); research only on the phone.
   const [askArmed, setAskArmed] = useState(false)
+  const askSaved = React.useContext(AskSavedContext)
+  const hasModel = useAskModels().models.length > 0
   const [stickToken, setStickToken] = useState(0)
   // Find in this conversation (… → Find in Conversation): the bar takes the composer's place.
   const [find, setFind] = useState<{ open: boolean; query: string; index: number; count: number; target: string | null }>({ open: false, query: '', index: 0, count: 0, target: null })
@@ -378,7 +388,13 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
     if (askArmed) {
       setAskArmed(false)
       setHint(false)
-      void c.send(v, { ai: { commentary: false, deepSearch: false, tabContext: false } })
+      // Commentary and Deep Search need a model: without one the send is research only, whatever
+      // the profile's defaults say (the options page shows them disabled), so the reply never
+      // claims work it didn't do.
+      const st = useAppStore.getState()
+      const modes = hasModel ? { commentary: st.aiLookupCommentaryOn, deepSearch: st.aiLookupAgenticOn } : { commentary: false, deepSearch: false }
+      void c.send(v, { ai: { ...modes, tabContext: false, ...(askSaved.id ? { savedContextId: askSaved.id } : {}) } })
+      askSaved.set(null)
       return
     }
     void c.send(v)
@@ -474,6 +490,7 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
           </button>
         )}
         {hint && <div className="m-chat-hint" role="status">{ASK_BEREAN_PHONE_HINT}</div>}
+        {askArmed && !editing && <AskOptionsChip onOpen={() => nav.push(ASK_OPTIONS_KEY, <AskOptionsPage />)} savedActive={!!askSaved.id} />}
         <div className="m-chat-composer" data-toolbar={focused || linkOpen ? 'true' : 'false'}>
           {(focused || linkOpen) && (
             <div className="m-chat-format">
@@ -517,6 +534,20 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
 }
 
 const PICKER_KEY = 'chat-picker'
+
+/** Shown while Ask Berean is armed: the active study profile and scope, opening the options page. */
+function AskOptionsChip({ onOpen, savedActive }: { onOpen: () => void; savedActive: boolean }) {
+  const { profile } = useStudyProfiles()
+  const collections = useAppStore((s) => s.aiLookupCollections)
+  return (
+    <button type="button" className="m-chat-ask-options" aria-label={`Ask Berean options: ${profile?.name ?? 'Default'}`}
+      onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={onOpen}>
+      <SlidersHorizontal size={12} aria-hidden />
+      <span>{profile?.name ?? 'Default'} · {collections.length} {collections.length === 1 ? 'collection' : 'collections'}{savedActive ? ' · Saved research' : ''}</span>
+      <ChevronDown size={11} aria-hidden />
+    </button>
+  )
+}
 
 /** All Messages / a day: choose which conversation new messages go to — a full page (iPhone),
  *  never a squeezed popover: search, New Conversation, Unfiled, recent conversations. */

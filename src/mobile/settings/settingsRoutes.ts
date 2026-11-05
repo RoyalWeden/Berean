@@ -11,6 +11,7 @@ export const SETTINGS_ROUTE_TITLES = {
   'font-ui': 'UI font',
   'word-replacer': 'Word replacer',
   'notes': 'Notes',
+  'ask-berean': 'Ask Berean',
   'audio': 'Read Aloud',
   'voices': 'Berean Voices',
   'youtube': 'YouTube',

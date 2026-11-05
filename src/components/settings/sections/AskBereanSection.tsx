@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Copy, Plus, Trash2, X } from 'lucide-react'
 import { AlertSheet, Button, Checkbox, IconButton, SectionLabel, Select, Switch, TextArea, TextField } from '@/components/ui'
 import { useAppStore } from '@/store'
 import { COLLECTIONS } from '@/lib/research/collections'
-import { chatModels } from '@/lib/research/modelChoice'
-import { DEFAULT_PROFILE_ID, type StudyProfile, type StudyProfileConfig } from '@/lib/research/studyProfile'
-import type { SavedResearchContext } from '@/platform/services/savedContextsService'
-import { activateProfile } from '@/components/ailookup/profileActivation'
+import { DEFAULT_PROFILE_ID, type StudyProfile } from '@/lib/research/studyProfile'
+import { useAskModels, useStudyProfiles } from '@/components/ailookup/useStudyProfiles'
 import type { AiCloudSettings } from '@/types/electron'
 
 /**
@@ -94,56 +92,14 @@ function CloudModelSettings() {
  * approach is only used with Commentary on.
  */
 export default function AskBereanSection() {
-  const activeId = useAppStore((s) => s.aiLookupProfileId)
-  const [profiles, setProfiles] = useState<StudyProfile[]>([])
-  const [saved, setSaved] = useState<SavedResearchContext[]>([])
+  const { profiles, saved, profile, save, switchTo, add, duplicate, remove, removeSaved } = useStudyProfiles()
   const [confirmDelete, setConfirmDelete] = useState<StudyProfile | null>(null)
   const [aliasFrom, setAliasFrom] = useState('')
   const [aliasTo, setAliasTo] = useState('')
-  const [models, setModels] = useState<string[]>([])
+  const { models } = useAskModels()
 
-  useEffect(() => { void Promise.resolve().then(() => window.aiLookup.checkAvailable()).then((r) => setModels(chatModels(r.models))).catch(() => {}) }, [])
-
-  const reload = useCallback(async () => {
-    const [p, c] = await Promise.all([window.aiLookup.listProfiles().catch(() => []), window.aiLookup.listSavedContexts().catch(() => [])])
-    setProfiles(p)
-    setSaved(c)
-  }, [])
-  useEffect(() => { void reload() }, [reload])
-
-  const profile = profiles.find((p) => p.id === activeId) ?? profiles.find((p) => p.id === DEFAULT_PROFILE_ID)
   if (!profile) return <p className="s-desc text-caption text-text-muted">Loading…</p>
   const cfg = profile.config
-
-  const save = async (patch: { name?: string; config?: Partial<StudyProfileConfig> }) => {
-    const next = await window.aiLookup.updateProfile(profile.id, patch)
-    if (next) {
-      setProfiles((list) => list.map((p) => (p.id === next.id ? next : p)))
-      if (patch.config?.collections) useAppStore.getState().setAiLookupCollections(next.config.collections)
-      if (patch.config?.displayAliases) useAppStore.getState().setAiLookupDisplayAliases(next.config.displayAliases)
-    }
-  }
-  const switchTo = (id: string) => {
-    const p = profiles.find((x) => x.id === id)
-    if (p) activateProfile(p)
-  }
-  const add = async () => {
-    const p = await window.aiLookup.createProfile('New profile')
-    await reload()
-    activateProfile(p)
-  }
-  const duplicate = async () => {
-    const p = await window.aiLookup.duplicateProfile(profile.id)
-    await reload()
-    if (p) activateProfile(p)
-  }
-  const remove = async (p: StudyProfile) => {
-    await window.aiLookup.deleteProfile(p.id)
-    const list = await window.aiLookup.listProfiles()
-    setProfiles(list)
-    const fallback = list.find((x) => x.id === DEFAULT_PROFILE_ID)
-    if (fallback && activeId === p.id) activateProfile(fallback)
-  }
 
   const row = 'flex items-start justify-between gap-4'
   return (
@@ -273,7 +229,7 @@ export default function AskBereanSection() {
                 </p>
               </div>
               <IconButton icon={Trash2} label={`Delete saved research ${c.title}`} size={24} variant="ghost"
-                onClick={() => { void window.aiLookup.deleteSavedContext(c.id).then(reload) }} />
+                onClick={() => { void removeSaved(c.id) }} />
             </div>
           ))}
       </div>
