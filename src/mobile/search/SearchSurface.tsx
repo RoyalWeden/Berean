@@ -1,5 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Search, XCircle, SlidersHorizontal, Clock, ChevronRight } from 'lucide-react'
+import { activateTabMatch } from '@/lib/navigation/destination'
+import { tabDestination, type TabMatch } from '@/lib/navigation/tabResolution'
+import { useOpenTabIndex, syncDestination, matchLabel, openTabsFor, OpenTabsGroup } from './openTabs'
 import { useAppStore } from '@/store'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
@@ -24,6 +27,9 @@ export type SurfaceTarget = Extract<NavIntent, 'current-tab' | 'new-tab'>
 
 export const SCOPE_OPTIONS: Array<[UnifiedScope, string]> = [['all', 'All'], ['scripture', 'Scripture'], ['lexicon', "Strong's"], ['notes', 'Notes']]
 
+/** Where one pick goes: the surface's target, or (Quick Open) reuse an open tab. */
+type PickIntent = SurfaceTarget | 'reuse'
+
 /** A passage the caller shows itself (a Scripture / Compare tab's own go-to keeps its database rules). */
 export type PassageGo = (d: { textId: string; bookId: string; chapter: number; verse?: number; endVerse?: number }) => void
 
@@ -41,7 +47,7 @@ const freshSheets = new WeakSet<Element>()
  *   "All N verses …"   → the full list as a Search tab (same intent)
  *   Return             → the first Go-to, else the full search
  */
-export function SearchSurface({ api, target, context, onGoPassage, empty, placeholder = 'Search Berean' }: {
+export function SearchSurface({ api, target, context, onGoPassage, empty, placeholder = 'Search Berean', compact = false, reuseTabs = false }: {
   api: SheetApi
   target: SurfaceTarget
   context?: IntentContext
@@ -49,8 +55,14 @@ export function SearchSurface({ api, target, context, onGoPassage, empty, placeh
   /** Shown under Recent when nothing is typed (experience row, Browse the library, recent places). */
   empty?: React.ReactNode
   placeholder?: string
+  /** Quick Open (QO-002): the field alone up top — scope + Filters behind one button. */
+  compact?: boolean
+  /** A pick reuses a tab that already shows it (current session) instead of opening a copy;
+   *  results say which are open, and "Open tabs" lists the tabs the query names. */
+  reuseTabs?: boolean
 }) {
-  const { query, scope, filters, setQuery, setScope } = useSearchSurface()
+  const { query, scope, filters, setQuery, setScope, advanced, setAdvanced } = useSearchSurface()
+  const openTabs = useOpenTabIndex()
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // A fresh sheet starts with an empty query; coming back from the Filters view keeps it.
@@ -89,7 +101,7 @@ export function SearchSurface({ api, target, context, onGoPassage, empty, placeh
   const remember = () => { const q = query.trim(); if (q) useAppStore.getState().addRecentSearchQuery(q) }
 
   /** Open a destination with an intent; passages of THIS tab go through the tab's own go-to. */
-  const go = (d: Destination | null, intent: SurfaceTarget) => {
+  const go = (d: Destination | null, intent: PickIntent) => {
     if (!d) return
     void haptic.light()
     remember()
@@ -108,20 +120,47 @@ export function SearchSurface({ api, target, context, onGoPassage, empty, placeh
       case 'note': return { kind: 'note', noteId: p.note.id }
     }
   }
-  const pick = (p: UnifiedPick, intent: SurfaceTarget = target) => {
-    if (p.kind === 'goto' && p.item.kind === 'notes') { remember(); api.close(); runExperience('notes', intent); return }
+  const defaultIntent: PickIntent = reuseTabs && target === 'new-tab' ? 'reuse' : target
+  const pick = (p: UnifiedPick, intent: PickIntent = defaultIntent) => {
+    if (p.kind === 'goto' && p.item.kind === 'notes') { remember(); api.close(); runExperience('notes', intent === 'reuse' ? 'new-tab' : intent); return }
     void destinationOf(p).then((d) => go(d, intent))
   }
+  const matchOfPick = (p: UnifiedPick) => (reuseTabs ? openTabs.matchOf(syncDestination(p)) : null)
+  /** Choosing an open tab — in another session too, since the user picked THAT tab. */
+  const toTab = (m: TabMatch) => { void haptic.selection(); remember(); api.close(); activateTabMatch(m) }
   const longPick = (p: UnifiedPick) => {
     void haptic.medium()
+    const m = matchOfPick(p)
+    const options = reuseTabs
+      ? [
+        ...(m?.current ? [{ id: 'reuse', label: 'Switch to Open Tab' }, { id: 'new-tab', label: 'Open New Copy' }] : [{ id: 'new-tab', label: 'Open in New Tab' }]),
+        ...(m && !m.current ? [{ id: 'other-session', label: `Go to Tab in “${m.sessionName}”` }] : []),
+        { id: 'current-tab', label: 'Open in This Tab' },
+      ]
+      : [
+        { id: target, label: target === 'current-tab' ? 'Open' : 'Open in New Tab' },
+        { id: other, label: other === 'new-tab' ? 'Open in New Tab' : 'Open in This Tab' },
+      ]
     api.push({ key: 'result-actions', title: labelOf(p), render: (a) => (
-      <ChoiceList api={a} value="" closeOnSelect onSelect={(id) => pick(p, id as SurfaceTarget)}
+      <ChoiceList api={a} value="" closeOnSelect onSelect={(id) => { if (id === 'other-session' && m) toTab(m); else pick(p, id as PickIntent) }} options={options} />
+    ) })
+  }
+  const longPickTab = (m: TabMatch) => {
+    void haptic.medium()
+    const d = tabDestination(m.tab)
+    api.push({ key: 'tab-match-actions', title: m.tab.title, render: (a) => (
+      <ChoiceList api={a} value="" closeOnSelect onSelect={(id) => { if (id === 'go') toTab(m); else if (d) go(d, 'new-tab') }}
         options={[
-          { id: target, label: target === 'current-tab' ? 'Open' : 'Open in New Tab' },
-          { id: other, label: other === 'new-tab' ? 'Open in New Tab' : 'Open in This Tab' },
+          { id: 'go', label: m.current ? 'Switch to Tab' : `Go to Tab in “${m.sessionName}”` },
+          ...(d ? [{ id: 'copy', label: m.current ? 'Open New Copy' : 'Open a Copy in This Session' }] : []),
         ]} />
     ) })
   }
+  const tabMatches = useMemo(() => {
+    if (!reuseTabs || !query.trim()) return []
+    const goTo = (results?.intent.raw === query.trim() ? results.goTo : []).map((g) => g.destination).filter((d): d is Destination => !!d)
+    return openTabsFor(query, goTo, openTabs.state)
+  }, [reuseTabs, query, results, openTabs.state])
   const seeAll = (s: UnifiedScope) => go({ kind: 'search', query: query.trim(), scope: s, filters: filters as unknown as Record<string, unknown> }, target)
   const submit = () => {
     const q = query.trim()
@@ -133,6 +172,8 @@ export function SearchSurface({ api, target, context, onGoPassage, empty, placeh
   const effectiveMode: WordMode = results?.intent.phrase ? 'phrase' : filters.wordMode
   const count = surfaceFilterCount(filters)
   const dismissKeyboard = () => { if (document.activeElement === inputRef.current) inputRef.current?.blur() }
+  const showAdvanced = !compact || advanced
+  const narrowed = count + (scope !== 'all' ? 1 : 0)
 
   return (
     <div ref={rootRef} className="mobile-newtab m-usurface" onTouchMove={dismissKeyboard} onWheel={dismissKeyboard}>
@@ -146,24 +187,56 @@ export function SearchSurface({ api, target, context, onGoPassage, empty, placeh
             <XCircle size={17} aria-hidden />
           </button>
         )}
+        {compact && (
+          <button type="button" className={`m-qo-adv${advanced ? ' is-on' : ''}`} aria-expanded={advanced} aria-controls="m-qo-advanced"
+            aria-label={narrowed ? `Search options, ${narrowed} active` : 'Search options'} onClick={() => { void haptic.selection(); setAdvanced(!advanced) }}>
+            <SlidersHorizontal size={17} aria-hidden />
+            {narrowed > 0 && <span className="m-qo-adv-badge" aria-hidden>{narrowed}</span>}
+          </button>
+        )}
       </form>
-      <div className="m-usearch-scope">
-        <Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as UnifiedScope)} />
-      </div>
-      <button type="button" className="m-usearch-filters" onClick={() => api.push({ key: 'filters', title: 'Filters', render: (a) => <SurfaceFilters api={a} /> })}
-        aria-label={`Filters: ${filtersLine(filters)}`}>
-        <SlidersHorizontal size={16} aria-hidden />
-        <span className="m-usearch-filters-text">{filtersLine(filters)}</span>
-        {count > 0 && <span className="m-usearch-filters-badge">{count}</span>}
-        <ChevronRight size={16} aria-hidden className="m-usearch-chevron" />
-      </button>
+      {showAdvanced && (
+        <div id="m-qo-advanced">
+          <div className="m-usearch-scope">
+            <Segmented full label="Search in" value={scope} options={SCOPE_OPTIONS} onChange={(v) => setScope(v as UnifiedScope)} />
+          </div>
+          <button type="button" className="m-usearch-filters" onClick={() => api.push({ key: 'filters', title: 'Filters', render: (a) => <SurfaceFilters api={a} /> })}
+            aria-label={`Filters: ${filtersLine(filters)}`}>
+            <SlidersHorizontal size={16} aria-hidden />
+            <span className="m-usearch-filters-text">{filtersLine(filters)}</span>
+            {count > 0 && <span className="m-usearch-filters-badge">{count}</span>}
+            <ChevronRight size={16} aria-hidden className="m-usearch-chevron" />
+          </button>
+        </div>
+      )}
 
       {query.trim() ? (
-        <UnifiedResultsList results={results} query={query} wordMode={effectiveMode} loading={loading}
-          onPick={(p) => pick(p)} onLongPick={longPick} onSeeAll={seeAll} />
+        <>
+          <UnifiedResultsList results={results} query={query} wordMode={effectiveMode} loading={loading}
+            onPick={(p) => pick(p)} onLongPick={longPick} onSeeAll={seeAll}
+            metaFor={reuseTabs ? (p) => matchLabel(matchOfPick(p)) : undefined}
+            before={tabMatches.length ? <OpenTabsGroup matches={tabMatches} onPick={toTab} onLongPick={longPickTab} /> : undefined} />
+          {compact && results && (
+            <button type="button" className="mobile-newtab-row m-qo-full" onClick={() => seeAll(scope)}>
+              <span className="mobile-newtab-row-icon"><Search size={17} aria-hidden /></span>
+              <span className="mobile-newtab-row-text"><span>Full search for “{query.trim()}”</span></span>
+              <ChevronRight size={17} aria-hidden className="m-usearch-chevron" />
+            </button>
+          )}
+        </>
       ) : (
         <>
-          {recent.length > 0 && (
+          {compact && recent.length > 0 && (
+            <div className="m-qo-recent-queries" role="group" aria-label="Recent searches">
+              {recent.slice(0, 8).map((r) => (
+                <button key={r} type="button" className="mobile-search-chip" onClick={() => { setQuery(r); inputRef.current?.focus() }}>
+                  <Clock size={13} aria-hidden />{r}
+                </button>
+              ))}
+              <button type="button" className="mobile-search-chip is-reset" onClick={() => useAppStore.getState().clearRecentSearchQueries()}>Clear</button>
+            </div>
+          )}
+          {!compact && recent.length > 0 && (
             <section className="mobile-newtab-section" aria-label="Recent searches">
               <div className="mobile-newtab-section-head">
                 <h3>Recent searches</h3>

@@ -2,6 +2,7 @@ import { useAppStore } from '@/store'
 import type { BibleTabState, SearchTabState, Tab, TabType } from '@/types'
 import { navigateToVerse, recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
 import { resolveTextForBook, chapterForBookSwitch } from '@/lib/textCoverage'
+import { reusableTab, type TabMatch } from './tabResolution'
 
 /**
  * WHERE something opens — the one navigation contract (NAV-001, docs/navigation-contract.md).
@@ -18,11 +19,14 @@ import { resolveTextForBook, chapterForBookSwitch } from '@/lib/textCoverage'
  *   'new-tab'       create a tab, then arrive in it (plus, "Open in New Tab", duplicate …).
  *   'existing-tab'  the destination space's active tab, else a new one — the desktop / external
  *                   (deep link, Spotlight, Siri) semantics, kept exactly as they were.
+ *   'reuse'         a tab of the CURRENT session that already shows the destination (tabResolution
+ *                   identity rules) is brought forward — and moved to the verse when one is given;
+ *                   otherwise exactly 'new-tab'. Never switches session (iPhone Quick Open, QO-001).
  *
  * Sheets and overlays are PRESENTATIONS, not tab operations: they never call this until the user
  * picks a destination inside them (then with the intent of the surface that presented them).
  */
-export type NavIntent = 'current-tab' | 'new-tab' | 'existing-tab'
+export type NavIntent = 'current-tab' | 'new-tab' | 'existing-tab' | 'reuse'
 
 export type SearchDestinationScope = NonNullable<SearchTabState['scope']>
 
@@ -67,6 +71,12 @@ const defaultOrigin = (d: Destination): NavOrigin =>
 export function openDestination(dest: Destination, intent: NavIntent, opts: { origin?: NavOrigin } = {}): string | null {
   const origin = opts.origin ?? defaultOrigin(dest)
   if (intent === 'existing-tab') return openInExistingTab(dest, origin)
+  if (intent === 'reuse') {
+    const s0 = useAppStore.getState()
+    const m = reusableTab(dest, s0, { preferTabIds: s0.tabMRUList.map((x) => x.tabId) })
+    if (m) return activateTabMatch(m, dest, { origin })
+    return openDestination(dest, 'new-tab', { origin })
+  }
   const type = destinationTabType(dest)
   const s = useAppStore.getState()
   let cur = intent === 'new-tab' ? null : currentTab(s)
@@ -74,6 +84,27 @@ export function openDestination(dest: Destination, intent: NavIntent, opts: { or
   if (!cur) return null
   if (cur.type === type) return arriveInPlace(cur, dest, origin)
   return arriveByTypeChange(cur, dest, origin)
+}
+
+/**
+ * Bring an open tab forward — switching to its session first when it lives in another one (only
+ * ever after the user explicitly picked that tab). With `dest`, a passage's verse / highlight is
+ * then applied in place (same chapter, so the reader just scrolls); other kinds already show it.
+ */
+export function activateTabMatch(m: Pick<TabMatch, 'space' | 'tab' | 'sessionId'>, dest?: Destination, opts: { origin?: NavOrigin } = {}): string | null {
+  let s = useAppStore.getState()
+  if (m.sessionId !== s.currentSessionId) {
+    s.switchSession(m.sessionId)
+    s = useAppStore.getState()
+    if (s.currentSessionId !== m.sessionId) return null
+  }
+  if (!s.tabs[m.space]?.some((t) => t.id === m.tab.id)) return null // gone meanwhile (closed / synced away)
+  s.setActiveTab(m.space, m.tab.id)
+  if (dest?.kind === 'passage' && (dest.verse != null || dest.highlight)) {
+    const tab = useAppStore.getState().tabs[m.space].find((t) => t.id === m.tab.id)
+    if (tab) arriveInPlace(tab, { ...dest, textId: dest.textId ?? (tab.state as BibleTabState).translation?.toLowerCase() }, opts.origin ?? defaultOrigin(dest))
+  }
+  return m.tab.id
 }
 
 /** The destination's type IS the tab's type: navigate the tab itself. */

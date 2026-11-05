@@ -47,10 +47,11 @@ A **Destination** says WHAT; a **NavIntent** says WHERE. Every call site passes 
 | **current-tab** | Change the tab on screen. Same type → navigate it (its own history step). Different type → the tab itself changes type (`transformTab`: same slot, history carried, ‹ returns). Creates a tab only when no tab exists at all. |
 | **new-tab** | Create one tab and arrive in it. |
 | **existing-tab** | The destination space's active tab, else a new one — the desktop model and external entry points, unchanged. |
+| **reuse** | (iPhone Quick Open, QO-001) A tab of the CURRENT session that already shows the destination is brought forward (a passage's verse is then applied in place); otherwise exactly `new-tab`. Identity is by resource (`src/lib/navigation/tabResolution.ts`): passage = text + book + chapter (Compare / Advanced-Search tabs never match), note = note id, Strong's = number, search = query + scope, video = id — never by title or tab id. Never switches session: another session's tab is only reached when the user picks it (`activateTabMatch`). |
 | **sheet / overlay** | Presentations, not tab operations: a sheet or overlay never touches tabs until the user picks a destination inside it, and then uses the intent of the surface that presented it. |
 
 Rules:
-- PLUS = new. CARET = this tab. A result / reference / link tapped inside a tab = this tab.
+- PLUS = reuse-or-new (Quick Open; long press → Open New Copy / Go to Tab in another session / Open in This Tab). CARET = this tab. A result / reference / link tapped inside a tab = this tab.
   "Open in New Tab" (long press), Duplicate and the plus are the only new-tab actions.
 - History: a current-tab navigation is a step of that tab's history; a new tab starts its own; an
   overlay (Calendar overlay, search sheet) records nothing; a sheet records nothing unless the user
@@ -115,9 +116,10 @@ search maps to the iPhone Search tab.
 
 | Action | Current | New | Existing | Sheet | Overlay | Notes |
 |---|---|---|---|---|---|---|
-| Plus → search result / Go to / "All N …" | | ✔ | | | | long press → current tab |
+| Plus → search result / Go to | | ✔ (reuse) | | | | reuses an open tab of this session; long press → New Copy / other session / this tab |
+| Plus → "Open tabs" match / "All N …" / Full search | | ✔ | | | | a match in another session switches to it (user picked it) |
 | Plus → experience row | | ✔ | | | | History / Settings: existing (singletons) |
-| Plus → Recent place | | ✔ | | | | was existing-tab |
+| Plus → Recent place | | ✔ (reuse) | | | | was existing-tab |
 | Caret → search field (every tab type) | ✔ | | | ✔ (the search sheet) | | long press → new tab |
 | Caret → Go-to row (experiences) | ✔ | | | | | `runExperience('current-tab')` → transformTab |
 | Caret ‹ › | ✔ | | | | | per-tab history |

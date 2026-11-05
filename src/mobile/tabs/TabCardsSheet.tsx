@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Pin, Layers, BookOpen, NotepadText, BookMarked, Youtube, Search, FileText, Tags, Archive, Plus, History, Settings as SettingsIcon, type LucideIcon, CalendarDays } from 'lucide-react'
+import { X, Pin, Layers, Search, Archive, Plus, List, LayoutGrid, XCircle } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { SpaceId, Tab } from '@/types'
 import { haptic } from '../primitives/haptics'
@@ -14,33 +14,14 @@ import { NewTabSheet, type MorePageRoute } from '../navigation/NewTabSheet'
 import { moveInOrder, workspaceOrder } from './tabOrder'
 import { displayedOrder, applyManualReorder, type TabSortMode } from './tabSort'
 import './tabCards.css'
-import { displayNoteTitle } from '@/lib/noteTitle'
+import { tabKind, tabTitle } from './tabLabels'
 import { setTabInteraction } from '@/store/tabPersistenceRuntime'
+import { activateTabMatch } from '@/lib/navigation/destination'
+import { tabsMatchingText, type TabMatch } from '@/lib/navigation/tabResolution'
+import { TabList, OtherSessionMatches } from './TabList'
 
 export const SPACE_ORDER: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
-
-/** Icon + short kind label for a tab. */
-export function tabKind(t: Tab): { icon: LucideIcon; label: string } {
-  if (t.type === 'bible' && (t.state as { searchMode?: boolean }).searchMode) return { icon: Search, label: 'Scripture Search' }
-  if (t.type === 'bible') return { icon: BookOpen, label: (t.state as { compareMode?: boolean }).compareMode ? 'Compare' : 'Scripture' }
-  if (t.type === 'pdf') return { icon: FileText, label: 'PDF' }
-  if (t.type === 'note') return { icon: NotepadText, label: 'Note' }
-  if (t.type === 'tags') return { icon: Tags, label: 'Tags' }
-  if (t.type === 'lexicon') return { icon: BookMarked, label: 'Lexicon' }
-  if (t.type === 'youtube') return { icon: Youtube, label: 'YouTube' }
-  if (t.type === 'history') return { icon: History, label: 'History' }
-  if (t.type === 'settings') return { icon: SettingsIcon, label: 'Settings' }
-  if (t.type === 'calendar') return { icon: CalendarDays, label: 'Calendar' }
-  return { icon: Search, label: 'Search' }
-}
-
-export function tabTitle(t: Tab): string {
-  // An empty YouTube tab keeps the hosted player's transient "Loading…" title — name it by kind.
-  if (t.type === 'youtube' && !(t.state as { videoId?: string | null }).videoId && /^loading/i.test(t.title)) return tabKind(t).label
-  // A note tab named after a vault verse note reads "Matthew 5:3", not "Matthew 5.3" (NOTES-REF-001).
-  if (t.type === 'note' && t.title) return displayNoteTitle(t.title)
-  return t.title || tabKind(t).label
-}
+export { tabKind, tabTitle }
 
 /** Every tab of the current workspace, all types together (TEST-022), in the workspace's display
  *  order — the same unified order the desktop sidebar shows (T23-008). */
@@ -84,11 +65,38 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
   const session = useAppStore((s) => s.sessions.find((x) => x.id === s.currentSessionId))
   const sortMode = useAppStore((s) => s.mobileTabSort)
   const mru = useAppStore((s) => s.tabMRUList)
+  const view = useAppStore((s) => s.mobileTabView)
+  const sessions = useAppStore((s) => s.sessions)
+  const lastAccessed = useAppStore((s) => s.tabLastAccessed)
   const custom = useMemo(() => workspaceTabs(tabs, stored), [tabs, stored])
-  const all = useMemo(() => {
+  const ordered = useMemo(() => {
     const byTab = new Map(custom.map((x) => [x.tab.id, x]))
     return displayedOrder(sortMode, custom.map((x) => x.tab.id), mru.map((m) => m.tabId)).map((id) => byTab.get(id)!)
   }, [custom, sortMode, mru])
+  // Tab search (QO-003): every typed word against the title + kind; other sessions' matches below.
+  const [query, setQuery] = useState('')
+  const q = query.trim()
+  const all = useMemo(() => {
+    if (!q) return ordered
+    const words = q.toLowerCase().split(/\s+/)
+    return ordered.filter(({ tab }) => { const hay = `${tabTitle(tab)} ${tabKind(tab).label} ${tab.title}`.toLowerCase(); return words.every((w) => hay.includes(w)) })
+  }, [ordered, q])
+  const otherMatches = useMemo(() => (q
+    ? tabsMatchingText(q, { tabs, sessions, currentSessionId: sessionId }, (t) => `${tabTitle(t)} ${tabKind(t).label}`).filter((m) => !m.current)
+    : []), [q, tabs, sessions, sessionId])
+  const searchable = ordered.length >= 6 || !!q
+  // Select mode (bulk close) — off the default path, behind "Select".
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const toggle = (id: string) => setSelected((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const endSelect = () => { setSelecting(false); setSelected(new Set()) }
+  const closeSelected = () => {
+    const st = useAppStore.getState()
+    let n = 0
+    for (const { space, tab } of all) if (selected.has(tab.id) && !tab.isPinned) { st.closeTab(space, tab.id); n++ }
+    if (n) void haptic.light()
+    endSelect()
+  }
   const byId = useMemo(() => new Map(all.map((x) => [x.tab.id, x])), [all])
   const isActive = (space: SpaceId, id: string) => space === activeSpace && activeTabId[space] === id
   const SessionIcon = (SESSION_ICONS.find((i) => i.name === session?.icon) ?? { Icon: Layers }).Icon
@@ -121,7 +129,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
       el.removeEventListener('contextmenu', block)
       el.removeEventListener('selectstart', block)
     }
-  }, [])
+  }, [view]) // the grid only exists in the cards view
   // Show the current tab's card when the sheet opens.
   useEffect(() => {
     const id = activeTabId[activeSpace]
@@ -139,6 +147,7 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
 
   const onPointerDown = (id: string) => (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.mobile-tab-card-close')) return
+    if (q) return // reordering a filtered subset would scramble the hidden tabs' order
     if (e.pointerType === 'mouse' && e.button !== 0) return
     const card = e.currentTarget
     const r = card.getBoundingClientRect()
@@ -212,6 +221,9 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
     setActiveTab(space, id)
     api.close()
   }
+  const toOtherSession = (m: TabMatch) => { void haptic.selection(); api.close(); activateTabMatch(m) }
+  const setView = (v: 'list' | 'cards') => { void haptic.selection(); useAppStore.getState().setMobileTabView(v) }
+  const selectedClosable = all.filter((x) => selected.has(x.tab.id) && !x.tab.isPinned).length
 
   return (
     <div className="mobile-tab-cards-sheet">
@@ -219,19 +231,58 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
         <button type="button" className="mobile-chip" aria-label={`Session: ${session?.name ?? 'Session'}. Switch session`} onClick={() => api.push(sessionsView())}>
           <SessionIcon size={16} aria-hidden /> {session?.name ?? 'Session'}
         </button>
-        <span className="mobile-muted">{all.length} tab{all.length === 1 ? '' : 's'}</span>
+        <span className="mobile-muted">{ordered.length} tab{ordered.length === 1 ? '' : 's'}</span>
         <div className="mobile-tab-grid-head-actions">
+          {view === 'list' && ordered.length > 1 && (
+            <button type="button" className={`mobile-chip m-tab-select${selecting ? ' is-on' : ''}`} aria-pressed={selecting} onClick={() => { void haptic.selection(); if (selecting) endSelect(); else setSelecting(true) }}>{selecting ? 'Done' : 'Select'}</button>
+          )}
+          {!selecting && (
+            <button type="button" className="mobile-chip" aria-label={view === 'list' ? 'Show tabs as cards' : 'Show tabs as a list'} onClick={() => setView(view === 'list' ? 'cards' : 'list')}>
+              {view === 'list' ? <LayoutGrid size={14} aria-hidden /> : <List size={14} aria-hidden />}
+            </button>
+          )}
           {/* Archive opens INSIDE this sheet (NEW-016) — no page or panel on top. */}
-          <button type="button" className="mobile-chip" aria-label="Archived tabs" onClick={() => api.push({ key: 'archive', title: 'Archived tabs', render: (a) => <ArchiveView api={a} /> })}><Archive size={14} aria-hidden /></button>
+          {!selecting && <button type="button" className="mobile-chip" aria-label="Archived tabs" onClick={() => api.push({ key: 'archive', title: 'Archived tabs', render: (a) => <ArchiveView api={a} /> })}><Archive size={14} aria-hidden /></button>}
         </div>
       </div>
+      {searchable && (
+        <form className="mobile-search-field m-tab-search" role="search" onSubmit={(e) => { e.preventDefault(); (document.activeElement as HTMLElement | null)?.blur() }}>
+          <Search size={16} aria-hidden />
+          <input className="mobile-search-input" type="search" enterKeyHint="search" autoCorrect="off" spellCheck={false} placeholder="Search tabs"
+            value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search open tabs" data-no-sheet-drag />
+          {query && <button type="button" className="mobile-newtab-clear" aria-label="Clear" onClick={() => setQuery('')}><XCircle size={16} aria-hidden /></button>}
+        </form>
+      )}
       <div className="mobile-segmented m-tab-sort" role="radiogroup" aria-label="Sort tabs">
         {([['recent', 'Recent'], ['custom', 'Custom']] as Array<[TabSortMode, string]>).map(([m, label]) => (
           <button key={m} type="button" role="radio" aria-checked={sortMode === m} className={sortMode === m ? 'is-on' : ''}
             onClick={() => { if (sortMode !== m) { void haptic.selection(); useAppStore.getState().setMobileTabSort(m) } }}>{label}</button>
         ))}
       </div>
-      {all.length === 0 && <div className="mobile-empty">No open tabs in this session.</div>}
+      {ordered.length === 0 && <div className="mobile-empty">No open tabs in this session.</div>}
+      {q && all.length === 0 && otherMatches.length === 0 && <div className="mobile-empty">No open tab matches “{q}”.</div>}
+      {view === 'list' ? (
+        <>
+          <TabList items={all} isActive={isActive} onOpen={openTab} onClose={(space, id) => closeTab(space, id)}
+            onActions={(space, tab) => api.push(tabActionsView(space, tab))}
+            selecting={selecting} selected={selected} onToggle={toggle}
+            lastUsed={sortMode === 'recent' ? (space, id) => lastAccessed[`${space}:${id}`] : undefined} />
+          <OtherSessionMatches matches={otherMatches} onPick={toOtherSession} />
+          {selecting ? (
+            <div className="m-tab-select-bar">
+              <button type="button" className="mobile-link-button" onClick={() => setSelected(new Set(all.filter((x) => !x.tab.isPinned).map((x) => x.tab.id)))}>Select All</button>
+              <button type="button" className="mobile-button is-destructive" disabled={!selectedClosable} onClick={closeSelected}>
+                {selectedClosable ? `Close ${selectedClosable} Tab${selectedClosable === 1 ? '' : 's'}` : 'Close'}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="m-tab-new" onClick={() => api.push({ key: 'new-tab', title: 'New Tab', render: (a) => <NewTabSheet api={a} openMore={(r) => { a.close(); openMore(r) }} /> })}>
+              <Plus size={18} aria-hidden /><span>New Tab</span>
+            </button>
+          )}
+        </>
+      ) : (
+      <>
       <div ref={gridRef} className={`mobile-tab-cards${liftedId ? ' is-dragging' : ''}`} data-no-sheet-drag={liftedId ? '' : undefined} role="list" aria-label="Tabs">
         {order.map((id) => {
           const it = byId.get(id)
@@ -279,6 +330,9 @@ export function TabCardsSheet({ api, openMore }: { api: SheetApi; openMore: (rou
           <Plus size={24} aria-hidden /><span>New tab</span>
         </button>
       </div>
+      <OtherSessionMatches matches={otherMatches} onPick={toOtherSession} />
+      </>
+      )}
     </div>
   )
 }
