@@ -26,6 +26,10 @@ function cacheDir(): string {
 function indexPath(): string {
   return join(cacheDir(), 'index.json')
 }
+/** The key becomes a file name, so a key carrying a path could read or write outside the cache. */
+export function isCacheKey(key: unknown): key is string {
+  return typeof key === 'string' && key.length > 0 && key.length <= 512 && !/[/\\\0]/.test(key) && !key.includes('..')
+}
 function fileFor(key: string): string {
   return join(cacheDir(), `${key}.pcm`)
 }
@@ -40,7 +44,8 @@ function writeIndex(entries: AudioCacheEntry[]): void {
 export function registerTTSAudioCacheHandlers(ipcMain: IpcMain): void {
   try { mkdirSync(cacheDir(), { recursive: true }) } catch { /* best-effort */ }
 
-  ipcMain.handle('ttsAudioCache:get', (_e, key: string) => {
+  ipcMain.handle('ttsAudioCache:get', (_e, key: unknown) => {
+    if (!isCacheKey(key)) return null
     const path = fileFor(key)
     if (!existsSync(path)) return null
     const entries = readIndex()
@@ -55,7 +60,8 @@ export function registerTTSAudioCacheHandlers(ipcMain: IpcMain): void {
     return readFileSync(path).buffer
   })
 
-  ipcMain.handle('ttsAudioCache:put', (_e, key: string, data: ArrayBuffer) => {
+  ipcMain.handle('ttsAudioCache:put', (_e, key: unknown, data: ArrayBuffer) => {
+    if (!isCacheKey(key)) return false
     const bytes = Buffer.from(data)
     writeFileSync(fileFor(key), bytes)
     let entries = readIndex().filter((en) => en.key !== key)
