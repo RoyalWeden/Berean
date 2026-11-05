@@ -195,3 +195,7 @@
 .m-chat-body .chat-table-wrap *,
 .m-chat-body pre,
 .m-chat-body pre * { touch-action: pan-x pan-y; }
+
+/* The conversation name is a button (tap → Rename): keep the pill's look, no button chrome. */
+.m-chat-title-btn { appearance: none; color: inherit; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.m-chat-title-btn:active { opacity: 0.6; }
