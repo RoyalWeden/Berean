@@ -1,3 +1,36 @@
 /* Tab cards sort control (SEP25 TAB-SORT): a full-width native segmented control above the cards. */
 .m-tab-sort { display: flex; width: 100%; margin: 0 0 12px; }
 .m-tab-sort button { flex: 1; min-height: 32px; }
+
+/* ── Compact tab list (QO-003) — the iPhone default; an inset grouped list like Settings. ── */
+.m-tab-search { margin: 0 0 12px; }
+.m-tab-select.is-on { color: rgb(var(--color-accent)); font-weight: 600; }
+.m-tablist { display: flex; flex-direction: column; background: var(--m-card-bg); border-radius: var(--m-radius-card); overflow: hidden; }
+.m-tabrow { position: relative; overflow: hidden; }
+.m-tabrow + .m-tabrow::before { content: ''; position: absolute; z-index: 2; top: 0; right: 0; left: 52px; border-top: 0.5px solid var(--m-separator); pointer-events: none; }
+.m-tabrow-slide { position: relative; z-index: 1; background: var(--m-card-bg); touch-action: pan-y; transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { .m-tabrow-slide { transition: none; } }
+.m-tabrow-main { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 6px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
+.m-tabrow-main:active { background: var(--m-card-pressed); }
+/* The current tab: an accent bar + accent icon + the word "Current" (never colour alone). */
+.m-tabrow.is-active .m-tabrow-slide::before { content: ''; position: absolute; top: 8px; bottom: 8px; left: 0; width: 3px; border-radius: 0 2px 2px 0; background: rgb(var(--color-accent)); }
+.m-tabrow-icon { flex: none; width: 26px; display: inline-flex; justify-content: center; color: rgb(var(--color-text-muted)); }
+.m-tabrow.is-active .m-tabrow-icon { color: rgb(var(--color-accent)); }
+.m-tabrow-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.m-tabrow-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(16px * var(--m-type-scale, 1)); }
+.m-tabrow.is-active .m-tabrow-title { font-weight: 600; }
+.m-tabrow-sub { display: inline-flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; color: rgb(var(--color-text-muted)); font-size: calc(13px * var(--m-type-scale, 1)); }
+.m-tabrow-badge { margin-left: 4px; padding: 0 5px; border-radius: 5px; background: var(--m-fill); color: rgb(var(--color-text-secondary)); font-size: calc(11px * var(--m-type-scale, 1)); font-weight: 600; }
+.m-tabrow-pin { flex: none; color: rgb(var(--color-text-muted)); }
+.m-tabrow-current { flex: none; padding: 2px 8px; border-radius: 10px; background: rgb(var(--color-accent) / 0.12); color: rgb(var(--color-accent)); font-size: calc(12px * var(--m-type-scale, 1)); font-weight: 600; }
+.m-tabrow-chevron { flex: none; color: rgb(var(--color-text-muted)); }
+.m-tabrow-close { position: absolute; z-index: 0; top: 0; right: 0; bottom: 0; width: 84px; border: 0; background: rgb(220 70 70); color: #fff; font: inherit; font-size: calc(15px * var(--m-type-scale, 1)); font-weight: 600; }
+.m-tabrow-check { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; color: rgb(var(--color-text-muted)); }
+.m-tabrow-check.is-on { background: rgb(var(--color-accent)); color: #fff; }
+.m-tablist-other { margin-top: 18px; }
+.m-tablist-head { margin: 0 4px 6px 14px; font-size: calc(13px * var(--m-type-scale, 1)); font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; color: rgb(var(--color-text-muted)); }
+.m-tab-new { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 14px; border: 0; border-radius: var(--m-radius-card); background: var(--m-card-bg); color: rgb(var(--color-accent)); font: inherit; font-size: calc(16px * var(--m-type-scale, 1)); font-weight: 500; }
+.m-tab-new:active { background: var(--m-card-pressed); }
+.m-tab-select-bar { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 10px 0 calc(6px + env(safe-area-inset-bottom, 0px)); background: var(--m-glass-sheet, rgb(var(--color-surface-1))); }
+.m-tab-select-bar .mobile-button.is-destructive { background: rgb(220 70 70); color: #fff; }
+.m-tab-select-bar .mobile-button.is-destructive:disabled { opacity: 0.4; }

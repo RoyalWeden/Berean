@@ -134,6 +134,14 @@ const FOLDER_KEY = (name: string) => `chat-folder:${name}`
 /** A menu row label on one line (long conversation titles crowded the popup). */
 const oneLine = (t: string, max = 34) => (t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t)
 
+/** Unfiled is a fixed bucket; every saved conversation can be renamed (synced to the Mac). */
+const canRename = (id: string | null | undefined): id is string => !!id && id !== UNFILED_CHAT_ID
+/** The native iOS text alert (WKWebView prompt), prefilled — same as Rename Folder. */
+function promptRename(c: ChatController, id: string, current: string) {
+  const name = window.prompt('Rename Conversation', current)
+  if (name?.trim() && name.trim() !== current) void c.renameChat(id, name)
+}
+
 /** Press-and-hold on a conversation or folder row: its actions as a popup next to the row. */
 function useConversationActions(c: ChatController) {
   const popover = usePopoverMenu()
@@ -160,6 +168,7 @@ function useConversationActions(c: ChatController) {
     if (!s) return
     popover(row, undefined, [
       { id: 'pin', label: s.pinnedAt ? 'Unpin' : 'Pin', icon: s.pinnedAt ? PinOff : Pin, onSelect: () => { void c.pinChat(s.id, !s.pinnedAt) } },
+      ...(canRename(s.id) ? [{ id: 'rename', label: 'Rename…', icon: Pencil, onSelect: () => promptRename(c, s.id, s.title) }] : []),
       { id: 'move', label: 'Move to Folder…', icon: FolderInput, onSelect: () => { requestAnimationFrame(() => moveMenu(row, s)) } },
       { id: 'delete', label: 'Delete Conversation', icon: Trash2, destructive: true, section: true, onSelect: () => { if (window.confirm(`Delete “${s.title}”? Its messages are removed from all your devices.`)) void c.deleteChat(s.id) } },
     ], { haptic: false })
@@ -430,11 +439,15 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
   const title = c.view.kind === 'all' ? 'All Messages' : c.view.kind === 'day' ? formatDayHeading(c.view.dayKey) : c.activeTitle
   const resetKey = c.view.kind === 'conversation' ? `c:${c.activeChatId ?? 'draft'}` : c.view.kind === 'day' ? `d:${c.view.dayKey}` : 'all'
   const cross = c.view.kind !== 'conversation'
+  const renamable = !cross && canRename(c.activeChatId)
 
   return (
     // Floating chrome (TEST 2026-10-18 "make the top bar feel completely floating"): no bar — the
     // back circle and the title capsule float on their own glass, messages scroll beneath them.
-    <Page title={<span className="m-chat-title-pill">{title}</span>} onBack={onBack} backLabel="Messages" noScroll header="floating" className="m-chat-page"
+    <Page title={renamable
+      // Tap the name to rename the conversation (Messages' group name / Notes' title).
+      ? <button type="button" className="m-chat-title-pill m-chat-title-btn" aria-label={`${title}, Rename Conversation`} onClick={() => promptRename(c, c.activeChatId!, title)}>{title}</button>
+      : <span className="m-chat-title-pill">{title}</span>} onBack={onBack} backLabel="Messages" noScroll header="floating" className="m-chat-page"
       right={(
         <button type="button" className="m-chat-more-btn" aria-label="Conversation Options" onClick={(e) => {
           popover(e.currentTarget, undefined, [

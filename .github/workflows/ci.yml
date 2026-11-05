@@ -5,8 +5,9 @@ on:
   push:
     branches: [main]
 
+# The data-v1 release that holds the databases is a draft, and reading a draft needs write access.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
