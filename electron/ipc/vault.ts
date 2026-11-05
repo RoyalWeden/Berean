@@ -5,6 +5,7 @@ import { join, extname, basename, relative, sep, dirname } from 'path'
 import { createHash, randomUUID } from 'crypto'
 import chokidar from 'chokidar'
 import { writeFileAtomicSync } from '../atomicWrite'
+import { notifyNoteChanged } from '../noteChanges'
 import { getBereanDb } from '../db/berean'
 import { getTextDb } from '../db/bible'
 import { getResourceMode } from '../powerAwareness'
@@ -815,12 +816,16 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
               // relative image path would otherwise get written into the DB unconverted.
               const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
               db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(body, Date.now(), noteId)
+              notifyNoteChanged(noteId)
               win?.webContents.send('vault:changed', noteId)
               return
             }
           }
           const { outcome, noteId } = importVaultFile(db, vaultPath, filePath, folderCache, 'newer-wins')
-          if (outcome === 'created' || outcome === 'updated') win?.webContents.send('vault:changed', noteId)
+          if (outcome === 'created' || outcome === 'updated') {
+            if (noteId) notifyNoteChanged(noteId)
+            win?.webContents.send('vault:changed', noteId)
+          }
         } catch { /* ignore parse errors */ }
       }
       watcher.on('change', onFile('change'))
@@ -904,6 +909,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
             } else {
               db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?')
                 .run(body, Date.now(), noteId)
+              notifyNoteChanged(noteId)
               updated++
             }
           } else {

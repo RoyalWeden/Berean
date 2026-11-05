@@ -1,3 +1,4 @@
+import { onExternalNoteChange } from './noteChanges'
 import { app, BrowserWindow } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
@@ -69,6 +70,7 @@ function dataAdapter(name: 'cross_references' | 'tske_refs' | 'hermas_taylor'): 
 /** Build the desktop ServiceContext and register the service registry. */
 export function initDesktopServices(): Services {
   const events = createServiceEvents()
+  onExternalNoteChange((id) => events.emit('data:changed', { entity: 'note', id, op: 'upsert' }))
   const ctx: ServiceContext = {
     userDb: new SyncSqliteAdapter(getBereanDb(), 'berean.db'),
     textDb: async (textId) => textAdapter(textId),
