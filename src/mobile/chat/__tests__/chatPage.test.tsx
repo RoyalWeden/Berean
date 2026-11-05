@@ -71,6 +71,22 @@ describe('ChatPage (iPhone)', () => {
     expect(query).not.toHaveBeenCalled()
   })
 
+  it('a keyword reply that offers online research shows the button, and a tap approves that question', async () => {
+    await svc.upsertMessages({ messages: [
+      { id: 'q', role: 'user', kind: 'ai-request', content: 'Qumran history', createdAt: '2026-10-01T09:00:00.000Z' },
+      { id: 'r', role: 'assistant', kind: 'ai-reply', replyTo: 'q', content: '', webOffered: true, createdAt: '2026-10-01T09:00:01.000Z' } as never,
+    ] })
+    query.mockResolvedValue({ results: [], visibleCount: 0, keywords: [], related: [] })
+    const h = await mount(<ChatPage />)
+    act(() => [...h.querySelectorAll<HTMLButtonElement>('.mobile-row')].find((b) => b.textContent?.includes('Qumran'))!.click())
+    await settle()
+    const offer = [...h.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('Search Wikipedia and Sefaria'))
+    expect(offer).toBeTruthy()
+    act(() => { offer!.click() })
+    await settle()
+    expect(query).toHaveBeenCalledWith('Qumran history', expect.objectContaining({ webApproved: true, commentary: false }))
+  })
+
   it("New Message reuses today's conversation (no duplicate rows)", async () => {
     const today = await svc.upsertMessages({ messages: [{ id: 't', role: 'user', kind: 'note', content: 'earlier today', createdAt: new Date().toISOString() }] })
     const h = await mount(<ChatPage newMessageToken={1} />)

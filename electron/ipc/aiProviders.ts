@@ -4,7 +4,7 @@ import { createCloudSettingsStore, type CloudSettingsStore } from '../secrets/pr
 import { anthropicProvider, checkAnthropicKey, chooseProvider, type HttpRequest, type ModelProvider } from '../../src/lib/research/providers'
 import { decide, DEFAULT_PERMISSIONS } from '../../src/lib/research/policy'
 import type { CloudRoute } from '../modelGateway'
-import { parseSefaria, parseWikipedia, SEFARIA_SEARCH_URL, sefariaSearchBody, webQuery, wantsWeb, wikipediaSearchUrl, type ExternalSource } from '../../src/lib/research/webResearch'
+import { researchWeb, type WebOutcome } from '../../src/lib/research/webResearch'
 
 // BYO cloud keys (spec §7.4). The renderer can save, check and remove a key — it can never read
 // one back. Keys are only decrypted in this process, for an outgoing provider request.
@@ -67,39 +67,14 @@ export function routeForLookup(): LookupRoute {
 // Wikimedia requires an identifying User-Agent; this names the app, never the person using it.
 const webHeaders = () => ({ 'user-agent': `Berean/${app.getVersion()} (https://github.com/RoyalWeden/Berean)`, 'content-type': 'application/json' })
 
-export type WebOutcome = { sources: ExternalSource[]; notice?: string; offered?: boolean }
+export type { WebOutcome }
 
-/** Decides and runs online research for one lookup. No network unless `decide` allows it: never
- *  from a model's suggestion, only from the user's setting, typed request or tap (scenario 21). */
+/** Decides and runs online research for one lookup (the shared rules live in researchWeb). */
 export async function webResearchFor(question: string, opts: { approved: boolean; deepSearch: boolean; signal?: AbortSignal }): Promise<WebOutcome> {
-  const asked = wantsWeb(question)
-  const { web } = cloudSettings().get()
-  if (web === 'off' && !asked) return { sources: [] }
-  // Automatic means with Deep Search; ordinary lookups stay on the device unless asked.
-  const wanted = asked || opts.approved || opts.deepSearch
-  if (!wanted) return { sources: [] }
-  const decision = decide('web-search', { ...DEFAULT_PERMISSIONS, web }, { offline: !net.isOnline(), explicitRequest: asked || opts.approved })
-  if (!decision.allowed) {
-    if (decision.needsConsent) return { sources: [], offered: true }
-    return asked ? { sources: [], notice: `${decision.reason} ${web === 'off' ? 'You can turn it on in Settings → Ask Berean.' : ''}`.trim() } : { sources: [] }
-  }
-  const query = webQuery(question)
-  if (!query) return { sources: [] }
-  const at = new Date().toISOString()
-  const read = async (url: string, init: { method?: 'POST'; body?: string }, parse: (raw: unknown, at: string) => ExternalSource[]) => {
-    try {
-      const res = await httpRequest(url, { ...init, method: init.method ?? 'GET', headers: webHeaders(), timeoutMs: 8_000, signal: opts.signal })
-      return res.status === 200 ? parse(await res.json(), at) : []
-    } catch {
-      return []
-    }
-  }
-  const [wiki, sefaria] = await Promise.all([
-    read(wikipediaSearchUrl(query), {}, parseWikipedia),
-    read(SEFARIA_SEARCH_URL, { method: 'POST', body: sefariaSearchBody(query) }, parseSefaria),
-  ])
-  const sources = [...wiki, ...sefaria]
-  return { sources, notice: sources.length > 0 ? `Searched Wikipedia and Sefaria for “${query}”. ${decision.disclose}` : `Searched Wikipedia and Sefaria for “${query}” and found nothing to show.` }
+  return researchWeb(question, {
+    web: cloudSettings().get().web, approved: opts.approved, broad: opts.deepSearch, online: net.isOnline(), signal: opts.signal,
+    request: (url, init) => httpRequest(url, { ...init, headers: webHeaders() }),
+  })
 }
 
 export function registerAiProviderHandlers(ipcMain: IpcMain): void {

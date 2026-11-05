@@ -8,6 +8,8 @@ import type { UpdateStatus } from '../../types/electron'
 import { modelFreeLookup } from '../services/modelFreeLookup'
 import { savedContextTurn } from '../services/savedContextsService'
 import type { CollectionId } from '../../lib/research/collections'
+import { forCommentaryOff, researchWeb, type WebRequest } from '../../lib/research/webResearch'
+import { getOnlineResearch } from './onlineResearchSetting'
 
 /**
  * The remaining `window.*` namespaces for the phone (installed next to bridge.ts's):
@@ -34,6 +36,19 @@ function unavailable(name: string, why = 'not available on iPhone'): never {
 }
 function noop(name: string): () => void {
   return () => { if (!warned.has(name)) { warned.add(name); console.info(`[ios-bridge] window.app.${name} is a no-op on iPhone`) } }
+}
+
+// Online research goes through fetch(), which CapacitorHttp routes natively (capacitor.config.ts):
+// Sefaria's POST has no CORS headers for capacitor://localhost. Only the search words are sent.
+const webRequest: WebRequest = async (url, init) => {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), init.timeoutMs)
+  try {
+    const res = await fetch(url, { method: init.method, headers: { 'content-type': 'application/json' }, body: init.body, signal: init.signal ? AbortSignal.any([ctrl.signal, init.signal]) : ctrl.signal })
+    return { status: res.status, json: () => res.json() }
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 const PDF_DIR = 'Berean/pdfs'
@@ -240,11 +255,25 @@ export function installIosBridgeExtras(s: Services, appVersion: string): void {
     // the same shared services the Mac uses, answered from the bundled databases.
     checkAvailable: async () => ({ available: true, models: [] }),
     unloadModel: async () => ({ success: true }),
-    query: async (question: string, opts: { commentary?: boolean; history?: Array<{ role: 'user' | 'assistant'; content: string }>; collections?: CollectionId[]; profileId?: string; savedContextId?: string } = {}) => {
+    query: async (question: string, opts: { commentary?: boolean; history?: Array<{ role: 'user' | 'assistant'; content: string }>; collections?: CollectionId[]; profileId?: string; savedContextId?: string; webApproved?: boolean } = {}) => {
       const profile = await s.studyProfiles.resolve(opts.profileId).catch(() => null)
       const saved = opts.savedContextId ? await s.savedContexts.get(opts.savedContextId).catch(() => null) : null
       const history = saved ? [savedContextTurn(saved), ...(opts.history ?? [])] : opts.history
-      return modelFreeLookup(s, question, { history, collections: opts.collections ?? profile?.config.collections, commentary: opts.commentary })
+      const response = await modelFreeLookup(s, question, { history, collections: opts.collections ?? profile?.config.collections, commentary: opts.commentary })
+      // There is no Deep Search here: the keyword fallback standing in for a model is the one
+      // case where an offer applies. Commentary can't be on without a model, so cards never
+      // carry an excerpt (the same rule as Commentary off on the Mac).
+      const web = await researchWeb(question, {
+        web: getOnlineResearch(), approved: !!opts.webApproved, broad: response.errorCode === 'NO_MODEL_INSTALLED',
+        online: navigator.onLine, request: webRequest,
+      })
+      const notice = [response.providerNotice, web.notice].filter(Boolean).join(' ')
+      return {
+        ...response,
+        ...(notice ? { providerNotice: notice } : {}),
+        ...(web.sources.length > 0 ? { external: forCommentaryOff(web.sources) } : {}),
+        ...(web.offered ? { webOffered: true } : {}),
+      }
     },
     commentary: async () => unavailable('aiLookup.commentary', 'AI lookup runs a local model on the Mac'),
     listChats: () => chats.listChats(),

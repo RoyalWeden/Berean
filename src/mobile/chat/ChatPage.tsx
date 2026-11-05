@@ -329,10 +329,12 @@ function ChatThreadScreen({ c, composerRef, onBack }: { c: ChatController; compo
   startReplyRef.current = startReply
 
   const rowActions: ChatRowActions = useMemo(() => ({
-    editNote: c.editNote, editAndReask: () => {}, deleteMessage: c.deleteMessage, openConversation: c.openConversation, canAsk: false,
+    editNote: c.editNote, editAndReask: () => {}, deleteMessage: c.deleteMessage, openConversation: c.openConversation, canAsk: true,
+    // The "Search Wikipedia and Sefaria" offer: research only, one tap approves this question.
+    askOnline: (question) => { setStickToken((t) => t + 1); void c.send(question, { ai: { commentary: false, deepSearch: false, tabContext: false, webApproved: true } }) },
     startReply: (m, chatId) => startReplyRef.current(m.id, chatId),
     jumpTo: c.jumpToMessage,
-  }), [c.editNote, c.deleteMessage, c.openConversation, c.jumpToMessage])
+  }), [c.editNote, c.deleteMessage, c.openConversation, c.jumpToMessage, c.send])
 
   // Touch has no hover: a long press on a message opens its actions as a popup menu next to it
   // (Messages), not a bottom sheet. The pressed message lifts while the menu is open.

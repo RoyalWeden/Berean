@@ -6,6 +6,7 @@ import { COLLECTIONS } from '@/lib/research/collections'
 import { DEFAULT_PROFILE_ID } from '@/lib/research/studyProfile'
 import { NO_MODEL_REASON } from '@/components/ailookup/chatModes'
 import { useAskModels, useStudyProfiles } from '@/components/ailookup/useStudyProfiles'
+import { setOnlineResearch, useOnlineResearch } from '@/platform/ios/onlineResearchSetting'
 import './settings.css'
 
 /**
@@ -18,6 +19,7 @@ import './settings.css'
 export function AskBereanSettingsPage({ onBack }: { onBack?: () => void }) {
   const { profiles, saved, profile, save, switchTo, add, duplicate, remove, removeSaved } = useStudyProfiles()
   const { models } = useAskModels()
+  const web = useOnlineResearch()
   const [aliasFrom, setAliasFrom] = useState('')
   const [aliasTo, setAliasTo] = useState('')
   if (!profile) return <Page title="Ask Berean" onBack={onBack}><div className="mobile-empty">Loading…</div></Page>
@@ -54,6 +56,12 @@ export function AskBereanSettingsPage({ onBack }: { onBack?: () => void }) {
         {toggleRow('Commentary', 'Off: research only, with no interpretation.', cfg.defaultCommentary, 'defaultCommentary')}
         {toggleRow('Deep Search', 'Researches more thoroughly. Slower.', cfg.defaultDeepSearch, 'defaultDeepSearch')}
       </ListSection>
+
+      <ListSection title="Online Research">
+        <Row title="Off" subtitle="Nothing leaves this iPhone." selected={web === 'off'} onClick={() => setOnlineResearch('off')} />
+        <Row title="Ask each time" subtitle="Offers a Wikipedia and Sefaria search after a keyword answer." selected={web === 'ask'} onClick={() => setOnlineResearch('ask')} />
+      </ListSection>
+      <div className="settings-section-note">A search sends only the search words from your question to Wikipedia and Sefaria, never your notes or chats. Results are links with their source and a caution, with no excerpt, and are never used as Scripture. Asking for it in a question (&quot;search Wikipedia for…&quot;) searches right away once this is on.</div>
 
       <ListSection title="Search In">
         {COLLECTIONS.map((c) => {
