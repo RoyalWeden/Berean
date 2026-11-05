@@ -51,6 +51,11 @@ export function isAllowedModelId(id: unknown, installed: readonly string[]): id 
   return typeof id === 'string' && MODEL_NAME_RE.test(id) && (!!catalogModel(id) || installed.includes(id))
 }
 
+/** Embedding models power semantic search, not chat. Berean never offers to remove one. */
+export function isEmbeddingModel(name: string): boolean {
+  return /embed/i.test(name)
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`
   return `${Math.max(1, Math.round(bytes / 1_000_000))} MB`

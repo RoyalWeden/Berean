@@ -76,3 +76,45 @@ describe('local models settings', () => {
     expect(document.body.textContent).toBe('')
   })
 })
+
+describe('local models settings, protected models', () => {
+  const setup = (installed: Array<{ name: string; size: number }>) => {
+    const api = {
+      listLocalModels: vi.fn(async () => ({ available: true, installed })),
+      downloadModel: vi.fn(),
+      removeModel: vi.fn(async () => ({ ok: true })),
+      onModelProgress: vi.fn(() => () => {}),
+    }
+    ;(window as unknown as { aiLookup: unknown }).aiLookup = api
+    return api
+  }
+  const mountWith = async (props: React.ComponentProps<typeof LocalModelsSettings>) => {
+    host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host)
+    act(() => root!.render(<LocalModelsSettings {...props} />)); await settle()
+  }
+
+  it('labels embedding models Used for search with no Remove', async () => {
+    setup([{ name: 'nomic-embed-text:latest', size: 0.3e9 }])
+    await mountWith({})
+    expect(document.body.textContent).toContain('Used for search')
+    expect(button('Remove')).toBeUndefined()
+  })
+
+  it('offers no Remove on the chosen model without a switch to Automatic', async () => {
+    setup([{ name: 'llama3.1:latest', size: 4.9e9 }])
+    await mountWith({ chosenModel: 'llama3.1:latest' })
+    expect(button('Remove')).toBeUndefined()
+  })
+
+  it('confirms the switch to Automatic and does it when the chosen model is removed', async () => {
+    const api = setup([{ name: 'llama3.1:latest', size: 4.9e9 }])
+    const onSwitchToAuto = vi.fn()
+    await mountWith({ chosenModel: 'llama3.1:latest', onSwitchToAuto })
+    await act(async () => { button('Remove')!.click() })
+    expect(document.body.textContent).toContain('switch to Automatic')
+    await act(async () => { [...document.querySelectorAll('button')].filter((b) => b.textContent === 'Remove').pop()!.click() })
+    await settle()
+    expect(onSwitchToAuto).toHaveBeenCalled()
+    expect(api.removeModel).toHaveBeenCalledWith('llama3.1:latest')
+  })
+})

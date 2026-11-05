@@ -174,7 +174,7 @@ export default function AskBereanSection() {
         </div>
       )}
 
-      <LocalModelsSettings />
+      <LocalModelsSettings chosenModel={cfg.model} onSwitchToAuto={() => save({ config: { model: 'auto' } })} />
 
       <div className="space-y-2">
         <SectionLabel>Search in</SectionLabel>
