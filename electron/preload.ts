@@ -453,6 +453,16 @@ contextBridge.exposeInMainWorld('aiLookup', {
   checkProviderKey: () => ipcRenderer.invoke('aiProviders:checkKey'),
   getCloudSettings: () => ipcRenderer.invoke('aiProviders:getSettings'),
   setCloudSettings: (patch: { cloudEnabled?: boolean; cloudPrivateContext?: boolean; cloudModel?: string }) => ipcRenderer.invoke('aiProviders:setSettings', patch),
+  // Local model management (Ollama) — every call starts from a button the user pressed.
+  listLocalModels: () => ipcRenderer.invoke('aimodels:list'),
+  downloadModel: (id: string) => ipcRenderer.invoke('aimodels:download', id),
+  cancelModelDownload: (id: string) => ipcRenderer.invoke('aimodels:cancel', id),
+  removeModel: (id: string) => ipcRenderer.invoke('aimodels:remove', id),
+  onModelProgress: (cb: (e: { id: string; status: string; percent: number | null; completed: number; total: number }) => void) => {
+    const handler = (_: unknown, e: { id: string; status: string; percent: number | null; completed: number; total: number }) => cb(e)
+    ipcRenderer.on('aimodels:progress', handler)
+    return () => { ipcRenderer.removeListener('aimodels:progress', handler) }
+  },
   // Another window wrote a conversation (the main process skips the writing window itself).
   // Returns an unsubscribe — unlike onProgress/onPartial, several chat surfaces can listen at once.
   onChatsChanged: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => {
