@@ -19,7 +19,11 @@ import { join } from 'path'
 const HERE = join(process.cwd(), 'scripts/eval/bench')
 const LAYER = process.env.BENCH_LAYER ?? 'F'
 const MODEL = process.env.BENCH_MODEL ?? 'llama3.1:latest'
-const THINK = process.env.BENCH_THINK // 'false' → send think:false (only for thinking-capable models)
+// Thinking families get think:false, as electron/ollama.ts sends in production. Leaving it out
+// measures a request the app never makes (2026-10-28: 218/338, empty replies). BENCH_THINK=default
+// keeps the raw model behaviour for comparison.
+const THINKING_MODEL_RE = /^(qwen3|gemma4|deepseek-r1|gpt-oss|magistral)/i
+const THINK = process.env.BENCH_THINK ?? (THINKING_MODEL_RE.test(process.env.BENCH_MODEL ?? '') ? 'false' : undefined)
 const ONLY = process.env.BENCH_CASES ? new Set(process.env.BENCH_CASES.split(',')) : null
 const SECTIONS = process.env.BENCH_SECTIONS ? new Set(process.env.BENCH_SECTIONS.split(',')) : null
 const OVERRIDE = process.env.BENCH_SWITCHES // e.g. "1,0,1" = commentary,deep,tab (mode-matrix runs)
@@ -85,6 +89,7 @@ vi.mock('../../../electron/ipc/youtube', () => ({
 const NUM_CTX = 16384
 const NUM_PREDICT_JSON = 512
 function kindOf(prompt: string): string {
+  if (prompt.includes('"premise"')) return 'premise'
   if (prompt.includes('"perVerse"')) return 'commentary'
   if (prompt.includes('"guesses"')) return 'extraction'
   if (prompt.includes('"answersQuestion"')) return 'critique'

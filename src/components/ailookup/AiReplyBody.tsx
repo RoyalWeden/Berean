@@ -169,11 +169,12 @@ function useActiveWordReplacerRules() {
 
 // Cross-reference provenance (spec §6.1 #9, §4.4): which source asserts the link — never implied
 // to be authoritative or interpretive.
-const LINK_TYPE_LABEL = { dataset: 'Cross-ref', tske: 'TSKe', quotation: 'Quotation' } as const
+const LINK_TYPE_LABEL = { dataset: 'Cross-ref', tske: 'TSKe', quotation: 'Quotation', note: 'Your note' } as const
 const LINK_TYPE_TITLE = {
   dataset: 'Linked in the cross-reference dataset (crowd-voted)',
   tske: 'Linked in the Treasury of Scripture Knowledge',
   quotation: 'One verse quotes or is quoted by the other',
+  note: 'You linked this in a verse note. This is your connection, not a textual cross-reference',
 } as const
 
 /** `question` = the ai-request this reply answers (threaded into Study Trail as the reason). */
@@ -209,6 +210,7 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
       {m.errorCode && m.errorCode !== 'NO_MATCHES'
         ? <ResearchNotice code={m.errorCode} partial={!!m.partial} fallback={m.content} />
         : m.content && <ChatMarkdown text={m.content} streaming={!!m.pending} className="text-text-primary" />}
+      {m.providerNotice && <p className="text-caption2 text-text-muted" aria-label="Model used">{m.providerNotice}</p>}
       {m.premise && <PremiseNotice premise={m.premise} />}
       {m.summary && (
         // Deterministic branches (quote-lookup, notes-only) return `keywords: []` — a quiet

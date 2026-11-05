@@ -21,6 +21,7 @@ export interface GenerateOptions {
   system?: string
   maxTokens?: number
   timeoutMs?: number
+  signal?: AbortSignal
 }
 
 export interface ModelProvider {
@@ -32,7 +33,7 @@ export interface ModelProvider {
 }
 
 /** The only network primitive a cloud provider gets. */
-export type HttpPost = (url: string, init: { headers: Record<string, string>; body: string; timeoutMs: number }) => Promise<{ status: number; json: () => Promise<unknown> }>
+export type HttpRequest = (url: string, init: { method?: 'GET' | 'POST'; headers: Record<string, string>; body?: string; timeoutMs: number; signal?: AbortSignal }) => Promise<{ status: number; json: () => Promise<unknown> }>
 
 /** Maps an HTTP failure to a typed research error (spec §9.1) — the key never appears in it. */
 export function cloudHttpError(status: number, provider: string): ModelCallError {
@@ -44,7 +45,7 @@ export function cloudHttpError(status: number, provider: string): ModelCallError
 }
 
 /** Anthropic Messages API (BYO key). Model ids are the user's choice; no default is billed. */
-export function anthropicProvider(apiKey: string, post: HttpPost): ModelProvider {
+export function anthropicProvider(apiKey: string, post: HttpRequest): ModelProvider {
   return {
     id: 'anthropic', label: 'Anthropic (your API key)', kind: 'cloud',
     capabilities: { json: false, tools: true, streaming: true },
@@ -58,6 +59,7 @@ export function anthropicProvider(apiKey: string, post: HttpPost): ModelProvider
           messages: [{ role: 'user', content: prompt }],
         }),
         timeoutMs: opts.timeoutMs ?? 60_000,
+        signal: opts.signal,
       })
       if (res.status !== 200) throw cloudHttpError(res.status, 'Anthropic')
       const body = await res.json() as { content?: Array<{ type: string; text?: string }> }
@@ -65,6 +67,16 @@ export function anthropicProvider(apiKey: string, post: HttpPost): ModelProvider
       if (!text) throw new ModelCallError('INVALID_STRUCTURED_OUTPUT', 'Anthropic returned no text.')
       return text
     },
+  }
+}
+
+/** Lists models, which bills nothing, so a key can be checked without a paid call. */
+export async function checkAnthropicKey(apiKey: string, request: HttpRequest): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    const res = await request('https://api.anthropic.com/v1/models', { method: 'GET', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }, timeoutMs: 15_000 })
+    return res.status === 200 ? { ok: true } : { ok: false, reason: cloudHttpError(res.status, 'Anthropic').message }
+  } catch {
+    return { ok: false, reason: 'Could not reach Anthropic.' }
   }
 }
 

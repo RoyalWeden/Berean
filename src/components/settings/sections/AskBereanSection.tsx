@@ -3,9 +3,89 @@ import { Copy, Plus, Trash2, X } from 'lucide-react'
 import { AlertSheet, Button, Checkbox, IconButton, SectionLabel, Select, Switch, TextArea, TextField } from '@/components/ui'
 import { useAppStore } from '@/store'
 import { COLLECTIONS } from '@/lib/research/collections'
+import { chatModels } from '@/lib/research/modelChoice'
 import { DEFAULT_PROFILE_ID, type StudyProfile, type StudyProfileConfig } from '@/lib/research/studyProfile'
 import type { SavedResearchContext } from '@/platform/services/savedContextsService'
 import { activateProfile } from '@/components/ailookup/profileActivation'
+import type { AiCloudSettings } from '@/types/electron'
+
+/**
+ * Optional bring-your-own-key cloud model (spec §7.3, §8.5). Desktop only: the key goes to the main
+ * process and only "a key is saved" ever comes back. Off until the user turns it on; turning it on
+ * needs a saved key and a model, and removing the key turns it off.
+ */
+function CloudModelSettings() {
+  const api = window.aiLookup
+  const [settings, setSettings] = useState<AiCloudSettings | null>(null)
+  const [hasKey, setHasKey] = useState(false)
+  const [keyDraft, setKeyDraft] = useState('')
+  const [message, setMessage] = useState('')
+  const [confirmRemove, setConfirmRemove] = useState(false)
+
+  useEffect(() => {
+    void Promise.all([api.getCloudSettings?.(), api.hasProviderKey?.('anthropic')]).then(([s, k]) => { setSettings(s ?? null); setHasKey(!!k) })
+  }, [api])
+  if (!settings || !api.setCloudSettings) return null
+
+  const update = async (patch: Partial<AiCloudSettings>) => { const next = await api.setCloudSettings?.(patch); if (next) setSettings(next) }
+  const saveKey = async () => {
+    const res = await api.saveProviderKey?.('anthropic', keyDraft)
+    setKeyDraft('')
+    if (res?.ok) { setHasKey(true); setMessage('Key saved.') } else setMessage(res?.reason ?? 'The key was not saved.')
+  }
+  const checkKey = async () => {
+    setMessage('Checking…')
+    const res = await api.checkProviderKey?.()
+    setMessage(res?.ok ? 'Anthropic accepted this key.' : res?.reason ?? 'The key could not be checked.')
+  }
+  const removeKey = async () => {
+    await api.removeProviderKey?.('anthropic')
+    setHasKey(false)
+    setMessage('Key removed.')
+    setSettings(await api.getCloudSettings?.() ?? settings)
+  }
+  const row = 'flex items-start justify-between gap-4'
+  return (
+    <div className="space-y-3">
+      <SectionLabel>Cloud model (optional)</SectionLabel>
+      <p className="s-desc text-caption text-text-muted">
+        Ask Berean runs on this device. With your own Anthropic API key it can use a cloud model instead. Your question
+        and the verses found are sent to Anthropic, and usage is billed to your key. This is separate from a Claude subscription.
+      </p>
+      <div className="flex items-center gap-2">
+        <TextField aria-label="Anthropic API key" type="password" size="sm" autoComplete="off" value={keyDraft}
+          placeholder={hasKey ? 'A key is saved — enter a new one to replace it' : 'Anthropic API key'}
+          onChange={(e) => setKeyDraft(e.target.value)} />
+        <Button size="sm" variant="ghost" disabled={!keyDraft.trim()} onClick={() => void saveKey()}>{hasKey ? 'Replace' : 'Save'}</Button>
+        {hasKey && <Button size="sm" variant="ghost" onClick={() => void checkKey()}>Check key</Button>}
+        {hasKey && <Button size="sm" variant="ghost" icon={Trash2} onClick={() => setConfirmRemove(true)}>Remove</Button>}
+      </div>
+      {message && <p role="status" className="s-desc text-caption text-text-muted">{message}</p>}
+      <TextField aria-label="Cloud model ID" size="sm" key={`cloud-model-${settings.cloudModel}`} defaultValue={settings.cloudModel}
+        placeholder="Model ID from your Anthropic account"
+        onBlur={(e) => { if (e.currentTarget.value.trim() !== settings.cloudModel) void update({ cloudModel: e.currentTarget.value }) }} />
+      <div className={row}>
+        <div>
+          <p className="text-subhead font-medium text-text-primary">Use the cloud model</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">Applies to every question until turned off. If the local model fails, Ask Berean never switches to the cloud by itself.</p>
+        </div>
+        <Switch label="Use the cloud model" checked={settings.cloudEnabled} disabled={!hasKey || !settings.cloudModel}
+          onCheckedChange={() => void update({ cloudEnabled: !settings.cloudEnabled })} />
+      </div>
+      <div className={row}>
+        <div>
+          <p className="text-subhead font-medium text-text-primary">Also send notes and conversation</p>
+          <p className="s-desc text-caption text-text-muted mt-0.5">Off: your notes, earlier messages, open tab and profile instructions stay on this device. Notes marked “Exclude from AI” are never sent.</p>
+        </div>
+        <Switch label="Also send notes and conversation" checked={settings.cloudPrivateContext} disabled={!settings.cloudEnabled}
+          onCheckedChange={() => void update({ cloudPrivateContext: !settings.cloudPrivateContext })} />
+      </div>
+      <AlertSheet open={confirmRemove} onOpenChange={setConfirmRemove} title="Remove the API key?"
+        message="Ask Berean goes back to your local model." confirmLabel="Remove" destructive defaultIsCancel
+        onConfirm={() => { setConfirmRemove(false); void removeKey() }} />
+    </div>
+  )
+}
 
 /**
  * Settings → Ask Berean (spec §7.1–7.2): study profiles and saved research. One small surface —
@@ -20,6 +100,9 @@ export default function AskBereanSection() {
   const [confirmDelete, setConfirmDelete] = useState<StudyProfile | null>(null)
   const [aliasFrom, setAliasFrom] = useState('')
   const [aliasTo, setAliasTo] = useState('')
+  const [models, setModels] = useState<string[]>([])
+
+  useEffect(() => { void Promise.resolve().then(() => window.aiLookup.checkAvailable()).then((r) => setModels(chatModels(r.models))).catch(() => {}) }, [])
 
   const reload = useCallback(async () => {
     const [p, c] = await Promise.all([window.aiLookup.listProfiles().catch(() => []), window.aiLookup.listSavedContexts().catch(() => [])])
@@ -105,6 +188,15 @@ export default function AskBereanSection() {
         </div>
       </div>
 
+      {models.length > 0 && (
+        <div className="space-y-2">
+          <SectionLabel>Local model</SectionLabel>
+          <p className="s-desc text-caption text-text-muted">Automatic uses the recommended model you have installed.</p>
+          <Select aria-label="Local model" value={models.includes(cfg.model) ? cfg.model : 'auto'} onChange={(model) => void save({ config: { model } })}
+            options={[{ value: 'auto', label: 'Automatic' }, ...models.map((m) => ({ value: m, label: m }))]} className="min-w-[200px]" />
+        </div>
+      )}
+
       <div className="space-y-2">
         <SectionLabel>Search in</SectionLabel>
         <p className="s-desc text-caption text-text-muted">A scope in your question (“only the Apocrypha”) always wins.</p>
@@ -185,6 +277,8 @@ export default function AskBereanSection() {
             </div>
           ))}
       </div>
+
+      <CloudModelSettings />
 
       <AlertSheet open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null) }}
         title={`Delete “${confirmDelete?.name ?? ''}”?`} message="Chats that used it keep their answers. This device switches to the Default profile."

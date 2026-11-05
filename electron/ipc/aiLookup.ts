@@ -5,7 +5,7 @@ import { queryVerse, searchVerses } from './bible'
 import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse, getIncomingCrossRefsForVerse, getIncomingTskeForVerse, searchTskeHeadingsByKeywords } from './crossrefs'
 import { getLexiconEntry, getLexiconOccurrences, searchLexiconGloss, findByNormalizedTransliteration } from './lexicon'
-import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL, unloadOllamaImmediately, NUM_CTX, NUM_PREDICT_JSON } from '../ollama'
+import { checkOllamaAvailable, runOllamaText, DEFAULT_OLLAMA_MODEL, unloadOllamaImmediately, NUM_CTX, NUM_PREDICT_JSON } from '../ollama'
 import { searchYoutubeVideos, searchYoutubeTranscripts, type YoutubeVideoSearchResult, type YoutubeTranscriptSearchResult } from './youtube'
 import { budgetPromptMaterial } from '../tokenBudget'
 // A real, already-existing, actively-maintained reference parser + book-name table — unlike
@@ -27,7 +27,11 @@ import { resolveFollowUp, stateFromTurns, describeFollowUp } from '../../src/lib
 import { commentaryDepth, commentaryDepthRules } from '../../src/lib/research/commentaryDepth'
 import { aiVisibleNotesSql, EXCLUDED_FOLDERS_CTE, needsExcludedFoldersCte } from '../../src/lib/research/noteExclusion'
 import { lexicalQuestionFromModel } from '../../src/lib/research/modelRouting'
-import type { PremiseCheck } from '../../src/lib/research/premise'
+import { checkedPremise, isPremiseShaped, premisePrompt, type PremiseCheck } from '../../src/lib/research/premise'
+import { modelJson, usingCloud, withModelRequest } from '../modelGateway'
+import { chooseLocalModel } from '../../src/lib/research/modelChoice'
+import { mentionsExcluded, parseExclusions, type QuestionExclusions } from '../../src/lib/research/exclusions'
+import { routeForLookup } from './aiProviders'
 import { activeCollections, collectionOf, detectQuestionScope, COLLECTIONS, type CollectionId } from '../../src/lib/research/collections'
 import { profilePromptBlock, defaultProfileConfig, type StudyProfileConfig } from '../../src/lib/research/studyProfile'
 import { savedContextTurn } from '../../src/platform/services/savedContextsService'
@@ -77,7 +81,7 @@ export interface AiLookupResult {
   crossRefOf?: { bookId: string; chapter: number; verse: number }
   /** Where a nested link comes from (spec §6.1 #9) — an established dataset, TSKe, or the verse
    *  quoting / being quoted. Never a model's suggestion. */
-  linkType?: 'dataset' | 'tske' | 'quotation'
+  linkType?: 'dataset' | 'tske' | 'quotation' | 'note'
 }
 
 export interface AiLookupResponse {
@@ -133,6 +137,8 @@ export interface AiLookupResponse {
   followUpReason?: string
   /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
   premise?: PremiseCheck
+  /** Where a cloud request went (destination, data, billing), or why the cloud wasn't used. */
+  providerNotice?: string
 }
 
 export interface AiLookupNoteResult {
@@ -1307,7 +1313,7 @@ export async function runCritique(
   model: string,
 ): Promise<CritiqueVerdict | null> {
   try {
-    return await runOllamaJson<CritiqueVerdict>(critiquePrompt(question, plan, topCandidates, noteTitles, videoTitles), model)
+    return await modelJson<CritiqueVerdict>(critiquePrompt(question, plan, topCandidates, noteTitles, videoTitles), model)
   } catch {
     return null
   }
@@ -1590,6 +1596,19 @@ function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules
 
 interface NotesSignal {
   notedKeys: Set<string> // dedupeKey() of candidates with an exact verse-note
+}
+
+/** References written inside the user's verse note on this verse (decision 16, scenario 11). Only
+ *  the references leave this function, never the note's text, and an excluded note is not read. */
+function noteLinkedRefs(bookId: string, chapter: number, verse: number): ParsedRef[] {
+  try {
+    const db = getBereanDb()
+    const vis = aiVisibleNotes(db)
+    const rows = db.prepare(`${vis.cte}SELECT content FROM notes WHERE verse_ref = ? AND deleted_at IS NULL${vis.where}`).all(`${bookId}.${chapter}.${verse}`) as Array<{ content: string }>
+    return rows.flatMap((r) => findAllReferencesInText(r.content)).filter((r) => r.verse != null && !(r.bookId === bookId && r.chapter === chapter && r.verse === verse))
+  } catch {
+    return []
+  }
 }
 
 /** Exact-verse-note signal only: if a candidate has a verse note at its own precise reference,
@@ -2425,7 +2444,7 @@ function quoteRefsForVerse(bookId: string, chapter: number, verse: number, direc
  *  the fixed summary with a real one; per-verse commentary lines and relevance pruning apply
  *  the same way they already do for ordinary guess/keyword results. Best-effort — a failed call
  *  just leaves the deterministic response untouched. */
-async function maybeAddCommentary(response: AiLookupResponse, question: string, opts: { commentary: boolean; model?: string; history?: ChatHistoryTurn[]; profile?: StudyProfileConfig }, emitPartial: EmitPartial = () => {}, state?: LookupState): Promise<AiLookupResponse> {
+async function maybeAddCommentary(response: AiLookupResponse, question: string, opts: { commentary: boolean; model?: string; history?: ChatHistoryTurn[]; profile?: StudyProfileConfig; withholdPrivate?: boolean }, emitPartial: EmitPartial = () => {}, state?: LookupState): Promise<AiLookupResponse> {
   if (!opts.commentary) return response
   const primary = response.results.filter((r) => r.source !== 'cross-ref')
   if (primary.length === 0) return response
@@ -2441,8 +2460,8 @@ async function maybeAddCommentary(response: AiLookupResponse, question: string, 
     // context of its own here) keeps this call inside NUM_CTX the same way the main commentary
     // call is budgeted below.
     const promptVerses = budgetCommentaryCandidates(question, primary, '', null, null, [])
-    const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
-      commentaryPrompt(question, promptVerses, '', null, null, [], (opts.history ?? []).slice(-4), opts.profile ? profilePromptBlock(opts.profile, true) : ''), model, undefined, { numPredict: COMMENTARY_NUM_PREDICT },
+    const raw = await modelJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
+      commentaryPrompt(question, promptVerses, '', null, null, [], opts.withholdPrivate ? [] : (opts.history ?? []).slice(-4), opts.profile && !opts.withholdPrivate ? profilePromptBlock(opts.profile, true) : ''), model, undefined, { numPredict: COMMENTARY_NUM_PREDICT },
     )
     for (const r of primary) {
       const key = `${r.bookId} ${r.chapter}:${r.verse}`
@@ -2607,6 +2626,11 @@ function runQuoteLookup(seed: ParsedRef, direction: 'forward' | 'reverse', emit:
 type LookupOpts = { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[]; tabContext?: AiLookupTabContextRef
   /** Internal: references a follow-up asked not to repeat ("five more", "not Exodus 20:12 again"). */
   excludeRefs?: string[]
+  /** Internal: this request goes to a cloud model without consent for private context (spec §7.3),
+   *  so conversation, tab content, notes and profile text stay out of every prompt. */
+  withholdPrivate?: boolean
+  /** Internal: "…but not human rulers", already taken out of the question. */
+  exclusions?: QuestionExclusions
   /** The collections the user/profile searches by default (decision 9); a scope in the question wins. */
   collections?: CollectionId[]
   /** Active study profile id (spec §7.1); resolved in the main process, Default when absent. */
@@ -2629,11 +2653,31 @@ export async function runLookup(
   opts: LookupOpts,
   emit: Emit = () => {},
   emitPartial: EmitPartial = () => {},
+  signal?: AbortSignal,
+): Promise<AiLookupResponse> {
+  const { route, privateContext, notice } = routeForLookup()
+  const response = await withModelRequest(route, signal, () => runRoutedLookup(question, { ...opts, withholdPrivate: !privateContext }, emit, emitPartial, signal))
+  const shown = notice ?? response.providerNotice
+  return shown ? { ...response, providerNotice: shown } : response
+}
+
+async function runRoutedLookup(
+  question: string,
+  opts: LookupOpts,
+  emit: Emit,
+  emitPartial: EmitPartial,
+  signal?: AbortSignal,
 ): Promise<AiLookupResponse> {
   const state: LookupState = {}
   let profile: StudyProfileConfig = defaultProfileConfig()
   try { profile = (await services().studyProfiles.resolve(opts.profileId)).config } catch { /* pre-v49 DB or no services: neutral default */ }
   opts = { ...opts, profile, collections: opts.collections ?? profile.collections }
+  let modelNotice: string | undefined
+  if (!usingCloud()) {
+    const choice = chooseLocalModel(opts.model ?? profile.model, (await checkOllamaAvailable()).models, DEFAULT_OLLAMA_MODEL)
+    opts = { ...opts, model: choice.model }
+    modelNotice = choice.notice
+  }
   // A saved research context the user explicitly chose joins the conversation as one visible,
   // structured turn (refs, Strong's ids, topic) — never hidden memory.
   if (opts.savedContextId) {
@@ -2643,9 +2687,10 @@ export async function runLookup(
   // Follow-ups resolve against structured state rebuilt from BOTH user and assistant turns
   // (spec §3.3/§5.4): "do the same for mercy", "show that in the LXX", "five more".
   const followUp = resolveFollowUp(question, stateFromTurns(opts.history ?? []))
-  const effective = followUp?.question ?? question
+  const exclusions = parseExclusions(followUp?.question ?? question, (p) => detectBookInQuestion(p) ?? detectFocusTextId(p))
+  const effective = exclusions.remainder
   if (followUp) emit(describeFollowUp(followUp))
-  let response = await runLookupInner(effective, followUp ? { ...opts, excludeRefs: followUp.excludeRefs } : opts, emit, emitPartial, state)
+  let response = await runLookupInner(effective, { ...opts, excludeRefs: followUp?.excludeRefs ?? opts.excludeRefs, exclusions }, emit, emitPartial, state)
   if (followUp) {
     const excluded = new Set(followUp.excludeRefs)
     const keep = (r: AiLookupResult) => r.source === 'cross-ref' || !excluded.has(`${r.bookId} ${r.chapter}:${r.verse}`)
@@ -2664,7 +2709,30 @@ export async function runLookup(
     response = stripModelProse(response, true)
     if (asksForInterpretation(question)) response = { ...response, interpretationOffered: true }
   }
-  return withErrorCode(response, state)
+  // A cancelled request keeps whatever it found; everything after this point would be more model work.
+  if (signal?.aborted) state.modelError = 'CANCELLED'
+  if (!followUp) response = await withPremiseCheck(response, question, opts, emit, emitPartial, state)
+  return withErrorCode(modelNotice ? { ...response, providerNotice: modelNotice } : response, state)
+}
+
+/** Tests a presupposition against the verses already found (spec §6.1 #11). Runs after retrieval
+ *  so it can only cite what was retrieved, and after the Commentary OFF strip because its output
+ *  is a status and verse keys, shown in fixed wording — never model prose. Best-effort: a failed
+ *  check leaves the answer as it was. */
+async function withPremiseCheck(response: AiLookupResponse, question: string, opts: LookupOpts, emit: Emit, emitPartial: EmitPartial, state: LookupState): Promise<AiLookupResponse> {
+  if (state.modelError || !isPremiseShaped(question) || response.research) return response
+  const verses = response.results.filter((r) => r.source !== 'cross-ref').slice(0, 12)
+    .map((r) => ({ key: `${r.bookId} ${r.chapter}:${r.verse}`, text: r.text }))
+  if (verses.length === 0) return response
+  emitPartial(response)
+  emit('Checking what the question assumes…')
+  try {
+    const raw = await modelJson<unknown>(premisePrompt(question, verses), opts.model || DEFAULT_OLLAMA_MODEL)
+    const premise = checkedPremise(raw, question, verses.map((v) => v.key), Object.fromEntries(verses.map((v) => [v.key, v.text])))
+    return premise ? { ...response, premise } : response
+  } catch {
+    return response
+  }
 }
 
 /** Attaches the typed outcome: a model failure is reported as itself (with `partial` when
@@ -2888,9 +2956,11 @@ async function runLookupInner(
   }
 
   emit(pick(READING_MESSAGES))
-  const availability = await checkOllamaAvailable()
-  if (!availability.available) { state.modelError = 'RUNTIME_UNAVAILABLE'; state.runtimeUnreachable = true }
-  else if (availability.models.length > 0 && !modelIsInstalled(model, availability.models)) state.modelError = 'NO_MODEL_INSTALLED'
+  if (!usingCloud()) {
+    const availability = await checkOllamaAvailable()
+    if (!availability.available) { state.modelError = 'RUNTIME_UNAVAILABLE'; state.runtimeUnreachable = true }
+    else if (availability.models.length > 0 && !modelIsInstalled(model, availability.models)) state.modelError = 'NO_MODEL_INSTALLED'
+  }
 
   // Token budgeting (see electron/tokenBudget.ts) — trims oldest history turns first, then the
   // tail of the tab-context block (which, for a pinned Bible chapter, IS the "tail of the pinned
@@ -2900,17 +2970,19 @@ async function runLookupInner(
   // what the final commentary call sees too, later in this function — the priority order is
   // "settle history and tab context once, up front," not "re-decide it per call."
   ;({ history, tabContextBlock } = budgetForExtraction(question, focusWorkName, history, tabContextBlock))
+  // Everything below this line reaches a prompt, so this is where private context stops.
+  if (opts.withholdPrivate) { history = []; tabContextBlock = '' }
 
   let extraction: AiExtraction = { keywords: fallbackKeywords(effectiveQuestion), guesses: [] }
   if (!state.modelError) {
-    const prompt = extractionPrompt(effectiveQuestion, focusWorkName, history, tabContextBlock)
+    const prompt = extractionPrompt(opts.withholdPrivate ? question : effectiveQuestion, focusWorkName, history, tabContextBlock)
     try {
-      extraction = await runOllamaJson<AiExtraction>(prompt, model)
+      extraction = await modelJson<AiExtraction>(prompt, model)
     } catch (e) {
       let code: ResearchErrorCode | undefined = classifyModelError(e)
       if (isRetryable(code)) {
         try {
-          extraction = await runOllamaJson<AiExtraction>(prompt, model)
+          extraction = await modelJson<AiExtraction>(prompt, model)
           code = undefined
         } catch (e2) {
           code = classifyModelError(e2)
@@ -3381,7 +3453,7 @@ async function runLookupInner(
       let verdict: { satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }
       try {
         const preview = scoreCandidates([...strongsSeed.candidates, ...mergedGuesses, ...mergedKeywords], keywords, undefined, wordReplacerRules)
-        verdict = await runOllamaJson<{ satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }>(
+        verdict = await modelJson<{ satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }>(
           verificationPrompt(question, focusWorkName, preview, triedKeywordSets), model
         )
       } catch {
@@ -3700,7 +3772,7 @@ async function runLookupInner(
       question,
       { keywords, answerKind: extraction.answerKind },
       candidates,
-      combinedNotes.map((n) => n.title),
+      opts.withholdPrivate ? [] : combinedNotes.map((n) => n.title),
       explicitVideoResults.map((v) => v.title),
       model,
     )
@@ -3757,7 +3829,7 @@ async function runLookupInner(
   if (opts.agentic && candidates.length > 0) {
     emit(pick(PRUNE_MESSAGES))
     try {
-      const verdict = await runOllamaJson<{ irrelevant?: string[] }>(relevancePrunePrompt(question, candidates), model)
+      const verdict = await modelJson<{ irrelevant?: string[] }>(relevancePrunePrompt(question, candidates), model)
       const irrelevant = new Set(verdict.irrelevant ?? [])
       if (irrelevant.size > 0) {
         const keyFor = (r: AiLookupResult) => `${r.bookId} ${r.chapter}:${r.verse}`
@@ -3778,12 +3850,17 @@ async function runLookupInner(
   // commentary, never assumed.
   candidates = candidates.filter((c) => c.source === 'strongs' || inScope(c.textId, c.bookId))
   candidates = withNamedVerses(question, candidates)
+  if (opts.exclusions) {
+    const { terms, bookIds } = opts.exclusions
+    candidates = candidates.filter((c) => c.source === 'named' || (!bookIds.includes(c.bookId) && !bookIds.includes(c.textId) && !mentionsExcluded(c.text, terms)))
+  }
 
   // 6. Cross-reference expansion — only from the final primary set (not the whole raw
   // candidate pool), and only for canonical-text results, since cross_references.db /
   // tske_refs.db are keyed to standard Bible book ids. Nested under their source verse via
   // `crossRefOf` rather than mixed into the primary list, and collapsed by default in the UI.
   const crossRefs: AiLookupResult[] = []
+  const noteLinks: AiLookupResult[] = []
   for (const seedResult of candidates.filter((r) => CANONICAL_TEXT_IDS.has(r.textId))) {
     if (crossRefs.length >= MAX_CROSS_REFS) break
     const classic = getCrossRefsForVerse(seedResult.bookId, seedResult.chapter, seedResult.verse)
@@ -3798,6 +3875,22 @@ async function runLookupInner(
         chapter: ref.chapter, verse: ref.verse, text: ref.text, source: 'cross-ref', linkType: 'dataset',
         crossRefOf: { bookId: seedResult.bookId, chapter: seedResult.chapter, verse: seedResult.verse },
       })
+    }
+    // The user's own link, labelled as theirs and shown only if the verse really exists. Listed with
+    // the textual links but never counted as one (decision 22: notes don't outrank the text).
+    if (profile.useVerseNotes) {
+      for (const ref of noteLinkedRefs(seedResult.bookId, seedResult.chapter, seedResult.verse).slice(0, 2)) {
+        const textId = getTranslationForBook(ref.bookId) ?? DEFAULT_TEXT_ID
+        const key = `${textId}|${ref.bookId}|${ref.chapter}|${ref.verse}`
+        const row = seen.has(key) ? null : queryVerse(ref.bookId, ref.chapter, ref.verse!, textId)
+        if (!row) continue
+        seen.add(key)
+        noteLinks.push({
+          textId, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, textId),
+          chapter: ref.chapter, verse: ref.verse!, text: row.text, source: 'cross-ref', linkType: 'note',
+          crossRefOf: { bookId: seedResult.bookId, chapter: seedResult.chapter, verse: seedResult.verse },
+        })
+      }
     }
     const tske = getTskeForVerse(seedResult.bookId, seedResult.chapter, seedResult.verse)
     for (const group of tske.groups.slice(0, 1)) {
@@ -3819,6 +3912,7 @@ async function runLookupInner(
   // candidates is already capped at TOTAL_PRIMARY_CAP, so it's short enough to show in full by
   // default — visibleCount just mirrors its length (the UI's "Show more" stays as a resilience
   // path, not something this now-small a list should normally need).
+  crossRefs.push(...noteLinks)
   const visibleCount = candidates.length
   const results = [...candidates, ...crossRefs]
   const notesForResponse = combinedNotes.length > 0 ? combinedNotes : undefined
@@ -3848,9 +3942,10 @@ async function runLookupInner(
       // by budgetForExtraction): only affects what's SENT TO THE MODEL, never what the UI shows
       // — `candidates`/`results` below are untouched, so a verse dropped from the prompt here
       // just ends up with no `commentary` caption, not missing from the answer entirely.
-      const promptVerses = budgetCommentaryCandidates(question, candidates, tabContextBlock, focusWorkName, focusTextId, combinedNotes)
-      const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
-        commentaryPrompt(question, promptVerses, tabContextBlock, focusWorkName, focusTextId, combinedNotes, history, profilePromptBlock(profile, true)), model, undefined, { numPredict: COMMENTARY_NUM_PREDICT },
+      const promptNotes = opts.withholdPrivate ? [] : combinedNotes
+      const promptVerses = budgetCommentaryCandidates(question, candidates, tabContextBlock, focusWorkName, focusTextId, promptNotes)
+      const raw = await modelJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
+        commentaryPrompt(question, promptVerses, tabContextBlock, focusWorkName, focusTextId, promptNotes, history, opts.withholdPrivate ? '' : profilePromptBlock(profile, true)), model, undefined, { numPredict: COMMENTARY_NUM_PREDICT },
       )
       const irrelevant = new Set(raw.irrelevant ?? [])
       // Round 13 (defect #6a): deterministic, free, always-on fact-check of the model's own
@@ -3920,10 +4015,19 @@ export function registerAiLookupHandlers(ipcMain: IpcMain): void {
   // stopped asking questions"), for the common case of actually closing it.
   ipcMain.handle('ailookup:unloadModel', () => { unloadOllamaImmediately(); return { success: true } })
 
-  ipcMain.handle('ailookup:query', (event, question: string, opts: LookupOpts) =>
+  const running = new Map<string, AbortController>()
+  ipcMain.handle('ailookup:cancel', (_e, requestId: unknown) => {
+    if (typeof requestId === 'string') running.get(requestId)?.abort()
+    return { success: true }
+  })
+
+  ipcMain.handle('ailookup:query', async (event, question: string, opts: LookupOpts & { requestId?: string }) => {
+    const requestId = typeof opts.requestId === 'string' ? opts.requestId : null
+    const controller = new AbortController()
+    if (requestId) running.set(requestId, controller)
     // Renderer-supplied options are narrowed to the public ones (excludeRefs is internal) and
     // collections to known ids.
-    runLookup(question, {
+    return runLookup(question, {
       commentary: !!opts.commentary, agentic: !!opts.agentic, model: opts.model, textId: opts.textId,
       wordReplacerRules: opts.wordReplacerRules, history: opts.history, tabContext: opts.tabContext,
       collections: Array.isArray(opts.collections) ? opts.collections.filter((c): c is CollectionId => COLLECTIONS.some((k) => k.id === c)) : undefined,
@@ -3931,7 +4035,9 @@ export function registerAiLookupHandlers(ipcMain: IpcMain): void {
       savedContextId: typeof opts.savedContextId === 'string' ? opts.savedContextId : undefined,
     },
       (status) => event.sender.send('ailookup:progress', status),
-      (partial) => event.sender.send('ailookup:partial', partial)))
+      (partial) => event.sender.send('ailookup:partial', partial),
+      controller.signal).finally(() => { if (requestId) running.delete(requestId) })
+  })
 
   ipcMain.handle('ailookup:listChats', () => services().aiChats.listChats())
 

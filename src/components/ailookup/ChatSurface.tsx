@@ -228,6 +228,7 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, {
                 loadingOlder={c.stream.loading}
                 onLoadOlder={c.loadOlder}
                 typing={typing}
+                onStop={c.cancelAi}
                 failedIds={c.failedIds}
                 focusMessageId={c.focusMessageId}
                 onFocusHandled={() => c.setFocusMessageId(null)}

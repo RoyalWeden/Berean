@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { anthropicProvider, chooseProvider, generateJson, cloudHttpError, type HttpPost, type ModelProvider } from '../providers'
+import { anthropicProvider, checkAnthropicKey, chooseProvider, generateJson, cloudHttpError, type HttpRequest, type ModelProvider } from '../providers'
 import { DEFAULT_PERMISSIONS as D } from '../policy'
 import { ModelCallError } from '../errors'
 
-const ok = (body: unknown): HttpPost => vi.fn(async () => ({ status: 200, json: async () => body }))
+const ok = (body: unknown): HttpRequest => vi.fn(async () => ({ status: 200, json: async () => body }))
 const local: ModelProvider = { id: 'ollama', label: 'Local', kind: 'local', capabilities: { json: true, tools: false, streaming: true }, generate: async () => '{}' }
 
 describe('anthropicProvider (no network — post is injected)', () => {
@@ -32,6 +32,17 @@ describe('anthropicProvider (no network — post is injected)', () => {
     const post = vi.fn()
     await expect(anthropicProvider('', post).generate('q', 'm')).rejects.toMatchObject({ code: 'CLOUD_AUTH_FAILED' })
     expect(post).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkAnthropicKey', () => {
+  it('uses the free models list and reports a rejected key without echoing it', async () => {
+    const request = vi.fn<Parameters<HttpRequest>, ReturnType<HttpRequest>>(async () => ({ status: 200, json: async () => ({}) }))
+    expect(await checkAnthropicKey('k', request)).toEqual({ ok: true })
+    expect(request.mock.calls[0]).toMatchObject(['https://api.anthropic.com/v1/models', { method: 'GET' }])
+    const bad = await checkAnthropicKey('sk-secret', async () => ({ status: 401, json: async () => ({}) }))
+    expect(bad).toEqual({ ok: false, reason: 'Anthropic rejected the API key.' })
+    expect(await checkAnthropicKey('k', async () => { throw new Error('offline') })).toEqual({ ok: false, reason: 'Could not reach Anthropic.' })
   })
 })
 

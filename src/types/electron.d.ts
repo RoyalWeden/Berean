@@ -1,6 +1,12 @@
 import type { ResearchPayload } from '../lib/research/payload'
 import type { ResearchErrorCode } from '../lib/research/errors'
 import type { PremiseCheck } from '../lib/research/premise'
+
+export interface AiCloudSettings {
+  cloudEnabled: boolean
+  cloudPrivateContext: boolean
+  cloudModel: string
+}
 import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight, PdfBookmark,
   VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult,
   TagGraphData, TagEdge, TagEdgeArrows } from './index'
@@ -665,7 +671,7 @@ export interface AiLookupResult {
   crossRefOf?: { bookId: string; chapter: number; verse: number }
   /** Where a nested link comes from (spec §6.1 #9) — an established dataset, TSKe, or the verse
    *  quoting / being quoted. Never a model's suggestion. */
-  linkType?: 'dataset' | 'tske' | 'quotation'
+  linkType?: 'dataset' | 'tske' | 'quotation' | 'note'
 }
 
 export interface AiLookupNoteResult {
@@ -737,6 +743,7 @@ export interface AiLookupResponse {
   followUpReason?: string
   /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
   premise?: PremiseCheck
+  providerNotice?: string
 }
 
 export interface AiLookupChatSummary {
@@ -805,6 +812,7 @@ export interface AiLookupChatMessage {
   followUpReason?: string
   /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
   premise?: PremiseCheck
+  providerNotice?: string
   createdAt: string
   /** Berean Chat redesign — all optional/additive so older clients still read the JSON. */
   id?: string
@@ -851,7 +859,9 @@ interface AiLookupAPI {
    *  Redundant with the main process's own idle-unload timer (which fires a couple minutes
    *  after the last question regardless of panel state); this just makes closing feel instant. */
   unloadModel: () => Promise<{ success: boolean }>
+  cancel?: (requestId: string) => Promise<{ success: boolean }>
   query: (question: string, opts: {
+    requestId?: string
     commentary: boolean
     /** "Deep search" — an extra verification pass that checks whether the initial results
      *  actually answer the question and, if not, retries once with different search terms.
@@ -905,6 +915,9 @@ interface AiLookupAPI {
   saveProviderKey?: (providerId: string, key: string) => Promise<{ ok: true } | { ok: false; reason: string }>
   hasProviderKey?: (providerId: string) => Promise<boolean>
   removeProviderKey?: (providerId: string) => Promise<{ success: boolean }>
+  checkProviderKey?: () => Promise<{ ok: true } | { ok: false; reason: string }>
+  getCloudSettings?: () => Promise<AiCloudSettings>
+  setCloudSettings?: (patch: Partial<AiCloudSettings>) => Promise<AiCloudSettings>
   /** A conversation was written by ANOTHER window (desktop) / anywhere (iPhone). Returns an unsubscribe. */
   onChatsChanged?: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => () => void
   /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,

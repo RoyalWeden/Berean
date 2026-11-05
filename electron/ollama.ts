@@ -30,11 +30,11 @@ export const DEFAULT_OLLAMA_MODEL = 'llama3.1:latest'
 // the real context window instead of only ad hoc character/row caps — see electron/tokenBudget.ts.
 export const NUM_CTX = 16384
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, cancel?: AbortSignal): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await net.fetch(url, { ...init, signal: controller.signal })
+    return await net.fetch(url, { ...init, signal: cancel ? AbortSignal.any([controller.signal, cancel]) : controller.signal })
   } finally {
     clearTimeout(timer)
   }
@@ -154,18 +154,26 @@ async function httpError(res: Response): Promise<ModelCallError> {
 
 /** Runs a single prompt against a local Ollama model, forcing JSON output.
  *  Throws on any failure (network, non-2xx, timeout) — callers must catch. */
-export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000, opts: { numPredict?: number } = {}): Promise<T> {
+export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000, opts: { numPredict?: number; signal?: AbortSignal } = {}): Promise<T> {
   noteOllamaActivity(model)
-  const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE, ...thinkOption(model),
-      options: { num_ctx: NUM_CTX, num_predict: opts.numPredict ?? NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
-    }),
-  }, timeoutMs)
-  if (!res.ok) throw await httpError(res)
-  const data = await res.json() as { response: string }
+  const generate = async (think: { think?: false }) => {
+    const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE, ...think,
+        options: { num_ctx: NUM_CTX, num_predict: opts.numPredict ?? NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
+      }),
+    }, timeoutMs, opts.signal)
+    if (!res.ok) throw await httpError(res)
+    return await res.json() as { response: string; thinking?: string; done_reason?: string }
+  }
+  const first = thinkOption(model)
+  let data = await generate(first)
+  // A thinking family THINKING_MODEL_RE doesn't know yet spends the whole budget on hidden
+  // reasoning and returns an empty reply. Reasoning was on, so think:false is valid: one retry.
+  if (!data.response && data.thinking && first.think === undefined) data = await generate({ think: false })
+  if (!data.response) throw new ModelCallError('INVALID_STRUCTURED_OUTPUT', `Model reply was empty (${data.done_reason === 'length' ? 'output budget used up' : data.done_reason ?? 'no reason given'}).`)
   try {
     return JSON.parse(data.response) as T
   } catch (e) {

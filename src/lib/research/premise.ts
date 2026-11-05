@@ -28,6 +28,8 @@ export function isPremiseShaped(question: string): boolean {
 const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'in', 'on', 'and', 'or', 'that', 'this', 'is', 'was', 'were', 'did', 'does', 'do', 'why', 'when', 'where', 'how', 'which', 'what', 'verses', 'verse', 'prove', 'show', 'he', 'she', 'it', 'they', 'his', 'her', 'their'])
 const contentWords = (s: string) => s.toLowerCase().match(/[\p{L}']+/gu)?.filter((w) => w.length > 2 && !STOP.has(w)) ?? []
 
+const NEGATION_RE = /\b(?:not|no|never|neither|nor|none|cannot|without)\b/i
+
 export function premisePrompt(question: string, verses: Array<{ key: string; text: string }>): string {
   const list = verses.slice(0, 12).map((v) => `${v.key}: ${v.text.slice(0, 300)}`).join('\n')
   return `A Bible study question may assume something the text does not say. Identify the factual
@@ -48,7 +50,7 @@ Use "supported" or "contradicted" only when a listed verse says so explicitly; o
 }
 
 /** Validates the model's proposal. Returns null when it can't be shown safely. */
-export function checkedPremise(raw: unknown, question: string, retrievedKeys: ReadonlyArray<string>): PremiseCheck | null {
+export function checkedPremise(raw: unknown, question: string, retrievedKeys: ReadonlyArray<string>, verseText: Readonly<Record<string, string>> = {}): PremiseCheck | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
   const status = r.status
@@ -62,7 +64,10 @@ export function checkedPremise(raw: unknown, question: string, retrievedKeys: Re
   const allowed = new Set(retrievedKeys)
   const evidence = Array.isArray(r.evidence) ? [...new Set(r.evidence.filter((k): k is string => typeof k === 'string' && allowed.has(k.trim())).map((k) => k.trim()))] : []
   // "Supported"/"contradicted" are claims about the text — without a cited verse they are not shown.
-  const finalStatus: PremiseStatus = status !== 'not-verified' && evidence.length === 0 ? 'not-verified' : status
+  let finalStatus: PremiseStatus = status !== 'not-verified' && evidence.length === 0 ? 'not-verified' : status
+  // "Contradicted" is reserved for direct text: a cited verse must itself deny something. A model
+  // saying a passage disagrees, when no cited verse does, is an inconclusive search.
+  if (finalStatus === 'contradicted' && !evidence.some((k) => NEGATION_RE.test(verseText[k] ?? ''))) finalStatus = 'not-verified'
   const reformulated = typeof r.reformulated === 'string' && !r.reformulated.trim().startsWith('<') ? r.reformulated.trim().slice(0, 80) : undefined
   // A supported premise needs no notice.
   if (finalStatus === 'supported') return null

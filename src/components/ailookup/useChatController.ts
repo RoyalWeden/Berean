@@ -55,6 +55,7 @@ function messageFieldsFrom(res: AiLookupResponse): Partial<ChatMsg> {
     ...(res.interpretationOffered ? { interpretationOffered: true } : {}),
     ...(res.followUpReason ? { followUpReason: res.followUpReason } : {}),
     ...(res.premise ? { premise: res.premise } : {}),
+    ...(res.providerNotice ? { providerNotice: res.providerNotice } : {}),
   }
 }
 
@@ -356,6 +357,7 @@ export function useChatController(opts: {
     try {
       const tabContext = aiMode.tabContext ? await optsRef.current.getTabContext?.() : undefined
       const res = await api.query(content, {
+        requestId: replyId,
         commentary: aiMode.commentary,
         agentic: aiMode.deepSearch,
         wordReplacerRules: sendOpts.wordReplacerRules?.length ? sendOpts.wordReplacerRules : undefined,
@@ -387,6 +389,14 @@ export function useChatController(opts: {
     if (mountedRef.current) { setAiBusy(false); setProgress('') }
     return true
   }, [api, enqueue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Stops the running request; whatever it already found is kept and shown. */
+  const cancelAi = useCallback(() => {
+    const f = inflightRef.current
+    if (!f) return
+    setProgress('Stopping…')
+    void api.cancel?.(f.replyId)
+  }, [api])
 
   /** Edit a note in place — in the open conversation, or (All Messages / a day) in its own. */
   const editNote = useCallback((id: string, text: string, chatId?: string | null) => {
@@ -621,7 +631,7 @@ export function useChatController(opts: {
     // data
     summaries, summariesLoaded, days, activeChatId, activeTitle, messages, transcript, view, loadingChat,
     stream: { hasMore: view.kind !== 'conversation' && stream.hasMore, loading: stream.loading },
-    search, searchResults, ai, aiBusy, progress, failedIds, focusMessageId, replyingTo,
+    search, searchResults, ai, aiBusy, progress, cancelAi: api.cancel ? cancelAi : undefined, failedIds, focusMessageId, replyingTo,
     // actions
     startReply, cancelReply, jumpToMessage, findRequest, openSearchResult,
     folders, pinChat, moveToFolder, renameFolder, setCrossDestination,

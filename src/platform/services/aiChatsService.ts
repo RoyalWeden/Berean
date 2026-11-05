@@ -66,6 +66,7 @@ export interface AiChatMessage {
   followUpReason?: string
   /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
   premise?: PremiseCheck
+  providerNotice?: string
   createdAt: string
   id?: string
   kind?: AiChatMessageKind

@@ -110,6 +110,20 @@ describe('AiReplyBody', () => {
     expect(badge.getAttribute('title')).toMatch(/Treasury of Scripture Knowledge/)
   })
 
+  it('marks a link from the user\'s own note as theirs, not a textual cross-reference (decision 16)', () => {
+    const linked = verse('ACT', 'Acts', 5, 29, 'We ought to obey God rather than men', { source: 'cross-ref', linkType: 'note', crossRefOf: { bookId: 'TIT', chapter: 2, verse: 11 } } as Partial<AiLookupResult>)
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus, linked] })} />)
+    act(() => el.querySelector<HTMLButtonElement>('.chat-crossrefs-toggle')!.click())
+    const badge = el.querySelector('.chat-crossref-list .chat-link-badge')!
+    expect(badge.textContent).toBe('Your note')
+    expect(badge.getAttribute('title')).toMatch(/not a textual cross-reference/)
+  })
+
+  it('says where a cloud answer went', () => {
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus], providerNotice: 'Anthropic (your API key), test-model.' })} />)
+    expect(el.querySelector('[aria-label="Model used"]')!.textContent).toContain('your API key')
+  })
+
   it('shows a premise check in fixed wording with the cited passages (spec §6.1 #11)', () => {
     const { el } = mount(<AiReplyBody message={reply({ premise: { premise: 'Moses entered Canaan', status: 'contradicted', evidence: ['DEU 34:4'], reformulated: 'Moses not entering Canaan' } })} />)
     const n = el.querySelector('[aria-label="Premise check"]')!

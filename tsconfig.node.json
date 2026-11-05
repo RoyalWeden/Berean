@@ -24,5 +24,8 @@
     "vite.ios.config.ts",
     "capacitor.config.ts",
     "scripts/dump-user-schema.ts"
+  ],
+  "exclude": [
+    "electron/ipc/__tests__/aiLookup.routing.test.ts"
   ]
 }
