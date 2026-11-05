@@ -1,5 +1,7 @@
 # Spec traceability audit (read-only) — /Users/roywe/Berean-ai-integrate, branch integration/ai-upgrade
 
+> Historical: the state before the 2026-11-04 work. Current status is in `SPEC_STATUS.md`.
+
 Method: traced from live entry points (electron/ipc/aiLookup.ts `runLookup`/`ailookup:query` L3924, src/mobile/chat/ChatPage.tsx -> ChatTranscript -> ChatMessageRow -> AiReplyBody -> ResearchResults, src/platform/services/modelFreeLookup.ts, src/components/ailookup/*). Nothing run. "Bench" = scripts/eval/bench/runBench.ts (not vitest, not CI); I count bench-only as UNVERIFIED unless a vitest file covers the module. There is NO vitest test that calls `runLookup` end to end.
 
 Statuses: V = IMPLEMENTED+VERIFIED, U = IMPLEMENTED+UNVERIFIED, M = MISSING, B = BLOCKED, IP = IN PROGRESS (someone else).
