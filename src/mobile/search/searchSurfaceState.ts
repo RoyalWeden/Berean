@@ -11,6 +11,9 @@ interface SurfaceState {
   query: string
   scope: UnifiedScope
   filters: UnifiedFilters
+  /** Quick Open (compact): the scope + Filters rows are disclosed (kept while the sheet is reused). */
+  advanced: boolean
+  setAdvanced: (v: boolean) => void
   setQuery: (q: string) => void
   setScope: (s: UnifiedScope) => void
   setFilters: (f: Partial<UnifiedFilters>) => void
@@ -23,6 +26,8 @@ export const useSearchSurface = create<SurfaceState>((set) => ({
   query: '',
   scope: 'all',
   filters: DEFAULT_UNIFIED_FILTERS,
+  advanced: false,
+  setAdvanced: (advanced) => set({ advanced }),
   setQuery: (query) => set({ query }),
   setScope: (scope) => set({ scope }),
   setFilters: (f) => set((s) => ({ filters: { ...s.filters, ...f } })),

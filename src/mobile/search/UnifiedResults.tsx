@@ -29,7 +29,7 @@ const GROUP_ROWS = { verses: 8, entries: 4, notes: 4 }
  * by the plus / caret search sheet and the Search tab's "All" scope. Tap = the surface's open;
  * long press = its alternatives (e.g. Open in New Tab).
  */
-export function UnifiedResultsList({ results, query, wordMode, loading, onPick, onLongPick, onSeeAll, full = false }: {
+export function UnifiedResultsList({ results, query, wordMode, loading, onPick, onLongPick, onSeeAll, full = false, metaFor, before }: {
   results: Results | null
   query: string
   wordMode: WordMode
@@ -40,24 +40,30 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
   onSeeAll: (scope: Exclude<UnifiedScope, 'all'>) => void
   /** Inside the Search tab: groups show more rows. */
   full?: boolean
+  /** A trailing status for a row — Quick Open's "Open" / a session name for a resource already in a tab. */
+  metaFor?: (p: UnifiedPick) => string | undefined
+  /** Rendered above the groups (Quick Open's matching open tabs); counts as a result. */
+  before?: React.ReactNode
 }) {
   const { displayVerseText } = useScriptureText()
-  if (!results) return loading ? <SearchStatus loading /> : null
+  // Open-tab matches are instant — show them before the first search result lands.
+  if (!results) return before || loading ? <div className="m-usearch" aria-busy={loading || undefined}>{loading && <SearchStatus loading />}{before}</div> : null
   const { goTo, verses, entries, notes, intent } = results
   const text = intent.text
   const rows = (n: number) => (full ? n * 3 : n)
-  const empty = goTo.length === 0 && !verses?.length && !entries?.length && !notes?.length
+  const empty = !before && goTo.length === 0 && !verses?.length && !entries?.length && !notes?.length
   const wrap = (p: UnifiedPick, node: React.ReactNode, key: string) =>
     onLongPick ? <LongPressResult key={key} onLongPress={() => onLongPick(p)}>{node}</LongPressResult> : <React.Fragment key={key}>{node}</React.Fragment>
 
   return (
     <div className="m-usearch" aria-busy={loading || undefined}>
       {loading && <SearchStatus loading />}
+      {before}
       {goTo.length > 0 && (
         <Group title="Go to">
           {goTo.map((g, i) => wrap({ kind: 'goto', item: g }, (
             <Row icon={g.kind === 'strongs' ? Hash : g.kind === 'notes' ? NotepadText : g.kind === 'passage' ? BookOpen : Library} primary={i === 0}
-              title={g.label} meta={g.subtitle} onClick={() => onPick({ kind: 'goto', item: g })} />
+              title={g.label} meta={metaFor?.({ kind: 'goto', item: g }) ?? g.subtitle} onClick={() => onPick({ kind: 'goto', item: g })} />
           ), g.key))}
         </Group>
       )}
@@ -66,7 +72,7 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
           {verses.slice(0, rows(GROUP_ROWS.verses)).map((h) => {
             const hText = displayHitText(h)
             return wrap({ kind: 'verse', hit: h }, (
-              <Row icon={BookOpen} onClick={() => onPick({ kind: 'verse', hit: h })}
+              <Row icon={BookOpen} meta={metaFor?.({ kind: 'verse', hit: h })} onClick={() => onPick({ kind: 'verse', hit: h })}
                 title={<>{bookChapterVerseLabel(h.book_id, h.chapter, h.verse_num)}{sourceBadge(h.textId)}</>}
                 sub={applyFindHighlight(buildAllWordsSnippet(hText, text, 110).text, h.strongsWords ? '' : text, wordMode)} />
             ), `${h.textId}-${h.book_id}-${h.chapter}-${h.verse_num}`)
@@ -77,7 +83,7 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
       {entries && entries.length > 0 && (
         <Group title="Lexicon" count={entries.length}>
           {entries.slice(0, rows(GROUP_ROWS.entries)).map((e) => wrap({ kind: 'entry', entry: e }, (
-            <Row icon={Hash} onClick={() => onPick({ kind: 'entry', entry: e })}
+            <Row icon={Hash} meta={metaFor?.({ kind: 'entry', entry: e })} onClick={() => onPick({ kind: 'entry', entry: e })}
               title={<><span className="mobile-strongs-num">{e.strongsNum}</span> {e.lemma} <span className="mobile-muted">{e.transliteration}</span></>}
               sub={e.gloss ?? undefined} />
           ), e.strongsNum))}
@@ -87,7 +93,7 @@ export function UnifiedResultsList({ results, query, wordMode, loading, onPick, 
       {notes && notes.length > 0 && (
         <Group title="Notes" count={notes.length}>
           {notes.slice(0, rows(GROUP_ROWS.notes)).map((n) => wrap({ kind: 'note', note: n }, (
-            <Row icon={NotepadText} onClick={() => onPick({ kind: 'note', note: n })} title={displayNoteTitle(n.title)}
+            <Row icon={NotepadText} meta={metaFor?.({ kind: 'note', note: n })} onClick={() => onPick({ kind: 'note', note: n })} title={displayNoteTitle(n.title)}
               sub={applyFindHighlight(stripMarkdownFormatting(n.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 110), text, wordMode)} />
           ), n.id))}
           {notes.length > rows(GROUP_ROWS.notes) && <SeeAll label={`All ${notes.length} notes`} onClick={() => onSeeAll('notes')} />}

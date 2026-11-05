@@ -927,6 +927,9 @@ export interface AppState {
   setTabDisplayOrder: (sessionId: string, order: string[]) => void
   /** iPhone tab cards sort: most recently used first, or the custom (sessionDisplayOrders) order. */
   mobileTabSort: 'recent' | 'custom'
+  /** iPhone tab switcher presentation (QO-003): a compact list (default) or the preview cards. */
+  mobileTabView: 'list' | 'cards'
+  setMobileTabView: (v: 'list' | 'cards') => void
   setMobileTabSort: (v: 'recent' | 'custom') => void
 
   // Actions
@@ -2136,6 +2139,8 @@ export const useAppStore = create<AppState>()(
       sessionDisplayOrders: {} as Record<string, string[]>,
       mobileTabSort: 'recent' as 'recent' | 'custom',
       setMobileTabSort: (v) => set({ mobileTabSort: v }),
+      mobileTabView: 'list' as 'list' | 'cards',
+      setMobileTabView: (v) => set({ mobileTabView: v }),
       setTabDisplayOrder: (sessionId, order) => set((s) => ({ sessionDisplayOrders: { ...s.sessionDisplayOrders, [sessionId]: [...order] } })),
 
       createSession: (name) => {
@@ -3597,6 +3602,7 @@ export const useAppStore = create<AppState>()(
         // currentSessionId: per-window (see note in partialize head)
         sessionDisplayOrders: state.sessionDisplayOrders,
         mobileTabSort: state.mobileTabSort,
+        mobileTabView: state.mobileTabView,
         tasksVisible: state.tasksVisible,
         tasksMinimized: state.tasksMinimized,
         completedTaskIds: state.completedTaskIds,

@@ -6,6 +6,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SheetHost, useSheets } from '../primitives/Sheet'
 import { TabCardsSheet } from '../tabs/TabCardsSheet'
+import { useAppStore } from '@/store'
 
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 vi.mock('@capacitor/haptics', () => ({ Haptics: { impact: () => Promise.resolve(), selectionChanged: () => Promise.resolve(), notification: () => Promise.resolve() }, ImpactStyle: { Light: 'LIGHT', Medium: 'MEDIUM', Heavy: 'HEAVY' }, NotificationType: { Success: 'SUCCESS', Warning: 'WARNING' } }))
@@ -19,7 +20,8 @@ function touch(el: Element, type: string, y: number, x = 100): Event {
 const sheetY = (sheet: HTMLElement) => Number(/translateY\((-?[\d.]+)px\)/.exec(sheet.style.transform)?.[1] ?? NaN)
 
 describe('tabs sheet drag', () => {
-  it('the card grid never opts out of the sheet gesture at rest', async () => {
+  it.each([['cards', '.mobile-tab-cards', '.mobile-tab-card'], ['list', '.m-tablist', '.m-tabrow']] as const)('the %s view never opts out of the sheet gesture at rest', async (view, gridSel, cardSel) => {
+    useAppStore.setState({ mobileTabView: view })
     function Opener() {
       const sheets = useSheets()
       React.useEffect(() => { sheets.open({ id: 'tabs', title: 'Tabs', detents: [0.5, 0.9], render: (api) => <TabCardsSheet api={api} openMore={() => {}} /> }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -30,12 +32,12 @@ describe('tabs sheet drag', () => {
     act(() => { root.render(<SheetHost><Opener /></SheetHost>) })
     await act(async () => { await new Promise((r) => setTimeout(r, 600)) })
     const sheet = document.querySelector('.mobile-sheet[data-sheet-id="tabs"]') as HTMLElement
-    const grid = sheet.querySelector('.mobile-tab-cards') as HTMLElement
+    const grid = (sheet.querySelector(gridSel) ?? sheet.querySelector('.mobile-tab-cards-sheet')) as HTMLElement
     expect(grid.hasAttribute('data-no-sheet-drag')).toBe(false)
     const body = sheet.querySelector('.mobile-sheet-body') as HTMLElement
     Object.defineProperty(body, 'scrollHeight', { value: 300, configurable: true })
     Object.defineProperty(body, 'clientHeight', { value: 300, configurable: true })
-    const card = grid.querySelector('.mobile-tab-card') ?? grid
+    const card = grid.querySelector(cardSel) ?? grid
     const y0 = sheetY(sheet)
     touch(card, 'touchstart', 400)
     touch(card, 'touchmove', 380)
