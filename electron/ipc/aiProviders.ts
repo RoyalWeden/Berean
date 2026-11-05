@@ -65,7 +65,7 @@ export function routeForLookup(): LookupRoute {
 }
 
 // Wikimedia requires an identifying User-Agent; this names the app, never the person using it.
-const WEB_HEADERS = { 'user-agent': `Berean/${app.getVersion?.() ?? '0'} (https://github.com/RoyalWeden/Berean)`, 'content-type': 'application/json' }
+const webHeaders = () => ({ 'user-agent': `Berean/${app.getVersion()} (https://github.com/RoyalWeden/Berean)`, 'content-type': 'application/json' })
 
 export type WebOutcome = { sources: ExternalSource[]; notice?: string; offered?: boolean }
 
@@ -88,7 +88,7 @@ export async function webResearchFor(question: string, opts: { approved: boolean
   const at = new Date().toISOString()
   const read = async (url: string, init: { method?: 'POST'; body?: string }, parse: (raw: unknown, at: string) => ExternalSource[]) => {
     try {
-      const res = await httpRequest(url, { ...init, method: init.method ?? 'GET', headers: WEB_HEADERS, timeoutMs: 8_000, signal: opts.signal })
+      const res = await httpRequest(url, { ...init, method: init.method ?? 'GET', headers: webHeaders(), timeoutMs: 8_000, signal: opts.signal })
       return res.status === 200 ? parse(await res.json(), at) : []
     } catch {
       return []
