@@ -19,7 +19,11 @@ app.stderr.on('data', (d) => { log += d })
 const fail = (why) => { console.error(`Smoke test failed: ${why}\n${log.slice(-3000)}`); finish(1) }
 function finish(code) {
   app.kill()
-  setTimeout(() => { rmSync(userData, { recursive: true, force: true }); process.exit(code) }, 500)
+  setTimeout(() => {
+    // Electron may still be writing as it exits; a leftover temp folder doesn't change the result.
+    try { rmSync(userData, { recursive: true, force: true, maxRetries: 3 }) } catch { /* the OS clears it */ }
+    process.exit(code)
+  }, 500)
 }
 app.on('exit', (code) => { if (code) fail(`Electron exited with ${code}`) })
 app.on('error', (e) => fail(e.message))

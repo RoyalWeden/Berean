@@ -730,7 +730,9 @@ export class SyncEngine {
       this.ownFiles = [...this.ownFiles, ...files.map((f) => f.info)]
       this.ownSeq = ops[ops.length - 1].seq
       await this.db.transaction(async (tx) => {
-        await tx.run('DELETE FROM sync_outbox WHERE seq <= ?', [rows[rows.length - 1].seq])
+        // Only the versions just written: an edit coalesced into a row during the write above is
+        // not published yet, and stays for the next push.
+        for (const r of rows) await tx.run('DELETE FROM sync_outbox WHERE seq = ? AND op_json = ?', [r.seq, r.op_json])
         await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.ownSeq, String(this.ownSeq)])
         await tx.run('INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)', [STATE.ownFiles, JSON.stringify(this.ownFiles)])
       })
@@ -754,6 +756,11 @@ export class SyncEngine {
   private async writeManifest(): Promise<void> {
     const applied: Record<string, number> = {}
     for (const r of await this.db.all<{ device: string; seq: number }>('SELECT device, MAX(seq) AS seq FROM sync_applied GROUP BY device')) if (r.device !== this.deviceId) applied[r.device] = r.seq
+    // A parked op isn't applied, whatever came after it: acknowledging past it would let its author
+    // prune the file and make the retry impossible.
+    for (const r of await this.db.all<{ device: string; seq: number }>('SELECT device, MIN(seq) AS seq FROM sync_failed GROUP BY device')) {
+      if (r.device in applied) applied[r.device] = Math.min(applied[r.device], r.seq - 1)
+    }
     await this.store.writeOwnManifest({
       device: this.deviceId, name: this.opts.deviceName, platform: this.opts.platform, appVersion: this.opts.appVersion, schema: this.opts.schema,
       seq: this.ownSeq, files: this.ownFiles, applied, ...(this.ownSnapshot ? { snapshot: this.ownSnapshot } : {}), updatedAt: this.now(),
@@ -892,12 +899,29 @@ export class SyncEngine {
     if (!file || file.device !== device || !Array.isArray(file.records)) { this.unreadable++; return 0 }
     let applied = 0
     let seen = 0
+    // Records are sorted by name, so a child can come before its parent (tag_edge before verse_tag)
+    // and fail its foreign key. Whatever failed goes round again while a pass still makes progress.
+    let pending: typeof file.records = []
+    const applyRecord = async (r: SnapshotRecord, lastChance: boolean) => {
+      const op: SyncOp = { id: `${device}-snapshot-${snap.seq}-${r.entity}-${r.key}`, seq: snap.seq, hlc: r.hlc, device, entity: r.entity, key: r.key, op: r.op, ...(r.fields ? { fields: r.fields } : {}), schema: file.schema, ...(r.fh ? { fh: r.fh } : {}), ...(r.lin ? { lin: r.lin } : {}) }
+      try { await this.applyOne(op, touched, { recordApplied: false, replay: true }); applied++ } catch (err) {
+        if (!lastChance) { pending.push(r); return }
+        this.opts.log.error(`[sync] snapshot apply failed ${r.entity}/${r.key} from ${device}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
     for (const r of file.records) {
       this.setProgress({ activity: 'applying', done: ++seen, total: file.records.length })
       if (!r || typeof r.entity !== 'string' || typeof r.key !== 'string' || typeof r.hlc !== 'string') { this.unreadable++; continue }
-      const op: SyncOp = { id: `${device}-snapshot-${snap.seq}-${r.entity}-${r.key}`, seq: snap.seq, hlc: r.hlc, device, entity: r.entity, key: r.key, op: r.op, ...(r.fields ? { fields: r.fields } : {}), schema: file.schema, ...(r.fh ? { fh: r.fh } : {}), ...(r.lin ? { lin: r.lin } : {}) }
-      try { await this.applyOne(op, touched, { recordApplied: false, replay: true }); applied++ } catch (err) {
-        this.opts.log.error(`[sync] snapshot apply failed ${r.entity}/${r.key} from ${device}: ${err instanceof Error ? err.message : String(err)}`)
+      await applyRecord(r, false)
+    }
+    while (pending.length > 0) {
+      const round = pending
+      pending = []
+      for (const r of round) await applyRecord(r, false)
+      if (pending.length === round.length) {
+        const stuck = pending
+        pending = []
+        for (const r of stuck) await applyRecord(r, true)
       }
     }
     // Everything ≤ snap.seq is now represented; the journal continues from snap.seq + 1.
