@@ -1,6 +1,7 @@
 import type { Services } from './index'
 import type { AiLookupResponse, AiLookupResult } from '../../types/electron'
 import { parseRef, bookName, getTranslationForBook } from '../../lib/parseRef'
+import { mentionsExcluded, parseExclusions } from '../../lib/research/exclusions'
 import { lexicalPayload } from './researchService'
 import { resolveFollowUp, stateFromTurns, type Turn } from '../../lib/research/conversationState'
 import { activeCollections, collectionOf, detectQuestionScope, type CollectionId } from '../../lib/research/collections'
@@ -77,7 +78,8 @@ export async function modelFreeLookup(services: Services, question: string, opts
 
   // 3. Keyword search over the active collections (canonical KJV first).
   const collections = activeCollections(opts.collections, detectQuestionScope(q))
-  const keywords = keywordsOf(q)
+  const excluded = parseExclusions(q, (phrase) => parseRef(`${phrase.replace(/^(?:the\s+book\s+of\s+)/i, '')} 1`)?.bookId ?? null)
+  const keywords = keywordsOf(excluded.remainder)
   if (keywords.length === 0) return done(base)
   const query = keywords.join(' ')
   let rows = await services.bible.searchText(query, 'kjva', 'all').catch(() => [])
@@ -93,6 +95,7 @@ export async function modelFreeLookup(services: Services, question: string, opts
   for (const r of rows) {
     const key = `${r.book_id}|${r.chapter}|${r.verse_num}`
     if (seen.has(key) || !collections.includes(collectionOf('kjva', r.book_id))) continue
+    if (excluded.bookIds.includes(r.book_id) || mentionsExcluded(r.text, excluded.terms)) continue
     seen.add(key)
     results.push(result('kjva', r.book_id, r.chapter, r.verse_num, r.text, 'keyword'))
     if (results.length >= 12) break

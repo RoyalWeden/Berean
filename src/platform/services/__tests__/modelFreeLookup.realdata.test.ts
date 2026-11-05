@@ -32,6 +32,14 @@ describe.skipIf(!(kjva && lxx && heb && grk))('modelFreeLookup (real data, no mo
     expect(r.keywords).toContain('jubilee')
   })
 
+  it('honours "not from <book>" and "but not <word>" without a model (scenario 7)', async () => {
+    const book = await modelFreeLookup(s, 'verses on circumcision of the heart, not from Romans')
+    expect(book.results.length).toBeGreaterThan(0)
+    expect(book.results.some((r) => r.bookId === 'ROM')).toBe(false)
+    const word = await modelFreeLookup(s, 'Find passages on obedience but not rulers')
+    expect(word.results.some((r) => /\brulers?\b/i.test(r.text))).toBe(false)
+  })
+
   it('follow-ups resolve against the conversation (scenario 13)', async () => {
     const r = await modelFreeLookup(s, 'show that in the LXX', { history: [{ role: 'user', content: 'Genesis 1:1' }, { role: 'assistant', content: 'Passages: Genesis 1:1' }] })
     expect(r.followUpReason).toMatch(/LXX/)
