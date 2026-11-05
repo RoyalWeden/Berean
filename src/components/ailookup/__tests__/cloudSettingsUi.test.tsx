@@ -25,10 +25,10 @@ const type = (el: HTMLInputElement, value: string) => act(() => {
 
 describe('cloud model settings', () => {
   let api: Record<string, unknown>
-  let settings: { cloudEnabled: boolean; cloudPrivateContext: boolean; cloudModel: string }
+  let settings: { cloudEnabled: boolean; cloudPrivateContext: boolean; cloudModel: string; web: 'off' | 'ask' | 'auto' }
   let hasKey: boolean
   beforeEach(() => {
-    settings = { cloudEnabled: false, cloudPrivateContext: false, cloudModel: '' }
+    settings = { cloudEnabled: false, cloudPrivateContext: false, cloudModel: '', web: 'off' }
     hasKey = false
     useAppStore.setState({ aiLookupProfileId: 'default' })
     api = {
@@ -68,7 +68,7 @@ describe('cloud model settings', () => {
 
   it('keeps private context a separate choice, and hides everything on a device without it', async () => {
     hasKey = true
-    settings = { cloudEnabled: true, cloudPrivateContext: false, cloudModel: 'test-model' }
+    settings = { cloudEnabled: true, cloudPrivateContext: false, cloudModel: 'test-model', web: 'off' }
     await mount()
     await act(async () => { sw('Also send notes and conversation').click() })
     expect(api.setCloudSettings).toHaveBeenCalledWith({ cloudPrivateContext: true })
@@ -76,6 +76,12 @@ describe('cloud model settings', () => {
     delete api.getCloudSettings; delete api.setCloudSettings
     await mount()
     expect(document.body.textContent).not.toContain('Cloud model')
+  })
+
+  it('offers online research as its own permission, off by default, stating what is sent', async () => {
+    await mount()
+    expect(document.querySelector('[aria-label="Online research"]')).toBeTruthy()
+    expect(document.body.textContent).toContain('Only the search words are sent')
   })
 
   it('lists installed chat models for the profile, not embedding models', async () => {

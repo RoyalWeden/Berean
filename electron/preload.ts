@@ -425,7 +425,7 @@ contextBridge.exposeInMainWorld('crossrefs', {
 contextBridge.exposeInMainWorld('aiLookup', {
   checkAvailable: () => ipcRenderer.invoke('ailookup:checkAvailable'),
   unloadModel: () => ipcRenderer.invoke('ailookup:unloadModel'),
-  query: (question: string, opts: { requestId?: string; commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }>; tabContext?: { type: 'bible' | 'note' | 'lexicon' | 'youtube'; bookId?: string; chapter?: number; translation?: string; noteId?: string; strongsNum?: string; videoId?: string } }) =>
+  query: (question: string, opts: { requestId?: string; webApproved?: boolean; commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }>; tabContext?: { type: 'bible' | 'note' | 'lexicon' | 'youtube'; bookId?: string; chapter?: number; translation?: string; noteId?: string; strongsNum?: string; videoId?: string } }) =>
     ipcRenderer.invoke('ailookup:query', question, opts),
   cancel: (requestId: string) => ipcRenderer.invoke('ailookup:cancel', requestId),
   listChats: () => ipcRenderer.invoke('ailookup:listChats'),
@@ -452,7 +452,7 @@ contextBridge.exposeInMainWorld('aiLookup', {
   removeProviderKey: (providerId: string) => ipcRenderer.invoke('aiProviders:removeKey', providerId),
   checkProviderKey: () => ipcRenderer.invoke('aiProviders:checkKey'),
   getCloudSettings: () => ipcRenderer.invoke('aiProviders:getSettings'),
-  setCloudSettings: (patch: { cloudEnabled?: boolean; cloudPrivateContext?: boolean; cloudModel?: string }) => ipcRenderer.invoke('aiProviders:setSettings', patch),
+  setCloudSettings: (patch: { cloudEnabled?: boolean; cloudPrivateContext?: boolean; cloudModel?: string; web?: 'off' | 'ask' | 'auto' }) => ipcRenderer.invoke('aiProviders:setSettings', patch),
   // Another window wrote a conversation (the main process skips the writing window itself).
   // Returns an unsubscribe — unlike onProgress/onPartial, several chat surfaces can listen at once.
   onChatsChanged: (cb: (change: { id?: string; op: 'upsert' | 'delete' }) => void) => {

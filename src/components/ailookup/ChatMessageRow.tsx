@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useRef, useState } from 'react'
-import { Copy, Check, Pencil, Sparkles, AlertCircle, CornerUpLeft, MoreHorizontal, Bookmark } from 'lucide-react'
+import { Copy, Check, Pencil, Sparkles, AlertCircle, CornerUpLeft, MoreHorizontal, Bookmark, Globe } from 'lucide-react'
 import { IconButton, cx } from '@/components/ui'
 import { aiModeCaption, formatTime, messageTime, UNFILED_CHAT_ID, UNFILED_CHAT_TITLE, type ChatMsg } from './chatModel'
 import { AiReplyBody } from './AiReplyBody'
@@ -22,6 +22,7 @@ export interface ChatRowActions {
   /** Re-ask a question once with Commentary on (the "Explore interpretations" offer on a
    *  Commentary-off reply). Does not change the composer's mode. */
   askWithCommentary?: (question: string) => void
+  askOnline?: (question: string) => void
   /** Reply to a message (the composer shows "Replying to …"; the sent message quotes it). */
   startReply?: (message: ChatMsg, chatId: string | null) => void
   /** Scroll to and flash a message (a reply's quote was clicked). */
@@ -242,6 +243,11 @@ export const ChatMessageRow = memo(function ChatMessageRow(p: ChatMessageRowProp
               {m.interpretationOffered && p.question && actions?.canAsk && actions.askWithCommentary && (
                 <button type="button" className="chat-explore-action text-caption2" onClick={() => actions.askWithCommentary!(p.question!)}>
                   <Sparkles size={11} aria-hidden /> Explore interpretations
+                </button>
+              )}
+              {m.webOffered && p.question && actions?.canAsk && actions.askOnline && (
+                <button type="button" className="chat-explore-action text-caption2" onClick={() => actions.askOnline!(p.question!)}>
+                  <Globe size={11} aria-hidden /> Search Wikipedia and Sefaria
                 </button>
               )}
             </div>

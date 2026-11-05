@@ -34,6 +34,8 @@ export interface ChatSendOptions {
   ai?: { commentary: boolean; deepSearch: boolean; tabContext: boolean
     /** The user dismissed the "this chapter" auto-attach chip for this send (spec §5.4). */
     tabMentionDismissed?: boolean
+    /** The user tapped "Search online" for this one question. */
+    webApproved?: boolean
     /** Saved research the user chose to reuse for this send (spec §7.2). */
     savedContextId?: string }
   /** Reply to this message (defaults to the conversation's current reply target; null = none). */
@@ -56,6 +58,8 @@ function messageFieldsFrom(res: AiLookupResponse): Partial<ChatMsg> {
     ...(res.followUpReason ? { followUpReason: res.followUpReason } : {}),
     ...(res.premise ? { premise: res.premise } : {}),
     ...(res.providerNotice ? { providerNotice: res.providerNotice } : {}),
+    ...(res.external ? { external: res.external } : {}),
+    ...(res.webOffered ? { webOffered: true } : {}),
   }
 }
 
@@ -358,6 +362,7 @@ export function useChatController(opts: {
       const tabContext = aiMode.tabContext ? await optsRef.current.getTabContext?.() : undefined
       const res = await api.query(content, {
         requestId: replyId,
+        ...(sendOpts.ai.webApproved ? { webApproved: true } : {}),
         commentary: aiMode.commentary,
         agentic: aiMode.deepSearch,
         wordReplacerRules: sendOpts.wordReplacerRules?.length ? sendOpts.wordReplacerRules : undefined,

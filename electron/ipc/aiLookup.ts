@@ -31,7 +31,8 @@ import { checkedPremise, isPremiseShaped, premisePrompt, type PremiseCheck } fro
 import { modelJson, usingCloud, withModelRequest } from '../modelGateway'
 import { chooseLocalModel } from '../../src/lib/research/modelChoice'
 import { mentionsExcluded, parseExclusions, type QuestionExclusions } from '../../src/lib/research/exclusions'
-import { routeForLookup } from './aiProviders'
+import { routeForLookup, webResearchFor } from './aiProviders'
+import { forCommentaryOff, type ExternalSource } from '../../src/lib/research/webResearch'
 import { activeCollections, collectionOf, detectQuestionScope, COLLECTIONS, type CollectionId } from '../../src/lib/research/collections'
 import { profilePromptBlock, defaultProfileConfig, type StudyProfileConfig } from '../../src/lib/research/studyProfile'
 import { savedContextTurn } from '../../src/platform/services/savedContextsService'
@@ -139,6 +140,10 @@ export interface AiLookupResponse {
   premise?: PremiseCheck
   /** Where a cloud request went (destination, data, billing), or why the cloud wasn't used. */
   providerNotice?: string
+  /** Online sources, kept apart from Scripture and from every model prompt (spec §7.4). */
+  external?: ExternalSource[]
+  /** Online research is set to ask, and this question could use it: the UI offers one tap. */
+  webOffered?: boolean
 }
 
 export interface AiLookupNoteResult {
@@ -2629,6 +2634,8 @@ type LookupOpts = { commentary: boolean; agentic?: boolean; model?: string; text
   /** Internal: this request goes to a cloud model without consent for private context (spec §7.3),
    *  so conversation, tab content, notes and profile text stay out of every prompt. */
   withholdPrivate?: boolean
+  /** The user tapped "Search online" for this question. */
+  webApproved?: boolean
   /** Internal: "…but not human rulers", already taken out of the question. */
   exclusions?: QuestionExclusions
   /** The collections the user/profile searches by default (decision 9); a scope in the question wins. */
@@ -2657,8 +2664,14 @@ export async function runLookup(
 ): Promise<AiLookupResponse> {
   const { route, privateContext, notice } = routeForLookup()
   const response = await withModelRequest(route, signal, () => runRoutedLookup(question, { ...opts, withholdPrivate: !privateContext }, emit, emitPartial, signal))
-  const shown = notice ?? response.providerNotice
-  return shown ? { ...response, providerNotice: shown } : response
+  const web = signal?.aborted ? { sources: [] } as Awaited<ReturnType<typeof webResearchFor>> : await webResearchFor(question, { approved: !!opts.webApproved, deepSearch: !!opts.agentic, signal })
+  const shown = [notice ?? response.providerNotice, web.notice].filter(Boolean).join(' ')
+  return {
+    ...response,
+    ...(shown ? { providerNotice: shown } : {}),
+    ...(web.sources.length > 0 ? { external: opts.commentary ? web.sources : forCommentaryOff(web.sources) } : {}),
+    ...(web.offered ? { webOffered: true } : {}),
+  }
 }
 
 async function runRoutedLookup(
@@ -4033,6 +4046,7 @@ export function registerAiLookupHandlers(ipcMain: IpcMain): void {
       collections: Array.isArray(opts.collections) ? opts.collections.filter((c): c is CollectionId => COLLECTIONS.some((k) => k.id === c)) : undefined,
       profileId: typeof opts.profileId === 'string' ? opts.profileId : undefined,
       savedContextId: typeof opts.savedContextId === 'string' ? opts.savedContextId : undefined,
+      webApproved: opts.webApproved === true,
     },
       (status) => event.sender.send('ailookup:progress', status),
       (partial) => event.sender.send('ailookup:partial', partial),

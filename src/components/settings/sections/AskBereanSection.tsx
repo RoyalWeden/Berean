@@ -87,6 +87,26 @@ function CloudModelSettings() {
   )
 }
 
+/** Online research (spec §7.4): its own permission, separate from the cloud model. Desktop only. */
+function OnlineResearchSettings() {
+  const api = window.aiLookup
+  const [web, setWeb] = useState<AiCloudSettings['web'] | null>(null)
+  useEffect(() => { void api.getCloudSettings?.().then((s) => setWeb(s.web)) }, [api])
+  if (!web || !api.setCloudSettings) return null
+  return (
+    <div className="space-y-2">
+      <SectionLabel>Online research</SectionLabel>
+      <p className="s-desc text-caption text-text-muted">
+        Searches Wikipedia and Sefaria, free and with no account. Only the search words are sent, never your notes or
+        conversation. Those sites see your internet address. Online sources are labelled and never mixed with Scripture.
+      </p>
+      <Select aria-label="Online research" value={web} className="min-w-[200px]"
+        onChange={(v) => { const next = v as AiCloudSettings['web']; void api.setCloudSettings?.({ web: next }).then((s) => setWeb(s.web)) }}
+        options={[{ value: 'off', label: 'Off' }, { value: 'ask', label: 'Ask each time' }, { value: 'auto', label: 'Automatic with Deep Search' }]} />
+    </div>
+  )
+}
+
 /**
  * Settings → Ask Berean (spec §7.1–7.2): study profiles and saved research. One small surface —
  * advanced options stay here, not in the composer. A profile shapes search and Berean's own
@@ -278,6 +298,7 @@ export default function AskBereanSection() {
           ))}
       </div>
 
+      <OnlineResearchSettings />
       <CloudModelSettings />
 
       <AlertSheet open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null) }}

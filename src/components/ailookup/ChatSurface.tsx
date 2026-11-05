@@ -118,6 +118,11 @@ export const ChatSurface = forwardRef<ChatSurfaceHandle, {
       setStickToken((t) => t + 1)
       void cRef.current.send(question, { ai: { commentary: true, deepSearch: st.aiLookupAgenticOn, tabContext: st.aiLookupUseTabContext }, wordReplacerRules: rules })
     },
+    askOnline: (question) => {
+      const st = useAppStore.getState()
+      setStickToken((t) => t + 1)
+      void cRef.current.send(question, { ai: { commentary: st.aiLookupCommentaryOn, deepSearch: st.aiLookupAgenticOn, tabContext: false, webApproved: true }, wordReplacerRules: [] })
+    },
     startReply: (m, chatId) => { cRef.current.startReply(m.id, chatId); requestAnimationFrame(() => inner.current?.focus()) },
     jumpTo: (id) => cRef.current.jumpToMessage(id),
     openMenu: (m, chatId, at, o) => msgMenu.openAt(at, { m, chatId, more: o?.more }),

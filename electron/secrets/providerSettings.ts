@@ -12,9 +12,11 @@ export interface CloudSettings {
   cloudPrivateContext: boolean
   /** Model id the user chose. Berean never picks a billed model for them. */
   cloudModel: string
+  /** Online research (spec §7.3): separate from cloud inference, off until the user chooses. */
+  web: 'off' | 'ask' | 'auto'
 }
 
-export const DEFAULT_CLOUD_SETTINGS: CloudSettings = { cloudEnabled: false, cloudPrivateContext: false, cloudModel: '' }
+export const DEFAULT_CLOUD_SETTINGS: CloudSettings = { cloudEnabled: false, cloudPrivateContext: false, cloudModel: '', web: 'off' }
 
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/
 
@@ -45,5 +47,6 @@ export function createCloudSettingsStore(dir: string): CloudSettingsStore {
 function clean(raw: unknown): CloudSettings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const cloudModel = typeof r.cloudModel === 'string' && MODEL_RE.test(r.cloudModel.trim()) ? r.cloudModel.trim() : ''
-  return { cloudEnabled: r.cloudEnabled === true, cloudPrivateContext: r.cloudPrivateContext === true, cloudModel }
+  const web = r.web === 'ask' || r.web === 'auto' ? r.web : 'off'
+  return { cloudEnabled: r.cloudEnabled === true, cloudPrivateContext: r.cloudPrivateContext === true, cloudModel, web }
 }

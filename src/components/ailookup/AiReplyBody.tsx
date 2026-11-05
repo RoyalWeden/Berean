@@ -11,6 +11,7 @@ import { useChatNavigate } from './chatNav'
 import { ResearchResults } from './ResearchResults'
 import { collectionInfo, collectionOf } from '@/lib/research/collections'
 import { premiseNoticeText, type PremiseCheck } from '@/lib/research/premise'
+import type { ExternalSource } from '@/lib/research/webResearch'
 import { bookName } from '@/lib/parseRef'
 
 /**
@@ -134,6 +135,23 @@ function ResearchNotice({ code, partial, fallback }: { code: ResearchErrorCode; 
 /** A deterministic (non-AI-prose) summary line, shown as a quiet label rather than a sentence. */
 /** Premise check (spec §6.1 #11): "not verified" vs "contradicted by these sources", the cited
  *  verses, a missing-source caveat and a neutral search — fixed wording, never model prose. */
+/** Online sources sit in their own labelled block after the Scripture results, never among them. */
+function ExternalSources({ sources }: { sources: ExternalSource[] }) {
+  return (
+    <section aria-label="Online sources" className="space-y-1">
+      <p className="text-caption2 font-medium text-text-muted">Online sources (not Scripture)</p>
+      {sources.map((s) => (
+        <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="chat-ai-row block">
+          <span className="text-caption font-semibold text-text-primary">{s.title}</span>
+          <span className="text-caption2 text-text-muted"> · {s.site} · retrieved {s.retrievedAt.slice(0, 10)}</span>
+          {s.excerpt && <p className="text-caption2 text-text-secondary leading-snug mt-0.5">{s.excerpt}</p>}
+          <p className="text-caption2 text-text-muted mt-0.5">{s.limitation}</p>
+        </a>
+      ))}
+    </section>
+  )
+}
+
 function PremiseNotice({ premise: p }: { premise: PremiseCheck }) {
   const cite = (key: string) => { const [b, cv] = key.split(' '); return `${bookName(b)} ${cv}` }
   return (
@@ -224,6 +242,7 @@ export const AiReplyBody = memo(function AiReplyBody({ message: m, question }: {
         : m.strongsCard && <StrongsCard card={m.strongsCard} />}
       {(m.notes ?? []).length > 0 && <div className="chat-ai-rows">{m.notes!.map((n) => <NoteCard key={n.id} note={n} />)}</div>}
       {(m.videos ?? []).length > 0 && <div className="chat-ai-rows">{m.videos!.map((v) => <VideoCard key={v.videoId} video={v} />)}</div>}
+      {(m.external ?? []).length > 0 && <ExternalSources sources={m.external!} />}
 
       {visiblePrimary.length > 0 && (
         <ul className="chat-passages" aria-label="Passages">

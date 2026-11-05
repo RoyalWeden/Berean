@@ -119,6 +119,15 @@ describe('AiReplyBody', () => {
     expect(badge.getAttribute('title')).toMatch(/not a textual cross-reference/)
   })
 
+  it('keeps online sources in their own labelled block, and shows no excerpt when there is none', () => {
+    const external = [{ provider: 'wikipedia' as const, site: 'Wikipedia', title: 'Qumran', url: 'https://en.wikipedia.org/?curid=1', excerpt: '', retrievedAt: '2026-11-04T00:00:00.000Z', limitation: 'Secondary source.' }]
+    const { el } = mount(<AiReplyBody message={reply({ results: [titus], external })} />)
+    const block = el.querySelector('[aria-label="Online sources"]')!
+    expect(block.textContent).toContain('not Scripture')
+    expect(block.textContent).toContain('retrieved 2026-11-04')
+    expect(block.querySelector('a')!.getAttribute('rel')).toContain('noopener')
+  })
+
   it('says where a cloud answer went', () => {
     const { el } = mount(<AiReplyBody message={reply({ results: [titus], providerNotice: 'Anthropic (your API key), test-model.' })} />)
     expect(el.querySelector('[aria-label="Model used"]')!.textContent).toContain('your API key')

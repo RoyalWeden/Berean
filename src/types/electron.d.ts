@@ -1,11 +1,13 @@
 import type { ResearchPayload } from '../lib/research/payload'
 import type { ResearchErrorCode } from '../lib/research/errors'
 import type { PremiseCheck } from '../lib/research/premise'
+import type { ExternalSource } from '../lib/research/webResearch'
 
 export interface AiCloudSettings {
   cloudEnabled: boolean
   cloudPrivateContext: boolean
   cloudModel: string
+  web: 'off' | 'ask' | 'auto'
 }
 import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight, PdfBookmark,
   VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult,
@@ -744,6 +746,8 @@ export interface AiLookupResponse {
   /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
   premise?: PremiseCheck
   providerNotice?: string
+  external?: ExternalSource[]
+  webOffered?: boolean
 }
 
 export interface AiLookupChatSummary {
@@ -813,6 +817,8 @@ export interface AiLookupChatMessage {
   /** A presupposition the passages don't confirm (spec §6.1 #11) — checked, fixed wording. */
   premise?: PremiseCheck
   providerNotice?: string
+  external?: ExternalSource[]
+  webOffered?: boolean
   createdAt: string
   /** Berean Chat redesign — all optional/additive so older clients still read the JSON. */
   id?: string
@@ -862,6 +868,7 @@ interface AiLookupAPI {
   cancel?: (requestId: string) => Promise<{ success: boolean }>
   query: (question: string, opts: {
     requestId?: string
+    webApproved?: boolean
     commentary: boolean
     /** "Deep search" — an extra verification pass that checks whether the initial results
      *  actually answer the question and, if not, retries once with different search terms.
