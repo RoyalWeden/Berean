@@ -28,3 +28,30 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
 - Merge in the order listed; for stacked PRs merge the lower one first and **wait until GitHub retargets the next PR to main before
   merging it** — #21 was merged into its already-merged base branch and missed main (re-landed via `native/m7-export`).
 - Before merging: CI green (both jobs) + the local Mac check comment (ADR-0007: `npm run native:build:mac`, Xcode 27).
+
+## Session end 2026-11-08 (afternoon) — state
+- **Open PRs, merge in this order:**
+  1. **#22** `native/m7-export` → main: re-lands #21 (note Markdown + version history, missed main) + the Export fix.
+  2. **#23** `native/m6-navigation` (stacked on #22), containing:
+     - the ADR-0010 sidebar, sessions and workspaces redesign, tab archive, passage pill and history toolbar;
+     - ⌃Tab over the unified list;
+     - the iPhone tab sheet and Sessions page;
+     - verse tags;
+     - verse-number actions.
+     After #22 merges, wait for GitHub to retarget #23 to main, then merge.
+- Checks at 8eec766:
+  - `swift test -c release`: 62 tests / 25 suites PASS;
+  - golden drift guard: 22/22 PASS;
+  - `npm run native:build:mac` and `native:build:ios`: PASS;
+  - `npm run native:ui:smoke`: PASS (at 26a3835).
+- UI evidence: `VISUAL-UX-PARITY.md` verification log and CHANGELOG entries for today.
+- Next executable tasks:
+  1. Study Trail: port `src/platform/services/studyTrailService.ts` (1223 lines) with goldens, then the trail map UI.
+  2. Tab multi-select (⌘/⇧-click) with bulk archive/move/close; session icons.
+  3. Unified grouped search (`unifiedSearch.ts`).
+  4. iPhone verse sheet and verse-number actions on iOS (the verse menu exists; check touch).
+  5. M4 sync engine port.
+- Visual QA harness notes:
+  - Context menus opened with synthetic clicks can leave the app in a menu-tracking loop (it looks hung; `sample` shows
+    NSMenuTrackingSession). Prefer keyboard navigation + Return, and `pkill` if it sticks.
+  - `ccusage` is blocked by the permission classifier, so the usage window cannot be checked from here.
