@@ -377,6 +377,7 @@ struct BibleState: Equatable {
     var rightPanelOpen = false
     var rightPanelTab = "lexicon"
     var rightPanelLexiconEntry: String? = nil
+    var compareMode = false
 
     init(bookId: String, chapter: Int) { self.bookId = bookId; self.chapter = chapter }
 
@@ -389,6 +390,7 @@ struct BibleState: Equatable {
         rightPanelOpen = o["rightPanelOpen"]?.boolValue ?? false
         rightPanelTab = o["rightPanelTab"]?.stringValue?.string ?? "lexicon"
         rightPanelLexiconEntry = o["rightPanelLexiconEntry"]?.stringValue?.string
+        compareMode = o["compareMode"]?.boolValue ?? false
     }
 
     var object: JSObject { merged(into: JSObject()) }
@@ -401,6 +403,7 @@ struct BibleState: Equatable {
         if o["scrollPosition"] == nil { o["scrollPosition"] = .number(0) }
         o["rightPanelOpen"] = .bool(rightPanelOpen); o["rightPanelTab"] = .string(JSString(rightPanelTab))
         if let e = rightPanelLexiconEntry { o["rightPanelLexiconEntry"] = .string(JSString(e)) } else { o.remove("rightPanelLexiconEntry") }
+        if compareMode { o["compareMode"] = .bool(true) } else { o.remove("compareMode") }
         return o
     }
 }

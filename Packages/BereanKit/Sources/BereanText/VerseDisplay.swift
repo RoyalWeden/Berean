@@ -55,6 +55,16 @@ public enum VerseDisplay {
         return replace ? WordReplacer.apply(text, rules: rules) : text
     }
 
+    /// The rendered tokens of a KJVA tagged verse — exactly the words `buildVerseDisplayTokens` shows (replacer,
+    /// Strong's restorations, "the" suppression) but keeping each token's Strong's numbers, for renderers that
+    /// draw Strong's chips. Other texts: the parsed tokens unchanged.
+    public static func renderTokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> [TaggedToken] {
+        guard let tagged, !tagged.isEmpty else { return [] }
+        let tokens = TaggedText.parse(tagged)
+        if textId == "kjva" { return processed(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules) }
+        return tokens.filter { !$0.hasNoPlainText }
+    }
+
     /// `buildVerseDisplayTokens` (red-letter / italic flags for renderers without Strong's chips).
     public static func tokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> [DisplayToken] {
         let replace = replacerEnabled && !rules.isEmpty

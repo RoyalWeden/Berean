@@ -23,6 +23,15 @@ struct ScriptureView: View {
 
     var body: some View {
         let st = state
+        Group {
+            if st.compareMode { CompareView(tabId: tabId) } else { chapterBody(st) }
+        }
+        .navigationTitle(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))
+        .navigationSubtitleCompat(st.compareMode ? "Compare" : (availableTexts.first { $0.id == st.translation }?.name ?? st.translation))
+        .toolbar { toolbar(st) }
+    }
+
+    @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
@@ -86,9 +95,6 @@ struct ScriptureView: View {
                 if let v = st.verse { try? await Task.sleep(for: .milliseconds(50)); proxy.scrollTo(v, anchor: .top) }
             }
         }
-        .navigationTitle(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))
-        .navigationSubtitleCompat(availableTexts.first { $0.id == st.translation }?.name ?? st.translation)
-        .toolbar { toolbar(st) }
         .overlay { if verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
 
@@ -115,6 +121,8 @@ struct ScriptureView: View {
                     ForEach(availableTexts) { Text($0.name).tag($0.id) }
                 }
             } label: { Label("Text", systemImage: "books.vertical") }
+            Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
+                .keyboardShortcut("c", modifiers: [.command, .option])
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
                 .keyboardShortcut("i", modifiers: [.command, .option])
@@ -194,16 +202,11 @@ struct VerseRowView: View {
             out += AttributedString(VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules))
             return out
         }
-        // Study tokens carry the restored display word AND its Strong's numbers.
-        let tokens = TaggedText.parse(tagged).filter { !$0.hasNoPlainText }
-        let display = VerseDisplay.tokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
-        let study = VerseDisplay.studyTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
-        let words: [(String, Bool, Bool, [String])] = textId == "kjva" && display.count == study.count
-            ? zip(display, study).map { ($0.word, $0.isItalic, $0.isRedLetter, $1.strongs) }
-            : tokens.map { t in
-                let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
-                return (t.word, t.isItalic, t.isRedLetter, nums)
-            }
+        let rendered = VerseDisplay.renderTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
+        let words: [(String, Bool, Bool, [String])] = rendered.map { t in
+            let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
+            return (t.word, t.isItalic, t.isRedLetter, nums)
+        }
         // Stored character highlights are offsets into verse.text; map them onto the displayed words.
         let shown = words.map(\.0).joined(separator: " ")
         let ranges: [(Int, Int, String)] = highlights.compactMap { h in
