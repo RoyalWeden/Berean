@@ -32,6 +32,14 @@
 | 2026-11-07 | M1-01 | native/m0-execution-records | Mac + iOS Simulator builds; Mac launch screenshot | identities `com.berean.native.mac.dev` / `.ios.dev` |
 | 2026-11-07 | M1-03/04 | native/m0-execution-records | `swift test`: 23 tests (19 conformance over 5 golden files) pass; mutation checks fail as expected | |
 
+## G2 gate — ACCEPTED 2026-11-07 (Claude, engineering gate; evidence below)
+- Representative Scripture read/search on both native targets: reader (KJVA, italics/red letter, Strong's, chapter navigation,
+  reference jump, FTS search) on Mac (owner-tested 2026-11-07) and iOS Simulator.
+- Cross-language data contracts: goldens for references, Strong's, verse text, word replacer, Bible/lexicon/cross-reference services —
+  100% on macOS (SQLite 3.54.0) and iOS Simulator (SQLite 3.51.0); deterministic search order (ADR-0008).
+- No mutable user-database writes anywhere in native code (BereanSQLite opens read-only only).
+- Open follow-ups (do not block M3): iOS 18 physical-device SQLite check; deep links (M6).
+
 ## G0 evidence (M0)
 - Worktrees now: `/Users/roywe/Berean` (main), `/Users/roywe/Berean-ai-bench` (`eval/ai-benchmark`, removal
   pending the docs PR that archives its REPORT.md), `/Users/roywe/Berean-native`.

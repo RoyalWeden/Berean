@@ -146,3 +146,14 @@
 - Golden `display.json`: every KJVA verse (replacer on/off/custom rules, display tokens, study tokens, match indices) + every 7th
   verse of LXX/Enoch/KJV + hand cases. All reproduced.
 - Native package tests now run in release mode (`scripts/native/build.sh test`): 4 + 33 tests in ~30 s.
+
+### 2026-11-07 22:15 PST — M2 complete; gate G2 accepted
+- PR #16 merged (`bfbf8ea`; OD-4 ordering + macOS 27 target; Mac build verified locally with Xcode 27.2 — hosted CI has no Xcode 27).
+- `LexiconService.occurrences` (getOccurrences incl. LXX re-anchoring and phrase expansion), `CrossrefsService` (Classic, TSKe,
+  Taylor-Hermas footnotes), `ChapterMap` (KJV⇄LXX numbering, versification notes; structural notes generated from TS). Legacy
+  cross-reference queries gained the `rowid` tie-breaker (ADR-0008 extended to `ORDER BY votes DESC`).
+- Goldens: lexicon.json (+14 occurrence cases), crossrefs.json (every book's first/middle/last chapter both datasets, LXX Psalms,
+  verse cases, Hermas, the chapter map over chapters 0–152 for 8 books). All reproduced.
+- B-15: the full BereanKit golden suite passes on the iOS Simulator (iOS 27.2, SQLite 3.51.0, FTS5) — `npm run native:test:ios`,
+  now also a CI step. macOS: SQLite 3.54.0.
+- G2 accepted (STATUS). Next: M3 (writable store on synthetic copies) in parallel with M6 Mac shell work on read-only data.

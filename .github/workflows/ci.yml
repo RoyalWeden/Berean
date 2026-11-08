@@ -91,6 +91,9 @@ jobs:
       - name: BereanKit conformance tests
         run: npm run native:test
 
+      - name: BereanKit conformance tests on an iOS Simulator (platform SQLite)
+        run: npm run native:test:ios
+
       - name: Build BereanMac
         if: steps.xcode.outputs.mac == 'yes'
         run: npm run native:build:mac

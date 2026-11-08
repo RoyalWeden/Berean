@@ -116,3 +116,13 @@ func digest(_ rows: [JSValue]) -> JSObject {
         }
     }
 }
+
+/// B-15 evidence: the platform SQLite has FTS5 and the bundled corpora's FTS tables work on it.
+@Suite struct SQLiteEnvironmentTests {
+    @Test func fts5Available() throws {
+        let db = try SQLiteConnection(readOnlyPath: ":memory:")
+        let options = try db.query("PRAGMA compile_options").compactMap { $0.values.first?.string }
+        print("SQLite \(SQLiteConnection.libraryVersion); FTS5=\(options.contains("ENABLE_FTS5")); \(options.filter { $0.hasPrefix("ENABLE_") }.joined(separator: ","))")
+        #expect(options.contains("ENABLE_FTS5"))
+    }
+}

@@ -17,6 +17,7 @@
     "test": "vitest",
     "golden:export": "vite-node scripts/golden/export.ts",
     "native:test": "scripts/native/build.sh test",
+    "native:test:ios": "scripts/native/build.sh ios-test",
     "native:build:mac": "scripts/native/build.sh mac",
     "native:build:ios": "scripts/native/build.sh ios",
     "native:check": "scripts/native/build.sh all",
