@@ -234,3 +234,15 @@
   my shepherd" showed instead of "Yehovah is my shepherd"). New `VerseDisplay.renderTokens` (display words + Strong's); test asserts it
   equals `buildVerseDisplayTokens` output for every KJVA verse.
 - Known gaps vs legacy compare: per-column independent navigation and synced scrolling across differently numbered chapters.
+
+### 2026-11-08 10:15 PST — Scripture layout presets + saved workspaces (M6-02)
+- Mac: the 16 scripture layout presets with the legacy ids (stored per tab in `scriptureLayout`), study panels (tabbed / notes / lexicon /
+  cross refs) in resizable HSplitView/VSplitView; toolbar Layout menu. Verified study-grid in the running app.
+- `BereanWorkspace.WorkspaceSnapshot`: port of src/lib/workspaceSnapshot.ts (buildWorkspaceState / parseWorkspaceState / workspaceSessionId).
+  `workspaces.json` golden gained 3 build and 13 parse cases (NULL, empty, malformed, array, v1, v2, wrong-space tabs, invalid tabs,
+  duplicate/junk display order, non-string icon) — all reproduced byte-for-byte.
+- App: Save Session as Workspace… / Open Workspace ▸ in the session menu; Settings → Workspaces (open, rename, delete with confirm).
+  Opening creates or switches to session `ws:<id>` with fresh ids for tabs already open elsewhere (as `openWorkspaceSession`).
+  A native save writes the desktop default mosaic tree as layout_json (the native layout preset travels inside each tab's state).
+- Verified: a workspace row in the existing app's v2 format, seeded into the native dev library, opened as session "Ten Words" with
+  its 3 tabs, active tab and order, and persisted as `ws:qa-ws1` tab rows.

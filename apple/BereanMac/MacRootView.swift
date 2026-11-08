@@ -32,6 +32,8 @@ struct MacRootView: View {
     @Environment(AppModel.self) private var app
     @State private var renaming: String?
     @State private var renameText = ""
+    @State private var savingWorkspace = false
+    @State private var workspaceName = ""
 
     var body: some View {
         @Bindable var app = app
@@ -90,6 +92,12 @@ struct MacRootView: View {
             Button("New Session") { app.newSession() }
             Button("Rename Session…") { renameText = app.session.name; renaming = app.currentSessionId }
             Button("Delete Session", role: .destructive) { app.deleteSession(app.currentSessionId) }.disabled(app.sessions.count < 2)
+            Divider()
+            Button("Save Session as Workspace…") { workspaceName = app.session.name; savingWorkspace = true }
+            Menu("Open Workspace") {
+                if app.savedWorkspaces.isEmpty { Text("No saved workspaces") }
+                ForEach(app.savedWorkspaces) { w in Button(w.name) { app.openWorkspace(w.id) } }
+            }
         } label: {
             Label(app.session.name, systemImage: "rectangle.stack")
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,6 +107,13 @@ struct MacRootView: View {
             TextField("Name", text: $renameText)
             Button("Rename") { if let id = renaming { app.renameSession(id, to: renameText) }; renaming = nil }
             Button("Cancel", role: .cancel) { renaming = nil }
+        }
+        .alert("Save Workspace", isPresented: $savingWorkspace) {
+            TextField("Workspace name", text: $workspaceName)
+            Button("Save") { app.saveWorkspace(named: workspaceName) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Saves this session's tabs. Workspaces also appear in Berean's Settings → Layout.")
         }
     }
 

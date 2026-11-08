@@ -57,6 +57,9 @@ final class AppModel {
     private(set) var highlights: HighlightsService?
     var highlightsRevision = 0
     private(set) var settingsService: SettingsService?
+    private(set) var workspaces: WorkspacesService?
+    /// Saved workspaces (newest first), shared with the existing apps' Settings → Layout list.
+    var savedWorkspaces: [SavedWorkspace] = []
     /// Reading preferences (settings table keys shared with the existing apps where they exist).
     var fontSize: Double = 16 { didSet { saveSetting("fontSize", .number(fontSize)) } }
     var lineHeight = "comfortable" { didSet { saveSetting("lineHeight", .string(JSString(lineHeight))) } }
@@ -89,6 +92,8 @@ final class AppModel {
             database = db; sessionsService = svc
             notes = NotesService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.notesRevision += 1 } })
             settingsService = SettingsService(db: db.connection)
+            workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
+            savedWorkspaces = (try? workspaces?.list()) ?? []
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
             let rows = try svc.allRows()
@@ -188,6 +193,57 @@ final class AppModel {
         if currentSessionId == id { currentSessionId = sessions[0].id }
         scheduleSave()
     }
+
+    // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)
+
+    /// The existing desktop app restores this mosaic tree on load; the native reader keeps its
+    /// layout preset per tab (BibleState.scriptureLayout), so a native save writes the desktop default.
+    static let legacyDefaultPanelLayout = #"{"direction":"row","first":"bible-panel","second":"notes-panel","splitPercentage":58}"#
+
+    func refreshWorkspaces() { savedWorkspaces = (try? workspaces?.list()) ?? [] }
+
+    @discardableResult
+    func saveWorkspace(named name: String) -> Bool {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let workspaces else { return false }
+        let state = WorkspaceSnapshot.stateJSON(for: session, displayOrder: displayOrders[currentSessionId])
+        guard (try? workspaces.save(name: name, layoutJSON: Self.legacyDefaultPanelLayout, stateJSON: state)) != nil else { return false }
+        refreshWorkspaces(); return true
+    }
+
+    /// Opens (or switches to) the workspace's session `ws:<id>`, as `openWorkspaceSession` does:
+    /// tab ids already open in another session get fresh ids so per-session tab rows stay distinct.
+    func openWorkspace(_ id: String) {
+        let sid = WorkspaceSnapshot.sessionId(id)
+        if sessions.contains(where: { $0.id == sid }) { switchSession(sid); return }
+        guard let ws = try? workspaces?.load(id) else { return }
+        let parsed = WorkspaceSnapshot.parse(ws.stateJSON)
+        let open = Set(sessions.flatMap { $0.allTabs.map(\.id) })
+        var idMap: [String: String] = [:]
+        var tabs: [SpaceId: [BereanWorkspace.Tab]] = [:]
+        var active: [SpaceId: String?] = [:]
+        for sp in WorkspaceSnapshot.spaces {
+            tabs[sp] = parsed.tabs(in: sp).compactMap { BereanWorkspace.Tab(jsObject: $0) }.map { t in
+                guard open.contains(t.id) || idMap[t.id] != nil else { return t }
+                var c = t; c.id = "\(t.type)-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(8))"
+                idMap[t.id] = c.id; return c
+            }
+            active[sp] = ((parsed.activeTabId[sp] ?? nil).map { idMap[$0] ?? $0 }) ?? tabs[sp]?.first?.id
+        }
+        sessions.append(Session(id: sid, name: ws.name, icon: parsed.icon, tabs: tabs, activeTabId: active))
+        displayOrders[sid] = parsed.displayOrder.map { idMap[$0] ?? $0 }
+        currentSessionId = sid
+        if let sp = WorkspaceSnapshot.spaces.first(where: { !(tabs[$0] ?? []).isEmpty }), tabs[activeSpace]?.isEmpty ?? true { activeSpace = sp }
+        scheduleSave()
+    }
+
+    func renameWorkspace(_ id: String, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        try? workspaces?.rename(id, to: name); refreshWorkspaces()
+    }
+
+    func deleteWorkspace(_ id: String) { try? workspaces?.delete(id); refreshWorkspaces() }
 
     // MARK: tabs
 

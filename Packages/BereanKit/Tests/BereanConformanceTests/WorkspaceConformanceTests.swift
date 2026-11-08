@@ -210,3 +210,42 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         #expect(log.items.map { "\($0.entity)/\($0.id)/\($0.op)" } == g.arr("events").map { "\($0["entity"]!.str)/\($0["id"]!.str)/\($0["op"]!.str)" })
     }
 }
+
+@Suite("workspace snapshot golden") struct WorkspaceSnapshotConformanceTests {
+    @Test func build() throws {
+        let g = try Golden.load("workspaces")["snapshot"]!.object
+        let inputs = g.arr("buildInputs"), built = g.arr("built")
+        #expect(inputs.count == built.count && !inputs.isEmpty)
+        for (i, input) in inputs.enumerated() {
+            var tabs: [SpaceId: [JSValue]] = [:]
+            for (k, v) in (input["tabs"]?.object ?? JSObject()).entries { if let sp = SpaceId(rawValue: k.string) { tabs[sp] = v.array } }
+            let out = WorkspaceSnapshot.build(tabs: tabs, activeTabId: input["activeTabId"]?.object ?? JSObject(),
+                                              displayOrder: input["displayOrder"]?.arrayValue?.map(\.str), icon: input["icon"]?.optionalString)
+            #expect(JSON.stringifyString(out) == built[i].str, "build case \(i)")
+        }
+    }
+
+    @Test func parse() throws {
+        let g = try Golden.load("workspaces")["snapshot"]!.object
+        let cases = g.arr("parsed")
+        #expect(cases.count >= 10)
+        for (i, c) in cases.enumerated() {
+            let out = WorkspaceSnapshot.parse(c["input"]?.optionalString)
+            #expect(JSON.stringifyString(out.jsValue) == c["output"]!.str, "parse case \(i)")
+        }
+    }
+
+    @Test func sessionRoundTrip() {
+        let s = Session(id: "s1", name: "Study", icon: "book", tabs: [
+            .scripture: [Tab(id: "t1", spaceId: .scripture, type: "bible", title: "John 3", state: JSValue(dictionaryLiteral: ("book", "John"), ("chapter", 3)).object)],
+            .notes: [Tab(id: "t2", spaceId: .notes, type: "note", title: "N", isPinned: true)],
+        ], activeTabId: [.scripture: "t1"])
+        let json = WorkspaceSnapshot.stateJSON(for: s, displayOrder: ["t2", "gone"])
+        let p = WorkspaceSnapshot.parse(json)
+        #expect(p.version == 2 && p.icon == "book" && p.displayOrder == ["t2", "t1"])
+        #expect(p.activeTabId[.notes]! == "t2")
+        #expect(p.tabs(in: .scripture).compactMap { Tab(jsObject: $0) } == s.tabs(in: .scripture))
+        #expect(p.tabs(in: .notes).compactMap { Tab(jsObject: $0) } == s.tabs(in: .notes))
+        #expect(WorkspaceSnapshot.sessionId("abc") == "ws:abc")
+    }
+}
