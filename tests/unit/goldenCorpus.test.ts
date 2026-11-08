@@ -8,6 +8,7 @@ import { buildGoldenCorpus, GOLDEN_DIR, serializeGolden } from '../../scripts/go
 import { buildReferenceTablesSwift, SWIFT_TABLES_PATH } from '../../scripts/golden/swiftTables'
 import { buildBibleGolden } from '../../scripts/golden/bible'
 import { buildTextGolden } from '../../scripts/golden/text'
+import { buildLexiconGolden } from '../../scripts/golden/lexicon'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -47,5 +48,11 @@ describe('golden corpus', () => {
     if (!g) return
     const path = join(GOLDEN_DIR, 'text.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'text.json is stale — run npm run golden:export').toBe(true)
+  }, 300_000)
+  it('lexicon.json matches the TypeScript lexicon service (skipped without data/*.db)', async () => {
+    const g = await buildLexiconGolden()
+    if (!g) return
+    const path = join(GOLDEN_DIR, 'lexicon.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'lexicon.json is stale — run npm run golden:export').toBe(true)
   }, 300_000)
 })

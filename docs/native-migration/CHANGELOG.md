@@ -109,3 +109,9 @@
 - **Golden:** `text.json` (scripts/golden/text.ts) digests tokens, ranges and offset maps for EVERY verse of KJVA and LXX, and
   stripping + offsets for every LXX/Enoch/Jubilees verse under each annotation toggle; all reproduced (full run ~60 s in debug).
 - **Data touched:** bundled corpora read-only.
+
+### 2026-11-07 18:35 PST — M2-04 (lexicon) — IMPLEMENTED
+- `BereanBible.LexiconService`: getEntry, getRelated (Hebrew whole-number derivation match), search, getOccurrencePage — same SQL.
+- Golden `lexicon.json` (scripts/golden/lexicon.ts): every Hebrew (H1–H8676) and Greek (G1–G5626) entry in 250-id digests, edge ids,
+  related, 39 searches, 9 occurrence pages (with clamping cases); records the database sha256s. All reproduced; mutations caught.
+- Not yet ported: `getOccurrences` (tag scan + match indices) and `findByNormalizedTransliteration`.
