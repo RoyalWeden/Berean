@@ -4,7 +4,7 @@ import SwiftUI
 struct BereanIOSApp: App {
     var body: some Scene {
         WindowGroup {
-            NavigationStack { CoreStatusView() }
+            NavigationStack { ReaderView() }
         }
     }
 }

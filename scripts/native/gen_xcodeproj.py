@@ -13,9 +13,14 @@ c = itertools.count(1)
 def nid(): return "BE7EA0%018X" % next(c)
 P = {k: nid() for k in "project mainGroup productsGroup configGroup grpMac grpIOS grpShared refMacApp refIOSApp refBase refMacCfg refIOSCfg pkg projList projDebug projRelease".split()}
 T = {}
-PRODUCTS = ["BereanCore", "BereanSync", "BereanReference"]
+PRODUCTS = ["BereanCore", "BereanSync", "BereanReference", "BereanBible", "BereanText"]
 for t in ("BereanMac", "BereanIOS"):
     T[t] = {k: nid() for k in "target src fw res list debug release".split()}
+for t in ("BereanMac", "BereanIOS"):
+    T[t]["corpora"] = nid()
+# Bundled text databases copied into the dev apps (gitignored in data/; `npm run setup:worktree`
+# links them, CI downloads them). Read-only corpora only — never a user database.
+CORPORA = ["kjva", "kjv", "lxx", "strongs_hebrew", "strongs_greek"]
 for t in ("BereanMac", "BereanIOS"):
     for prod in PRODUCTS:
         T[t]["dep" + prod] = nid()
@@ -127,6 +132,7 @@ for t, d in T.items():
 				{d['src']} /* Sources */,
 				{d['fw']} /* Frameworks */,
 				{d['res']} /* Resources */,
+				{d['corpora']} /* Bundle corpora */,
 			);
 			buildRules = (
 			);
@@ -189,6 +195,33 @@ phase = lambda id_, isa, name: f"""\t\t{id_} /* {name} */ = {{
 """
 section("PBXResourcesBuildPhase", [phase(d['res'], "PBXResourcesBuildPhase", "Resources") for d in T.values()])
 section("PBXSourcesBuildPhase", [phase(d['src'], "PBXSourcesBuildPhase", "Sources") for d in T.values()])
+
+corp = []
+for t, d in T.items():
+    ins = "".join(f'				"$(SRCROOT)/../data/{c}.db",\n' for c in CORPORA)
+    outs = "".join(f'				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/{c}.db",\n' for c in CORPORA)
+    sh = 'set -e\\nmkdir -p \\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Corpora\\"\\nfor i in $(seq 0 $((SCRIPT_INPUT_FILE_COUNT - 1))); do\\n  in=$(eval echo \\"\\\\$SCRIPT_INPUT_FILE_$i\\")\\n  out=$(eval echo \\"\\\\$SCRIPT_OUTPUT_FILE_$i\\")\\n  cp -L \\"$in\\" \\"$out\\"\\ndone\\n'
+    corp.append(f"""\t\t{d['corpora']} /* Bundle corpora */ = {{
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+{ins}			);
+			name = "Bundle corpora";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+{outs}			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "{sh}";
+		}};
+""")
+section("PBXShellScriptBuildPhase", corp)
+
 
 cfg = []
 cfg.append(f"""\t\t{P['projDebug']} /* Debug */ = {{

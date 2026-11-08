@@ -115,3 +115,12 @@
 - Golden `lexicon.json` (scripts/golden/lexicon.ts): every Hebrew (H1–H8676) and Greek (G1–G5626) entry in 250-id digests, edge ids,
   related, 39 searches, 9 occurrence pages (with clamping cases); records the database sha256s. All reproduced; mutations caught.
 - Not yet ported: `getOccurrences` (tag scan + match indices) and `findByNormalizedTransliteration`.
+
+### 2026-11-07 18:50 PST — G2 progress — first native reader (Mac + iPhone Simulator)
+- "Bundle corpora" build phase (scripts/native/gen_xcodeproj.py) copies kjva, kjv, lxx, strongs_hebrew, strongs_greek (read-only
+  corpora, never user data) into the dev apps under Resources/Corpora; both apps link BereanBible + BereanText.
+- `apple/Shared/Reader.swift`: KJVA chapter reader with KJV italics and red letter from text_tagged, optional Strong's numbers,
+  previous/next chapter (crossing books), and one search field: a typed reference navigates, anything else runs FTS search.
+  The core status view moved to an info sheet.
+- Verified: Mac build + launch (Genesis 1 renders with italics); iOS Simulator (iPhone 17 Pro) build + launch renders Genesis 1.
+  Search/navigation not yet driven by UI automation in this session.

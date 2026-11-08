@@ -7,12 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		BE7EA0000000000000000020 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000001F /* BereanCore */; };
-		BE7EA0000000000000000022 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000021 /* BereanSync */; };
-		BE7EA0000000000000000024 /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000023 /* BereanReference */; };
-		BE7EA0000000000000000026 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000025 /* BereanCore */; };
-		BE7EA0000000000000000028 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000027 /* BereanSync */; };
-		BE7EA000000000000000002A /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000029 /* BereanReference */; };
+		BE7EA0000000000000000022 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000021 /* BereanCore */; };
+		BE7EA0000000000000000024 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000023 /* BereanSync */; };
+		BE7EA0000000000000000026 /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000025 /* BereanReference */; };
+		BE7EA0000000000000000028 /* BereanBible in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000027 /* BereanBible */; };
+		BE7EA000000000000000002A /* BereanText in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000029 /* BereanText */; };
+		BE7EA000000000000000002C /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000002B /* BereanCore */; };
+		BE7EA000000000000000002E /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000002D /* BereanSync */; };
+		BE7EA0000000000000000030 /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000002F /* BereanReference */; };
+		BE7EA0000000000000000032 /* BereanBible in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000031 /* BereanBible */; };
+		BE7EA0000000000000000034 /* BereanText in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000033 /* BereanText */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,9 +38,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BE7EA0000000000000000020 /* BereanCore in Frameworks */,
-				BE7EA0000000000000000022 /* BereanSync in Frameworks */,
-				BE7EA0000000000000000024 /* BereanReference in Frameworks */,
+				BE7EA0000000000000000022 /* BereanCore in Frameworks */,
+				BE7EA0000000000000000024 /* BereanSync in Frameworks */,
+				BE7EA0000000000000000026 /* BereanReference in Frameworks */,
+				BE7EA0000000000000000028 /* BereanBible in Frameworks */,
+				BE7EA000000000000000002A /* BereanText in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -44,9 +50,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BE7EA0000000000000000026 /* BereanCore in Frameworks */,
-				BE7EA0000000000000000028 /* BereanSync in Frameworks */,
-				BE7EA000000000000000002A /* BereanReference in Frameworks */,
+				BE7EA000000000000000002C /* BereanCore in Frameworks */,
+				BE7EA000000000000000002E /* BereanSync in Frameworks */,
+				BE7EA0000000000000000030 /* BereanReference in Frameworks */,
+				BE7EA0000000000000000032 /* BereanBible in Frameworks */,
+				BE7EA0000000000000000034 /* BereanText in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -93,6 +101,7 @@
 				BE7EA0000000000000000012 /* Sources */,
 				BE7EA0000000000000000013 /* Frameworks */,
 				BE7EA0000000000000000014 /* Resources */,
+				BE7EA000000000000000001F /* Bundle corpora */,
 			);
 			buildRules = (
 			);
@@ -104,9 +113,11 @@
 			);
 			name = BereanMac;
 			packageProductDependencies = (
-				BE7EA000000000000000001F /* BereanCore */,
-				BE7EA0000000000000000021 /* BereanSync */,
-				BE7EA0000000000000000023 /* BereanReference */,
+				BE7EA0000000000000000021 /* BereanCore */,
+				BE7EA0000000000000000023 /* BereanSync */,
+				BE7EA0000000000000000025 /* BereanReference */,
+				BE7EA0000000000000000027 /* BereanBible */,
+				BE7EA0000000000000000029 /* BereanText */,
 			);
 			productName = BereanMac;
 			productReference = BE7EA0000000000000000008 /* BereanMac.app */;
@@ -119,6 +130,7 @@
 				BE7EA0000000000000000019 /* Sources */,
 				BE7EA000000000000000001A /* Frameworks */,
 				BE7EA000000000000000001B /* Resources */,
+				BE7EA0000000000000000020 /* Bundle corpora */,
 			);
 			buildRules = (
 			);
@@ -130,9 +142,11 @@
 			);
 			name = BereanIOS;
 			packageProductDependencies = (
-				BE7EA0000000000000000025 /* BereanCore */,
-				BE7EA0000000000000000027 /* BereanSync */,
-				BE7EA0000000000000000029 /* BereanReference */,
+				BE7EA000000000000000002B /* BereanCore */,
+				BE7EA000000000000000002D /* BereanSync */,
+				BE7EA000000000000000002F /* BereanReference */,
+				BE7EA0000000000000000031 /* BereanBible */,
+				BE7EA0000000000000000033 /* BereanText */,
 			);
 			productName = BereanIOS;
 			productReference = BE7EA0000000000000000009 /* BereanIOS.app */;
@@ -212,6 +226,65 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		BE7EA000000000000000001F /* Bundle corpora */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../data/kjva.db",
+				"$(SRCROOT)/../data/kjv.db",
+				"$(SRCROOT)/../data/lxx.db",
+				"$(SRCROOT)/../data/strongs_hebrew.db",
+				"$(SRCROOT)/../data/strongs_greek.db",
+			);
+			name = "Bundle corpora";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/kjva.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/kjv.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/lxx.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/strongs_hebrew.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/strongs_greek.db",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nmkdir -p \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Corpora\"\nfor i in $(seq 0 $((SCRIPT_INPUT_FILE_COUNT - 1))); do\n  in=$(eval echo \"\\$SCRIPT_INPUT_FILE_$i\")\n  out=$(eval echo \"\\$SCRIPT_OUTPUT_FILE_$i\")\n  cp -L \"$in\" \"$out\"\ndone\n";
+		};
+		BE7EA0000000000000000020 /* Bundle corpora */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../data/kjva.db",
+				"$(SRCROOT)/../data/kjv.db",
+				"$(SRCROOT)/../data/lxx.db",
+				"$(SRCROOT)/../data/strongs_hebrew.db",
+				"$(SRCROOT)/../data/strongs_greek.db",
+			);
+			name = "Bundle corpora";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/kjva.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/kjv.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/lxx.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/strongs_hebrew.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/strongs_greek.db",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nmkdir -p \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Corpora\"\nfor i in $(seq 0 $((SCRIPT_INPUT_FILE_COUNT - 1))); do\n  in=$(eval echo \"\\$SCRIPT_INPUT_FILE_$i\")\n  out=$(eval echo \"\\$SCRIPT_OUTPUT_FILE_$i\")\n  cp -L \"$in\" \"$out\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		BE7EA000000000000000000F /* Debug */ = {
@@ -315,29 +388,45 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		BE7EA000000000000000001F /* BereanCore */ = {
+		BE7EA0000000000000000021 /* BereanCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanCore;
 		};
-		BE7EA0000000000000000021 /* BereanSync */ = {
+		BE7EA0000000000000000023 /* BereanSync */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanSync;
 		};
-		BE7EA0000000000000000023 /* BereanReference */ = {
+		BE7EA0000000000000000025 /* BereanReference */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanReference;
 		};
-		BE7EA0000000000000000025 /* BereanCore */ = {
+		BE7EA0000000000000000027 /* BereanBible */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanBible;
+		};
+		BE7EA0000000000000000029 /* BereanText */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanText;
+		};
+		BE7EA000000000000000002B /* BereanCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanCore;
 		};
-		BE7EA0000000000000000027 /* BereanSync */ = {
+		BE7EA000000000000000002D /* BereanSync */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanSync;
 		};
-		BE7EA0000000000000000029 /* BereanReference */ = {
+		BE7EA000000000000000002F /* BereanReference */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanReference;
+		};
+		BE7EA0000000000000000031 /* BereanBible */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanBible;
+		};
+		BE7EA0000000000000000033 /* BereanText */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanText;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
