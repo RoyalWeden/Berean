@@ -8,22 +8,19 @@
 3. Verify exact Git state, compare recorded completion to code/tests, then resume next ready task.
 
 ## Recovery state
-- Updated: 2026-11-07 17:55 PST
-- `main` = `origin/main` = `ceaaa73` at start of this slice
-- Active worktree: `/Users/roywe/Berean-native`, branch `native/m0-execution-records` (first M1 PR)
-- Other worktrees: `/Users/roywe/Berean` (main; untracked `docs/native-migration/` install copy — delete only after this PR
-  merges and main is pulled), `/Users/roywe/Berean-ai-bench` (remove after this PR merges; its REPORT.md is archived by PR #13 as
-  `docs/archive/AI-BENCHMARK-REPORT-2026-10-28.md`)
-- Latest verified work: M1 first slice — see CHANGELOG 2026-11-07 17:50
-- Tests last run: `npm run native:check` (23 Swift tests pass, Mac + iOS Simulator builds, identity OK); `npx vitest run`
-  (5,771 pass); `npm run typecheck` clean
-- Known broken: nothing
-- Native Mac surfaces: core status view only. Native iPhone: builds; not launched in the Simulator yet
-- Next exact task: wait for PR CI → merge (normal merge, no force) → pull main → remove `Berean-ai-bench` → M1-02 remainder
-  → M1-03 reference goldens → M2-01 `BereanReference`
-- Spec/audit sections to re-read for M2: spec §3 (modules), §4 Stage 1; audits 08, 11, 14; `src/lib/parseRef.ts`
-- Owner approvals held: native migration implementation; cleanup Groups A/B; REPORT.md archive PR. Missing: anything
-  touching production data, production iCloud, production identities, uploads, releases
+- Updated: 2026-11-07 18:45 PST
+- `main` = `origin/main` = `ce37379` (PR #13 docs archive and PR #14 M1 slice merged); `/Users/roywe/Berean` clean
+- Active worktree: `/Users/roywe/Berean-native`, branch `native/m2-reference` → PR #15 (CI running)
+- Other worktrees: none (`Berean-ai-bench`, `Berean-docs-archive` removed). Kept branches: `feature/octarine-vault-integration` (F-02),
+  `worktree-agent-a0acb949f0128b5e6` (unmerged)
+- Latest verified work: BereanReference, StrongsId, findReferences, BereanSQLite, BereanBible — see CHANGELOG 18:40
+- Tests last run: `npm run native:check` (4 + 26 Swift tests, both builds, identities OK); `npx vitest run` 5,775 pass; typecheck clean
+- Known broken: nothing. Known reported difference: FTS equal-rank order (F-05)
+- Native surfaces: core status view + live reference parser (Mac launched, iOS Simulator launched)
+- Next exact task: PR #15 green → merge → M2-02 tagged tokens / DisplayMap (src/lib text transforms), lexicon read service
+  (strongs_*.db), cross-references; then the first real reader view (G2: "representative Scripture read/search on both targets")
+- Owner approvals held: native migration; cleanup; docs archive. Missing: production data / iCloud / identities / uploads / releases;
+  decisions C-1…C-17, F-02, F-04, F-05 tie-breaker, ADR-0002 M4 Dev container
 - Dangerous pending operations: none
 - Rollback: native work is additive; revert the PR
 
