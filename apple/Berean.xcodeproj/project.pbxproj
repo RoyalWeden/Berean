@@ -1,0 +1,331 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BE7EA000000000000000001A /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000018 /* BereanCore */; };
+		BE7EA000000000000000001B /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000019 /* BereanSync */; };
+		BE7EA0000000000000000025 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000023 /* BereanCore */; };
+		BE7EA0000000000000000026 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000024 /* BereanSync */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		BE7EA0000000000000000008 /* BereanMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BereanMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE7EA0000000000000000009 /* BereanIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BereanIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE7EA000000000000000000A /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		BE7EA000000000000000000B /* BereanMac.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BereanMac.xcconfig; sourceTree = "<group>"; };
+		BE7EA000000000000000000C /* BereanIOS.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BereanIOS.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BE7EA0000000000000000005 /* BereanMac */ = {isa = PBXFileSystemSynchronizedRootGroup; path = BereanMac; sourceTree = "<group>"; };
+		BE7EA0000000000000000006 /* BereanIOS */ = {isa = PBXFileSystemSynchronizedRootGroup; path = BereanIOS; sourceTree = "<group>"; };
+		BE7EA0000000000000000007 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BE7EA0000000000000000013 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE7EA000000000000000001A /* BereanCore in Frameworks */,
+				BE7EA000000000000000001B /* BereanSync in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE7EA000000000000000001E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE7EA0000000000000000025 /* BereanCore in Frameworks */,
+				BE7EA0000000000000000026 /* BereanSync in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		BE7EA0000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				BE7EA0000000000000000005 /* BereanMac */,
+				BE7EA0000000000000000006 /* BereanIOS */,
+				BE7EA0000000000000000007 /* Shared */,
+				BE7EA0000000000000000004 /* Config */,
+				BE7EA0000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BE7EA0000000000000000004 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				BE7EA000000000000000000A /* Base.xcconfig */,
+				BE7EA000000000000000000B /* BereanMac.xcconfig */,
+				BE7EA000000000000000000C /* BereanIOS.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		BE7EA0000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BE7EA0000000000000000008 /* BereanMac.app */,
+				BE7EA0000000000000000009 /* BereanIOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		BE7EA0000000000000000011 /* BereanMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE7EA0000000000000000015 /* Build configuration list for PBXNativeTarget "BereanMac" */;
+			buildPhases = (
+				BE7EA0000000000000000012 /* Sources */,
+				BE7EA0000000000000000013 /* Frameworks */,
+				BE7EA0000000000000000014 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BE7EA0000000000000000005 /* BereanMac */,
+				BE7EA0000000000000000007 /* Shared */,
+			);
+			name = BereanMac;
+			packageProductDependencies = (
+				BE7EA0000000000000000018 /* BereanCore */,
+				BE7EA0000000000000000019 /* BereanSync */,
+			);
+			productName = BereanMac;
+			productReference = BE7EA0000000000000000008 /* BereanMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BE7EA000000000000000001C /* BereanIOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE7EA0000000000000000020 /* Build configuration list for PBXNativeTarget "BereanIOS" */;
+			buildPhases = (
+				BE7EA000000000000000001D /* Sources */,
+				BE7EA000000000000000001E /* Frameworks */,
+				BE7EA000000000000000001F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BE7EA0000000000000000006 /* BereanIOS */,
+				BE7EA0000000000000000007 /* Shared */,
+			);
+			name = BereanIOS;
+			packageProductDependencies = (
+				BE7EA0000000000000000023 /* BereanCore */,
+				BE7EA0000000000000000024 /* BereanSync */,
+			);
+			productName = BereanIOS;
+			productReference = BE7EA0000000000000000009 /* BereanIOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BE7EA0000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2720;
+				LastUpgradeCheck = 2720;
+				TargetAttributes = {
+					BE7EA0000000000000000011 = {
+						CreatedOnToolsVersion = 27.2;
+					};
+					BE7EA000000000000000001C = {
+						CreatedOnToolsVersion = 27.2;
+					};
+				};
+			};
+			buildConfigurationList = BE7EA000000000000000000E /* Build configuration list for PBXProject "Berean" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = BE7EA0000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BE7EA000000000000000000D /* XCLocalSwiftPackageReference "../Packages/BereanKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BE7EA0000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BE7EA0000000000000000011 /* BereanMac */,
+				BE7EA000000000000000001C /* BereanIOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BE7EA0000000000000000014 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE7EA000000000000000001F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BE7EA0000000000000000012 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE7EA000000000000000001D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		BE7EA000000000000000000F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BE7EA0000000000000000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		BE7EA0000000000000000016 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE7EA000000000000000000B /* BereanMac.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		BE7EA0000000000000000017 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE7EA000000000000000000B /* BereanMac.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		BE7EA0000000000000000021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE7EA000000000000000000C /* BereanIOS.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		BE7EA0000000000000000022 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE7EA000000000000000000C /* BereanIOS.xcconfig */;
+			buildSettings = {
+				VALIDATE_PRODUCT = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BE7EA000000000000000000E /* Build configuration list for PBXProject "Berean" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE7EA000000000000000000F /* Debug */,
+				BE7EA0000000000000000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BE7EA0000000000000000015 /* Build configuration list for PBXNativeTarget "BereanMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE7EA0000000000000000016 /* Debug */,
+				BE7EA0000000000000000017 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BE7EA0000000000000000020 /* Build configuration list for PBXNativeTarget "BereanIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE7EA0000000000000000021 /* Debug */,
+				BE7EA0000000000000000022 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		BE7EA000000000000000000D /* XCLocalSwiftPackageReference "../Packages/BereanKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/BereanKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BE7EA0000000000000000018 /* BereanCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanCore;
+		};
+		BE7EA0000000000000000019 /* BereanSync */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanSync;
+		};
+		BE7EA0000000000000000023 /* BereanCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanCore;
+		};
+		BE7EA0000000000000000024 /* BereanSync */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanSync;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = BE7EA0000000000000000001 /* Project object */;
+}
