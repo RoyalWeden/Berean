@@ -7,6 +7,7 @@ import { resolve } from 'node:path'
 import { ALL_BOOKS, AMBIGUOUS_PATTERNS, getTranslationForBook, maxChapterFor, resolveBookToken } from '../../src/lib/parseRef'
 import { getHermasSections, type HermasBookId } from '../../src/lib/hermasMap'
 import { defaultWordReplacerRules } from './display'
+import { STRUCTURAL_NOTES } from '../../src/lib/translationChapterMap'
 
 const q = (s: string) => JSON.stringify(s)   // ASCII-only tables: a JSON string literal is a valid Swift literal
 
@@ -50,6 +51,10 @@ export function buildReferenceTablesSwift(): string {
     }
     lines.push('    ]')
   }
+  lines.push('    /// STRUCTURAL_NOTES (src/lib/translationChapterMap.ts).')
+  lines.push('    static let structuralNotes: [String: String] = [')
+  for (const [k, v] of Object.entries(STRUCTURAL_NOTES)) lines.push(`        ${q(k)}: ${JSON.stringify(v)},`)
+  lines.push('    ]')
   lines.push('}')
   return lines.join('\n') + '\n'
 }

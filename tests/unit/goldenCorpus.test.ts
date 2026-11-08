@@ -10,6 +10,7 @@ import { buildBibleGolden } from '../../scripts/golden/bible'
 import { buildTextGolden } from '../../scripts/golden/text'
 import { buildLexiconGolden } from '../../scripts/golden/lexicon'
 import { buildDisplayGolden } from '../../scripts/golden/display'
+import { buildCrossrefsGolden } from '../../scripts/golden/crossrefs'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -55,5 +56,11 @@ describe('golden corpus', () => {
     if (!g) return
     const path = join(GOLDEN_DIR, 'display.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'display.json is stale — run npm run golden:export').toBe(true)
+  }, 300_000)
+  it('crossrefs.json matches the TypeScript cross-reference service (skipped without data/*.db)', async () => {
+    const g = await buildCrossrefsGolden()
+    if (!g) return
+    const path = join(GOLDEN_DIR, 'crossrefs.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'crossrefs.json is stale — run npm run golden:export').toBe(true)
   }, 300_000)
 })

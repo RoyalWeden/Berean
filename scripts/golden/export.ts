@@ -7,6 +7,7 @@ import { buildBibleGolden } from './bible'
 import { buildTextGolden } from './text'
 import { buildLexiconGolden } from './lexicon'
 import { buildDisplayGolden } from './display'
+import { buildCrossrefsGolden } from './crossrefs'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -56,4 +57,13 @@ if (display) {
   console.log(`display.json  ${text.length} chars`)
 } else {
   console.log('display.json  skipped (data/*.db not present)')
+}
+
+const crossrefs = await buildCrossrefsGolden()
+if (crossrefs) {
+  const text = serializeGolden(crossrefs)
+  writeFileSync(join(GOLDEN_DIR, 'crossrefs.json'), text)
+  console.log(`crossrefs.json  ${text.length} chars`)
+} else {
+  console.log('crossrefs.json  skipped (data/*.db not present)')
 }
