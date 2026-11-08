@@ -13,6 +13,7 @@ import { buildDisplayGolden } from '../../scripts/golden/display'
 import { buildCrossrefsGolden } from '../../scripts/golden/crossrefs'
 import { buildRecordedMigrationsSwift, buildSchemaGolden, SWIFT_MIGRATIONS_PATH } from '../../scripts/golden/schema'
 import { buildTabsGolden } from '../../scripts/golden/tabs'
+import { buildNotesGolden } from '../../scripts/golden/notes'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -76,5 +77,9 @@ describe('golden corpus', () => {
   it('tabs.json matches the TypeScript tab persistence / sessions service', async () => {
     const path = join(GOLDEN_DIR, 'tabs.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(await buildTabsGolden()), 'tabs.json is stale — run npm run golden:export').toBe(true)
+  }, 120_000)
+  it('notes.json matches the TypeScript notes read path', async () => {
+    const path = join(GOLDEN_DIR, 'notes.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(await buildNotesGolden()), 'notes.json is stale — run npm run golden:export').toBe(true)
   }, 120_000)
 })

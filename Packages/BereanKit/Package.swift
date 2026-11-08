@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "BereanText", targets: ["BereanText"]),
         .library(name: "BereanStore", targets: ["BereanStore"]),
         .library(name: "BereanWorkspace", targets: ["BereanWorkspace"]),
+        .library(name: "BereanNotes", targets: ["BereanNotes"]),
     ],
     targets: [
         // JavaScript-compatible JSON value model: UTF-16 strings, JS property order,
@@ -37,12 +38,14 @@ let package = Package(
         .target(name: "BereanStore", dependencies: ["BereanCore", "BereanSQLite"]),
         // Sessions / tabs / archived groups: the synced workspace model (tabFields, tabPersistence, sessionsService).
         .target(name: "BereanWorkspace", dependencies: ["BereanCore", "BereanSync", "BereanSQLite", "BereanStore"]),
+        // Notes (notesService.ts): read path now; writes and versions with the editor (M7).
+        .target(name: "BereanNotes", dependencies: ["BereanCore", "BereanSQLite", "BereanReference", "BereanBible"]),
         .testTarget(name: "BereanCoreTests", dependencies: ["BereanCore"]),
         // Golden-corpus conformance: fixtures exported from the TypeScript implementation
         // by `npm run golden:export` (scripts/golden). Never hand-edit Golden/*.json.
         .testTarget(
             name: "BereanConformanceTests",
-            dependencies: ["BereanCore", "BereanSync", "BereanReference", "BereanSQLite", "BereanBible", "BereanText", "BereanStore", "BereanWorkspace"],
+            dependencies: ["BereanCore", "BereanSync", "BereanReference", "BereanSQLite", "BereanBible", "BereanText", "BereanStore", "BereanWorkspace", "BereanNotes"],
             resources: [.copy("Golden")]
         ),
     ],

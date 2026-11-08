@@ -33,7 +33,10 @@ public struct ArchivedGroupUpsert: Equatable, Sendable { public var id, label: S
     public init(id: String, label: String, archivedAt: Int64, tabsJSON: String) { self.id = id; self.label = label; self.archivedAt = archivedAt; self.tabsJSON = tabsJSON } }
 
 /// A change the sync engine must capture (`data:changed`).
-public struct DataChange: Equatable, Sendable { public var entity: String, id: String, op: String }
+public struct DataChange: Equatable, Sendable {
+    public var entity: String, id: String, op: String
+    public init(entity: String, id: String, op: String) { self.entity = entity; self.id = id; self.op = op }
+}
 
 /// Port of src/platform/services/sessionsService.ts — sessions, tabs and archived groups with
 /// `updated_at` + tombstones (what sync journals). Every write reports its `DataChange`s.
