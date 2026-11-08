@@ -1,0 +1,4507 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/tabs.ts",
+ "sources": {
+  "src/platform/sync/tabFields.ts": "a444dd63b9ee995cd700385a9d61c189d3966a51c105a96ffe6adff8d4a95a53",
+  "src/store/tabPersistence.ts": "f84cafd273a396fb89b5dcb10ab72c498600100ebb2dfda7750719684eb882f7",
+  "src/platform/services/sessionsService.ts": "2c7cf23a3146e863a078d1679c42189516f1cdd26f41a7f749a0b5d564d7e772",
+  "scripts/golden/tabs.ts": "2fe67814d0934292b5410a1b9ca9f5518c337133d446d316b07b5ac3bf978f31"
+ },
+ "split": [
+  {
+   "type": "bible",
+   "state": {
+    "bookId": "JHN",
+    "chapter": 3,
+    "verse": 16,
+    "translation": "kjva",
+    "showStrongs": true,
+    "scrollPosition": 120.5,
+    "targetVerse": 16,
+    "rightPanelOpen": true,
+    "rightPanelWidth": 380,
+    "compareMode": true,
+    "compareColumns": [
+     {
+      "textId": "lxx",
+      "bookId": "GEN",
+      "chapter": 1,
+      "scrollPos": {
+       "verseNum": 3,
+       "frac": 0.25
+      }
+     },
+     {
+      "textId": "kjva",
+      "bookId": "GEN",
+      "chapter": 1
+     }
+    ],
+    "hiddenAnnotations": [
+     "lxx_supply"
+    ],
+    "scriptureLayout": "study-grid",
+    "rightPanelTab": "lexicon",
+    "rightPanelScrollTops": {
+     "notes": 10
+    },
+    "unknownFutureField": {
+     "a": 1
+    }
+   },
+   "sync": {
+    "bookId": "JHN",
+    "chapter": 3,
+    "verse": 16,
+    "translation": "kjva",
+    "showStrongs": true,
+    "compareMode": true,
+    "compareColumns": [
+     {
+      "textId": "lxx",
+      "bookId": "GEN",
+      "chapter": 1
+     },
+     {
+      "textId": "kjva",
+      "bookId": "GEN",
+      "chapter": 1
+     }
+    ],
+    "hiddenAnnotations": [
+     "lxx_supply"
+    ],
+    "rightPanelTab": "lexicon",
+    "scriptureLayout": "study-grid"
+   },
+   "local": {
+    "compareColumns": [
+     {
+      "scrollPos": {
+       "verseNum": 3,
+       "frac": 0.25
+      }
+     },
+     {}
+    ],
+    "scrollPosition": 120.5,
+    "rightPanelOpen": true,
+    "rightPanelWidth": 380,
+    "rightPanelScrollTops": {
+     "notes": 10
+    }
+   },
+   "merged": {
+    "bookId": "JHN",
+    "chapter": 3,
+    "verse": 16,
+    "translation": "kjva",
+    "showStrongs": true,
+    "compareMode": true,
+    "compareColumns": [
+     {
+      "textId": "lxx",
+      "bookId": "GEN",
+      "chapter": 1,
+      "scrollPos": {
+       "verseNum": 3,
+       "frac": 0.25
+      }
+     },
+     {
+      "textId": "kjva",
+      "bookId": "GEN",
+      "chapter": 1
+     }
+    ],
+    "hiddenAnnotations": [
+     "lxx_supply"
+    ],
+    "rightPanelTab": "lexicon",
+    "scriptureLayout": "study-grid",
+    "scrollPosition": 120.5,
+    "rightPanelOpen": true,
+    "rightPanelWidth": 380,
+    "rightPanelScrollTops": {
+     "notes": 10
+    }
+   },
+   "syncJson": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+   "localJson": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}"
+  },
+  {
+   "type": "bible",
+   "state": {
+    "bookId": "GEN",
+    "chapter": 1,
+    "translation": "lxx",
+    "showStrongs": false,
+    "scrollPosition": 0,
+    "compareColumns": [
+     {
+      "textId": "kjva",
+      "bookId": "GEN",
+      "chapter": 1
+     }
+    ]
+   },
+   "sync": {
+    "bookId": "GEN",
+    "chapter": 1,
+    "translation": "lxx",
+    "showStrongs": false,
+    "compareColumns": [
+     {
+      "textId": "kjva",
+      "bookId": "GEN",
+      "chapter": 1
+     }
+    ]
+   },
+   "local": {
+    "scrollPosition": 0
+   },
+   "merged": {
+    "bookId": "GEN",
+    "chapter": 1,
+    "translation": "lxx",
+    "showStrongs": false,
+    "compareColumns": [
+     {
+      "textId": "kjva",
+      "bookId": "GEN",
+      "chapter": 1
+     }
+    ],
+    "scrollPosition": 0
+   },
+   "syncJson": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+   "localJson": "{\"scrollPosition\":0}"
+  },
+  {
+   "type": "note",
+   "state": {
+    "noteId": "n1",
+    "isNew": false,
+    "scrollTop": 40,
+    "cursorPos": 7,
+    "homeView": {
+     "noteSearch": "grace",
+     "noteSearchWordMode": "all",
+     "noteFilter": "all",
+     "statusFilter": "all",
+     "noteSort": "updated",
+     "viewMode": "list",
+     "expandAll": false,
+     "previewNoteId": "n2",
+     "previewFolderId": null
+    }
+   },
+   "sync": {
+    "noteId": "n1",
+    "isNew": false,
+    "homeView": {
+     "noteSearch": "grace",
+     "noteSearchWordMode": "all",
+     "noteFilter": "all",
+     "statusFilter": "all",
+     "noteSort": "updated",
+     "viewMode": "list",
+     "expandAll": false
+    }
+   },
+   "local": {
+    "homeView": {
+     "previewNoteId": "n2",
+     "previewFolderId": null
+    },
+    "scrollTop": 40,
+    "cursorPos": 7
+   },
+   "merged": {
+    "noteId": "n1",
+    "isNew": false,
+    "homeView": {
+     "noteSearch": "grace",
+     "noteSearchWordMode": "all",
+     "noteFilter": "all",
+     "statusFilter": "all",
+     "noteSort": "updated",
+     "viewMode": "list",
+     "expandAll": false,
+     "previewNoteId": "n2",
+     "previewFolderId": null
+    },
+    "scrollTop": 40,
+    "cursorPos": 7
+   },
+   "syncJson": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+   "localJson": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}"
+  },
+  {
+   "type": "lexicon",
+   "state": {
+    "strongsNum": "G5485",
+    "scrollTop": 3,
+    "searchQuery": "grace",
+    "searchLang": "G",
+    "lexHistory": [
+     {
+      "kind": "entry",
+      "strongsNum": "G5485"
+     },
+     {
+      "kind": "search",
+      "query": "love",
+      "lang": "all"
+     }
+    ]
+   },
+   "sync": {
+    "strongsNum": "G5485",
+    "searchQuery": "grace",
+    "searchLang": "G",
+    "lexHistory": [
+     {
+      "kind": "entry",
+      "strongsNum": "G5485"
+     },
+     {
+      "kind": "search",
+      "query": "love",
+      "lang": "all"
+     }
+    ]
+   },
+   "local": {
+    "scrollTop": 3
+   },
+   "merged": {
+    "strongsNum": "G5485",
+    "searchQuery": "grace",
+    "searchLang": "G",
+    "lexHistory": [
+     {
+      "kind": "entry",
+      "strongsNum": "G5485"
+     },
+     {
+      "kind": "search",
+      "query": "love",
+      "lang": "all"
+     }
+    ],
+    "scrollTop": 3
+   },
+   "syncJson": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+   "localJson": "{\"scrollTop\":3}"
+  },
+  {
+   "type": "youtube",
+   "state": {
+    "videoId": "abc",
+    "playlistId": null,
+    "youtubeLayout": "side-right",
+    "panelA": {
+     "type": "notes",
+     "noteId": "n1"
+    },
+    "panelB": null,
+    "scrollTop": 9
+   },
+   "sync": {
+    "videoId": "abc",
+    "playlistId": null,
+    "youtubeLayout": "side-right",
+    "panelA": {
+     "type": "notes",
+     "noteId": "n1"
+    },
+    "panelB": null
+   },
+   "local": {
+    "scrollTop": 9
+   },
+   "merged": {
+    "videoId": "abc",
+    "playlistId": null,
+    "youtubeLayout": "side-right",
+    "panelA": {
+     "type": "notes",
+     "noteId": "n1"
+    },
+    "panelB": null,
+    "scrollTop": 9
+   },
+   "syncJson": "{\"panelA\":{\"noteId\":\"n1\",\"type\":\"notes\"},\"panelB\":null,\"playlistId\":null,\"videoId\":\"abc\",\"youtubeLayout\":\"side-right\"}",
+   "localJson": "{\"scrollTop\":9}"
+  },
+  {
+   "type": "search",
+   "state": {
+    "query": "in the beginning",
+    "results": [
+     {
+      "x": 1
+     }
+    ],
+    "scrollTop": 5,
+    "scope": "all",
+    "preview": true
+   },
+   "sync": {
+    "query": "in the beginning"
+   },
+   "local": {
+    "scrollTop": 5,
+    "results": [
+     {
+      "x": 1
+     }
+    ],
+    "scope": "all",
+    "preview": true
+   },
+   "merged": {
+    "query": "in the beginning",
+    "scrollTop": 5,
+    "results": [
+     {
+      "x": 1
+     }
+    ],
+    "scope": "all",
+    "preview": true
+   },
+   "syncJson": "{\"query\":\"in the beginning\"}",
+   "localJson": "{\"preview\":true,\"results\":[{\"x\":1}],\"scope\":\"all\",\"scrollTop\":5}"
+  },
+  {
+   "type": "pdf",
+   "state": {
+    "pdfId": "p1",
+    "title": "Doc",
+    "page": 4,
+    "scrollTop": 300
+   },
+   "sync": {
+    "pdfId": "p1",
+    "title": "Doc",
+    "page": 4
+   },
+   "local": {
+    "scrollTop": 300
+   },
+   "merged": {
+    "pdfId": "p1",
+    "title": "Doc",
+    "page": 4,
+    "scrollTop": 300
+   },
+   "syncJson": "{\"page\":4,\"pdfId\":\"p1\",\"title\":\"Doc\"}",
+   "localJson": "{\"scrollTop\":300}"
+  },
+  {
+   "type": "tags",
+   "state": {
+    "selectedTagId": "t1"
+   },
+   "sync": {
+    "selectedTagId": "t1"
+   },
+   "local": {},
+   "merged": {
+    "selectedTagId": "t1"
+   },
+   "syncJson": "{\"selectedTagId\":\"t1\"}",
+   "localJson": "{}"
+  },
+  {
+   "type": "history",
+   "state": {
+    "category": "all",
+    "studyOnly": true
+   },
+   "sync": {
+    "category": "all",
+    "studyOnly": true
+   },
+   "local": {},
+   "merged": {
+    "category": "all",
+    "studyOnly": true
+   },
+   "syncJson": "{\"category\":\"all\",\"studyOnly\":true}",
+   "localJson": "{}"
+  },
+  {
+   "type": "settings",
+   "state": {
+    "section": "display",
+    "settingsRoute": "display/fonts"
+   },
+   "sync": {
+    "section": "display"
+   },
+   "local": {
+    "settingsRoute": "display/fonts"
+   },
+   "merged": {
+    "section": "display",
+    "settingsRoute": "display/fonts"
+   },
+   "syncJson": "{\"section\":\"display\"}",
+   "localJson": "{\"settingsRoute\":\"display/fonts\"}"
+  },
+  {
+   "type": "calendar",
+   "state": {
+    "month": "2026-11",
+    "selected": "2026-11-07"
+   },
+   "sync": {
+    "month": "2026-11",
+    "selected": "2026-11-07"
+   },
+   "local": {},
+   "merged": {
+    "month": "2026-11",
+    "selected": "2026-11-07"
+   },
+   "syncJson": "{\"month\":\"2026-11\",\"selected\":\"2026-11-07\"}",
+   "localJson": "{}"
+  },
+  {
+   "type": "note",
+   "state": {},
+   "sync": {},
+   "local": {},
+   "merged": {},
+   "syncJson": "{}",
+   "localJson": "{}"
+  },
+  {
+   "type": "bible",
+   "state": {
+    "compareColumns": null,
+    "homeView": 1
+   },
+   "sync": {
+    "compareColumns": null
+   },
+   "local": {},
+   "merged": {
+    "compareColumns": null
+   },
+   "syncJson": "{\"compareColumns\":null}",
+   "localJson": "{}"
+  }
+ ],
+ "stable": [
+  {
+   "value": {
+    "2": 0,
+    "b": 1,
+    "a": [
+     {
+      "d": 2
+     }
+    ]
+   },
+   "json": "{\"2\":0,\"a\":[{\"d\":2}],\"b\":1}"
+  },
+  {
+   "value": null,
+   "json": "null"
+  },
+  {
+   "value": [
+    1,
+    "x"
+   ],
+   "json": "[1,\"x\"]"
+  },
+  {
+   "value": {
+    "z": {
+     "y": {
+      "x": 1
+     }
+    }
+   },
+   "json": "{\"z\":{\"y\":{\"x\":1}}}"
+  }
+ ],
+ "orderKeys": [
+  {
+   "ids": [
+    "a",
+    "b",
+    "c"
+   ],
+   "existing": {},
+   "result": {
+    "a": "a0",
+    "b": "a1",
+    "c": "a2"
+   }
+  },
+  {
+   "ids": [
+    "a",
+    "x",
+    "b"
+   ],
+   "existing": {
+    "a": "a0",
+    "b": "a1"
+   },
+   "result": {
+    "a": "a0",
+    "x": "a0V",
+    "b": "a1"
+   }
+  },
+  {
+   "ids": [
+    "b",
+    "a"
+   ],
+   "existing": {
+    "a": "a0",
+    "b": "a1"
+   },
+   "result": {
+    "b": "Zz",
+    "a": "a0"
+   }
+  },
+  {
+   "ids": [
+    "n",
+    "a",
+    "m",
+    "b",
+    "o"
+   ],
+   "existing": {
+    "a": "a0",
+    "b": "a5"
+   },
+   "result": {
+    "n": "Zz",
+    "a": "a0",
+    "m": "a1",
+    "b": "a5",
+    "o": "a6"
+   }
+  },
+  {
+   "ids": [],
+   "existing": {},
+   "result": {}
+  }
+ ],
+ "storeState": {
+  "currentSessionId": "s1",
+  "tabs": {
+   "scripture": [
+    {
+     "id": "t1",
+     "spaceId": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "state": {
+      "bookId": "JHN",
+      "chapter": 3,
+      "verse": 16,
+      "translation": "kjva",
+      "showStrongs": true,
+      "scrollPosition": 120.5,
+      "targetVerse": 16,
+      "rightPanelOpen": true,
+      "rightPanelWidth": 380,
+      "compareMode": true,
+      "compareColumns": [
+       {
+        "textId": "lxx",
+        "bookId": "GEN",
+        "chapter": 1,
+        "scrollPos": {
+         "verseNum": 3,
+         "frac": 0.25
+        }
+       },
+       {
+        "textId": "kjva",
+        "bookId": "GEN",
+        "chapter": 1
+       }
+      ],
+      "hiddenAnnotations": [
+       "lxx_supply"
+      ],
+      "scriptureLayout": "study-grid",
+      "rightPanelTab": "lexicon",
+      "rightPanelScrollTops": {
+       "notes": 10
+      },
+      "unknownFutureField": {
+       "a": 1
+      }
+     }
+    },
+    {
+     "id": "t2",
+     "spaceId": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "state": {
+      "bookId": "GEN",
+      "chapter": 1,
+      "translation": "lxx",
+      "showStrongs": false,
+      "scrollPosition": 0,
+      "compareColumns": [
+       {
+        "textId": "kjva",
+        "bookId": "GEN",
+        "chapter": 1
+       }
+      ]
+     },
+     "isPinned": true
+    }
+   ],
+   "notes": [
+    {
+     "id": "t3",
+     "spaceId": "notes",
+     "type": "note",
+     "title": "Grace",
+     "state": {
+      "noteId": "n1",
+      "isNew": false,
+      "scrollTop": 40,
+      "cursorPos": 7,
+      "homeView": {
+       "noteSearch": "grace",
+       "noteSearchWordMode": "all",
+       "noteFilter": "all",
+       "statusFilter": "all",
+       "noteSort": "updated",
+       "viewMode": "list",
+       "expandAll": false,
+       "previewNoteId": "n2",
+       "previewFolderId": null
+      }
+     }
+    }
+   ],
+   "lexicon": [
+    {
+     "id": "t4",
+     "spaceId": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "state": {
+      "strongsNum": "G5485",
+      "scrollTop": 3,
+      "searchQuery": "grace",
+      "searchLang": "G",
+      "lexHistory": [
+       {
+        "kind": "entry",
+        "strongsNum": "G5485"
+       },
+       {
+        "kind": "search",
+        "query": "love",
+        "lang": "all"
+       }
+      ]
+     },
+     "originTabId": "t1",
+     "originSpaceId": "scripture"
+    }
+   ],
+   "youtube": [],
+   "search": []
+  },
+  "activeTabId": {
+   "scripture": "t2",
+   "notes": "t3",
+   "lexicon": "t4",
+   "youtube": null,
+   "search": null
+  },
+  "sessions": [
+   {
+    "id": "s1",
+    "name": "Study",
+    "tabs": {},
+    "activeTabId": {}
+   },
+   {
+    "id": "s2",
+    "name": "Torah",
+    "icon": "📜",
+    "tabFilter": "scripture",
+    "tabs": {
+     "scripture": [
+      {
+       "id": "t5",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "Exodus 20",
+       "state": {
+        "bookId": "EXO",
+        "chapter": 20,
+        "translation": "kjva",
+        "showStrongs": false,
+        "scrollPosition": 0
+       }
+      }
+     ],
+     "notes": [],
+     "lexicon": [],
+     "youtube": [],
+     "search": []
+    },
+    "activeTabId": {
+     "scripture": "t5"
+    }
+   }
+  ],
+  "sessionDisplayOrders": {
+   "s1": [
+    "t3",
+    "t1",
+    "ghost"
+   ]
+  },
+  "archivedGroups": [
+   {
+    "id": "g1",
+    "label": "Old",
+    "archivedAt": 1700000000000,
+    "tabs": [
+     {
+      "id": "t9",
+      "spaceId": "scripture",
+      "type": "bible",
+      "title": "Ruth 1",
+      "state": {
+       "bookId": "RUT",
+       "chapter": 1
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "snapshot": {
+  "sessions": [
+   {
+    "id": "s1",
+    "name": "Study",
+    "icon": null,
+    "tab_filter": null,
+    "order_key": "a0"
+   },
+   {
+    "id": "s2",
+    "name": "Torah",
+    "icon": "📜",
+    "tab_filter": "scripture",
+    "order_key": "a1"
+   }
+  ],
+  "tabs": [
+   {
+    "id": "t1",
+    "session_id": "s1",
+    "space_id": "scripture",
+    "type": "bible",
+    "title": "John 3",
+    "is_pinned": 0,
+    "order_key": "a0",
+    "display_order_key": "a1",
+    "origin_tab_id": null,
+    "origin_space_id": null,
+    "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+    "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}"
+   },
+   {
+    "id": "t2",
+    "session_id": "s1",
+    "space_id": "scripture",
+    "type": "bible",
+    "title": "Genesis 1",
+    "is_pinned": 1,
+    "order_key": "a1",
+    "display_order_key": "a2",
+    "origin_tab_id": null,
+    "origin_space_id": null,
+    "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+    "local_state_json": "{\"scrollPosition\":0}"
+   },
+   {
+    "id": "t3",
+    "session_id": "s1",
+    "space_id": "notes",
+    "type": "note",
+    "title": "Grace",
+    "is_pinned": 0,
+    "order_key": "a0",
+    "display_order_key": "a0",
+    "origin_tab_id": null,
+    "origin_space_id": null,
+    "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+    "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}"
+   },
+   {
+    "id": "t4",
+    "session_id": "s1",
+    "space_id": "lexicon",
+    "type": "lexicon",
+    "title": "G5485",
+    "is_pinned": 0,
+    "order_key": "a0",
+    "display_order_key": "a3",
+    "origin_tab_id": "t1",
+    "origin_space_id": "scripture",
+    "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+    "local_state_json": "{\"scrollTop\":3}"
+   },
+   {
+    "id": "t5",
+    "session_id": "s2",
+    "space_id": "scripture",
+    "type": "bible",
+    "title": "Exodus 20",
+    "is_pinned": 0,
+    "order_key": "a0",
+    "display_order_key": "a0",
+    "origin_tab_id": null,
+    "origin_space_id": null,
+    "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+    "local_state_json": "{\"scrollPosition\":0}"
+   }
+  ],
+  "archivedGroups": [
+   {
+    "id": "g1",
+    "label": "Old",
+    "archived_at": 1700000000000,
+    "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]"
+   }
+  ]
+ },
+ "localState": {
+  "s1": {
+   "scripture": "t2",
+   "notes": "t3",
+   "lexicon": "t4",
+   "youtube": null,
+   "search": null
+  },
+  "s2": {
+   "scripture": "t5"
+  }
+ },
+ "keys": {
+  "sessions": {
+   "s1": "a0",
+   "s2": "a1"
+  },
+  "tabs": {
+   "t1": "a0",
+   "t2": "a1",
+   "t3": "a0",
+   "t4": "a0",
+   "t5": "a0"
+  },
+  "display": {
+   "t3": "a0",
+   "t1": "a1",
+   "t2": "a2",
+   "t4": "a3",
+   "t5": "a0"
+  }
+ },
+ "diffs": [
+  {
+   "upserted": {
+    "sessions": 2,
+    "tabs": 5,
+    "archivedGroups": 1
+   },
+   "tombstoned": {
+    "sessions": 0,
+    "tabs": 0,
+    "archivedGroups": 0
+   }
+  },
+  {
+   "upserted": {
+    "sessions": 0,
+    "tabs": 0,
+    "archivedGroups": 0
+   },
+   "tombstoned": {
+    "sessions": 0,
+    "tabs": 0,
+    "archivedGroups": 0
+   }
+  },
+  {
+   "upserted": {
+    "sessions": 1,
+    "tabs": 3,
+    "archivedGroups": 0
+   },
+   "tombstoned": {
+    "sessions": 1,
+    "tabs": 1,
+    "archivedGroups": 1
+   }
+  },
+  {
+   "upserted": {
+    "sessions": 0,
+    "tabs": 1,
+    "archivedGroups": 1
+   },
+   "tombstoned": {
+    "sessions": 0,
+    "tabs": 0,
+    "archivedGroups": 0
+   }
+  }
+ ],
+ "purged": 1,
+ "events": [
+  {
+   "entity": "session",
+   "id": "s1",
+   "op": "upsert"
+  },
+  {
+   "entity": "session",
+   "id": "s2",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t2",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t3",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t4",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t5",
+   "op": "upsert"
+  },
+  {
+   "entity": "archived_group",
+   "id": "g1",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "session",
+   "id": "s3",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t2",
+   "op": "delete"
+  },
+  {
+   "entity": "session",
+   "id": "s2",
+   "op": "delete"
+  },
+  {
+   "entity": "session",
+   "id": "s2",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t2",
+   "op": "upsert"
+  },
+  {
+   "entity": "tab",
+   "id": "t5",
+   "op": "upsert"
+  },
+  {
+   "entity": "session",
+   "id": "s3",
+   "op": "delete"
+  },
+  {
+   "entity": "tab",
+   "id": "t4",
+   "op": "delete"
+  },
+  {
+   "entity": "archived_group",
+   "id": "g1",
+   "op": "delete"
+  },
+  {
+   "entity": "tab",
+   "id": "t4",
+   "op": "upsert"
+  },
+  {
+   "entity": "archived_group",
+   "id": "g1",
+   "op": "upsert"
+  }
+ ],
+ "dumps": [
+  {
+   "label": "empty",
+   "sessions": [],
+   "tabs": [],
+   "archived": [],
+   "local": [],
+   "listSessions": [],
+   "listTabs": [],
+   "listTabsS1": [],
+   "groups": [],
+   "localS1": {},
+   "hasAny": false
+  },
+  {
+   "label": "snapshot",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {},
+   "hasAny": true
+  },
+  {
+   "label": "same snapshot (no churn)",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {},
+   "hasAny": true
+  },
+  {
+   "label": "local-only change keeps updated_at",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"scrollPosition\":999}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"scrollPosition\":999}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"scrollPosition\":999}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "synced change bumps updated_at",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "new session",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000005000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000005000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "tab tombstoned",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000005000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000006000,
+     "deleted_at": 1800000006000
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000005000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "session + its tabs tombstoned",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000007000,
+     "deleted_at": 1800000007000
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000005000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000006000,
+     "deleted_at": 1800000006000
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000007000,
+     "deleted_at": 1800000007000
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000005000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3 (KJV)",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000004000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "snapshot drops t4 and g1",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000008000,
+     "deleted_at": 1800000008000
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": 1800000008000
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": 1800000008000
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "resurrect",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "s3",
+     "name": "New",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a5",
+     "created_at": 1800000005000,
+     "updated_at": 1800000008000,
+     "deleted_at": 1800000008000
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  },
+  {
+   "label": "purged",
+   "sessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "tabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "archived": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    }
+   ],
+   "local": [
+    {
+     "session_id": "s1",
+     "active_tab_json": "{\"scripture\":\"t2\",\"notes\":\"t3\",\"lexicon\":\"t4\",\"youtube\":null,\"search\":null}",
+     "updated_at": 1800000002000
+    }
+   ],
+   "listSessions": [
+    {
+     "id": "s1",
+     "name": "Study",
+     "icon": null,
+     "tab_filter": null,
+     "order_key": "a0",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "s2",
+     "name": "Torah",
+     "icon": "📜",
+     "tab_filter": "scripture",
+     "order_key": "a1",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "listTabs": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t5",
+     "session_id": "s2",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Exodus 20",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"EXO\",\"chapter\":20,\"showStrongs\":false,\"translation\":\"kjva\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "listTabsS1": [
+    {
+     "id": "t1",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "John 3",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a1",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    },
+    {
+     "id": "t3",
+     "session_id": "s1",
+     "space_id": "notes",
+     "type": "note",
+     "title": "Grace",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a0",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"homeView\":{\"expandAll\":false,\"noteFilter\":\"all\",\"noteSearch\":\"grace\",\"noteSearchWordMode\":\"all\",\"noteSort\":\"updated\",\"statusFilter\":\"all\",\"viewMode\":\"list\"},\"isNew\":false,\"noteId\":\"n1\"}",
+     "local_state_json": "{\"cursorPos\":7,\"homeView\":{\"previewFolderId\":null,\"previewNoteId\":\"n2\"},\"scrollTop\":40}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000001000,
+     "deleted_at": null
+    },
+    {
+     "id": "t4",
+     "session_id": "s1",
+     "space_id": "lexicon",
+     "type": "lexicon",
+     "title": "G5485",
+     "is_pinned": 0,
+     "order_key": "a0",
+     "display_order_key": "a3",
+     "origin_tab_id": "t1",
+     "origin_space_id": "scripture",
+     "sync_state_json": "{\"lexHistory\":[{\"kind\":\"entry\",\"strongsNum\":\"G5485\"},{\"kind\":\"search\",\"lang\":\"all\",\"query\":\"love\"}],\"searchLang\":\"G\",\"searchQuery\":\"grace\",\"strongsNum\":\"G5485\"}",
+     "local_state_json": "{\"scrollTop\":3}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    },
+    {
+     "id": "t2",
+     "session_id": "s1",
+     "space_id": "scripture",
+     "type": "bible",
+     "title": "Genesis 1",
+     "is_pinned": 1,
+     "order_key": "a1",
+     "display_order_key": "a2",
+     "origin_tab_id": null,
+     "origin_space_id": null,
+     "sync_state_json": "{\"bookId\":\"GEN\",\"chapter\":1,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"showStrongs\":false,\"translation\":\"lxx\"}",
+     "local_state_json": "{\"scrollPosition\":0}",
+     "created_at": 1800000001000,
+     "updated_at": 1800000008000,
+     "deleted_at": null
+    }
+   ],
+   "groups": [
+    {
+     "id": "g1",
+     "label": "Old",
+     "archived_at": 1700000000000,
+     "tabs_json": "[{\"id\":\"t9\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"Ruth 1\",\"state\":{\"bookId\":\"RUT\",\"chapter\":1}}]",
+     "created_at": 1800000001000,
+     "updated_at": 1800000009000,
+     "deleted_at": null
+    }
+   ],
+   "localS1": {
+    "scripture": "t2",
+    "notes": "t3",
+    "lexicon": "t4",
+    "youtube": null,
+    "search": null
+   },
+   "hasAny": true
+  }
+ ],
+ "hydrated": {
+  "sessions": [
+   {
+    "id": "s1",
+    "name": "Study",
+    "tabs": {
+     "scripture": [
+      {
+       "id": "t1",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "John 3",
+       "state": {
+        "bookId": "JHN",
+        "chapter": 3,
+        "compareColumns": [
+         {
+          "bookId": "GEN",
+          "chapter": 1,
+          "textId": "lxx",
+          "scrollPos": {
+           "frac": 0.25,
+           "verseNum": 3
+          }
+         },
+         {
+          "bookId": "GEN",
+          "chapter": 1,
+          "textId": "kjva"
+         }
+        ],
+        "compareMode": true,
+        "hiddenAnnotations": [
+         "lxx_supply"
+        ],
+        "rightPanelTab": "lexicon",
+        "scriptureLayout": "study-grid",
+        "showStrongs": true,
+        "translation": "kjva",
+        "verse": 16,
+        "rightPanelOpen": true,
+        "rightPanelScrollTops": {
+         "notes": 10
+        },
+        "rightPanelWidth": 380,
+        "scrollPosition": 120.5
+       }
+      },
+      {
+       "id": "t2",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "Genesis 1",
+       "state": {
+        "bookId": "GEN",
+        "chapter": 1,
+        "compareColumns": [
+         {
+          "bookId": "GEN",
+          "chapter": 1,
+          "textId": "kjva"
+         }
+        ],
+        "showStrongs": false,
+        "translation": "lxx",
+        "scrollPosition": 0
+       },
+       "isPinned": true
+      }
+     ],
+     "notes": [
+      {
+       "id": "t3",
+       "spaceId": "notes",
+       "type": "note",
+       "title": "Grace",
+       "state": {
+        "homeView": {
+         "expandAll": false,
+         "noteFilter": "all",
+         "noteSearch": "grace",
+         "noteSearchWordMode": "all",
+         "noteSort": "updated",
+         "statusFilter": "all",
+         "viewMode": "list",
+         "previewFolderId": null,
+         "previewNoteId": "n2"
+        },
+        "isNew": false,
+        "noteId": "n1",
+        "cursorPos": 7,
+        "scrollTop": 40
+       }
+      }
+     ],
+     "lexicon": [
+      {
+       "id": "t4",
+       "spaceId": "lexicon",
+       "type": "lexicon",
+       "title": "G5485",
+       "state": {
+        "lexHistory": [
+         {
+          "kind": "entry",
+          "strongsNum": "G5485"
+         },
+         {
+          "kind": "search",
+          "lang": "all",
+          "query": "love"
+         }
+        ],
+        "searchLang": "G",
+        "searchQuery": "grace",
+        "strongsNum": "G5485",
+        "scrollTop": 3
+       },
+       "originTabId": "t1",
+       "originSpaceId": "scripture"
+      }
+     ],
+     "youtube": [],
+     "search": []
+    },
+    "activeTabId": {
+     "scripture": "t1",
+     "notes": "t3",
+     "lexicon": "t4",
+     "youtube": null,
+     "search": null
+    }
+   },
+   {
+    "id": "s2",
+    "name": "Torah",
+    "tabs": {
+     "scripture": [
+      {
+       "id": "t5",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "Exodus 20",
+       "state": {
+        "bookId": "EXO",
+        "chapter": 20,
+        "showStrongs": false,
+        "translation": "kjva",
+        "scrollPosition": 0
+       }
+      }
+     ],
+     "notes": [],
+     "lexicon": [],
+     "youtube": [],
+     "search": []
+    },
+    "activeTabId": {
+     "scripture": "t5",
+     "notes": null,
+     "lexicon": null,
+     "youtube": null,
+     "search": null
+    },
+    "icon": "📜",
+    "tabFilter": "scripture"
+   }
+  ],
+  "sessionDisplayOrders": {
+   "s1": [
+    "t3",
+    "t1",
+    "t2",
+    "t4"
+   ],
+   "s2": [
+    "t5"
+   ]
+  },
+  "archivedGroups": [
+   {
+    "id": "g1",
+    "label": "Old",
+    "archivedAt": 1700000000000,
+    "tabs": [
+     {
+      "id": "t9",
+      "spaceId": "scripture",
+      "type": "bible",
+      "title": "Ruth 1",
+      "state": {
+       "bookId": "RUT",
+       "chapter": 1
+      }
+     }
+    ]
+   }
+  ]
+ }
+}
