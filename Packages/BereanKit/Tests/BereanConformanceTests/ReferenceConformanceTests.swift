@@ -60,3 +60,23 @@ import BereanReference
         #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) mismatches:\n" + failures.prefix(40).joined(separator: "\n")))
     }
 }
+
+@Suite("strongs golden") struct StrongsConformanceTests {
+    @Test func parseAndNormalize() throws {
+        let g = try Golden.load("strongs")
+        var failures: [String] = []
+        for c in g.arr("cases") {
+            let text = c["text"]!.str
+            let got: [JSValue] = StrongsId.parse(text).map { m in
+                var o = JSObject()
+                o["id"] = .string(JSString(m.id)); o["lang"] = .string(JSString(String(m.lang))); o["number"] = .number(Double(m.number))
+                o["raw"] = .string(JSString(m.raw)); o["index"] = .number(Double(m.index))
+                return .object(o)
+            }
+            if JSValue.array(got) != c["ids"]! { failures.append("parse \(text.debugDescription): \(JSON.stringify(.array(got)).string) want \(JSON.stringify(c["ids"]!).string)") }
+            let n = StrongsId.normalize(text)
+            if n != c["normalized"]!.optionalString { failures.append("normalize \(text.debugDescription): \(n ?? "nil")") }
+        }
+        #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
+    }
+}

@@ -25,6 +25,7 @@ import {
 import { compareOrder, isValidOrderKey, keyBetween, keysAfter } from '../../src/platform/sync/fractional'
 import type { SyncOp } from '../../src/platform/sync/types'
 import * as ref from '../../src/lib/parseRef'
+import { normalizeStrongsId, parseStrongsIds } from '../../src/lib/research/strongsId'
 
 export const GOLDEN_FORMAT = 1
 const ROOT = resolve(__dirname, '../..')
@@ -37,6 +38,7 @@ const SOURCES: Record<string, string[]> = {
   journal: ['src/platform/sync/journal.ts', 'src/platform/sync/types.ts'],
   fractional: ['src/platform/sync/fractional.ts'],
   reference: ['src/lib/parseRef.ts', 'src/lib/hermasMap.ts', 'src/lib/chapterNumbering.ts'],
+  strongs: ['src/lib/research/strongsId.ts'],
 }
 
 function sourceHashes(name: string): Record<string, string> {
@@ -429,8 +431,24 @@ function reference(): GoldenFile {
   return file('reference', { calls })
 }
 
+function strongs(): GoldenFile {
+  const r = mulberry32(0x57a0)
+  const texts = [
+    '', 'G5485', 'g5485', 'G-5485', 'G 5485', 'H02617', 'G–25', 'G‐25', 'G‑25', 'G‒25', 'G—25', 'G 5485', 'G  5485', 'G - 5485',
+    '5G', 'H2O2', 'AG5485', 'G548501', 'G54850', 'G0', 'G00', 'G000123', 'H7225a', 'H7225ab', 'H7225A', 'H1234567', 'G5485 and H2617 and g5485',
+    'grace (G5485) mercy (H2617).', 'éG12', 'G12é', '١G12', 'G12٣', '😀G12😀', 'xG12', '_G12', 'G12_', 'H 1', 'H​1', 'h 0001b',
+    'What does G26 mean vs H157?', 'G1 G2 G3 G1 g2', 'G\t\t5', 'G- 5', 'Strong\'s G26', 'G\n26', 'H8674', 'H8675',
+  ]
+  for (let i = 0; i < 150; i++) {
+    const parts = Array.from({ length: 1 + int(r, 4) }, () => pick(r, ['G', 'H', 'g', 'h', 'x', ' ', '-', '–', '0', '00', `${int(r, 99999)}`, 'a', 'é', '😀', ' ', '1234567', '(', ')']))
+    texts.push(parts.join(''))
+  }
+  const cases = texts.map((text) => ({ text, ids: norm(parseStrongsIds(text)), normalized: normalizeStrongsId(text) }))
+  return file('strongs', { cases })
+}
+
 export function buildGoldenCorpus(): GoldenFile[] {
-  return [coreJson(), syncHash(), hlc(), journal(), fractional(), reference()]
+  return [coreJson(), syncHash(), hlc(), journal(), fractional(), reference(), strongs()]
 }
 
 /** Canonical on-disk text (stable across runs; `JSON.stringify` escapes unpaired surrogates). */
