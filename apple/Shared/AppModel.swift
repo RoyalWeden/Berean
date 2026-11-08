@@ -249,12 +249,51 @@ final class AppModel {
 
     func findTab(_ id: String) -> BereanWorkspace.Tab? { session.allTabs.first { $0.id == id } }
 
-    func update(_ tabId: String, _ change: (inout BereanWorkspace.Tab) -> Void) {
+    func update(_ tabId: String, recordHistory: Bool = true, _ change: (inout BereanWorkspace.Tab) -> Void) {
         for sp in SpaceId.allCases {
             guard let idx = sessions[sessionIndex].tabs[sp]?.firstIndex(where: { $0.id == tabId }) else { continue }
+            let before = sessions[sessionIndex].tabs[sp]![idx]
             change(&sessions[sessionIndex].tabs[sp]![idx])
+            let after = sessions[sessionIndex].tabs[sp]![idx]
+            if recordHistory, Self.location(before) != Self.location(after) {
+                backStack[tabId, default: []].append((before.title, before.state))
+                if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
+                forwardStack[tabId] = []
+            }
             scheduleSave(); return
         }
+    }
+
+    // MARK: in-tab history (⌘[ / ⌘]) — the place a tab shows, not presentation details like scroll or panels
+
+    private var backStack: [String: [(String, JSObject)]] = [:]
+    private var forwardStack: [String: [(String, JSObject)]] = [:]
+
+    static func location(_ t: BereanWorkspace.Tab) -> String {
+        let keys: [String]
+        switch t.tabType {
+        case .bible: keys = ["bookId", "chapter", "translation"]
+        case .note: keys = ["noteId"]
+        case .lexicon: keys = ["strongsNum"]
+        case .search: keys = ["query"]
+        default: keys = []
+        }
+        return keys.map { k in t.state[k].map { JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
+    }
+
+    var canGoBack: Bool { activeTab.map { !(backStack[$0.id] ?? []).isEmpty } ?? false }
+    var canGoForward: Bool { activeTab.map { !(forwardStack[$0.id] ?? []).isEmpty } ?? false }
+
+    func goBack() {
+        guard let t = activeTab, let prev = backStack[t.id]?.popLast() else { return }
+        forwardStack[t.id, default: []].append((t.title, t.state))
+        update(t.id, recordHistory: false) { $0.title = prev.0; $0.state = prev.1 }
+    }
+
+    func goForward() {
+        guard let t = activeTab, let next = forwardStack[t.id]?.popLast() else { return }
+        backStack[t.id, default: []].append((t.title, t.state))
+        update(t.id, recordHistory: false) { $0.title = next.0; $0.state = next.1 }
     }
 
     func selectNextTab(_ delta: Int) {
