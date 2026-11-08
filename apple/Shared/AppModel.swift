@@ -6,6 +6,7 @@ import BereanStore
 import BereanWorkspace
 import BereanBible
 import BereanReference
+import BereanNotes
 
 /// The texts the native app offers, in compare/picker order.
 struct TextInfo: Identifiable, Hashable { let id: String; let name: String }
@@ -49,6 +50,9 @@ final class AppModel {
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
     var commandPaletteShown = false
+    /// Bumped on every note write so note lists and verse dots refresh.
+    var notesRevision = 0
+    private(set) var notes: NotesService?
 
     private var database: UserDatabase?
     private var sessionsService: SessionsService?
@@ -72,6 +76,7 @@ final class AppModel {
             try Migrator.migrate(db.connection, backup: { from, _ in try Self.backup(db.connection, from: from) })
             let svc = SessionsService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) })
             database = db; sessionsService = svc
+            notes = NotesService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.notesRevision += 1 } })
             let rows = try svc.allRows()
             var local: [String: [String: String?]] = [:]
             for s in rows.sessions {
@@ -257,6 +262,30 @@ final class AppModel {
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil) {
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
         openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin)
+    }
+
+    func openNote(_ id: String?) {
+        var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
+        let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
+        if let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }), t.tabType == .note, activeSpace == .notes {
+            update(t.id) { $0.state = o; $0.title = title }
+        } else { openTab(.note, in: .notes, title: title, state: o) }
+    }
+
+    /// New note (optionally attached to a verse, e.g. "GEN.1.1" in `textId`), opened in the Notes space.
+    @discardableResult
+    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil) -> String? {
+        guard let notes else { libraryError = "The library is not open."; return nil }
+        do {
+            let label = verseRef.flatMap { r -> String? in
+                let p = r.split(separator: ".").map(String.init)
+                guard p.count == 3, let c = Int(p[1]), let v = Int(p[2]) else { return nil }
+                return Reference.bookChapterVerseLabel(p[0], chapter: c, verse: v)
+            }
+            let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", verseRef: verseRef, textId: textId)).note
+            openNote(n.id)
+            return n.id
+        } catch { libraryError = "Could not create the note: \(error)"; return nil }
     }
 
     func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String = "kjva") {

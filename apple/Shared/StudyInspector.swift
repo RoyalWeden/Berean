@@ -9,17 +9,20 @@ struct StudyInspector: View {
     var body: some View {
         let st = BibleState(app.findTab(tabId)?.state ?? JSObject())
         VStack(spacing: 0) {
-            Picker("Panel", selection: Binding(get: { st.rightPanelTab == "crossrefs" ? "crossrefs" : "lexicon" }, set: { v in
+            Picker("Panel", selection: Binding(get: { ["notes", "crossrefs"].contains(st.rightPanelTab) ? st.rightPanelTab : "lexicon" }, set: { v in
                 app.update(tabId) { t in var s = BibleState(t.state); s.rightPanelTab = v; t.state = s.merged(into: t.state) }
             })) {
+                Text("Notes").tag("notes")
                 Text("Lexicon").tag("lexicon")
-                Text("Cross References").tag("crossrefs")
+                Text("Cross Refs").tag("crossrefs")
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(10)
             Divider()
-            if st.rightPanelTab == "crossrefs" {
+            if st.rightPanelTab == "notes" {
+                VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: st.verse, textId: st.translation)
+            } else if st.rightPanelTab == "crossrefs" {
                 CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: st.verse, textId: st.translation)
             } else if let id = st.rightPanelLexiconEntry {
                 LexiconEntryView(strongsId: id, compact: true)

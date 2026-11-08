@@ -41,6 +41,8 @@ struct IOSRootView: View {
                 LexiconEntryView(strongsId: tab.state["strongsNum"]?.stringValue?.string ?? "").id(tab.id).navigationTitle(tab.title)
             case .search:
                 SearchResultsView(tabId: tab.id).id(tab.id)
+            case .note:
+                if let id = tab.state["noteId"]?.stringValue?.string { NoteDetailView(noteId: id).id(tab.id + id) } else { NotesHomeView().id(tab.id) }
             default:
                 ContentUnavailableView(tab.title, systemImage: "square.dashed", description: Text("This kind of tab arrives in a later native build."))
             }

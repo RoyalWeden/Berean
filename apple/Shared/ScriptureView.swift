@@ -13,6 +13,7 @@ struct ScriptureView: View {
     let tabId: String
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
+    @State private var noteCounts: [Int: Int] = [:]
     @State private var referenceText = ""
     @FocusState private var referenceFocused: Bool
 
@@ -29,8 +30,13 @@ struct ScriptureView: View {
                     ForEach(verses, id: \.verseNum) { v in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Button { selectedVerse = selectedVerse == v.verseNum ? nil : v.verseNum } label: {
-                                Text("\(v.verseNum)").font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(.secondary)
-                                    .frame(minWidth: 22, alignment: .trailing)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(v.verseNum)").font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(.secondary)
+                                    if let n = noteCounts[v.verseNum] {
+                                        Text(n > 1 ? "●\(n)" : "●").font(.system(size: 8)).foregroundStyle(.tint)
+                                    }
+                                }
+                                .frame(minWidth: 22, alignment: .trailing)
                             }
                             .buttonStyle(.plain)
                             .help("Select verse")
@@ -42,6 +48,8 @@ struct ScriptureView: View {
                         .id(v.verseNum)
                         .contextMenu {
                             Button("Copy Verse") { copy(v, st) }
+                            Button("Add Note") { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) }
+                            Button("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") }
                             Button("Cross References") { selectedVerse = v.verseNum; openInspector("crossrefs") }
                             Button("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) }
                         }
@@ -56,6 +64,9 @@ struct ScriptureView: View {
                 return .systemAction
             })
             .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
+            .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
+                noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
+            }
             .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)") {
                 verses = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
                 selectedVerse = st.verse

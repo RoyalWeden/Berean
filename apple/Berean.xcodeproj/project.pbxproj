@@ -15,14 +15,16 @@
 		BE7EA000000000000000002C /* BereanSQLite in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000002B /* BereanSQLite */; };
 		BE7EA000000000000000002E /* BereanStore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000002D /* BereanStore */; };
 		BE7EA0000000000000000030 /* BereanWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000002F /* BereanWorkspace */; };
-		BE7EA0000000000000000032 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000031 /* BereanCore */; };
-		BE7EA0000000000000000034 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000033 /* BereanSync */; };
-		BE7EA0000000000000000036 /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000035 /* BereanReference */; };
-		BE7EA0000000000000000038 /* BereanBible in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000037 /* BereanBible */; };
-		BE7EA000000000000000003A /* BereanText in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000039 /* BereanText */; };
-		BE7EA000000000000000003C /* BereanSQLite in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000003B /* BereanSQLite */; };
-		BE7EA000000000000000003E /* BereanStore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000003D /* BereanStore */; };
-		BE7EA0000000000000000040 /* BereanWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000003F /* BereanWorkspace */; };
+		BE7EA0000000000000000032 /* BereanNotes in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000031 /* BereanNotes */; };
+		BE7EA0000000000000000034 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000033 /* BereanCore */; };
+		BE7EA0000000000000000036 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000035 /* BereanSync */; };
+		BE7EA0000000000000000038 /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000037 /* BereanReference */; };
+		BE7EA000000000000000003A /* BereanBible in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000039 /* BereanBible */; };
+		BE7EA000000000000000003C /* BereanText in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000003B /* BereanText */; };
+		BE7EA000000000000000003E /* BereanSQLite in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000003D /* BereanSQLite */; };
+		BE7EA0000000000000000040 /* BereanStore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000003F /* BereanStore */; };
+		BE7EA0000000000000000042 /* BereanWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000041 /* BereanWorkspace */; };
+		BE7EA0000000000000000044 /* BereanNotes in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000043 /* BereanNotes */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,6 +54,7 @@
 				BE7EA000000000000000002C /* BereanSQLite in Frameworks */,
 				BE7EA000000000000000002E /* BereanStore in Frameworks */,
 				BE7EA0000000000000000030 /* BereanWorkspace in Frameworks */,
+				BE7EA0000000000000000032 /* BereanNotes in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,14 +62,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BE7EA0000000000000000032 /* BereanCore in Frameworks */,
-				BE7EA0000000000000000034 /* BereanSync in Frameworks */,
-				BE7EA0000000000000000036 /* BereanReference in Frameworks */,
-				BE7EA0000000000000000038 /* BereanBible in Frameworks */,
-				BE7EA000000000000000003A /* BereanText in Frameworks */,
-				BE7EA000000000000000003C /* BereanSQLite in Frameworks */,
-				BE7EA000000000000000003E /* BereanStore in Frameworks */,
-				BE7EA0000000000000000040 /* BereanWorkspace in Frameworks */,
+				BE7EA0000000000000000034 /* BereanCore in Frameworks */,
+				BE7EA0000000000000000036 /* BereanSync in Frameworks */,
+				BE7EA0000000000000000038 /* BereanReference in Frameworks */,
+				BE7EA000000000000000003A /* BereanBible in Frameworks */,
+				BE7EA000000000000000003C /* BereanText in Frameworks */,
+				BE7EA000000000000000003E /* BereanSQLite in Frameworks */,
+				BE7EA0000000000000000040 /* BereanStore in Frameworks */,
+				BE7EA0000000000000000042 /* BereanWorkspace in Frameworks */,
+				BE7EA0000000000000000044 /* BereanNotes in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -133,6 +137,7 @@
 				BE7EA000000000000000002B /* BereanSQLite */,
 				BE7EA000000000000000002D /* BereanStore */,
 				BE7EA000000000000000002F /* BereanWorkspace */,
+				BE7EA0000000000000000031 /* BereanNotes */,
 			);
 			productName = BereanMac;
 			productReference = BE7EA0000000000000000008 /* BereanMac.app */;
@@ -157,14 +162,15 @@
 			);
 			name = BereanIOS;
 			packageProductDependencies = (
-				BE7EA0000000000000000031 /* BereanCore */,
-				BE7EA0000000000000000033 /* BereanSync */,
-				BE7EA0000000000000000035 /* BereanReference */,
-				BE7EA0000000000000000037 /* BereanBible */,
-				BE7EA0000000000000000039 /* BereanText */,
-				BE7EA000000000000000003B /* BereanSQLite */,
-				BE7EA000000000000000003D /* BereanStore */,
-				BE7EA000000000000000003F /* BereanWorkspace */,
+				BE7EA0000000000000000033 /* BereanCore */,
+				BE7EA0000000000000000035 /* BereanSync */,
+				BE7EA0000000000000000037 /* BereanReference */,
+				BE7EA0000000000000000039 /* BereanBible */,
+				BE7EA000000000000000003B /* BereanText */,
+				BE7EA000000000000000003D /* BereanSQLite */,
+				BE7EA000000000000000003F /* BereanStore */,
+				BE7EA0000000000000000041 /* BereanWorkspace */,
+				BE7EA0000000000000000043 /* BereanNotes */,
 			);
 			productName = BereanIOS;
 			productReference = BE7EA0000000000000000009 /* BereanIOS.app */;
@@ -458,37 +464,45 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanWorkspace;
 		};
-		BE7EA0000000000000000031 /* BereanCore */ = {
+		BE7EA0000000000000000031 /* BereanNotes */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanNotes;
+		};
+		BE7EA0000000000000000033 /* BereanCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanCore;
 		};
-		BE7EA0000000000000000033 /* BereanSync */ = {
+		BE7EA0000000000000000035 /* BereanSync */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanSync;
 		};
-		BE7EA0000000000000000035 /* BereanReference */ = {
+		BE7EA0000000000000000037 /* BereanReference */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanReference;
 		};
-		BE7EA0000000000000000037 /* BereanBible */ = {
+		BE7EA0000000000000000039 /* BereanBible */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanBible;
 		};
-		BE7EA0000000000000000039 /* BereanText */ = {
+		BE7EA000000000000000003B /* BereanText */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanText;
 		};
-		BE7EA000000000000000003B /* BereanSQLite */ = {
+		BE7EA000000000000000003D /* BereanSQLite */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanSQLite;
 		};
-		BE7EA000000000000000003D /* BereanStore */ = {
+		BE7EA000000000000000003F /* BereanStore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanStore;
 		};
-		BE7EA000000000000000003F /* BereanWorkspace */ = {
+		BE7EA0000000000000000041 /* BereanWorkspace */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanWorkspace;
+		};
+		BE7EA0000000000000000043 /* BereanNotes */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanNotes;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -13,7 +13,7 @@ c = itertools.count(1)
 def nid(): return "BE7EA0%018X" % next(c)
 P = {k: nid() for k in "project mainGroup productsGroup configGroup grpMac grpIOS grpShared refMacApp refIOSApp refBase refMacCfg refIOSCfg pkg projList projDebug projRelease".split()}
 T = {}
-PRODUCTS = ["BereanCore", "BereanSync", "BereanReference", "BereanBible", "BereanText", "BereanSQLite", "BereanStore", "BereanWorkspace"]
+PRODUCTS = ["BereanCore", "BereanSync", "BereanReference", "BereanBible", "BereanText", "BereanSQLite", "BereanStore", "BereanWorkspace", "BereanNotes"]
 for t in ("BereanMac", "BereanIOS"):
     T[t] = {k: nid() for k in "target src fw res list debug release".split()}
 for t in ("BereanMac", "BereanIOS"):

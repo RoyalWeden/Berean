@@ -195,3 +195,13 @@
   `requiresLegacyUpgrade`. Test: v41 refused; v42 → v49 replay equals the fresh v49 schema. Real libraries are ≥ v47, so no user impact.
 - Housekeeping: local branch `native/m2-finish` was deleted with `-D` after its unmerged commits were rebased onto `native/m3-store`
   (content preserved; noted for the record).
+
+### 2026-11-08 01:30 PST — Notes Space (Mac + iPhone) on BereanNotes
+- `BereanNotes.NotesService`: read path (list, get, folders, FTS search all/any/phrase + "untitled", by verse / by chapter with KJV⇄LXX
+  cross-links and Psalm numbering, chapter dot counts, trash, daily dates) and writes (create with daily-date ids, default status and
+  idempotent ids; update; soft delete; restore to root when the folder is gone; folders; pin) — golden `notes.json` (19 synthetic notes,
+  39 searches, verse/chapter cases, an 11-step write script with table dumps and change events), all reproduced.
+- UI: Notes home (search, type filters incl. Trash, folders, pinned first, context menu pin/trash/restore), note view (rendered Markdown
+  with headings/quotes/lists/rules + inline Markdown; ⇧⌘M Markdown source mode with autosave — interim until the M7 native editor), study
+  inspector Notes panel (verse notes + "New Note for <verse>"), verse note dots in Scripture, context menu Add Note / Verse Notes, ⇧⌘N.
+- Verified by driving the Mac app: ⇧⌘N → typed title, Return, Markdown body → autosaved; ⇧⌘M rendered it; tab title followed the note title.

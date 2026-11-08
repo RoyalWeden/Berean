@@ -20,7 +20,7 @@
 | M3-01 | Mutable SQLite and safe migration | M2 gate or independently safe | IMPLEMENTED_UNVERIFIED | BereanStore Migrator replays recorded TS migrations (ADR-0009), schema exact at v17/18/43/47/48/49; refusals + rollback tested. TODO: GRDB evaluation note, real v48 library copy test, single-instance lock. |
 | M3-02 | Import verified database copies | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
 | M3-03 | Legacy localStorage exporter/importer | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
-| M3-04 | CRUD and change feed on synthetic store | M2 gate or independently safe | IN_PROGRESS | Sessions/tabs/archived groups done (tabs.json, DataChange feed). TODO: notes, highlights, settings, workspaces, verse tags, history services. |
+| M3-04 | CRUD and change feed on synthetic store | M2 gate or independently safe | IN_PROGRESS | Sessions/tabs/archived groups (tabs.json) and notes read + basic writes (notes.json) done. TODO: note versions, highlights, settings, workspaces, verse tags, history services. |
 | M3-05 | Vault/PDF file compatibility | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
 | M4-01 | Legacy sync defect reconciliation | M3 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M4; add exact tests/PR. |
 | M4-02 | Hash/journal/merge Swift port | M3 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M4; add exact tests/PR. |

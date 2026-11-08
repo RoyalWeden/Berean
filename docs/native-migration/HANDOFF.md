@@ -15,8 +15,7 @@
 - Tests last run: `swift test -c release` (all suites), iOS Simulator suite (37 + store/workspace), drift guard 17/17, Mac + iOS builds OK
 - CI note: hosted runners have no Xcode 27 → BereanMac build is a local pre-merge check (ADR-0007); comment it on each PR
 - Golden export: `npx -y node@22 node_modules/vite-node/vite-node.mjs scripts/golden/export.ts` (any Node works now; output is version-independent)
-- Next exact tasks (in order): notes service read path (notesService.ts list/get/search/folders) + Notes Space browsing UI (Mac + iOS);
-  highlights service + rendering in Scripture; settings service + Settings window/sheet (display: font, theme, word replacer toggle);
+- Done since: BereanNotes (reads + writes) and the Notes Space UI. Next exact tasks (in order): highlights service + rendering in Scripture; settings service + Settings window/sheet (display: font, theme, word replacer toggle);
   tab back/forward history; layout presets / multi-pane compare on Mac; then sync M4 (Dev container per OD-5) and editor M7
 - Files to look at next: src/platform/services/notesService.ts, highlightsService.ts, settingsService.ts; apple/Shared/AppModel.swift
 - Owner decisions held: OD-1…OD-5 (DECISIONS). Optional owner action: self-hosted runner with Xcode 27 for Mac CI builds.

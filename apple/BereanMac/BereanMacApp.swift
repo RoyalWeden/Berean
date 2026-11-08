@@ -16,6 +16,7 @@ struct BereanMacApp: App {
                 Button("New Tab…") { app.commandPaletteShown = true }.keyboardShortcut("t")
                 Button("Open Reference or Search…") { app.commandPaletteShown = true }.keyboardShortcut("k")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
+                Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("New Session") { app.newSession() }.keyboardShortcut("n", modifiers: [.command, .shift, .option])
             }
             CommandMenu("Go") {
