@@ -78,7 +78,12 @@ struct ChapterTextView: NSViewRepresentable {
             let origin = scroll.contentView.bounds.origin
             let sel = tv.selectedRanges
             tv.textStorage?.setAttributedString(c.build(self))
-            if keepScroll { tv.selectedRanges = sel.filter { $0.rangeValue.upperBound <= tv.string.utf16.count }; scroll.contentView.scroll(to: origin) }
+            if keepScroll {
+                // Restore the selection only where it still fits; AppKit throws on an empty selection array.
+                let kept = sel.filter { $0.rangeValue.upperBound <= tv.string.utf16.count }
+                tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
+                scroll.contentView.scroll(to: origin)
+            }
             c.lastKey = key
         }
         if let t = scrollTarget, t != c.scrolledTo, let r = c.verseRanges[t] {

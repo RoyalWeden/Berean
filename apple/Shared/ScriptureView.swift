@@ -129,7 +129,7 @@ struct ScriptureView: View {
                 Button { step(-1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
                     .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
                 Button { pickerShown.toggle() } label: {
-                    Text("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))  \(Text(textInfo(st.translation).short).foregroundStyle(.secondary))")
+                    Text("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))\(textInfo(st.translation).section == "Bible" ? "  " : "")\(Text(textInfo(st.translation).section == "Bible" ? textInfo(st.translation).short : "").foregroundStyle(.secondary))")
                         .fontWeight(.semibold)
                 }
                 .accessibilityLabel("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter))), \(textInfo(st.translation).name). Choose passage or text")
