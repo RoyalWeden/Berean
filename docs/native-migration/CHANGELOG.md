@@ -216,3 +216,10 @@
   are not tinted.
 - Test-harness note: a cliclick click on the sidebar left SwiftUI in a mouse-down tracking loop (screens lagged, keystrokes hung); an explicit
   `dd:`/`du:` pair released it. Use explicit down/up for sidebar clicks in future visual QA.
+
+### 2026-11-08 02:30 PST — Settings (M6-04 first part)
+- `BereanStore.SettingsService` (settings table get/set/all, JSON values; seeded defaults verified by test).
+- App: reading preferences on AppModel persisted in the settings table (`defaultText`, `fontSize`, `lineHeight` — same keys as the
+  existing apps — plus `wordReplacerEnabled`, `theme`); Mac Settings scene (⌘,) and iPhone Settings sheet; reader applies text size,
+  line spacing and the word-replacer toggle; theme System/Light/Dark; new Scripture tabs open in the default text. Verified by opening
+  the Settings window in the running app.

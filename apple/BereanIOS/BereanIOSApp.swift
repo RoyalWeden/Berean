@@ -6,7 +6,7 @@ struct BereanIOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            IOSRootView().environment(app)
+            IOSRootView().environment(app).preferredColorScheme(app.colorScheme)
         }
     }
 }

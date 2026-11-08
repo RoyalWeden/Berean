@@ -103,3 +103,19 @@ func schemaDump(_ db: SQLiteConnection) throws -> JSValue {
         for suffix in ["", "-wal", "-shm"] { unlink(path + suffix) }
     }
 }
+
+@Suite struct SettingsServiceTests {
+    @Test func roundTripAndSeededDefaults() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let s = SettingsService(db: db)
+        #expect(try s.get("defaultText") == "kjva")
+        #expect(try s.get("fontSize") == 16)
+        try s.set("fontSize", 19)
+        try s.set("wordReplacerEnabled", false)
+        #expect(try s.get("fontSize") == 19)
+        #expect(try s.all()["wordReplacerEnabled"] == .bool(false))
+        #expect(try db.query("SELECT value FROM settings WHERE key = 'fontSize'").first?.values.first?.string == "19")
+        #expect(try s.get("missing") == nil)
+    }
+}

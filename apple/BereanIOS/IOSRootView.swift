@@ -9,6 +9,7 @@ import BereanReference
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
     @State private var showTabs = false
+    @State private var showSettings = false
 
     var body: some View {
         @Bindable var app = app
@@ -24,6 +25,7 @@ struct IOSRootView: View {
                     }
                 }
         }
+        .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
         .sheet(isPresented: $app.commandPaletteShown) { CommandPalette().presentationDetents([.height(220)]) }
     }
@@ -61,6 +63,7 @@ struct IOSRootView: View {
                     ForEach(availableTexts) { Text($0.name).tag($0.id) }
                 }
             }
+            Button("Settings") { showSettings = true }
             if let tab = app.activeTab { Button("Close Tab", role: .destructive) { app.close(tab.id) } }
         } label: { Label("Commands", systemImage: "chevron.up.circle") }
     }

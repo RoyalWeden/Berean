@@ -42,7 +42,8 @@ struct ScriptureView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Select verse")
-                            VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs, highlights: (highlights[v.verseNum] ?? []).filter { $0.startChar != nil })
+                            VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs, highlights: (highlights[v.verseNum] ?? []).filter { $0.startChar != nil },
+                                         fontSize: app.fontSize, lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.vertical, 3).padding(.horizontal, 8)
@@ -170,11 +171,14 @@ struct VerseRowView: View {
     let textId: String
     let showStrongs: Bool
     var highlights: [Highlight] = []
+    var fontSize: Double = 16
+    var lineSpacing: CGFloat = 5
+    var replacer = true
 
     var body: some View {
         Text(attributed)
-            .font(.system(.body, design: .serif))
-            .lineSpacing(5)
+            .font(.system(size: fontSize, design: .serif))
+            .lineSpacing(lineSpacing)
             .textSelection(.enabled)
             .padding(.vertical, 2)
     }
@@ -185,15 +189,15 @@ struct VerseRowView: View {
             var t = AttributedString(title + "\n"); t.font = .callout.italic(); t.foregroundColor = .secondary
             out = t + out
         }
-        let rules = WordReplacer.defaultRules
+        let rules = replacer ? WordReplacer.defaultRules : []
         guard let tagged = row.textTagged, !tagged.isEmpty, textId == "kjva" || textId == "lxx" else {
-            out += AttributedString(VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: true, rules: rules))
+            out += AttributedString(VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules))
             return out
         }
         // Study tokens carry the restored display word AND its Strong's numbers.
         let tokens = TaggedText.parse(tagged).filter { !$0.hasNoPlainText }
-        let display = VerseDisplay.tokens(row.text, tagged: tagged, textId: textId, replacerEnabled: true, rules: rules)
-        let study = VerseDisplay.studyTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: true, rules: rules)
+        let display = VerseDisplay.tokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
+        let study = VerseDisplay.studyTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
         let words: [(String, Bool, Bool, [String])] = textId == "kjva" && display.count == study.count
             ? zip(display, study).map { ($0.word, $0.isItalic, $0.isRedLetter, $1.strongs) }
             : tokens.map { t in
@@ -218,7 +222,7 @@ struct VerseRowView: View {
                 var j = k + 1
                 while j < units.count, (ranges.last { $0.0 <= pos + j && pos + j < $0.1 })?.2 == hit?.2 { j += 1 }
                 var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
-                if w.1 { a.font = .system(.body, design: .serif).italic() }
+                if w.1 { a.font = .system(size: fontSize, design: .serif).italic() }
                 if w.2 { a.foregroundColor = .red }
                 if let hit { a.backgroundColor = Color.highlight(hit.2).opacity(0.35) }
                 out += a

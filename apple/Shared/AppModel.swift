@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import CoreGraphics
 import BereanCore
 import BereanSQLite
 import BereanStore
@@ -55,6 +56,14 @@ final class AppModel {
     private(set) var notes: NotesService?
     private(set) var highlights: HighlightsService?
     var highlightsRevision = 0
+    private(set) var settingsService: SettingsService?
+    /// Reading preferences (settings table keys shared with the existing apps where they exist).
+    var fontSize: Double = 16 { didSet { saveSetting("fontSize", .number(fontSize)) } }
+    var lineHeight = "comfortable" { didSet { saveSetting("lineHeight", .string(JSString(lineHeight))) } }
+    var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
+    var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
+    var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
+    private var loadingSettings = false
 
     private var database: UserDatabase?
     private var sessionsService: SessionsService?
@@ -79,6 +88,8 @@ final class AppModel {
             let svc = SessionsService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) })
             database = db; sessionsService = svc
             notes = NotesService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.notesRevision += 1 } })
+            settingsService = SettingsService(db: db.connection)
+            loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
             let rows = try svc.allRows()
             var local: [String: [String: String?]] = [:]
@@ -112,6 +123,25 @@ final class AppModel {
     }
 
     nonisolated static func newId() -> String { UUID().uuidString.lowercased() }
+
+    private func loadSettings() {
+        guard let all = try? settingsService?.all() else { return }
+        loadingSettings = true
+        if let v = all["fontSize"]?.numberValue { fontSize = v }
+        if let v = all["lineHeight"]?.stringValue?.string { lineHeight = v }
+        if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
+        if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
+        if let v = all["theme"]?.stringValue?.string { theme = v }
+        loadingSettings = false
+    }
+
+    private func saveSetting(_ key: String, _ v: JSValue) {
+        guard !loadingSettings else { return }
+        try? settingsService?.set(key, v)
+    }
+
+    var lineSpacing: CGFloat { lineHeight == "compact" ? 2 : lineHeight == "spacious" ? 9 : 5 }
+
 
     func scheduleSave() {
         saveTask?.cancel()
@@ -250,6 +280,7 @@ final class AppModel {
         if let ref = Reference.parse(query) {
             var st = BibleState(bookId: ref.bookId, chapter: ref.chapter)
             st.verse = ref.verse
+            st.translation = defaultText
             if let forced = ref.forcedTranslation, forced == "LXX" { st.translation = "lxx" }
             let title = Reference.bookChapterLabel(ref.bookId, chapter: Double(ref.chapter))
             if !newTab, let t = activeTab, t.tabType == .bible { update(t.id) { $0.state = st.merged(into: $0.state); $0.title = title } }
@@ -291,8 +322,8 @@ final class AppModel {
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
     }
 
-    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String = "kjva") {
-        var st = BibleState(bookId: bookId, chapter: chapter); st.verse = verse; st.translation = textId
+    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String? = nil) {
+        var st = BibleState(bookId: bookId, chapter: chapter); st.verse = verse; st.translation = textId ?? defaultText
         openTab(.bible, in: .scripture, title: Reference.bookChapterLabel(bookId, chapter: Double(chapter)), state: st.object)
     }
 }

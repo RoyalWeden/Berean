@@ -9,7 +9,11 @@ struct BereanMacApp: App {
         WindowGroup {
             MacRootView()
                 .environment(app)
+                .preferredColorScheme(app.colorScheme)
                 .frame(minWidth: 820, minHeight: 520)
+        }
+        Settings {
+            SettingsView().environment(app).preferredColorScheme(app.colorScheme)
         }
         .commands {
             CommandGroup(after: .newItem) {
