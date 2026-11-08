@@ -11,7 +11,13 @@ describe('golden corpus', () => {
     it(`${f.name}.json matches the TypeScript oracle`, () => {
       const path = join(GOLDEN_DIR, `${f.name}.json`)
       expect(existsSync(path), `${path} missing — run npm run golden:export`).toBe(true)
-      expect(readFileSync(path, 'utf8') === serializeGolden(f), `${f.name}.json is stale — run npm run golden:export`).toBe(true)
+      const committed = readFileSync(path, 'utf8')
+      const fresh = serializeGolden(f)
+      if (committed !== fresh) {
+        const a = committed.split('\n'), b = fresh.split('\n')
+        const i = a.findIndex((line, k) => line !== b[k])
+        expect.fail(`${f.name}.json is stale — run npm run golden:export (first difference at line ${i + 1}: committed ${a[i]?.slice(0, 120)} / now ${b[i]?.slice(0, 120)})`)
+      }
     })
   }
 })

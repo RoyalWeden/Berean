@@ -192,13 +192,13 @@
     ],
     "b": false,
     "aa": -1061769035,
-    "updated_at": 825719481334090.2
+    "updated_at": 825719481000000
    },
    "fh": {
     "0": "e95741392p",
     "b": "0b0699585",
     "aa": "5e5511d8b",
-    "updated_at": "4e276207h"
+    "updated_at": "0b6f0c10f"
    },
    "lin": [
     "1761955200035-0000-devA"
@@ -354,12 +354,12 @@
    "fields": {
     "9💷2K灦Qyg隡\ud807": "\ud800",
     "color": 4981.31,
-    "chapter": 8.379761059768498e-16
+    "chapter": 8.379761e-16
    },
    "fh": {
     "9💷2K灦Qyg隡\ud807": "3ffd2a2c8",
     "color": "30603e897",
-    "chapter": "9887781fl"
+    "chapter": "d2c9edcdc"
    },
    "base": "1761955100014-0000-devB",
    "lin": [
@@ -577,7 +577,7 @@
    "schema": 48,
    "fields": {
     "λ": [
-     6500160.407740623,
+     6500160.4,
      "cr\rlf",
      0.0010626992561105207,
      {
@@ -595,7 +595,7 @@
     ]
    },
    "fh": {
-    "λ": "4846c5ba35",
+    "λ": "e5babcc72x",
     "😀": "9a81b78b9",
     "a b": "22c893cd1l"
    }
@@ -711,12 +711,12 @@
    "schema": 48,
    "fields": {
     "content": {
-     "\u0010;ϊ!UΎK3z": 2522089402.191341
+     "\u0010;ϊ!UΎK3z": 2522089400
     },
     "a": 0.005434782608695652
    },
    "fh": {
-    "content": "04da06ab10",
+    "content": "22c404eat",
     "a": "90a6c217k"
    },
    "base": "1761955100032-0000-devB"
@@ -822,12 +822,12 @@
    "fields": {
     "B": "x\b📭k/ק)⊱ΔE",
     "book_num": [
-     242531562456861.12
+     242531562000000
     ]
    },
    "fh": {
     "B": "b93d1977e",
-    "book_num": "168ac368k"
+    "book_num": "2576f983h"
    }
   },
   {
@@ -927,7 +927,7 @@
    ]
   }
  ],
- "encoded": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481334090.2},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"4e276207h\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761059768498e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"9887781fl\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq\":22,\"hlc\":\"1761955200154-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k9\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"🕐׵\":false},\"fh\":{\"🕐׵\":\"0b0699585\"},\"base\":\"1761955100022-0000-devB\",\"lin\":[\"1761955200154-0001-devA\"]}\n{\"id\":\"op-23-653382\",\"seq\":23,\"hlc\":\"1761955200161-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"é\":{\"_\":8436.79},\"updated_at\":true,\"created_at\":null},\"fh\":{\"é\":\"bc75afd5d\",\"updated_at\":\"4db211e54\",\"created_at\":\"77074ba44\"}}\n{\"id\":\"op-24-939718\",\"seq\":24,\"hlc\":\"1761955200168-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"[[Exod 20:11]]\":null,\"color\":{},\"tags\":{\"-1\":true}},\"fh\":{\"[[Exod 20:11]]\":\"77074ba44\",\"color\":\"5465b8252\",\"tags\":\"b8020185b\"},\"lin\":[\"1761955200168-0000-devA\"]}\n{\"id\":\"op-25-153240\",\"seq\":25,\"hlc\":\"1761955200175-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k37\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"λ\":[6500160.407740623,\"cr\\rlf\",0.0010626992561105207,{\"0\":-958317,\"שם\":null,\"__proto__x\":1706021087063,\"id\":\"ׯt֩ʹ\"}],\"😀\":\"\\udc4db\",\"a b\":[\"👬`Lׁ\",-8.244504491862413e+102,-8.349812921332336e+111]},\"fh\":{\"λ\":\"4846c5ba35\",\"😀\":\"9a81b78b9\",\"a b\":\"22c893cd1l\"}}\n{\"id\":\"op-26-744808\",\"seq\":26,\"hlc\":\"1761955200182-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k43\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100026-0000-devB\",\"lin\":[\"1761955200182-0002-devA\"]}\n{\"id\":\"op-27-486384\",\"seq\":27,\"hlc\":\"1761955200189-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k10\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"2\":null},\"fh\":{\"2\":\"77074ba44\"}}\n{\"id\":\"op-28-722687\",\"seq\":28,\"hlc\":\"1761955200196-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k38\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100028-0000-devB\",\"lin\":[\"1761955200196-0001-devA\"]}\n{\"id\":\"op-29-568080\",\"seq\":29,\"hlc\":\"1761955200203-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k6\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":5,\"id\":false,\"\\udf55d仓\\u0007\":[],\"1.5\":[{}]},\"fh\":{\"0\":\"300ca0d01\",\"id\":\"0b0699585\",\"\\udf55d仓\\u0007\":\"741638a52\",\"1.5\":\"1bcb3f154\"}}\n{\"id\":\"op-30-486548\",\"seq\":30,\"hlc\":\"1761955200210-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-31-837366\",\"seq\":31,\"hlc\":\"1761955200217-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"b\":[]},\"fh\":{\"b\":\"741638a52\"}}\n{\"id\":\"op-32-247187\",\"seq\":32,\"hlc\":\"1761955200224-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":{\"\\u0010;ϊ!UΎK3z\":2522089402.191341},\"a\":0.005434782608695652},\"fh\":{\"content\":\"04da06ab10\",\"a\":\"90a6c217k\"},\"base\":\"1761955100032-0000-devB\"}\n{\"id\":\"op-33-923325\",\"seq\":33,\"hlc\":\"1761955200231-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100033-0000-devB\"}\n{\"id\":\"op-34-303549\",\"seq\":34,\"hlc\":\"1761955200238-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k22\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"updated_at\":false,\"4Ύ\\u001aׁ\":[{\"id\":true,\"title\":null},{\"׀\":0.002551020408163265,\"title\":\"\\ud800\",\"__proto__x\":1.7976931348623157e+308,\"\\udfff\":null},{\"1\":null,\"\\udfff\":false,\"\\udcda\\uddcb\":true,\"__proto__x\":\"line\\nbreak\"}],\"__proto__x\":[]},\"fh\":{\"updated_at\":\"0b0699585\",\"4Ύ\\u001aׁ\":\"47bf303d5e\",\"__proto__x\":\"741638a52\"},\"lin\":[\"1761955200238-0002-devA\"]}\n{\"id\":\"op-35-821974\",\"seq\":35,\"hlc\":\"1761955200245-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k14\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"id\":{\" \":[-3116,\"H7225 G3056\"]},\"chapter\":{}},\"fh\":{\"id\":\"4cc3cd2er\",\"chapter\":\"5465b8252\"}}\n{\"id\":\"op-36-286119\",\"seq\":36,\"hlc\":\"1761955200252-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k14\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200252-0001-devA\"]}\n{\"id\":\"op-37-375642\",\"seq\":37,\"hlc\":\"1761955200259-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k20\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"B\":\"x\\b📭k/ק)⊱ΔE\",\"book_num\":[242531562456861.12]},\"fh\":{\"B\":\"b93d1977e\",\"book_num\":\"168ac368k\"}}\n{\"id\":\"op-38-70039\",\"seq\":38,\"hlc\":\"1761955200266-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k33\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"z%\\u0011\\u000b👞=֓蓞\":{\"Z\":null,\"\\udb9e\":[0.0021551724137931034]},\"__proto__x\":[[],{\"__proto__x\":1709543727}]},\"fh\":{\"z%\\u0011\\u000b👞=֓蓞\":\"1a9a5e5517\",\"__proto__x\":\"1c9961dcu\"},\"base\":\"1761955100038-0000-devB\"}\n{\"id\":\"op-39-351836\",\"seq\":39,\"hlc\":\"1761955200273-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k41\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":false,\"֡~Y\":[[-534223888],{},1723572421917,{}],\"a b\":[{\"1\":\"\",\"\":true,\"zw​j\":9007199254740994,\"1B5🕦^🖑IͿ\":\"\\ud800\"},{\"Ap\":0.0017761989342806395,\"😀\":8.347116854732113e+68}],\"1.5\":null},\"fh\":{\"aa\":\"0b0699585\",\"֡~Y\":\"72598cb4y\",\"a b\":\"5fc7d8113c\",\"1.5\":\"77074ba44\"},\"base\":\"1761955100039-0000-devB\",\"lin\":[\"1761955200273-0002-devA\"]}\n{\"id\":\"op-40-93436\",\"seq\":40,\"hlc\":\"1761955200280-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\udbff􏿿\":false,\"Z\":\"\\u0003/🖙ד\\udf37<l\\u0000\",\"id\":\"껬qA🐎𘭎🖊🗡Υ&\"},\"fh\":{\"\\udbff􏿿\":\"0b0699585\",\"Z\":\"2efa2dc3q\",\"id\":\"2c972172f\"},\"lin\":[\"1761955200280-0001-devA\"]}\n",
+ "encoded": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481000000},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"0b6f0c10f\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"d2c9edcdc\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq\":22,\"hlc\":\"1761955200154-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k9\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"🕐׵\":false},\"fh\":{\"🕐׵\":\"0b0699585\"},\"base\":\"1761955100022-0000-devB\",\"lin\":[\"1761955200154-0001-devA\"]}\n{\"id\":\"op-23-653382\",\"seq\":23,\"hlc\":\"1761955200161-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"é\":{\"_\":8436.79},\"updated_at\":true,\"created_at\":null},\"fh\":{\"é\":\"bc75afd5d\",\"updated_at\":\"4db211e54\",\"created_at\":\"77074ba44\"}}\n{\"id\":\"op-24-939718\",\"seq\":24,\"hlc\":\"1761955200168-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"[[Exod 20:11]]\":null,\"color\":{},\"tags\":{\"-1\":true}},\"fh\":{\"[[Exod 20:11]]\":\"77074ba44\",\"color\":\"5465b8252\",\"tags\":\"b8020185b\"},\"lin\":[\"1761955200168-0000-devA\"]}\n{\"id\":\"op-25-153240\",\"seq\":25,\"hlc\":\"1761955200175-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k37\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"λ\":[6500160.4,\"cr\\rlf\",0.0010626992561105207,{\"0\":-958317,\"שם\":null,\"__proto__x\":1706021087063,\"id\":\"ׯt֩ʹ\"}],\"😀\":\"\\udc4db\",\"a b\":[\"👬`Lׁ\",-8.244504491862413e+102,-8.349812921332336e+111]},\"fh\":{\"λ\":\"e5babcc72x\",\"😀\":\"9a81b78b9\",\"a b\":\"22c893cd1l\"}}\n{\"id\":\"op-26-744808\",\"seq\":26,\"hlc\":\"1761955200182-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k43\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100026-0000-devB\",\"lin\":[\"1761955200182-0002-devA\"]}\n{\"id\":\"op-27-486384\",\"seq\":27,\"hlc\":\"1761955200189-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k10\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"2\":null},\"fh\":{\"2\":\"77074ba44\"}}\n{\"id\":\"op-28-722687\",\"seq\":28,\"hlc\":\"1761955200196-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k38\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100028-0000-devB\",\"lin\":[\"1761955200196-0001-devA\"]}\n{\"id\":\"op-29-568080\",\"seq\":29,\"hlc\":\"1761955200203-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k6\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":5,\"id\":false,\"\\udf55d仓\\u0007\":[],\"1.5\":[{}]},\"fh\":{\"0\":\"300ca0d01\",\"id\":\"0b0699585\",\"\\udf55d仓\\u0007\":\"741638a52\",\"1.5\":\"1bcb3f154\"}}\n{\"id\":\"op-30-486548\",\"seq\":30,\"hlc\":\"1761955200210-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-31-837366\",\"seq\":31,\"hlc\":\"1761955200217-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"b\":[]},\"fh\":{\"b\":\"741638a52\"}}\n{\"id\":\"op-32-247187\",\"seq\":32,\"hlc\":\"1761955200224-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":{\"\\u0010;ϊ!UΎK3z\":2522089400},\"a\":0.005434782608695652},\"fh\":{\"content\":\"22c404eat\",\"a\":\"90a6c217k\"},\"base\":\"1761955100032-0000-devB\"}\n{\"id\":\"op-33-923325\",\"seq\":33,\"hlc\":\"1761955200231-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100033-0000-devB\"}\n{\"id\":\"op-34-303549\",\"seq\":34,\"hlc\":\"1761955200238-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k22\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"updated_at\":false,\"4Ύ\\u001aׁ\":[{\"id\":true,\"title\":null},{\"׀\":0.002551020408163265,\"title\":\"\\ud800\",\"__proto__x\":1.7976931348623157e+308,\"\\udfff\":null},{\"1\":null,\"\\udfff\":false,\"\\udcda\\uddcb\":true,\"__proto__x\":\"line\\nbreak\"}],\"__proto__x\":[]},\"fh\":{\"updated_at\":\"0b0699585\",\"4Ύ\\u001aׁ\":\"47bf303d5e\",\"__proto__x\":\"741638a52\"},\"lin\":[\"1761955200238-0002-devA\"]}\n{\"id\":\"op-35-821974\",\"seq\":35,\"hlc\":\"1761955200245-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k14\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"id\":{\" \":[-3116,\"H7225 G3056\"]},\"chapter\":{}},\"fh\":{\"id\":\"4cc3cd2er\",\"chapter\":\"5465b8252\"}}\n{\"id\":\"op-36-286119\",\"seq\":36,\"hlc\":\"1761955200252-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k14\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200252-0001-devA\"]}\n{\"id\":\"op-37-375642\",\"seq\":37,\"hlc\":\"1761955200259-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k20\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"B\":\"x\\b📭k/ק)⊱ΔE\",\"book_num\":[242531562000000]},\"fh\":{\"B\":\"b93d1977e\",\"book_num\":\"2576f983h\"}}\n{\"id\":\"op-38-70039\",\"seq\":38,\"hlc\":\"1761955200266-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k33\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"z%\\u0011\\u000b👞=֓蓞\":{\"Z\":null,\"\\udb9e\":[0.0021551724137931034]},\"__proto__x\":[[],{\"__proto__x\":1709543727}]},\"fh\":{\"z%\\u0011\\u000b👞=֓蓞\":\"1a9a5e5517\",\"__proto__x\":\"1c9961dcu\"},\"base\":\"1761955100038-0000-devB\"}\n{\"id\":\"op-39-351836\",\"seq\":39,\"hlc\":\"1761955200273-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k41\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":false,\"֡~Y\":[[-534223888],{},1723572421917,{}],\"a b\":[{\"1\":\"\",\"\":true,\"zw​j\":9007199254740994,\"1B5🕦^🖑IͿ\":\"\\ud800\"},{\"Ap\":0.0017761989342806395,\"😀\":8.347116854732113e+68}],\"1.5\":null},\"fh\":{\"aa\":\"0b0699585\",\"֡~Y\":\"72598cb4y\",\"a b\":\"5fc7d8113c\",\"1.5\":\"77074ba44\"},\"base\":\"1761955100039-0000-devB\",\"lin\":[\"1761955200273-0002-devA\"]}\n{\"id\":\"op-40-93436\",\"seq\":40,\"hlc\":\"1761955200280-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\udbff􏿿\":false,\"Z\":\"\\u0003/🖙ד\\udf37<l\\u0000\",\"id\":\"껬qA🐎𘭎🖊🗡Υ&\"},\"fh\":{\"\\udbff􏿿\":\"0b0699585\",\"Z\":\"2efa2dc3q\",\"id\":\"2c972172f\"},\"lin\":[\"1761955200280-0001-devA\"]}\n",
  "isValid": [
   {
    "value": {
@@ -1389,7 +1389,7 @@
    }
   },
   {
-   "text": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481334090.2},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"4e276207h\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761059768498e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"9887781fl\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq\":22,\"hlc\":\"1761955200154-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k9\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"🕐׵\":false},\"fh\":{\"🕐׵\":\"0b0699585\"},\"base\":\"1761955100022-0000-devB\",\"lin\":[\"1761955200154-0001-devA\"]}\n{\"id\":\"op-23-653382\",\"seq\":23,\"hlc\":\"1761955200161-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"é\":{\"_\":8436.79},\"updated_at\":true,\"created_at\":null},\"fh\":{\"é\":\"bc75afd5d\",\"updated_at\":\"4db211e54\",\"created_at\":\"77074ba44\"}}\n{\"id\":\"op-24-939718\",\"seq\":24,\"hlc\":\"1761955200168-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"[[Exod 20:11]]\":null,\"color\":{},\"tags\":{\"-1\":true}},\"fh\":{\"[[Exod 20:11]]\":\"77074ba44\",\"color\":\"5465b8252\",\"tags\":\"b8020185b\"},\"lin\":[\"1761955200168-0000-devA\"]}\n{\"id\":\"op-25-153240\",\"seq\":25,\"hlc\":\"1761955200175-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k37\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"λ\":[6500160.407740623,\"cr\\rlf\",0.0010626992561105207,{\"0\":-958317,\"שם\":null,\"__proto__x\":1706021087063,\"id\":\"ׯt֩ʹ\"}],\"😀\":\"\\udc4db\",\"a b\":[\"👬`Lׁ\",-8.244504491862413e+102,-8.349812921332336e+111]},\"fh\":{\"λ\":\"4846c5ba35\",\"😀\":\"9a81b78b9\",\"a b\":\"22c893cd1l\"}}\n{\"id\":\"op-26-744808\",\"seq\":26,\"hlc\":\"1761955200182-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k43\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100026-0000-devB\",\"lin\":[\"1761955200182-0002-devA\"]}\n{\"id\":\"op-27-486384\",\"seq\":27,\"hlc\":\"1761955200189-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k10\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"2\":null},\"fh\":{\"2\":\"77074ba44\"}}\n{\"id\":\"op-28-722687\",\"seq\":28,\"hlc\":\"1761955200196-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k38\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100028-0000-devB\",\"lin\":[\"1761955200196-0001-devA\"]}\n{\"id\":\"op-29-568080\",\"seq\":29,\"hlc\":\"1761955200203-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k6\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":5,\"id\":false,\"\\udf55d仓\\u0007\":[],\"1.5\":[{}]},\"fh\":{\"0\":\"300ca0d01\",\"id\":\"0b0699585\",\"\\udf55d仓\\u0007\":\"741638a52\",\"1.5\":\"1bcb3f154\"}}\n{\"id\":\"op-30-486548\",\"seq\":30,\"hlc\":\"1761955200210-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-31-837366\",\"seq\":31,\"hlc\":\"1761955200217-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"b\":[]},\"fh\":{\"b\":\"741638a52\"}}\n{\"id\":\"op-32-247187\",\"seq\":32,\"hlc\":\"1761955200224-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":{\"\\u0010;ϊ!UΎK3z\":2522089402.191341},\"a\":0.005434782608695652},\"fh\":{\"content\":\"04da06ab10\",\"a\":\"90a6c217k\"},\"base\":\"1761955100032-0000-devB\"}\n{\"id\":\"op-33-923325\",\"seq\":33,\"hlc\":\"1761955200231-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100033-0000-devB\"}\n{\"id\":\"op-34-303549\",\"seq\":34,\"hlc\":\"1761955200238-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k22\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"updated_at\":false,\"4Ύ\\u001aׁ\":[{\"id\":true,\"title\":null},{\"׀\":0.002551020408163265,\"title\":\"\\ud800\",\"__proto__x\":1.7976931348623157e+308,\"\\udfff\":null},{\"1\":null,\"\\udfff\":false,\"\\udcda\\uddcb\":true,\"__proto__x\":\"line\\nbreak\"}],\"__proto__x\":[]},\"fh\":{\"updated_at\":\"0b0699585\",\"4Ύ\\u001aׁ\":\"47bf303d5e\",\"__proto__x\":\"741638a52\"},\"lin\":[\"1761955200238-0002-devA\"]}\n{\"id\":\"op-35-821974\",\"seq\":35,\"hlc\":\"1761955200245-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k14\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"id\":{\" \":[-3116,\"H7225 G3056\"]},\"chapter\":{}},\"fh\":{\"id\":\"4cc3cd2er\",\"chapter\":\"5465b8252\"}}\n{\"id\":\"op-36-286119\",\"seq\":36,\"hlc\":\"1761955200252-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k14\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200252-0001-devA\"]}\n{\"id\":\"op-37-375642\",\"seq\":37,\"hlc\":\"1761955200259-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k20\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"B\":\"x\\b📭k/ק)⊱ΔE\",\"book_num\":[242531562456861.12]},\"fh\":{\"B\":\"b93d1977e\",\"book_num\":\"168ac368k\"}}\n{\"id\":\"op-38-70039\",\"seq\":38,\"hlc\":\"1761955200266-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k33\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"z%\\u0011\\u000b👞=֓蓞\":{\"Z\":null,\"\\udb9e\":[0.0021551724137931034]},\"__proto__x\":[[],{\"__proto__x\":1709543727}]},\"fh\":{\"z%\\u0011\\u000b👞=֓蓞\":\"1a9a5e5517\",\"__proto__x\":\"1c9961dcu\"},\"base\":\"1761955100038-0000-devB\"}\n{\"id\":\"op-39-351836\",\"seq\":39,\"hlc\":\"1761955200273-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k41\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":false,\"֡~Y\":[[-534223888],{},1723572421917,{}],\"a b\":[{\"1\":\"\",\"\":true,\"zw​j\":9007199254740994,\"1B5🕦^🖑IͿ\":\"\\ud800\"},{\"Ap\":0.0017761989342806395,\"😀\":8.347116854732113e+68}],\"1.5\":null},\"fh\":{\"aa\":\"0b0699585\",\"֡~Y\":\"72598cb4y\",\"a b\":\"5fc7d8113c\",\"1.5\":\"77074ba44\"},\"base\":\"1761955100039-0000-devB\",\"lin\":[\"1761955200273-0002-devA\"]}\n{\"id\":\"op-40-93436\",\"seq\":40,\"hlc\":\"1761955200280-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\udbff􏿿\":false,\"Z\":\"\\u0003/🖙ד\\udf37<l\\u0000\",\"id\":\"껬qA🐎𘭎🖊🗡Υ&\"},\"fh\":{\"\\udbff􏿿\":\"0b0699585\",\"Z\":\"2efa2dc3q\",\"id\":\"2c972172f\"},\"lin\":[\"1761955200280-0001-devA\"]}\n",
+   "text": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481000000},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"0b6f0c10f\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"d2c9edcdc\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq\":22,\"hlc\":\"1761955200154-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k9\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"🕐׵\":false},\"fh\":{\"🕐׵\":\"0b0699585\"},\"base\":\"1761955100022-0000-devB\",\"lin\":[\"1761955200154-0001-devA\"]}\n{\"id\":\"op-23-653382\",\"seq\":23,\"hlc\":\"1761955200161-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"é\":{\"_\":8436.79},\"updated_at\":true,\"created_at\":null},\"fh\":{\"é\":\"bc75afd5d\",\"updated_at\":\"4db211e54\",\"created_at\":\"77074ba44\"}}\n{\"id\":\"op-24-939718\",\"seq\":24,\"hlc\":\"1761955200168-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"[[Exod 20:11]]\":null,\"color\":{},\"tags\":{\"-1\":true}},\"fh\":{\"[[Exod 20:11]]\":\"77074ba44\",\"color\":\"5465b8252\",\"tags\":\"b8020185b\"},\"lin\":[\"1761955200168-0000-devA\"]}\n{\"id\":\"op-25-153240\",\"seq\":25,\"hlc\":\"1761955200175-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k37\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"λ\":[6500160.4,\"cr\\rlf\",0.0010626992561105207,{\"0\":-958317,\"שם\":null,\"__proto__x\":1706021087063,\"id\":\"ׯt֩ʹ\"}],\"😀\":\"\\udc4db\",\"a b\":[\"👬`Lׁ\",-8.244504491862413e+102,-8.349812921332336e+111]},\"fh\":{\"λ\":\"e5babcc72x\",\"😀\":\"9a81b78b9\",\"a b\":\"22c893cd1l\"}}\n{\"id\":\"op-26-744808\",\"seq\":26,\"hlc\":\"1761955200182-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k43\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100026-0000-devB\",\"lin\":[\"1761955200182-0002-devA\"]}\n{\"id\":\"op-27-486384\",\"seq\":27,\"hlc\":\"1761955200189-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k10\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"2\":null},\"fh\":{\"2\":\"77074ba44\"}}\n{\"id\":\"op-28-722687\",\"seq\":28,\"hlc\":\"1761955200196-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k38\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100028-0000-devB\",\"lin\":[\"1761955200196-0001-devA\"]}\n{\"id\":\"op-29-568080\",\"seq\":29,\"hlc\":\"1761955200203-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k6\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":5,\"id\":false,\"\\udf55d仓\\u0007\":[],\"1.5\":[{}]},\"fh\":{\"0\":\"300ca0d01\",\"id\":\"0b0699585\",\"\\udf55d仓\\u0007\":\"741638a52\",\"1.5\":\"1bcb3f154\"}}\n{\"id\":\"op-30-486548\",\"seq\":30,\"hlc\":\"1761955200210-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-31-837366\",\"seq\":31,\"hlc\":\"1761955200217-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"b\":[]},\"fh\":{\"b\":\"741638a52\"}}\n{\"id\":\"op-32-247187\",\"seq\":32,\"hlc\":\"1761955200224-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":{\"\\u0010;ϊ!UΎK3z\":2522089400},\"a\":0.005434782608695652},\"fh\":{\"content\":\"22c404eat\",\"a\":\"90a6c217k\"},\"base\":\"1761955100032-0000-devB\"}\n{\"id\":\"op-33-923325\",\"seq\":33,\"hlc\":\"1761955200231-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100033-0000-devB\"}\n{\"id\":\"op-34-303549\",\"seq\":34,\"hlc\":\"1761955200238-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k22\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"updated_at\":false,\"4Ύ\\u001aׁ\":[{\"id\":true,\"title\":null},{\"׀\":0.002551020408163265,\"title\":\"\\ud800\",\"__proto__x\":1.7976931348623157e+308,\"\\udfff\":null},{\"1\":null,\"\\udfff\":false,\"\\udcda\\uddcb\":true,\"__proto__x\":\"line\\nbreak\"}],\"__proto__x\":[]},\"fh\":{\"updated_at\":\"0b0699585\",\"4Ύ\\u001aׁ\":\"47bf303d5e\",\"__proto__x\":\"741638a52\"},\"lin\":[\"1761955200238-0002-devA\"]}\n{\"id\":\"op-35-821974\",\"seq\":35,\"hlc\":\"1761955200245-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k14\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"id\":{\" \":[-3116,\"H7225 G3056\"]},\"chapter\":{}},\"fh\":{\"id\":\"4cc3cd2er\",\"chapter\":\"5465b8252\"}}\n{\"id\":\"op-36-286119\",\"seq\":36,\"hlc\":\"1761955200252-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k14\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200252-0001-devA\"]}\n{\"id\":\"op-37-375642\",\"seq\":37,\"hlc\":\"1761955200259-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k20\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"B\":\"x\\b📭k/ק)⊱ΔE\",\"book_num\":[242531562000000]},\"fh\":{\"B\":\"b93d1977e\",\"book_num\":\"2576f983h\"}}\n{\"id\":\"op-38-70039\",\"seq\":38,\"hlc\":\"1761955200266-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k33\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"z%\\u0011\\u000b👞=֓蓞\":{\"Z\":null,\"\\udb9e\":[0.0021551724137931034]},\"__proto__x\":[[],{\"__proto__x\":1709543727}]},\"fh\":{\"z%\\u0011\\u000b👞=֓蓞\":\"1a9a5e5517\",\"__proto__x\":\"1c9961dcu\"},\"base\":\"1761955100038-0000-devB\"}\n{\"id\":\"op-39-351836\",\"seq\":39,\"hlc\":\"1761955200273-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k41\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":false,\"֡~Y\":[[-534223888],{},1723572421917,{}],\"a b\":[{\"1\":\"\",\"\":true,\"zw​j\":9007199254740994,\"1B5🕦^🖑IͿ\":\"\\ud800\"},{\"Ap\":0.0017761989342806395,\"😀\":8.347116854732113e+68}],\"1.5\":null},\"fh\":{\"aa\":\"0b0699585\",\"֡~Y\":\"72598cb4y\",\"a b\":\"5fc7d8113c\",\"1.5\":\"77074ba44\"},\"base\":\"1761955100039-0000-devB\",\"lin\":[\"1761955200273-0002-devA\"]}\n{\"id\":\"op-40-93436\",\"seq\":40,\"hlc\":\"1761955200280-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\udbff􏿿\":false,\"Z\":\"\\u0003/🖙ד\\udf37<l\\u0000\",\"id\":\"껬qA🐎𘭎🖊🗡Υ&\"},\"fh\":{\"\\udbff􏿿\":\"0b0699585\",\"Z\":\"2efa2dc3q\",\"id\":\"2c972172f\"},\"lin\":[\"1761955200280-0001-devA\"]}\n",
    "result": {
     "ops": [
      {
@@ -1481,13 +1481,13 @@
        ],
        "b": false,
        "aa": -1061769035,
-       "updated_at": 825719481334090.2
+       "updated_at": 825719481000000
       },
       "fh": {
        "0": "e95741392p",
        "b": "0b0699585",
        "aa": "5e5511d8b",
-       "updated_at": "4e276207h"
+       "updated_at": "0b6f0c10f"
       },
       "lin": [
        "1761955200035-0000-devA"
@@ -1643,12 +1643,12 @@
       "fields": {
        "9💷2K灦Qyg隡\ud807": "\ud800",
        "color": 4981.31,
-       "chapter": 8.379761059768498e-16
+       "chapter": 8.379761e-16
       },
       "fh": {
        "9💷2K灦Qyg隡\ud807": "3ffd2a2c8",
        "color": "30603e897",
-       "chapter": "9887781fl"
+       "chapter": "d2c9edcdc"
       },
       "base": "1761955100014-0000-devB",
       "lin": [
@@ -1866,7 +1866,7 @@
       "schema": 48,
       "fields": {
        "λ": [
-        6500160.407740623,
+        6500160.4,
         "cr\rlf",
         0.0010626992561105207,
         {
@@ -1884,7 +1884,7 @@
        ]
       },
       "fh": {
-       "λ": "4846c5ba35",
+       "λ": "e5babcc72x",
        "😀": "9a81b78b9",
        "a b": "22c893cd1l"
       }
@@ -2000,12 +2000,12 @@
       "schema": 48,
       "fields": {
        "content": {
-        "\u0010;ϊ!UΎK3z": 2522089402.191341
+        "\u0010;ϊ!UΎK3z": 2522089400
        },
        "a": 0.005434782608695652
       },
       "fh": {
-       "content": "04da06ab10",
+       "content": "22c404eat",
        "a": "90a6c217k"
       },
       "base": "1761955100032-0000-devB"
@@ -2111,12 +2111,12 @@
       "fields": {
        "B": "x\b📭k/ק)⊱ΔE",
        "book_num": [
-        242531562456861.12
+        242531562000000
        ]
       },
       "fh": {
        "B": "b93d1977e",
-       "book_num": "168ac368k"
+       "book_num": "2576f983h"
       }
      },
      {
@@ -2221,7 +2221,7 @@
    }
   },
   {
-   "text": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481334090.2},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"4e276207h\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761059768498e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"9887781fl\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq\":22,\"hlc\":\"1761955200154-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k9\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"🕐׵\":false},\"fh\":{\"🕐׵\":\"0b0699585\"},\"base\":\"1761955100022-0000-devB\",\"lin\":[\"1761955200154-0001-devA\"]}\n{\"id\":\"op-23-653382\",\"seq\":23,\"hlc\":\"1761955200161-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"é\":{\"_\":8436.79},\"updated_at\":true,\"created_at\":null},\"fh\":{\"é\":\"bc75afd5d\",\"updated_at\":\"4db211e54\",\"created_at\":\"77074ba44\"}}\n{\"id\":\"op-24-939718\",\"seq\":24,\"hlc\":\"1761955200168-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"[[Exod 20:11]]\":null,\"color\":{},\"tags\":{\"-1\":true}},\"fh\":{\"[[Exod 20:11]]\":\"77074ba44\",\"color\":\"5465b8252\",\"tags\":\"b8020185b\"},\"lin\":[\"1761955200168-0000-devA\"]}\n{\"id\":\"op-25-153240\",\"seq\":25,\"hlc\":\"1761955200175-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k37\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"λ\":[6500160.407740623,\"cr\\rlf\",0.0010626992561105207,{\"0\":-958317,\"שם\":null,\"__proto__x\":1706021087063,\"id\":\"ׯt֩ʹ\"}],\"😀\":\"\\udc4db\",\"a b\":[\"👬`Lׁ\",-8.244504491862413e+102,-8.349812921332336e+111]},\"fh\":{\"λ\":\"4846c5ba35\",\"😀\":\"9a81b78b9\",\"a b\":\"22c893cd1l\"}}\n{\"id\":\"op-26-744808\",\"seq\":26,\"hlc\":\"1761955200182-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k43\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100026-0000-devB\",\"lin\":[\"1761955200182-0002-devA\"]}\n{\"id\":\"op-27-486384\",\"seq\":27,\"hlc\":\"1761955200189-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k10\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"2\":null},\"fh\":{\"2\":\"77074ba44\"}}\n{\"id\":\"op-28-722687\",\"seq\":28,\"hlc\":\"1761955200196-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k38\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100028-0000-devB\",\"lin\":[\"1761955200196-0001-devA\"]}\n{\"id\":\"op-29-568080\",\"seq\":29,\"hlc\":\"1761955200203-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k6\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":5,\"id\":false,\"\\udf55d仓\\u0007\":[],\"1.5\":[{}]},\"fh\":{\"0\":\"300ca0d01\",\"id\":\"0b0699585\",\"\\udf55d仓\\u0007\":\"741638a52\",\"1.5\":\"1bcb3f154\"}}\n{\"id\":\"op-30-486548\",\"seq\":30,\"hlc\":\"1761955200210-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-31-837366\",\"seq\":31,\"hlc\":\"1761955200217-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"b\":[]},\"fh\":{\"b\":\"741638a52\"}}\n{\"id\":\"op-32-247187\",\"seq\":32,\"hlc\":\"1761955200224-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":{\"\\u0010;ϊ!UΎK3z\":2522089402.191341},\"a\":0.005434782608695652},\"fh\":{\"content\":\"04da06ab10\",\"a\":\"90a6c217k\"},\"base\":\"1761955100032-0000-devB\"}\n{\"id\":\"op-33-923325\",\"seq\":33,\"hlc\":\"1761955200231-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100033-0000-devB\"}\n{\"id\":\"op-34-303549\",\"seq\":34,\"hlc\":\"1761955200238-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k22\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"updated_at\":false,\"4Ύ\\u001aׁ\":[{\"id\":true,\"title\":null},{\"׀\":0.002551020408163265,\"title\":\"\\ud800\",\"__proto__x\":1.7976931348623157e+308,\"\\udfff\":null},{\"1\":null,\"\\udfff\":false,\"\\udcda\\uddcb\":true,\"__proto__x\":\"line\\nbreak\"}],\"__proto__x\":[]},\"fh\":{\"updated_at\":\"0b0699585\",\"4Ύ\\u001aׁ\":\"47bf303d5e\",\"__proto__x\":\"741638a52\"},\"lin\":[\"1761955200238-0002-devA\"]}\n{\"id\":\"op-35-821974\",\"seq\":35,\"hlc\":\"1761955200245-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k14\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"id\":{\" \":[-3116,\"H7225 G3056\"]},\"chapter\":{}},\"fh\":{\"id\":\"4cc3cd2er\",\"chapter\":\"5465b8252\"}}\n{\"id\":\"op-36-286119\",\"seq\":36,\"hlc\":\"1761955200252-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k14\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200252-0001-devA\"]}\n{\"id\":\"op-37-375642\",\"seq\":37,\"hlc\":\"1761955200259-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k20\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"B\":\"x\\b📭k/ק)⊱ΔE\",\"book_num\":[242531562456861.12]},\"fh\":{\"B\":\"b93d1977e\",\"book_num\":\"168ac368k\"}}\n{\"id\":\"op-38-70039\",\"seq\":38,\"hlc\":\"1761955200266-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k33\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"z%\\u0011\\u000b👞=֓蓞\":{\"Z\":null,\"\\udb9e\":[0.0021551724137931034]},\"__proto__x\":[[],{\"__proto__x\":1709543727}]},\"fh\":{\"z%\\u0011\\u000b👞=֓蓞\":\"1a9a5e5517\",\"__proto__x\":\"1c9961dcu\"},\"base\":\"1761955100038-0000-devB\"}\n{\"id\":\"op-39-351836\",\"seq\":39,\"hlc\":\"1761955200273-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k41\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":false,\"֡~Y\":[[-534223888],{},1723572421917,{}],\"a b\":[{\"1\":\"\",\"\":true,\"zw​j\":9007199254740994,\"1B5🕦^🖑IͿ\":\"\\ud800\"},{\"Ap\":0.0017761989342806395,\"😀\":8.347116854732113e+68}],\"1.5\":null},\"fh\":{\"aa\":\"0b0699585\",\"֡~Y\":\"72598cb4y\",\"a b\":\"5fc7d8113c\",\"1.5\":\"77074ba44\"},\"base\":\"1761955100039-0000-devB\",\"lin\":[\"1761955200273-0002-devA\"]}\n{\"id\":\"op-40-93436\",\"seq\":40,\"hlc\":\"1761955200280-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\udbff􏿿\":false,\"Z\":\"\\u0003/🖙ד\\udf37<l\\u0000\",\"id\":\"껬qA🐎𘭎🖊🗡Υ&\"},\"fh\":{\"\\udbff􏿿\":\"0b0699585\",\"Z\":\"2efa2dc3q\",\"id\":\"2c972172f\"},\"lin\":[\"1761955200280-0001-devA\"]}",
+   "text": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481000000},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"0b6f0c10f\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"d2c9edcdc\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq\":22,\"hlc\":\"1761955200154-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k9\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"🕐׵\":false},\"fh\":{\"🕐׵\":\"0b0699585\"},\"base\":\"1761955100022-0000-devB\",\"lin\":[\"1761955200154-0001-devA\"]}\n{\"id\":\"op-23-653382\",\"seq\":23,\"hlc\":\"1761955200161-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"é\":{\"_\":8436.79},\"updated_at\":true,\"created_at\":null},\"fh\":{\"é\":\"bc75afd5d\",\"updated_at\":\"4db211e54\",\"created_at\":\"77074ba44\"}}\n{\"id\":\"op-24-939718\",\"seq\":24,\"hlc\":\"1761955200168-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"[[Exod 20:11]]\":null,\"color\":{},\"tags\":{\"-1\":true}},\"fh\":{\"[[Exod 20:11]]\":\"77074ba44\",\"color\":\"5465b8252\",\"tags\":\"b8020185b\"},\"lin\":[\"1761955200168-0000-devA\"]}\n{\"id\":\"op-25-153240\",\"seq\":25,\"hlc\":\"1761955200175-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k37\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"λ\":[6500160.4,\"cr\\rlf\",0.0010626992561105207,{\"0\":-958317,\"שם\":null,\"__proto__x\":1706021087063,\"id\":\"ׯt֩ʹ\"}],\"😀\":\"\\udc4db\",\"a b\":[\"👬`Lׁ\",-8.244504491862413e+102,-8.349812921332336e+111]},\"fh\":{\"λ\":\"e5babcc72x\",\"😀\":\"9a81b78b9\",\"a b\":\"22c893cd1l\"}}\n{\"id\":\"op-26-744808\",\"seq\":26,\"hlc\":\"1761955200182-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k43\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100026-0000-devB\",\"lin\":[\"1761955200182-0002-devA\"]}\n{\"id\":\"op-27-486384\",\"seq\":27,\"hlc\":\"1761955200189-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k10\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"2\":null},\"fh\":{\"2\":\"77074ba44\"}}\n{\"id\":\"op-28-722687\",\"seq\":28,\"hlc\":\"1761955200196-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k38\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100028-0000-devB\",\"lin\":[\"1761955200196-0001-devA\"]}\n{\"id\":\"op-29-568080\",\"seq\":29,\"hlc\":\"1761955200203-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k6\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":5,\"id\":false,\"\\udf55d仓\\u0007\":[],\"1.5\":[{}]},\"fh\":{\"0\":\"300ca0d01\",\"id\":\"0b0699585\",\"\\udf55d仓\\u0007\":\"741638a52\",\"1.5\":\"1bcb3f154\"}}\n{\"id\":\"op-30-486548\",\"seq\":30,\"hlc\":\"1761955200210-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k29\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-31-837366\",\"seq\":31,\"hlc\":\"1761955200217-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"b\":[]},\"fh\":{\"b\":\"741638a52\"}}\n{\"id\":\"op-32-247187\",\"seq\":32,\"hlc\":\"1761955200224-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":{\"\\u0010;ϊ!UΎK3z\":2522089400},\"a\":0.005434782608695652},\"fh\":{\"content\":\"22c404eat\",\"a\":\"90a6c217k\"},\"base\":\"1761955100032-0000-devB\"}\n{\"id\":\"op-33-923325\",\"seq\":33,\"hlc\":\"1761955200231-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100033-0000-devB\"}\n{\"id\":\"op-34-303549\",\"seq\":34,\"hlc\":\"1761955200238-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k22\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"updated_at\":false,\"4Ύ\\u001aׁ\":[{\"id\":true,\"title\":null},{\"׀\":0.002551020408163265,\"title\":\"\\ud800\",\"__proto__x\":1.7976931348623157e+308,\"\\udfff\":null},{\"1\":null,\"\\udfff\":false,\"\\udcda\\uddcb\":true,\"__proto__x\":\"line\\nbreak\"}],\"__proto__x\":[]},\"fh\":{\"updated_at\":\"0b0699585\",\"4Ύ\\u001aׁ\":\"47bf303d5e\",\"__proto__x\":\"741638a52\"},\"lin\":[\"1761955200238-0002-devA\"]}\n{\"id\":\"op-35-821974\",\"seq\":35,\"hlc\":\"1761955200245-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k14\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"id\":{\" \":[-3116,\"H7225 G3056\"]},\"chapter\":{}},\"fh\":{\"id\":\"4cc3cd2er\",\"chapter\":\"5465b8252\"}}\n{\"id\":\"op-36-286119\",\"seq\":36,\"hlc\":\"1761955200252-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k14\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200252-0001-devA\"]}\n{\"id\":\"op-37-375642\",\"seq\":37,\"hlc\":\"1761955200259-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k20\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"B\":\"x\\b📭k/ק)⊱ΔE\",\"book_num\":[242531562000000]},\"fh\":{\"B\":\"b93d1977e\",\"book_num\":\"2576f983h\"}}\n{\"id\":\"op-38-70039\",\"seq\":38,\"hlc\":\"1761955200266-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k33\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"z%\\u0011\\u000b👞=֓蓞\":{\"Z\":null,\"\\udb9e\":[0.0021551724137931034]},\"__proto__x\":[[],{\"__proto__x\":1709543727}]},\"fh\":{\"z%\\u0011\\u000b👞=֓蓞\":\"1a9a5e5517\",\"__proto__x\":\"1c9961dcu\"},\"base\":\"1761955100038-0000-devB\"}\n{\"id\":\"op-39-351836\",\"seq\":39,\"hlc\":\"1761955200273-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k41\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":false,\"֡~Y\":[[-534223888],{},1723572421917,{}],\"a b\":[{\"1\":\"\",\"\":true,\"zw​j\":9007199254740994,\"1B5🕦^🖑IͿ\":\"\\ud800\"},{\"Ap\":0.0017761989342806395,\"😀\":8.347116854732113e+68}],\"1.5\":null},\"fh\":{\"aa\":\"0b0699585\",\"֡~Y\":\"72598cb4y\",\"a b\":\"5fc7d8113c\",\"1.5\":\"77074ba44\"},\"base\":\"1761955100039-0000-devB\",\"lin\":[\"1761955200273-0002-devA\"]}\n{\"id\":\"op-40-93436\",\"seq\":40,\"hlc\":\"1761955200280-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\udbff􏿿\":false,\"Z\":\"\\u0003/🖙ד\\udf37<l\\u0000\",\"id\":\"껬qA🐎𘭎🖊🗡Υ&\"},\"fh\":{\"\\udbff􏿿\":\"0b0699585\",\"Z\":\"2efa2dc3q\",\"id\":\"2c972172f\"},\"lin\":[\"1761955200280-0001-devA\"]}",
    "result": {
     "ops": [
      {
@@ -2313,13 +2313,13 @@
        ],
        "b": false,
        "aa": -1061769035,
-       "updated_at": 825719481334090.2
+       "updated_at": 825719481000000
       },
       "fh": {
        "0": "e95741392p",
        "b": "0b0699585",
        "aa": "5e5511d8b",
-       "updated_at": "4e276207h"
+       "updated_at": "0b6f0c10f"
       },
       "lin": [
        "1761955200035-0000-devA"
@@ -2475,12 +2475,12 @@
       "fields": {
        "9💷2K灦Qyg隡\ud807": "\ud800",
        "color": 4981.31,
-       "chapter": 8.379761059768498e-16
+       "chapter": 8.379761e-16
       },
       "fh": {
        "9💷2K灦Qyg隡\ud807": "3ffd2a2c8",
        "color": "30603e897",
-       "chapter": "9887781fl"
+       "chapter": "d2c9edcdc"
       },
       "base": "1761955100014-0000-devB",
       "lin": [
@@ -2698,7 +2698,7 @@
       "schema": 48,
       "fields": {
        "λ": [
-        6500160.407740623,
+        6500160.4,
         "cr\rlf",
         0.0010626992561105207,
         {
@@ -2716,7 +2716,7 @@
        ]
       },
       "fh": {
-       "λ": "4846c5ba35",
+       "λ": "e5babcc72x",
        "😀": "9a81b78b9",
        "a b": "22c893cd1l"
       }
@@ -2832,12 +2832,12 @@
       "schema": 48,
       "fields": {
        "content": {
-        "\u0010;ϊ!UΎK3z": 2522089402.191341
+        "\u0010;ϊ!UΎK3z": 2522089400
        },
        "a": 0.005434782608695652
       },
       "fh": {
-       "content": "04da06ab10",
+       "content": "22c404eat",
        "a": "90a6c217k"
       },
       "base": "1761955100032-0000-devB"
@@ -2943,12 +2943,12 @@
       "fields": {
        "B": "x\b📭k/ק)⊱ΔE",
        "book_num": [
-        242531562456861.12
+        242531562000000
        ]
       },
       "fh": {
        "B": "b93d1977e",
-       "book_num": "168ac368k"
+       "book_num": "2576f983h"
       }
      },
      {
@@ -3030,7 +3030,7 @@
    }
   },
   {
-   "text": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481334090.2},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"4e276207h\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761059768498e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"9887781fl\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",\"seq",
+   "text": "{\"id\":\"op-1-857275\",\"seq\":1,\"hlc\":\"1761955200007-0002-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100001-0000-devB\",\"lin\":[\"1761955200007-0002-devA\"]}\n{\"id\":\"op-2-35825\",\"seq\":2,\"hlc\":\"1761955200014-0000-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k34\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-3-855718\",\"seq\":3,\"hlc\":\"1761955200021-0002-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k35\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9\":[],\"content\":false,\"title\":null,\"_\":[true,-1084667654]},\"fh\":{\"9\":\"741638a52\",\"content\":\"0b0699585\",\"title\":\"77074ba44\",\"_\":\"e6dc845fi\"},\"base\":\"1761955100003-0000-devB\"}\n{\"id\":\"op-4-903387\",\"seq\":4,\"hlc\":\"1761955200028-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100004-0000-devB\"}\n{\"id\":\"op-5-581020\",\"seq\":5,\"hlc\":\"1761955200035-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k28\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"0\":[[true,-1.1573920444391554e+88,true],false,{\"book_num\":-1.2085168567472482e-138,\"中\":-2005614950}],\"b\":false,\"aa\":-1061769035,\"updated_at\":825719481000000},\"fh\":{\"0\":\"e95741392p\",\"b\":\"0b0699585\",\"aa\":\"5e5511d8b\",\"updated_at\":\"0b6f0c10f\"},\"lin\":[\"1761955200035-0000-devA\"]}\n{\"id\":\"op-6-423378\",\"seq\":6,\"hlc\":\"1761955200042-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k1\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"01\":null},\"fh\":{\"01\":\"77074ba44\"},\"base\":\"1761955100006-0000-devB\",\"lin\":[\"1761955200042-0001-devA\"]}\n{\"id\":\"op-7-250096\",\"seq\":7,\"hlc\":\"1761955200049-0001-devA\",\"device\":\"devA\",\"entity\":\"note\",\"key\":\"k2\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"4294967294\":208.69,\"book_num\":\"u\\u0005>\\ud8efΎ\"},\"fh\":{\"4294967294\":\"f9df85346\",\"book_num\":\"a7f54fb2h\"},\"base\":\"1761955100007-0000-devB\"}\n{\"id\":\"op-8-480420\",\"seq\":8,\"hlc\":\"1761955200056-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k49\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"\\u000eക$\\uddd9a\":[]},\"fh\":{\"\\u000eക$\\uddd9a\":\"741638a52\"},\"lin\":[\"1761955200056-0001-devA\"]}\n{\"id\":\"op-9-28897\",\"seq\":9,\"hlc\":\"1761955200063-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k15\",\"op\":\"delete\",\"schema\":48,\"lin\":[\"1761955200063-0000-devA\"]}\n{\"id\":\"op-10-505779\",\"seq\":10,\"hlc\":\"1761955200070-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{}}\n{\"id\":\"op-11-148289\",\"seq\":11,\"hlc\":\"1761955200077-0002-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k17\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"a b\":-5.377618863960963e+170,\"title\":{},\"\":1},\"fh\":{\"a b\":\"ac9a2ce1n\",\"title\":\"5465b8252\",\"\":\"340ca71c1\"}}\n{\"id\":\"op-12-720837\",\"seq\":12,\"hlc\":\"1761955200084-0002-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k11\",\"op\":\"upsert\",\"schema\":48,\"fields\":{},\"fh\":{},\"base\":\"1761955100012-0000-devB\"}\n{\"id\":\"op-13-906008\",\"seq\":13,\"hlc\":\"1761955200091-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k7\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"created_at\":false,\"updated_at\":{\"10\":0.001176470588235294,\"aa\":[],\"é\":null}},\"fh\":{\"created_at\":\"0b0699585\",\"updated_at\":\"3394af0018\"}}\n{\"id\":\"op-14-759614\",\"seq\":14,\"hlc\":\"1761955200098-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k40\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"9💷2K灦Qyg隡\\ud807\":\"\\ud800\",\"color\":4981.31,\"chapter\":8.379761e-16},\"fh\":{\"9💷2K灦Qyg隡\\ud807\":\"3ffd2a2c8\",\"color\":\"30603e897\",\"chapter\":\"d2c9edcdc\"},\"base\":\"1761955100014-0000-devB\",\"lin\":[\"1761955200098-0000-devA\"]}\n{\"id\":\"op-15-642956\",\"seq\":15,\"hlc\":\"1761955200105-0001-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k42\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100015-0000-devB\"}\n{\"id\":\"op-16-194110\",\"seq\":16,\"hlc\":\"1761955200112-0000-devA\",\"device\":\"devA\",\"entity\":\"highlight\",\"key\":\"k40\",\"op\":\"delete\",\"schema\":48,\"base\":\"1761955100016-0000-devB\"}\n{\"id\":\"op-17-107939\",\"seq\":17,\"hlc\":\"1761955200119-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k46\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"title\":{},\"\\udfff\":{\"\\udc4db\":-142883,\"é\":{\"aa\":null}},\"\":{\"__proto__x\":-1994370276}},\"fh\":{\"title\":\"5465b8252\",\"\\udfff\":\"d229d80910\",\"\":\"9082c31aq\"},\"base\":\"1761955100017-0000-devB\",\"lin\":[\"1761955200119-0000-devA\"]}\n{\"id\":\"op-18-417608\",\"seq\":18,\"hlc\":\"1761955200126-0001-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k4\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"aa\":1162.29,\"verse\":[\"\",null]},\"fh\":{\"aa\":\"cabbc3e27\",\"verse\":\"02ea858e9\"},\"base\":\"1761955100018-0000-devB\"}\n{\"id\":\"op-19-326092\",\"seq\":19,\"hlc\":\"1761955200133-0000-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"verse\":1021912154,\"aa\":null},\"fh\":{\"verse\":\"e2a3a087a\",\"aa\":\"77074ba44\"},\"base\":\"1761955100019-0000-devB\"}\n{\"id\":\"op-20-946162\",\"seq\":20,\"hlc\":\"1761955200140-0000-devA\",\"device\":\"devA\",\"entity\":\"tab\",\"key\":\"k36\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"content\":1604183212720,\"ILt\\udcc4u\\r\":true,\"R🔇כ\\udc00ϋ׺\":true},\"fh\":{\"content\":\"15d71e6cd\",\"ILt\\udcc4u\\r\":\"4db211e54\",\"R🔇כ\\udc00ϋ׺\":\"4db211e54\"}}\n{\"id\":\"op-21-860832\",\"seq\":21,\"hlc\":\"1761955200147-0001-devA\",\"device\":\"devA\",\"entity\":\"verse_tag\",\"key\":\"k12\",\"op\":\"upsert\",\"schema\":48,\"fields\":{\"color\":81,\"🟡🔴🟢🔵🟣\":\"quote\\\"back\\\\slash\"},\"fh\":{\"color\":\"9101a8c22\",\"🟡🔴🟢🔵🟣\":\"0eacaa5bk\"},\"base\":\"1761955100021-0000-devB\"}\n{\"id\":\"op-22-904542\",",
    "result": {
     "ops": [
      {
@@ -3122,13 +3122,13 @@
        ],
        "b": false,
        "aa": -1061769035,
-       "updated_at": 825719481334090.2
+       "updated_at": 825719481000000
       },
       "fh": {
        "0": "e95741392p",
        "b": "0b0699585",
        "aa": "5e5511d8b",
-       "updated_at": "4e276207h"
+       "updated_at": "0b6f0c10f"
       },
       "lin": [
        "1761955200035-0000-devA"
@@ -3284,12 +3284,12 @@
       "fields": {
        "9💷2K灦Qyg隡\ud807": "\ud800",
        "color": 4981.31,
-       "chapter": 8.379761059768498e-16
+       "chapter": 8.379761e-16
       },
       "fh": {
        "9💷2K灦Qyg隡\ud807": "3ffd2a2c8",
        "color": "30603e897",
-       "chapter": "9887781fl"
+       "chapter": "d2c9edcdc"
       },
       "base": "1761955100014-0000-devB",
       "lin": [
@@ -3744,14 +3744,14 @@
        "ä": -3.032138864181804e-22
       },
       "λ": false,
-      ",\u0014J": 4492911743000149.5
+      ",\u0014J": 4492911740000000
      }
     },
     "fh": {
      "1": "4db211e54",
      "order_key": "755306eaa",
      "color": "4db211e54",
-     "deleted": "95d3398f3i"
+     "deleted": "7329dfb33g"
     }
    },
    {
@@ -3860,12 +3860,12 @@
     "schema": 48,
     "fields": {
      "10": "\udc4db",
-     "é": 84830262162.72264,
+     "é": 84830262100,
      "order_key": 4022.85
     },
     "fh": {
      "10": "9a81b78b9",
-     "é": "c736def8h",
+     "é": "5581a88db",
      "order_key": "64ea6ad67"
     },
     "lin": [
@@ -4179,7 +4179,7 @@
      "4294967294": false,
      "content": {
       "aa": 14,
-      "é": 5.362094589509069e+27,
+      "é": 5.3620945e+27,
       "chapter": [
        true,
        5215.19
@@ -4188,7 +4188,7 @@
     },
     "fh": {
      "4294967294": "0b0699585",
-     "content": "8a7b25f41o"
+     "content": "95bd4f1e1g"
     }
    },
    {
@@ -4206,7 +4206,7 @@
        "10": 0.002380952380952381,
        "title": 6756.74,
        "b": -1,
-       "chapter": 3.572426326572895e+27
+       "chapter": 3.57242632e+27
       }
      ],
      "Z": null,
@@ -4214,7 +4214,7 @@
      "": 1661931436188
     },
     "fh": {
-     "a\ud83d": "7dac6cb52c",
+     "a\ud83d": "ad7389eb25",
      "Z": "77074ba44",
      "中": "90048332g",
      "": "919498c2d"
@@ -4347,7 +4347,7 @@
      "b": false,
      "🕣👯]\udb5fΤΫ🕀EϽ斟": {
       "\udc4d\ud83d": {
-       "4294967294": 4.193322968203574e+22,
+       "4294967294": 4.19332296e+22,
        "id": "צ\ud929V b\u0007",
        "שם": null,
        "**bold** _it_ `code`": false
@@ -4361,7 +4361,7 @@
     "fh": {
      "id": "aeef6fc5r",
      "b": "0b0699585",
-     "🕣👯]\udb5fΤΫ🕀EϽ斟": "4c0420804h"
+     "🕣👯]\udb5fΤΫ🕀EϽ斟": "472e61654a"
     },
     "base": "1761955100039-0000-devB"
    },
@@ -4555,7 +4555,7 @@
     "schema": 48,
     "fields": {
      "0": [
-      7.11360548157245e-24,
+      7.1136054e-24,
       {
        "9": -1823772111,
        "order_key": true,
@@ -4567,7 +4567,7 @@
       ],
       {
        "tags": -922628,
-       "_": 7.703034586738795e-9,
+       "_": 7.70303458e-9,
        "aa": "🐼",
        "\udc4db": null
       }
@@ -4579,7 +4579,7 @@
      ]
     },
     "fh": {
-     "0": "bb4034ed44",
+     "0": "48aa04263q",
      "λ": "949ef25bm"
     },
     "lin": [
@@ -4937,7 +4937,7 @@
       1656122249417,
       true,
       {
-       "4294967295": 0.009768418557941914,
+       "4294967295": 0.00976841855,
        "Β🍥׈": "FΦץ\uddd7\u0013Ͱ",
        "verse": true,
        ":": 37.51
@@ -4951,7 +4951,7 @@
      "title": true
     },
     "fh": {
-     "2": "0497ef3832",
+     "2": "7fedff9d2v",
      "chapter": "77074ba44",
      "中": "77074ba44",
      "title": "4db211e54"
@@ -5291,12 +5291,12 @@
       "1.5": "\udbff􏿿",
       "title": false
      },
-     "deleted": 0.000005986896865069867
+     "deleted": 0.00000598689686
     },
     "fh": {
      "10": "01a7f6f82n",
      "é": "21aed4f027",
-     "deleted": "57b230c1n"
+     "deleted": "1f0f011ag"
     }
    },
    {
@@ -5452,15 +5452,15 @@
     "fields": {
      "1": [
       590.38,
-      9.560367858503014e+27,
-      5.708701207768171e-25
+      9.56036785e+27,
+      5.7087012e-25
      ],
      "נϻ⺎ח": 9686.09,
      "b^糸": 937.02,
      "id": true
     },
     "fh": {
-     "1": "ffba19811g",
+     "1": "c1f151f511",
      "נϻ⺎ח": "43a48b897",
      "b^糸": "15bd21ae6",
      "id": "4db211e54"
@@ -5948,18 +5948,18 @@
     "fields": {
      "id": 0.0010449320794148381,
      "": {
-      "chapter": 57933671935.461464,
+      "chapter": 57933671900,
       "a": {
        "title": null,
        "In the beginning": 0.008130081300813009,
-       "deleted": 55722379125654696
+       "deleted": 55722379000000000
       }
      },
      "verse": false
     },
     "fh": {
      "id": "adcb23a3l",
-     "": "6dc2dc2039",
+     "": "710ad2fb32",
      "verse": "0b0699585"
     },
     "lin": [
@@ -6484,14 +6484,14 @@
     "fields": {
      "B": false,
      "cr\rlf": [
-      4.1020575421862305e-8,
+      4.10205754e-8,
       -666386,
       null
      ]
     },
     "fh": {
      "B": "0b0699585",
-     "cr\rlf": "10b37b3310"
+     "cr\rlf": "3fde167es"
     },
     "base": "1761955100145-0000-devB"
    },
@@ -6710,7 +6710,7 @@
       },
       "é": [
        0.03125,
-       7.314012642018497e+22
+       7.3140126e+22
       ]
      },
      "title": "׈"
@@ -6718,7 +6718,7 @@
     "fh": {
      "order_key": "18eb258b2",
      "": "e79d3ab527",
-     "é": "92408ed82q",
+     "é": "d5487e852i",
      "title": "7f12d3764"
     },
     "base": "1761955100156-0000-devB",
@@ -6954,7 +6954,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "1": 5.734484882559628e-28,
+     "1": 5.73448488e-28,
      "2": -761532,
      "é": [
       {
@@ -6972,7 +6972,7 @@
      }
     },
     "fh": {
-     "1": "c4796071l",
+     "1": "cfd4d19ce",
      "2": "ce537b127",
      "é": "b2f59200r",
      "tags": "e5c3c5f42t"
@@ -7148,14 +7148,14 @@
      "1": [
       false
      ],
-     "": 785388808.6974621,
+     "": 785388808,
      "1.5": {
       "1.5": false
      }
     },
     "fh": {
      "1": "450515d47",
-     "": "d25b1a61h",
+     "": "f782b12e9",
      "1.5": "5854bfb4d"
     },
     "base": "1761955100178-0000-devB"
@@ -7366,7 +7366,7 @@
        "created_at": ""
       },
       {
-       "Z": 755713597.8713632,
+       "Z": 755713597,
        "中": null
       },
       0.0012626262626262627,
@@ -7374,7 +7374,7 @@
      ]
     },
     "fh": {
-     "": "9661ff002n"
+     "": "4e2da9c62f"
     },
     "base": "1761955100189-0000-devB",
     "lin": [
@@ -7520,7 +7520,7 @@
        "Z": 97
       },
       "é": {
-       "`W\uda31mΗמŨ👯🗮": 344735431.48487806,
+       "`W\uda31mΗמŨ👯🗮": 344735431,
        "chapter": null,
        "ä": 0.0013477088948787063,
        "é": 0.0010319917440660474
@@ -7530,7 +7530,7 @@
     },
     "fh": {
      "10": "d300a5ba7",
-     "created_at": "acd48fdb4j"
+     "created_at": "9030b1124a"
     }
    },
    {
@@ -7723,7 +7723,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "9": 2448818692.9374933,
+     "9": 2448818690,
      "שם": [
       true,
       [
@@ -7735,7 +7735,7 @@
      "é": {}
     },
     "fh": {
-     "9": "181ed197i",
+     "9": "1913f297a",
      "שם": "2663344d16",
      "__proto__x": "4db211e54",
      "é": "5465b8252"
@@ -7849,7 +7849,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "🎤🌊לΊQϣζ#ֲ֮": 7.489582488778979e-10,
+     "🎤🌊לΊQϣζ#ֲ֮": 7.48958248e-10,
      "tags": {
       "9": {
        "10": 9007199254740991,
@@ -7866,7 +7866,7 @@
      ]
     },
     "fh": {
-     "🎤🌊לΊQϣζ#ֲ֮": "275cc326l",
+     "🎤🌊לΊQϣζ#ֲ֮": "c389f513e",
      "tags": "8563632128",
      "é": "723187e7h"
     },
@@ -7900,7 +7900,7 @@
     "fields": {
      "0": {
       "0": 45,
-      "book_num": 3.151343178469688e-15,
+      "book_num": 3.15134317e-15,
       "": 1728171338985
      },
      "": false,
@@ -7919,7 +7919,7 @@
      }
     },
     "fh": {
-     "0": "9a2ea1b21m",
+     "0": "284bb7151f",
      "": "0b0699585",
      "😀": "8601e95d4p"
     }
@@ -7967,13 +7967,13 @@
        "9": 1613096278306
       }
      ],
-     "ä": 2248.0288543738425,
+     "ä": 2248.02885,
      "a b": []
     },
     "fh": {
      "tags": "4db211e54",
      "created_at": "91e6d084w",
-     "ä": "aa1d1498i",
+     "ä": "d0e5a676a",
      "a b": "741638a52"
     }
    },
@@ -8177,7 +8177,7 @@
     "fields": {
      "order_key": 5e-324,
      "book_num": "l\u001fꆾ\r🖃\u00136a",
-     "שם": 9.858432114124298e-9,
+     "שם": 9.85843211e-9,
      "a": [
       true,
       "📯Ap",
@@ -8190,7 +8190,7 @@
     "fh": {
      "order_key": "299ce3096",
      "book_num": "bc0e7967m",
-     "שם": "9667b7f7k",
+     "שם": "31c03b3bd",
      "a": "4cbf8a441p"
     }
    },
@@ -8365,7 +8365,7 @@
       {
        "⽮뵁|B\ud8c0": 0.002551020408163265,
        "_": false,
-       "λ": 9.087507179938257e-11,
+       "λ": 9.08750717e-11,
        "֮S": null
       }
      ]
@@ -8374,7 +8374,7 @@
      "0": "56b1521e2d",
      "10": "77074ba44",
      "é": "cbbfc9037",
-     "chapter": "defafc8a2b"
+     "chapter": "ec98624124"
     }
    },
    {
@@ -8810,7 +8810,7 @@
     "schema": 48,
     "fields": {
      "Z": {
-      "__proto__x": 5.84204118233174e-17
+      "__proto__x": 5.84204118e-17
      },
      "verse": "2pNϖ🎹ER\u0017\udf1e.",
      "χάρις": {
@@ -8819,7 +8819,7 @@
      "updated_at": null
     },
     "fh": {
-     "Z": "46fc5a72z",
+     "Z": "b9ba3432t",
      "verse": "2cb4515bn",
      "χάρις": "32b6712dv",
      "updated_at": "77074ba44"
@@ -9076,7 +9076,7 @@
       {
        "created_at": null
       },
-      4.299741168506443e-7
+      4.29974116e-7
      ],
      "title": {
       "b": {
@@ -9087,7 +9087,7 @@
      }
     },
     "fh": {
-     "10": "94051ecb1r",
+     "10": "af2495c31k",
      "title": "22637b9122"
     }
    },
@@ -9341,7 +9341,7 @@
      " ": [
       {
        "1.5": "hϡ",
-       "\udc4db": 887952113989740700000
+       "\udc4db": 887952110000000000000
       },
       {
        "4294967294": true,
@@ -9355,7 +9355,7 @@
      "9": "77074ba44",
      "order_key": "5465b8252",
      "1.5": "5465b8252",
-     " ": "1ffd688f2i"
+     " ": "173738402i"
     },
     "base": "1761955100289-0000-devB",
     "lin": [
@@ -9495,7 +9495,7 @@
      ],
      "__proto__x": {
       " ": [
-       7.200254739727826e+24,
+       7.20025473e+24,
        "",
        true
       ]
@@ -9509,7 +9509,7 @@
     },
     "fh": {
      "created_at": "db90ef021f",
-     "__proto__x": "f7fdf4a811",
+     "__proto__x": "3c427bfbu",
      "Ω": "9bf9799co"
     },
     "lin": [
@@ -10091,14 +10091,14 @@
       "0": 94864075,
       "4294967294": null,
       "👍\ud83d": null,
-      "tags": 941.4902674034238
+      "tags": 941.490267
      },
      "__proto__x": false,
      "book_num": {},
      "aa": {}
     },
     "fh": {
-     "-1": "3ad75d3121",
+     "-1": "b0a836d91u",
      "__proto__x": "0b0699585",
      "book_num": "5465b8252",
      "aa": "5465b8252"
@@ -10179,14 +10179,14 @@
      "-1": 28,
      "book_num": -220436,
      "β֗": {
-      "é": 4.94387756800279e+23
+      "é": 4.94387756e+23
      }
     },
     "fh": {
      "\udc4d\ud83d": "5465b8252",
      "-1": "95f2a6172",
      "book_num": "284617057",
-     "β֗": "d7cf3191r"
+     "β֗": "b357b40bl"
     },
     "base": "1761955100330-0000-devB"
    },
@@ -10366,7 +10366,7 @@
       "id": {
        "id": null,
        "4294967295": 65,
-       "b": 4.407402067445219e+24
+       "b": 4.40740206e+24
       },
       "a": false
      },
@@ -10390,7 +10390,7 @@
      }
     },
     "fh": {
-     "B": "8c9a6cf13v",
+     "B": "a8fdccbb3o",
      "color": "cc59adaer",
      "-1": "a2ee5e071k",
      "ä": "16da967f1c"
@@ -10407,11 +10407,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "updated_at": 3.9833227056078614e+27,
+     "updated_at": 3.9833227e+27,
      "color": 1705678113788
     },
     "fh": {
-     "updated_at": "cfc9c236m",
+     "updated_at": "c9dd56ebd",
      "color": "174617afd"
     }
    },
@@ -10616,7 +10616,7 @@
       0,
       true,
       {
-       "content": 0.2663478869944811
+       "content": 0.266347886
       },
       {
        "__proto__x": null
@@ -10626,7 +10626,7 @@
      "中": " \udd31M\u001f📔֛"
     },
     "fh": {
-     "ϙ5ׄ.ו": "bb629b331n",
+     "ϙ5ׄ.ו": "5ef842871g",
      "λ": "77074ba44",
      "中": "2ed75c9fj"
     }
@@ -10750,7 +10750,7 @@
      "ä": [
       null,
       {
-       "chapter": 8.053265828639269e-27,
+       "chapter": 8.05326582e-27,
        "֫Bκ": "/t֛",
        "color": 52,
        "": true
@@ -10763,7 +10763,7 @@
      ]
     },
     "fh": {
-     "ä": "3cb9c39b1z",
+     "ä": "2b17e7381s",
      "֦\u001aϛ^}:": "4b05b8edd"
     }
    },
@@ -10975,7 +10975,7 @@
      "שם": [
       {
        "0": "\u001eϨ[dC/\u001a\u0011⧢",
-       "שם": 4.398287110961973e-22
+       "שם": 4.39828711e-22
       },
       "\udcb55ϓX\udfbd\ud90f",
       {
@@ -10989,7 +10989,7 @@
      "0": "c1d724a87",
      "ὁ λόγος σὰρξ ἐγένετο": "0b0699585",
      "😀": "5465b8252",
-     "שם": "47c95c003k"
+     "שם": "2bce26fd3d"
     },
     "lin": [
      "1761955202597-0001-devA"
@@ -11051,7 +11051,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "tags": 6186363014858.216,
+     "tags": 6186363010000,
      "ä": [
       false,
       {
@@ -11061,7 +11061,7 @@
      "deleted": 90
     },
     "fh": {
-     "tags": "175e4f59h",
+     "tags": "09534d07d",
      "ä": "2f1ca99dm",
      "deleted": "0bfe98cc2"
     },
@@ -11083,22 +11083,22 @@
       "title": 1.27430278646176e-27,
       "\udfff": false,
       "λ": {
-       "Ό֝?8h֒📈֟ι\ud83f": 542977194301.78406,
+       "Ό֝?8h֒📈֟ι\ud83f": 542977194000,
        "λ": 75,
        "book_num": false,
        "ä": false
       },
       "_": false
      },
-     "01": 6.89970453036949e-15,
+     "01": 6.89970453e-15,
      "-1": {},
      "é": {
       "_": 0.0013175230566534915
      }
     },
     "fh": {
-     "aa": "d0653f3c3p",
-     "01": "c0df93f9k",
+     "aa": "1adb811b3j",
+     "01": "4ebfe816e",
      "-1": "5465b8252",
      "é": "8466e266r"
     },
@@ -11344,14 +11344,14 @@
        "aa": "quote\"back\\slash"
       },
       "1.5": [
-       9490233282558.62
+       9490233280000
       ]
      }
     },
     "fh": {
      "title": "92bcb93b1w",
      "中": "77074ba44",
-     "__proto__x": "cb1b57be3i"
+     "__proto__x": "ff6d066c3f"
     }
    },
    {
@@ -11428,14 +11428,14 @@
        "9": null,
        "-1": 2768.21
       },
-      "中": 8.377489794511349e-26
+      "中": 8.37748979e-26
      }
     },
     "fh": {
      "Md;\u00193A💜\tc": "77074ba44",
      "é": "f840b249m",
      "-1": "3cbde0751d",
-     "!֘Qϼg潗\u001a": "ba4b530c2t"
+     "!֘Qϼg潗\u001a": "5c77e5672m"
     }
    },
    {
@@ -11671,7 +11671,7 @@
     "schema": 48,
     "fields": {
      "10": {
-      "tags": 9.533733485732228e+26,
+      "tags": 9.53373348e+26,
       "é": {
        "2": 5.4918299864035705e+296,
        "\udbff􏿿": 1709119562857
@@ -11690,7 +11690,7 @@
      }
     },
     "fh": {
-     "10": "1cad0dac3u",
+     "10": "0a4ce7d13n",
      "1.5": "5c6cda28g",
      "-1": "ada40d852i"
     },
@@ -11860,11 +11860,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "2": 427645531715.8252,
+     "2": 427645531000,
      "4294967295": 4861.01
     },
     "fh": {
-     "2": "73d9ee9ah",
+     "2": "d6550d2cc",
      "4294967295": "3b0664297"
     },
     "base": "1761955100412-0000-devB",
@@ -11918,11 +11918,11 @@
     "schema": 48,
     "fields": {
      "0\uda23-🍍\b": ">\u0014{(K",
-     "1.5": 1.467514750547707e-24
+     "1.5": 1.46751475e-24
     },
     "fh": {
      "0\uda23-🍍\b": "1b2e5bd9c",
-     "1.5": "314280a1l"
+     "1.5": "4749824de"
     },
     "base": "1761955100415-0000-devB",
     "lin": [
@@ -11942,8 +11942,8 @@
      "1.5": [
       null,
       {
-       "content": 9.947124700993298e-12,
-       "שם": 8.320130209904164e+21,
+       "content": 9.9471247e-12,
+       "שם": 8.3201302e+21,
        "-1": 5.318099797095006e-155
       },
       9444.54
@@ -11956,7 +11956,7 @@
      "\udc4d\ud83d": ""
     },
     "fh": {
-     "1.5": "6efb22552v",
+     "1.5": "69b057842f",
      "\udc13": "77074ba44",
      "01": "85f7faffc",
      "\udc4d\ud83d": "ffcaaa852"
@@ -11990,12 +11990,12 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "tags": 0.009480874733999372,
+     "tags": 0.00948087473,
      "_": -1611642908,
      "created_at": 1.1613604112647573e+204
     },
     "fh": {
-     "tags": "ece99b5fk",
+     "tags": "18c721d3d",
      "_": "cb47341eb",
      "created_at": "e55783d3n"
     },
@@ -12063,7 +12063,7 @@
      "created_at": {
       "中": {
        "-1": 1,
-       "book_num": 2.0580066670663654e+28,
+       "book_num": 2.05800666e+28,
        "__proto__x": true
       },
       "-1": {
@@ -12081,7 +12081,7 @@
     },
     "fh": {
      "verse": "e211ac451p",
-     "created_at": "ce9d86375h",
+     "created_at": "3137c15e59",
      "updated_at": "741638a52"
     },
     "base": "1761955100422-0000-devB"
@@ -12311,14 +12311,14 @@
      "\u00183פΦ84Z=Ε": null,
      "id": {
       "4294967294": null,
-      "λ": 9.296159150544554
+      "λ": 9.29615915
      }
     },
     "fh": {
      "\udc8f׼\u0015ρ": "c49536ea5",
      "😀": "77074ba44",
      "\u00183פΦ84Z=Ε": "77074ba44",
-     "id": "de9f083115"
+     "id": "31f4e86ey"
     },
     "base": "1761955100432-0000-devB"
    },
@@ -12332,11 +12332,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "4294967294": 1.0678084497340023e+22,
+     "4294967294": 1.06780844e+22,
      "_": []
     },
     "fh": {
-     "4294967294": "39badbf3m",
+     "4294967294": "4f966683e",
      "_": "741638a52"
     },
     "base": "1761955100433-0000-devB"
@@ -12424,12 +12424,12 @@
     "fields": {
      "a": {
       "E🌅🕨m\uda37k\u00195\u0004": 369024504,
-      "B": 7.53654632717371e+26
+      "B": 7.53654632e+26
      },
      "deleted": []
     },
     "fh": {
-     "a": "4a4e56f31t",
+     "a": "d866a9fd1n",
      "deleted": "741638a52"
     },
     "base": "1761955100437-0000-devB"
@@ -12697,7 +12697,7 @@
        "ä": "\udaa4W炥🏸x🎁\u0003zΥϕ",
        "tags": null,
        "content": null,
-       "{\"json\":true}": 8.721894440241158e+26
+       "{\"json\":true}": 8.72189444e+26
       }
      },
      "created_at": true,
@@ -12709,7 +12709,7 @@
      "book_num": []
     },
     "fh": {
-     "\udbff􏿿": "fdb77f134o",
+     "\udbff􏿿": "0ee7861a4h",
      "created_at": "4db211e54",
      "👍\ud83d": "d0ee23051k",
      "book_num": "741638a52"
@@ -12800,13 +12800,13 @@
       "color": null,
       "-1": {
        "a": -2.0989869035242507e+150,
-       "\udfff": 3.374002822674811e-15
+       "\udfff": 3.37400282e-15
       },
       "__proto__x": false
      }
     },
     "fh": {
-     "1.5": "8a5544e62s"
+     "1.5": "d95f0d672l"
     },
     "lin": [
      "1761955203171-0001-devA"
@@ -12824,7 +12824,7 @@
     "fields": {
      "content": "}ר\u0012֬",
      "👍\ud83d": {
-      "4294967294": 5.7712672930210826e-15,
+      "4294967294": 5.77126729e-15,
       "Z": {
        "b": 4803.84,
        "book_num": 157.9,
@@ -12846,7 +12846,7 @@
     },
     "fh": {
      "content": "dfde351eb",
-     "👍\ud83d": "a006bad529",
+     "👍\ud83d": "d57f33a721",
      "B": "8ff29ca52",
      "λ": "27b8bc4416"
     }
@@ -12958,10 +12958,10 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "2": 0.5817938861437142
+     "2": 0.581793886
     },
     "fh": {
-     "2": "cd667db4i"
+     "2": "7a513d1cb"
     },
     "base": "1761955100459-0000-devB"
    },
@@ -13006,7 +13006,7 @@
       },
       "-1": [
        "",
-       0.0001851586219854653,
+       0.000185158621,
        null
       ],
       "~": {
@@ -13018,7 +13018,7 @@
      "<script>&amp;</script>": true
     },
     "fh": {
-     "😀": "46f5db2a4q",
+     "😀": "513699e84j",
      "01": "a8fea5af5",
      "<script>&amp;</script>": "4db211e54"
     },
@@ -13177,14 +13177,14 @@
        "__proto__x": ":🔞\u001f\u0015🕘Gm\ud911",
        "_1'$;ϔ": null
       },
-      453871210571378.5
+      453871210000000
      ]
     },
     "fh": {
      "a\u0013\u001e鱡ט\b🐠": "8985043826",
      "a b": "7091b533g",
      "λ": "77074ba44",
-     "!\udd9fT\udc72y🕵": "1ed7f3d12h"
+     "!\udd9fT\udc72y🕵": "0404bce32f"
     },
     "base": "1761955100468-0000-devB"
    },
@@ -13532,7 +13532,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "$L豪": 8865.209657233208,
+     "$L豪": 8865.20965,
      "é": [
       null,
       [
@@ -13543,7 +13543,7 @@
      ]
     },
     "fh": {
-     "$L豪": "cb1370edh",
+     "$L豪": "26687712a",
      "é": "a9cd978ev"
     },
     "base": "1761955100487-0000-devB"
@@ -13570,12 +13570,12 @@
        "__proto__x": "\f+M2΢ϡ"
       }
      },
-     "~👎ט🎵᫟": 7.348611259367317e+21
+     "~👎ט🎵᫟": 7.34861125e+21
     },
     "fh": {
      "😀": "66c608259",
      "Z": "804bddde2b",
-     "~👎ט🎵᫟": "db06b36bl"
+     "~👎ט🎵᫟": "c6bb5533e"
     },
     "base": "1761955100488-0000-devB",
     "lin": [
@@ -13657,11 +13657,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "1": 879922124.0915358,
+     "1": 879922124,
      "4294967294": 1702375425730
     },
     "fh": {
-     "1": "4071a006h",
+     "1": "9baebff79",
      "4294967294": "7232ea35d"
     },
     "base": "1761955100492-0000-devB"
@@ -13774,7 +13774,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "tags": 7.209582072682678e+26,
+     "tags": 7.20958207e+26,
      "֢\udc3a\ud950꺧🐵g\r\u0011K֫T": [
       {},
       [
@@ -13789,7 +13789,7 @@
      "aa": []
     },
     "fh": {
-     "tags": "2efb70ael",
+     "tags": "e4a20267e",
      "֢\udc3a\ud950꺧🐵g\r\u0011K֫T": "0bcb912519",
      "aa": "741638a52"
     },
@@ -13918,7 +13918,7 @@
        true
       ],
       "b": "",
-      "\u001f🕾Y💣": 6670773602090776,
+      "\u001f🕾Y💣": 6670773600000000,
       "4294967295": false
      },
      "b": {
@@ -13929,7 +13929,7 @@
     },
     "fh": {
      "~7֚{\\": "e5d66a4d2t",
-     "4294967295": "a9997afa1x",
+     "4294967295": "b53a06ef1x",
      "b": "f009c89e1t"
     },
     "base": "1761955100503-0000-devB"
@@ -14018,11 +14018,11 @@
     "schema": 48,
     "fields": {
      "😀": null,
-     "-1": 269266441464424130
+     "-1": 269266441000000000
     },
     "fh": {
      "😀": "77074ba44",
-     "-1": "ddfac517i"
+     "-1": "df1031fbi"
     },
     "base": "1761955100508-0000-devB"
    },
@@ -14245,13 +14245,13 @@
      "10": {
       "4294967295": 0
      },
-     "2גe}v\ud901\udb4a": 0.06474980968050659,
+     "2גe}v\ud901\udb4a": 0.0647498096,
      "01": 9007199254740994
     },
     "fh": {
      "1": "5465b8252",
      "10": "7a79df58g",
-     "2גe}v\ud901\udb4a": "ace329c7j",
+     "2גe}v\ud901\udb4a": "5e5cdec0c",
      "01": "afb18e64g"
     },
     "lin": [
@@ -14344,13 +14344,13 @@
     "fields": {
      "_": "",
      "order_key": "Y΂ja\u0005z🏙",
-     " ": 4.7469171206466854e+26,
+     " ": 4.74691712e+26,
      "1.5": false
     },
     "fh": {
      "_": "ffcaaa852",
      "order_key": "62f40216f",
-     " ": "be6fd89dm",
+     " ": "f42997dee",
      "1.5": "0b0699585"
     },
     "base": "1761955100523-0000-devB"
@@ -14686,13 +14686,13 @@
       "ä": "aMO"
      },
      "__proto__x": null,
-     "tags": 903422611299902.2
+     "tags": 903422611000000
     },
     "fh": {
      "vE": "691055207",
      "b": "e841492218",
      "__proto__x": "77074ba44",
-     "tags": "d66489a0h"
+     "tags": "1c6c2131f"
     }
    },
    {
@@ -14940,11 +14940,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "-1": 30561.601743102074,
+     "-1": 30561.601,
      "": "\\👦ξ󦉁ϔJ"
     },
     "fh": {
-     "-1": "a5070319i",
+     "-1": "46e2cacb9",
      "": "5e321571b"
     },
     "lin": [
@@ -15134,12 +15134,12 @@
      "\udc4d\ud83d": {
       "䜊": "2ͺ\uda93💌💜֭",
       "4294967295": -611612,
-      "ä": 6.430749860592186e-7
+      "ä": 6.43074986e-7
      }
     },
     "fh": {
      "-1": "9201aa552",
-     "\udc4d\ud83d": "e3eafd8e1v"
+     "\udc4d\ud83d": "6e8fc1051o"
     },
     "base": "1761955100562-0000-devB",
     "lin": [
@@ -15408,7 +15408,7 @@
      "λ": false,
      "\udc4db": {
       "1": null,
-      "ͼ$v첑\ud88c": 2803537354338914300,
+      "ͼ$v첑\ud88c": 2803537350000000000,
       "aa": {
        "1": 86
       }
@@ -15420,7 +15420,7 @@
     },
     "fh": {
      "λ": "0b0699585",
-     "\udc4db": "9db9b5f41l",
+     "\udc4db": "2758443b1l",
      "book_num": "30c3bcb3d",
      "Z": "1bcb3f154"
     }
@@ -15730,12 +15730,12 @@
       "\ud800": []
      },
      "book_num": "ο\u0002fD\u0007ֿ麠",
-     "chapter": 1.2988204951398076e+25
+     "chapter": 1.29882049e+25
     },
     "fh": {
      "10": "4e50b527u",
      "book_num": "a93cc6b6j",
-     "chapter": "14853998m"
+     "chapter": "d58ea74be"
     }
    },
    {
@@ -15962,12 +15962,12 @@
     "schema": 48,
     "fields": {
      "𝔊𝔬𝔡": "\udc4db",
-     "4294967295": 3.8157714065164326e-20,
+     "4294967295": 3.8157714e-20,
      "🗏?\ude1f\u0012\u000b": 1.0599543342256614e+197
     },
     "fh": {
      "𝔊𝔬𝔡": "9a81b78b9",
-     "4294967295": "be2b6200m",
+     "4294967295": "eb482ba9d",
      "🗏?\ude1f\u0012\u000b": "bc4c5719n"
     }
    },
@@ -16010,14 +16010,14 @@
        true
       ]
      ],
-     "\udc4d\ud83d": 3.6036636750213805e-14,
-     "é": 3.764269780367613e-15,
+     "\udc4d\ud83d": 3.60366367e-14,
+     "é": 3.7642697e-15,
      "\udfff": 0.0014705882352941176
     },
     "fh": {
      "2": "190c07f514",
-     "\udc4d\ud83d": "dcb034dcm",
-     "é": "46683443l",
+     "\udc4d\ud83d": "8d47b72ce",
+     "é": "2717e5bfd",
      "\udfff": "ff215542l"
     },
     "base": "1761955100602-0000-devB",
@@ -16392,7 +16392,7 @@
        true
       ],
       "color": {
-       "1": 8.870941568166018e+23,
+       "1": 8.87094156e+23,
        "updated_at": true,
        "  ": -1.0687553347252116e+119
       },
@@ -16403,13 +16403,13 @@
       }
      },
      "👍": null,
-     "֕\b\udb21": 221018324.83895123
+     "֕\b\udb21": 221018324
     },
     "fh": {
      "🔽sn𥼗": "67b5311cg",
-     "verse": "2b1e216a64",
+     "verse": "bc5f68fe5x",
      "👍": "77074ba44",
-     "֕\b\udb21": "4fbbdb51i"
+     "֕\b\udb21": "a8bb637c9"
     },
     "lin": [
      "1761955204347-0001-devA"
@@ -16446,7 +16446,7 @@
     "schema": 48,
     "fields": {
      "10": {
-      "0": 0.0000048050490743480624,
+      "0": 0.00000480504907,
       "1.5": [
        51
       ],
@@ -16460,7 +16460,7 @@
      }
     },
     "fh": {
-     "10": "f23fef962e",
+     "10": "022df79526",
      "é": "0b0699585",
      "\udbff􏿿": "77074ba44",
      "book_num": "f8fc1f4b18"
@@ -16481,7 +16481,7 @@
      "order_key": -2093230855,
      "שם": [
       {
-       "יְהוָה": 91872962308116250000,
+       "יְהוָה": 91872962300000000000,
        "4294967295": 1627199566230,
        "tab\there": false,
        "ΉNW΂\u0000": null
@@ -16493,7 +16493,7 @@
      "a": "454b27cfd",
      "\u000b": "83e8ea4em",
      "order_key": "665e716fb",
-     "שם": "c8bf0b2c30"
+     "שם": "9eaddd1b30"
     },
     "base": "1761955100624-0000-devB",
     "lin": [
@@ -16511,7 +16511,7 @@
     "schema": 48,
     "fields": {
      "0": {
-      "0": 64.18668383266777,
+      "0": 64.1866838,
       "a": {
        "^\u0012📵3ϛחͰK꠷": false,
        "a b": "X&]ׄ&~_🎸lb\r",
@@ -16519,7 +16519,7 @@
       }
      },
      "a\ud83d": {
-      "9": 306743102846.6672,
+      "9": 306743102000,
       "chapter": false,
       "order_key": {
        "4294967295": true
@@ -16536,8 +16536,8 @@
      ]
     },
     "fh": {
-     "0": "57241a022k",
-     "a\ud83d": "6481d4e92u",
+     "0": "59e909622d",
+     "a\ud83d": "194d08022p",
      "01": "4c1d45a16"
     },
     "base": "1761955100625-0000-devB"
@@ -16888,7 +16888,7 @@
       {
        "b": null,
        "deleted": 9919.21,
-       "color": 4.099649097770453e-32
+       "color": 4.099649e-32
       },
       -25244
      ],
@@ -16902,7 +16902,7 @@
      }
     },
     "fh": {
-     "": "75c88f631v",
+     "": "6be58e191m",
      "deleted": "77074ba44",
      "id": "77074ba44",
      "B": "d1711af01k"
@@ -17135,13 +17135,13 @@
     "fields": {
      "1.5": false,
      "弚m\u0014\ude91糜=📎\"[Θ+": null,
-     "λ": 567681432003155300000,
+     "λ": 567681432000000000000,
      "updated_at": 9007199254740991
     },
     "fh": {
      "1.5": "0b0699585",
      "弚m\u0014\ude91糜=📎\"[Θ+": "77074ba44",
-     "λ": "ba6b7e88l",
+     "λ": "6bb78105l",
      "updated_at": "acb189abg"
     }
    },
@@ -17542,11 +17542,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "ä": 6.675859657116234e+24,
+     "ä": 6.6758596e+24,
      "1.5": null
     },
     "fh": {
-     "ä": "bcc9d23al",
+     "ä": "30fa928bd",
      "1.5": "77074ba44"
     }
    },
@@ -17661,10 +17661,10 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "chapter": 8.887848211452366e-20
+     "chapter": 8.8878482e-20
     },
     "fh": {
-     "chapter": "802d2844l"
+     "chapter": "7d4b724ed"
     }
    },
    {
@@ -17865,7 +17865,7 @@
      },
      "שם": true,
      "K": {
-      "01": 0.008258463661186398,
+      "01": 0.00825846366,
       "a b": [
        "Ru🗯׹׾Y]\ud9b6\u001dλ䗡",
        null
@@ -17875,7 +17875,7 @@
     "fh": {
      "title": "b9b61795g",
      "שם": "4db211e54",
-     "K": "04a5c0341t"
+     "K": "eb575bbe1m"
     },
     "base": "1761955100691-0000-devB",
     "lin": [
@@ -17940,7 +17940,7 @@
       "id": "נ׼*䀤",
       "tags": 3996.73,
       "book_num": false,
-      "χάρις": 1.5891560190357268e-17
+      "χάρις": 1.58915601e-17
      },
      "updated_at": null,
      "01": {
@@ -17955,7 +17955,7 @@
      "order_key": "7"
     },
     "fh": {
-     "id": "26188d0624",
+     "id": "40efaa881w",
      "updated_at": "77074ba44",
      "01": "3fe2a3f63p",
      "order_key": "f125e11c3"
@@ -18173,10 +18173,10 @@
      "content": [
       "塵(ϑXz\b",
       {
-       "9": 3.9508061925880608e+28,
+       "9": 3.95080619e+28,
        "é": 1585487786034,
        "😀": null,
-       "01": 8.040183237753809e-18
+       "01": 8.04018323e-18
       }
      ],
      "tags": 7134.71,
@@ -18186,7 +18186,7 @@
      }
     },
     "fh": {
-     "content": "7662e8412n",
+     "content": "16ac8f1d28",
      "tags": "6fb306e87",
      "B": "67ae78ba8",
      "\u000e蹈g=": "d48306edj"
@@ -18303,7 +18303,7 @@
     "schema": 48,
     "fields": {
      "title": {
-      "9": 9.903064456302673e-15,
+      "9": 9.90306445e-15,
       "é": ",זΩ΅👱/א👈"
      },
      "😀": "/n\n攚I",
@@ -18311,7 +18311,7 @@
      "01": "tab\there"
     },
     "fh": {
-     "title": "68f8d66119",
+     "title": "9a5e97ba12",
      "😀": "848aecc78",
      "\udb36F`G🌜_\u000f": "4db211e54",
      "01": "5dbf4a88b"
@@ -18468,10 +18468,10 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "verse": 2.3624950647354126e-13
+     "verse": 2.36249506e-13
     },
     "fh": {
-     "verse": "4a6e303em"
+     "verse": "401eb590e"
     }
    },
    {
@@ -18579,14 +18579,14 @@
       {
        "zw​j": 141872606
       },
-      26098264777101580000,
+      26098264700000000000,
       {}
      ],
      "4294967295": 1695646751,
      "__proto__x": "辍_-🍔ό"
     },
     "fh": {
-     "title": "d88b9b181d",
+     "title": "de4e63b31d",
      "4294967295": "cd09f477a",
      "__proto__x": "54cbd1ca8"
     }
@@ -18879,12 +18879,12 @@
      },
      "😀": {
       "👋🏽": true,
-      "pU🎚\ud974א֤": 8.410884842742234e-14
+      "pU🎚\ud974א֤": 8.41088484e-14
      }
     },
     "fh": {
      "ä": "bd8a53fcs",
-     "😀": "f20ea8e61e"
+     "😀": "5043e9e817"
     },
     "base": "1761955100736-0000-devB",
     "lin": [
@@ -19169,10 +19169,10 @@
       "4294967295": -230705,
       "content": "é"
      },
-     "a": 3478615682106.4653,
+     "a": 3478615680000,
      "䊸Bⲣ\ud8edwo\u0012L\b🖔": [
       {
-       "😀": 31614680821076034000
+       "😀": 31614680800000000000
       },
       1482783161,
       "쟮I֜~"
@@ -19181,8 +19181,8 @@
     "fh": {
      "10": "41528b8eh",
      "4294967294": "08313d4a10",
-     "a": "6857c7eai",
-     "䊸Bⲣ\ud8edwo\u0012L\b🖔": "3c6c8ace1b"
+     "a": "c97a0401d",
+     "䊸Bⲣ\ud8edwo\u0012L\b🖔": "d52802391b"
     },
     "base": "1761955100747-0000-devB"
    },
@@ -19308,12 +19308,12 @@
      "a": "a\ud83d",
      "\uda02🌺🎊Ϲ": {
       "Z": "\udd35",
-      ";🔻🍰🎼X👏Ύ": 7.856697072274983
+      ";🔻🍰🎼X👏Ύ": 7.85669707
      }
     },
     "fh": {
      "a": "2c02f7829",
-     "\uda02🌺🎊Ϲ": "313ce4351a"
+     "\uda02🌺🎊Ϲ": "cbcd0e7613"
     },
     "base": "1761955100753-0000-devB"
    },
@@ -19334,13 +19334,13 @@
        "λ": 0.001644736842105263
       }
      },
-     "content": 0.000047502952162176375,
+     "content": 0.0000475029521,
      "b": false,
      " ": 1585832018643
     },
     "fh": {
      "4294967294": "52e61f9229",
-     "content": "dd8fc4ffn",
+     "content": "d08f2880f",
      "b": "0b0699585",
      " ": "6318c3edd"
     },
@@ -19514,14 +19514,14 @@
       {
        "Z": null,
        "ׁ竬🕥": false,
-       " ": 2.277976321056485e+22,
+       " ": 2.27797632e+22,
        "order_key": "򗊡7"
       }
      ],
      "中": {}
     },
     "fh": {
-     "color": "6816f7c528",
+     "color": "b82c99d021",
      "中": "5465b8252"
     }
    },
@@ -19557,11 +19557,11 @@
       "": {},
       "B": -246532
      },
-     "😀": 1.8369977502152324e-29
+     "😀": 1.83699775e-29
     },
     "fh": {
      "order_key": "6b06c9342d",
-     "😀": "1f183848m"
+     "😀": "8cf6f2e9e"
     },
     "base": "1761955100765-0000-devB"
    },
@@ -19638,13 +19638,13 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "": 2750.9296708740294,
+     "": 2750.92967,
      "id": "F⡭",
      "B": true,
      "υ5ל}׉年🎕🌪\ude9a🗱": -309136
     },
     "fh": {
-     "": "c758d11ci",
+     "": "e64fef90a",
      "id": "6dd9ddda4",
      "B": "4db211e54",
      "υ5ל}׉年🎕🌪\ude9a🗱": "91e71e547"
@@ -20170,7 +20170,7 @@
     "schema": 48,
     "fields": {
      "tags": {
-      "Z": 613324374891817.6,
+      "Z": 613324374000000,
       "׳\udf63": null,
       "": {
        "": 71,
@@ -20188,7 +20188,7 @@
      }
     },
     "fh": {
-     "tags": "275a660f2r",
+     "tags": "019d9b2d2p",
      "created_at": "d2ab24c1o",
      "🕹EN\ud9b0\udd136:ĥ\udecb": "5465b8252",
      "a": "cc9cfd71l"
@@ -20288,7 +20288,7 @@
      "\udc4db": 82,
      "{\"json\":true}": [
       [
-       5546451.583504677,
+       5546451.58,
        -1838979818
       ],
       2726.04,
@@ -20303,7 +20303,7 @@
     "fh": {
      "9": "8d277403z",
      "\udc4db": "9001a72f2",
-     "{\"json\":true}": "b807f8713f"
+     "{\"json\":true}": "c28da28d38"
     },
     "base": "1761955100803-0000-devB"
    },
@@ -20513,7 +20513,7 @@
     "schema": 48,
     "fields": {
      "chapter": [
-      70698261.58694923,
+      70698261.5,
       "\udbff􏿿",
       {
        "שם": false,
@@ -20531,7 +20531,7 @@
      ]
     },
     "fh": {
-     "chapter": "aa40372a29",
+     "chapter": "8f00a9bd22",
      "B": "45813c8717"
     },
     "base": "1761955100816-0000-devB"
@@ -20879,7 +20879,7 @@
       "Z": [
        1.1648071051639356e-120,
        "*\ud99e̓\udd8bֳT\uda7en",
-       57986552501097.32,
+       57986552500000,
        -28210
       ]
      },
@@ -20895,7 +20895,7 @@
     },
     "fh": {
      "2": "4db211e54",
-     "Z": "dca8a9213v",
+     "Z": "dc6774133s",
      "é": "6c8063f57",
      "id": "3b9be7ce1r"
     }
@@ -21052,9 +21052,9 @@
      "verse": 15,
      "Z": [
       {
-       "9": 6.700975331477821e-29,
+       "9": 6.7009753e-29,
        "10": -377508,
-       "01": 9.76104655303061,
+       "01": 9.76104655,
        "1.5": -8.949251301096337e+257
       },
       [
@@ -21074,7 +21074,7 @@
     "fh": {
      "10": "4db211e54",
      "verse": "18eb258b2",
-     "Z": "f318ec7c55",
+     "Z": "3a0da7e84r",
      "\u0019\udf9c0/ᕠ\u0007ַE@": "4db211e54"
     }
    },
@@ -21090,7 +21090,7 @@
     "fields": {
      "book_num": null,
      "中": [
-      923717313678935200,
+      923717313000000000,
       0.001697792869269949,
       1923.92,
       1.23e-18
@@ -21099,7 +21099,7 @@
     },
     "fh": {
      "book_num": "77074ba44",
-     "中": "19baf9751m",
+     "中": "13a89aef1m",
      "__proto__x": "741638a52"
     },
     "base": "1761955100843-0000-devB"
@@ -21222,11 +21222,11 @@
     "schema": 48,
     "fields": {
      "updated_at": "\udc4db",
-     "order_key": 2.156587017234415e-17
+     "order_key": 2.15658701e-17
     },
     "fh": {
      "updated_at": "9a81b78b9",
-     "order_key": "7b03648al"
+     "order_key": "8acfc96ee"
     },
     "base": "1761955100851-0000-devB"
    },
@@ -21709,10 +21709,10 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "chapter": 0.000022766773402690888
+     "chapter": 0.0000227667734
     },
     "fh": {
-     "chapter": "8f93b542n"
+     "chapter": "5f647419f"
     }
    },
    {
@@ -21748,7 +21748,7 @@
      "a": {
       "10": {},
       "\udc4d\ud83d": {
-       "\\犮\u001b3ֵJ": 8.86749892262742e-19,
+       "\\犮\u001b3ֵJ": 8.86749892e-19,
        " ": null
       }
      },
@@ -21758,7 +21758,7 @@
      ]
     },
     "fh": {
-     "a": "875526491z",
+     "a": "393692f21t",
      "1.5": "2c7c65deb"
     },
     "base": "1761955100878-0000-devB"
@@ -21964,7 +21964,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "2": 344073489541187900000,
+     "2": 344073489000000000000,
      "aa": {
       "é": "\udc4db"
      },
@@ -21974,7 +21974,7 @@
      "title": false
     },
     "fh": {
-     "2": "920a9180l",
+     "2": "f22ec35fl",
      "aa": "69cd1b50f",
      "/slash/": "2234ed5ak",
      "title": "0b0699585"
@@ -22116,7 +22116,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "chapter": 950775954639.5391,
+     "chapter": 950775954000,
      "嶁F\u0015הg": [
       null,
       9124.82,
@@ -22125,7 +22125,7 @@
      ]
     },
     "fh": {
-     "chapter": "059911deh",
+     "chapter": "3d4b78dcc",
      "嶁F\u0015הg": "42c8c484q"
     },
     "lin": [
@@ -22232,11 +22232,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "order_key": 6.45596343325451e-15,
+     "order_key": 6.45596343e-15,
      "é": "quote\"back\\slash"
     },
     "fh": {
-     "order_key": "27f5a388k",
+     "order_key": "baf96766e",
      "é": "0eacaa5bk"
     }
    },
@@ -22269,13 +22269,13 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "tags": 83891742699779570000,
+     "tags": 83891742600000000000,
      "Z": 67,
      "@\uda5ftiዔ": 1679959152924,
      "😀": {}
     },
     "fh": {
-     "tags": "e21a8ffck",
+     "tags": "1ec0d667k",
      "Z": "1ae8ea1a2",
      "@\uda5ftiዔ": "e106d60ed",
      "😀": "5465b8252"
@@ -22743,7 +22743,7 @@
      "chapter": {
       "4294967294": {
        "order_key": 38,
-       "B": 1.0501424805261195,
+       "B": 1.05014248,
        "chapter": true
       },
       "color": 8293.26
@@ -22755,7 +22755,7 @@
      "中": 0.0017921146953405018
     },
     "fh": {
-     "chapter": "6febaf1e2d",
+     "chapter": "03fad9c325",
      "😀": "0d2c2de0n",
      "4294967295": "9d7e67d2e",
      "中": "32b73eafl"
@@ -22864,12 +22864,12 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "0": 7.123166527599096e-13,
+     "0": 7.12316652e-13,
      "é": null,
      "": false
     },
     "fh": {
-     "0": "a15eede3l",
+     "0": "4758ce02e",
      "é": "77074ba44",
      "": "0b0699585"
     },
@@ -23028,7 +23028,7 @@
        "Ν΋װ\u000e"
       ],
       "id": {
-       "01": 0.00009574458047281951,
+       "01": 0.0000957445804,
        "created_at": -229335
       },
       "é": 9007199254740991,
@@ -23037,7 +23037,7 @@
     },
     "fh": {
      "é": "5465b8252",
-     "book_num": "cd8f448738"
+     "book_num": "19e611be31"
     },
     "base": "1761955100939-0000-devB",
     "lin": [
@@ -23215,13 +23215,13 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "4294967294": 3955802.593845874,
+     "4294967294": 3955802.59,
      "/slash/": null,
      "Z": 48,
      "b": true
     },
     "fh": {
-     "4294967294": "2bf30110h",
+     "4294967294": "0e58f6c5a",
      "/slash/": "77074ba44",
      "Z": "91e395412",
      "b": "4db211e54"
@@ -23287,7 +23287,7 @@
       "b": {
        "10": -713824,
        "pq\ud9d9^מ\udd2cק6)5": false,
-       "01": 4.745277718175203e-11
+       "01": 4.74527771e-11
       },
       "aa": 1705423584167
      }
@@ -23295,7 +23295,7 @@
     "fh": {
      "color": "55d6924b2w",
      "a": "94ecc50d4c",
-     "b": "8c8838773n"
+     "b": "8ed3eff53g"
     }
    },
    {
@@ -23423,10 +23423,10 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "title": 496239340.6312913
+     "title": 496239340
     },
     "fh": {
-     "title": "d2af331eh"
+     "title": "8cabc3a79"
     },
     "base": "1761955100957-0000-devB",
     "lin": [
@@ -23456,13 +23456,13 @@
      "H⸳쉿kA/\u000b🏤": {
       "😀": 53
      },
-     "a": 3899843450635.6714,
+     "a": 3899843450000,
      "B": -1530439737
     },
     "fh": {
      "deleted": "aa832d0225",
      "H⸳쉿kA/\u000b🏤": "24785c5c9",
-     "a": "16fa66eci",
+     "a": "2b4177d6d",
      "B": "2c084e3ab"
     }
    },
@@ -23622,7 +23622,7 @@
       {
        "🗈\u0010#": null,
        "01": false,
-       "שם": 0.0005074677346274257
+       "שם": 0.000507467734
       }
      ],
      "verse": 1737878427520,
@@ -23630,7 +23630,7 @@
     },
     "fh": {
      "_": "72a5d66121",
-     "b": "fe49caa01m",
+     "b": "30dc2de91f",
      "verse": "ac3ccff6d",
      "N\nβp@ו(\ud84f錉": "15bdbe0f12"
     },
@@ -23711,11 +23711,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "2": 0.0008511214191094041,
+     "2": 0.000851121419,
      "__proto__x": null
     },
     "fh": {
-     "2": "60caf1ccl",
+     "2": "3ebe264de",
      "__proto__x": "77074ba44"
     }
    },
@@ -23864,7 +23864,7 @@
      "": {
       "created_at": {}
      },
-     "created_at": 94418901880271.73,
+     "created_at": 94418901800000,
      "😀": {
       "9": 92
      },
@@ -23880,7 +23880,7 @@
     },
     "fh": {
      "": "54f7475fh",
-     "created_at": "80ee2893h",
+     "created_at": "9c297b9fe",
      "😀": "397225c38",
      "book_num": "4206087a3t"
     },
@@ -23934,7 +23934,7 @@
     "fields": {
      "👍\ud83d": {
       "9": {
-       "λ": 2.6323328376747664e+28,
+       "λ": 2.63233283e+28,
        "id": 1585452565370
       },
       "k🍼4TW\udf86🏭🏟\u0001^": true,
@@ -23942,7 +23942,7 @@
      }
     },
     "fh": {
-     "👍\ud83d": "0985c7ab2r"
+     "👍\ud83d": "e340ff182j"
     }
    },
    {
@@ -23959,7 +23959,7 @@
      "b": {
       "tags": {
        "1.5": true,
-       "👍\ud83d": 6.61710070213303e+25
+       "👍\ud83d": 6.6171007e+25
       },
       "Z": false,
       "a b": false
@@ -23969,7 +23969,7 @@
     },
     "fh": {
      "verse": "4db211e54",
-     "b": "ab1a147623",
+     "b": "35d227581w",
      "\u0018΁3\ud8cc愵\udd9c🏍": "4db211e54",
      "ä": "0adb5a52m"
     },
@@ -24196,11 +24196,11 @@
       ],
       true
      ],
-     "é": 359081.112081185
+     "é": 359081.112
     },
     "fh": {
      "0": "9d0c319dp",
-     "é": "322e4270g"
+     "é": "6e546beda"
     }
    },
    {
@@ -24457,7 +24457,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "tags": 562899228185415300,
+     "tags": 562899228000000000,
      "order_key": [],
      "😀": {
       "deleted": true,
@@ -24466,7 +24466,7 @@
      }
     },
     "fh": {
-     "tags": "7d305359i",
+     "tags": "9bb415aai",
      "order_key": "741638a52",
      "😀": "0522e4e61k"
     }
@@ -24981,11 +24981,11 @@
     "schema": 48,
     "fields": {
      "tags": {},
-     "title": 7.559001399204136e-10
+     "title": 7.55900139e-10
     },
     "fh": {
      "tags": "5465b8252",
-     "title": "7ba0ccf4l"
+     "title": "9db7cb6be"
     },
     "base": "1761955101033-0000-devB"
    },
@@ -25153,13 +25153,13 @@
        "2": 1015886381,
        "content": 35,
        "B": "𝔊𝔬𝔡",
-       "é": 6.295416015200317e-29
+       "é": 6.29541601e-29
       }
      }
     },
     "fh": {
      "content": "746b261bo",
-     "g^\n": "85b892b13a"
+     "g^\n": "1765857933"
     },
     "base": "1761955101042-0000-devB"
    },
@@ -25179,15 +25179,15 @@
       "title": [
        -3.0538522074233975e-201,
        -392397,
-       2.6417603646405045e-18,
-       4.695928131695837e-16
+       2.64176036e-18,
+       4.69592813e-16
       ],
       "chapter": 5549.08
      }
     },
     "fh": {
      "ä": "4db211e54",
-     "κmֱLR\u001d\udd51\ude59&yL": "35ecfc143j"
+     "κmֱLR\u001d\udd51\ude59&yL": "08f7d69934"
     },
     "base": "1761955101043-0000-devB"
    },
@@ -25294,12 +25294,12 @@
     "schema": 48,
     "fields": {
      "created_at": "👍\ud83d",
-     "4294967295": 0.005438833346124739,
+     "4294967295": 0.00543883334,
      "Z": 0.0013698630136986301
     },
     "fh": {
      "created_at": "fbd69b27a",
-     "4294967295": "c65ed2bak",
+     "4294967295": "ab333f0ed",
      "Z": "d1a681e6l"
     },
     "base": "1761955101048-0000-devB",
@@ -25736,7 +25736,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "verse": 1731537673622.3699,
+     "verse": 1731537670000,
      "é": {},
      "1.5": [
       {
@@ -25748,7 +25748,7 @@
      "ϰ\"֝\udeefn🎛׬": true
     },
     "fh": {
-     "verse": "19d896f5i",
+     "verse": "8197b479d",
      "é": "5465b8252",
      "1.5": "d7cc1f7bv",
      "ϰ\"֝\udeefn🎛׬": "4db211e54"
@@ -26122,7 +26122,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "ת\udf86z\u0006XO🏃": 6.882455553859473e-14,
+     "ת\udf86z\u0006XO🏃": 6.88245555e-14,
      "id": {
       "updated_at": "\ud800",
       "_": {
@@ -26132,7 +26132,7 @@
      "book_num": false
     },
     "fh": {
-     "ת\udf86z\u0006XO🏃": "32774143l",
+     "ת\udf86z\u0006XO🏃": "5f72167ce",
      "id": "68546d8b1l",
      "book_num": "0b0699585"
     },
@@ -26257,13 +26257,13 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "4294967294": 6.428018435835838e-10,
+     "4294967294": 6.42801843e-10,
      "B": true,
      "שם": false,
      "id": {}
     },
     "fh": {
-     "4294967294": "c7fc5802l",
+     "4294967294": "af187fa4e",
      "B": "4db211e54",
      "שם": "0b0699585",
      "id": "5465b8252"
@@ -26307,7 +26307,7 @@
       "": 948.72
      },
      "verse": [
-      847.3058363888413,
+      847.305836,
       null
      ],
      "book_num": {
@@ -26319,7 +26319,7 @@
     },
     "fh": {
      "a\ud83d": "35dae1e4k",
-     "verse": "43b65019o",
+     "verse": "65d8a604h",
      "book_num": "212d035911"
     },
     "base": "1761955101099-0000-devB"
@@ -26425,14 +26425,14 @@
      "0": false,
      "10": 1e+21,
      "-1": [
-      9257.878051139414
+      9257.87805
      ],
      "1.5": 1648071100
     },
     "fh": {
      "0": "0b0699585",
      "10": "b6a7b1f55",
-     "-1": "8499d3c9j",
+     "-1": "a7903446c",
      "1.5": "a420746da"
     }
    },
@@ -26778,7 +26778,7 @@
     "schema": 48,
     "fields": {
      "book_num": {
-      "color": 8.944574068300427e+25,
+      "color": 8.944574e+25,
       "ְ΋k\u0003X뽦ΧΕP": false,
       "verse": [
        -492111,
@@ -26790,7 +26790,7 @@
      "created_at": 67
     },
     "fh": {
-     "book_num": "af64003b2l",
+     "book_num": "f8aab1692c",
      "👍\ud83d": "5465b8252",
      "created_at": "1ae8ea1a2"
     },
@@ -26946,7 +26946,7 @@
      "\udc4d\ud83d": {
       "֯u\u000e藶📥": {
        "_": 7.225834794987693e-219,
-       "שם": 1.6893859556876123,
+       "שם": 1.68938595,
        "{\"json\":true}": "\udb74\u0018ϰ\uda85",
        "a b": "o믮F🎑+FE"
       },
@@ -26955,7 +26955,7 @@
     },
     "fh": {
      "א᾽5Ψ8?BΚNֹy": "4db211e54",
-     "\udc4d\ud83d": "1de0a9583p"
+     "\udc4d\ud83d": "86a10bd03h"
     }
    },
    {
@@ -27499,7 +27499,7 @@
     "fields": {
      "updated_at": {
       "Z": [
-       2.3610568791627884e-16,
+       2.36105687e-16,
        true,
        false
       ]
@@ -27509,7 +27509,7 @@
      " ": 1088270675
     },
     "fh": {
-     "updated_at": "59eecf6e15",
+     "updated_at": "3cc516c1x",
      "deleted": "4db211e54",
      "id": "5465b8252",
      " ": "221ea555a"
@@ -27529,7 +27529,7 @@
       "__proto__x": -1564195570,
       "": "🌪El\tNfQ🗴p\u0015!",
       "book_num": {
-       "Nͺ": 836.450217757374,
+       "Nͺ": 836.450217,
        "Z": 3354.76,
        "\ud80e:)ׇם;瑇\ud807": "Yeshua",
        "E<": 9961.59
@@ -27541,7 +27541,7 @@
      "created_at": 58
     },
     "fh": {
-     "😀": "82db60f94s",
+     "😀": "741e82c04m",
      "ὁ λόγος σὰρξ ἐγένετο": "777c1bbdl",
      "id": "383c4374k",
      "created_at": "8be14d382"
@@ -27695,14 +27695,14 @@
     "schema": 48,
     "fields": {
      "__proto__x": {
-      "1": 1.7020384618081154e-18,
+      "1": 1.70203846e-18,
       "title": 6.599012189101639e+261
      },
      "title": true,
      "1.5": 9007199254740992
     },
     "fh": {
-     "__proto__x": "ad1864dd1n",
+     "__proto__x": "0d0dfe4f1f",
      "title": "4db211e54",
      "1.5": "adb18b3eg"
     }
@@ -27985,12 +27985,12 @@
       "1.5": 1589964644756
      },
      "λ": {},
-     "created_at": 1.6941736917942762e-26
+     "created_at": 1.6941736e-26
     },
     "fh": {
      "שם": "71a57f4d2u",
      "λ": "5465b8252",
-     "created_at": "da403e63m"
+     "created_at": "338ccb06d"
     },
     "base": "1761955101183-0000-devB"
    },
@@ -28012,12 +28012,12 @@
       false,
       false
      ],
-     "ä": 4005313348025083400,
+     "ä": 4005313340000000000,
      ",z\u0019\ud981s֜": -621615478
     },
     "fh": {
      "10": "c61d7a5c13",
-     "ä": "1f09729ej",
+     "ä": "52019f88j",
      ",z\u0019\ud981s֜": "7556f7aca"
     },
     "base": "1761955101184-0000-devB",
@@ -28524,7 +28524,7 @@
       "\u001d\u0017🏸ᷠe\u0010Cs": null
      },
      "׺=b䰩$W🍝*Ω\ud882": {
-      "0": 8.942570434883238e-18
+      "0": 8.94257043e-18
      },
      "color": {
       "9": "Dzp\u0001㔱flT",
@@ -28535,7 +28535,7 @@
     },
     "fh": {
      "ä": "bf78dace2d",
-     "׺=b䰩$W🍝*Ω\ud882": "2695e050r",
+     "׺=b䰩$W🍝*Ω\ud882": "1e44fc4ek",
      "color": "c884a4f217",
      "order_key": "d124b9bb5"
     },
@@ -28679,12 +28679,12 @@
       "updated_at": false,
       "chapter": {}
      },
-     " ": 9.19254501350224e-24,
+     " ": 9.19254501e-24,
      "ä": 0.3
     },
     "fh": {
      "color": "d538e27ex",
-     " ": "7186fe8dk",
+     " ": "2d8dd169e",
      "ä": "4e80ab603"
     },
     "base": "1761955101219-0000-devB"
@@ -28790,8 +28790,8 @@
     "fields": {
      "B": [
       {
-       "aa": 9.68314353376627e-14,
-       "_": 2.7055440889671444e-21,
+       "aa": 9.68314353e-14,
+       "_": 2.70554408e-21,
        "\u0015👗\fX🐪֫%O׬y7": null,
        "1.5": "\udc4d\ud83d"
       }
@@ -28801,7 +28801,7 @@
      "a b": "·Q🕬$\ud9f5רKx\udb4d"
     },
     "fh": {
-     "B": "4cb974472w",
+     "B": "40d09aa12i",
      "יְהוָה": "5465b8252",
      "ä": "4db211e54",
      "a b": "4fd08fadm"
@@ -29203,7 +29203,7 @@
      "1": true,
      "λ": [
       null,
-      612354029668495000000,
+      612354029000000000000,
       4630.32,
       null
      ],
@@ -29211,7 +29211,7 @@
     },
     "fh": {
      "1": "4db211e54",
-     "λ": "9340277115",
+     "λ": "bbd0a1b715",
      "~": "398ae551o"
     },
     "base": "1761955101244-0000-devB",
@@ -29235,7 +29235,7 @@
        "": "\udc4d\ud83d"
       },
       "c": 42,
-      "\u0003\udfb0🌔": 620548540726.3041,
+      "\u0003\udfb0🌔": 620548540000,
       "1.5": {
        "title": "💼Α",
        "🎸ຢ㬢🖃%ןJn": 1237625923,
@@ -29248,7 +29248,7 @@
     },
     "fh": {
      "order_key": "4db211e54",
-     "01": "ad65640c48",
+     "01": "c5544b5743",
      "P\udfd3J*ׯΡ\u00196": "77074ba44",
      "created_at": "5465b8252"
     }
@@ -29340,9 +29340,9 @@
      "created_at": true,
      "01": {
       "__proto__x": [
-       3.2284648390486834e-14,
+       3.2284648e-14,
        "[[Exod 20:11]]",
-       4.7959749819710855e+24,
+       4.7959749e+24,
        true
       ]
      }
@@ -29350,7 +29350,7 @@
     "fh": {
      "📄堠KSυ+ϯkι\udb63": "77074ba44",
      "created_at": "4db211e54",
-     "01": "01269ca02c"
+     "01": "86c708291u"
     },
     "base": "1761955101250-0000-devB"
    },
@@ -29391,12 +29391,12 @@
       "verse": "F/y׶🐌c",
       "中": null,
       "0\udb41Ϥ׭>4Ύ9\u0007\u0000ϻ": null,
-      "שם": 0.00000474421528633684
+      "שם": 0.0000047442152
      },
      "verse": "\udfff"
     },
     "fh": {
-     "9": "c3bc83582i",
+     "9": "b5e1e01c2b",
      "verse": "597cdc068"
     },
     "base": "1761955101252-0000-devB"
@@ -29411,7 +29411,7 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "title": 9015.96060488373,
+     "title": 9015.9606,
      "שם": {
       "2": {
        "10": "w🗌🔓\udb25狿",
@@ -29422,7 +29422,7 @@
      }
     },
     "fh": {
-     "title": "ae862cfcg",
+     "title": "01614d019",
      "שם": "5debd0bc1y"
     },
     "base": "1761955101253-0000-devB"
@@ -29514,7 +29514,7 @@
       ],
       "4294967294": -565396,
       "é": {
-       "book_num": 8.509532453026622e-28,
+       "book_num": 8.50953245e-28,
        "color": 1585144141601,
        "\u0000\u0001\u001f": true
       }
@@ -29524,7 +29524,7 @@
      "2": "9369e1e9o",
      "4294967294": "1d7afc10n",
      "λ": "77074ba44",
-     "created_at": "d045b0683o"
+     "created_at": "a7d7c7473h"
     }
    },
    {
@@ -29655,13 +29655,13 @@
      "a b": {},
      "💂<": 0.3333333333333333,
      "tab\there": null,
-     "Z": 63659547548741100000
+     "Z": 63659547500000000000
     },
     "fh": {
      "a b": "5465b8252",
      "💂<": "b74e2943i",
      "tab\there": "77074ba44",
-     "Z": "80eb8f96k"
+     "Z": "38bbb9c1k"
     }
    },
    {
@@ -29825,11 +29825,11 @@
     "schema": 48,
     "fields": {
      "9": null,
-     "_": 869546634377911.6
+     "_": 869546634000000
     },
     "fh": {
      "9": "77074ba44",
-     "_": "e38ee90ch"
+     "_": "2626b0c8f"
     },
     "lin": [
      "1761955208904-0002-devA"
@@ -30096,7 +30096,7 @@
     "fields": {
      "created_at": {
       "é": {
-       "9": 6.140016270801425e+28,
+       "9": 6.14001627e+28,
        "1.5": false,
        "tags": true
       },
@@ -30111,7 +30111,7 @@
      "a\ud83d": 1.0497089388130108e+41
     },
     "fh": {
-     "created_at": "183a870b32",
+     "created_at": "2d0ba0532v",
      "01": "41476000d",
      "a\ud83d": "858a58e2m"
     },
@@ -30320,11 +30320,11 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "ä": 6.0775852762162685e-28,
+     "ä": 6.07758e-28,
      "a": "U\udb7ecלJ|\ud9c3"
     },
     "fh": {
-     "ä": "038ec5c8m",
+     "ä": "618be4acb",
      "a": "77f1380ak"
     }
    },
@@ -30608,7 +30608,7 @@
     "schema": 48,
     "fields": {
      "10": null,
-     "__proto__x": 5.28513008961454e-25,
+     "__proto__x": 5.28513008e-25,
      "🖚J\u0005^s": {
       "content": {
        "deleted": "ϾϿ^牸#I梳\"\udb0aװ",
@@ -30617,7 +30617,7 @@
       },
       "title": [
        "\udc4db",
-       0.003287262946832925,
+       0.00328726294,
        "ϔ🐢mh)",
        0
       ]
@@ -30626,8 +30626,8 @@
     },
     "fh": {
      "10": "77074ba44",
-     "__proto__x": "0825cc15k",
-     "🖚J\u0005^s": "2c8a1d8c38",
+     "__proto__x": "e6d71432e",
+     "🖚J\u0005^s": "3fdb4abd31",
      "created_at": "3479a5cdt"
     },
     "base": "1761955101309-0000-devB"
@@ -30699,7 +30699,7 @@
        -542077
       ]
      },
-     "שם": 0.006070277793332935,
+     "שם": 0.0060702777,
      "B": -374539,
      "🐑🌣🗍🐆\udd78֮A\u001aR": {
       "1": null,
@@ -30715,7 +30715,7 @@
     },
     "fh": {
      "_": "7dd9465f2x",
-     "שם": "d3a37b18k",
+     "שם": "1a0d72f3c",
      "B": "09aeea017",
      "🐑🌣🗍🐆\udd78֮A\u001aR": "2403519c33"
     }
@@ -30965,13 +30965,13 @@
      "2": false,
      "4294967294": -1.4678382942954864e+200,
      "content": false,
-     "֩Ο\udf03Ν֮": 29288089997135.1
+     "֩Ο\udf03Ν֮": 29288089900000
     },
     "fh": {
      "2": "0b0699585",
      "4294967294": "62d09ee8o",
      "content": "0b0699585",
-     "֩Ο\udf03Ν֮": "628104f2g"
+     "֩Ο\udf03Ν֮": "520bbf20e"
     },
     "base": "1761955101326-0000-devB"
    },
@@ -31295,7 +31295,7 @@
      "b": [
       {
        "😀": 1663970138650,
-       "-1": 7.752889816183596e-8,
+       "-1": 7.75288981e-8,
        "Z": null
       },
       {},
@@ -31310,7 +31310,7 @@
     },
     "fh": {
      "1": "18eb258b2",
-     "b": "9aa1ef362v",
+     "b": "a0ae891a2o",
      "tags": "31ca36f51l"
     }
    },
@@ -31443,12 +31443,12 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "4294967294": 1.0076298657804728e-10,
+     "4294967294": 1.00762986e-10,
      " ": "Ἐν ἀρχῇ ἦν ὁ λόγος",
      "chapter": 64
     },
     "fh": {
-     "4294967294": "0a82864cm",
+     "4294967294": "d494473fe",
      " ": "8bafc85ck",
      "chapter": "19e8e8872"
     }
@@ -31510,7 +31510,7 @@
     "schema": 48,
     "fields": {
      "ֳ🍼\u000b": -1.6172178962214743e-58,
-     "id": 2.4479931709356606e+22,
+     "id": 2.44799317e+22,
      "order_key": true,
      "color": {
       "0": {
@@ -31525,7 +31525,7 @@
     },
     "fh": {
      "ֳ🍼\u000b": "409805fen",
-     "id": "57c2b3a4m",
+     "id": "c5307091e",
      "order_key": "4db211e54",
      "color": "f0d4197030"
     }
@@ -31696,13 +31696,13 @@
     "fields": {
      "4294967294": 1624584204290,
      "中": [
-      5.0306089618243275e-20,
+      5.03060896e-20,
       "Ϧ\u0014\udce3🍼\udff9V"
      ]
     },
     "fh": {
      "4294967294": "fb645456d",
-     "中": "7f3ed4641d"
+     "中": "86ca9f3a15"
     },
     "lin": [
      "1761955209534-0002-devA"
@@ -31720,11 +31720,11 @@
     "fields": {
      "\udc4d\ud83d": {
       "B": false,
-      "content": 3.4532177494838836e-18
+      "content": 3.45321774e-18
      }
     },
     "fh": {
-     "\udc4d\ud83d": "3d35831118"
+     "\udc4d\ud83d": "d15e1a7210"
     },
     "base": "1761955101363-0000-devB",
     "lin": [
@@ -31756,7 +31756,7 @@
      "verse": {
       "Q🏸RKͰ": {
        "9": false,
-       "4294967295": 8.503460399806499e-21,
+       "4294967295": 8.50346039e-21,
        "😀": 605.9,
        " Z䖎֬🕨<\u0015Ϳ": -228197
       },
@@ -31785,7 +31785,7 @@
     },
     "fh": {
      "0": "741638a52",
-     "verse": "c39493e355",
+     "verse": "5e152c1c4y",
      "4294967295": "a872004426",
      "order_key": "0b0699585"
     },
@@ -32340,10 +32340,10 @@
     "op": "upsert",
     "schema": 48,
     "fields": {
-     "id": 6.620635625440628e-9
+     "id": 6.62063562e-9
     },
     "fh": {
-     "id": "42ee5a8fk"
+     "id": "f15c8d08d"
     },
     "base": "1761955101393-0000-devB"
    },
@@ -32477,53 +32477,53 @@
   "chunks": [
    {
     "info": {
-     "name": "journal-000000001-000000362.jsonl",
+     "name": "journal-000000001-000000363.jsonl",
      "seqFrom": 1,
-     "seqTo": 362,
-     "bytes": 262142
+     "seqTo": 363,
+     "bytes": 262126
     },
-    "length": 262142,
-    "fnv": "a264fbd0"
+    "length": 262126,
+    "fnv": "7a69879c"
    },
    {
     "info": {
-     "name": "journal-000000363-000000678.jsonl",
-     "seqFrom": 363,
+     "name": "journal-000000364-000000678.jsonl",
+     "seqFrom": 364,
      "seqTo": 678,
-     "bytes": 240090
+     "bytes": 239578
     },
-    "length": 240090,
-    "fnv": "e0c3506d"
+    "length": 239578,
+    "fnv": "d3b67f16"
    },
    {
     "info": {
      "name": "journal-000000679-000001066.jsonl",
      "seqFrom": 679,
      "seqTo": 1066,
-     "bytes": 243855
+     "bytes": 243564
     },
-    "length": 243855,
-    "fnv": "99dfa5e7"
+    "length": 243564,
+    "fnv": "bc00b4f8"
    },
    {
     "info": {
      "name": "journal-000001067-000001322.jsonl",
      "seqFrom": 1067,
      "seqTo": 1322,
-     "bytes": 262125
+     "bytes": 261931
     },
-    "length": 262125,
-    "fnv": "a93dc74a"
+    "length": 261931,
+    "fnv": "868f446d"
    },
    {
     "info": {
      "name": "journal-000001323-000001400.jsonl",
      "seqFrom": 1323,
      "seqTo": 1400,
-     "bytes": 86468
+     "bytes": 86413
     },
-    "length": 86468,
-    "fnv": "a1daf6e5"
+    "length": 86413,
+    "fnv": "458d89b9"
    }
   ]
  },

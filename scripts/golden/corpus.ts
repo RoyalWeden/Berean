@@ -7,7 +7,9 @@
  *                             no longer match what the TypeScript produces (re-export, then run
  *                             `swift test` in Packages/BereanKit).
  *
- * Rules: no clocks, no Math.random, no environment — a seeded PRNG only. Every input travels
+ * Rules: no clocks, no Math.random, no environment — a seeded PRNG only, and only arithmetic that is
+ * exact or correctly rounded in IEEE 754 (no Math.pow/`**` with non-integer results, no Math.sin…), so
+ * every Node version produces identical files. Every input travels
  * through JSON, so inputs are normalised with JSON.parse(JSON.stringify(x)) BEFORE the oracle
  * runs. Strings that must keep unpaired surrogates are carried as UTF-16 code-unit arrays.
  */
@@ -109,7 +111,9 @@ function randomNumber(r: Rng): number {
     case 0: return int(r, 100)
     case 1: return -int(r, 1_000_000)
     case 2: return Math.round(r() * 1e6) / 100
-    case 3: return r() * 10 ** (int(r, 60) - 30)
+    // Built by parsing a decimal string: correctly rounded on every engine. (`x * 10 ** n` is not —
+    // V8 versions differ in Math.pow for negative exponents, which made CI's Node 22 disagree with Node 24.)
+    case 3: return Number(`${int(r, 1_000_000_000)}e${int(r, 60) - 39}`)
     case 4: return Date.UTC(2020, 0, 1) + int(r, 2e11)
     case 5: return pick(r, [0, 1, -1, 0.1, 0.2, 0.3, 1e21, 1e-7, 123e-20, 2 ** 53, 2 ** 53 + 2, Number.MAX_SAFE_INTEGER, Number.MIN_VALUE, Number.MAX_VALUE, -0])
     case 6: return hexF64(Array.from({ length: 8 }, () => int(r, 256).toString(16).padStart(2, '0')).join(''))

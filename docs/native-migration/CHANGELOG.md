@@ -50,3 +50,11 @@
   header now spreads last.
 - **Documentation/parity rows updated:** STATUS, TASKS (statuses + 105-row parity ledger), DECISIONS (ADR-0001…0005, F-01…F-03), HANDOFF.
 - **Next exact action:** open PR, wait for CI `check` + `native`, merge.
+
+### 2026-11-07 18:25 PST — M1-03 — FIX (golden determinism across Node versions)
+- **What failed:** PR #14 CI `check` job: `tests/unit/goldenCorpus.test.ts` reported core-json, sync-hash and journal fixtures stale.
+  The CI runner uses Node 22; the fixtures were exported with Node 24. The corpus built some doubles as `r() * 10 ** n`, and V8
+  versions differ in `Math.pow` for negative exponents, so the inputs themselves differed. (The native job passed.)
+- **Fix:** such numbers are now built by parsing a decimal string (correctly rounded on every engine); the corpus rules forbid
+  non-exact arithmetic; the drift guard now prints the first differing line.
+- **Verified:** drift guard passes under Node 22.23.4 and Node 24.14.0; `swift test` still 23/23.
