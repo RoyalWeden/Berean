@@ -170,3 +170,21 @@
   `DataChange` events for sync capture. `JSON.stableJSON` in BereanCore.
 - Golden `tabs.json`: split/merge for 13 states, stableJson, assignOrderKeys, buildSnapshot of a two-session store, an 11-step service
   script on a migrated DB with a fake clock (raw table dumps, list results, 22 events, diffs, purge) and hydration — all reproduced.
+
+### 2026-11-08 00:40 PST — M6-01/M6-03 (first slice): native app shells on the synced workspace model
+- `apple/Shared/AppModel.swift`: sessions → Spaces → tabs, persisted through BereanWorkspace into a native **dev** library in the app's
+  own container (`Application Support/BereanNative/berean.db`, migrated by BereanStore with a VACUUM INTO backup before upgrades),
+  single-instance flock (OD-5), debounced snapshot saves, device-local active tab per space.
+- Mac (`MacRootView`): NavigationSplitView sidebar of Spaces with vertical tabs (select, reorder, pin, duplicate, move to session, close),
+  session menu (switch/new/rename/delete), detail by tab type (Scripture, Lexicon, Search), study inspector (Lexicon / Cross References),
+  command palette (⌘T/⌘K: reference → Scripture, Strong's → Lexicon, words → Search), menu commands (⌘W, ⌘1–5 Spaces, ⌃Tab).
+  Scripture: 760-pt reading column, verse selection, word replacer restorations, KJV italics/red letter, clickable Strong's numbers, text picker,
+  chapter navigation across books, context menu (copy, cross references, open in new tab), versification notes for LXX numbering.
+- iPhone (`IOSRootView`): bottom tab cards / plus / caret (existing mobile navigation), tab cards sheet grouped by Space with sessions,
+  shared content views; inspector as a sheet.
+- Bundled corpora extended (LXX Brenton, Enoch, Jubilees, cross_references, tske_refs).
+- Verified by driving the running Mac app (System Events + cliclick): ⌘K "John 3:16" opened a new tab at verse 16; Strong's toggle; study
+  panel; clicking a Strong's number showed the lexicon entry with occurrences; quitting and relaunching restored both tabs, the active tab,
+  the selected verse, Strong's and the open panel from the database. iOS Simulator launch shows the reader with the three bottom controls.
+- Known gaps: Notes/YouTube/PDF/Tags/History/Settings/Calendar tab types show an explanatory placeholder (state preserved); no layout presets,
+  multi-pane compare, settings UI, highlights, notes yet; tab back/forward history not yet.

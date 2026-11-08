@@ -31,9 +31,9 @@
 | M5-02 | iPhone Scripture reader and gestures | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
 | M5-03 | Lexicons/crossrefs/compare | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
 | M5-04 | Unified search surfaces | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
-| M6-01 | Mac app shell/navigation/windows | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
+| M6-01 | Mac app shell/navigation/windows | M5 gate or independently safe | IN_PROGRESS | Sidebar Spaces + vertical tabs + sessions + command palette + menus, persisted via synced tables (manually driven + relaunch verified). TODO: tab history, multi-window, layouts, settings. |
 | M6-02 | Mac resizable pane system | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
-| M6-03 | iPhone 3-control tabs/Quick Open | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
+| M6-03 | iPhone 3-control tabs/Quick Open | M5 gate or independently safe | IN_PROGRESS | Bottom tab cards / plus / caret, tab cards sheet with sessions (simulator launch verified). TODO: verse sheet, gestures, Quick Open parity. |
 | M6-04 | Themes, commands, access | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
 | M7-01 | Markdown grammar and goldens | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
 | M7-02 | Native editor research spikes | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
