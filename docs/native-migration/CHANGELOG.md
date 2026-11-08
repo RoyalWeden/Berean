@@ -124,3 +124,7 @@
   The core status view moved to an info sheet.
 - Verified: Mac build + launch (Genesis 1 renders with italics); iOS Simulator (iPhone 17 Pro) build + launch renders Genesis 1.
   Search/navigation not yet driven by UI automation in this session.
+
+### 2026-11-07 18:58 PST — PR #15 merged
+- Merged as `c6531fd` (CI check + native green on head `2de429f`). Local `native/m2-reference` deleted; work continues on
+  `native/m2-continued`.
