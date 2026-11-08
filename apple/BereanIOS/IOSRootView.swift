@@ -28,6 +28,7 @@ struct IOSRootView: View {
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
         .sheet(isPresented: $app.commandPaletteShown) { CommandPalette().presentationDetents([.height(220)]) }
+        .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
     }
 
     @ViewBuilder var content: some View {

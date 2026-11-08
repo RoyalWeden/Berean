@@ -13,7 +13,7 @@
 - Active worktree: `/Users/roywe/Berean-native`, branch `native/m6-shell` → PR #19 (open): WorkspacesService, tab history, Compare mode,
   renderTokens fix. Merge after CI green + local `npm run native:build:mac` (ADR-0007; comment on the PR).
 - Tests last run: `swift test -c release` all suites; drift guard 20/20; Mac + iOS builds OK.
-- Next exact tasks: (1) merge PR #19; (2) [done on native/m6-layouts — merge it]; (3) note version history +
+- Next exact tasks: (1) merge PR #19; (2) [done on native/m6-layouts — PR #20, awaiting Michael's merge: auto-merge was blocked by the permission classifier]; (3) [note versions + Markdown files done on native/m7-markdown — PR stacked on #20]; (3b) note version history +
   vault Markdown goldens (M7-01, src/lib/noteMarkdownFile.ts); (4) verse tags + Study Trail services; (5) M4 sync engine port
   (src/platform/sync/merge.ts, engine.ts) then the Dev container (OD-5); (6) iPhone verse sheet + gestures.
 - Visual QA: move window to {100,60}, `screencapture -R100,60,1200,760` only; sidebar clicks with `cliclick dd:x,y du:x,y`.
@@ -22,3 +22,9 @@
 ## Important constraints
 Never reset/delete an unknown dirty worktree, access production data without authorization, or assume a merged PR means
 functional parity. No `--force` (worktree remove, push), no `branch -D`, no `reset --hard`. Keep log and task state in Git.
+
+## Merge requirements (2026-11-08)
+- `gh pr merge` by Claude is blocked by the auto-mode classifier ("Merge Without Review"); Michael merges native PRs.
+- Merge in the order listed; for stacked PRs merge the lower one first and **wait until GitHub retargets the next PR to main before
+  merging it** — #21 was merged into its already-merged base branch and missed main (re-landed via `native/m7-export`).
+- Before merging: CI green (both jobs) + the local Mac check comment (ADR-0007: `npm run native:build:mac`, Xcode 27).

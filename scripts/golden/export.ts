@@ -13,6 +13,7 @@ import { buildTabsGolden } from './tabs'
 import { buildNotesGolden } from './notes'
 import { buildHighlightsGolden } from './highlights'
 import { buildWorkspacesGolden } from './workspaces'
+import { buildNoteMarkdownGolden } from './noteMarkdown'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -87,3 +88,5 @@ writeFileSync(join(GOLDEN_DIR, 'highlights.json'), serializeGolden(await buildHi
 console.log('highlights.json')
 writeFileSync(join(GOLDEN_DIR, 'workspaces.json'), serializeGolden(await buildWorkspacesGolden()))
 console.log('workspaces.json')
+writeFileSync(join(GOLDEN_DIR, 'note-markdown.json'), serializeGolden(buildNoteMarkdownGolden()))
+console.log('note-markdown.json')

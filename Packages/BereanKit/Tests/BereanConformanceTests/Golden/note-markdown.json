@@ -1,0 +1,600 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/noteMarkdown.ts",
+ "sources": {
+  "src/lib/noteMarkdownFile.ts": "7531cead546bedbf4244dafb8f4155d17f4ddeb572aa4e1121331e9d8c4fbe15",
+  "scripts/golden/noteMarkdown.ts": "e3bf73811815fa0e05d3cb1c9a8f5cd376174d1502a35710cd066797032d6514"
+ },
+ "notes": [
+  {
+   "type": "verse",
+   "title": "Creation",
+   "content": "In the beginning Yehovah created. See [[Exod 20:11]] and [[Exod 20:11]], [[Gen 2:3]].",
+   "verseRef": "GEN.1.1",
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [
+    "creation",
+    "torah"
+   ],
+   "id": "m01"
+  },
+  {
+   "type": "verse",
+   "title": "Psalm",
+   "content": "body",
+   "verseRef": "PSA.23.1",
+   "color": "yellow",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m02",
+   "icon": "📖",
+   "status": "draft",
+   "folderId": "f1"
+  },
+  {
+   "type": "esword",
+   "title": "Imported",
+   "content": "",
+   "verseRef": "JHN.3.16",
+   "color": "teal",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m03"
+  },
+  {
+   "type": "biblegateway",
+   "title": "BG",
+   "content": "x",
+   "verseRef": "ROM.6",
+   "color": "mauve",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m04"
+  },
+  {
+   "type": "verse",
+   "title": "Shifted",
+   "content": "",
+   "verseRef": "RCL3.12.4",
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m05"
+  },
+  {
+   "type": "daily",
+   "title": "Daily — 2026-11-07",
+   "content": "## Reading\n\n- Exodus 20",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m06",
+   "aiExcluded": true
+  },
+  {
+   "type": "general",
+   "title": "Quote \"marks\" \\ and ü — ✓",
+   "content": "[[[nested]] [[a]b]] [[\n]] [[ok]]",
+   "verseRef": null,
+   "color": "",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m07"
+  },
+  {
+   "type": "general",
+   "title": "",
+   "content": "untitled",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [
+    "a b",
+    "c"
+   ],
+   "id": "m08"
+  },
+  {
+   "type": "daily",
+   "title": "no date",
+   "content": "",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m09"
+  },
+  {
+   "type": "verse",
+   "title": "No ref",
+   "content": "v",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m10"
+  },
+  {
+   "type": "verse",
+   "title": "Odd ref",
+   "content": "v",
+   "verseRef": "XYZ.x",
+   "color": "blue",
+   "createdAt": 1762560000000,
+   "updatedAt": 1762563723456,
+   "tags": [],
+   "id": "m11"
+  },
+  {
+   "type": "general",
+   "title": "Old",
+   "content": "c",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 0,
+   "updatedAt": 951782400999,
+   "tags": [],
+   "id": "m12"
+  }
+ ],
+ "exported": [
+  "---\ntype: verse-note\nref: GEN.1.1\ntitle: \"Genesis 1:1\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: [creation, torah]\nverse: \"[[Genesis 1:1]]\"\nbook: Genesis\nchapter: 1\nlinks:\n  - \"[[Exod 20:11]]\"\n  - \"[[Gen 2:3]]\"\nberean_id: m01\n---\n\nIn the beginning Yehovah created. See [[Exod 20:11]] and [[Exod 20:11]], [[Gen 2:3]].",
+  "---\ntype: verse-note\nref: PSA.23.1\ntitle: \"Psalms 23:1\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\ncolor: 🟡\nicon: 📖\nstatus: draft\nverse: \"[[Psalms 23:1]]\"\nbook: Psalms\nchapter: 23\nberean_id: m02\nfolder_id: f1\n---\n\nbody",
+  "---\ntype: verse-note\nref: JHN.3.16\nsource: esword\ntitle: \"John 3:16\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\ncolor: 🟢\nverse: \"[[John 3:16]]\"\nbook: John\nchapter: 3\nberean_id: m03\n---\n\n",
+  "---\ntype: verse-note\nref: ROM.6\nsource: biblegateway\ntitle: \"Romans 6:\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\ncolor: 🔵\nverse: \"[[Romans 6:]]\"\nbook: Romans\nchapter: 6\nberean_id: m04\n---\n\nx",
+  "---\ntype: verse-note\nref: RCL3.12.4\ntitle: \"Recognitions, Book 3 22:4\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\nverse: \"[[Recognitions, Book 3 22:4]]\"\nbook: Recognitions, Book 3\nchapter: 12\nberean_id: m05\n---\n\n",
+  "---\ntype: daily-note\ntitle: \"Daily — 2026-11-07\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\ndate: 2026-11-07\nberean_id: m06\nai_excluded: true\n---\n\n## Reading\n\n- Exodus 20",
+  "---\ntype: general-note\ntitle: \"Quote \\\"marks\\\" \\\\ and ü — ✓\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\nlinks:\n  - \"[[[nested]]\"\n  - \"[[\n]]\"\n  - \"[[ok]]\"\nberean_id: m07\n---\n\n[[[nested]] [[a]b]] [[\n]] [[ok]]",
+  "---\ntype: general-note\ntitle: \"Untitled\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: [a b, c]\nberean_id: m08\n---\n\nuntitled",
+  "---\ntype: daily-note\ntitle: \"no date\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\nberean_id: m09\n---\n\n",
+  "---\ntype: verse-note\ntitle: \"No ref\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\nberean_id: m10\n---\n\nv",
+  "---\ntype: verse-note\nref: XYZ.x\ntitle: \"XYZ NaN:\"\ncreated: 2025-11-08T00:00:00.000Z\nupdated: 2025-11-08T01:02:03.456Z\ntags: []\nverse: \"[[XYZ NaN:]]\"\nbook: XYZ\nchapter: x\nberean_id: m11\n---\n\nv",
+  "---\ntype: general-note\ntitle: \"Old\"\ncreated: 1970-01-01T00:00:00.000Z\nupdated: 2000-02-29T00:00:00.999Z\ntags: []\nberean_id: m12\n---\n\nc"
+ ],
+ "roundTrip": [
+  {
+   "bereanId": "m01",
+   "type": "verse",
+   "title": "Genesis 1:1",
+   "content": "In the beginning Yehovah created. See [[Exod 20:11]] and [[Exod 20:11]], [[Gen 2:3]].",
+   "tags": [
+    "creation",
+    "torah"
+   ],
+   "verseRef": "GEN.1.1",
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m02",
+   "type": "verse",
+   "title": "Psalms 23:1",
+   "content": "body",
+   "tags": [],
+   "verseRef": "PSA.23.1",
+   "color": "yellow",
+   "icon": "📖",
+   "status": "draft",
+   "folderId": "f1"
+  },
+  {
+   "bereanId": "m03",
+   "type": "esword",
+   "title": "John 3:16",
+   "content": "",
+   "tags": [],
+   "verseRef": "JHN.3.16",
+   "color": "green",
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m04",
+   "type": "biblegateway",
+   "title": "Romans 6:",
+   "content": "x",
+   "tags": [],
+   "verseRef": "ROM.6",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m05",
+   "type": "verse",
+   "title": "Recognitions, Book 3 22:4",
+   "content": "",
+   "tags": [],
+   "verseRef": "RCL3.12.4",
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m06",
+   "type": "daily",
+   "title": "Daily — 2026-11-07",
+   "content": "## Reading\n\n- Exodus 20",
+   "tags": [],
+   "verseRef": null,
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null,
+   "aiExcluded": true
+  },
+  {
+   "bereanId": "m07",
+   "type": "general",
+   "title": "Quote \"marks\" \\ and ü — ✓",
+   "content": "[[[nested]] [[a]b]] [[\n]] [[ok]]",
+   "tags": [],
+   "verseRef": null,
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m08",
+   "type": "general",
+   "title": "Untitled",
+   "content": "untitled",
+   "tags": [
+    "a b",
+    "c"
+   ],
+   "verseRef": null,
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m09",
+   "type": "daily",
+   "title": "no date",
+   "content": "",
+   "tags": [],
+   "verseRef": null,
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m10",
+   "type": "verse",
+   "title": "No ref",
+   "content": "v",
+   "tags": [],
+   "verseRef": null,
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m11",
+   "type": "verse",
+   "title": "XYZ NaN:",
+   "content": "v",
+   "tags": [],
+   "verseRef": "XYZ.x",
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  },
+  {
+   "bereanId": "m12",
+   "type": "general",
+   "title": "Old",
+   "content": "c",
+   "tags": [],
+   "verseRef": null,
+   "color": null,
+   "icon": null,
+   "status": null,
+   "folderId": null
+  }
+ ],
+ "parsed": [
+  {
+   "input": "---\r\ntype: verse-note\r\nref: GEN.1.1\r\ntitle: \"Gen 1:1\"\r\ntags: [x, , y ]\r\ncolor: 🟢\r\nberean_id: abc\r\n---\r\n\r\nBody\r\n",
+   "output": {
+    "bereanId": "abc",
+    "type": "verse",
+    "title": "Gen 1:1",
+    "content": "Body",
+    "tags": [
+     "x",
+     "y"
+    ],
+    "verseRef": "GEN.1.1",
+    "color": "green",
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "﻿---\ntype: daily-note\ntitle: plain title\nai_excluded: true\nfolder_id: f9\n---\nno blank line",
+   "output": {
+    "bereanId": null,
+    "type": "daily",
+    "title": "plain title",
+    "content": "no blank line",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": "f9",
+    "aiExcluded": true
+   }
+  },
+  {
+   "input": "---\nsource: esword\ntype: verse-note\ntitle: \"unterminated\ncolor: Red\n---\n\n\n\nthree newlines",
+   "output": {
+    "bereanId": null,
+    "type": "esword",
+    "title": "unterminated",
+    "content": "three newlines",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\nsource: biblegateway\ntitle: \"\ncolor: teal\nicon: ✝\nstatus: done\n---\n\nx",
+   "output": {
+    "bereanId": null,
+    "type": "biblegateway",
+    "title": "Fallback",
+    "content": "x",
+    "tags": [],
+    "verseRef": null,
+    "color": "teal",
+    "icon": "✝",
+    "status": "done",
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\ntype: general-note\ntitle: \"\"\n---\n\n<!-- berean:highlight-preview -->\n> quoted\n<!-- /berean:highlight-preview -->\n\nAfter preview\n<!-- berean:highlight-preview -->kept<!-- /berean:highlight-preview -->",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Fallback",
+    "content": "After preview\n<!-- berean:highlight-preview -->kept<!-- /berean:highlight-preview -->",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\n---\nnot frontmatter",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "---",
+    "content": "---\n---\nnot frontmatter",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\n\n---\nempty frontmatter",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Fallback",
+    "content": "empty frontmatter",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\nweird key: x\n_ok_: y\nline: a b\nline2:  c\ntitle:   spaced   \n---\nz",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "spaced",
+    "content": "z",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "# Heading Title\n\nParagraph one.",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Heading Title",
+    "content": "Paragraph one.",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "\n\n  First line  \nsecond",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "First line",
+    "content": "First line  \nsecond",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "x# T\n# T\nrest",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "T",
+    "content": "x\n# T\nrest",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "#\nTitle on next line",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Title on next line",
+    "content": "",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "#   \n",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "",
+    "content": "",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "   \n\t\n",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Fallback",
+    "content": "",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Fallback",
+    "content": "",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\ntype: verse-note\nno closing",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "---",
+    "content": "---\ntype: verse-note\nno closing",
+    "tags": [],
+    "verseRef": null,
+    "color": null,
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  },
+  {
+   "input": "---\ntags: [solo]\ncolor: 🟠\ntype: other\n---\n\nxxxxx",
+   "output": {
+    "bereanId": null,
+    "type": "general",
+    "title": "Fallback",
+    "content": "xxxxx",
+    "tags": [
+     "solo"
+    ],
+    "verseRef": null,
+    "color": "orange",
+    "icon": null,
+    "status": null,
+    "folderId": null
+   }
+  }
+ ],
+ "names": [
+  "Creation.md",
+  "Psalm.md",
+  "Imported.md",
+  "BG.md",
+  "Shifted.md",
+  "Daily — 2026-11-07.md",
+  "Quote marks and ü — ✓.md",
+  "m08.md",
+  "no date.md",
+  "No ref.md",
+  "Odd ref.md",
+  "Old.md",
+  "a b c d e f g h i j.md",
+  "zz.md",
+  "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé.md",
+  "a b c.md"
+ ]
+}

@@ -23,6 +23,17 @@ public struct Note: Equatable, Sendable, Identifiable {
     public var pinned, aiExcluded: Bool
 
     public var displayTitle: String { title.isEmpty ? "Untitled" : title }
+
+    public init(id: String, type: String, title: String, content: String, verseRef: String?, color: String, icon: String?, status: String?,
+                createdAt: Int64, updatedAt: Int64, tags: [String], importedAt: Int64?, folderId: String?, textId: String,
+                idiomTerm: String?, idiomMeaning: String?, idiomAliases: [String]?, idiomAutoVariants: Bool, idiomData: JSValue?,
+                deletedAt: Int64?, pinned: Bool, aiExcluded: Bool) {
+        self.id = id; self.type = type; self.title = title; self.content = content; self.verseRef = verseRef; self.color = color
+        self.icon = icon; self.status = status; self.createdAt = createdAt; self.updatedAt = updatedAt; self.tags = tags
+        self.importedAt = importedAt; self.folderId = folderId; self.textId = textId; self.idiomTerm = idiomTerm
+        self.idiomMeaning = idiomMeaning; self.idiomAliases = idiomAliases; self.idiomAutoVariants = idiomAutoVariants
+        self.idiomData = idiomData; self.deletedAt = deletedAt; self.pinned = pinned; self.aiExcluded = aiExcluded
+    }
 }
 
 public struct NoteFolder: Equatable, Sendable, Identifiable {
@@ -30,6 +41,20 @@ public struct NoteFolder: Equatable, Sendable, Identifiable {
     public var parentId: String?
     public var createdAt: Int64
     public var aiExcluded: Bool
+}
+
+/// One saved snapshot of a note (`note_versions` row).
+public struct NoteVersion: Equatable, Sendable, Identifiable {
+    public var id, noteId, title, content, kind: String
+    public var createdAt: Int64
+}
+
+public enum NoteVersionResult: Equatable, Sendable {
+    case created(id: String), skipped
+}
+
+public enum NoteRestoreResult: Equatable, Sendable {
+    case restored(content: String), versionNotFound, noteNotFound
 }
 
 public enum NotesWordMode: String, Sendable { case all, any, phrase }
@@ -303,6 +328,91 @@ public final class NotesService: @unchecked Sendable {
         try db.run("UPDATE notes SET \(fields.joined(separator: ", ")) WHERE id = ?", values)
         onChange("note", id, "upsert")
         return true
+    }
+
+    public func setAiExcluded(_ noteId: String, _ excluded: Bool) throws {
+        try db.run("UPDATE notes SET ai_excluded = ? WHERE id = ?", [.integer(excluded ? 1 : 0), .text(noteId)])
+        onChange("note", noteId, "upsert")
+    }
+
+    public enum ImportOutcome: Equatable, Sendable { case created(String), updated(String) }
+
+    /// Imports one Markdown file as the iPhone Notes "Import" does (NotesHomePage.importMarkdown): a file whose
+    /// `berean_id` names an existing (not trashed) note updates it; anything else becomes a new note. The file
+    /// name minus .md/.markdown/.txt is the fallback title. `ai_excluded: true` is applied, never cleared.
+    @discardableResult
+    public func importMarkdown(_ text: String, fileName: String) throws -> ImportOutcome {
+        var base = fileName
+        for ext in [".md", ".markdown", ".txt"] where base.lowercased().hasSuffix(ext) { base = String(base.dropLast(ext.count)); break }
+        let p = NoteMarkdownFile.parse(text, fallbackTitle: base)
+        if let id = p.bereanId, let existing = try one(id), existing.deletedAt == nil {
+            _ = try update(existing.id, .init(title: p.title, content: p.content, color: p.color, icon: p.icon.map { .some($0) }, tags: p.tags))
+            if p.aiExcluded == true { try setAiExcluded(existing.id, true) }
+            return .updated(existing.id)
+        }
+        let note = try create(.init(type: p.type, title: p.title, content: p.content, verseRef: p.verseRef, color: p.color, icon: p.icon, tags: p.tags)).note
+        if p.aiExcluded == true { try setAiExcluded(note.id, true) }
+        return .created(note.id)
+    }
+
+    // MARK: version history (createVersion / getVersions / restoreVersion in notesService.ts)
+
+    /// Snapshots a note unless the content equals its latest snapshot. `kind`: auto, manual (pre-restore is internal).
+    @discardableResult
+    public func createVersion(noteId: String, title: String, content: String, kind: String = "auto") throws -> NoteVersionResult {
+        if let last = try db.query("SELECT content FROM note_versions WHERE note_id = ? ORDER BY created_at DESC LIMIT 1", [.text(noteId)]).first,
+           last.values[0].string == content { return .skipped }
+        let id = uuid()
+        try db.run("INSERT INTO note_versions (id, note_id, title, content, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                   [.text(id), .text(noteId), .text(title), .text(content), .text(kind), .integer(now())])
+        try pruneVersions(noteId)
+        onChange("note_version", id, "upsert")
+        return .created(id: id)
+    }
+
+    public func versions(of noteId: String) throws -> [NoteVersion] {
+        try db.query("SELECT * FROM note_versions WHERE note_id = ? ORDER BY created_at DESC", [.text(noteId)]).map { r in
+            NoteVersion(id: r["id"]?.string ?? "", noteId: r["note_id"]?.string ?? "", title: r["title"]?.string ?? "",
+                        content: r["content"]?.string ?? "", kind: r["kind"]?.string ?? "", createdAt: Self.i64(r["created_at"]) ?? 0)
+        }
+    }
+
+    /// Restores a version's content, first snapshotting the current content as `pre-restore` so it can be undone.
+    @discardableResult
+    public func restoreVersion(noteId: String, versionId: String) throws -> NoteRestoreResult {
+        guard let ver = try db.query("SELECT * FROM note_versions WHERE id = ?", [.text(versionId)]).first else { return .versionNotFound }
+        guard let cur = try db.query("SELECT title, content FROM notes WHERE id = ?", [.text(noteId)]).first else { return .noteNotFound }
+        let content = ver["content"]?.string ?? ""
+        if cur["content"]?.string != ver["content"]?.string {
+            let pre = uuid()
+            try db.run("INSERT INTO note_versions (id, note_id, title, content, kind, created_at) VALUES (?, ?, ?, ?, 'pre-restore', ?)",
+                       [.text(pre), .text(noteId), cur["title"]?.string.map { .text($0) } ?? .null, Self.t(cur["content"]?.string), .integer(now())])
+            onChange("note_version", pre, "upsert")
+        }
+        try db.run("UPDATE notes SET content = ?, updated_at = ? WHERE id = ?", [Self.t(ver["content"]?.string), .integer(now()), .text(noteId)])
+        try pruneVersions(noteId)
+        onChange("note", noteId, "upsert")
+        return .restored(content: content)
+    }
+
+    /// Keep everything from the last 7 days, then one (newest) per UTC day, always the newest and manual /
+    /// pre-restore snapshots — capped at 50 in all.
+    func pruneVersions(_ noteId: String) throws {
+        let rows = try db.query("SELECT id, kind, created_at FROM note_versions WHERE note_id = ? ORDER BY created_at DESC", [.text(noteId)])
+        guard rows.count > 50 else { return }
+        let weekAgo = now() - 7 * 24 * 60 * 60 * 1000
+        var keep = Set<String>(), seenDay = Set<String>()
+        for (i, r) in rows.enumerated() {
+            let id = r["id"]?.string ?? "", kind = r["kind"]?.string ?? "", at = Self.i64(r["created_at"]) ?? 0
+            if i == 0 || kind == "manual" || kind == "pre-restore" || at >= weekAgo { keep.insert(id); continue }
+            let day = String(JSDate.isoString(at).prefix(10))
+            if seenDay.insert(day).inserted { keep.insert(id) }
+        }
+        let finalKeep = Set(rows.compactMap { $0["id"]?.string }.filter { keep.contains($0) }.prefix(50))
+        let toDelete = rows.compactMap { $0["id"]?.string }.filter { !finalKeep.contains($0) }
+        if !toDelete.isEmpty {
+            try db.run("DELETE FROM note_versions WHERE id IN (\(Array(repeating: "?", count: toDelete.count).joined(separator: ", ")))", toDelete.map { .text($0) })
+        }
     }
 
     /// Soft delete (Trash).

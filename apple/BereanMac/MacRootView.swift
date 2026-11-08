@@ -44,6 +44,7 @@ struct MacRootView: View {
             detail
         }
         .sheet(isPresented: $app.commandPaletteShown) { CommandPalette() }
+        .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
             Button("OK") { app.libraryError = nil }
         } message: { Text(app.libraryError ?? "") }

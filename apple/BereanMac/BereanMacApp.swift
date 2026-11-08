@@ -23,6 +23,11 @@ struct BereanMacApp: App {
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("New Session") { app.newSession() }.keyboardShortcut("n", modifiers: [.command, .shift, .option])
             }
+            CommandGroup(replacing: .importExport) {
+                Button("Import Markdown…") { app.importMarkdownFiles() }
+                Button("Export Note as Markdown…") { app.exportActiveNote() }.keyboardShortcut("e", modifiers: [.command, .shift])
+                    .disabled(app.activeNoteId == nil)
+            }
             CommandMenu("Go") {
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)
                 Button("Forward") { app.goForward() }.keyboardShortcut("]").disabled(!app.canGoForward)
