@@ -59,7 +59,7 @@
   non-exact arithmetic; the drift guard now prints the first differing line.
 - **Verified:** drift guard passes under Node 22.23.4 and Node 24.14.0; `swift test` still 23/23.
 
-### 2026-11-07 19:05 PST — M2-01 (first part) / M1-02 — IMPLEMENTED (branch `native/m2-reference`, CI pending)
+### 2026-11-07 17:59 PST — M2-01 (first part) / M1-02 — IMPLEMENTED (branch `native/m2-reference`, CI pending)
 - **Code changed:** `Packages/BereanKit/Sources/BereanReference` (parseRef grammar, book tokens incl. fuzzy fallback,
   labels, canonical forms, Hermas sections, RCL3 chapter numbering); `BereanCore/JSText.swift` (JS trim/whitespace/parseInt/
   Number); `scripts/golden/swiftTables.ts` generates `Generated/ReferenceTables.swift` from the TypeScript tables (drift-guarded);
@@ -75,7 +75,7 @@
 - **Next exact action:** after PR #14 merges, open the PR for `native/m2-reference`; then Strong's ids (`strongsId.ts`),
   `findReferencesInText`, tagged tokens / DisplayMap (M2-02).
 
-### 2026-11-07 19:30 PST — M0-02 — VERIFIED (cleanup complete)
+### 2026-11-07 18:03 PST — M0-02 — VERIFIED (cleanup complete)
 - PR #13 (docs-only archive of the benchmark REPORT.md) merged as `a4e3d74`; worktree `Berean-docs-archive` removed and branch deleted.
 - `Berean-ai-bench`: untracked `scripts/eval/bench/` and ignored `out/` verified byte-identical to `~/Berean-backups/cleanup-2026-11-07/
   ai-bench.untracked.tgz` / `ai-bench.ignored-unique.tgz` (only a regenerable `__pycache__` was not archived); no file newer than the
