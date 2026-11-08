@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildGoldenCorpus, GOLDEN_DIR, serializeGolden } from '../../scripts/golden/corpus'
 import { buildReferenceTablesSwift, SWIFT_TABLES_PATH } from '../../scripts/golden/swiftTables'
+import { buildBibleGolden } from '../../scripts/golden/bible'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -24,4 +25,10 @@ describe('golden corpus', () => {
   it('ReferenceTables.swift matches src/lib/parseRef.ts', () => {
     expect(existsSync(SWIFT_TABLES_PATH) && readFileSync(SWIFT_TABLES_PATH, 'utf8') === buildReferenceTablesSwift(), 'ReferenceTables.swift is stale — run npm run golden:export').toBe(true)
   })
+  it('bible.json matches the TypeScript Bible service (skipped without data/*.db)', async () => {
+    const bible = await buildBibleGolden()
+    if (!bible) return
+    const path = join(GOLDEN_DIR, 'bible.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(bible), 'bible.json is stale — run npm run golden:export').toBe(true)
+  }, 120_000)
 })

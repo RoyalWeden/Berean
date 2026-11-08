@@ -70,6 +70,13 @@ jobs:
       - name: Toolchain
         run: xcodebuild -version && swift --version
 
+      # The Bible-service conformance tests read the bundled text databases (read-only).
+      - name: Download Bible/lexicon databases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download data-v1 --dir data --pattern "*.db" --clobber
+
       # Golden fixtures are committed; the TypeScript drift guard runs in the check job.
       - name: BereanKit conformance tests
         run: npm run native:test
