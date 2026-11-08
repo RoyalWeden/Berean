@@ -22,12 +22,15 @@ struct BereanMacApp: App {
                 Button("Go to Reference…") { app.commandPaletteShown = true }.keyboardShortcut("l")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
-                Button("New Session") { app.newSession() }.keyboardShortcut("0", modifiers: [.command, .shift])
+                Button("New Workspace") { app.newWorkspace() }.keyboardShortcut("0", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .importExport) {
                 Button("Import Markdown…") { app.importMarkdownFiles() }
                 Button("Export Note as Markdown…") { app.exportActiveNote() }.keyboardShortcut("e", modifiers: [.command, .shift])
                     .disabled(app.activeNoteId == nil)
+            }
+            CommandGroup(before: .toolbar) {
+                Button("Toggle Sidebar") { app.sidebarToggleRequest += 1 }.keyboardShortcut("s", modifiers: [.command, .control])
             }
             CommandMenu("Go") {
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)

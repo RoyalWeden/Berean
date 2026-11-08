@@ -232,3 +232,34 @@ a session control in the header, a location field, "+ New Tab", and **one tab li
 
 **Compatibility.** No stored structure changed. The display order, pins, archived groups and workspace v2 JSON
 use the existing columns and shapes.
+
+### ADR-0011 — One user-facing "Workspace" over the existing sessions + saved workspaces (2026-11-08, owner request)
+**Decision.** The UI shows one list of **Workspaces**. A live workspace is a `sessions` row; a saved workspace that is not open is a
+`workspaces` row (a frozen v2 snapshot). Opening a saved one creates its session `ws:<id>`. From then on only the live entry is listed,
+so nothing appears twice.
+
+**Actions:**
+- New: a session named "Workspace N".
+- Rename: the session, plus its linked snapshot.
+- Duplicate: a new session with fresh tab ids, the same states and order.
+- Delete: the session plus its linked snapshot, or a snapshot that is not open. The last live workspace cannot be deleted.
+- Save Snapshot… (secondary): writes a `workspaces` row.
+
+**Compatibility.** No table is merged, rewritten or deleted. Old clients still see their sessions and Settings → Workspaces rows. The
+storage unification is deferred until legacy clients retire (recorded in TASKS).
+
+### ADR-0012 — Mac sidebar rows in the Arc/Yab style (2026-11-08, owner request)
+**Reference.** The Yab manual (sidebar: window buttons, back/forward, pinned, tabs; density; edge resize). Yab was inspected installed
+locally. Its manual does not describe the active-tab look; the owner's reference is the familiar Arc/Yab treatment: a raised, rounded,
+near-white card on the translucent sidebar (light) or a lighter translucent card (dark), a soft hover fill, and a close × on hover.
+
+**Decision.**
+- A custom row (`SidebarTabRow`) replaces `List` selection: corner radius 10 (continuous), height 34, 13-pt text, type-coloured symbol,
+  shadow 1.5.
+- Live drag reordering: the row moves as the pointer enters a target (snappy 0.18 s); dropping into the pinned group pins the tab, and
+  dropping outside it unpins.
+- Empty sidebar space moves the window (AppKit `performDrag`; double-click zooms). The drag area stops at the title bar so the toolbar's
+  sidebar button keeps its clicks.
+- Back / Forward sit beside the system sidebar button and stay there when the sidebar is collapsed; ⌃⌘S toggles the sidebar.
+
+**Not yet matched.** Pinned tabs as a grid of squares, edge-hover reveal of a hidden sidebar, density setting, hover preview cards.

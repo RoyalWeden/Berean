@@ -170,3 +170,22 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 - Next ready: M1-02 remainder, M1-03 reference goldens, M2-01 BereanReference
 - Gate: G1 (native Mac+iOS compile/launch in dev identity, golden pipeline repeatable, no production write surfaces)
 - Blocking decision: none for M1–M3
+
+## Owner UI batch 2026-11-08 (explicit tasks)
+| ID | Task | Status | Evidence / next |
+|---|---|---|---|
+| UI-01 | Share caret removed | DONE | menuIndicator(.hidden) |
+| UI-02 | Modern Scripture typography (system font, setting) | DONE | screenshot, CHANGELOG 13:30 |
+| UI-03 | Verse numbers / Strong's visibly clickable | DONE (Mac) | hover underline + pointer + click verified; iPhone rows TODO |
+| UI-04 | Back/Forward beside sidebar button, visible when collapsed | DONE | verified |
+| UI-05 | Window drag from empty sidebar | DONE | verified (position changed) |
+| UI-06 | No "Sessions" wording; unified Workspaces | DONE (Mac) | ADR-0011; iPhone in UI-14 |
+| UI-07 | Yab-style rows + active highlight | DONE (first pass) | ADR-0012; pinned grid, density, edge reveal TODO |
+| UI-08 | Smooth drag reordering | DONE (live reorder) | auto-scroll near edges and drop line TODO |
+| UI-09 | Passage navigator: history, internal back, all-text search, texts column | DONE | Enoch search → 1 Enoch 6 verified |
+| UI-10 | Consolidated texts (one KJV, one LXX) + lxx→Brenton mapping fix | DONE | CHANGELOG 13:30 |
+| UI-11 | Continuous cross-verse selection + copy formats | DONE (Mac) | Lev 8:2-4 copy verified; iPhone TODO |
+| UI-12 | Rich-text note editor (no visible Markdown), Copy as Plain Text | TODO | next |
+| UI-13 | Physical iPhone workflow | TODO | |
+| UI-14 | iPhone navigation simplification + Plus fix + Workspaces wording | TODO | |
+| UI-15 | Storage unification of sessions/workspaces | DEFERRED | until legacy clients retire (ADR-0011) |

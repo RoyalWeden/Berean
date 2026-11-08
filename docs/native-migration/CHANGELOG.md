@@ -369,3 +369,14 @@
 - **Toolbar:** Back / Forward (the active tab's history) sit beside the sidebar button for every tab type and stay put when the sidebar is
   collapsed; the chapter pill keeps ‹ ›.
 - **Note Share:** the dropdown caret is hidden (`menuIndicator(.hidden)`), with a VoiceOver label.
+
+### 2026-11-08 14:45 PST — Unified Workspaces (ADR-0011), Yab-style sidebar (ADR-0012), window drag, sidebar toggle
+- Workspace switcher with no "Sessions" wording: one list (live, then saved-not-open), each with a tab count and a checkmark; New, Rename,
+  Duplicate, Save Snapshot…, Delete (with confirm), Manage Saved ▸. ⌘⇧0 = New Workspace. Tab menu: "Move to Workspace".
+- `BereanSidebar` replaces the List sidebar: raised active-tab card, hover fill, close on hover, live drag reordering (drop into Pinned to pin).
+- Verified in the running app:
+  - drag "Untitled" from 5th to 1st → order changed, the active tab and the window position unchanged;
+  - dragging empty space below the tabs moved the window (100,60 → 200,100);
+  - Duplicate → "Study Copy" with the same 9 tabs, order and active tab; Delete → confirm → back to "Study";
+  - the sidebar button hides and shows the sidebar, and Back / Forward stay beside it.
+- BUG FOUND + FIXED: a full-height drag area swallowed clicks on the title-bar sidebar button; it is now limited to below the title bar.
