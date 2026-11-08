@@ -20,7 +20,9 @@ for t in ("BereanMac", "BereanIOS"):
     T[t]["corpora"] = nid()
 # Bundled text databases copied into the dev apps (gitignored in data/; `npm run setup:worktree`
 # links them, CI downloads them). Read-only corpora only — never a user database.
-CORPORA = ["kjva", "kjv", "lxx", "lxx_brenton", "enoch", "jubilees", "strongs_hebrew", "strongs_greek", "cross_references", "tske_refs"]
+CORPORA = ["kjva", "kjv", "lxx_brenton", "enoch", "jubilees", "apoc_elijah", "recog_clement", "hermas", "hermas_taylor", "asc_isaiah",
+           "ep_barnabas", "t12p", "gad", "t_job", "1clement", "apoc_abraham", "didache_hoole", "t_jacob", "2baruch",
+           "strongs_hebrew", "strongs_greek", "cross_references", "tske_refs"]
 for t in ("BereanMac", "BereanIOS"):
     for prod in PRODUCTS:
         T[t]["dep" + prod] = nid()

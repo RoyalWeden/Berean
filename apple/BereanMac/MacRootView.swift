@@ -24,6 +24,15 @@ struct MacRootView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
         } detail: {
             detail
+                .toolbar {
+                    // Back / Forward of the active tab, next to the sidebar button; they stay put when the sidebar is collapsed.
+                    ToolbarItemGroup(placement: .navigation) {
+                        Button { app.goBack() } label: { Label("Back", systemImage: "arrow.left") }
+                            .disabled(!app.canGoBack).help("Back (⌘[)")
+                        Button { app.goForward() } label: { Label("Forward", systemImage: "arrow.right") }
+                            .disabled(!app.canGoForward).help("Forward (⌘])")
+                    }
+                }
         }
         .sheet(isPresented: $app.commandPaletteShown) { CommandPalette() }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }

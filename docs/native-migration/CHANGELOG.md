@@ -333,3 +333,39 @@
 - Checks: Swift 62 tests/25 suites PASS; golden drift guard 22/22 PASS; Mac + iOS builds PASS.
 - Found while testing: Return in `.searchable` inside a macOS sheet does nothing (`onSubmit(of: .search)` never fires), and the field
   was not focused, so typing went nowhere. Replaced with a focused TextField.
+
+### 2026-11-08 13:30 PST — Continuous reader, passage navigator, texts, typography, toolbar (owner batch "UI refinement")
+- **Continuous Mac reader** (`apple/BereanMac/ChapterTextView.swift`): one TextKit text view per chapter, so a selection can cross verses.
+  - Verse numbers, Strong's numbers and tag chips are links: pointing-hand cursor, hover underline, tooltip.
+  - Clicking a verse number opens the verse actions (Copy, Highlight ▸, Tag Verse/Chapter, Add Note, Verse Notes, Cross References,
+    Open in New Tab); clicking a Strong's number opens the lexicon; clicking a tag chip opens remove/search.
+  - Right-clicking text gives the verse actions plus Copy / Copy as Plain Text.
+  - Copy follows the existing app (ChapterView.tsx):
+    - within one verse → the selected words;
+    - across verses → "Book c:v1-v2" + numbered lines;
+    - ⌘⇧C → plain text on one line.
+  - Gutter numbers, Strong's numbers and chips are never copied as text.
+  - Highlights (whole verse and character ranges), red letters, italics, note dots and verse tags are kept.
+  - Verified: shift-click selection Lev 8:2→4 copied as "Leviticus 8:2-4" + 3 lines; ⌘⇧C plain; a partial selection inside a verse copied
+    only those words; a Strong's click opened H3068; a verse-number click opened the menu.
+  - Two AppKit-in-SwiftUI issues worked around (verified by file logging): SwiftUI's Edit ▸ Copy never reaches a hosted NSTextView, so ⌘C
+    and ⌘⇧C are handled in the reader's performKeyEquivalent; the built-in link-click delegate did not fire, so single clicks on links
+    are dispatched in mouseDown.
+  - iPhone keeps per-verse rows for now.
+- **Passage navigator** (replaces the book/chapter popover):
+  - Left: one search field over every book of every text plus references ("Go to"), and History of recently opened passages
+    (deduped by text + book + chapter, 40, per device).
+  - Middle: books → chapters, with an internal ‹ Books back button (⌘←).
+  - Right: the text list.
+  - A book found in another text switches text; a reference stays in the current text when that text has the book.
+  - The iPhone uses it as a sheet (compact layout with a text picker).
+- **Texts:** the native list is now the existing app's TRANSLATIONS (one KJV + Apocrypha, one Septuagint, and every extra-biblical text).
+  `kjv` is hidden but still opens.
+  - **Data-parity BUG FIXED:** the native app served textId `lxx` from `lxx.db`; the existing app serves it from `lxx_brenton.db`
+    (electron/db/bible.ts). `Corpora` now maps it the same way.
+  - All 19 text databases are bundled. The separate toolbar text menu was removed; the pill shows "Leviticus 8 KJVA".
+- **Typography:** Scripture defaults to the system font (the existing `scriptureFontFamily` setting, 'system'); Settings → Scripture font
+  (System, Georgia, Palatino, New York, Sans-serif, Monospace).
+- **Toolbar:** Back / Forward (the active tab's history) sit beside the sidebar button for every tab type and stay put when the sidebar is
+  collapsed; the chapter pill keeps ‹ ›.
+- **Note Share:** the dropdown caret is hidden (`menuIndicator(.hidden)`), with a VoiceOver label.

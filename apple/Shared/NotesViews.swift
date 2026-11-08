@@ -160,6 +160,8 @@ struct NoteDetailView: View {
                         Button("Copy as Markdown") { copyMarkdown() }
                         ShareLink(item: NoteMarkdownFile.markdown(for: note)) { Text("Share…") }
                     } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                    .menuIndicator(.hidden)
+                    .accessibilityLabel("Share note")
                     .help("Export, copy or share this note as Markdown")
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
                     Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }

@@ -17,6 +17,7 @@ struct ScriptureView: View {
     @State private var noteCounts: [Int: Int] = [:]
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
+    @State private var scrollTarget: Int?
     @State private var verseTags: [Int: [TagLite]] = [:]
     @State private var chapterTags: [TagLite] = []
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
@@ -29,62 +30,19 @@ struct ScriptureView: View {
             if st.compareMode { CompareView(tabId: tabId) } else { chapterBody(st) }
         }
         .navigationTitle(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))
-        .navigationSubtitleCompat(st.compareMode ? "Compare" : (availableTexts.first { $0.id == st.translation }?.name ?? st.translation))
+        .navigationSubtitleCompat(st.compareMode ? "Compare" : (textInfo(st.translation).name))
         .toolbar { toolbar(st) }
     }
 
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    if let note = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation) {
-                        Text(note).font(.callout).foregroundStyle(.secondary).padding(.bottom, 6)
-                    }
-                    if !chapterTags.isEmpty {
-                        FlowChips(tags: chapterTags) { t in removeMenu(t, bookId: st.bookId, chapter: st.chapter, verse: nil) }
-                            .padding(.horizontal, 8).padding(.bottom, 4)
-                            .accessibilityLabel("Chapter tags")
-                    }
-                    ForEach(verses, id: \.verseNum) { v in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Menu {
-                                verseActions(v, st)
-                            } label: {
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("\(v.verseNum)").font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(.secondary)
-                                    if let n = noteCounts[v.verseNum] {
-                                        Text(n > 1 ? "●\(n)" : "●").font(.system(size: 8)).foregroundStyle(.tint)
-                                    }
-                                }
-                                .frame(minWidth: 22, alignment: .trailing)
-                            }
-                            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                            .simultaneousGesture(TapGesture().onEnded { selectedVerse = v.verseNum })
-                            .help("Verse actions: highlight, tag, note, copy…")
-                            .accessibilityLabel("Verse \(v.verseNum) actions")
-                            VStack(alignment: .leading, spacing: 2) {
-                                VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs, highlights: (highlights[v.verseNum] ?? []).filter { $0.startChar != nil },
-                                             fontSize: app.fontSize, lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled)
-                                if let tags = verseTags[v.verseNum], !tags.isEmpty {
-                                    FlowChips(tags: tags) { t in removeMenu(t, bookId: v.bookId, chapter: v.chapter, verse: v.verseNum) }
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.vertical, 3).padding(.horizontal, 8)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(rowTint(v.verseNum)))
-                        .id(v.verseNum)
-                        .contextMenu { verseActions(v, st) }
-                    }
-                }
-                .frame(maxWidth: 760)
-                .padding(.horizontal, 24).padding(.vertical, 16)
-                .frame(maxWidth: .infinity)
+            Group {
+                #if os(macOS)
+                macReader(st)
+                #else
+                rowsScroll(st)
+                #endif
             }
-            .environment(\.openURL, OpenURLAction { url in
-                if url.scheme == "strongs" { showLexicon(url.absoluteString.replacingOccurrences(of: "strongs:", with: "")); return .handled }
-                return .systemAction
-            })
             .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
             .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
                 noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
@@ -102,60 +60,105 @@ struct ScriptureView: View {
                 verses = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
                 selectedVerse = st.verse
                 if let v = st.verse { try? await Task.sleep(for: .milliseconds(50)); proxy.scrollTo(v, anchor: .top) }
+                scrollTarget = st.verse
             }
         }
         .overlay { if verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
 
+    /// iPhone reader: one row per verse (tap a verse number for its actions).
+    func rowsScroll(_ st: BibleState) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 6) {
+                if let note = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation) {
+                    Text(note).font(.callout).foregroundStyle(.secondary).padding(.bottom, 6)
+                }
+                if !chapterTags.isEmpty {
+                    FlowChips(tags: chapterTags) { t in removeMenu(t, bookId: st.bookId, chapter: st.chapter, verse: nil) }
+                        .padding(.horizontal, 8).padding(.bottom, 4)
+                        .accessibilityLabel("Chapter tags")
+                }
+                ForEach(verses, id: \.verseNum) { v in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Menu {
+                            verseActions(v, st)
+                        } label: {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(v.verseNum)").font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(.secondary)
+                                if let n = noteCounts[v.verseNum] {
+                                    Text(n > 1 ? "●\(n)" : "●").font(.system(size: 8)).foregroundStyle(.tint)
+                                }
+                            }
+                            .frame(minWidth: 22, alignment: .trailing)
+                        }
+                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                        .simultaneousGesture(TapGesture().onEnded { selectedVerse = v.verseNum })
+                        .help("Verse actions: highlight, tag, note, copy…")
+                        .accessibilityLabel("Verse \(v.verseNum) actions")
+                        VStack(alignment: .leading, spacing: 2) {
+                            VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs, highlights: (highlights[v.verseNum] ?? []).filter { $0.startChar != nil },
+                                         fontSize: app.fontSize, lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                            if let tags = verseTags[v.verseNum], !tags.isEmpty {
+                                FlowChips(tags: tags) { t in removeMenu(t, bookId: v.bookId, chapter: v.chapter, verse: v.verseNum) }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 3).padding(.horizontal, 8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(rowTint(v.verseNum)))
+                    .id(v.verseNum)
+                    .contextMenu { verseActions(v, st) }
+                }
+            }
+            .frame(maxWidth: 760)
+            .padding(.horizontal, 24).padding(.vertical, 16)
+            .frame(maxWidth: .infinity)
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            if url.scheme == "strongs" { showLexicon(url.absoluteString.replacingOccurrences(of: "strongs:", with: "")); return .handled }
+            return .systemAction
+        })
+    }
+
     @ToolbarContentBuilder
     func toolbar(_ st: BibleState) -> some ToolbarContent {
-        #if os(macOS)
-        // History (the tab's own back/forward) — as in the existing toolbar, separate from chapter stepping.
-        ToolbarItemGroup(placement: .navigation) {
-            Button { app.goBack() } label: { Label("Back", systemImage: "arrow.left") }.disabled(!app.canGoBack).help("Back (⌘[)")
-            Button { app.goForward() } label: { Label("Forward", systemImage: "arrow.right") }.disabled(!app.canGoForward).help("Forward (⌘])")
-        }
-        // The passage pill: ‹ Book Chapter ⌄ › — previous / next chapter around the book & chapter picker.
+        // History Back / Forward live in the window toolbar beside the sidebar button (MacRootView), for every tab type.
+        // The passage pill: ‹ Book Chapter · Text › — previous / next chapter around the passage navigator.
         ToolbarItem(placement: .principal) {
             ControlGroup {
                 Button { step(-1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
                     .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
                 Button { pickerShown.toggle() } label: {
-                    // One Text: toolbar buttons flatten stacked label views.
-                    Text("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))  \(Image(systemName: "chevron.down"))")
+                    Text("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))  \(Text(textInfo(st.translation).short).foregroundStyle(.secondary))")
                         .fontWeight(.semibold)
                 }
-                .accessibilityLabel("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter))). Choose book and chapter")
-                .help("Choose book and chapter")
+                .accessibilityLabel("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter))), \(textInfo(st.translation).name). Choose passage or text")
+                .help("Choose book, chapter or text — search every text, see history (⌘L)")
                 Button { step(1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
                     .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
             }
             .controlGroupStyle(.navigation)
-            .popover(isPresented: $pickerShown, arrowEdge: .bottom) {
-                PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter) { b, c in
-                    mutate { $0.bookId = b; $0.chapter = c; $0.verse = nil }; pickerShown = false
-            }
-                }
+            #if os(macOS)
+            .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
+            #else
+            .sheet(isPresented: $pickerShown) { NavigationStack { picker(st, compact: true).navigationTitle("Go to").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { pickerShown = false } } } }.presentationDetents([.large]) }
+            #endif
         }
-        #else
-        ToolbarItemGroup(placement: .navigation) {
-            Button { step(-1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
-            Button { step(1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
-        }
-        #endif
         ToolbarItemGroup {
-            Menu {
-                Picker("Text", selection: Binding(get: { st.translation }, set: { v in mutate { $0.translation = v } })) {
-                    ForEach(availableTexts) { Text($0.name).tag($0.id) }
-                }
-            } label: { Label(availableTexts.first { $0.id == st.translation }?.short ?? "Text", systemImage: "books.vertical").labelStyle(.titleAndIcon) }
-            .help("Bible text: \(availableTexts.first { $0.id == st.translation }?.name ?? st.translation)")
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
-                .keyboardShortcut("c", modifiers: [.command, .option])
+                .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
+                .help("Show Strong's numbers")
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
-                .keyboardShortcut("i", modifiers: [.command, .option])
+                .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
         }
+    }
+
+    func picker(_ st: BibleState, compact: Bool) -> some View {
+        PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { t, b, c, v in
+            mutate { $0.translation = t; $0.bookId = b; $0.chapter = c; $0.verse = v }; pickerShown = false
+        }, compact: compact)
     }
 
     /// Selection tint, else the colour of a whole-verse highlight (word-range highlights tint the row too, faintly).
@@ -166,11 +169,15 @@ struct ScriptureView: View {
     }
 
     func mutate(_ f: (inout BibleState) -> Void) {
+        var visited: BibleState?
         app.update(tabId) { t in
-            var s = BibleState(t.state); f(&s)
+            let before = BibleState(t.state)
+            var s = before; f(&s)
             t.state = s.merged(into: t.state)
             t.title = Reference.bookChapterLabel(s.bookId, chapter: Double(s.chapter))
+            if s.bookId != before.bookId || s.chapter != before.chapter || s.translation != before.translation { visited = s }
         }
+        if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse) }
     }
 
     func step(_ delta: Int) {
@@ -246,10 +253,11 @@ struct VerseRowView: View {
     var fontSize: Double = 16
     var lineSpacing: CGFloat = 5
     var replacer = true
+    var family = "system"
 
     var body: some View {
         Text(attributed)
-            .font(.system(size: fontSize, design: .serif))
+            .font(ScriptureFont.font(family, size: fontSize))
             .lineSpacing(lineSpacing)
             .textSelection(.enabled)
             .padding(.vertical, 2)
@@ -289,7 +297,7 @@ struct VerseRowView: View {
                 var j = k + 1
                 while j < units.count, (ranges.last { $0.0 <= pos + j && pos + j < $0.1 })?.2 == hit?.2 { j += 1 }
                 var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
-                if w.1 { a.font = .system(size: fontSize, design: .serif).italic() }
+                if w.1 { a.font = ScriptureFont.font(family, size: fontSize).italic() }
                 if w.2 { a.foregroundColor = .red }
                 if let hit { a.backgroundColor = Color.highlight(hit.2).opacity(0.35) }
                 out += a
@@ -333,3 +341,88 @@ enum Clipboard {
         #endif
     }
 }
+
+#if os(macOS)
+import AppKit
+
+extension ScriptureView {
+    /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
+    func macReader(_ st: BibleState) -> some View {
+        let rules = app.wordReplacerEnabled ? WordReplacer.defaultRules : []
+        let rv: [ReaderVerse] = verses.map { v in
+            var words: [ReaderVerse.Word]
+            if let tagged = v.textTagged, !tagged.isEmpty, st.translation == "kjva" || st.translation == "lxx" {
+                words = VerseDisplay.renderTokens(v.text, tagged: tagged, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules).map { t in
+                    let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
+                    return .init(text: t.word, italic: t.isItalic, red: t.isRedLetter, strongs: nums)
+                }
+            } else {
+                let plain = VerseDisplay.text(v.text, tagged: nil, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules)
+                words = plain.split(separator: " ", omittingEmptySubsequences: false).map { .init(text: String($0), italic: false, red: false, strongs: []) }
+            }
+            let shown = words.map(\.text).joined(separator: " ")
+            let marks: [ReaderVerse.Mark] = (highlights[v.verseNum] ?? []).compactMap { h in
+                guard let s = h.startChar, let e = h.endChar else { return nil }
+                let off = OffsetMap.originalToDisplay(display: shown, original: v.text, offsets: [s, e])
+                return .init(start: off[0], end: off[1], color: h.color)
+            }
+            let whole = highlights[v.verseNum]?.last { $0.startChar == nil }
+            return ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
+                               tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
+        }
+        let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
+        let suffix = st.translation == "lxx" ? " LXX" : ""
+        return ChapterTextView(
+            header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
+            style: ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily, showStrongs: st.showStrongs),
+            selectedVerse: selectedVerse, scrollTarget: scrollTarget,
+            reference: { Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: $0) + suffix },
+            rangeReference: { a, b in "\(Reference.bookName(st.bookId)) \(Reference.displayChapterString(st.bookId, st.chapter)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
+            verseMenu: { verseNSMenu($0, st) },
+            tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
+            onStrongs: { showLexicon($0) },
+            onSelectVerse: { selectedVerse = $0 })
+    }
+
+    func verseNSMenu(_ n: Int, _ st: BibleState) -> NSMenu {
+        let m = NSMenu()
+        guard let v = verses.first(where: { $0.verseNum == n }) else { return m }
+        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum)
+        let header = NSMenuItem(title: label, action: nil, keyEquivalent: ""); header.isEnabled = false
+        m.addItem(header)
+        m.addItem(ClosureMenuItem("Copy Verse", image: "doc.on.doc") { copy(v, st) })
+        let hl = NSMenuItem(title: "Highlight", action: nil, keyEquivalent: ""); hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
+        let sub = NSMenu()
+        for c in highlightColors { sub.addItem(ClosureMenuItem(c.capitalized) { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) }) }
+        sub.addItem(.separator())
+        sub.addItem(ClosureMenuItem("Remove Highlights") { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
+        hl.submenu = sub; m.addItem(hl)
+        m.addItem(ClosureMenuItem("Tag Verse…", image: "tag") {
+            tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), spans: [(Double(v.verseNum), Double(v.verseNum))])], label, "verses")
+        })
+        m.addItem(ClosureMenuItem("Tag Chapter…") {
+            tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), whole: true)], Reference.bookChapterLabel(v.bookId, chapter: Double(v.chapter)), "chapter")
+        })
+        m.addItem(.separator())
+        m.addItem(ClosureMenuItem("Add Note", image: "square.and.pencil") { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) })
+        m.addItem(ClosureMenuItem("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") })
+        m.addItem(ClosureMenuItem("Cross References", image: "arrow.triangle.branch") { selectedVerse = v.verseNum; openInspector("crossrefs") })
+        m.addItem(.separator())
+        m.addItem(ClosureMenuItem("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
+        return m
+    }
+
+    func tagNSMenu(_ name: String, verse: Int?, _ st: BibleState) -> NSMenu {
+        let m = NSMenu()
+        if let tag = (try? app.verseTags?.list())?.first(where: { $0.name == name }) {
+            let members = ((try? app.verseTags?.members([tag.id])) ?? []).filter { mem in
+                verse.map { v in mem.verses.contains { $0.bookId == st.bookId && $0.chapter == st.chapter && $0.verse == v } }
+                    ?? mem.wholeChapters.contains { $0.bookId == st.bookId && $0.chapter == st.chapter }
+            }
+            for mem in members { m.addItem(ClosureMenuItem("Remove “\(mem.label)” from #\(name)") { try? app.verseTags?.removeMember(mem.memberId) }) }
+        }
+        m.addItem(ClosureMenuItem("Search #\(name)", image: "magnifyingglass") { app.openQuery("#\(name)") })
+        return m
+    }
+}
+#endif

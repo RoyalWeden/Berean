@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 import Observation
 import CoreGraphics
@@ -9,12 +10,34 @@ import BereanBible
 import BereanReference
 import BereanNotes
 
-/// The texts the native app offers, in compare/picker order.
-struct TextInfo: Identifiable, Hashable { let id: String; let name: String; let short: String }
+/// The texts the reader offers — the existing app's TRANSLATIONS list (src/lib/bibleTexts.ts): one KJV entry (KJV +
+/// Apocrypha includes the KJV) and one Septuagint (Brenton; `lxx` is served from lxx_brenton.db, electron/db/bible.ts).
+/// `kjv` is not listed but still opens for saved tabs and links.
+struct TextInfo: Identifiable, Hashable { let id: String; let name: String; let short: String; var section = "Other writings" }
 let availableTexts: [TextInfo] = [
-    .init(id: "kjva", name: "KJV + Apocrypha", short: "KJVA"), .init(id: "kjv", name: "KJV", short: "KJV"), .init(id: "lxx", name: "Septuagint (LXX)", short: "LXX"),
-    .init(id: "lxx_brenton", name: "Brenton LXX", short: "Brenton"), .init(id: "enoch", name: "1 Enoch", short: "Enoch"), .init(id: "jubilees", name: "Jubilees", short: "Jubilees"),
+    .init(id: "kjva", name: "KJV + Apocrypha", short: "KJVA", section: "Bible"),
+    .init(id: "lxx", name: "Septuagint (Brenton)", short: "LXX", section: "Bible"),
+    .init(id: "enoch", name: "1 Enoch", short: "1 Enoch"),
+    .init(id: "jubilees", name: "Jubilees", short: "Jubilees"),
+    .init(id: "apoc_elijah", name: "Apocalypse of Elijah", short: "Apoc. Elijah"),
+    .init(id: "recog_clement", name: "Recognitions of Clement", short: "Recog. Clement"),
+    .init(id: "hermas", name: "Shepherd of Hermas", short: "Hermas"),
+    .init(id: "hermas_taylor", name: "Shepherd of Hermas (Taylor)", short: "Hermas (Taylor)"),
+    .init(id: "asc_isaiah", name: "Ascension of Isaiah", short: "Asc. Isaiah"),
+    .init(id: "ep_barnabas", name: "Epistle of Barnabas", short: "Ep. Barnabas"),
+    .init(id: "t12p", name: "Testaments of the Twelve Patriarchs", short: "T12 Patriarchs"),
+    .init(id: "gad", name: "Words of Gad the Seer", short: "Gad the Seer"),
+    .init(id: "t_job", name: "Testament of Job", short: "T. Job"),
+    .init(id: "1clement", name: "First Epistle of Clement", short: "1 Clement"),
+    .init(id: "apoc_abraham", name: "Apocalypse of Abraham", short: "Apoc. Abraham"),
+    .init(id: "didache_hoole", name: "Didache", short: "Didache"),
+    .init(id: "t_jacob", name: "Testament of Jacob", short: "T. Jacob"),
+    .init(id: "2baruch", name: "2 Baruch", short: "2 Baruch"),
 ]
+/// Display info for any text id, including unlisted ones that saved tabs may still use.
+func textInfo(_ id: String) -> TextInfo {
+    availableTexts.first { $0.id == id } ?? (id == "kjv" ? TextInfo(id: "kjv", name: "KJV", short: "KJV", section: "Bible") : TextInfo(id: id, name: id, short: id))
+}
 
 /// Prevents two copies of the app opening the same library (DECISIONS OD-5: no simultaneous database access).
 final class SingleInstanceLock {
@@ -71,6 +94,8 @@ final class AppModel {
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
+    /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
+    var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
     private var loadingSettings = false
 
     private var database: UserDatabase?
@@ -143,6 +168,7 @@ final class AppModel {
         if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["theme"]?.stringValue?.string { theme = v }
+        if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
         loadingSettings = false
     }
 
@@ -521,5 +547,24 @@ struct BibleState: Equatable {
         if compareMode { o["compareMode"] = .bool(true) } else { o.remove("compareMode") }
         o["scriptureLayout"] = .string(JSString(scriptureLayout))
         return o
+    }
+}
+
+
+/// Scripture font choices — the existing app's FONT_FAMILY_OPTIONS keys; web fonts the platform lacks map to the
+/// nearest system face (system design for sans, New York for book serifs).
+enum ScriptureFont {
+    static let options: [(id: String, label: String)] = [
+        ("system", "System (San Francisco)"), ("serif", "Serif (Georgia)"), ("palatino", "Palatino"), ("sourceserif", "Book serif (New York)"),
+        ("sansserif", "Sans-serif"), ("mono", "Monospace"),
+    ]
+    static func font(_ family: String, size: Double) -> Font {
+        switch family {
+        case "serif": return .custom("Georgia", size: size)
+        case "palatino": return .custom("Palatino", size: size)
+        case "garamond", "crimson", "lora", "merriweather", "sourceserif": return .system(size: size, design: .serif)
+        case "mono": return .system(size: size, design: .monospaced)
+        default: return .system(size: size)
+        }
     }
 }
