@@ -55,3 +55,18 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
   - Context menus opened with synthetic clicks can leave the app in a menu-tracking loop (it looks hung; `sample` shows
     NSMenuTrackingSession). Prefer keyboard navigation + Return, and `pkill` if it sticks.
   - `ccusage` is blocked by the permission classifier, so the usage window cannot be checked from here.
+
+## Session end 2026-11-08 (evening) — state
+- Branch `native/m6-navigation` (PR #23, stacked on #22). Neither PR is merged; neither branch is in main (checked by ancestry).
+- **Merge order (Michael):** #22 → wait until GitHub retargets #23 to main → #23. Both need green CI plus the local Mac check comment.
+- Done this session (see CHANGELOG 13:30 → 16:30): continuous TextKit reader; passage navigator; text list + lxx→Brenton fix; system
+  Scripture font; Back/Forward placement; Share caret; unified Workspaces (ADR-0011); Yab-style sidebar + live drag + window drag
+  (ADR-0012); iPhone New sheet + three-job bar (ADR-0013); physical iPhone deploy (`npm run native:ios:device`, installed on the iPhone 16e);
+  formatted notes editor + Copy as Plain Text (ADR-0014).
+- Checks at the last commit: Swift 68/26 PASS; golden drift 22/22 PASS; Mac + iOS builds PASS.
+- Next executable tasks:
+  1. iPhone reader: continuous selection (UITextView) and tappable Strong's / verse numbers (UI-03/11 iOS).
+  2. Sidebar: drop line and auto-scroll while dragging, pinned grid, density setting (UI-07/08 rest).
+  3. Unified grouped search (notes in ⌘K results — found during the editor test: ⌘K "Rich editor test" searched Scripture only).
+  4. Study Trail service port with goldens.
+  5. M4 sync engine.

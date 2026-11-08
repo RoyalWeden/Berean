@@ -291,3 +291,26 @@ The passage pill in the top bar opens the passage navigator (book / chapter / te
 | Cross references | verse → sheet → Refs (3) | More → Cross References (2) |
 | Highlight / tag a verse | verse → sheet → action (3) | verse number → action (2) |
 | Previous passage | caret → ‹ (2) | More → Back (2) |
+
+### ADR-0014 — Notes editor: live preview over the verbatim Markdown source (2026-11-08, owner request §4)
+**Problem.** The owner wants a formatted editor with no visible Markdown. Notes must keep the ProseMirror dialect exactly: callouts,
+columns, threads, Study Trail embeds, tables, coloured highlights, images and wikilinks. A native rich-text model that re-serializes on
+save risks rewriting or dropping constructs it does not fully understand.
+
+**Decision.** The editor's text storage is the note's Markdown, unchanged. `BereanNotes.MarkdownLiveSpans` computes styling spans:
+- markup characters become null glyphs (no width, no caret stops — the caret skips them);
+- list markers draw as "•", task boxes as □ / ☑, and callout markers as their label ("Note:");
+- headings, bold, italic, underline, strike, code, highlights, links and wikilinks get native fonts and colours;
+- tables use monospace with faint pipes, and berean:* structure comment lines are hidden but kept.
+
+Edits change only what the user typed, so saving cannot rewrite anything else. Formatting commands insert the dialect's own markup
+(⌘B `**`, ⌘I `*`, ⌘U `<u>`, ⇧⌘X `~~`, ⇧⌘H `==`, ⌥⌘1–3 headings, ⇧⌘8 bullets). View ▸ Show Markdown Source (⇧⌘M) remains an explicit
+advanced action.
+
+**Clipboard.**
+- Copy: RTF (formatted) + plain text + `com.berean.note-markdown` (the source, used when pasting back into a note).
+- Copy as Plain Text (⌥⇧⌘C, and in the context / edit menu): readable text only.
+- Paste: the note type when present, otherwise plain text.
+
+**Limitations (tracked).** Tables are styled source, not a grid editor; images show their alt text, not the picture; columns and threads
+show their content without the side-by-side or thread chrome. A full structured editor remains M7-02.

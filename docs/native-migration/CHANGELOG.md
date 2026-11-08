@@ -403,3 +403,16 @@
   - installs and launches with devicectl.
 - Done on Michael's iPhone 16e. The device now lists Berean (com.berean.app 0.8.1 (7)), Berean Dev (com.berean.app.dev) and Berean Native
   Dev (com.berean.native.ios.dev) side by side; production was not touched.
+
+### 2026-11-08 16:30 PST — Formatted notes editor (Mac + iPhone), Copy as Plain Text (ADR-0014)
+- `MarkdownLiveSpans` (BereanNotes) + 6 tests: inline markup hidden; nested bold/italic; snake_case and "2 * 3" left alone; lists, tasks,
+  quotes, callouts, images (width suffix hidden), structure comments, code fences literal, tables, ranges always inside the string.
+- Mac `RichNoteEditor` (NSTextView, TextKit 1 null glyphs + per-glyph substitution) and iPhone `RichNoteEditorIOS` (UITextView, same
+  model, Format ▸ in the edit menu, Copy as Plain Text). The old monospace TextEditor is now only View ▸ Show Markdown Source.
+- Verified in the running Mac app on a seeded note: the heading, bold, italic, wikilink, bullets, highlight, □/☑ tasks, underline,
+  "Note:" callout, table, inline code and link all rendered without markup;
+  - typing saved into the Markdown at the caret;
+  - double-click "Code" + ⌘B → shown bold, saved as `**Code**`;
+  - Copy as Plain Text → no markup (bullets "•", tasks □ / ☑, "Note:");
+  - Copy → plain + RTF + Markdown source flavours.
+- Checks: Swift 68 tests/26 suites PASS; golden drift 22/22 PASS; Mac + iOS builds PASS.

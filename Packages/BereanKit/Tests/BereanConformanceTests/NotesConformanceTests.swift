@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import BereanCore
 import BereanSQLite
@@ -301,6 +302,57 @@ func noteJSON(_ n: Note) -> JSValue {
         let tables = g["tables"]!.object
         for t in ["verse_tags", "verse_tag_members", "verse_tag_verse", "tag_edges"] {
             #expect(rowsJSON(try db.query("SELECT * FROM \(t) ORDER BY rowid")) == tables[t]!, "table \(t)")
+        }
+    }
+}
+
+@Suite("markdown live preview spans") struct MarkdownLiveSpansTests {
+    func plain(_ s: String) -> String { MarkdownLiveSpans.plainText(s) }
+
+    @Test func inlineMarkupIsHidden() {
+        #expect(plain("A **bold** and *italic* and ~~gone~~ and ==hi== word") == "A bold and italic and gone and hi word")
+        #expect(plain("<u>under</u> <mark class=\"hl-red\">red</mark> `code *not italic*`") == "under red code *not italic*")
+        #expect(plain("See [Exodus](https://x.y/z) and [[Gen 1:1]] and [[Note title|alias]]") == "See Exodus and Gen 1:1 and alias")
+        #expect(plain("**bold with *italic* inside**") == "bold with italic inside")
+        #expect(plain("2 * 3 * 4 and snake_case_name") == "2 * 3 * 4 and snake_case_name")
+    }
+
+    @Test func blocks() {
+        #expect(plain("## Heading\nBody") == "Heading\nBody")
+        #expect(plain("- one\n- two\n  - nested") == "• one\n• two\n  • nested")
+        #expect(plain("1. first\n2. second") == "1. first\n2. second")
+        #expect(plain("- [ ] todo\n- [x] done") == "• □ todo\n• ☑ done")
+        #expect(plain("> quoted **text**") == "quoted text")
+        #expect(plain("> [!note] Remember") == "Note: Remember")
+        #expect(plain("![Diagram|w300](data:image/png;base64,AAAA)") == "Diagram")
+    }
+
+    @Test func structuresKeptButHidden() {
+        let md = "<!-- berean:columns -->\n<!-- berean:col -->\nLeft\n<!-- /berean:col -->\n<!-- /berean:columns -->"
+        #expect(plain(md).trimmingCharacters(in: .whitespacesAndNewlines) == "Left")
+        let spans = MarkdownLiveSpans.spans(md)
+        #expect(spans.filter { $0.kind == .structure }.count == 4)
+    }
+
+    @Test func codeFenceContentsAreLiteral() {
+        let md = "```swift\nlet x = **y**\n```"
+        let spans = MarkdownLiveSpans.spans(md)
+        #expect(!spans.contains { $0.kind == .bold })
+        #expect(spans.filter { $0.kind == .codeBlock }.count == 3)
+    }
+
+    @Test func tables() {
+        let spans = MarkdownLiveSpans.spans("| a | b |\n| --- | :---: |\n| 1 | 2 |")
+        #expect(spans.filter { $0.kind == .tableRow }.count == 2)
+        #expect(spans.filter { $0.kind == .tableRule }.count == 1)
+    }
+
+    @Test func rangesStayInsideTheString() throws {
+        let g = try Golden.load("note-markdown")
+        for n in g.arr("notes") {
+            let s = n["content"]?.str ?? ""
+            let len = (s as NSString).length
+            for sp in MarkdownLiveSpans.spans(s) { #expect(sp.range.location >= 0 && NSMaxRange(sp.range) <= len, "\(s)") }
         }
     }
 }

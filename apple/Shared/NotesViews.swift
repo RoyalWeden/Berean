@@ -110,7 +110,7 @@ struct NoteDetailView: View {
     @State private var note: Note?
     @State private var title = ""
     @State private var content = ""
-    @State private var editing = false
+    @State private var showSource = false
     @State private var saveTask: Task<Void, Never>?
     @State private var snapshotTask: Task<Void, Never>?
     /// Content of the last version snapshot (or as opened) — a snapshot is only taken after edits.
@@ -123,28 +123,33 @@ struct NoteDetailView: View {
     var body: some View {
         Group {
             if let note {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
-                            .focused($focus, equals: .title)
-                            .onSubmit { editing = true; focus = .body }
-                            .onChange(of: title) { scheduleSave() }
-                        if let ref = note.verseRef {
-                            Button(verseLabel(ref, note.textId)) {
-                                let p = ref.split(separator: ".").map(String.init)
-                                if p.count >= 2, let c = Int(p[1]) { app.openScripture(bookId: p[0], chapter: c, verse: p.count > 2 ? Int(p[2]) : nil, textId: note.textId) }
-                            }.buttonStyle(.borderless)
-                        }
-                        if editing {
-                            TextEditor(text: $content).font(.system(.body, design: .monospaced)).frame(minHeight: 400).scrollContentBackground(.hidden)
-                                .focused($focus, equals: .body)
-                                .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
-                        } else {
-                            MarkdownText(content).textSelection(.enabled)
-                        }
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
+                        .focused($focus, equals: .title)
+                        .onSubmit { focus = .body }
+                        .onChange(of: title) { scheduleSave() }
+                    if let ref = note.verseRef {
+                        Button(verseLabel(ref, note.textId)) {
+                            let p = ref.split(separator: ".").map(String.init)
+                            if p.count >= 2, let c = Int(p[1]) { app.openScripture(bookId: p[0], chapter: c, verse: p.count > 2 ? Int(p[2]) : nil, textId: note.textId) }
+                        }.buttonStyle(.borderless)
                     }
-                    .frame(maxWidth: 760, alignment: .leading).padding(24).frame(maxWidth: .infinity)
+                    if showSource {
+                        // Advanced: the Markdown source (View ▸ Show Markdown Source, ⇧⌘M).
+                        TextEditor(text: $content).font(.system(.body, design: .monospaced)).scrollContentBackground(.hidden)
+                            .focused($focus, equals: .body)
+                    } else {
+                        #if os(macOS)
+                        RichNoteEditor(text: $content, fontSize: 15) { url in openLink(url) }
+                            .focused($focus, equals: .body)
+                        #else
+                        RichNoteEditorIOS(text: $content) { url in openLink(url) }
+                            .focused($focus, equals: .body)
+                        #endif
+                    }
                 }
+                .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
+                .frame(maxWidth: 760, alignment: .leading).padding(.horizontal, 24).padding(.top, 20).frame(maxWidth: .infinity)
             } else {
                 ContentUnavailableView("Note not found", systemImage: "note.text")
             }
@@ -152,7 +157,8 @@ struct NoteDetailView: View {
         .navigationTitle(title.isEmpty ? "Untitled" : title)
         .toolbar {
             ToolbarItemGroup {
-                Toggle(isOn: $editing) { Label("Edit Markdown", systemImage: "pencil") }.keyboardShortcut("m", modifiers: [.command, .shift])
+                Toggle(isOn: $showSource) { Label("Show Markdown Source", systemImage: "chevron.left.forwardslash.chevron.right") }
+                    .keyboardShortcut("m", modifiers: [.command, .shift]).help("Show the note's Markdown source (⇧⌘M)")
                 if let note {
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
@@ -178,7 +184,6 @@ struct NoteDetailView: View {
             reload()
             loadedId = noteId; lastSnapshot = content
             let isNew = (note?.content.isEmpty ?? false)
-            editing = isNew
             if isNew { try? await Task.sleep(for: .milliseconds(150)); focus = (note?.title.isEmpty ?? true) ? .title : .body }
         }
         // Reflect changes made elsewhere (import, version restore, another window) unless this view has unsaved edits.
@@ -191,6 +196,21 @@ struct NoteDetailView: View {
             saveNow()
             if !JSText.trim(content).isEmpty { snapshot() }
         }
+    }
+
+    /// Wikilinks open the note with that title; verse references and web links open where they belong.
+    func openLink(_ url: URL) {
+        if url.scheme == "berean-note" {
+            let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
+            if let ref = Reference.parse(title) { app.openScripture(bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse); return }
+            if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
+            return
+        }
+        #if os(macOS)
+        NSWorkspace.shared.open(url)
+        #else
+        UIApplication.shared.open(url)
+        #endif
     }
 
     func copyMarkdown() {
