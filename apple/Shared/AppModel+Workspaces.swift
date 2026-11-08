@@ -102,3 +102,14 @@ extension AppModel {
 
     var currentWorkspace: WorkspaceItem? { workspaceItems.first { isCurrent($0) } }
 }
+
+extension AppModel {
+    /// Today's daily note: find (getDailyDates) or create ("Daily — yyyy-MM-dd", type daily), then open it —
+    /// the same find-or-create as src/lib/dailyNotes.ts `resolveDailyNoteId`.
+    func openTodayDailyNote() {
+        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+        let key = f.string(from: Date())
+        if let hit = (try? notes?.dailyDates())?.first(where: { $0.dateKey == key }) { openNote(hit.noteId); return }
+        if let n = try? notes?.create(.init(type: "daily", title: "Daily — \(key)", content: "")).note { openNote(n.id) }
+    }
+}

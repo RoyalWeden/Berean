@@ -380,3 +380,15 @@
   - Duplicate → "Study Copy" with the same 9 tabs, order and active tab; Delete → confirm → back to "Study";
   - the sidebar button hides and shows the sidebar, and Back / Forward stay beside it.
 - BUG FOUND + FIXED: a full-height drag area swallowed clicks on the title-bar sidebar button; it is now limited to below the title bar.
+
+### 2026-11-08 15:20 PST — iPhone: working New (Plus) sheet, simpler bottom bar, Workspaces page (ADR-0013)
+- BUG FIXED: Plus opened `CommandPalette` (a fixed 520-pt-wide view in a 220-pt sheet). On a 402-pt iPhone it was clipped on both sides
+  and had no buttons. It is replaced by `NewSheet` (full width, field + Open rows + Recent).
+- Bottom bar: Tabs · New · More. More holds Back/Forward, the reader commands, tab actions and Settings.
+- The Workspaces page is one list (live + saved), with switch, new, rename, duplicate, delete, save snapshot and archive all. The tab
+  sheet's workspace row says Workspaces; the tab menu says "Move to Workspace".
+- Verified with real taps on the iPhone 18 Pro Simulator:
+  - Plus → New sheet → New Note → note open for typing;
+  - Plus → "John 3:16" + Return → John 3 with v16 selected;
+  - Tabs → workspace row → Workspaces list (Study 1 tab, Study Phone 3 tabs ✓);
+  - More → menu with Cross References / Notes / Strong's / Compare / Duplicate / Close / Settings.

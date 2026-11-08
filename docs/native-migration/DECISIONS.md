@@ -263,3 +263,31 @@ near-white card on the translucent sidebar (light) or a lighter translucent card
 - Back / Forward sit beside the system sidebar button and stay there when the sidebar is collapsed; ⌃⌘S toggles the sidebar.
 
 **Not yet matched.** Pinned tabs as a grid of squares, edge-hover reveal of a hidden sidebar, density setting, hover preview cards.
+
+### ADR-0013 — iPhone navigation: three fixed jobs (2026-11-08, owner request §17)
+**Problem.** The existing iPhone app spread actions over the plus sheet (destinations, experiences, recent places, search), the caret
+(commands plus go-to), tab cards (sessions, archive, sort, select) and More pages. The native Plus opened a clipped 520-pt palette with
+no visible actions, so it looked broken.
+
+**Decision.** The bottom bar has exactly three buttons, each with one job, in the same place on every screen:
+- **Tabs** (left): this workspace's tabs, the Workspaces page and archived tabs.
+- **New** (centre, prominent): one field (reference / Strong's / words), plus Scripture (continue reading), New Note, Today's Note, Notes,
+  and Recent passages.
+- **More** (right): the current tab's commands (Back / Forward, Cross References, chapter notes, Strong's, Compare), then Duplicate /
+  Close Tab, then Settings (always last).
+
+The passage pill in the top bar opens the passage navigator (book / chapter / text / history). The old plus sheet's "experiences"
+(History, Calendar, Study Trail, Tags…) arrive as those features land, under New.
+
+**Workflow comparison (taps, from the reader):**
+
+| Task | Existing iPhone app | Native |
+|---|---|---|
+| Open a book and chapter | title → picker → book → chapter (4) | pill → book → chapter (3) |
+| Search Scripture | plus → type → Return (2 + typing) | New → type → Return (2 + typing) |
+| New note | plus → New Note (2) | New → New Note (2) |
+| Switch tab | tab cards → card (2) | Tabs → row (2) |
+| Change workspace | tab cards → Workspaces chip → row (3) | Tabs → workspace row → workspace (3) |
+| Cross references | verse → sheet → Refs (3) | More → Cross References (2) |
+| Highlight / tag a verse | verse → sheet → action (3) | verse number → action (2) |
+| Previous passage | caret → ‹ (2) | More → Back (2) |

@@ -9,6 +9,7 @@ import BereanReference
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
     @State private var showTabs = false
+    @State private var showNew = false
     @State private var showSettings = false
 
     var body: some View {
@@ -16,18 +17,24 @@ struct IOSRootView: View {
         NavigationStack {
             content
                 .toolbar {
+                    // Three jobs, always in the same place (ADR-0013): your tabs · open something new · this tab's commands.
                     ToolbarItemGroup(placement: .bottomBar) {
                         Button { showTabs = true } label: { Label("Tabs", systemImage: "square.on.square") }
+                            .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
                         Spacer()
-                        Button { app.commandPaletteShown = true } label: { Label("New", systemImage: "plus.circle.fill").font(.title2) }
+                        Button { showNew = true } label: { Label("New", systemImage: "plus") }
+                            .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
+                            .accessibilityLabel("New: open a passage, note or search")
                         Spacer()
-                        caretMenu
+                        menu
                     }
                 }
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
-        .sheet(isPresented: $app.commandPaletteShown) { CommandPalette().presentationDetents([.height(220)]) }
+        .sheet(isPresented: $showNew) { NewSheet().presentationDetents([.medium, .large]) }
+        // ⌘T / ⌘K (hardware keyboard) and in-app "new tab" requests open the same sheet.
+        .onChange(of: app.commandPaletteShown) { _, v in if v { app.commandPaletteShown = false; showNew = true } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
     }
 
@@ -50,25 +57,43 @@ struct IOSRootView: View {
                 ContentUnavailableView(tab.title, systemImage: "square.dashed", description: Text("This kind of tab arrives in a later native build."))
             }
         } else {
-            ContentUnavailableView("No tab open", systemImage: "book", description: Text("Tap + to open a passage or search."))
+            ContentUnavailableView {
+                Label("No tab open", systemImage: "book")
+            } description: { Text("Open a passage, a note or a search.") } actions: {
+                Button("New…") { showNew = true }.buttonStyle(.borderedProminent)
+            }
         }
     }
 
-    var caretMenu: some View {
+    /// Commands for what is on screen, then the app-level items (always last, always the same).
+    var menu: some View {
         Menu {
-            if let tab = app.activeTab, tab.tabType == .bible {
-                let st = BibleState(tab.state)
-                Button(st.showStrongs ? "Hide Strong's Numbers" : "Show Strong's Numbers") { mutate(tab.id) { $0.showStrongs.toggle() } }
-                Button("Study Panel") { mutate(tab.id) { $0.rightPanelOpen = true } }
-                Picker("Text", selection: Binding(get: { st.translation }, set: { v in mutate(tab.id) { $0.translation = v } })) {
-                    ForEach(availableTexts) { Text($0.name).tag($0.id) }
+            if app.canGoBack || app.canGoForward {
+                ControlGroup {
+                    Button { app.goBack() } label: { Label("Back", systemImage: "chevron.backward") }.disabled(!app.canGoBack)
+                    Button { app.goForward() } label: { Label("Forward", systemImage: "chevron.forward") }.disabled(!app.canGoForward)
                 }
             }
-            if app.canGoBack { Button("Back") { app.goBack() } }
-            if app.canGoForward { Button("Forward") { app.goForward() } }
-            Button("Settings") { showSettings = true }
-            if let tab = app.activeTab { Button("Close Tab", role: .destructive) { app.close(tab.id) } }
-        } label: { Label("Commands", systemImage: "chevron.up.circle") }
+            if let tab = app.activeTab, tab.tabType == .bible {
+                let st = BibleState(tab.state)
+                Section {
+                    Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
+                    Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" } } label: { Label("Notes for This Chapter", systemImage: "note.text") }
+                    Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
+                    Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
+                }
+            }
+            if let tab = app.activeTab {
+                Section {
+                    Button { app.duplicate(tab.id) } label: { Label("Duplicate Tab", systemImage: "plus.square.on.square") }
+                    Button(role: .destructive) { app.close(tab.id) } label: { Label("Close Tab", systemImage: "xmark") }
+                }
+            }
+            Section {
+                Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
+            }
+        } label: { Label("More", systemImage: "ellipsis.circle") }
+        .accessibilityLabel("More: commands for this tab")
     }
 
     func mutate(_ id: String, _ f: (inout BibleState) -> Void) {
@@ -96,10 +121,10 @@ struct TabCardsSheet: View {
                         LabeledContent {
                             Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
                         } label: {
-                            Label(app.session.name, systemImage: "rectangle.stack").fontWeight(.semibold)
+                            Label(app.session.name, systemImage: "square.stack").fontWeight(.semibold)
                         }
                     }
-                    .accessibilityHint("Switch session or open a saved workspace")
+                    .accessibilityHint("Switch, create or manage workspaces")
                 }
                 Section {
                     let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
@@ -146,7 +171,7 @@ struct TabCardsSheet: View {
             Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
             Button(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: "pin") { app.togglePin(tab.id) }
             if app.sessions.count > 1 {
-                Menu("Move to Session", systemImage: "rectangle.stack") {
+                Menu("Move to Workspace", systemImage: "square.stack") {
                     ForEach(app.sessions.filter { $0.id != app.currentSessionId }) { s in Button(s.name) { app.moveTab(tab.id, toSession: s.id) } }
                 }
             }
@@ -156,73 +181,60 @@ struct TabCardsSheet: View {
     }
 }
 
-/// Sessions (live tab groups) and saved workspaces (frozen snapshots of a session's tabs).
+/// Workspaces (ADR-0011): one list — live workspaces, then saved ones not open — with switch, new, rename, duplicate,
+/// delete; "Save Snapshot" is a secondary action on the current workspace.
 struct SessionsPage: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @State private var renaming: String?
+    @State private var renaming: WorkspaceItem?
+    @State private var deleting: WorkspaceItem?
     @State private var name = ""
     @State private var saving = false
-    @State private var renamingWorkspace: String?
 
     var body: some View {
         List {
             Section {
-                ForEach(app.sessions) { s in
-                    Button { app.switchSession(s.id); dismiss() } label: {
+                ForEach(app.workspaceItems) { w in
+                    Button { app.open(w); dismiss() } label: {
                         HStack {
+                            Image(systemName: w.isSaved ? "square.stack.3d.up" : "square.stack").foregroundStyle(.secondary).frame(width: 24)
                             VStack(alignment: .leading) {
-                                Text(s.name).foregroundStyle(.primary)
-                                Text("\(app.tabCount(s.id)) tab\(app.tabCount(s.id) == 1 ? "" : "s")").font(.caption).foregroundStyle(.secondary)
+                                Text(w.name).foregroundStyle(.primary)
+                                Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if s.id == app.currentSessionId { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            if app.isCurrent(w) { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current workspace") }
                         }
                     }
-                    .swipeActions { if app.sessions.count > 1 { Button("Close", role: .destructive) { app.deleteSession(s.id) } } }
+                    .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
                     .contextMenu {
-                        Button("Rename…") { name = s.name; renaming = s.id }
-                        if s.id == app.currentSessionId { Button("Archive All Tabs") { app.archiveAllTabs() } }
-                        if app.sessions.count > 1 { Button("Close Session", role: .destructive) { app.deleteSession(s.id) } }
-                    }
-                }
-                Button { app.newSession(); dismiss() } label: { Label("New Session", systemImage: "plus") }
-            } header: { Text("Sessions") } footer: { Text("A session is a live group of tabs. Switching sessions swaps the tabs you see.") }
-
-            Section {
-                ForEach(app.savedWorkspaces) { w in
-                    Button { app.openWorkspace(w.id); dismiss() } label: {
-                        HStack {
-                            Label(w.name, systemImage: "square.stack.3d.up").foregroundStyle(.primary)
-                            Spacer()
-                            if app.isWorkspaceOpen(w.id) { Text("Open").font(.caption).foregroundStyle(.secondary) }
+                        Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
+                        Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
+                        if app.isCurrent(w) {
+                            Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }
+                            Button("Archive All Tabs", systemImage: "archivebox") { app.archiveAllTabs() }
                         }
-                    }
-                    .swipeActions { Button("Delete", role: .destructive) { app.deleteWorkspace(w.id) } }
-                    .contextMenu {
-                        Button("Rename…") { name = w.name; renamingWorkspace = w.id }
-                        Button("Delete", role: .destructive) { app.deleteWorkspace(w.id) }
+                        if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
                     }
                 }
-                Button { name = app.session.name; saving = true } label: { Label("Save This Session as a Workspace…", systemImage: "square.and.arrow.down.on.square") }
-            } header: { Text("Saved Workspaces") } footer: { Text("A saved workspace is a frozen copy of a session's tabs. Opening it brings those tabs back in their own session.") }
+                Button { app.newWorkspace(); dismiss() } label: { Label("New Workspace", systemImage: "plus") }
+            } footer: { Text("A workspace is a set of tabs you study with. Switching workspaces swaps the tabs you see. Touch and hold a workspace for more.") }
         }
-        .navigationTitle("Sessions")
-        .alert("Rename Session", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+        .navigationTitle("Workspaces")
+        .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
-            Button("Rename") { if let id = renaming { app.renameSession(id, to: name) }; renaming = nil }
+            Button("Rename") { if let r = renaming { app.rename(r, to: name) }; renaming = nil }
             Button("Cancel", role: .cancel) { renaming = nil }
         }
-        .alert("Save Workspace", isPresented: $saving) {
+        .alert("Save a Snapshot", isPresented: $saving) {
             TextField("Name", text: $name)
             Button("Save") { app.saveWorkspace(named: name) }
             Button("Cancel", role: .cancel) {}
-        }
-        .alert("Rename Workspace", isPresented: Binding(get: { renamingWorkspace != nil }, set: { if !$0 { renamingWorkspace = nil } })) {
-            TextField("Name", text: $name)
-            Button("Rename") { if let id = renamingWorkspace { app.renameWorkspace(id, to: name) }; renamingWorkspace = nil }
-            Button("Cancel", role: .cancel) { renamingWorkspace = nil }
-        }
+        } message: { Text("Keeps a frozen copy of these tabs that you can reopen later.") }
+        .confirmationDialog("Delete “\(deleting?.name ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+            Button("Delete Workspace", role: .destructive) { if let d = deleting { app.delete(d) }; deleting = nil }
+        } message: { Text("Its tabs are closed. This cannot be undone.") }
     }
 }
 
