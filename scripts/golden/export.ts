@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { buildGoldenCorpus, GOLDEN_DIR, serializeGolden } from './corpus'
 import { buildReferenceTablesSwift, SWIFT_TABLES_PATH } from './swiftTables'
 import { buildBibleGolden } from './bible'
+import { buildTextGolden } from './text'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -24,4 +25,13 @@ if (bible) {
   console.log(`bible.json  ${text.length} chars`)
 } else {
   console.log('bible.json  skipped (data/*.db not present)')
+}
+
+const textGolden = await buildTextGolden()
+if (textGolden) {
+  const text = serializeGolden(textGolden)
+  writeFileSync(join(GOLDEN_DIR, 'text.json'), text)
+  console.log(`text.json  ${text.length} chars`)
+} else {
+  console.log('text.json  skipped (data/*.db not present)')
 }

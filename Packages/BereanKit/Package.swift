@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "BereanReference", targets: ["BereanReference"]),
         .library(name: "BereanSQLite", targets: ["BereanSQLite"]),
         .library(name: "BereanBible", targets: ["BereanBible"]),
+        .library(name: "BereanText", targets: ["BereanText"]),
     ],
     targets: [
         // JavaScript-compatible JSON value model: UTF-16 strings, JS property order,
@@ -28,12 +29,14 @@ let package = Package(
         .target(name: "BereanSQLite", linkerSettings: [.linkedLibrary("sqlite3")]),
         // Read-only Scripture services (src/platform/services/bibleService.ts).
         .target(name: "BereanBible", dependencies: ["BereanCore", "BereanSQLite", "BereanReference"]),
+        // Verse text: tagged tokens, italic/red-letter ranges, annotation stripping, offset maps.
+        .target(name: "BereanText", dependencies: ["BereanCore"]),
         .testTarget(name: "BereanCoreTests", dependencies: ["BereanCore"]),
         // Golden-corpus conformance: fixtures exported from the TypeScript implementation
         // by `npm run golden:export` (scripts/golden). Never hand-edit Golden/*.json.
         .testTarget(
             name: "BereanConformanceTests",
-            dependencies: ["BereanCore", "BereanSync", "BereanReference", "BereanSQLite", "BereanBible"],
+            dependencies: ["BereanCore", "BereanSync", "BereanReference", "BereanSQLite", "BereanBible", "BereanText"],
             resources: [.copy("Golden")]
         ),
     ],

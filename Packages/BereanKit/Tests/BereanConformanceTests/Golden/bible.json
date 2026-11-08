@@ -5,8 +5,9 @@
   "src/platform/services/bibleService.ts": "b18c79ee63734e1b35cdd8f333c2760b557f0fafe83b3c2febabebc8d9596aaf",
   "src/lib/numberWords.ts": "82d8466d83ba159a4d5f139e8897b4a20b4ce0487287447b26c901e9ac19624e",
   "src/lib/parseRef.ts": "3ab5c9828271af79a81d46bdd5f75ce94a2a341c83c835411d448f973f2a5ef1",
-  "scripts/golden/bible.ts": "2c13ef145b0d9fe47674f3f4c62f8c375288cc9d8337f075eb486ca2cfd54896"
+  "scripts/golden/bible.ts": "7741658447d8cadbfc51dab9dfc02710e47df7c1f2dacee30531ebd094b85877"
  },
+ "sqliteVersion": "3.53.4",
  "texts": {
   "kjv": {
    "databaseSha256": "347a8aee6d161b71c337944fd1ba6fab9a988e8595911044d14864cb612d6709",
@@ -13014,7 +13015,7 @@
    ],
    "chapter": null,
    "count": 65,
-   "hash": "e4fa87eanbc",
+   "hash": "d2f36428nbc",
    "setHash": "db247f10o7u",
    "first": [
     "JHN.15.9",
@@ -13032,7 +13033,7 @@
    ],
    "chapter": null,
    "count": 65,
-   "hash": "e4fa87eanbc",
+   "hash": "d2f36428nbc",
    "setHash": "db247f10o7u",
    "first": [
     "JHN.15.9",
